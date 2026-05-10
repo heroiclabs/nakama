@@ -31,7 +31,9 @@
 //   * Falls back to zero-valued profile on any error (never throws to client).
 
 var FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
-var EVENT_INDEX_COLLECTION = "analytics_event_count_user"; // optional rollup
+// Removed unused `analytics_event_count_user` declaration — never read or
+// written; the per-user event count is now derived from the GPA doc's
+// `events` ring buffer in analytics_player_profile.js drill-down RPCs.
 var DEFAULT_GAME_ID = "default";
 
 // Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
@@ -372,9 +374,13 @@ function rpcAnalyticsAdminPlayerFullProfile(ctx, logger, nk, payload) {
         var gameIdResolved = appResolveGameId(gameId);
 
         // 1. Lifetime profile snapshot
+        // Canonical GPA key is `gameId:userId` (see player_analytics_store.js
+        // gpaCasUpsert ~L135). Earlier this read used just `gameIdResolved`,
+        // which never matched any record → drill-down KPIs were always zero.
         var profile = {};
         try {
-            var p = nk.storageRead([{ collection: 'game_player_analytics', key: gameIdResolved, userId: userId }]);
+            var gpaKey = gameIdResolved + ':' + userId;
+            var p = nk.storageRead([{ collection: 'game_player_analytics', key: gpaKey, userId: userId }]);
             if (p && p.length > 0) profile = p[0].value || {};
         } catch (e) { /* ignore */ }
 

@@ -1,5 +1,12 @@
 // analytics_v2.js - Advanced Analytics RPCs for Nakama
 // Self-contained, ES5 compatible, no imports/exports
+//
+// 2026-05 — Every top-level function is intentionally suffixed with `V2`
+// (e.g. rpcAnalyticsV2Dashboard) to avoid shadowing the canonical
+// implementations in analytics.js / analytics_extended.js via JS function-
+// name hoisting at bundle time. None of these are registered as RPC IDs
+// today; they live here as a parallel/experimental implementation pending
+// migration to the unified `analytics_*` RPC surface.
 
 var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 
@@ -191,10 +198,10 @@ function sampleUserIds(nk, limit) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. rpcAnalyticsDashboard
+// 1. rpcAnalyticsV2Dashboard
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
+function rpcAnalyticsV2Dashboard(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameIds = data.game_id ? [avResolveGameId(data.game_id)] : discoverGameIds(nk, 7);
@@ -283,16 +290,16 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
       trends: { dau_7d_change_pct: dau7dChangePct }
     });
   } catch (e) {
-    logger.error("rpcAnalyticsDashboard error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2Dashboard error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 2. rpcAnalyticsRetentionCohort
+// 2. rpcAnalyticsV2RetentionCohort
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsRetentionCohort(ctx, logger, nk, payload) {
+function rpcAnalyticsV2RetentionCohort(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var cohortDate = data.cohort_date || analyticsDaysAgo(1);
@@ -351,16 +358,16 @@ function rpcAnalyticsRetentionCohort(ctx, logger, nk, payload) {
       raw_counts: rawCounts
     });
   } catch (e) {
-    logger.error("rpcAnalyticsRetentionCohort error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2RetentionCohort error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 3. rpcAnalyticsEngagementScore
+// 3. rpcAnalyticsV2EngagementScore
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsEngagementScore(ctx, logger, nk, payload) {
+function rpcAnalyticsV2EngagementScore(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var userId = data.user_id || ctx.userId;
@@ -454,16 +461,16 @@ function rpcAnalyticsEngagementScore(ctx, logger, nk, payload) {
       days_since_first: daysSinceFirst
     });
   } catch (e) {
-    logger.error("rpcAnalyticsEngagementScore error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2EngagementScore error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 4. rpcAnalyticsSessionStats
+// 4. rpcAnalyticsV2SessionStats
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
+function rpcAnalyticsV2SessionStats(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -543,16 +550,16 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
       daily_breakdown: dailyBreakdown
     });
   } catch (e) {
-    logger.error("rpcAnalyticsSessionStats error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2SessionStats error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 5. rpcAnalyticsFunnel
+// 5. rpcAnalyticsV2Funnel
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
+function rpcAnalyticsV2Funnel(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -602,7 +609,7 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
       worst_drop_off: worstDropOff
     });
   } catch (e) {
-    logger.error("rpcAnalyticsFunnel error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2Funnel error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
@@ -668,10 +675,10 @@ function countD7Return(nk, userIds) {
 }
 
 // ---------------------------------------------------------------------------
-// 6. rpcAnalyticsEconomyHealth
+// 6. rpcAnalyticsV2EconomyHealth
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
+function rpcAnalyticsV2EconomyHealth(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -769,16 +776,16 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
       sample_size: sampleSize
     });
   } catch (e) {
-    logger.error("rpcAnalyticsEconomyHealth error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2EconomyHealth error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 7. rpcAnalyticsErrorLog
+// 7. rpcAnalyticsV2ErrorLog
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
+function rpcAnalyticsV2ErrorLog(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -878,16 +885,16 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
       most_failing_rpc: mostFailing
     });
   } catch (e) {
-    logger.error("rpcAnalyticsErrorLog error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2ErrorLog error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 8. rpcAnalyticsFeatureAdoption
+// 8. rpcAnalyticsV2FeatureAdoption
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
+function rpcAnalyticsV2FeatureAdoption(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -964,16 +971,16 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
       recommendations: recommendations
     });
   } catch (e) {
-    logger.error("rpcAnalyticsFeatureAdoption error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2FeatureAdoption error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 9. rpcAnalyticsLogError (helper RPC for error tracking)
+// 9. rpcAnalyticsV2LogError (helper RPC for error tracking)
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsLogError(ctx, logger, nk, payload) {
+function rpcAnalyticsV2LogError(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var rpcName = data.rpc_name || "unknown";
@@ -1002,7 +1009,7 @@ function rpcAnalyticsLogError(ctx, logger, nk, payload) {
 
     return JSON.stringify({ success: true });
   } catch (e) {
-    logger.error("rpcAnalyticsLogError error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2LogError error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }

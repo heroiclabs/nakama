@@ -331,11 +331,26 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
     var limit  = Math.min(opts.limit || AB_EXISTING_PAGE_SIZE, AB_MAX_LIMIT);
     var page   = abListPage(nk, AB_DASH_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
 
-    var eventsScanned = 0, eventsPushed = 0, satoriCalls = 0;
+    var eventsScanned = 0, eventsPushed = 0, satoriCalls = 0, eventsSkippedDup = 0;
     var errors = [];
+
+    // ── Idempotency state ──
+    // Tracks the dash_* storage keys that were already published to Satori
+    // by previous backfill runs. Without this, kicking the auto-state-machine
+    // twice (e.g. on a redeploy) would double-publish the entire history.
+    // State doc shape: { keys: ["dash_…", …], updated_utc, total_processed }
+    // Capped at AB_EXISTING_DEDUPE_MAX entries to bound storage size; once
+    // we exceed the cap we drop the oldest. The dedupe set is a one-page
+    // window — fine because storageList returns pages in stable cursor
+    // order, so cursor advancement plus the in-page dedupe set is enough
+    // to prevent same-page resubmission.
+    var dedupeMax = AB_EXISTING_DEDUPE_MAX;
+    var seenSet   = abLoadExistingDedupe(nk, logger);
+    var seenAddedThisRun = [];
 
     // Bucket by userId so we can publish one Satori HTTP request per user.
     var byUser = {};
+    var pushedKeys = {}; // key → array of {uid, name, ts} so we can mark on success
     for (var i = 0; i < page.values.length; i++) {
         var rec = page.values[i];
         var ev  = rec.value || {};
@@ -343,11 +358,13 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
         var uid = ev.userId || ev.user_id;
         var name = ev.eventName || ev.name;
         var ts   = ev.unixTimestamp || ev.unix_timestamp;
+        var dashKey = rec.key;
         if (!uid || !name || !ts) continue;
         // Skip the synthetic admin smoke-test fan-outs and dau_check events
         // already produced by the dau_synthetic phase; those are housekeeping
         // and don't represent real user activity.
         if (name === "admin_smoke_test" || name === "dau_check") continue;
+        if (dashKey && seenSet[dashKey]) { eventsSkippedDup++; continue; }
         if (!byUser[uid]) byUser[uid] = [];
         byUser[uid].push({
             name: String(name),
@@ -358,6 +375,11 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
                 source: "events_existing_backfill"
             }
         });
+        if (dashKey) {
+            (pushedKeys[uid] = pushedKeys[uid] || []).push(dashKey);
+            seenAddedThisRun.push(dashKey);
+            if (seenAddedThisRun.length > dedupeMax) seenAddedThisRun.shift();
+        }
     }
 
     if (opts.dry_run) {
@@ -373,6 +395,7 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
         };
     }
 
+    var publishedAnything = false;
     if (satori) {
         for (var uid2 in byUser) {
             if (!Object.prototype.hasOwnProperty.call(byUser, uid2)) continue;
@@ -387,6 +410,7 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
                     } else {
                         satoriCalls++;
                         eventsPushed += slice.length;
+                        publishedAnything = true;
                     }
                 } catch (e) {
                     errors.push({ user_id: uid2, kind: "satori_publish", err: String(e.message || e) });
@@ -395,16 +419,82 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
         }
     }
 
+    // Persist the dedupe set so the next call (or next deploy) can skip
+    // already-published keys. Only commit on at least one successful push
+    // to avoid blocking retries when Satori is rejecting events outright.
+    if (publishedAnything && seenAddedThisRun.length > 0) {
+        abSaveExistingDedupe(nk, logger, seenSet, seenAddedThisRun, dedupeMax, eventsScanned);
+    }
+
     return {
         mode: "events_existing",
         events_scanned: eventsScanned,
         events_pushed: eventsPushed,
+        events_skipped_dup: eventsSkippedDup,
         satori_calls: satoriCalls,
         users: Object.keys(byUser).length,
         errors: errors.slice(0, 20),
         next_cursor: page.cursor || null,
         done: !page.cursor
     };
+}
+
+// ── Dedupe state helpers (used by abModeEventsExisting) ──
+//
+// Storage shape: collection `analytics_backfill_existing`, key `state`,
+// SYSTEM_USER. We store the seen-set as a flat string array (not a hash)
+// so a fresh export/import preserves it. Keys we care about are bounded
+// to ~26 chars (`dash_<userId>_<ts>_<rand>`); 5000 of those is ~130KB
+// well under Nakama's 1MB storage value cap.
+var AB_EXISTING_DEDUPE_COLL = "analytics_backfill_existing";
+var AB_EXISTING_DEDUPE_KEY  = "state";
+var AB_EXISTING_DEDUPE_MAX  = 5000;
+
+function abLoadExistingDedupe(nk, logger) {
+    var seen = {};
+    try {
+        var recs = nk.storageRead([{
+            collection: AB_EXISTING_DEDUPE_COLL,
+            key: AB_EXISTING_DEDUPE_KEY,
+            userId: AB_SYSTEM_USER
+        }]);
+        if (recs && recs.length > 0 && recs[0].value && recs[0].value.keys) {
+            var arr = recs[0].value.keys;
+            for (var i = 0; i < arr.length; i++) seen[arr[i]] = true;
+        }
+    } catch (e) {
+        if (logger && logger.warn) logger.warn("[abExistingDedupe] load failed: " + e);
+    }
+    return seen;
+}
+
+function abSaveExistingDedupe(nk, logger, seenSet, addedThisRun, capacity, scanned) {
+    try {
+        // Merge added into existing, then trim oldest. We don't track
+        // insertion time per key — rely on insertion order in the array.
+        var merged = [];
+        for (var k in seenSet) if (Object.prototype.hasOwnProperty.call(seenSet, k)) merged.push(k);
+        for (var j = 0; j < addedThisRun.length; j++) {
+            if (!seenSet[addedThisRun[j]]) merged.push(addedThisRun[j]);
+        }
+        // Drop oldest entries to fit within capacity
+        if (merged.length > capacity) merged = merged.slice(merged.length - capacity);
+        nk.storageWrite([{
+            collection: AB_EXISTING_DEDUPE_COLL,
+            key: AB_EXISTING_DEDUPE_KEY,
+            userId: AB_SYSTEM_USER,
+            value: {
+                keys: merged,
+                updated_utc: Math.floor(Date.now() / 1000),
+                last_scanned: scanned || 0,
+                last_added: addedThisRun.length
+            },
+            permissionRead: 1,
+            permissionWrite: 1
+        }]);
+    } catch (e) {
+        if (logger && logger.warn) logger.warn("[abExistingDedupe] save failed: " + e);
+    }
 }
 
 /**

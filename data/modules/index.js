@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-10T14:46:55.419Z
-// RPC Count: 729
+// Generated: 2026-05-10T15:26:09.343Z
+// RPC Count: 736
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -339,6 +339,13 @@ var __rpc_create_or_sync_user;
 var __rpc_push_register_token;
 var __rpc_push_send_event;
 var __rpc_push_get_endpoints;
+var __rpc_notif_cron_daily_quiz;
+var __rpc_notif_cron_weekly_quiz;
+var __rpc_notif_cron_idle_winback;
+var __rpc_notif_cron_streak_warning;
+var __rpc_notif_cron_motivation;
+var __rpc_notif_friend_request_sent;
+var __rpc_notif_friend_challenge;
 var __rpc_intellidraws_list;
 var __rpc_intellidraws_winners;
 var __rpc_intellidraws_enter;
@@ -740,7 +747,7 @@ var __rpc_visual_path_get_schedule;
 var __rpc_visual_path_skip_day_with_ad;
 
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
-var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"creator_event_fund_pool":true,"creator_event_spa_claim":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"ad_revenue_record":true,"fortune_wheel_ad_spin":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
+var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"notif_cron_daily_quiz":true,"notif_cron_weekly_quiz":true,"notif_cron_idle_winback":true,"notif_cron_streak_warning":true,"notif_cron_motivation":true,"notif_friend_request_sent":true,"notif_friend_challenge":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"creator_event_fund_pool":true,"creator_event_spa_claim":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"ad_revenue_record":true,"fortune_wheel_ad_spin":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
 // --- Discovered Modules (89 files) ---
 
@@ -4419,11 +4426,26 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
     var limit  = Math.min(opts.limit || AB_EXISTING_PAGE_SIZE, AB_MAX_LIMIT);
     var page   = abListPage(nk, AB_DASH_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
 
-    var eventsScanned = 0, eventsPushed = 0, satoriCalls = 0;
+    var eventsScanned = 0, eventsPushed = 0, satoriCalls = 0, eventsSkippedDup = 0;
     var errors = [];
+
+    // ── Idempotency state ──
+    // Tracks the dash_* storage keys that were already published to Satori
+    // by previous backfill runs. Without this, kicking the auto-state-machine
+    // twice (e.g. on a redeploy) would double-publish the entire history.
+    // State doc shape: { keys: ["dash_…", …], updated_utc, total_processed }
+    // Capped at AB_EXISTING_DEDUPE_MAX entries to bound storage size; once
+    // we exceed the cap we drop the oldest. The dedupe set is a one-page
+    // window — fine because storageList returns pages in stable cursor
+    // order, so cursor advancement plus the in-page dedupe set is enough
+    // to prevent same-page resubmission.
+    var dedupeMax = AB_EXISTING_DEDUPE_MAX;
+    var seenSet   = abLoadExistingDedupe(nk, logger);
+    var seenAddedThisRun = [];
 
     // Bucket by userId so we can publish one Satori HTTP request per user.
     var byUser = {};
+    var pushedKeys = {}; // key → array of {uid, name, ts} so we can mark on success
     for (var i = 0; i < page.values.length; i++) {
         var rec = page.values[i];
         var ev  = rec.value || {};
@@ -4431,11 +4453,13 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
         var uid = ev.userId || ev.user_id;
         var name = ev.eventName || ev.name;
         var ts   = ev.unixTimestamp || ev.unix_timestamp;
+        var dashKey = rec.key;
         if (!uid || !name || !ts) continue;
         // Skip the synthetic admin smoke-test fan-outs and dau_check events
         // already produced by the dau_synthetic phase; those are housekeeping
         // and don't represent real user activity.
         if (name === "admin_smoke_test" || name === "dau_check") continue;
+        if (dashKey && seenSet[dashKey]) { eventsSkippedDup++; continue; }
         if (!byUser[uid]) byUser[uid] = [];
         byUser[uid].push({
             name: String(name),
@@ -4446,6 +4470,11 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
                 source: "events_existing_backfill"
             }
         });
+        if (dashKey) {
+            (pushedKeys[uid] = pushedKeys[uid] || []).push(dashKey);
+            seenAddedThisRun.push(dashKey);
+            if (seenAddedThisRun.length > dedupeMax) seenAddedThisRun.shift();
+        }
     }
 
     if (opts.dry_run) {
@@ -4461,6 +4490,7 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
         };
     }
 
+    var publishedAnything = false;
     if (satori) {
         for (var uid2 in byUser) {
             if (!Object.prototype.hasOwnProperty.call(byUser, uid2)) continue;
@@ -4475,6 +4505,7 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
                     } else {
                         satoriCalls++;
                         eventsPushed += slice.length;
+                        publishedAnything = true;
                     }
                 } catch (e) {
                     errors.push({ user_id: uid2, kind: "satori_publish", err: String(e.message || e) });
@@ -4483,16 +4514,82 @@ function abModeEventsExisting(ctx, logger, nk, opts) {
         }
     }
 
+    // Persist the dedupe set so the next call (or next deploy) can skip
+    // already-published keys. Only commit on at least one successful push
+    // to avoid blocking retries when Satori is rejecting events outright.
+    if (publishedAnything && seenAddedThisRun.length > 0) {
+        abSaveExistingDedupe(nk, logger, seenSet, seenAddedThisRun, dedupeMax, eventsScanned);
+    }
+
     return {
         mode: "events_existing",
         events_scanned: eventsScanned,
         events_pushed: eventsPushed,
+        events_skipped_dup: eventsSkippedDup,
         satori_calls: satoriCalls,
         users: Object.keys(byUser).length,
         errors: errors.slice(0, 20),
         next_cursor: page.cursor || null,
         done: !page.cursor
     };
+}
+
+// ── Dedupe state helpers (used by abModeEventsExisting) ──
+//
+// Storage shape: collection `analytics_backfill_existing`, key `state`,
+// SYSTEM_USER. We store the seen-set as a flat string array (not a hash)
+// so a fresh export/import preserves it. Keys we care about are bounded
+// to ~26 chars (`dash_<userId>_<ts>_<rand>`); 5000 of those is ~130KB
+// well under Nakama's 1MB storage value cap.
+var AB_EXISTING_DEDUPE_COLL = "analytics_backfill_existing";
+var AB_EXISTING_DEDUPE_KEY  = "state";
+var AB_EXISTING_DEDUPE_MAX  = 5000;
+
+function abLoadExistingDedupe(nk, logger) {
+    var seen = {};
+    try {
+        var recs = nk.storageRead([{
+            collection: AB_EXISTING_DEDUPE_COLL,
+            key: AB_EXISTING_DEDUPE_KEY,
+            userId: AB_SYSTEM_USER
+        }]);
+        if (recs && recs.length > 0 && recs[0].value && recs[0].value.keys) {
+            var arr = recs[0].value.keys;
+            for (var i = 0; i < arr.length; i++) seen[arr[i]] = true;
+        }
+    } catch (e) {
+        if (logger && logger.warn) logger.warn("[abExistingDedupe] load failed: " + e);
+    }
+    return seen;
+}
+
+function abSaveExistingDedupe(nk, logger, seenSet, addedThisRun, capacity, scanned) {
+    try {
+        // Merge added into existing, then trim oldest. We don't track
+        // insertion time per key — rely on insertion order in the array.
+        var merged = [];
+        for (var k in seenSet) if (Object.prototype.hasOwnProperty.call(seenSet, k)) merged.push(k);
+        for (var j = 0; j < addedThisRun.length; j++) {
+            if (!seenSet[addedThisRun[j]]) merged.push(addedThisRun[j]);
+        }
+        // Drop oldest entries to fit within capacity
+        if (merged.length > capacity) merged = merged.slice(merged.length - capacity);
+        nk.storageWrite([{
+            collection: AB_EXISTING_DEDUPE_COLL,
+            key: AB_EXISTING_DEDUPE_KEY,
+            userId: AB_SYSTEM_USER,
+            value: {
+                keys: merged,
+                updated_utc: Math.floor(Date.now() / 1000),
+                last_scanned: scanned || 0,
+                last_added: addedThisRun.length
+            },
+            permissionRead: 1,
+            permissionWrite: 1
+        }]);
+    } catch (e) {
+        if (logger && logger.warn) logger.warn("[abExistingDedupe] save failed: " + e);
+    }
 }
 
 /**
@@ -6977,19 +7074,28 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             }
         }
         
-        // Also check DAU storage for platform breakdown (game-specific if filtered)
+        // Augment with the per-platform daily counter that ingestion writes
+        // via trackPlatform() in analytics.js. The previous implementation
+        // here read `dau_<platform>_<date>` keys that ingestion never writes
+        // (it writes `dau_<gameId>_<date>` and `dau_platform_<date>`), so the
+        // DAU loop never added anything. Now we read the canonical
+        // `analytics_platform` collection with keys
+        // `platform_<gameId>_<date>_<platform>`.
         for (var d = 0; d < Math.min(days, 7); d++) {
             var dateStr = extDaysAgo(d);
-            var platforms = ['android', 'ios', 'webgl', 'editor'];
-            
+            var platforms = ['android', 'ios', 'webgl', 'editor', 'unknown'];
+
             for (var p = 0; p < platforms.length; p++) {
-                var key = 'dau_' + platforms[p] + '_' + dateStr;
-                var dauRec = extStorageRead(nk, 'analytics_dau', key, SYSTEM_USER_ID);
-                
-                if (dauRec) {
-                    var count = dauRec.count || dauRec.uniqueUsers || (dauRec.users ? dauRec.users.length : 0);
-                    platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + count;
+                if (gameId) {
+                    var pkey = 'platform_' + gameId + '_' + dateStr + '_' + platforms[p];
+                    var pRec = extStorageRead(nk, 'analytics_platform', pkey, SYSTEM_USER_ID);
+                    if (pRec && pRec.count) {
+                        platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + pRec.count;
+                    }
                 }
+                // When gameId is null ("all games") we already have the
+                // accurate per-event tally from the scan above; the per-game
+                // counter scan is too expensive without the gameId prefix.
             }
         }
         
@@ -8905,7 +9011,9 @@ function __ModuleInit_9(ctx, logger, nk, initializer) {
 //   * Falls back to zero-valued profile on any error (never throws to client).
 
 var FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
-var EVENT_INDEX_COLLECTION = "analytics_event_count_user"; // optional rollup
+// Removed unused `analytics_event_count_user` declaration — never read or
+// written; the per-user event count is now derived from the GPA doc's
+// `events` ring buffer in analytics_player_profile.js drill-down RPCs.
 var DEFAULT_GAME_ID = "default";
 
 // Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
@@ -9246,9 +9354,13 @@ function rpcAnalyticsAdminPlayerFullProfile(ctx, logger, nk, payload) {
         var gameIdResolved = appResolveGameId(gameId);
 
         // 1. Lifetime profile snapshot
+        // Canonical GPA key is `gameId:userId` (see player_analytics_store.js
+        // gpaCasUpsert ~L135). Earlier this read used just `gameIdResolved`,
+        // which never matched any record → drill-down KPIs were always zero.
         var profile = {};
         try {
-            var p = nk.storageRead([{ collection: 'game_player_analytics', key: gameIdResolved, userId: userId }]);
+            var gpaKey = gameIdResolved + ':' + userId;
+            var p = nk.storageRead([{ collection: 'game_player_analytics', key: gpaKey, userId: userId }]);
             if (p && p.length > 0) profile = p[0].value || {};
         } catch (e) { /* ignore */ }
 
@@ -10540,6 +10652,13 @@ function __ModuleInit_12(ctx, logger, nk, initializer) {
 // --- Module: analytics_v2\analytics_v2.js ---
 // analytics_v2.js - Advanced Analytics RPCs for Nakama
 // Self-contained, ES5 compatible, no imports/exports
+//
+// 2026-05 — Every top-level function is intentionally suffixed with `V2`
+// (e.g. rpcAnalyticsV2Dashboard) to avoid shadowing the canonical
+// implementations in analytics.js / analytics_extended.js via JS function-
+// name hoisting at bundle time. None of these are registered as RPC IDs
+// today; they live here as a parallel/experimental implementation pending
+// migration to the unified `analytics_*` RPC surface.
 
 var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 
@@ -10731,10 +10850,10 @@ function sampleUserIds(nk, limit) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. rpcAnalyticsDashboard
+// 1. rpcAnalyticsV2Dashboard
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
+function rpcAnalyticsV2Dashboard(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameIds = data.game_id ? [avResolveGameId(data.game_id)] : discoverGameIds(nk, 7);
@@ -10823,16 +10942,16 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
       trends: { dau_7d_change_pct: dau7dChangePct }
     });
   } catch (e) {
-    logger.error("rpcAnalyticsDashboard error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2Dashboard error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 2. rpcAnalyticsRetentionCohort
+// 2. rpcAnalyticsV2RetentionCohort
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsRetentionCohort(ctx, logger, nk, payload) {
+function rpcAnalyticsV2RetentionCohort(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var cohortDate = data.cohort_date || analyticsDaysAgo(1);
@@ -10891,16 +11010,16 @@ function rpcAnalyticsRetentionCohort(ctx, logger, nk, payload) {
       raw_counts: rawCounts
     });
   } catch (e) {
-    logger.error("rpcAnalyticsRetentionCohort error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2RetentionCohort error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 3. rpcAnalyticsEngagementScore
+// 3. rpcAnalyticsV2EngagementScore
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsEngagementScore(ctx, logger, nk, payload) {
+function rpcAnalyticsV2EngagementScore(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var userId = data.user_id || ctx.userId;
@@ -10994,16 +11113,16 @@ function rpcAnalyticsEngagementScore(ctx, logger, nk, payload) {
       days_since_first: daysSinceFirst
     });
   } catch (e) {
-    logger.error("rpcAnalyticsEngagementScore error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2EngagementScore error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 4. rpcAnalyticsSessionStats
+// 4. rpcAnalyticsV2SessionStats
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
+function rpcAnalyticsV2SessionStats(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -11083,16 +11202,16 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
       daily_breakdown: dailyBreakdown
     });
   } catch (e) {
-    logger.error("rpcAnalyticsSessionStats error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2SessionStats error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 5. rpcAnalyticsFunnel
+// 5. rpcAnalyticsV2Funnel
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
+function rpcAnalyticsV2Funnel(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -11142,7 +11261,7 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
       worst_drop_off: worstDropOff
     });
   } catch (e) {
-    logger.error("rpcAnalyticsFunnel error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2Funnel error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
@@ -11208,10 +11327,10 @@ function countD7Return(nk, userIds) {
 }
 
 // ---------------------------------------------------------------------------
-// 6. rpcAnalyticsEconomyHealth
+// 6. rpcAnalyticsV2EconomyHealth
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
+function rpcAnalyticsV2EconomyHealth(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -11309,16 +11428,16 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
       sample_size: sampleSize
     });
   } catch (e) {
-    logger.error("rpcAnalyticsEconomyHealth error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2EconomyHealth error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 7. rpcAnalyticsErrorLog
+// 7. rpcAnalyticsV2ErrorLog
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
+function rpcAnalyticsV2ErrorLog(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -11418,16 +11537,16 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
       most_failing_rpc: mostFailing
     });
   } catch (e) {
-    logger.error("rpcAnalyticsErrorLog error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2ErrorLog error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 8. rpcAnalyticsFeatureAdoption
+// 8. rpcAnalyticsV2FeatureAdoption
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
+function rpcAnalyticsV2FeatureAdoption(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var gameId = avResolveGameId(data.game_id);
@@ -11504,16 +11623,16 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
       recommendations: recommendations
     });
   } catch (e) {
-    logger.error("rpcAnalyticsFeatureAdoption error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2FeatureAdoption error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
 
 // ---------------------------------------------------------------------------
-// 9. rpcAnalyticsLogError (helper RPC for error tracking)
+// 9. rpcAnalyticsV2LogError (helper RPC for error tracking)
 // ---------------------------------------------------------------------------
 
-function rpcAnalyticsLogError(ctx, logger, nk, payload) {
+function rpcAnalyticsV2LogError(ctx, logger, nk, payload) {
   try {
     var data = analyticsSafeJsonParse(payload);
     var rpcName = data.rpc_name || "unknown";
@@ -11542,7 +11661,7 @@ function rpcAnalyticsLogError(ctx, logger, nk, payload) {
 
     return JSON.stringify({ success: true });
   } catch (e) {
-    logger.error("rpcAnalyticsLogError error: %s", e.message || e);
+    logger.error("rpcAnalyticsV2LogError error: %s", e.message || e);
     return JSON.stringify({ error: e.message || "Internal error" });
   }
 }
@@ -33806,25 +33925,41 @@ function rpcQeCohortExport(ctx, logger, nk, payload) {
       [activeSinceDays, limit]
     );
 
-    // Batch-read analytics_events for every returned user in one call
-    var readRequests = [];
-    for (var i = 0; i < rows.length; i++) {
-      readRequests.push({
-        collection: 'analytics_events',
-        key:        'events',
-        userId:     rows[i].user_id
-      });
-    }
-
+    // Batch-read game_player_analytics docs (the per-user analytics
+    // ring buffer maintained by analytics/player_analytics_store.js).
+    // Earlier this read `analytics_events`/key=`events` per userId, but
+    // current ingestion writes `dash_*` keys under SYSTEM_USER instead —
+    // the legacy per-user shape is never created so cohort exports
+    // always saw null events. GPA docs are keyed `gameId:userId` and
+    // hold up to 500 most-recent events under `value.events`.
+    //
+    // Without a gameId hint we'd have to know every game the user has
+    // played; instead, list ALL keys with prefix `*:user_id` and pick
+    // the most recent doc. For the cohort export use case (any game
+    // activity is fine), reading the union of every game's most recent
+    // doc is the practical answer.
     var evMap = {};
-    if (readRequests.length > 0) {
+    for (var i = 0; i < rows.length; i++) {
+      var uid = rows[i].user_id;
       try {
-        var evRecords = nk.storageRead(readRequests);
-        for (var j = 0; j < evRecords.length; j++) {
-          evMap[evRecords[j].userId] = evRecords[j].value;
+        var listRes = nk.storageList(uid, 'game_player_analytics', 5, '');
+        if (listRes && listRes.objects) {
+          var combined = [];
+          for (var lo = 0; lo < listRes.objects.length; lo++) {
+            var v = listRes.objects[lo].value || {};
+            if (v.events && v.events.length) {
+              for (var ev = 0; ev < v.events.length; ev++) combined.push(v.events[ev]);
+            }
+          }
+          if (combined.length) {
+            // Sort newest-first; cap at 500 to keep payload bounded.
+            combined.sort(function(a, b) { return (b.t || 0) - (a.t || 0); });
+            if (combined.length > 500) combined.length = 500;
+            evMap[uid] = combined;
+          }
         }
       } catch (e) {
-        logger.warn('[QeAnalytics] batch event read failed: ' + e);
+        logger.warn('[QeAnalytics] GPA list failed for ' + uid + ': ' + e);
       }
     }
 
@@ -33854,13 +33989,26 @@ function rpcQeUserEventSummary(ctx, logger, nk, payload) {
     throw _qeBadRequest('user_id is required');
   }
 
+  // Read ALL game_player_analytics docs for this user (one per game)
+  // and merge the per-game `events` rings into a single newest-first
+  // list. See cohort-export comment above for why we list instead of
+  // a direct storageRead — the legacy shape (key=`events`) was never
+  // populated by the current ingestion path.
   try {
-    var records = nk.storageRead([
-      { collection: 'analytics_events', key: 'events', userId: userId }
-    ]);
-
-    if (records && records.length > 0 && records[0].value) {
-      return JSON.stringify({ events: records[0].value, found: true });
+    var listRes = nk.storageList(userId, 'game_player_analytics', 10, '');
+    if (listRes && listRes.objects && listRes.objects.length > 0) {
+      var combined = [];
+      for (var i = 0; i < listRes.objects.length; i++) {
+        var v = listRes.objects[i].value || {};
+        if (v.events && v.events.length) {
+          for (var ev = 0; ev < v.events.length; ev++) combined.push(v.events[ev]);
+        }
+      }
+      if (combined.length) {
+        combined.sort(function(a, b) { return (b.t || 0) - (a.t || 0); });
+        if (combined.length > 500) combined.length = 500;
+        return JSON.stringify({ events: combined, found: true });
+      }
     }
   } catch (e) {
     logger.warn('[QeAnalytics] qe_user_event_summary failed for ' + userId + ': ' + e);
@@ -83850,10 +83998,706 @@ var LegacyPush;
             return RpcHelpers.errorResponse(e.message || "Failed to get endpoints");
         }
     }
+    // ═══════════════════════════════════════════════════════════════════════════
+    //                       NOTIFICATION BROADCAST PIPELINE
+    // ───────────────────────────────────────────────────────────────────────────
+    // Server-driven engagement notifications. All 7 flows below run on Nakama
+    // (called by K8s CronJob → admin RPC), respect quiet hours (22:00–08:00
+    // user-local), respect once-per-day markers, and pick locale from the
+    // user's account.langTag / player metadata. Unity does no local scheduling
+    // when its `useRemoteOnlyNotifications` flag is on (see PushNotificationManager.cs).
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ─── Localization (13 supported locales — matches Unity's LocaleConstants) ─
+    // Placeholder syntax: {topic}, {type}, {streak}, {days}, {name}, {mode}.
+    var NOTIF_STRINGS = {
+        daily_quiz_title: {
+            en: "🎯 New Daily Quiz!", hi: "🎯 नया डेली क्विज़!", es: "🎯 ¡Nuevo Quiz Diario!", fr: "🎯 Nouveau Quiz Quotidien !",
+            de: "🎯 Neues Tages-Quiz!", pt: "🎯 Novo Quiz Diário!", ru: "🎯 Новый ежедневный квиз!", ja: "🎯 新しいデイリークイズ！",
+            ko: "🎯 새로운 데일리 퀴즈!", "zh-Hans": "🎯 每日新测验！", ar: "🎯 اختبار يومي جديد!", id: "🎯 Quiz Harian Baru!", zu: "🎯 Imibuzo emisha yansuku zonke!"
+        },
+        daily_quiz_body: {
+            en: "Today's topic: {topic}. Tap to play!", hi: "आज का विषय: {topic}. खेलने के लिए टैप करें!",
+            es: "Tema de hoy: {topic}. ¡Toca para jugar!", fr: "Sujet du jour : {topic}. Touchez pour jouer !",
+            de: "Heutiges Thema: {topic}. Tippen zum Spielen!", pt: "Tema de hoje: {topic}. Toque para jogar!",
+            ru: "Тема дня: {topic}. Нажмите, чтобы играть!", ja: "今日のトピック：{topic}。タップしてプレイ！",
+            ko: "오늘의 주제: {topic}. 탭하여 플레이!", "zh-Hans": "今日主题：{topic}。点击开始游戏！",
+            ar: "موضوع اليوم: {topic}. انقر للعب!", id: "Topik hari ini: {topic}. Ketuk untuk main!",
+            zu: "Isihloko sanamuhla: {topic}. Thepha ukuze udlale!"
+        },
+        weekly_quiz_title: {
+            en: "📚 Fresh Weekly Quiz!", hi: "📚 नया साप्ताहिक क्विज़!", es: "📚 ¡Nuevo Quiz Semanal!", fr: "📚 Nouveau Quiz Hebdo !",
+            de: "📚 Neues Wochen-Quiz!", pt: "📚 Novo Quiz Semanal!", ru: "📚 Новый еженедельный квиз!", ja: "📚 新しいウィークリークイズ！",
+            ko: "📚 새로운 위클리 퀴즈!", "zh-Hans": "📚 每周新测验！", ar: "📚 اختبار أسبوعي جديد!", id: "📚 Quiz Mingguan Baru!", zu: "📚 Imibuzo emisha yamasonto!"
+        },
+        weekly_quiz_body: {
+            en: "{type} quiz updated — fresh questions inside!", hi: "{type} क्विज़ अपडेट हुआ — नए प्रश्न मौजूद हैं!",
+            es: "El quiz de {type} se actualizó — ¡preguntas nuevas!", fr: "Le quiz {type} a été mis à jour — nouvelles questions !",
+            de: "Quiz {type} aktualisiert — neue Fragen warten!", pt: "Quiz {type} atualizado — novas perguntas!",
+            ru: "Квиз «{type}» обновлён — новые вопросы внутри!", ja: "{type}クイズが更新されました — 新しい問題！",
+            ko: "{type} 퀴즈 업데이트 — 새로운 문제 도착!", "zh-Hans": "{type}测验已更新 — 全新题目！",
+            ar: "تم تحديث اختبار {type} — أسئلة جديدة!", id: "Quiz {type} diperbarui — soal baru!",
+            zu: "Imibuzo ye-{type} ibuyekeziwe — imibuzo emisha!"
+        },
+        streak_warning_title: {
+            en: "🔥 Streak Alert!", hi: "🔥 स्ट्रीक अलर्ट!", es: "🔥 ¡Alerta de Racha!", fr: "🔥 Alerte série !",
+            de: "🔥 Serien-Alarm!", pt: "🔥 Alerta de Sequência!", ru: "🔥 Серия в опасности!", ja: "🔥 連続記録アラート！",
+            ko: "🔥 연속 기록 경고!", "zh-Hans": "🔥 连胜警报！", ar: "🔥 تنبيه السلسلة!", id: "🔥 Peringatan Streak!", zu: "🔥 Isexwayiso sokuqhubeka!"
+        },
+        streak_warning_body: {
+            en: "Don't lose your {streak}-day streak! Play now.", hi: "अपनी {streak}-दिन की स्ट्रीक मत खोएं! अभी खेलें।",
+            es: "¡No pierdas tu racha de {streak} días! Juega ya.", fr: "Ne perdez pas vos {streak} jours de série ! Jouez maintenant.",
+            de: "Verliere nicht deine {streak}-Tage-Serie! Jetzt spielen.", pt: "Não perca sua sequência de {streak} dias! Jogue agora.",
+            ru: "Не теряй серию из {streak} дней! Играй сейчас.", ja: "{streak}日連続記録を失わないで！今すぐプレイ。",
+            ko: "{streak}일 연속 기록을 잃지 마세요! 지금 플레이.", "zh-Hans": "别让 {streak} 天连胜中断！立即开玩。",
+            ar: "لا تفقد سلسلة {streak} يوم! العب الآن.", id: "Jangan hilangkan streak {streak} hari! Main sekarang.",
+            zu: "Ungalahli ukuqhubeka kwakho kwezinsuku ezingu-{streak}! Dlala manje."
+        },
+        idle_winback_title: {
+            en: "👋 We miss you!", hi: "👋 हमें आपकी याद आती है!", es: "👋 ¡Te extrañamos!", fr: "👋 Tu nous manques !",
+            de: "👋 Wir vermissen dich!", pt: "👋 Sentimos sua falta!", ru: "👋 Мы скучаем!", ja: "👋 お待ちしています！",
+            ko: "👋 그리워요!", "zh-Hans": "👋 想你了！", ar: "👋 افتقدناك!", id: "👋 Kami merindukanmu!", zu: "👋 Sikukhumbula!"
+        },
+        idle_winback_body: {
+            en: "It's been {days} days. New quizzes are waiting — come back!", hi: "{days} दिन हो गए। नए क्विज़ इंतज़ार कर रहे हैं — वापस आइए!",
+            es: "Han pasado {days} días. Nuevos quizzes te esperan — ¡vuelve!", fr: "Cela fait {days} jours. De nouveaux quiz t'attendent — reviens !",
+            de: "Es ist {days} Tage her. Neue Quizze warten — komm zurück!", pt: "Já se passaram {days} dias. Novos quizzes esperam — volte!",
+            ru: "Прошло {days} дн. Новые квизы ждут — возвращайся!", ja: "{days}日経ちました。新しいクイズが待っています — 戻ってきて！",
+            ko: "{days}일이 지났어요. 새로운 퀴즈가 기다려요 — 돌아와요!", "zh-Hans": "已过去 {days} 天。新测验在等你 — 回来吧！",
+            ar: "مرّت {days} أيام. اختبارات جديدة بانتظارك — عُد!", id: "Sudah {days} hari. Quiz baru menunggu — kembali!",
+            zu: "Sekuyizinsuku ezingu-{days}. Imibuzo emisha ikulindile — buyela!"
+        },
+        motivation_title: {
+            en: "💪 You've got this!", hi: "💪 आप कर सकते हैं!", es: "💪 ¡Tú puedes!", fr: "💪 Tu peux le faire !",
+            de: "💪 Du schaffst das!", pt: "💪 Você consegue!", ru: "💪 У тебя получится!", ja: "💪 君ならできる！",
+            ko: "💪 할 수 있어요!", "zh-Hans": "💪 你行的！", ar: "💪 تستطيع ذلك!", id: "💪 Kamu pasti bisa!", zu: "💪 Uyakwazi!"
+        },
+        motivation_body: {
+            en: "One quiz a day keeps your brain sharp. Open QuizVerse now.", hi: "रोज़ एक क्विज़ दिमाग को तेज़ रखता है। अभी QuizVerse खोलें।",
+            es: "Un quiz al día mantiene tu mente afilada. Abre QuizVerse.", fr: "Un quiz par jour garde l'esprit affûté. Ouvre QuizVerse.",
+            de: "Ein Quiz pro Tag hält den Kopf scharf. Öffne QuizVerse.", pt: "Um quiz por dia deixa sua mente afiada. Abra o QuizVerse.",
+            ru: "Один квиз в день — и ум острый. Открой QuizVerse.", ja: "1日1クイズで頭脳明晰。QuizVerseを開こう。",
+            ko: "하루 한 퀴즈로 두뇌를 깨우세요. 지금 QuizVerse를 열어요.", "zh-Hans": "每天一题，思维敏捷。打开 QuizVerse。",
+            ar: "اختبار يومي يبقي عقلك حاداً. افتح QuizVerse الآن.", id: "Satu quiz sehari menjaga otak tajam. Buka QuizVerse.",
+            zu: "Umbuzo owodwa ngosuku ugcina ingqondo iqwasha. Vula i-QuizVerse."
+        },
+        friend_request_title: {
+            en: "👋 New Friend Request", hi: "👋 नया फ्रेंड रिक्वेस्ट", es: "👋 Nueva solicitud", fr: "👋 Nouvelle demande d'ami",
+            de: "👋 Neue Freundschaftsanfrage", pt: "👋 Novo pedido de amizade", ru: "👋 Запрос в друзья", ja: "👋 新しい友達リクエスト",
+            ko: "👋 새로운 친구 요청", "zh-Hans": "👋 新好友请求", ar: "👋 طلب صداقة جديد", id: "👋 Permintaan Teman Baru", zu: "👋 Isicelo somngane esisha"
+        },
+        friend_request_body: {
+            en: "{name} sent you a friend request. Tap to accept.", hi: "{name} ने आपको फ्रेंड रिक्वेस्ट भेजी है। स्वीकार करने के लिए टैप करें।",
+            es: "{name} te envió una solicitud. Toca para aceptar.", fr: "{name} t'a envoyé une demande. Touche pour accepter.",
+            de: "{name} hat dir eine Anfrage geschickt. Tippe zum Annehmen.", pt: "{name} enviou um pedido. Toque para aceitar.",
+            ru: "{name} отправил(а) запрос. Нажми, чтобы принять.", ja: "{name}さんから友達リクエスト。タップで承認。",
+            ko: "{name}님이 친구 요청을 보냈어요. 탭하여 수락.", "zh-Hans": "{name} 发来好友请求。点击接受。",
+            ar: "{name} أرسل طلب صداقة. انقر للقبول.", id: "{name} mengirim permintaan teman. Ketuk untuk terima.",
+            zu: "U-{name} ukuthumelele isicelo somngane. Thepha ukwamukela."
+        },
+        friend_challenge_title: {
+            en: "⚔️ Challenge Received!", hi: "⚔️ चैलेंज मिला!", es: "⚔️ ¡Reto recibido!", fr: "⚔️ Défi reçu !",
+            de: "⚔️ Herausforderung!", pt: "⚔️ Desafio recebido!", ru: "⚔️ Вызов!", ja: "⚔️ 挑戦を受けた！",
+            ko: "⚔️ 도전장 도착!", "zh-Hans": "⚔️ 收到挑战！", ar: "⚔️ تم استلام تحدٍ!", id: "⚔️ Tantangan diterima!", zu: "⚔️ Inselelo ifikile!"
+        },
+        friend_challenge_body: {
+            en: "{name} challenged you to {mode}. Show them what you've got!", hi: "{name} ने आपको {mode} में चैलेंज किया है। दिखाइए अपना दम!",
+            es: "{name} te retó a {mode}. ¡Muéstrales lo que tienes!", fr: "{name} t'a défié à {mode}. Montre-leur de quoi tu es capable !",
+            de: "{name} fordert dich zu {mode} heraus. Zeig was du kannst!", pt: "{name} desafiou você no {mode}. Mostre do que é capaz!",
+            ru: "{name} бросил(а) вызов в {mode}. Покажи себя!", ja: "{name}さんが{mode}で挑戦してきた！実力を見せつけよう！",
+            ko: "{name}님이 {mode}에 도전했어요. 실력을 보여주세요!", "zh-Hans": "{name} 在 {mode} 中向你挑战。亮出实力！",
+            ar: "{name} تحداك في {mode}. أرِهم ما لديك!", id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
+            zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
+        }
+    };
+    function localize(locale, key, vars) {
+        var entry = NOTIF_STRINGS[key];
+        if (!entry)
+            return key;
+        var template = entry[locale] || entry["en"] || key;
+        if (vars) {
+            for (var k in vars) {
+                template = template.split("{" + k + "}").join(String(vars[k]));
+            }
+        }
+        return template;
+    }
+    // ─── Locale resolution (account.langTag → metadata.language → 'en') ────────
+    function normalizeLocale(tag) {
+        if (!tag)
+            return "en";
+        var t = String(tag).trim();
+        if (t.toLowerCase().indexOf("zh") === 0)
+            return "zh-Hans";
+        if (t.indexOf("-") > 0)
+            t = t.split("-")[0];
+        var supported = ["en", "ar", "de", "es", "fr", "hi", "id", "ja", "ko", "pt", "ru", "zh-Hans", "zu"];
+        var lc = t.toLowerCase();
+        for (var i = 0; i < supported.length; i++) {
+            if (supported[i].toLowerCase() === lc)
+                return supported[i];
+        }
+        return "en";
+    }
+    function getUserLocale(nk, userId) {
+        try {
+            var account = nk.accountGetId(userId);
+            if (account && account.user && account.user.langTag)
+                return normalizeLocale(account.user.langTag);
+        }
+        catch (_) { }
+        try {
+            var meta = Storage.readJson(nk, Constants.PLAYER_METADATA_COLLECTION, "metadata", userId);
+            if (meta && meta.language)
+                return normalizeLocale(meta.language);
+        }
+        catch (_) { }
+        return "en";
+    }
+    // ─── Quiet hours: 22:00 – 08:00 in the user's local time ───────────────────
+    function getUserTimezoneOffsetMinutes(nk, userId) {
+        try {
+            var account = nk.accountGetId(userId);
+            var tz = account && account.user ? account.user.timezone : "";
+            if (!tz) {
+                var meta = Storage.readJson(nk, Constants.PLAYER_METADATA_COLLECTION, "metadata", userId);
+                tz = meta && meta.timezone ? meta.timezone : "";
+            }
+            if (!tz)
+                return 0;
+            var m = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(String(tz));
+            if (m) {
+                var sign = m[1] === "-" ? -1 : 1;
+                return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
+            }
+            // Common IANA fallbacks (cheap built-in lookup; no tz lib in Goja)
+            var iana = {
+                "Asia/Kolkata": 330, "Asia/Karachi": 300, "Asia/Tokyo": 540, "Asia/Seoul": 540,
+                "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Dubai": 240, "Asia/Jakarta": 420,
+                "Europe/London": 0, "Europe/Berlin": 60, "Europe/Paris": 60, "Europe/Moscow": 180,
+                "America/New_York": -300, "America/Chicago": -360, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
+                "Africa/Johannesburg": 120, "Australia/Sydney": 600
+            };
+            if (iana[String(tz)] !== undefined)
+                return iana[String(tz)];
+        }
+        catch (_) { }
+        return 0;
+    }
+    function getUserLocalHour(nk, userId) {
+        var offsetMin = getUserTimezoneOffsetMinutes(nk, userId);
+        return new Date(Date.now() + offsetMin * 60000).getUTCHours();
+    }
+    function isInQuietHours(nk, userId) {
+        var h = getUserLocalHour(nk, userId);
+        return h >= 22 || h < 8;
+    }
+    // ─── Once-per-day / once-per-week markers (storage-backed, no race) ────────
+    var NOTIF_MARKER_COLLECTION = "notif_send_markers";
+    function readMarkers(nk, userId) {
+        try {
+            var records = nk.storageRead([{ collection: NOTIF_MARKER_COLLECTION, key: "markers", userId: userId }]);
+            if (records && records.length > 0 && records[0].value)
+                return records[0].value;
+        }
+        catch (_) { }
+        return {};
+    }
+    function writeMarkers(nk, userId, markers) {
+        try {
+            nk.storageWrite([{
+                    collection: NOTIF_MARKER_COLLECTION, key: "markers", userId: userId,
+                    value: markers, permissionRead: 0, permissionWrite: 0
+                }]);
+        }
+        catch (_) { }
+    }
+    function recordMarker(nk, userId, key, value) {
+        var markers = readMarkers(nk, userId);
+        markers[key] = value;
+        writeMarkers(nk, userId, markers);
+    }
+    function hasMarker(nk, userId, key, expected) {
+        var markers = readMarkers(nk, userId);
+        return markers && markers[key] === expected;
+    }
+    function todayDateKey() {
+        var d = new Date();
+        var mm = d.getUTCMonth() + 1;
+        var dd = d.getUTCDate();
+        return d.getUTCFullYear() + "-" + (mm < 10 ? "0" : "") + mm + "-" + (dd < 10 ? "0" : "") + dd;
+    }
+    // ─── List opted-in users (those with at least one push token) ──────────────
+    // Uses Nakama's SQL pass-through (Goja runtime supports nk.sqlQuery).
+    function listOptedInUsers(nk, limit, offset) {
+        try {
+            var rows = nk.sqlQuery("SELECT user_id::text FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000' ORDER BY user_id LIMIT $2 OFFSET $3", [Constants.PUSH_TOKENS_COLLECTION, limit, offset]);
+            var ids = [];
+            if (rows && rows.length) {
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i] && rows[i].length > 0)
+                        ids.push(String(rows[i][0]));
+                }
+            }
+            return ids;
+        }
+        catch (_) {
+            return [];
+        }
+    }
+    // ─── Send a localized push to one user (respects tokens, quiet hours, gates) ─
+    function sendLocalizedPushToUser(ctx, logger, nk, userId, eventType, titleKey, bodyKey, vars, opts) {
+        opts = opts || {};
+        if (!opts.skipQuietHours && isInQuietHours(nk, userId))
+            return false;
+        var locale = getUserLocale(nk, userId);
+        var title = localize(locale, titleKey, vars);
+        var body = localize(locale, bodyKey, vars);
+        var tokensData = getPushTokens(nk, userId);
+        if (!tokensData.tokens || tokensData.tokens.length === 0)
+            return false;
+        var sent = 0;
+        for (var i = 0; i < tokensData.tokens.length; i++) {
+            var t = tokensData.tokens[i];
+            var providerResult = sendProviderPush(ctx, logger, nk, t, {
+                title: title, body: body, data: opts.data || {},
+                gameId: opts.gameId || "quizverse", eventType: eventType
+            });
+            if (providerResult.success === true)
+                sent++;
+        }
+        try {
+            nk.notificationsSend([{
+                    userId: userId, subject: eventType,
+                    content: { eventType: eventType, title: title, body: body, data: opts.data || {} },
+                    code: DEFAULT_PUSH_NOTIFICATION_CODE, persistent: true
+                }]);
+        }
+        catch (_) { }
+        return sent > 0;
+    }
+    // ─── S3 fetchers (mirror the URL shapes Unity already uses) ─────────────────
+    var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
+    function fetchDailyQuizForToday(nk, logger) {
+        var dateStr = todayDateKey();
+        var url = S3_BASE + "/daily-quiz/dailyquiz-" + dateStr + ".json";
+        try {
+            var resp = nk.httpRequest(url, "get", {}, "", 10000);
+            if (resp && resp.code >= 200 && resp.code < 300) {
+                try {
+                    return JSON.parse(resp.body);
+                }
+                catch (_) {
+                    return null;
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[NotifCron] daily fetch failed: %s", e && e.message ? e.message : String(e));
+        }
+        return null;
+    }
+    function getISOWeekDate(d) {
+        var u = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        var isoDay = u.getUTCDay() === 0 ? 7 : u.getUTCDay();
+        u.setUTCDate(u.getUTCDate() + 4 - isoDay);
+        var year = u.getUTCFullYear();
+        var jan4 = new Date(Date.UTC(year, 0, 4));
+        var jan4Day = jan4.getUTCDay() === 0 ? 7 : jan4.getUTCDay();
+        var w1Start = new Date(Date.UTC(year, 0, 4 - jan4Day + 1));
+        var weekNum = Math.floor((u.getTime() - w1Start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+        return { year: year, week: weekNum, day: isoDay };
+    }
+    function fetchWeeklyQuizForType(nk, logger, type, lang) {
+        var iso = getISOWeekDate(new Date());
+        // Try today's day-of-week first, then walk backward 6 days within current week
+        for (var offset = 0; offset < 7; offset++) {
+            var altDay = iso.day - offset;
+            if (altDay < 1)
+                altDay += 7;
+            var url = S3_BASE + "/quiz-verse/weekly/" + iso.year + "-" + iso.week + "-" + altDay + "-" + type + "_" + lang + ".json";
+            try {
+                var resp = nk.httpRequest(url, "get", {}, "", offset === 0 ? 10000 : 5000);
+                if (resp && resp.code >= 200 && resp.code < 300 && resp.body && resp.body.length > 100) {
+                    try {
+                        return JSON.parse(resp.body);
+                    }
+                    catch (_) {
+                        continue;
+                    }
+                }
+            }
+            catch (_) { }
+        }
+        return null;
+    }
+    // ─── Weekly diff cache: collection holds last (weekId, themeId) per (type, lang) ─
+    var WEEKLY_DIFF_COLLECTION = "notif_weekly_diff";
+    function readWeeklyMarker(nk, type, lang) {
+        try {
+            var key = type + "_" + lang;
+            var rec = nk.storageRead([{ collection: WEEKLY_DIFF_COLLECTION, key: key, userId: Constants.SYSTEM_USER_ID }]);
+            if (rec && rec.length > 0 && rec[0].value)
+                return String(rec[0].value.signature || "");
+        }
+        catch (_) { }
+        return "";
+    }
+    function writeWeeklyMarker(nk, type, lang, signature) {
+        try {
+            var key = type + "_" + lang;
+            nk.storageWrite([{
+                    collection: WEEKLY_DIFF_COLLECTION, key: key, userId: Constants.SYSTEM_USER_ID,
+                    value: { signature: signature, updatedAt: new Date().toISOString() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+        }
+        catch (_) { }
+    }
+    // ─── 1. Daily quiz cron (broadcast localized "new daily quiz" with topic) ─
+    function rpcNotifCronDailyQuiz(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var quiz = fetchDailyQuizForToday(nk, logger);
+        if (!quiz)
+            return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
+        var topic = quiz.title || quiz.category || quiz.theme || "today's quiz";
+        var todayKey = todayDateKey();
+        var sent = 0, gated = 0, scanned = 0;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listOptedInUsers(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                scanned++;
+                var u = users[i];
+                var h = getUserLocalHour(nk, u);
+                if (h < 9 || h >= 13) {
+                    gated++;
+                    continue;
+                } // outside daily push window
+                if (hasMarker(nk, u, "daily_quiz", todayKey)) {
+                    gated++;
+                    continue;
+                }
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz", "daily_quiz_title", "daily_quiz_body", { topic: topic }, { data: { screen: "daily_quiz" } });
+                if (ok) {
+                    recordMarker(nk, u, "daily_quiz", todayKey);
+                    sent++;
+                }
+                else {
+                    gated++;
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: topic });
+    }
+    // ─── 2. Weekly quiz cron (read 5 types × 13 langs daily, push only on diff) ─
+    function rpcNotifCronWeeklyQuiz(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        // COMPATIBILITY EXCLUDED per product spec — only the 5 mainline weekly types.
+        var types = ["fortune", "emoji", "prediction", "health", "personal_finance"];
+        var langs = ["en", "ar", "de", "es", "fr", "hi", "id", "ja", "ko", "pt", "ru", "zh-Hans", "zu"];
+        // Per-(type,lang) signature = weekId|themeId; skip pushing when unchanged.
+        var changedByType = {};
+        for (var ti = 0; ti < types.length; ti++) {
+            var t = types[ti];
+            for (var li = 0; li < langs.length; li++) {
+                var l = langs[li];
+                var quiz = fetchWeeklyQuizForType(nk, logger, t, l);
+                if (!quiz)
+                    continue;
+                var sig = (quiz.weekId || quiz.quiz_id || "") + "|" + (quiz.themeId || "");
+                if (!sig || sig === "|")
+                    continue;
+                var prev = readWeeklyMarker(nk, t, l);
+                if (prev === sig)
+                    continue; // no change → skip push for this (type,lang)
+                writeWeeklyMarker(nk, t, l, sig);
+                if (!changedByType[t])
+                    changedByType[t] = {};
+                changedByType[t][l] = quiz.title || quiz.category || t;
+            }
+        }
+        var changedTypes = [];
+        for (var k in changedByType)
+            changedTypes.push(k);
+        if (changedTypes.length === 0)
+            return RpcHelpers.successResponse({ skipped: "no_weekly_changes" });
+        var todayKey = todayDateKey();
+        var sent = 0, gated = 0, scanned = 0;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listOptedInUsers(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                scanned++;
+                var u = users[i];
+                var h = getUserLocalHour(nk, u);
+                if (h < 10 || h >= 20) {
+                    gated++;
+                    continue;
+                } // weekly window 10:00–20:00 local
+                var dayMarkerKey = "weekly_quiz_" + changedTypes.join("_");
+                if (hasMarker(nk, u, dayMarkerKey, todayKey)) {
+                    gated++;
+                    continue;
+                }
+                var locale = getUserLocale(nk, u);
+                // Push one notification mentioning whichever changed type has copy in user's locale (first match).
+                var pushedForType = null;
+                for (var c = 0; c < changedTypes.length; c++) {
+                    var ct = changedTypes[c];
+                    if (changedByType[ct][locale] !== undefined) {
+                        pushedForType = ct;
+                        break;
+                    }
+                }
+                if (!pushedForType)
+                    pushedForType = changedTypes[0];
+                var typeLabel = changedByType[pushedForType][locale] || changedByType[pushedForType]["en"] || pushedForType;
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "weekly_quiz", "weekly_quiz_title", "weekly_quiz_body", { type: typeLabel }, { data: { screen: "weekly_quiz", type: pushedForType } });
+                if (ok) {
+                    recordMarker(nk, u, dayMarkerKey, todayKey);
+                    sent++;
+                }
+                else {
+                    gated++;
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes });
+    }
+    // ─── 3. Idle win-back cron (24–48 h since last session) ────────────────────
+    function rpcNotifCronIdleWinback(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var todayKey = todayDateKey();
+        var sent = 0, gated = 0, scanned = 0;
+        var nowMs = Date.now();
+        var minIdleMs = 24 * 3600 * 1000;
+        var maxIdleMs = 48 * 3600 * 1000;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listOptedInUsers(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                scanned++;
+                var u = users[i];
+                if (hasMarker(nk, u, "idle_winback", todayKey)) {
+                    gated++;
+                    continue;
+                }
+                var h = getUserLocalHour(nk, u);
+                if (h < 11 || h >= 19) {
+                    gated++;
+                    continue;
+                } // mid-day window only
+                // Read last session from existing winback collection (winback_session)
+                var lastMs = 0;
+                try {
+                    var rec = nk.storageRead([{ collection: "winback_session", key: "session_quizverse", userId: u }]);
+                    if (rec && rec.length > 0 && rec[0].value && rec[0].value.lastSessionTime) {
+                        lastMs = Date.parse(rec[0].value.lastSessionTime);
+                    }
+                }
+                catch (_) { }
+                if (!lastMs) {
+                    gated++;
+                    continue;
+                }
+                var idle = nowMs - lastMs;
+                if (idle < minIdleMs || idle > maxIdleMs) {
+                    gated++;
+                    continue;
+                }
+                var days = Math.floor(idle / (24 * 3600 * 1000)) || 1;
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "idle_winback", "idle_winback_title", "idle_winback_body", { days: days }, { data: { screen: "home" } });
+                if (ok) {
+                    recordMarker(nk, u, "idle_winback", todayKey);
+                    sent++;
+                }
+                else {
+                    gated++;
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned });
+    }
+    // ─── 4. Streak warning cron (18:00–21:00 local; user has streak ≥ 2) ────────
+    function rpcNotifCronStreakWarning(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var todayKey = todayDateKey();
+        var sent = 0, gated = 0, scanned = 0;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listOptedInUsers(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                scanned++;
+                var u = users[i];
+                if (hasMarker(nk, u, "streak_warning", todayKey)) {
+                    gated++;
+                    continue;
+                }
+                var h = getUserLocalHour(nk, u);
+                if (h < 18 || h >= 22) {
+                    gated++;
+                    continue;
+                }
+                // Best-effort streak read: try player metadata first, then weekly_goals progress
+                var streak = 0;
+                try {
+                    var meta = Storage.readJson(nk, Constants.PLAYER_METADATA_COLLECTION, "metadata", u);
+                    if (meta && typeof meta.currentStreak === "number")
+                        streak = meta.currentStreak;
+                    else if (meta && meta.customData && typeof meta.customData.currentStreak === "number")
+                        streak = meta.customData.currentStreak;
+                }
+                catch (_) { }
+                if (streak < 2) {
+                    gated++;
+                    continue;
+                }
+                // Skip if user already played today (last session within UTC today)
+                try {
+                    var rec = nk.storageRead([{ collection: "winback_session", key: "session_quizverse", userId: u }]);
+                    if (rec && rec.length > 0 && rec[0].value && rec[0].value.lastSessionTime) {
+                        var lastDay = String(rec[0].value.lastSessionTime).slice(0, 10);
+                        if (lastDay === todayKey) {
+                            gated++;
+                            continue;
+                        }
+                    }
+                }
+                catch (_) { }
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "streak_warning", "streak_warning_title", "streak_warning_body", { streak: streak }, { data: { screen: "daily_quiz" } });
+                if (ok) {
+                    recordMarker(nk, u, "streak_warning", todayKey);
+                    sent++;
+                }
+                else {
+                    gated++;
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned });
+    }
+    // ─── 5. Motivation cron (idle 3–7 days, once every 3 days) ─────────────────
+    function rpcNotifCronMotivation(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var todayKey = todayDateKey();
+        var sent = 0, gated = 0, scanned = 0;
+        var nowMs = Date.now();
+        var minIdleMs = 3 * 24 * 3600 * 1000;
+        var maxIdleMs = 7 * 24 * 3600 * 1000;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listOptedInUsers(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                scanned++;
+                var u = users[i];
+                var h = getUserLocalHour(nk, u);
+                if (h < 12 || h >= 18) {
+                    gated++;
+                    continue;
+                }
+                // throttle: at most one motivation push per 3 calendar days
+                var markers = readMarkers(nk, u);
+                if (markers && markers.motivation_last_at) {
+                    var lastDays = (nowMs - Date.parse(markers.motivation_last_at)) / (24 * 3600 * 1000);
+                    if (lastDays < 3) {
+                        gated++;
+                        continue;
+                    }
+                }
+                var lastMs = 0;
+                try {
+                    var rec = nk.storageRead([{ collection: "winback_session", key: "session_quizverse", userId: u }]);
+                    if (rec && rec.length > 0 && rec[0].value && rec[0].value.lastSessionTime) {
+                        lastMs = Date.parse(rec[0].value.lastSessionTime);
+                    }
+                }
+                catch (_) { }
+                if (!lastMs) {
+                    gated++;
+                    continue;
+                }
+                var idle = nowMs - lastMs;
+                if (idle < minIdleMs || idle > maxIdleMs) {
+                    gated++;
+                    continue;
+                }
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "motivation", "motivation_title", "motivation_body", {}, { data: { screen: "home" } });
+                if (ok) {
+                    recordMarker(nk, u, "motivation_last_at", new Date().toISOString());
+                    sent++;
+                }
+                else {
+                    gated++;
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned });
+    }
+    // ─── 6. Friend request push (event-driven; called inline from invite RPC) ──
+    // Payload: { fromUserId, toUserId, fromName }   (admin/server-key only)
+    function rpcNotifFriendRequestSent(ctx, logger, nk, payload) {
+        var d = RpcHelpers.parseRpcPayload(payload);
+        var to = d.toUserId || d.targetUserId;
+        var name = d.fromName || d.name || "Someone";
+        if (!to)
+            return RpcHelpers.errorResponse("toUserId required");
+        var ok = sendLocalizedPushToUser(ctx, logger, nk, to, "friend_request", "friend_request_title", "friend_request_body", { name: name }, { skipQuietHours: true, data: { screen: "friends", fromUserId: d.fromUserId || "" } });
+        return RpcHelpers.successResponse({ sent: ok });
+    }
+    // ─── 7. Friend challenge push (event-driven) ───────────────────────────────
+    // Payload: { fromUserId, toUserId, fromName, mode }
+    function rpcNotifFriendChallenge(ctx, logger, nk, payload) {
+        var d = RpcHelpers.parseRpcPayload(payload);
+        var to = d.toUserId || d.targetUserId;
+        var name = d.fromName || d.name || "A friend";
+        var mode = d.mode || d.gameMode || "QuizVerse";
+        if (!to)
+            return RpcHelpers.errorResponse("toUserId required");
+        var ok = sendLocalizedPushToUser(ctx, logger, nk, to, "friend_challenge", "friend_challenge_title", "friend_challenge_body", { name: name, mode: mode }, { skipQuietHours: true, data: { screen: "challenges", fromUserId: d.fromUserId || "", mode: mode } });
+        return RpcHelpers.successResponse({ sent: ok });
+    }
     function register(initializer) {
         __rpc_push_register_token = rpcPushRegisterToken;
         __rpc_push_send_event = rpcPushSendEvent;
         __rpc_push_get_endpoints = rpcPushGetEndpoints;
+        // Notification broadcaster — admin/server-key callers only (no userId in ctx).
+        __rpc_notif_cron_daily_quiz = rpcNotifCronDailyQuiz;
+        __rpc_notif_cron_weekly_quiz = rpcNotifCronWeeklyQuiz;
+        __rpc_notif_cron_idle_winback = rpcNotifCronIdleWinback;
+        __rpc_notif_cron_streak_warning = rpcNotifCronStreakWarning;
+        __rpc_notif_cron_motivation = rpcNotifCronMotivation;
+        __rpc_notif_friend_request_sent = rpcNotifFriendRequestSent;
+        __rpc_notif_friend_challenge = rpcNotifFriendChallenge;
     }
     LegacyPush.register = register;
     register();
@@ -99308,6 +100152,13 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("push_register_token", __rpc_push_register_token); } catch(e) {}
   try { initializer.registerRpc("push_send_event", __rpc_push_send_event); } catch(e) {}
   try { initializer.registerRpc("push_get_endpoints", __rpc_push_get_endpoints); } catch(e) {}
+  try { initializer.registerRpc("notif_cron_daily_quiz", __rpc_notif_cron_daily_quiz); } catch(e) {}
+  try { initializer.registerRpc("notif_cron_weekly_quiz", __rpc_notif_cron_weekly_quiz); } catch(e) {}
+  try { initializer.registerRpc("notif_cron_idle_winback", __rpc_notif_cron_idle_winback); } catch(e) {}
+  try { initializer.registerRpc("notif_cron_streak_warning", __rpc_notif_cron_streak_warning); } catch(e) {}
+  try { initializer.registerRpc("notif_cron_motivation", __rpc_notif_cron_motivation); } catch(e) {}
+  try { initializer.registerRpc("notif_friend_request_sent", __rpc_notif_friend_request_sent); } catch(e) {}
+  try { initializer.registerRpc("notif_friend_challenge", __rpc_notif_friend_challenge); } catch(e) {}
   try { initializer.registerRpc("intellidraws_list", __rpc_intellidraws_list); } catch(e) {}
   try { initializer.registerRpc("intellidraws_winners", __rpc_intellidraws_winners); } catch(e) {}
   try { initializer.registerRpc("intellidraws_enter", __rpc_intellidraws_enter); } catch(e) {}
@@ -99707,5 +100558,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 729 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 736 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }

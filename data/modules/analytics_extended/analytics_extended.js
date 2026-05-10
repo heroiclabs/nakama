@@ -1299,19 +1299,28 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             }
         }
         
-        // Also check DAU storage for platform breakdown (game-specific if filtered)
+        // Augment with the per-platform daily counter that ingestion writes
+        // via trackPlatform() in analytics.js. The previous implementation
+        // here read `dau_<platform>_<date>` keys that ingestion never writes
+        // (it writes `dau_<gameId>_<date>` and `dau_platform_<date>`), so the
+        // DAU loop never added anything. Now we read the canonical
+        // `analytics_platform` collection with keys
+        // `platform_<gameId>_<date>_<platform>`.
         for (var d = 0; d < Math.min(days, 7); d++) {
             var dateStr = extDaysAgo(d);
-            var platforms = ['android', 'ios', 'webgl', 'editor'];
-            
+            var platforms = ['android', 'ios', 'webgl', 'editor', 'unknown'];
+
             for (var p = 0; p < platforms.length; p++) {
-                var key = 'dau_' + platforms[p] + '_' + dateStr;
-                var dauRec = extStorageRead(nk, 'analytics_dau', key, SYSTEM_USER_ID);
-                
-                if (dauRec) {
-                    var count = dauRec.count || dauRec.uniqueUsers || (dauRec.users ? dauRec.users.length : 0);
-                    platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + count;
+                if (gameId) {
+                    var pkey = 'platform_' + gameId + '_' + dateStr + '_' + platforms[p];
+                    var pRec = extStorageRead(nk, 'analytics_platform', pkey, SYSTEM_USER_ID);
+                    if (pRec && pRec.count) {
+                        platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + pRec.count;
+                    }
                 }
+                // When gameId is null ("all games") we already have the
+                // accurate per-event tally from the scan above; the per-game
+                // counter scan is too expensive without the gameId prefix.
             }
         }
         

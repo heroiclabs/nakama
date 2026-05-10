@@ -184,25 +184,41 @@ function rpcQeCohortExport(ctx, logger, nk, payload) {
       [activeSinceDays, limit]
     );
 
-    // Batch-read analytics_events for every returned user in one call
-    var readRequests = [];
-    for (var i = 0; i < rows.length; i++) {
-      readRequests.push({
-        collection: 'analytics_events',
-        key:        'events',
-        userId:     rows[i].user_id
-      });
-    }
-
+    // Batch-read game_player_analytics docs (the per-user analytics
+    // ring buffer maintained by analytics/player_analytics_store.js).
+    // Earlier this read `analytics_events`/key=`events` per userId, but
+    // current ingestion writes `dash_*` keys under SYSTEM_USER instead —
+    // the legacy per-user shape is never created so cohort exports
+    // always saw null events. GPA docs are keyed `gameId:userId` and
+    // hold up to 500 most-recent events under `value.events`.
+    //
+    // Without a gameId hint we'd have to know every game the user has
+    // played; instead, list ALL keys with prefix `*:user_id` and pick
+    // the most recent doc. For the cohort export use case (any game
+    // activity is fine), reading the union of every game's most recent
+    // doc is the practical answer.
     var evMap = {};
-    if (readRequests.length > 0) {
+    for (var i = 0; i < rows.length; i++) {
+      var uid = rows[i].user_id;
       try {
-        var evRecords = nk.storageRead(readRequests);
-        for (var j = 0; j < evRecords.length; j++) {
-          evMap[evRecords[j].userId] = evRecords[j].value;
+        var listRes = nk.storageList(uid, 'game_player_analytics', 5, '');
+        if (listRes && listRes.objects) {
+          var combined = [];
+          for (var lo = 0; lo < listRes.objects.length; lo++) {
+            var v = listRes.objects[lo].value || {};
+            if (v.events && v.events.length) {
+              for (var ev = 0; ev < v.events.length; ev++) combined.push(v.events[ev]);
+            }
+          }
+          if (combined.length) {
+            // Sort newest-first; cap at 500 to keep payload bounded.
+            combined.sort(function(a, b) { return (b.t || 0) - (a.t || 0); });
+            if (combined.length > 500) combined.length = 500;
+            evMap[uid] = combined;
+          }
         }
       } catch (e) {
-        logger.warn('[QeAnalytics] batch event read failed: ' + e);
+        logger.warn('[QeAnalytics] GPA list failed for ' + uid + ': ' + e);
       }
     }
 
@@ -232,13 +248,26 @@ function rpcQeUserEventSummary(ctx, logger, nk, payload) {
     throw _qeBadRequest('user_id is required');
   }
 
+  // Read ALL game_player_analytics docs for this user (one per game)
+  // and merge the per-game `events` rings into a single newest-first
+  // list. See cohort-export comment above for why we list instead of
+  // a direct storageRead — the legacy shape (key=`events`) was never
+  // populated by the current ingestion path.
   try {
-    var records = nk.storageRead([
-      { collection: 'analytics_events', key: 'events', userId: userId }
-    ]);
-
-    if (records && records.length > 0 && records[0].value) {
-      return JSON.stringify({ events: records[0].value, found: true });
+    var listRes = nk.storageList(userId, 'game_player_analytics', 10, '');
+    if (listRes && listRes.objects && listRes.objects.length > 0) {
+      var combined = [];
+      for (var i = 0; i < listRes.objects.length; i++) {
+        var v = listRes.objects[i].value || {};
+        if (v.events && v.events.length) {
+          for (var ev = 0; ev < v.events.length; ev++) combined.push(v.events[ev]);
+        }
+      }
+      if (combined.length) {
+        combined.sort(function(a, b) { return (b.t || 0) - (a.t || 0); });
+        if (combined.length > 500) combined.length = 500;
+        return JSON.stringify({ events: combined, found: true });
+      }
     }
   } catch (e) {
     logger.warn('[QeAnalytics] qe_user_event_summary failed for ' + userId + ': ' + e);
