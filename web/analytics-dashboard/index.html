@@ -1385,6 +1385,10 @@
                     <option value="90">90 Days</option>
                     <option value="180">180 Days</option>
                 </select>
+                <label style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Mode:</label>
+                <select id="modeFilterSelector" class="header-select" onchange="onModeFilterChange()" title="Quiz mode filter — applies to Overview / Sessions / Retention / Revenue / Quiz / AI / Economy / Monetization">
+                    <option value="" selected>All modes</option>
+                </select>
                 <label style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Auto:</label>
                 <select id="autoRefreshSelector" class="header-select" onchange="onAutoRefreshChange()">
                     <option value="0" selected>Off</option>
@@ -1454,14 +1458,17 @@
                 <span class="tab-group-label">Content</span>
                 <span class="tab-group-divider"></span>
                 <button class="tab" data-tab="quiz">🧩 Quiz</button>
+                <button class="tab" data-tab="modes">📊 Quiz Modes</button>
                 <button class="tab" data-tab="ai">🤖 AI</button>
                 <button class="tab" data-tab="features">🎮 Features</button>
                 <button class="tab" data-tab="funnel">🎯 Funnel</button>
+                <button class="tab" data-tab="dropoff">🚪 Drop-off</button>
             </div>
             <div class="tab-group-row">
                 <span class="tab-group-label">Players</span>
                 <span class="tab-group-divider"></span>
                 <button class="tab" data-tab="players">👑 Players</button>
+                <button class="tab" data-tab="playerprofile">👤 Drill-down</button>
                 <button class="tab" data-tab="platforms">📱 Platforms</button>
                 <button class="tab" data-tab="audience">🌍 Audience</button>
                 <button class="tab" data-tab="heatmap">🔥 Heatmap</button>
@@ -2000,6 +2007,169 @@
                 </table></div>
             </div>
         </div>
+
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- Quiz Modes Tab — per-mode KPI breakdown, comparison, transitions -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div id="modes" class="tab-content">
+            <div class="kpi-grid" id="modesKpis" style="margin-bottom:1.5rem"></div>
+            <div class="chart-grid">
+                <div class="chart-card" style="grid-column: span 2;">
+                    <h3>📊 Per-Mode Breakdown <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body">
+                        <table class="data-table" id="modesTable">
+                            <thead>
+                                <tr>
+                                    <th>Mode</th>
+                                    <th>Category</th>
+                                    <th>Starts</th>
+                                    <th>Completions</th>
+                                    <th>Abandoned</th>
+                                    <th>Completion %</th>
+                                    <th>Abandonment %</th>
+                                    <th>Unique Players</th>
+                                    <th>Avg Duration</th>
+                                    <th>Avg Score</th>
+                                    <th>Avg Accuracy</th>
+                                </tr>
+                            </thead>
+                            <tbody><tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🎯 First-Played Mode (D1/D7/D30 Retention) <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><div class="chart-container"><canvas id="modesRetentionChart"></canvas></div></div>
+                </div>
+                <div class="chart-card">
+                    <h3>🔀 Mode → Mode Transitions <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body" id="modesTransitionsBody">
+                        <table class="data-table" id="modesTransitionsTable">
+                            <thead><tr><th>From</th><th>To</th><th>Count</th><th>% of From</th></tr></thead>
+                            <tbody><tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:1rem">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- Player Drill-down Tab — search + 30-day timeline + churn-risk    -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div id="playerprofile" class="tab-content">
+            <div class="chart-card" style="margin-bottom:1.5rem">
+                <h3>🔎 Search Player <div class="card-actions"></div></h3>
+                <div class="card-body">
+                    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center">
+                        <input type="search" id="playerProfileSearchInput" placeholder="Search by user ID or username (≥2 chars)…" style="flex:1;min-width:240px;padding:0.6rem;border:1px solid var(--border);border-radius:6px;background:var(--bg-primary);color:var(--text-primary)" />
+                        <button class="card-btn" onclick="playerProfileSearch()">Search</button>
+                    </div>
+                    <div id="playerProfileSearchResults" style="margin-top:1rem"></div>
+                </div>
+            </div>
+            <div id="playerProfileFullBody" style="display:none">
+                <div class="kpi-grid" id="playerProfileKpis" style="margin-bottom:1.5rem"></div>
+                <div class="chart-grid">
+                    <div class="chart-card">
+                        <h3>⚠️ Churn Risk &amp; Recommended Actions <div class="card-actions"></div></h3>
+                        <div class="card-body" id="playerProfileChurnBody"></div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>📊 Mode History <div class="card-actions"></div></h3>
+                        <div class="card-body">
+                            <table class="data-table" id="playerProfileModesTable">
+                                <thead><tr><th>Mode</th><th>Plays</th><th>Completions</th><th>Abandoned</th><th>Completion %</th></tr></thead>
+                                <tbody><tr><td colspan="5" style="color:var(--text-muted);padding:1rem">No mode data</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-grid">
+                    <div class="chart-card">
+                        <h3>💵 IAP History <div class="card-actions"></div></h3>
+                        <div class="card-body">
+                            <table class="data-table" id="playerProfileIapTable">
+                                <thead><tr><th>When</th><th>Product</th><th>Price</th><th>Currency</th><th>Tx ID</th></tr></thead>
+                                <tbody><tr><td colspan="5" style="color:var(--text-muted);padding:1rem">No purchases</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>📺 Ad History <div class="card-actions"></div></h3>
+                        <div class="card-body" id="playerProfileAdsBody"></div>
+                    </div>
+                </div>
+                <div class="chart-card" style="grid-column: span 2;">
+                    <h3>⏱ 30-Day Timeline (most recent first) <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body">
+                        <table class="data-table" id="playerProfileTimelineTable">
+                            <thead><tr><th>When</th><th>Event</th><th>Mode</th><th>Details</th></tr></thead>
+                            <tbody><tr><td colspan="4" style="color:var(--text-muted);padding:1rem">No events</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- Drop-off & Churn Tab — onboarding funnel / churn buckets / etc.  -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div id="dropoff" class="tab-content">
+            <div class="kpi-grid" id="dropoffKpis" style="margin-bottom:1.5rem"></div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🎯 Onboarding Funnel <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body" id="dropoffOnboardingBody">
+                        <div style="color:var(--text-muted);padding:1rem">Loading…</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>🧩 Quiz Outcomes by Mode <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body">
+                        <table class="data-table" id="dropoffQuizModesTable">
+                            <thead><tr><th>Mode</th><th>Started</th><th>Completed</th><th>Abandoned</th><th>Completion %</th><th>Abandonment %</th></tr></thead>
+                            <tbody><tr><td colspan="6" style="color:var(--text-muted);padding:1rem">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>⚠️ Early-Life Churn Cohorts <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body">
+                        <table class="data-table" id="dropoffCohortsTable">
+                            <thead><tr><th>Cohort</th><th>Users</th><th>% of Total</th><th>Action</th></tr></thead>
+                            <tbody><tr><td colspan="4" style="color:var(--text-muted);padding:1rem">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>❌ Per-Question Drop-off <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body">
+                        <div style="margin-bottom:0.5rem">
+                            <select id="dropoffQuestionModeSelect" onchange="loadDropoffPerQuestion()" style="padding:0.4rem;border:1px solid var(--border);border-radius:4px;background:var(--bg-primary);color:var(--text-primary)">
+                                <option value="">All modes</option>
+                            </select>
+                        </div>
+                        <table class="data-table" id="dropoffQuestionsTable">
+                            <thead><tr><th>Q#</th><th>Displayed</th><th>Correct</th><th>Wrong</th><th>Skipped</th><th>Timeout</th><th>Abandoned Here</th><th>Drop %</th><th>Accuracy %</th></tr></thead>
+                            <tbody><tr><td colspan="9" style="color:var(--text-muted);padding:1rem">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="chart-card" style="grid-column: span 2;">
+                <h3>🔥 Per-Screen Exit Heatmap <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body">
+                    <table class="data-table" id="dropoffScreenTable">
+                        <thead><tr><th>Screen</th><th>Views</th><th>Exits</th><th>Back-presses</th><th>Exit Rate</th><th>Avg Time</th></tr></thead>
+                        <tbody><tr><td colspan="6" style="color:var(--text-muted);padding:1rem">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </main>
     
     <footer class="footer">
@@ -2084,6 +2254,7 @@
         let isAuthenticated = false;
         let selectedGameId = 'all';
         let selectedDays = 30;
+        let selectedMode = '';
         let autoRefreshTimer = null;
         
         // ─────────────────────────────────────────────────────────────────────
@@ -2154,6 +2325,10 @@
                 if (hdr) hdr.textContent = adminUsername;
                 
                 refreshAll();
+                // Populate the global mode-filter dropdown once (uses the
+                // analytics_modes_breakdown RPC to discover what quiz_modes
+                // actually exist for the selected game/range).
+                setTimeout(() => refreshModeFilterOptions().catch(() => {}), 800);
                 // Run a diagnose immediately so the operator sees env/module health.
                 setTimeout(() => loadDiagnose().catch(() => {}), 400);
                 // 2026-05 — kick the auto-backfill state machine. The state
@@ -2243,10 +2418,59 @@
         }
         
         function getGamePayload() {
-            if (selectedGameId === 'all') {
-                return {};
+            const out = {};
+            if (selectedGameId !== 'all') out.gameId = selectedGameId;
+            // Global quiz-mode filter (added 2026-05). Empty string = all modes.
+            // RPCs that don't honour quiz_mode simply ignore the extra field —
+            // the analytics_extended.js extMatchesModeFilter helper picks it up
+            // for overview/sessions/retention/revenue/quiz/AI/economy/monet.
+            if (typeof selectedMode === 'string' && selectedMode.length > 0) {
+                out.quiz_mode = selectedMode;
             }
-            return { gameId: selectedGameId };
+            return out;
+        }
+
+        function onModeFilterChange() {
+            const sel = document.getElementById('modeFilterSelector');
+            selectedMode = sel ? (sel.value || '') : '';
+            rpcCacheClear();
+            if (isAuthenticated) refreshAll();
+        }
+
+        // Populate the Mode dropdown from the analytics_modes_breakdown RPC.
+        // Called once after login + whenever the user re-runs Modes tab.
+        async function refreshModeFilterOptions() {
+            try {
+                const data = await callRpc('analytics_modes_breakdown', {
+                    days: selectedDays || 30, ...getGamePayload()
+                });
+                const sel = document.getElementById('modeFilterSelector');
+                if (!sel) return;
+                const prev = sel.value || '';
+                const modes = (data && data.modes) || [];
+                // Preserve "All modes" + add unique modes sorted by total starts desc
+                const sorted = modes.slice().sort((a, b) =>
+                    (b.starts || b.totalStarts || 0) - (a.starts || a.totalStarts || 0));
+                const html = ['<option value="">All modes</option>'];
+                const seen = new Set();
+                sorted.forEach(m => {
+                    const id = (m.mode || m.quiz_mode || '').toString();
+                    if (!id || seen.has(id)) return;
+                    seen.add(id);
+                    html.push(`<option value="${escapeHtml(id)}">${escapeHtml(prettyMode(id))}</option>`);
+                });
+                sel.innerHTML = html.join('');
+                if (prev) sel.value = prev;
+            } catch (e) {
+                console.warn('refreshModeFilterOptions failed:', e && e.message);
+            }
+        }
+
+        function prettyMode(id) {
+            if (!id) return 'Unknown';
+            return String(id)
+                .replace(/_/g, ' ')
+                .replace(/\\b([a-z])/g, (m, c) => c.toUpperCase());
         }
         
         // ─────────────────────────────────────────────────────────────────────
@@ -2272,6 +2496,9 @@
             platforms: () => loadPlatforms(),
             audience:  () => loadAudience(),
             players:   () => loadTopPlayers(),
+            modes:     () => loadModes(),
+            playerprofile: () => loadPlayerProfileTab(),
+            dropoff:   () => loadDropoff(),
             diagnose:  () => loadDiagnose()
         };
 
@@ -4529,6 +4756,490 @@
             } catch(e) {
                 console.error('Top players error:', e);
                 document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">Failed: ${e.message}</td></tr>`;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Quiz Modes Tab — per-mode breakdown / retention / transitions
+        // ─────────────────────────────────────────────────────────────────────
+
+        let _modesRetentionChart = null;
+
+        async function loadModes() {
+            try {
+                document.querySelector('#modesTable tbody').innerHTML = skTable(11, 5);
+                document.querySelector('#modesTransitionsTable tbody').innerHTML = skTable(4, 5);
+                const breakdown = await callRpc('analytics_modes_breakdown', {
+                    days: selectedDays || 30, ...getGamePayload()
+                });
+
+                if (breakdown.error) {
+                    document.querySelector('#modesTable tbody').innerHTML = `<tr><td colspan="11" class="empty-state">${escapeHtml(breakdown.error)}</td></tr>`;
+                    return;
+                }
+
+                const modes = breakdown.modes || [];
+                const totalStarts = modes.reduce((s, m) => s + (m.starts || 0), 0);
+                const totalCompletions = modes.reduce((s, m) => s + (m.completions || 0), 0);
+                const totalAbandoned = modes.reduce((s, m) => s + (m.abandonments || m.abandoned || 0), 0);
+                const overallCompletion = totalStarts ? ((totalCompletions / totalStarts) * 100) : 0;
+                const overallAbandonment = totalStarts ? ((totalAbandoned / totalStarts) * 100) : 0;
+
+                document.getElementById('modesKpis').innerHTML = [
+                    { label: 'Distinct Modes', value: formatNumber(modes.length), icon: '📊' },
+                    { label: 'Total Starts', value: formatNumber(totalStarts), icon: '🎮' },
+                    { label: 'Completions', value: formatNumber(totalCompletions), icon: '✅' },
+                    { label: 'Completion %', value: overallCompletion.toFixed(1) + '%', icon: '🏁' },
+                    { label: 'Abandonment %', value: overallAbandonment.toFixed(1) + '%', icon: '🚪' }
+                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.value}</div></div>`).join('');
+
+                if (!modes.length) {
+                    document.querySelector('#modesTable tbody').innerHTML = '<tr><td colspan="11" class="empty-state">No mode data in window</td></tr>';
+                } else {
+                    document.querySelector('#modesTable tbody').innerHTML = modes.map(m => {
+                        const ab = m.abandonments != null ? m.abandonments : (m.abandoned || 0);
+                        const compPct = m.completion_rate_pct != null
+                            ? Number(m.completion_rate_pct)
+                            : (m.starts ? ((m.completions || 0) / m.starts * 100) : 0);
+                        const abandonPct = m.abandonment_rate_pct != null
+                            ? Number(m.abandonment_rate_pct)
+                            : (m.starts ? (ab / m.starts * 100) : 0);
+                        const avgDur = m.avg_duration_seconds != null ? m.avg_duration_seconds
+                            : (m.avg_duration_sec || m.avgDurationSec || 0);
+                        const avgScore = m.avg_score != null ? m.avg_score : (m.avgScore || 0);
+                        const avgAcc = m.avg_accuracy_pct != null ? m.avg_accuracy_pct
+                            : ((m.avg_accuracy || m.avgAccuracy || 0) * 100);
+                        return `<tr>
+                            <td><strong>${escapeHtml(prettyMode(m.mode))}</strong></td>
+                            <td>${escapeHtml(m.play_category || m.category || '—')}</td>
+                            <td>${formatNumber(m.starts || 0)}</td>
+                            <td>${formatNumber(m.completions || 0)}</td>
+                            <td>${formatNumber(ab)}</td>
+                            <td>${Number(compPct).toFixed(1)}%</td>
+                            <td>${Number(abandonPct).toFixed(1)}%</td>
+                            <td>${formatNumber(m.unique_players || m.uniquePlayers || 0)}</td>
+                            <td>${Number(avgDur).toFixed(1)}s</td>
+                            <td>${Number(avgScore).toFixed(1)}</td>
+                            <td>${Number(avgAcc).toFixed(1)}%</td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                // Refresh global mode dropdown options as a side-effect
+                refreshModeFilterOptions();
+
+                // Retention chart by first-played mode
+                try {
+                    const retention = await callRpc('analytics_modes_retention', {
+                        days: Math.max(selectedDays || 30, 30), ...getGamePayload()
+                    });
+                    const retData = (retention && (retention.by_mode || retention.modes)) || [];
+                    const ctx = document.getElementById('modesRetentionChart');
+                    if (ctx) {
+                        if (_modesRetentionChart) _modesRetentionChart.destroy();
+                        _modesRetentionChart = new Chart(ctx.getContext('2d'), {
+                            type: 'bar',
+                            data: {
+                                labels: retData.map(r => prettyMode(r.first_mode || r.mode)),
+                                datasets: [
+                                    { label: 'D1',  data: retData.map(r => Number(r.d1_pct  || r.d1  || 0)), backgroundColor: '#6366f1' },
+                                    { label: 'D7',  data: retData.map(r => Number(r.d7_pct  || r.d7  || 0)), backgroundColor: '#22c55e' },
+                                    { label: 'D30', data: retData.map(r => Number(r.d30_pct || r.d30 || 0)), backgroundColor: '#f59e0b' }
+                                ]
+                            },
+                            options: {
+                                responsive: true, maintainAspectRatio: false,
+                                scales: { y: { ticks: { callback: v => v + '%' }, beginAtZero: true, max: 100 } },
+                                plugins: { legend: { position: 'bottom' } }
+                            }
+                        });
+                    }
+                } catch (e) { console.warn('Modes retention failed', e && e.message); }
+
+                // Transitions
+                try {
+                    const transitions = await callRpc('analytics_modes_transitions', {
+                        days: selectedDays || 30, ...getGamePayload()
+                    });
+                    const tlist = (transitions && transitions.transitions) || [];
+                    if (!tlist.length) {
+                        document.querySelector('#modesTransitionsTable tbody').innerHTML = '<tr><td colspan="4" class="empty-state">No transition pairs in window</td></tr>';
+                    } else {
+                        document.querySelector('#modesTransitionsTable tbody').innerHTML = tlist.slice(0, 25).map(t => {
+                            const pct = t.pct_from != null ? t.pct_from : (t.pct_of_from || 0);
+                            return `<tr>
+                                <td>${escapeHtml(prettyMode(t.from))}</td>
+                                <td>${escapeHtml(prettyMode(t.to))}</td>
+                                <td>${formatNumber(t.count || 0)}</td>
+                                <td>${Number(pct).toFixed(1)}%</td>
+                            </tr>`;
+                        }).join('');
+                    }
+                } catch (e) {
+                    document.querySelector('#modesTransitionsTable tbody').innerHTML = `<tr><td colspan="4" class="empty-state">Failed: ${escapeHtml(e.message)}</td></tr>`;
+                }
+            } catch (e) {
+                console.error('Modes load error:', e);
+                document.querySelector('#modesTable tbody').innerHTML = `<tr><td colspan="11" class="empty-state">Failed: ${escapeHtml(e.message)}</td></tr>`;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Player Drill-down Tab — search + full profile + churn risk
+        // ─────────────────────────────────────────────────────────────────────
+
+        async function loadPlayerProfileTab() {
+            const container = document.getElementById('playerProfileSearchResults');
+            container.innerHTML = '<div style="color:var(--text-muted)">Type a user ID or username and click Search.</div>';
+            document.getElementById('playerProfileFullBody').style.display = 'none';
+            // Auto-search on Enter
+            const input = document.getElementById('playerProfileSearchInput');
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') playerProfileSearch();
+            }, { once: true });
+        }
+
+        async function playerProfileSearch() {
+            const q = (document.getElementById('playerProfileSearchInput').value || '').trim();
+            const container = document.getElementById('playerProfileSearchResults');
+            if (q.length < 2) { container.innerHTML = '<div style="color:var(--text-muted)">Enter at least 2 characters.</div>'; return; }
+            container.innerHTML = '<div style="color:var(--text-muted)">Searching…</div>';
+            try {
+                const data = await callRpc('analytics_admin_player_search', { q, query: q, limit: 20, ...getGamePayload() });
+                if (data.error) { container.innerHTML = `<div class="empty-state">${escapeHtml(data.error)}</div>`; return; }
+                const results = data.players || data.results || [];
+                if (!results.length) { container.innerHTML = '<div class="empty-state">No players match that query.</div>'; return; }
+                container.innerHTML = `
+                    <table class="data-table">
+                        <thead><tr><th>User ID</th><th>Username</th><th>Last Active</th><th>Events</th><th>Sessions</th><th>Quizzes</th><th></th></tr></thead>
+                        <tbody>
+                            ${results.map(r => {
+                                const uid = r.user_id || r.userId || '';
+                                const last = r.last_active_utc || r.last_seen || 0;
+                                const lastTxt = last ? new Date(last * (last < 1e12 ? 1000 : 1)).toLocaleString() : '—';
+                                return `<tr>
+                                    <td><code style="font-size:0.78rem">${escapeHtml(uid || '—')}</code></td>
+                                    <td>${escapeHtml(r.username || '—')}</td>
+                                    <td>${lastTxt}</td>
+                                    <td>${formatNumber(r.lt_events || r.event_count || 0)}</td>
+                                    <td>${formatNumber(r.lt_sessions || 0)}</td>
+                                    <td>${formatNumber(r.lt_quiz_plays || 0)}</td>
+                                    <td><button class="card-btn" onclick="loadPlayerProfileFull('${escapeHtml(uid)}')">Open profile →</button></td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>`;
+            } catch (e) {
+                container.innerHTML = `<div class="empty-state">Failed: ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        async function loadPlayerProfileFull(userId) {
+            if (!userId) return;
+            const body = document.getElementById('playerProfileFullBody');
+            body.style.display = '';
+            document.getElementById('playerProfileKpis').innerHTML = '<div class="kpi-card"><div class="label">Loading…</div></div>';
+            try {
+                const data = await callRpc('analytics_admin_player_full_profile', { user_id: userId, days: 30, ...getGamePayload() });
+                if (data.error) {
+                    document.getElementById('playerProfileKpis').innerHTML = `<div class="kpi-card"><div class="label">${escapeHtml(data.error)}</div></div>`;
+                    return;
+                }
+                const sm = data.summary || data.lifetime || {};
+                const fmtTs = (v) => v ? new Date(v * (v < 1e12 ? 1000 : 1)).toLocaleString() : '—';
+                const lastActive = sm.last_active_utc || sm.last_active || 0;
+                const lastActiveTxt = lastActive ? (sm.days_since_active != null ? sm.days_since_active + ' days ago' : fmtTs(lastActive)) : '—';
+
+                document.getElementById('playerProfileKpis').innerHTML = [
+                    { label: 'User ID',           value: data.user_id || data.userId || '—',                       icon: '🆔' },
+                    { label: 'Username',          value: sm.username || data.username || '—',                      icon: '👤' },
+                    { label: 'Platform',          value: sm.platform || '—',                                       icon: '📱' },
+                    { label: 'Country',           value: sm.country || '—',                                        icon: '🌍' },
+                    { label: 'Lifetime Events',   value: formatNumber(sm.lt_events || 0),                          icon: '📋' },
+                    { label: 'Lifetime Quizzes',  value: formatNumber(sm.lt_quiz_plays || 0),                      icon: '🧩' },
+                    { label: 'Sessions',          value: formatNumber(sm.lt_sessions || 0),                        icon: '⏱️' },
+                    { label: 'IAP Spend',         value: '$' + (sm.total_iap_spend_usd || 0).toFixed(2),           icon: '💵' },
+                    { label: 'Ad Revenue',        value: '$' + (sm.ad_revenue_usd || 0).toFixed(2),                icon: '📺' },
+                    { label: 'Last Active',       value: lastActiveTxt,                                            icon: '🕒' }
+                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain" style="font-size:${(k.value+'').length>16?'0.78rem':'1.1rem'}">${escapeHtml(String(k.value))}</div></div>`).join('');
+
+                // Churn risk + recommended actions
+                const cr = data.churn_risk || data.churn || {};
+                const score = Math.round(cr.score || 0);
+                const tier = cr.label || cr.tier || (score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low');
+                const tierColor = score >= 70 ? '#ef4444' : score >= 40 ? '#f59e0b' : '#22c55e';
+                const reasons = (cr.reasons || []).map(r => `<li>${escapeHtml(r)}</li>`).join('');
+                const actionsArr = data.retention_actions || cr.recommended_actions || cr.recommendedActions || [];
+                const actions = actionsArr.map(a => `<li>${escapeHtml(a)}</li>`).join('');
+                document.getElementById('playerProfileChurnBody').innerHTML = `
+                    <div style="display:flex;gap:1rem;align-items:center;margin-bottom:0.5rem">
+                        <div style="font-size:2.4rem;font-weight:700;color:${tierColor}">${score}</div>
+                        <div><div style="font-size:1rem;font-weight:600;color:${tierColor}">${escapeHtml(tier)} risk</div>
+                        <div style="color:var(--text-muted);font-size:0.85rem">${escapeHtml(cr.summary || '')}</div></div>
+                    </div>
+                    ${reasons ? `<div style="margin-top:0.5rem"><strong>Why:</strong><ul style="margin:0.25rem 0 0 1rem;color:var(--text-muted)">${reasons}</ul></div>` : ''}
+                    ${actions ? `<div style="margin-top:0.5rem"><strong>Recommended:</strong><ul style="margin:0.25rem 0 0 1rem">${actions}</ul></div>` : '<div style="color:var(--text-muted)">No recommendations.</div>'}
+                `;
+
+                // Mode history
+                const modes = data.mode_history || data.modes || [];
+                document.querySelector('#playerProfileModesTable tbody').innerHTML = modes.length
+                    ? modes.map(m => {
+                        const total = m.plays != null ? m.plays : ((m.completions || 0) + (m.abandoned || 0));
+                        const pct = m.completion_rate_pct != null ? Number(m.completion_rate_pct)
+                            : (total ? ((m.completions || 0) / total * 100) : 0);
+                        return `<tr>
+                            <td>${escapeHtml(prettyMode(m.mode))}</td>
+                            <td>${formatNumber(total || 0)}</td>
+                            <td>${formatNumber(m.completions || 0)}</td>
+                            <td>${formatNumber(m.abandoned || 0)}</td>
+                            <td>${Number(pct).toFixed(1)}%</td>
+                        </tr>`;
+                    }).join('')
+                    : '<tr><td colspan="5" class="empty-state">No mode data</td></tr>';
+
+                // IAP history
+                const iap = data.iap_history || data.iap || data.purchases || [];
+                document.querySelector('#playerProfileIapTable tbody').innerHTML = iap.length
+                    ? iap.map(p => `<tr>
+                        <td>${fmtTs(p.ts || p.when)}</td>
+                        <td>${escapeHtml(p.product_id || p.productId || '—')}</td>
+                        <td>${p.price != null ? '$' + Number(p.price).toFixed(2) : '—'}</td>
+                        <td>${escapeHtml(p.currency || '')}</td>
+                        <td><code style="font-size:0.75rem">${escapeHtml((p.transaction_id || p.tx_id || p.txId || '').toString().substring(0, 24))}</code></td>
+                    </tr>`).join('')
+                    : '<tr><td colspan="5" class="empty-state">No purchases</td></tr>';
+
+                // Ads
+                const ads = data.ad_history || data.ads || {};
+                document.getElementById('playerProfileAdsBody').innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0.5rem">
+                        <div><div style="color:var(--text-muted);font-size:0.78rem">Impressions</div><div style="font-size:1.2rem;font-weight:600">${formatNumber(ads.impressions || 0)}</div></div>
+                        <div><div style="color:var(--text-muted);font-size:0.78rem">Completions</div><div style="font-size:1.2rem;font-weight:600">${formatNumber(ads.completions || ads.rewarded || 0)}</div></div>
+                        <div><div style="color:var(--text-muted);font-size:0.78rem">Revenue</div><div style="font-size:1.2rem;font-weight:600">$${(ads.revenue_usd || 0).toFixed(2)}</div></div>
+                        <div><div style="color:var(--text-muted);font-size:0.78rem">Paywall conv.</div><div style="font-size:1.2rem;font-weight:600">${formatNumber(sm.paywall_converted || 0)}/${formatNumber(sm.paywall_shown || 0)}</div></div>
+                    </div>`;
+
+                // Timeline (RPC returns name + data + ts)
+                const timeline = data.timeline || [];
+                document.querySelector('#playerProfileTimelineTable tbody').innerHTML = timeline.length
+                    ? timeline.slice(0, 200).map(t => {
+                        const name = t.name || t.event || t.eventName || '—';
+                        const d = t.data || {};
+                        const mode = d.quiz_mode || d.quizMode || t.mode || t.quiz_mode || '';
+                        const summary = (() => {
+                            const bits = [];
+                            if (d.score != null) bits.push('score=' + d.score);
+                            if (d.outcome) bits.push('outcome=' + d.outcome);
+                            if (d.product_id) bits.push('product=' + d.product_id);
+                            if (d.price != null) bits.push('$' + d.price);
+                            if (d.screen_name) bits.push('screen=' + d.screen_name);
+                            if (d.streak_count) bits.push('streak=' + d.streak_count);
+                            return bits.join(' · ');
+                        })();
+                        return `<tr>
+                            <td>${fmtTs(t.ts || t.when)}</td>
+                            <td><strong>${escapeHtml(name)}</strong></td>
+                            <td>${escapeHtml(prettyMode(mode))}</td>
+                            <td><code style="font-size:0.72rem;color:var(--text-muted)">${escapeHtml(summary.substring(0, 200))}</code></td>
+                        </tr>`;
+                    }).join('')
+                    : '<tr><td colspan="4" class="empty-state">No events in last 30 days</td></tr>';
+
+            } catch (e) {
+                console.error('Player profile load error:', e);
+                document.getElementById('playerProfileKpis').innerHTML = `<div class="kpi-card"><div class="label">Failed: ${escapeHtml(e.message)}</div></div>`;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Drop-off & Churn Tab
+        // ─────────────────────────────────────────────────────────────────────
+
+        // Pretty labels + recommended retention actions for each churn bucket
+        const DROPOFF_COHORT_META = {
+            cold_start_no_quiz:      { label: 'Cold-start (opened, no quiz)', action: 'In-app nudge → "Try a 10-q quiz"; reward 50 coins on first start.' },
+            one_and_done:            { label: 'One-and-done (single session)',  action: 'Push notification + offer streak-bonus on next return.' },
+            streak_break_no_return:  { label: 'Streak broken, 7+ days idle',    action: 'Streak revival reward + comeback ad-free hour.' },
+            paywall_no_convert:      { label: 'Saw paywall, no purchase',       action: 'Lower-price A/B test, show rewarded ad → free attempt.' },
+            app_open_low_engagement: { label: 'Opened 3+ times, no completion', action: 'Tutorial replay popup + easier-mode suggestion.' }
+        };
+
+        async function loadDropoff() {
+            try {
+                const [funnel, churn] = await Promise.all([
+                    callRpc('analytics_dropoff_funnel', { days: selectedDays || 30, ...getGamePayload() }),
+                    callRpc('analytics_churn_signals',  { days: selectedDays || 30, ...getGamePayload() })
+                ]);
+
+                const ob = (funnel && funnel.onboarding) || {};
+                const qo = (funnel && funnel.quiz_outcomes) || {};
+                const buckets = (churn && churn.buckets) || [];
+                const totalUsers = (churn && churn.total_unique_users) || 0;
+                const findBucket = (name) => (buckets.find(b => b.name === name) || { count: 0 });
+
+                document.getElementById('dropoffKpis').innerHTML = [
+                    { label: 'Onboarding Started',  value: formatNumber(ob.started || 0),                                icon: '🚀' },
+                    { label: 'Onboarding Done %',   value: (ob.completion_rate_pct || 0) + '%',                          icon: '🏁' },
+                    { label: 'Onboarding Drop %',   value: (ob.abandonment_rate_pct || 0) + '%',                         icon: '🚪' },
+                    { label: 'Quizzes Started',     value: formatNumber(qo.started || 0),                                icon: '🧩' },
+                    { label: 'Quiz Drop %',         value: (qo.abandonment_rate_pct || 0) + '%',                         icon: '⛔' },
+                    { label: 'Cold-start churn',    value: formatNumber(findBucket('cold_start_no_quiz').count),         icon: '❄️' },
+                    { label: 'One-and-done',        value: formatNumber(findBucket('one_and_done').count),               icon: '1️⃣' },
+                    { label: 'Streak-break churn',  value: formatNumber(findBucket('streak_break_no_return').count),     icon: '🔥' },
+                    { label: 'Pre-IAP churn',       value: formatNumber(findBucket('paywall_no_convert').count),         icon: '💸' }
+                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.value}</div></div>`).join('');
+
+                // Onboarding funnel — render the actual onboarding aggregates
+                const onboardingRows = [
+                    { label: 'Started',       count: ob.started || 0 },
+                    { label: 'Step views',    count: (ob.step_views || []).reduce((s, x) => s + (x.count || 0), 0) },
+                    { label: 'Video watched', count: ob.video_watched || 0 },
+                    { label: 'Skipped',       count: ob.skipped || 0 },
+                    { label: 'Paused',        count: ob.paused || 0 },
+                    { label: 'Quit',          count: ob.quit || 0 },
+                    { label: 'Abandoned',     count: ob.abandoned || 0 },
+                    { label: 'Completed',     count: ob.completed || 0 }
+                ];
+                const obTop = onboardingRows[0].count || 1;
+                document.getElementById('dropoffOnboardingBody').innerHTML = `
+                    <table class="data-table">
+                        <thead><tr><th>Stage</th><th>Count</th><th>% of started</th></tr></thead>
+                        <tbody>
+                            ${onboardingRows.map(s => {
+                                const pct = obTop ? (s.count / obTop * 100) : 0;
+                                return `<tr>
+                                    <td><strong>${escapeHtml(s.label)}</strong></td>
+                                    <td>${formatNumber(s.count)}</td>
+                                    <td>${pct.toFixed(1)}%</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                    ${(ob.drop_per_step || []).length > 0 ? `
+                        <div style="margin-top:0.75rem;font-weight:600">Drop-off by onboarding step</div>
+                        <table class="data-table" style="margin-top:0.25rem">
+                            <thead><tr><th>Step</th><th>Drop count</th><th>Drop %</th></tr></thead>
+                            <tbody>${ob.drop_per_step.slice(0, 12).map(d =>
+                                `<tr><td>${escapeHtml(String(d.step))}</td><td>${formatNumber(d.drop_count)}</td><td>${d.drop_pct||0}%</td></tr>`
+                            ).join('')}</tbody>
+                        </table>` : ''}
+                `;
+
+                // Quiz outcomes by mode — direct from funnel.quiz_outcomes.by_mode
+                const byMode = qo.by_mode || [];
+                if (!byMode.length) {
+                    document.querySelector('#dropoffQuizModesTable tbody').innerHTML = '<tr><td colspan="6" class="empty-state">No quiz session data</td></tr>';
+                } else {
+                    document.querySelector('#dropoffQuizModesTable tbody').innerHTML = byMode.map(m => `
+                        <tr>
+                            <td><strong>${escapeHtml(prettyMode(m.mode))}</strong></td>
+                            <td>${formatNumber(m.started || 0)}</td>
+                            <td>${formatNumber(m.completed || 0)}</td>
+                            <td>${formatNumber(m.abandoned || 0)}</td>
+                            <td>${m.completion_rate_pct || 0}%</td>
+                            <td>${m.abandonment_rate_pct || 0}%</td>
+                        </tr>`).join('');
+                }
+                // Populate per-question mode dropdown
+                const sel = document.getElementById('dropoffQuestionModeSelect');
+                if (sel) {
+                    const cur = sel.value || '';
+                    const html = ['<option value="">All modes</option>'];
+                    const seen = new Set();
+                    byMode.forEach(m => {
+                        const id = (m.mode || '').toString();
+                        if (!id || seen.has(id)) return;
+                        seen.add(id);
+                        html.push(`<option value="${escapeHtml(id)}">${escapeHtml(prettyMode(id))}</option>`);
+                    });
+                    sel.innerHTML = html.join('');
+                    if (cur) sel.value = cur;
+                }
+
+                // Cohort buckets — render churn.buckets directly
+                if (!buckets.length) {
+                    document.querySelector('#dropoffCohortsTable tbody').innerHTML = '<tr><td colspan="4" class="empty-state">No churn cohorts in window</td></tr>';
+                } else {
+                    document.querySelector('#dropoffCohortsTable tbody').innerHTML = buckets.map(b => {
+                        const meta = DROPOFF_COHORT_META[b.name] || { label: b.name, action: '' };
+                        const pct = totalUsers ? ((b.count || 0) / totalUsers * 100) : 0;
+                        return `<tr>
+                            <td><strong>${escapeHtml(meta.label)}</strong></td>
+                            <td>${formatNumber(b.count || 0)}</td>
+                            <td>${pct.toFixed(1)}%</td>
+                            <td>${escapeHtml(meta.action)}</td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                await loadDropoffPerQuestion();
+
+                // Screen heatmap
+                try {
+                    const heat = await callRpc('analytics_screen_exit_heatmap', { days: selectedDays || 30, ...getGamePayload() });
+                    const screens = (heat && heat.screens) || [];
+                    if (!screens.length) {
+                        document.querySelector('#dropoffScreenTable tbody').innerHTML = '<tr><td colspan="6" class="empty-state">No screen events</td></tr>';
+                    } else {
+                        document.querySelector('#dropoffScreenTable tbody').innerHTML = screens.map(s => {
+                            const exitRate = s.exit_rate_pct != null ? Number(s.exit_rate_pct)
+                                : (s.views ? ((s.exits || 0) / s.views * 100) : 0);
+                            const avgSec = s.avg_time_seconds != null ? s.avg_time_seconds
+                                : ((s.avg_time_ms || 0) / 1000);
+                            const color = exitRate > 50 ? '#ef4444' : exitRate > 25 ? '#f59e0b' : '#22c55e';
+                            return `<tr>
+                                <td><strong>${escapeHtml(s.screen || '—')}</strong></td>
+                                <td>${formatNumber(s.views || 0)}</td>
+                                <td>${formatNumber(s.exits || 0)}</td>
+                                <td>${formatNumber(s.back_presses || s.backPresses || 0)}</td>
+                                <td><span style="color:${color};font-weight:600">${Number(exitRate).toFixed(1)}%</span></td>
+                                <td>${Number(avgSec).toFixed(1)}s</td>
+                            </tr>`;
+                        }).join('');
+                    }
+                } catch (e) {
+                    document.querySelector('#dropoffScreenTable tbody').innerHTML = `<tr><td colspan="6" class="empty-state">Failed: ${escapeHtml(e.message)}</td></tr>`;
+                }
+            } catch (e) {
+                console.error('Drop-off load error:', e);
+                document.getElementById('dropoffKpis').innerHTML = `<div class="kpi-card"><div class="label">Failed: ${escapeHtml(e.message)}</div></div>`;
+            }
+        }
+
+        async function loadDropoffPerQuestion() {
+            try {
+                const sel = document.getElementById('dropoffQuestionModeSelect');
+                const mode = sel ? (sel.value || '') : '';
+                const payload = { days: selectedDays || 30, ...getGamePayload() };
+                if (mode) payload.mode = mode;
+                const data = await callRpc('analytics_per_question_dropoff', payload);
+                const rows = (data && (data.by_index || data.questions)) || [];
+                if (!rows.length) {
+                    document.querySelector('#dropoffQuestionsTable tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No per-question data</td></tr>';
+                    return;
+                }
+                document.querySelector('#dropoffQuestionsTable tbody').innerHTML = rows.map(q => {
+                    const idx = (q.index != null) ? q.index : (q.q != null ? q.q : '');
+                    const dropPct = q.drop_pct != null ? Number(q.drop_pct)
+                        : (q.displayed ? ((q.abandoned_here || q.abandonedHere || 0) / q.displayed * 100) : 0);
+                    const accPct = q.accuracy_pct != null ? Number(q.accuracy_pct)
+                        : ((q.correct + q.wrong) ? (q.correct / (q.correct + q.wrong) * 100) : 0);
+                    const dColor = dropPct > 25 ? '#ef4444' : dropPct > 10 ? '#f59e0b' : '#22c55e';
+                    return `<tr>
+                        <td><strong>Q${escapeHtml(String(idx))}</strong></td>
+                        <td>${formatNumber(q.displayed || 0)}</td>
+                        <td>${formatNumber(q.correct || 0)}</td>
+                        <td>${formatNumber(q.wrong || 0)}</td>
+                        <td>${formatNumber(q.skipped || 0)}</td>
+                        <td>${formatNumber(q.timeout || 0)}</td>
+                        <td>${formatNumber(q.abandoned_here || q.abandonedHere || 0)}</td>
+                        <td><span style="color:${dColor};font-weight:600">${Number(dropPct).toFixed(1)}%</span></td>
+                        <td>${Number(accPct).toFixed(1)}%</td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                document.querySelector('#dropoffQuestionsTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">Failed: ${escapeHtml(e.message)}</td></tr>`;
             }
         }
 

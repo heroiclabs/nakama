@@ -391,6 +391,38 @@ function extPercentile(arr, p) {
     return sorted[Math.max(0, idx)];
 }
 
+/**
+ * Extract the quiz_mode tag from an event (Unity auto-injects this via
+ * AnalyticsManager.InjectGlobalContext while a quiz is in flight).
+ * Returns null when the event has no mode tag.
+ */
+function extEventMode(ev) {
+    if (!ev) return null;
+    var d = ev.eventData || ev.properties || {};
+    return d.quiz_mode || d.quizMode || d.game_mode || d.gameMode || ev.quiz_mode || null;
+}
+
+/**
+ * Check whether an event matches the optional quiz_mode filter passed in
+ * the RPC payload. Returns true when no filter is set.
+ *
+ *  - request.quiz_mode (or .mode / .gameMode) limits to events tagged with
+ *    that exact mode string. "all" / "*" / "" disables the filter.
+ *  - When the filter is set but the event has no mode tag, the event is
+ *    rejected — stops counting un-tagged events when the user explicitly
+ *    asked for one mode.
+ */
+function extMatchesModeFilter(payloadData, ev) {
+    if (!payloadData) return true;
+    var want = payloadData.quiz_mode || payloadData.mode || payloadData.gameMode || null;
+    if (!want) return true;
+    var w = String(want).toLowerCase();
+    if (w === 'all' || w === '*' || w === '') return true;
+    var got = extEventMode(ev);
+    if (!got) return false;
+    return String(got).toLowerCase() === w;
+}
+
 // ─── RPC: analytics_session_stats ─────────────────────────
 
 function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
@@ -545,7 +577,8 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         // Fallback: scan events collection (with gameId filter)
         if (quizStarted === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-                return val.eventName && val.eventName.toLowerCase().indexOf('quiz') !== -1;
+                if (!val.eventName || val.eventName.toLowerCase().indexOf('quiz') === -1) return false;
+                return extMatchesModeFilter(data, val);
             }, gameId);
 
             // 2026-05 hardening — alias Unity's actual event names to canonical
@@ -764,7 +797,8 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         };
 
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            return isAiEvent(val.eventName);
+            if (!isAiEvent(val.eventName)) return false;
+            return extMatchesModeFilter(data, val);
         }, gameId);
 
         for (var i = 0; i < events.length; i++) {
@@ -939,12 +973,14 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
             var walletEvents = extScanEvents(nk, logger, 'analytics_events', 30, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
                 if (!evName) return false;
-                return evName.indexOf('coin') === 0 ||
+                var match = evName.indexOf('coin') === 0 ||
                        evName.indexOf('wallet_') === 0 ||
                        evName === 'purchase_completed' ||
                        evName === 'currency_granted' ||
                        evName === 'currency_spent' ||
                        evName === 'insufficient_funds_action';
+                if (!match) return false;
+                return extMatchesModeFilter(data, val);
             }, gameId);
 
             for (var i = 0; i < walletEvents.length; i++) {
@@ -1080,9 +1116,11 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         if (adImpressions === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
-                return evName.indexOf('ad') !== -1 || evName.indexOf('purchase') !== -1 || 
+                var match = evName.indexOf('ad') !== -1 || evName.indexOf('purchase') !== -1 || 
                        evName.indexOf('iap') !== -1 || evName.indexOf('store') !== -1 || 
                        evName.indexOf('paywall') !== -1;
+                if (!match) return false;
+                return extMatchesModeFilter(data, val);
             }, gameId);
             
             for (var i = 0; i < events.length; i++) {
