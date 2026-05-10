@@ -66,6 +66,121 @@ var SD_TIMEOUT_MS   = 4000;     // bumped from 2000 — server-event + auth roun
 var SD_AUTH_TTL_MS  = 25 * 60 * 1000;  // session-token cache TTL (Satori issues 30-min tokens)
 var SD_AUTH_CACHE   = {};       // in-memory per-identity cache (process-local; cleared on Nakama restart)
 
+// ─── Phase 3 (2026-05): batching, filtering, identity ──────────────────
+//
+// Q3=B (medium filter) — only canonical events flow to Satori. The other
+// ~250 events still land in the in-house dashboard but never burn Satori
+// quota. Add/remove names here; lower-cased for the same-key lookup as
+// SD_EVENT_MAP.
+var SD_EVENT_ALLOWLIST = {
+    // Lifecycle
+    "session_start": true, "session_end": true, "app_open": true,
+    "app_launched": true, "first_open": true,
+    // Auth
+    "registration_completed": true, "registration_complete": true,
+    "login_success": true,
+    // Onboarding
+    "onboarding_started": true, "onboarding_complete": true,
+    "onboarding_completed": true, "onboarding_abandoned": true,
+    // Quiz core (the big retention drivers)
+    "quiz_started": true, "quiz_completed": true, "quiz_abandoned": true,
+    "answer_submitted": true,
+    // Monetization (high-signal — every event powers ARPU / paywall A/B)
+    "purchase_started": true, "purchase_completed": true,
+    "purchase_failed": true, "iap_impression": true, "iap_failed": true,
+    "ad_shown": true, "ad_completed": true, "ad_revenue": true,
+    "paywall_shown": true, "paywall_converted": true,
+    "paywall_dismissed": true, "premium_conversion": true,
+    "store_opened": true,
+    // Retention beats
+    "retention_day_1": true, "retention_day_7": true, "retention_day_30": true,
+    "user_returned": true,
+    // Multiplayer milestones
+    "mp_game_started": true, "mp_game_completed": true,
+    "milestone_first_multiplayer": true,
+    // Errors (high priority — feed Satori segments for alerting)
+    "error_logged": true, "auth_failure": true,
+    // Backfill marker — synthesised by analytics_backfill.js for days
+    // where there's no real event to attribute DAU to. Keeps the Satori
+    // dashboard non-empty for cold-start projects.
+    "dau_synthetic": true
+};
+function sdIsAllowlisted(rawName) {
+    if (!rawName) return false;
+    return !!SD_EVENT_ALLOWLIST[String(rawName).toLowerCase()];
+}
+
+// Q6=C (hybrid identity) — fields that describe the IDENTITY rather than
+// the EVENT. They migrate to sdPropertiesUpdate on session_start (one-shot
+// per process per identity); per-event metadata never carries them.
+var SD_IDENTITY_FIELDS = {
+    "device_model": true, "device_id": true, "os_version": true,
+    "manufacturer": true, "install_source": true, "display_name": true,
+    "avatar_url": true, "user_id": true, "username": true,
+    "first_seen_utc": true, "last_seen_utc": true
+};
+
+// Per-event metadata kept after slimming (Q6=C — slim copy on every event).
+// Other keys are stripped UNLESS they're event-essential (price_usd,
+// product_id, etc — see sdSlimMetadata).
+var SD_SLIM_KEEP = {
+    "platform": true, "country": true, "app_version": true,
+    "game_id": true, "session_id": true
+};
+
+// Event-essential keys that MUST stay in metadata even when slim mode is on.
+// Anything not in SD_SLIM_KEEP and not here is stripped from per-event payloads.
+var SD_EVENT_ESSENTIAL = {
+    // Monetization economics
+    "product_id": true, "product_type": true, "price_usd": true, "price": true,
+    "price_local": true, "amount": true, "currency": true, "transaction_id": true,
+    "is_restore": true, "is_first_purchase": true, "paywall_id": true,
+    "entry_point": true,
+    // Ad attribution
+    "ad_unit": true, "ad_network": true, "ad_format": true, "ad_placement": true,
+    // Quiz state (powers per-mode dashboards)
+    "quiz_id": true, "quiz_mode": true, "game_mode": true, "category": true,
+    "difficulty": true, "question_count": true, "score": true,
+    "correct_count": true, "duration_seconds": true, "is_correct": true,
+    // Funnel debugging
+    "screen_name": true, "previous_screen": true, "source": true,
+    "error_code": true, "error_category": true,
+    // Retention identity beats (need them for cohort segments)
+    "elapsed_days": true, "retention_day": true
+};
+
+function sdSlimMetadata(meta) {
+    if (!meta || typeof meta !== "object") return {};
+    var out = {};
+    for (var k in meta) {
+        if (!Object.prototype.hasOwnProperty.call(meta, k)) continue;
+        if (SD_IDENTITY_FIELDS[k]) continue;     // moved to identity properties
+        if (SD_SLIM_KEEP[k] || SD_EVENT_ESSENTIAL[k]) {
+            out[k] = meta[k];
+        }
+        // else: silently dropped — keeps Satori metadata table tiny
+    }
+    return out;
+}
+
+// ─── Per-identity batch buffer ─────────────────────────────────────────
+//
+// Goja has no native timers, so the buffer is flushed lazily on the next
+// arrival. A 50-event size threshold keeps the flush latency bounded; a
+// 5s idle threshold handles low-traffic identities. Process-local —
+// each Nakama instance has its own buffer; on shutdown anything not yet
+// flushed is dropped (acceptable: it's already in analytics_events).
+var SD_BATCH_MAX_EVENTS  = 50;       // flush at this size threshold
+var SD_BATCH_MAX_IDLE_MS = 5000;     // flush if buffer this old when next arrival lands
+var SD_BATCH_BUFFER      = {};       // { identity_id: { events: [], firstAt, lastAt } }
+var SD_BATCH_LAST_SWEEP  = 0;        // ms; sweep all buffers periodically
+var SD_BATCH_SWEEP_MS    = 10000;    // every 10s do a global sweep
+
+// Identities for which sdSendIdentityProperties has already fired this
+// process. Cleared on restart — that's fine, we'll re-push the same
+// values once and Satori dedupes the upsert.
+var SD_IDENT_SENT = {};
+
 // Hardcoded-FIRST for the SATORI_* keys (env is IGNORED for them). Earlier
 // env-first behaviour failed in prod when the cluster had stale SATORI_*
 // env vars set — those values shadowed the new hardcoded constants and
@@ -247,21 +362,36 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
 
     var wireEvents = [];
     var dropped = 0;
+    var filteredOut = 0;
     for (var i = 0; i < events.length; i++) {
         var e = events[i] || {};
         var ts = (typeof e.timestamp === "number") ? Math.floor(e.timestamp) : Math.floor(Date.now() / 1000);
         var rawName = e.name || "";
+
+        // Phase 3.1 (Q3=B) — Satori allowlist filter. Non-canonical events
+        // are silently dropped here so they never burn Satori event quota
+        // (~250 of our ~290 events are dashboard-only and don't need to
+        // appear in segments / live-ops). Any event the operator NEEDS in
+        // Satori must be added to SD_EVENT_ALLOWLIST.
+        if (!sdIsAllowlisted(rawName)) { filteredOut++; continue; }
+
         var name = sdNormalizeEventName(rawName);
         if (!name) { dropped++; continue; }  // synthetic events stripped
 
-        var meta = {};
-        if (e.metadata && typeof e.metadata === "object") {
-            for (var k in e.metadata) {
-                if (Object.prototype.hasOwnProperty.call(e.metadata, k)) {
-                    var v = e.metadata[k];
-                    if (v === null || v === undefined) continue;
-                    meta[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
-                }
+        // Phase 3.4 (Q6=C) — slim per-event metadata. Identity fields
+        // (device_model, install_source, …) are stripped here; they get
+        // pushed once per identity via sdSendIdentityProperties on the
+        // session_start event instead.
+        var meta = sdSlimMetadata(e.metadata || {});
+
+        // Coerce all surviving values to string (Satori's metadata field
+        // is string-typed at the wire level — anything non-string gets a
+        // 400). Keep this AFTER slim so the loop is small.
+        for (var k in meta) {
+            if (Object.prototype.hasOwnProperty.call(meta, k)) {
+                var v = meta[k];
+                if (v === null || v === undefined) { delete meta[k]; continue; }
+                meta[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
             }
         }
 
@@ -293,12 +423,124 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
 
     if (!resp.ok) {
         if (logger && logger.info) {
-            logger.info("[satori_direct] eventsPublish " + resp.code + " (sent=" + wireEvents.length +
-                " skipped=" + dropped + "): " + resp.body.slice(0, 200));
+            logger.info("[satori_direct] eventsPublish " + resp.code +
+                " (sent=" + wireEvents.length + " skipped=" + dropped +
+                " filtered=" + filteredOut + "): " + resp.body.slice(0, 200));
         }
         return resp;
     }
     return null;
+}
+
+// ─── Phase 3.2: per-identity batch buffer ──────────────────────────────
+//
+// Caller-facing entry point used by the analytics fan-out path. Replaces
+// the previous "1 HTTP per event" pattern with size+idle-thresholded
+// batching. Returns null on success (event(s) buffered or flushed without
+// error); returns the failed HTTP response struct only when an inline
+// flush hits a non-2xx (caller can ignore — events are already in
+// in-house storage as the source of truth).
+//
+// Threading model:
+//   Goja runs each RPC on its own goroutine but the global module scope
+//   is shared. SD_BATCH_BUFFER reads/writes are NOT atomic, but JS in
+//   Goja is single-threaded per-VM-tick, so within a single sdEnqueue
+//   call there's no interleaving. Across calls, we tolerate a small
+//   amount of clobbering (a tail event might be dropped if two RPCs
+//   race a flush) — the in-house dash_* write is the source of truth.
+function sdEnqueueOrFlush(ctx, nk, logger, identifier, events) {
+    if (!events || events.length === 0) return null;
+    var iid = identifier ? String(identifier) : "";
+    // Anonymous / system events skip the buffer entirely — they're rare
+    // (self-check, satori_diag, manual ops) and the batching adds no
+    // latency win.
+    if (!iid) return sdEventsPublish(ctx, nk, logger, identifier, events);
+
+    // Allowlist + slim happen up-front so a buffered batch's flush does
+    // ZERO transformation work — keeps the eventual flush latency the
+    // same regardless of buffer size.
+    var keep = [];
+    for (var i = 0; i < events.length; i++) {
+        var e = events[i] || {};
+        if (!sdIsAllowlisted(e.name)) continue;
+        keep.push(e);
+    }
+    if (keep.length === 0) return null;  // nothing to do
+
+    var now = Date.now();
+    var entry = SD_BATCH_BUFFER[iid];
+    if (!entry) {
+        entry = { events: [], firstAt: now, lastAt: now };
+        SD_BATCH_BUFFER[iid] = entry;
+    }
+    for (var j = 0; j < keep.length; j++) entry.events.push(keep[j]);
+    entry.lastAt = now;
+
+    // Periodic global sweep — flush any buffer that's gone idle for >5s
+    // even if its OWNER hasn't fired another event. Keeps low-traffic
+    // identities from sitting in the buffer indefinitely.
+    if (now - SD_BATCH_LAST_SWEEP > SD_BATCH_SWEEP_MS) {
+        sdSweepStaleBuffers(ctx, nk, logger, now);
+        SD_BATCH_LAST_SWEEP = now;
+    }
+
+    // Size threshold flush
+    if (entry.events.length >= SD_BATCH_MAX_EVENTS) {
+        return sdFlushBuffer(ctx, nk, logger, iid);
+    }
+    // Idle-since-first threshold (rare for a single user but cheap to check)
+    if (now - entry.firstAt > SD_BATCH_MAX_IDLE_MS) {
+        return sdFlushBuffer(ctx, nk, logger, iid);
+    }
+    return null;
+}
+
+// Flush ONE identity's buffer right now. Removes it from the buffer map
+// even on failure (we don't want to retry stale events forever — the
+// in-house dash_* write is the durable source of truth).
+function sdFlushBuffer(ctx, nk, logger, identifier) {
+    var iid = String(identifier || "");
+    var entry = SD_BATCH_BUFFER[iid];
+    if (!entry || entry.events.length === 0) {
+        delete SD_BATCH_BUFFER[iid];
+        return null;
+    }
+    var batch = entry.events;
+    delete SD_BATCH_BUFFER[iid];
+    return sdEventsPublish(ctx, nk, logger, iid, batch);
+}
+
+// Flush every buffer that's been idle longer than SD_BATCH_MAX_IDLE_MS.
+// Called automatically on every sdEnqueueOrFlush after the global sweep
+// interval; can also be invoked manually via the rpcSatoriFlush RPC.
+function sdSweepStaleBuffers(ctx, nk, logger, nowMs) {
+    var now = nowMs || Date.now();
+    var flushed = 0;
+    for (var iid in SD_BATCH_BUFFER) {
+        if (!Object.prototype.hasOwnProperty.call(SD_BATCH_BUFFER, iid)) continue;
+        var entry = SD_BATCH_BUFFER[iid];
+        if (!entry) continue;
+        if (now - entry.lastAt > SD_BATCH_MAX_IDLE_MS) {
+            sdFlushBuffer(ctx, nk, logger, iid);
+            flushed++;
+        }
+    }
+    return flushed;
+}
+
+// Force-flush every buffer regardless of age. For shutdown drains and
+// the satori_flush RPC.
+function sdFlushAll(ctx, nk, logger) {
+    var flushed = 0;
+    var ids = [];
+    for (var iid in SD_BATCH_BUFFER) {
+        if (Object.prototype.hasOwnProperty.call(SD_BATCH_BUFFER, iid)) ids.push(iid);
+    }
+    for (var i = 0; i < ids.length; i++) {
+        sdFlushBuffer(ctx, nk, logger, ids[i]);
+        flushed++;
+    }
+    return flushed;
 }
 
 // ─── Public API: identity-scoped calls ─────────────────────────────────
@@ -495,10 +737,104 @@ function rpcSatoriDiag(ctx, logger, nk, payload) {
     });
 }
 
+// ─── Phase 3.3: identity-properties one-shot ──────────────────────────
+//
+// Every event emitted by the client carries a fistful of identity-shaped
+// fields (device_model, install_source, display_name, …) that NEVER
+// change for the lifetime of an install. Sending them on every event is
+// (a) wasteful on Satori's metadata table and (b) makes per-event
+// payloads several KB instead of a few hundred bytes.
+//
+// Q6=C (hybrid identity) — we keep a slim copy on every event (the
+// SD_SLIM_KEEP set above) and push the full identity profile to
+// Satori once per identity per process via /v1/properties. The
+// SD_IDENT_SENT cache is process-local; on Nakama restart we'll
+// repush the same values once and Satori dedupes the upsert.
+//
+// Call site: invoked from analytics.js fan-out when the event name is
+// session_start (the natural moment to refresh identity props).
+function sdSendIdentityProperties(ctx, nk, logger, identifier, identityFields) {
+    if (!identifier) return null;
+    var iid = String(identifier);
+    if (SD_IDENT_SENT[iid]) return null;  // already pushed this process
+
+    if (!identityFields || typeof identityFields !== "object") {
+        SD_IDENT_SENT[iid] = true;
+        return null;
+    }
+
+    // sdPropertiesUpdate accepts { default, custom, recompute }. Default
+    // properties are the Satori-known fields (platform, country, app_version,
+    // …). Custom is for everything else.
+    var def = {};
+    var cus = {};
+    var defaultAllowed = {
+        "platform": true, "country": true, "app_version": true,
+        "language": true, "timezone": true
+    };
+    for (var k in identityFields) {
+        if (!Object.prototype.hasOwnProperty.call(identityFields, k)) continue;
+        var v = identityFields[k];
+        if (v === null || v === undefined) continue;
+        var sv = (typeof v === "object") ? JSON.stringify(v) : String(v);
+        if (defaultAllowed[k]) def[k] = sv;
+        else cus[k] = sv;
+    }
+    if (Object.keys(def).length === 0 && Object.keys(cus).length === 0) {
+        SD_IDENT_SENT[iid] = true;
+        return null;
+    }
+
+    var resp = sdPropertiesUpdate(ctx, nk, logger, iid, {
+        "default": def, "custom": cus, "recompute": true
+    });
+    // Mark sent regardless of HTTP outcome — failed PUTs will retry on
+    // next process restart, and we don't want to hammer /v1/properties
+    // on every session_start when Satori is rate-limiting us.
+    SD_IDENT_SENT[iid] = true;
+    return resp;
+}
+
+// ─── Admin / ops RPCs ──────────────────────────────────────────────────
+
+// satori_flush — force a flush of every batched buffer right now. Useful
+// for manual ops (e.g. before shutting down a Nakama instance) and for
+// integration tests that need to assert events landed in Satori within
+// a single test step. Requires admin secret — same gate as the analytics
+// dashboard RPCs.
+function rpcSatoriFlush(ctx, logger, nk, payload) {
+    var p = {};
+    try { p = payload ? JSON.parse(payload) : {}; } catch (e) { p = {}; }
+    var secret = (ctx && ctx.env && ctx.env["DASHBOARD_SECRET"]) ||
+                 "qv-dashboard-2026-internal-secret";
+    if (p.dashboard_secret !== secret) {
+        return JSON.stringify({ ok: false, error: "unauthorized" });
+    }
+
+    var bufferCount = 0;
+    var pendingEvents = 0;
+    for (var iid in SD_BATCH_BUFFER) {
+        if (Object.prototype.hasOwnProperty.call(SD_BATCH_BUFFER, iid)) {
+            bufferCount++;
+            pendingEvents += (SD_BATCH_BUFFER[iid].events || []).length;
+        }
+    }
+    var flushed = sdFlushAll(ctx, nk, logger);
+    return JSON.stringify({
+        ok: true,
+        buffers_before: bufferCount,
+        events_before:  pendingEvents,
+        identities_flushed: flushed,
+        identities_in_props_cache: Object.keys(SD_IDENT_SENT).length
+    });
+}
+
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("satori_diag", rpcSatoriDiag);
+    initializer.registerRpc("satori_flush", rpcSatoriFlush);
     if (logger && logger.info) {
-        logger.info("[satori_direct] v2 module loaded — RPC satori_diag registered, base url=" + SD_URL +
-            " (events→/v1/server-event Basic Auth, identity→/v1/authenticate→Bearer)");
+        logger.info("[satori_direct] v3 module loaded — RPCs satori_diag, satori_flush registered. " +
+            "base url=" + SD_URL + ", allowlist=" + Object.keys(SD_EVENT_ALLOWLIST).length +
+            " events, batch=" + SD_BATCH_MAX_EVENTS + "/" + SD_BATCH_MAX_IDLE_MS + "ms");
     }
 }

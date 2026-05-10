@@ -915,11 +915,41 @@ declare namespace LegacyMissions {
 declare namespace LegacyMultiGame {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace LegacyNotifScheduler {
+    export var MATCH_NAME: string;
+    interface SchedulerState {
+        lastDispatchedMinute: {
+            [taskName: string]: number;
+        };
+        lastLog: number;
+    }
+    export var matchInit: nkruntime.MatchInitFunction<SchedulerState>;
+    export var matchJoinAttempt: nkruntime.MatchJoinAttemptFunction<SchedulerState>;
+    export var matchJoin: nkruntime.MatchJoinFunction<SchedulerState>;
+    export var matchLeave: nkruntime.MatchLeaveFunction<SchedulerState>;
+    export var matchLoop: nkruntime.MatchLoopFunction<SchedulerState>;
+    export var matchSignal: nkruntime.MatchSignalFunction<SchedulerState>;
+    export var matchTerminate: nkruntime.MatchTerminateFunction<SchedulerState>;
+    export function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
+}
 declare namespace LegacyPlayer {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyPush {
-    function register(initializer: nkruntime.Initializer): void;
+    function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcNotifCronWeeklyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcNotifCronIdleWinback(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcNotifCronStreakWarning(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcNotifCronMotivation(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    export var runDailyQuizCron: typeof rpcNotifCronDailyQuiz;
+    export var runWeeklyQuizCron: typeof rpcNotifCronWeeklyQuiz;
+    export var runIdleWinbackCron: typeof rpcNotifCronIdleWinback;
+    export var runStreakWarningCron: typeof rpcNotifCronStreakWarning;
+    export var runMotivationCron: typeof rpcNotifCronMotivation;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
 }
 declare namespace LegacyQuestsEconomyBridge {
     function register(initializer: nkruntime.Initializer): void;

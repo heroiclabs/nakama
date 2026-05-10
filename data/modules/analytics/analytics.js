@@ -274,16 +274,23 @@ function persistNormalizedEvent(nk, logger, ev) {
     }
 
     // ── Heroic Labs Satori cloud fan-out (direct HTTP, hardcoded creds) ──
-    // We bypass nk.getSatori() and call Satori's REST API directly via the
-    // satori_direct module. Why: the official path requires --satori.url /
-    // --satori.signing_key etc. CLI flags on the Nakama Deployment, which
-    // means a DevOps round-trip every time we ship. The direct path embeds
-    // credentials in the JS bundle (see satori_direct.js for the trade-off
-    // discussion) and works the moment the new image rolls out.
     //
-    // sdEventsPublish is auto-loaded into the global JS scope by the postbuild
-    // concatenation (data/modules/satori_direct/satori_direct.js). Calling it
-    // costs one HTTP POST per analytics_log_event RPC.
+    // Phase 3 (2026-05) overhaul:
+    //   • Allowlist filter — sdEnqueueOrFlush early-returns for any event
+    //     not in SD_EVENT_ALLOWLIST (~30 canonical events). The other ~250
+    //     dashboard-only events stay in-house and never touch Satori.
+    //   • Per-identity batch buffer — events accumulate in process memory
+    //     and flush at 50 events OR 5 s idle. Drops Satori HTTP from
+    //     ~1-per-event to ~1-per-50-events for active users.
+    //   • Identity hybrid (Q6=C) — on session_start we push the full
+    //     identity property bag to /v1/properties exactly once per
+    //     process per identity; per-event metadata is slimmed down to
+    //     platform/country/app_version + event-essentials inside
+    //     sdSlimMetadata.
+    //
+    // Fan-out failures NEVER abort the main RPC — the in-house dash_*
+    // write above is the durable source of truth and the dashboard
+    // doesn't depend on Satori at all.
     try {
         var sEv = {
             name: ev.eventName,
@@ -302,7 +309,22 @@ function persistNormalizedEvent(nk, logger, ev) {
                 }
             }
         }
-        sdEventsPublish(null, nk, logger, ev.userId, [sEv]);
+
+        // Push full identity properties to Satori on session_start (once
+        // per identity per process). Done BEFORE the event enqueue so
+        // Satori has the identity bag when the event lands. Failure here
+        // is silently absorbed by sdSendIdentityProperties.
+        if (ev.eventName === "session_start" || ev.eventName === "first_open") {
+            try {
+                sdSendIdentityProperties(null, nk, logger, ev.userId, sEv.metadata);
+            } catch (eIdent) {
+                if (logger && logger.info) {
+                    logger.info("[analytics] satori identity props skipped: " + (eIdent.message || eIdent));
+                }
+            }
+        }
+
+        sdEnqueueOrFlush(null, nk, logger, ev.userId, [sEv]);
     } catch (e) {
         if (logger && logger.info) {
             logger.info("[analytics] satori publish skipped: " + (e.message || e));

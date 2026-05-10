@@ -142,6 +142,14 @@ function InitModule(ctx, logger, nk, initializer) {
         LegacyGroups.register(initializer);
         logger.info("[Legacy] Registering push RPCs...");
         LegacyPush.register(initializer);
+        logger.info("[Legacy] Registering notification scheduler match...");
+        LegacyNotifScheduler.register(initializer);
+        // Spawn one in-process scheduler match per pod. The match runs forever,
+        // ticks at 1 Hz, and dispatches the five notif_cron_* RPCs at their own
+        // cadence. Replaces external K8s CronJob / EventBridge scheduling.
+        // Per-user `notif_send_markers` storage dedup makes this safe across
+        // multiple Nakama replicas (first writer wins, others see the marker).
+        LegacyNotifScheduler.spawnSchedulerMatch(logger, nk);
         logger.info("[Legacy] Registering player RPCs...");
         LegacyPlayer.register(initializer);
         logger.info("[Legacy] Registering chat RPCs...");
@@ -12961,6 +12969,143 @@ var LegacyMultiGame;
     }
     LegacyMultiGame.register = register;
 })(LegacyMultiGame || (LegacyMultiGame = {}));
+// ===========================================================================
+//  In-process notification scheduler
+// ---------------------------------------------------------------------------
+//  Single Nakama match instance per pod that ticks once per second and fires
+//  the LegacyPush.rpcNotifCron* handlers at their own cadence — no K8s
+//  CronJob, no external scheduler, no AWS EventBridge required.
+//
+//  Why a match:
+//    • Goja JS runtime resets between RPC calls, so setInterval() / setTimeout()
+//      cannot survive across requests.
+//    • Match handlers are the ONLY long-running Goja contexts Nakama exposes.
+//    • Nakama config has `match.max_empty_sec 0`, so a player-less match runs
+//      indefinitely until the process exits.
+//
+//  Multi-replica safety:
+//    • Each Nakama pod creates its own scheduler match on boot.
+//    • All five cron handlers already deduplicate per-user via the
+//      `notif_send_markers` storage collection — first writer wins, others
+//      see hasMarker() and skip. Worst-case cost across N pods is a few
+//      extra storage reads per minute.
+//
+//  Cadence (per-task):
+//    Each task carries its own quiet-hours window check inside the cron
+//    handler, so the scheduler just dispatches frequently enough to not miss
+//    any user's local time window. 60 s tick is plenty.
+//
+//      daily_quiz       → every 30 minutes (per-user 09:00–13:00 local gating)
+//      weekly_quiz      → every 60 minutes (5 types × 13 langs S3 reads)
+//      idle_winback     → every 30 minutes (per-user 11:00–19:00 local gating)
+//      streak_warning   → every 30 minutes (per-user 18:00–22:00 local gating)
+//      motivation       → every 60 minutes (per-user 12:00–18:00 + 3-day throttle)
+// ===========================================================================
+var LegacyNotifScheduler;
+(function (LegacyNotifScheduler) {
+    LegacyNotifScheduler.MATCH_NAME = "notif_scheduler_v1";
+    function nowMinute() {
+        return Math.floor(Date.now() / 60000);
+    }
+    // Returns true if the current UTC minute is on the requested cadence
+    // boundary AND we haven't already dispatched at this minute.
+    function shouldDispatch(state, task, periodMin) {
+        var m = nowMinute();
+        if ((m % periodMin) !== 0)
+            return false;
+        if (state.lastDispatchedMinute[task] === m)
+            return false;
+        state.lastDispatchedMinute[task] = m;
+        return true;
+    }
+    // Wrap each cron call in try/catch so one task's exception cannot kill the
+    // scheduler match. The handlers return JSON strings on success; we ignore
+    // them. Non-fatal logging only.
+    function dispatchSafely(taskName, fn, ctx, logger, nk) {
+        try {
+            var ret = fn(ctx, logger, nk, "");
+            logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
+        }
+        catch (e) {
+            logger.error("[NotifScheduler] Task %s failed: %s", taskName, e && e.message ? e.message : String(e));
+        }
+    }
+    LegacyNotifScheduler.matchInit = function (ctx, logger, nk, params) {
+        logger.info("[NotifScheduler] match init — tickRate=1, label=" + LegacyNotifScheduler.MATCH_NAME);
+        return {
+            state: { lastDispatchedMinute: {}, lastLog: 0 },
+            tickRate: 1, // 1 Hz — once per second
+            label: LegacyNotifScheduler.MATCH_NAME
+        };
+    };
+    // Headless: never accept any joiners. Scheduler runs without players.
+    LegacyNotifScheduler.matchJoinAttempt = function (ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
+        return { state: state, accept: false, rejectMessage: "scheduler match — no joins" };
+    };
+    LegacyNotifScheduler.matchJoin = function (ctx, logger, nk, dispatcher, tick, state, presences) {
+        return { state: state };
+    };
+    LegacyNotifScheduler.matchLeave = function (ctx, logger, nk, dispatcher, tick, state, presences) {
+        return { state: state };
+    };
+    LegacyNotifScheduler.matchLoop = function (ctx, logger, nk, dispatcher, tick, state, messages) {
+        // Direct calls into the cron functions inside LegacyPush. Note these
+        // functions enforce `if (ctx.userId)` to reject user-token callers; the
+        // match context has no userId so the admin gate passes.
+        if (shouldDispatch(state, "daily_quiz", 30))
+            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk);
+        if (shouldDispatch(state, "weekly_quiz", 60))
+            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk);
+        if (shouldDispatch(state, "idle_winback", 30))
+            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk);
+        if (shouldDispatch(state, "streak_warning", 30))
+            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
+        if (shouldDispatch(state, "motivation", 60))
+            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk);
+        // Heartbeat once per hour so we can verify the scheduler is alive in logs
+        // without spamming. Best-effort; never throws.
+        var m = nowMinute();
+        if ((m % 60) === 0 && state.lastLog !== m) {
+            state.lastLog = m;
+            logger.info("[NotifScheduler] heartbeat — minute=%d", m);
+        }
+        return { state: state };
+    };
+    LegacyNotifScheduler.matchSignal = function (ctx, logger, nk, dispatcher, tick, state, data) {
+        return { state: state, data: data };
+    };
+    LegacyNotifScheduler.matchTerminate = function (ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
+        logger.warn("[NotifScheduler] match terminating — grace=%ds", graceSeconds);
+        return { state: state };
+    };
+    // Spawn one scheduler match for this Nakama process. Called from InitModule
+    // via the registered LegacyPush.register() path. Idempotent within a single
+    // process: matchCreate returns a new id even if called twice, but we only
+    // call it once at boot.
+    function spawnSchedulerMatch(logger, nk) {
+        try {
+            var matchId = nk.matchCreate(LegacyNotifScheduler.MATCH_NAME, {});
+            logger.info("[NotifScheduler] Scheduler match spawned: %s", matchId);
+        }
+        catch (e) {
+            logger.error("[NotifScheduler] Failed to spawn scheduler match: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    LegacyNotifScheduler.spawnSchedulerMatch = spawnSchedulerMatch;
+    // Register the match handler. Call from InitModule.
+    function register(initializer) {
+        initializer.registerMatch(LegacyNotifScheduler.MATCH_NAME, {
+            matchInit: LegacyNotifScheduler.matchInit,
+            matchJoinAttempt: LegacyNotifScheduler.matchJoinAttempt,
+            matchJoin: LegacyNotifScheduler.matchJoin,
+            matchLeave: LegacyNotifScheduler.matchLeave,
+            matchLoop: LegacyNotifScheduler.matchLoop,
+            matchSignal: LegacyNotifScheduler.matchSignal,
+            matchTerminate: LegacyNotifScheduler.matchTerminate
+        });
+    }
+    LegacyNotifScheduler.register = register;
+})(LegacyNotifScheduler || (LegacyNotifScheduler = {}));
 var LegacyPlayer;
 (function (LegacyPlayer) {
     function getPlayerMetadata(nk, userId) {
@@ -13123,6 +13268,21 @@ var LegacyPlayer;
 var LegacyPush;
 (function (LegacyPush) {
     var DEFAULT_PUSH_NOTIFICATION_CODE = 7001;
+    // ─── Production hardcoded Lambda Function URLs ──────────────────────────────
+    // Single source of truth for the AWS Lambda Function URLs that back our push
+    // pipeline. Hardcoded so the system works even when Nakama starts without the
+    // PUSH_REGISTER_URL / PUSH_LAMBDA_URL / PUSH_SEND_URL env vars set (e.g. on
+    // first deploy, or in a fresh K8s manifest). Env vars still take precedence
+    // when present, so ops can rotate URLs without a Nakama rebuild.
+    //
+    // Update both values below if the Lambda URLs ever change.
+    //   - REGISTER URL → push-register-endpoint Lambda (creates SNS endpoint ARN)
+    //   - SEND URL     → push-send-notification Lambda (publishes to SNS endpoint)
+    //
+    // ⚠️ TODO(ops): paste the actual REGISTER URL between the quotes below.
+    // The SEND URL is from the production push-notification documentation.
+    var PUSH_REGISTER_URL_DEFAULT = ""; // FIXME: paste push-register-endpoint Lambda Function URL here
+    var PUSH_SEND_URL_DEFAULT = "https://dp3gdkvjst4dwlehmuk3o7l4zm0rjapm.lambda-url.us-east-1.on.aws/";
     function getPushTokens(nk, userId) {
         var key = "token_" + userId;
         var data = Storage.readJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId);
@@ -13156,7 +13316,7 @@ var LegacyPush;
         return p;
     }
     function registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId) {
-        var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL");
+        var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL") || PUSH_REGISTER_URL_DEFAULT;
         if (!registerUrl)
             return { configured: false };
         try {
@@ -13192,7 +13352,7 @@ var LegacyPush;
         }
     }
     function sendProviderPush(ctx, logger, nk, endpoint, payload) {
-        var sendUrl = env(ctx, "PUSH_SEND_URL");
+        var sendUrl = env(ctx, "PUSH_SEND_URL") || PUSH_SEND_URL_DEFAULT;
         if (!sendUrl)
             return { configured: false };
         if (!endpoint.endpointArn)
@@ -13264,7 +13424,18 @@ var LegacyPush;
                 });
             }
             savePushTokens(nk, userId, tokensData);
-            return RpcHelpers.successResponse({ success: true, provider: provider });
+            // Flat response shape — matches Unity's PushRegisterResponse fields exactly so
+            // JsonConvert.DeserializeObject reads endpointArn/platform/userId/gameId without
+            // an extra .data unwrap step. Do NOT wrap in RpcHelpers.successResponse here.
+            return JSON.stringify({
+                success: true,
+                userId: userId,
+                gameId: gameId,
+                platform: platform,
+                endpointArn: provider && provider.endpointArn ? provider.endpointArn : "",
+                registeredAt: new Date().toISOString(),
+                provider: provider
+            });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to register token");
@@ -13315,14 +13486,16 @@ var LegacyPush;
                     code: code,
                     persistent: data.persistent !== false
                 }]);
-            return RpcHelpers.successResponse({
+            // Flat response shape — matches Unity's PushSendResponse {success, messageId,
+            // eventType, recipientCount, sentAt, error}. No .data wrap.
+            return JSON.stringify({
                 success: true,
                 messageId: "nakama_notification_" + Date.now(),
                 eventType: data.eventType || subject,
                 recipientCount: 1,
+                sentAt: new Date().toISOString(),
                 providerConfigured: providerResults.length > 0,
-                providerResults: providerResults,
-                sentAt: new Date().toISOString()
+                providerResults: providerResults
             });
         }
         catch (e) {
@@ -13337,15 +13510,21 @@ var LegacyPush;
             var tokensData = getPushTokens(nk, targetUserId);
             var endpoints = tokensData.tokens.map(function (t) {
                 return {
-                    token: t.token,
-                    platform: t.platform,
                     endpointArn: t.endpointArn,
-                    provider: t.provider,
-                    providerRegisteredAt: t.providerRegisteredAt,
-                    providerError: t.providerError
+                    platform: t.platform,
+                    enabled: !t.providerError,
+                    createdAt: t.providerRegisteredAt ? new Date(t.providerRegisteredAt * 1000).toISOString() : "",
+                    lastUpdated: t.updatedAt ? new Date(t.updatedAt * 1000).toISOString() : ""
                 };
             });
-            return RpcHelpers.successResponse({ endpoints: endpoints });
+            // Flat response shape — matches Unity's PushEndpointsResponse {success, userId,
+            // gameId, endpoints[], error}. No .data wrap.
+            return JSON.stringify({
+                success: true,
+                userId: targetUserId,
+                gameId: data.gameId || "quizverse",
+                endpoints: endpoints
+            });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to get endpoints");
@@ -13608,11 +13787,23 @@ var LegacyPush;
         var tokensData = getPushTokens(nk, userId);
         if (!tokensData.tokens || tokensData.tokens.length === 0)
             return false;
+        // CRITICAL for client-side deep-link routing: every FCM/APNS data dict that
+        // reaches the device MUST contain `eventType` so Unity's FCMManager can route
+        // it to the correct screen (HandleNotificationType switches on this key).
+        // Defensive merge — if a buggy/old Lambda fails to forward our top-level
+        // eventType into the FCM data field, this guarantees the client still sees it.
+        var mergedData = { eventType: eventType };
+        if (opts.data) {
+            for (var k in opts.data) {
+                if (k !== "eventType")
+                    mergedData[k] = opts.data[k];
+            }
+        }
         var sent = 0;
         for (var i = 0; i < tokensData.tokens.length; i++) {
             var t = tokensData.tokens[i];
             var providerResult = sendProviderPush(ctx, logger, nk, t, {
-                title: title, body: body, data: opts.data || {},
+                title: title, body: body, data: mergedData,
                 gameId: opts.gameId || "quizverse", eventType: eventType
             });
             if (providerResult.success === true)
@@ -13621,7 +13812,7 @@ var LegacyPush;
         try {
             nk.notificationsSend([{
                     userId: userId, subject: eventType,
-                    content: { eventType: eventType, title: title, body: body, data: opts.data || {} },
+                    content: { eventType: eventType, title: title, body: body, data: mergedData },
                     code: DEFAULT_PUSH_NOTIFICATION_CODE, persistent: true
                 }]);
         }
@@ -14039,6 +14230,14 @@ var LegacyPush;
         var ok = sendLocalizedPushToUser(ctx, logger, nk, to, "friend_challenge", "friend_challenge_title", "friend_challenge_body", { name: name, mode: mode }, { skipQuietHours: true, data: { screen: "challenges", fromUserId: d.fromUserId || "", mode: mode } });
         return RpcHelpers.successResponse({ sent: ok });
     }
+    // Internal aliases so the in-process scheduler match can invoke each cron
+    // handler directly without an HTTP round-trip. The RPC versions remain
+    // registered for ops use (manual fire / external trigger / curl).
+    LegacyPush.runDailyQuizCron = rpcNotifCronDailyQuiz;
+    LegacyPush.runWeeklyQuizCron = rpcNotifCronWeeklyQuiz;
+    LegacyPush.runIdleWinbackCron = rpcNotifCronIdleWinback;
+    LegacyPush.runStreakWarningCron = rpcNotifCronStreakWarning;
+    LegacyPush.runMotivationCron = rpcNotifCronMotivation;
     function register(initializer) {
         initializer.registerRpc("push_register_token", rpcPushRegisterToken);
         initializer.registerRpc("push_send_event", rpcPushSendEvent);
