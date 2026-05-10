@@ -2156,6 +2156,19 @@
                 refreshAll();
                 // Run a diagnose immediately so the operator sees env/module health.
                 setTimeout(() => loadDiagnose().catch(() => {}), 400);
+                // 2026-05 — kick the auto-backfill state machine. The state
+                // machine piggybacks on `analytics_log_event` traffic to
+                // advance through identity → events_replay → dau_synthetic
+                // → rollup. In production there is virtually no live event
+                // traffic between dashboard sessions, so we kick once on
+                // login (and again every 90s while the dashboard is open)
+                // to keep historical replay progressing.
+                setTimeout(() => callRpc('analytics_auto_kick', {}).catch(() => {}), 600);
+                setInterval(() => {
+                    if (isAuthenticated) {
+                        callRpc('analytics_auto_kick', {}).catch(() => {});
+                    }
+                }, 90000);
             } catch (e) {
                 console.error('attemptLogin error', e);
                 errEl.textContent = 'Network error: ' + (e.message || e);
@@ -2781,29 +2794,31 @@
                 const convRateNum = parseFloat(data.conversionRate) || 0;
                 const convHealth = convRateNum > 3 ? 'positive' : convRateNum < 1 ? 'negative' : '';
                 
+                const totalPurchases = data.totalPurchases ?? data.total_purchases ?? data.iap_count ?? 0;
+                const daysBack       = data.daysBack       ?? data.days_back       ?? data.days       ?? selectedDays ?? 7;
                 document.getElementById('revenueKpis').innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">💰</div>
                         <div class="label">Total Revenue (${period})</div>
-                        <div class="value currency">${formatNumber(data.totalRevenue)}</div>
-                        <div class="trend">${data.totalPurchases} purchases</div>
+                        <div class="value currency">${formatNumber(data.totalRevenue || 0)}</div>
+                        <div class="trend">${formatNumber(totalPurchases)} purchases</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📈</div>
                         <div class="label">ARPU</div>
-                        <div class="value currency">${data.arpu?.toFixed(2) || '0.00'}</div>
+                        <div class="value currency">${(data.arpu ?? 0).toFixed(2)}</div>
                         <div class="trend">Avg Revenue Per User</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">💎</div>
                         <div class="label">ARPPU</div>
-                        <div class="value currency ${arppuHealth}">${data.arppu?.toFixed(2) || '0.00'}</div>
+                        <div class="value currency ${arppuHealth}">${(data.arppu ?? 0).toFixed(2)}</div>
                         <div class="trend">Avg Revenue Per Paying User</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🎯</div>
                         <div class="label">Paying Users</div>
-                        <div class="value">${formatNumber(data.uniquePayingUsers)}</div>
+                        <div class="value">${formatNumber(data.uniquePayingUsers || 0)}</div>
                         <div class="trend">Unique payers</div>
                     </div>
                     <div class="kpi-card">
@@ -2815,8 +2830,8 @@
                     <div class="kpi-card">
                         <div class="icon">👥</div>
                         <div class="label">Avg DAU</div>
-                        <div class="value">${formatNumber(data.avgDau)}</div>
-                        <div class="trend">Over ${data.daysBack} days</div>
+                        <div class="value">${formatNumber(data.avgDau || 0)}</div>
+                        <div class="trend">Over ${daysBack} days</div>
                     </div>
                 `;
                 
@@ -3089,41 +3104,41 @@
                     <div class="kpi-card">
                         <div class="icon">🪙</div>
                         <div class="label">Total Coins (sample)</div>
-                        <div class="value">${formatNumber(data.total_coins)}</div>
-                        <div class="trend">${formatNumber(data.sample_size)} users sampled</div>
-                    </div>
-                    <div class="kpi-card">
-                        <div class="icon">💎</div>
-                        <div class="label">Total Gems (sample)</div>
-                        <div class="value">${formatNumber(data.total_gems)}</div>
+                        <div class="value">${formatNumber(data.total_coins || 0)}</div>
+                        <div class="trend">${formatNumber(data.sample_size || 0)} users sampled</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
                         <div class="label">Avg Coins/User</div>
-                        <div class="value">${formatNumber(data.avg_coins)}</div>
-                        <div class="trend">Median: ${formatNumber(data.median_coins)}</div>
+                        <div class="value">${formatNumber(data.avg_coins || 0)}</div>
+                        <div class="trend">Median: ${formatNumber(data.median_coins || 0)}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">⚖️</div>
                         <div class="label">Gini Coefficient</div>
-                        <div class="value plain ${giniHealth}">${data.gini_coefficient}</div>
+                        <div class="value plain ${giniHealth}">${data.gini_coefficient || 0}</div>
                         <div class="trend">0=equal, 1=unequal</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🐋</div>
                         <div class="label">Whale Users (top 1%)</div>
-                        <div class="value">${formatNumber(data.whale_count)}</div>
+                        <div class="value">${formatNumber(data.whale_count || 0)}</div>
+                        <div class="trend">>10k coins</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🔄</div>
                         <div class="label">Source/Sink Ratio</div>
                         <div class="value plain">${ssRatio.ratio || 0}</div>
-                        <div class="trend">In: ${formatNumber(ssRatio.sources_total)} / Out: ${formatNumber(ssRatio.sinks_total)}</div>
+                        <div class="trend">In: ${formatNumber(ssRatio.sources_total || 0)} / Out: ${formatNumber(ssRatio.sinks_total || 0)}</div>
                     </div>
                 `;
                 createDoughnutChart('coinDistChart',
-                    ['Coins', 'Gems', 'Whale Reserve (×10)'],
-                    [data.total_coins || 0, data.total_gems || 0, (data.whale_count || 0) * 10]
+                    ['Coins (avg)', 'Whale Reserve (×10)', 'Median × users'],
+                    [
+                        data.avg_coins || 0,
+                        (data.whale_count || 0) * 10,
+                        (data.median_coins || 0) * (data.sample_size || 0)
+                    ]
                 );
                 createDoughnutChart('sourceSinkChart',
                     ['Sources (In)', 'Sinks (Out)'],
@@ -3292,13 +3307,19 @@
             try {
                 const data = await callRpc('analytics_ai_features', { days: selectedDays, ...getGamePayload() });
                 if (data.error) { document.querySelector('#aiFeatureTable tbody').innerHTML = `<tr><td colspan="4" class="empty-state">${data.error}</td></tr>`; return; }
+                // 2026-05 — when zero AI events exist, show em-dashes rather
+                // than a misleading "0%" (which historically rendered next to
+                // a non-AI feature like login_failed because of a substring-
+                // match bug in the server filter, since fixed).
+                const noAiData = !data.total_ai_events;
+                const adoption = noAiData ? '—' : (data.ai_adoption_pct ?? 0) + '%';
                 document.getElementById('aiKpis').innerHTML = [
-                    { label: 'Total AI Events', value: formatNumber(data.total_ai_events) },
-                    { label: 'AI Users', value: formatNumber(data.total_ai_users) },
-                    { label: 'AI Adoption %', value: data.ai_adoption_pct + '%' },
-                    { label: 'Credits Used', value: formatNumber(data.credits_consumed) },
-                    { label: 'Voice Answers', value: formatNumber(data.voice_answers) },
-                    { label: 'Users Sampled', value: formatNumber(data.users_sampled) }
+                    { label: 'Total AI Events', value: formatNumber(data.total_ai_events || 0) },
+                    { label: 'AI Users', value: formatNumber(data.total_ai_users || 0) },
+                    { label: 'AI Adoption %', value: adoption },
+                    { label: 'Credits Used', value: formatNumber(data.credits_consumed || 0) },
+                    { label: 'Voice Answers', value: formatNumber(data.voice_answers || 0) },
+                    { label: 'Users Sampled', value: formatNumber(data.users_sampled || 0) }
                 ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
                 if (data.features && data.features.length > 0) {
                     if (charts.aiUsage) charts.aiUsage.destroy();
@@ -3349,7 +3370,16 @@
                 // Server now returns: ad_requests, ad_load_failures, ad_skips,
                 // ad_clicks, ad_completion_rate_pct, ad_ecpm_usd, ad_revenue_by_network.
                 const num = (v) => formatNumber(v || 0);
-                const pct = (v) => (v == null ? '—' : v + '%');
+                // Cap percent values defensively at 0..100 so the UI never
+                // displays a 200% completion-rate even if a stale rollup
+                // slips through after a backend redeploy.
+                const pct = (v) => {
+                    if (v == null) return '—';
+                    let n = Number(v);
+                    if (!isFinite(n) || n < 0) n = 0;
+                    if (n > 100) n = 100;
+                    return n + '%';
+                };
                 const usd = (v) => '$' + (Number(v || 0).toFixed(2));
                 document.getElementById('monetKpis').innerHTML = [
                     // Ad funnel

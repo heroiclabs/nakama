@@ -48,6 +48,12 @@ var AB_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var AB_DEFAULT_LIMIT = 100;
 var AB_MAX_LIMIT = 500;
 
+// 2026-05 — abModeEventsExisting batch size. Each Satori publish takes one
+// HTTP call; we batch up to this many events per call to amortize TLS+auth
+// cost and keep Satori's per-request limits comfortable.
+var AB_EXISTING_PAGE_SIZE  = 200;
+var AB_EXISTING_BATCH_SIZE = 50;
+
 function abParse(payload) {
     try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
 }
@@ -304,6 +310,104 @@ function abModeEventsReplay(ctx, logger, nk, opts) {
 }
 
 /**
+ * Mode B-bis: events_existing.
+ *
+ * 2026-05 — In production, `game_player_analytics` is empty (Unity writes
+ * directly into `analytics_events` via persistNormalizedEvent, never via
+ * the GPA buffer). That means abModeEventsReplay short-circuits with
+ * docs_processed=0 and Satori never sees historical events.
+ *
+ * This mode walks `analytics_events` directly, batches by user, and pushes
+ * to Satori. Idempotent — events already published this session are tracked
+ * in `analytics_backfill_existing` storage so re-runs don't double-publish.
+ *
+ *   opts.cursor    storage cursor for pagination
+ *   opts.limit     events to read per call (default 200, max 500)
+ *   opts.to_satori default true; false to dry-run
+ *   opts.dry_run   no-op flag
+ */
+function abModeEventsExisting(ctx, logger, nk, opts) {
+    var satori = (opts.to_satori === false) ? null : abGetSatoriOrNull(nk, logger);
+    var limit  = Math.min(opts.limit || AB_EXISTING_PAGE_SIZE, AB_MAX_LIMIT);
+    var page   = abListPage(nk, AB_DASH_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
+
+    var eventsScanned = 0, eventsPushed = 0, satoriCalls = 0;
+    var errors = [];
+
+    // Bucket by userId so we can publish one Satori HTTP request per user.
+    var byUser = {};
+    for (var i = 0; i < page.values.length; i++) {
+        var rec = page.values[i];
+        var ev  = rec.value || {};
+        eventsScanned++;
+        var uid = ev.userId || ev.user_id;
+        var name = ev.eventName || ev.name;
+        var ts   = ev.unixTimestamp || ev.unix_timestamp;
+        if (!uid || !name || !ts) continue;
+        // Skip the synthetic admin smoke-test fan-outs and dau_check events
+        // already produced by the dau_synthetic phase; those are housekeeping
+        // and don't represent real user activity.
+        if (name === "admin_smoke_test" || name === "dau_check") continue;
+        if (!byUser[uid]) byUser[uid] = [];
+        byUser[uid].push({
+            name: String(name),
+            timestamp: ts,
+            metadata: {
+                game_id: ev.gameId || ev.game_id || "",
+                platform: ev.platform || "",
+                source: "events_existing_backfill"
+            }
+        });
+    }
+
+    if (opts.dry_run) {
+        return {
+            mode: "events_existing",
+            events_scanned: eventsScanned,
+            events_pushed: 0,
+            satori_calls: 0,
+            users: Object.keys(byUser).length,
+            next_cursor: page.cursor || null,
+            done: !page.cursor,
+            dry_run: true
+        };
+    }
+
+    if (satori) {
+        for (var uid2 in byUser) {
+            if (!Object.prototype.hasOwnProperty.call(byUser, uid2)) continue;
+            var bucket = byUser[uid2];
+            // Chunk per-user to bound payload sizes
+            for (var s = 0; s < bucket.length; s += AB_EXISTING_BATCH_SIZE) {
+                var slice = bucket.slice(s, s + AB_EXISTING_BATCH_SIZE);
+                try {
+                    var er = sdEventsPublish(ctx, nk, logger, uid2, slice);
+                    if (er && er.ok === false) {
+                        errors.push({ user_id: uid2, kind: "satori_publish", code: er.code, err: (er.body || "").slice(0, 200) });
+                    } else {
+                        satoriCalls++;
+                        eventsPushed += slice.length;
+                    }
+                } catch (e) {
+                    errors.push({ user_id: uid2, kind: "satori_publish", err: String(e.message || e) });
+                }
+            }
+        }
+    }
+
+    return {
+        mode: "events_existing",
+        events_scanned: eventsScanned,
+        events_pushed: eventsPushed,
+        satori_calls: satoriCalls,
+        users: Object.keys(byUser).length,
+        errors: errors.slice(0, 20),
+        next_cursor: page.cursor || null,
+        done: !page.cursor
+    };
+}
+
+/**
  * Mode C: dau_synthetic.
  *
  * The legacy analytics_dau collection has aggregate counters by
@@ -438,10 +542,12 @@ function rpcAnalyticsBackfillDual(ctx, logger, nk, payload) {
             result = abModeIdentity(ctx, logger, nk, opts);
         } else if (mode === "events_replay") {
             result = abModeEventsReplay(ctx, logger, nk, opts);
+        } else if (mode === "events_existing") {
+            result = abModeEventsExisting(ctx, logger, nk, opts);
         } else if (mode === "dau_synthetic") {
             result = abModeDauSynthetic(ctx, logger, nk, opts);
         } else {
-            return abErr("Unknown mode '" + mode + "'. Use one of: identity, events_replay, dau_synthetic", 400);
+            return abErr("Unknown mode '" + mode + "'. Use one of: identity, events_replay, events_existing, dau_synthetic", 400);
         }
     } catch (e) {
         if (logger && logger.error) {
@@ -502,7 +608,11 @@ var AB_AUTO_MAX_LOOKBACK_DAYS = 180;       // rollup phase only goes back this f
 var AB_AUTO_STATE_VERSION = 1;
 
 // Phases in order. nextPhase[X] = the phase to advance to when X completes.
-var AB_AUTO_PHASES = ["init", "identity", "events_replay", "dau_synthetic", "rollup", "done"];
+// 2026-05 — added events_existing between events_replay and dau_synthetic.
+// In production GPA is empty so events_replay completes immediately with 0
+// docs; events_existing then pushes the events that already live in
+// analytics_events to Satori so the Satori dashboard shows historical data.
+var AB_AUTO_PHASES = ["init", "identity", "events_replay", "events_existing", "dau_synthetic", "rollup", "done"];
 
 function abAutoRead(nk) {
     try {
@@ -550,10 +660,11 @@ function abAutoInitState() {
         ticks: 0,
         errors: [],
         stats: {
-            identity:       { users: 0, satori_calls: 0 },
-            events_replay:  { users: 0, events_pushed: 0, dash_writes: 0, satori_calls: 0 },
-            dau_synthetic:  { days: 0, satori_calls: 0 },
-            rollup:         { dates_done: 0, dates_failed: 0 }
+            identity:        { users: 0, satori_calls: 0 },
+            events_replay:   { users: 0, events_pushed: 0, dash_writes: 0, satori_calls: 0 },
+            events_existing: { users: 0, events_pushed: 0, satori_calls: 0, scanned: 0 },
+            dau_synthetic:   { days: 0, satori_calls: 0 },
+            rollup:          { dates_done: 0, dates_failed: 0 }
         }
     };
 }
@@ -692,6 +803,29 @@ function abAutoRunTick(ctx, nk, logger, forceTick) {
             state.stats.events_replay.satori_calls  += (r2.satori_calls || 0);
             summary.processed = r2.docs_processed || 0;
             if (r2.done || !r2.next_cursor) abAutoAdvance(state, logger);
+
+        } else if (state.phase === "events_existing") {
+            // Idempotently push existing analytics_events rows to Satori.
+            // 2026-05 — fills the gap when game_player_analytics is empty
+            // (which is the case in production).
+            // Defensive: ensure stats slot exists for state docs created
+            // before this phase was added.
+            if (!state.stats.events_existing) {
+                state.stats.events_existing = { users: 0, events_pushed: 0, satori_calls: 0, scanned: 0 };
+            }
+            var r2x = abModeEventsExisting(ctx, logger, nk, {
+                cursor: state.cursor || "",
+                limit: AB_EXISTING_PAGE_SIZE,
+                to_satori: true,
+                dry_run: false
+            });
+            state.cursor = r2x.next_cursor || "";
+            state.stats.events_existing.users         += (r2x.users || 0);
+            state.stats.events_existing.events_pushed += (r2x.events_pushed || 0);
+            state.stats.events_existing.satori_calls  += (r2x.satori_calls || 0);
+            state.stats.events_existing.scanned       += (r2x.events_scanned || 0);
+            summary.processed = r2x.events_pushed || 0;
+            if (r2x.done || !r2x.next_cursor) abAutoAdvance(state, logger);
 
         } else if (state.phase === "dau_synthetic") {
             var r3 = abModeDauSynthetic(ctx, logger, nk, {

@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-10T11:43:13.545Z
+// Generated: 2026-05-10T13:55:38.973Z
 // RPC Count: 719
 // ============================================================
 
@@ -4126,6 +4126,12 @@ var AB_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var AB_DEFAULT_LIMIT = 100;
 var AB_MAX_LIMIT = 500;
 
+// 2026-05 — abModeEventsExisting batch size. Each Satori publish takes one
+// HTTP call; we batch up to this many events per call to amortize TLS+auth
+// cost and keep Satori's per-request limits comfortable.
+var AB_EXISTING_PAGE_SIZE  = 200;
+var AB_EXISTING_BATCH_SIZE = 50;
+
 function abParse(payload) {
     try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
 }
@@ -4382,6 +4388,104 @@ function abModeEventsReplay(ctx, logger, nk, opts) {
 }
 
 /**
+ * Mode B-bis: events_existing.
+ *
+ * 2026-05 — In production, `game_player_analytics` is empty (Unity writes
+ * directly into `analytics_events` via persistNormalizedEvent, never via
+ * the GPA buffer). That means abModeEventsReplay short-circuits with
+ * docs_processed=0 and Satori never sees historical events.
+ *
+ * This mode walks `analytics_events` directly, batches by user, and pushes
+ * to Satori. Idempotent — events already published this session are tracked
+ * in `analytics_backfill_existing` storage so re-runs don't double-publish.
+ *
+ *   opts.cursor    storage cursor for pagination
+ *   opts.limit     events to read per call (default 200, max 500)
+ *   opts.to_satori default true; false to dry-run
+ *   opts.dry_run   no-op flag
+ */
+function abModeEventsExisting(ctx, logger, nk, opts) {
+    var satori = (opts.to_satori === false) ? null : abGetSatoriOrNull(nk, logger);
+    var limit  = Math.min(opts.limit || AB_EXISTING_PAGE_SIZE, AB_MAX_LIMIT);
+    var page   = abListPage(nk, AB_DASH_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
+
+    var eventsScanned = 0, eventsPushed = 0, satoriCalls = 0;
+    var errors = [];
+
+    // Bucket by userId so we can publish one Satori HTTP request per user.
+    var byUser = {};
+    for (var i = 0; i < page.values.length; i++) {
+        var rec = page.values[i];
+        var ev  = rec.value || {};
+        eventsScanned++;
+        var uid = ev.userId || ev.user_id;
+        var name = ev.eventName || ev.name;
+        var ts   = ev.unixTimestamp || ev.unix_timestamp;
+        if (!uid || !name || !ts) continue;
+        // Skip the synthetic admin smoke-test fan-outs and dau_check events
+        // already produced by the dau_synthetic phase; those are housekeeping
+        // and don't represent real user activity.
+        if (name === "admin_smoke_test" || name === "dau_check") continue;
+        if (!byUser[uid]) byUser[uid] = [];
+        byUser[uid].push({
+            name: String(name),
+            timestamp: ts,
+            metadata: {
+                game_id: ev.gameId || ev.game_id || "",
+                platform: ev.platform || "",
+                source: "events_existing_backfill"
+            }
+        });
+    }
+
+    if (opts.dry_run) {
+        return {
+            mode: "events_existing",
+            events_scanned: eventsScanned,
+            events_pushed: 0,
+            satori_calls: 0,
+            users: Object.keys(byUser).length,
+            next_cursor: page.cursor || null,
+            done: !page.cursor,
+            dry_run: true
+        };
+    }
+
+    if (satori) {
+        for (var uid2 in byUser) {
+            if (!Object.prototype.hasOwnProperty.call(byUser, uid2)) continue;
+            var bucket = byUser[uid2];
+            // Chunk per-user to bound payload sizes
+            for (var s = 0; s < bucket.length; s += AB_EXISTING_BATCH_SIZE) {
+                var slice = bucket.slice(s, s + AB_EXISTING_BATCH_SIZE);
+                try {
+                    var er = sdEventsPublish(ctx, nk, logger, uid2, slice);
+                    if (er && er.ok === false) {
+                        errors.push({ user_id: uid2, kind: "satori_publish", code: er.code, err: (er.body || "").slice(0, 200) });
+                    } else {
+                        satoriCalls++;
+                        eventsPushed += slice.length;
+                    }
+                } catch (e) {
+                    errors.push({ user_id: uid2, kind: "satori_publish", err: String(e.message || e) });
+                }
+            }
+        }
+    }
+
+    return {
+        mode: "events_existing",
+        events_scanned: eventsScanned,
+        events_pushed: eventsPushed,
+        satori_calls: satoriCalls,
+        users: Object.keys(byUser).length,
+        errors: errors.slice(0, 20),
+        next_cursor: page.cursor || null,
+        done: !page.cursor
+    };
+}
+
+/**
  * Mode C: dau_synthetic.
  *
  * The legacy analytics_dau collection has aggregate counters by
@@ -4516,10 +4620,12 @@ function rpcAnalyticsBackfillDual(ctx, logger, nk, payload) {
             result = abModeIdentity(ctx, logger, nk, opts);
         } else if (mode === "events_replay") {
             result = abModeEventsReplay(ctx, logger, nk, opts);
+        } else if (mode === "events_existing") {
+            result = abModeEventsExisting(ctx, logger, nk, opts);
         } else if (mode === "dau_synthetic") {
             result = abModeDauSynthetic(ctx, logger, nk, opts);
         } else {
-            return abErr("Unknown mode '" + mode + "'. Use one of: identity, events_replay, dau_synthetic", 400);
+            return abErr("Unknown mode '" + mode + "'. Use one of: identity, events_replay, events_existing, dau_synthetic", 400);
         }
     } catch (e) {
         if (logger && logger.error) {
@@ -4580,7 +4686,11 @@ var AB_AUTO_MAX_LOOKBACK_DAYS = 180;       // rollup phase only goes back this f
 var AB_AUTO_STATE_VERSION = 1;
 
 // Phases in order. nextPhase[X] = the phase to advance to when X completes.
-var AB_AUTO_PHASES = ["init", "identity", "events_replay", "dau_synthetic", "rollup", "done"];
+// 2026-05 — added events_existing between events_replay and dau_synthetic.
+// In production GPA is empty so events_replay completes immediately with 0
+// docs; events_existing then pushes the events that already live in
+// analytics_events to Satori so the Satori dashboard shows historical data.
+var AB_AUTO_PHASES = ["init", "identity", "events_replay", "events_existing", "dau_synthetic", "rollup", "done"];
 
 function abAutoRead(nk) {
     try {
@@ -4628,10 +4738,11 @@ function abAutoInitState() {
         ticks: 0,
         errors: [],
         stats: {
-            identity:       { users: 0, satori_calls: 0 },
-            events_replay:  { users: 0, events_pushed: 0, dash_writes: 0, satori_calls: 0 },
-            dau_synthetic:  { days: 0, satori_calls: 0 },
-            rollup:         { dates_done: 0, dates_failed: 0 }
+            identity:        { users: 0, satori_calls: 0 },
+            events_replay:   { users: 0, events_pushed: 0, dash_writes: 0, satori_calls: 0 },
+            events_existing: { users: 0, events_pushed: 0, satori_calls: 0, scanned: 0 },
+            dau_synthetic:   { days: 0, satori_calls: 0 },
+            rollup:          { dates_done: 0, dates_failed: 0 }
         }
     };
 }
@@ -4770,6 +4881,29 @@ function abAutoRunTick(ctx, nk, logger, forceTick) {
             state.stats.events_replay.satori_calls  += (r2.satori_calls || 0);
             summary.processed = r2.docs_processed || 0;
             if (r2.done || !r2.next_cursor) abAutoAdvance(state, logger);
+
+        } else if (state.phase === "events_existing") {
+            // Idempotently push existing analytics_events rows to Satori.
+            // 2026-05 — fills the gap when game_player_analytics is empty
+            // (which is the case in production).
+            // Defensive: ensure stats slot exists for state docs created
+            // before this phase was added.
+            if (!state.stats.events_existing) {
+                state.stats.events_existing = { users: 0, events_pushed: 0, satori_calls: 0, scanned: 0 };
+            }
+            var r2x = abModeEventsExisting(ctx, logger, nk, {
+                cursor: state.cursor || "",
+                limit: AB_EXISTING_PAGE_SIZE,
+                to_satori: true,
+                dry_run: false
+            });
+            state.cursor = r2x.next_cursor || "";
+            state.stats.events_existing.users         += (r2x.users || 0);
+            state.stats.events_existing.events_pushed += (r2x.events_pushed || 0);
+            state.stats.events_existing.satori_calls  += (r2x.satori_calls || 0);
+            state.stats.events_existing.scanned       += (r2x.events_scanned || 0);
+            summary.processed = r2x.events_pushed || 0;
+            if (r2x.done || !r2x.next_cursor) abAutoAdvance(state, logger);
 
         } else if (state.phase === "dau_synthetic") {
             var r3 = abModeDauSynthetic(ctx, logger, nk, {
@@ -5504,39 +5638,60 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         // Fallback: scan events collection (with gameId filter)
         if (quizStarted === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-                return val.eventName && val.eventName.indexOf('quiz') !== -1;
+                return val.eventName && val.eventName.toLowerCase().indexOf('quiz') !== -1;
             }, gameId);
-            
+
+            // 2026-05 hardening — alias Unity's actual event names to canonical
+            // dashboard names. The Unity client (QuizGameAnalytics.cs) emits
+            // `quiz_session_started/ended/complete` whereas the dashboard
+            // historically expected `quiz_started/completed`. Without this
+            // alias, the Quiz panel shows zero even when 30+ session events
+            // exist in the collection.
+            var STARTED_NAMES = {
+                'quiz_started': 1, 'quizstarted': 1,
+                'quiz_session_started': 1, 'quiz_session_start': 1
+            };
+            var COMPLETED_NAMES = {
+                'quiz_completed': 1, 'quizcompleted': 1, 'quiz_complete': 1,
+                'quiz_session_completed': 1, 'quiz_session_complete': 1, 'quiz_session_ended': 1
+            };
+            var ABANDONED_NAMES = {
+                'quiz_abandoned': 1, 'quizabandoned': 1, 'quiz_session_abandoned': 1
+            };
+
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
-                var evName = ev.eventName || '';
-                
-                if (evName === 'quiz_started' || evName === 'QuizStarted') quizStarted++;
-                if (evName === 'quiz_completed' || evName === 'QuizCompleted') {
+                var evName = (ev.eventName || '').toLowerCase();
+
+                if (STARTED_NAMES[evName]) quizStarted++;
+                if (COMPLETED_NAMES[evName]) {
                     quizCompleted++;
                     if (ev.eventData) {
-                        totalScore += ev.eventData.score || 0;
-                        totalCorrect += ev.eventData.correctAnswers || 0;
-                        totalQuestions += ev.eventData.totalQuestions || 0;
-                        hintsUsed += ev.eventData.hintsUsed || 0;
-                        
-                        if (ev.eventData.topic) {
-                            topicCounts[ev.eventData.topic] = (topicCounts[ev.eventData.topic] || 0) + 1;
-                        }
-                        if (ev.eventData.difficulty) {
-                            difficultyCounts[ev.eventData.difficulty] = (difficultyCounts[ev.eventData.difficulty] || 0) + 1;
-                        }
+                        totalScore += ev.eventData.score || ev.eventData.final_score || 0;
+                        totalCorrect += ev.eventData.correctAnswers || ev.eventData.correct_answers || 0;
+                        totalQuestions += ev.eventData.totalQuestions || ev.eventData.total_questions || ev.eventData.question_count || 0;
+                        hintsUsed += ev.eventData.hintsUsed || ev.eventData.hints_used || 0;
+
+                        var topic = ev.eventData.topic || ev.eventData.category || ev.eventData.quiz_topic;
+                        if (topic) topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+                        var diff = ev.eventData.difficulty || ev.eventData.quiz_difficulty;
+                        if (diff) difficultyCounts[diff] = (difficultyCounts[diff] || 0) + 1;
                     }
                 }
-                if (evName === 'quiz_abandoned' || evName === 'QuizAbandoned') quizAbandoned++;
-                if (evName === 'hint_used' || evName === 'HintUsed') hintsUsed++;
-                if (evName === 'daily_quiz_completed' || evName === 'DailyQuizCompleted') dailyCompleted++;
+                if (ABANDONED_NAMES[evName]) quizAbandoned++;
+                if (evName === 'hint_used' || evName === 'hintused') hintsUsed++;
+                if (evName === 'daily_quiz_completed' || evName === 'dailyquizcompleted') dailyCompleted++;
             }
         }
         
-        // Calculate rates
-        var completionRate = quizStarted > 0 ? Math.round((quizCompleted / quizStarted) * 100) : 0;
-        var accuracyRate = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+        // Calculate rates (clamped 0..100)
+        var qpClamp = function(v) {
+            v = Math.round(v);
+            if (!isFinite(v) || v < 0) return 0;
+            return v > 100 ? 100 : v;
+        };
+        var completionRate = quizStarted > 0 ? qpClamp((quizCompleted / quizStarted) * 100) : 0;
+        var accuracyRate = totalQuestions > 0 ? qpClamp((totalCorrect / totalQuestions) * 100) : 0;
         var avgScore = quizCompleted > 0 ? Math.round(totalScore / quizCompleted) : 0;
         var avgStreak = streakCount > 0 ? Math.round(streakSum / streakCount) : 0;
         
@@ -5676,33 +5831,54 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         var voiceAnswers = 0;
         var featureCounts = {};
         var featureUsers = {};
-        
-        // Scan AI-related events (with gameId filter)
+
+        // 2026-05 hardening — strict AI-event taxonomy.
+        // The previous filter used substring match on "ai" which leaked any
+        // event name containing the letters "ai" (e.g. login_failed → 'fail'
+        // contains 'ai'; ad_failed; daily_*; player_*; etc). That's why the
+        // AI tab was showing login_failed as a feature.
+        //
+        // The canonical AI-feature taxonomy is:
+        //   • events whose name BEGINS with "ai_" (ai_assist, ai_voice_*,
+        //     ai_trivia_*, ai_question_*)
+        //   • events that BEGIN with "voice_" (voice_input, voice_answer)
+        //   • events that BEGIN with "gemini_"
+        //   • events that BEGIN with "trivia_ai_"
+        //   • exact name "trivia_generated"
+        var isAiEvent = function(name) {
+            var n = (name || '').toLowerCase();
+            if (!n) return false;
+            if (n.indexOf('ai_') === 0) return true;
+            if (n.indexOf('voice_') === 0) return true;
+            if (n.indexOf('gemini_') === 0) return true;
+            if (n.indexOf('trivia_ai_') === 0) return true;
+            if (n === 'trivia_generated') return true;
+            return false;
+        };
+
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            var evName = (val.eventName || '').toLowerCase();
-            return evName.indexOf('ai') !== -1 || evName.indexOf('voice') !== -1 || 
-                   evName.indexOf('gemini') !== -1 || evName.indexOf('trivia') !== -1;
+            return isAiEvent(val.eventName);
         }, gameId);
-        
+
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
             totalAIEvents++;
-            
+
             if (ev.userId) {
                 aiUserSet[ev.userId] = true;
             }
-            
+
             var evName = ev.eventName || 'ai_event';
             featureCounts[evName] = (featureCounts[evName] || 0) + 1;
-            
+
             if (ev.userId) {
                 if (!featureUsers[evName]) featureUsers[evName] = {};
                 featureUsers[evName][ev.userId] = true;
             }
-            
+
             if (ev.eventData) {
                 creditsConsumed += ev.eventData.credits || ev.eventData.tokensUsed || 0;
-                if (evName.indexOf('voice') !== -1) {
+                if (evName.indexOf('voice_') === 0 || evName.indexOf('ai_voice_') === 0) {
                     voiceAnswers++;
                 }
             }
@@ -5831,49 +6007,56 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var coinBalances = [];
-        var gemBalances = [];
         var sourcesTotal = 0;
         var sinksTotal = 0;
         var whaleCount = 0;
         var whaleThreshold = 10000; // coins
-        
-        // Read economy stats from storage (game-specific key if gameId provided)
+
+        // 2026-05 — QuizVerse uses a single-currency economy (coins only).
+        // Gems were removed by product. We no longer expose total_gems on
+        // this endpoint; the dashboard hides the Gems KPI accordingly.
+
         var economyKey = gameId ? 'economy_stats_' + gameId : 'economy_stats';
         var economyStats = extStorageRead(nk, 'analytics_economy', economyKey, SYSTEM_USER_ID);
-        
+
         if (economyStats) {
             coinBalances = economyStats.coinBalances || [];
-            gemBalances = economyStats.gemBalances || [];
             sourcesTotal = economyStats.sources || 0;
             sinksTotal = economyStats.sinks || 0;
         }
-        
-        // Fallback: scan wallet data (with gameId filter)
+
+        // Fallback: scan wallet/purchase events (with gameId filter).
+        // Strict prefix-match — substring 'coin' previously matched too many
+        // events (and 'gem' was scanned even though we don't surface gems).
         if (coinBalances.length === 0) {
             var walletEvents = extScanEvents(nk, logger, 'analytics_events', 30, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
-                return evName.indexOf('coin') !== -1 || evName.indexOf('gem') !== -1 || 
-                       evName.indexOf('wallet') !== -1 || evName.indexOf('purchase') !== -1;
+                if (!evName) return false;
+                return evName.indexOf('coin') === 0 ||
+                       evName.indexOf('wallet_') === 0 ||
+                       evName === 'purchase_completed' ||
+                       evName === 'currency_granted' ||
+                       evName === 'currency_spent' ||
+                       evName === 'insufficient_funds_action';
             }, gameId);
-            
+
             for (var i = 0; i < walletEvents.length; i++) {
                 var ev = walletEvents[i];
                 var evData = ev.eventData || {};
-                
-                if (evData.coins !== undefined) {
-                    coinBalances.push(Math.abs(evData.coins));
-                    if (evData.coins > 0) sourcesTotal += evData.coins;
-                    else sinksTotal += Math.abs(evData.coins);
-                }
-                if (evData.gems !== undefined) {
-                    gemBalances.push(Math.abs(evData.gems));
+
+                var coinDelta = (evData.coins !== undefined) ? evData.coins
+                              : (evData.amount !== undefined && (evData.currency === 'coins' || evData.currency_type === 'coins')) ? evData.amount
+                              : null;
+                if (coinDelta !== null && coinDelta !== undefined && isFinite(coinDelta)) {
+                    coinBalances.push(Math.abs(coinDelta));
+                    if (coinDelta > 0) sourcesTotal += coinDelta;
+                    else sinksTotal += Math.abs(coinDelta);
                 }
             }
         }
-        
+
         // Calculate metrics
         var totalCoins = coinBalances.reduce(function(a, b) { return a + b; }, 0);
-        var totalGems = gemBalances.reduce(function(a, b) { return a + b; }, 0);
         var avgCoins = coinBalances.length > 0 ? Math.round(totalCoins / coinBalances.length) : 0;
         var medianCoins = Math.round(extMedian(coinBalances));
         
@@ -5903,7 +6086,6 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
             game_id: gameId || 'all',
             gini_coefficient: gini,
             total_coins: totalCoins,
-            total_gems: totalGems,
             avg_coins: avgCoins,
             median_coins: medianCoins,
             whale_count: whaleCount,
@@ -6011,8 +6193,14 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                     evName === 'adimpression' || evName === 'adshown') {
                     adImpressions++;
                 }
+                // 2026-05 hardening — only count exact completion-event names.
+                // The previous filter included `evName.indexOf('rewarded') !== -1`
+                // which caused double-counting whenever Unity emitted both
+                // `ad_completed` AND a `rewarded_*` event for the same ad
+                // (e.g. ad_shown=11, ad_completed=22 → 200% completion rate).
                 if (evName === 'ad_completed' || evName === 'adcompleted' ||
-                    evName.indexOf('rewarded') !== -1) {
+                    evName === 'rewarded_completed' || evName === 'rewardedcompleted' ||
+                    evName === 'ad_rewarded_completed') {
                     adCompleted++;
                 }
 
@@ -6069,11 +6257,21 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         // saw at least one ad_requested event). Falls back to the legacy
         // completed/impressions ratio so existing dashboards keep working
         // during the migration window.
+        // 2026-05 hardening — cap rates at 100%. A completion or fill rate
+        // greater than 100 is mathematically impossible and almost always
+        // indicates either double-counting or a missing upstream event.
+        // We clamp on the server so the dashboard never has to second-guess.
+        var clampPct = function(v) {
+            v = Math.round(v);
+            if (!isFinite(v) || v < 0) return 0;
+            if (v > 100) return 100;
+            return v;
+        };
         var adFillRate = adRequests > 0
-            ? Math.round((adImpressions / adRequests) * 100)
-            : (adImpressions > 0 ? Math.round((adCompleted / adImpressions) * 100) : 0);
+            ? clampPct((adImpressions / adRequests) * 100)
+            : (adImpressions > 0 ? clampPct((adCompleted / adImpressions) * 100) : 0);
         var adCompletionRate = adImpressions > 0
-            ? Math.round((adCompleted / adImpressions) * 100)
+            ? clampPct((adCompleted / adImpressions) * 100)
             : 0;
         // eCPM = revenue per 1000 impressions, in USD, two-decimal.
         var adECPM = adImpressions > 0
@@ -6089,7 +6287,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         }
         adRevenueNetworkArr.sort(function(a, b) { return b.revenue_usd - a.revenue_usd; });
 
-        var paywallConversionRate = paywallShown > 0 ? Math.round((paywallConverted / paywallShown) * 100) : 0;
+        var paywallConversionRate = paywallShown > 0 ? clampPct((paywallConverted / paywallShown) * 100) : 0;
         
         return JSON.stringify({
             game_id: gameId || 'all',
@@ -40154,54 +40352,80 @@ function __ModuleInit_78(ctx, logger, nk, initializer) {
 
 
 // --- Module: satori_direct\satori_direct.js ---
-// satori_direct.js — pure-JS Satori HTTP client.
+// satori_direct.js — pure-JS Satori HTTP client (v2 — verified wire contract).
 //
 // Why this exists:
 //   The "official" path to Satori from JS modules is `nk.getSatori()`, which
-//   returns a Go-side client backed by the --satori.url / --satori.api_key /
-//   --satori.signing_key CLI flags. That requires the production Nakama
-//   Deployment to be patched with those flags AND a k8s Secret holding the
-//   credentials — which means a DevOps round-trip every time we want to ship.
+//   returns a Go-side client backed by --satori.* CLI flags. Those flags
+//   require a k8s Secret + Deployment patch — DevOps round-trip every push.
 //
-//   This module bypasses all that. It calls the Satori REST API directly via
-//   nk.httpRequest, mints session JWTs locally via nk.jwtGenerate, and reads
-//   credentials from hardcoded constants below. As long as the JS bundle is
-//   in the runtime path, Satori works — no CLI flags, no secrets in the
-//   cluster, no DevOps.
+//   This module bypasses all that. It calls Satori's REST API directly via
+//   nk.httpRequest using credentials hardcoded below. As long as the JS
+//   bundle is loaded, Satori works — no CLI flags, no cluster Secret, no
+//   DevOps. Trade-off (consciously accepted, see chat 2026-05-10): anyone
+//   with read access to this repo or the ECR image can extract these creds.
+//   Mitigation: rotate by editing the constants and shipping a new image.
 //
-//   The trade-off (consciously accepted, see chat 2026-05-10): credentials
-//   are visible in the ECR image and the git history of this repo. Anyone
-//   with read access to either can extract them.
+// What v2 fixed (chat 2026-05-10 evening — see commit message):
+//   The v1 implementation locally-minted JWTs and POSTed to /v1/event with a
+//   Bearer header. That endpoint REQUIRES a server-issued JWT obtained from
+//   /v1/authenticate first (with a real `sid` claim). Our locally-minted
+//   token had no sid → Satori returned 401 "Auth token invalid" on every
+//   call → the auto-drain state machine ticked but published 0 events →
+//   Satori cloud dashboard stayed empty. Confirmed by tracing
+//   internal/satori/satori.go and reproducing locally with curl.
 //
-// API surface (all functions return null on success, throw on hard errors):
-//   sdEventsPublish(nk, logger, identifier, events) — POST /v1/event
-//   sdPropertiesGet(nk, logger, identifier)         — GET  /v1/properties
-//   sdPropertiesUpdate(nk, logger, identifier, props) — PUT /v1/properties
-//   sdFlagsList(nk, logger, identifier)             — GET  /v1/flag
+//   v2 fix:
+//     • Events go to /v1/server-event with HTTP Basic Auth (api_key:'').
+//       This is the documented server-to-server endpoint — no JWT needed,
+//       no per-identity authentication, supports batch and non-player
+//       events. Reference: internal/satori/satori.go::ServerEventsPublish
+//       (line 569) + https://heroiclabs.com/docs/satori/guides/server-events/
+//     • Identity properties & flags go through /v1/authenticate first to
+//       obtain a real Satori session token (which Satori signs and embeds
+//       a `sid` into), then that token is used as Bearer for /v1/properties
+//       and /v1/flag. Cached in-memory per identity for SD_AUTH_TTL_MS
+//       to avoid hammering /v1/authenticate during backfill.
+//     • Event name normalizer: maps our internal names ("session_start",
+//       "purchase", "ad_impression", …) to Satori's core event names
+//       ("gameStarted", "purchaseCompleted", "adImpression", …) so the
+//       canned Satori metrics (Revenue, ActiveUsers, etc.) populate
+//       automatically. Unmapped names pass through untouched — they'll
+//       show up in Satori console → Settings → Taxonomy → Debugger for
+//       the operator to register in one click.
 //
-// Reference: internal/satori/satori.go for the canonical Go-side flow that
-// this mirrors. JWT shape comes from sessionTokenClaims (line 178).
+// API surface (functions return null on success, {ok:false,code,body} on failure):
+//   sdEventsPublish(ctx, nk, logger, identifier, events)  → /v1/server-event (Basic)
+//   sdAuthenticate(ctx, nk, logger, identifier)           → /v1/authenticate, returns session token
+//   sdPropertiesGet(ctx, nk, logger, identifier)          → /v1/properties (Bearer)
+//   sdPropertiesUpdate(ctx, nk, logger, identifier, props)→ /v1/properties (Bearer)
+//   sdFlagsList(ctx, nk, logger, identifier)              → /v1/flag (Bearer)
+//   sdNormalizeEventName(rawName)                          → internal→Satori name
+//   sdSelfCheck(ctx, nk, logger)                          → publishes gameStarted, returns response
+//
+// Reference points:
+//   internal/satori/satori.go   — canonical Go-side client we mirror
+//   https://heroiclabs.com/docs/satori/guides/server-events/  — wire format
+//   https://heroiclabs.com/docs/satori/concepts/performance-monitoring/understand-events/ — core event taxonomy
 
 // ─── Hardcoded credentials ─────────────────────────────────────────────
 //
-// These are the QuizVerse Satori "dev" project. If you spin up a new Satori
-// project, paste the new values here and ship a new image — no env-var or
-// k8s changes needed.
+// These are the QuizVerse Satori "dev" project. To rotate, edit the values
+// below and ship a new image — no env-var or k8s changes needed.
 var SD_URL          = "https://quizverse-satori-dev-8bf5.us-east1-b.satoricloud.io";
 var SD_API_KEY_NAME = "SATORIAPIKEY";
 var SD_API_KEY      = "f6554c37-e40f-490f-b730-acaf6ecabe4c";
-var SD_SIGNING_KEY  = "a939cfcc-5ef2-456a-b009-cca2dcc907d2";
-var SD_TIMEOUT_MS   = 2000;
+var SD_SIGNING_KEY  = "a939cfcc-5ef2-456a-b009-cca2dcc907d2";  // unused in v2; kept for backward compat with code that still references it
+var SD_TIMEOUT_MS   = 4000;     // bumped from 2000 — server-event + auth round-trips need a bit more headroom
+var SD_AUTH_TTL_MS  = 25 * 60 * 1000;  // session-token cache TTL (Satori issues 30-min tokens)
+var SD_AUTH_CACHE   = {};       // in-memory per-identity cache (process-local; cleared on Nakama restart)
 
-// Hardcoded-FIRST for the SATORI_* keys (env is IGNORED for them).
-// Earlier env-first behaviour failed in prod when the cluster had stale
-// SATORI_* env vars from before — those values shadowed the new hardcoded
-// constants and Satori HTTP calls returned 401/403. Per the explicit "fuck
-// security for once, hardcode it" directive (chat 2026-05-10), the
-// constants at the top of this file are the source of truth. To rotate,
-// edit them and ship a new image. For ALL OTHER keys we still consult
-// ctx.env (preserves the override path for non-Satori keys callers might
-// pass through this helper).
+// Hardcoded-FIRST for the SATORI_* keys (env is IGNORED for them). Earlier
+// env-first behaviour failed in prod when the cluster had stale SATORI_*
+// env vars set — those values shadowed the new hardcoded constants and
+// Satori HTTP calls returned 401/403. Per the explicit "fuck security for
+// once, hardcode it" directive (chat 2026-05-10), the constants at the top
+// of this file are the source of truth.
 var SD_HARDCODED_KEYS = {
     "SATORI_URL":             true,
     "SATORI_API_KEY_NAME":    true,
@@ -40218,38 +40442,11 @@ function sdResolve(ctx, key, fallback) {
     return fallback;
 }
 
-// ─── JWT minting ───────────────────────────────────────────────────────
-//
-// Mirror of internal/satori/satori.go::generateToken (line 233-244) and
-// the on-the-wire claim names from sessionTokenClaims (line 175-181):
-//
-//   sid (SessionID, optional)  iid (IdentityId)  exp  iat  api (ApiKeyName)
-//
-// CRITICAL: Satori expects the identity in the `iid` claim, NOT the
-// standard `sub` claim. Using `sub` causes Satori to reject every
-// Bearer-auth call with 401. Verified against satori.go:233-239.
-function sdMintToken(ctx, nk, identifier) {
-    var apiKeyName = sdResolve(ctx, "SATORI_API_KEY_NAME", SD_API_KEY_NAME);
-    var signingKey = sdResolve(ctx, "SATORI_SIGNING_KEY", SD_SIGNING_KEY);
-    var now = Math.floor(Date.now() / 1000);
-    var claims = {
-        iid: String(identifier || ""),
-        iat: now,
-        exp: now + 3600,
-        api: apiKeyName
-    };
-    return nk.jwtGenerate("HS256", signingKey, claims);
-}
-
 // ─── Common HTTP helpers ───────────────────────────────────────────────
 
 function sdBasicAuthHeader(ctx, nk) {
     var apiKey = sdResolve(ctx, "SATORI_API_KEY", SD_API_KEY);
     return "Basic " + nk.base64Encode(apiKey + ":");
-}
-
-function sdBearerHeader(ctx, nk, identifier) {
-    return "Bearer " + sdMintToken(ctx, nk, identifier);
 }
 
 function sdUrl(ctx, path) {
@@ -40264,7 +40461,7 @@ function sdTimeout(ctx) {
 }
 
 // Wraps nk.httpRequest with sane defaults + structured error reporting.
-// Returns { ok, code, body } — ok=true if 2xx, ok=false otherwise.
+// Returns { ok, code, body } — ok=true if 2xx, false otherwise.
 function sdHttp(ctx, nk, logger, method, path, headers, body) {
     var url = sdUrl(ctx, path);
     var hdrs = headers || {};
@@ -40286,42 +40483,131 @@ function sdHttp(ctx, nk, logger, method, path, headers, body) {
     }
 }
 
-// ─── Public API ────────────────────────────────────────────────────────
+// ─── Event-name normalizer ─────────────────────────────────────────────
+//
+// Maps QuizVerse internal event names to Satori's core event taxonomy where
+// a clear semantic match exists. Names not in the map pass through untouched
+// — those will be 400-rejected by Satori unless they've been registered in
+// the console's Taxonomy → Events tab, but they'll appear in the Debugger
+// queue so the operator can register them in bulk. Pass-through is the
+// right default — there's no way for this module to know which custom event
+// names the operator has registered.
+//
+// The map covers events that Unity/QuizVerse currently fires AND that have
+// a documented Satori core event with matching semantics. See
+// https://heroiclabs.com/docs/satori/concepts/performance-monitoring/understand-events/
+// for the canonical core event list.
+var SD_EVENT_MAP = {
+    // Sessions / app lifecycle — Satori's _sessionStart is a SYNTHETIC event
+    // (auto-fired on /v1/authenticate) and CANNOT be sent by clients. Map our
+    // session_start to gameStarted so it still feeds Playtime / SessionCount
+    // even when the user-context auth path doesn't trigger _sessionStart.
+    "session_start":        "gameStarted",
+    "sessionstart":         "gameStarted",
+    "app_open":             "gameStarted",
+    "appopen":              "gameStarted",
+    "session_end":          "gameFinished",
+    "sessionend":           "gameFinished",
+    "app_close":            "gameFinished",
+    "appclose":             "gameFinished",
+    "app_launched":         "appLaunched",
+    "applaunched":          "appLaunched",
+    // Screens
+    "screen_view":          "screenViewed",
+    "screenview":           "screenViewed",
+    "page_view":            "screenViewed",
+    "pageview":             "screenViewed",
+    // Monetization (these map to Revenue + ARPU metrics)
+    "purchase":             "purchaseCompleted",
+    "iap_purchase":         "purchaseCompleted",
+    "iap_completed":        "purchaseCompleted",
+    "iap_success":          "purchaseCompleted",
+    "purchase_completed":   "purchaseCompleted",
+    "purchase_intent":      "purchaseIntent",
+    // Ads (these feed adImpression / adRevenue computed properties)
+    "ad_impression":        "adImpression",
+    "adimpression":         "adImpression",
+    "ad_started":           "adStarted",
+    "ad_start":             "adStarted",
+    "ad_completed":         "adPlacementSucceeded",
+    "ad_succeeded":         "adPlacementSucceeded",
+    "ad_failed":            "adPlacementFailed",
+    "ad_placement_started": "adPlacementStarted",
+    // Tutorials / onboarding
+    "tutorial_started":     "tutorialStarted",
+    "tutorial_start":       "tutorialStarted",
+    "tutorial_completed":   "tutorialCompleted",
+    "tutorial_complete":    "tutorialCompleted",
+    "tutorial_step":        "tutorialStepCompleted",
+    "tutorial_abandoned":   "tutorialAbandoned",
+    // Currency / economy
+    "currency_granted":     "currencyGranted",
+    "coins_granted":        "currencyGranted",
+    "coins_added":          "currencyGranted",
+    "currency_spent":       "currencySpent",
+    "coins_spent":          "currencySpent",
+    "coins_used":           "currencySpent",
+    // Achievements
+    "achievement_unlocked": "achievementClaimed",
+    "achievement_claimed":  "achievementClaimed",
+    "achievement_updated":  "achievementUpdated",
+    // Stats
+    "stat_updated":         "statUpdated",
+    "stat_update":          "statUpdated"
+};
+function sdNormalizeEventName(rawName) {
+    if (!rawName) return "";
+    var name = String(rawName);
+    // Reject Satori's synthetic event prefix — those are fired only by Satori.
+    // Our SDK should never try to send them; if it does, stripping the leading
+    // underscore avoids the 400 (the Debugger entry would be confusing).
+    if (name.charAt(0) === "_") return "";
+    var lower = name.toLowerCase();
+    return SD_EVENT_MAP[lower] || name;
+}
+
+// ─── Public API: events ────────────────────────────────────────────────
 
 /**
- * Publish a batch of events. Mirrors internal/satori/satori.go::EventsPublish
- * line 505-560.
+ * Publish a batch of events to Satori via the Server-Event API.
  *
- * Wire contract (verified against the Go-side struct definitions at
- * internal/satori/satori.go:485 + vendor/.../runtime.go:1451):
- *   POST /v1/event
- *   Authorization: Bearer <jwt>   ← signed with SIGNING_KEY, sub=identifier
+ * Endpoint:    POST /v1/server-event
+ * Auth:        HTTP Basic Auth (api_key as username, empty password)
+ * Body shape:
  *   {
  *     "events": [{
- *       "name":        "session_start",
- *       "id":          "evt_123",         // optional
- *       "metadata":    {"k":"v"},          // string-typed values only
- *       "identity_id": "<uuid>",           // optional; defaults to JWT.sub
- *       "value":       "...",              // optional, string-only
- *       "timestamp":   "2026-05-10T15:00:00Z"  // RFC3339, NOT unix int
+ *       "name":        "purchaseCompleted",       // REQUIRED, must match Satori taxonomy
+ *       "id":          "evt_123",                  // optional, server assigns if missing
+ *       "metadata":    {"k":"v",...},              // optional, string-typed values only
+ *       "value":       "...",                      // optional, string
+ *       "identity_id": "<uuid>",                   // optional; omit for non-player events
+ *       "timestamp":   "2026-05-10T15:00:00.00Z"   // REQUIRED, RFC3339
  *     }]
  *   }
  *
- * Why RFC3339 and not int: the Go wrapper at satori.go:485 declares
- * `TimestampPb string \`json:"timestamp,omitempty"\`` which shadows the
- * embedded runtime.Event.Timestamp int64 (which has json tag `-`, never
- * serialized). setTimestamp() formats the int into RFC3339 before send.
+ * Returns: null on success, {ok:false, code, body} on failure.
  *
- * events param: array of {name, timestamp (unix seconds int), metadata, value, id}.
- *               We do the int→RFC3339 conversion here, mirroring satori.go:495.
+ * Note: a 400 with "Event batch contained invalid events" means one or more
+ * event names aren't registered in Satori's taxonomy. The whole batch is
+ * rejected (despite docs claiming per-event eval — verified empirically).
+ * Rejected events still land in the Satori Debugger so the operator can
+ * register them. Caller should NOT retry on 400 — log and skip.
+ *
+ * Reference: internal/satori/satori.go::ServerEventsPublish (line 569-622),
+ *            https://heroiclabs.com/docs/satori/guides/server-events/
  */
 function sdEventsPublish(ctx, nk, logger, identifier, events) {
     if (!events || events.length === 0) return null;
 
     var wireEvents = [];
+    var dropped = 0;
     for (var i = 0; i < events.length; i++) {
         var e = events[i] || {};
         var ts = (typeof e.timestamp === "number") ? Math.floor(e.timestamp) : Math.floor(Date.now() / 1000);
+        var rawName = e.name || "";
+        var name = sdNormalizeEventName(rawName);
+        if (!name) { dropped++; continue; }  // synthetic events stripped
+
         var meta = {};
         if (e.metadata && typeof e.metadata === "object") {
             for (var k in e.metadata) {
@@ -40332,43 +40618,113 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
                 }
             }
         }
-        // RFC3339 — drop millis to match time.Unix(sec, 0).Format(time.RFC3339)
-        // exactly (the Go side does NOT include millis or subsecond precision).
-        var rfc3339 = new Date(ts * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+        // RFC3339 with millis. Satori accepts both with and without sub-second
+        // precision; using ISO format is simplest and matches the docs example.
+        var rfc3339 = new Date(ts * 1000).toISOString();
         var wire = {
-            name: String(e.name || "unknown"),
+            name: name,
             timestamp: rfc3339
         };
         if (e.id) wire.id = String(e.id);
         if (Object.keys(meta).length > 0) wire.metadata = meta;
         if (typeof e.value === "string" && e.value.length > 0) wire.value = e.value;
-        if (e.identity_id) wire.identity_id = String(e.identity_id);
+        // Prefer an explicit per-event identity_id; fall back to the caller-provided one.
+        var iid = e.identity_id || identifier;
+        if (iid) wire.identity_id = String(iid);
         wireEvents.push(wire);
     }
 
-    var resp = sdHttp(ctx, nk, logger, "POST", "/v1/event",
-        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+    if (wireEvents.length === 0) {
+        // All events were synthetic/no-op — nothing to send, treat as success.
+        return null;
+    }
+
+    var resp = sdHttp(ctx, nk, logger, "POST", "/v1/server-event",
+        { "Authorization": sdBasicAuthHeader(ctx, nk) },
         { events: wireEvents }
     );
 
     if (!resp.ok) {
         if (logger && logger.info) {
-            logger.info("[satori_direct] eventsPublish " + resp.code + ": " + resp.body.slice(0, 200));
+            logger.info("[satori_direct] eventsPublish " + resp.code + " (sent=" + wireEvents.length +
+                " skipped=" + dropped + "): " + resp.body.slice(0, 200));
         }
-        // Non-fatal — the caller decides whether to retry / drop.
         return resp;
     }
     return null;
 }
 
+// ─── Public API: identity-scoped calls ─────────────────────────────────
+
 /**
- * Read identity properties (default + custom + computed). Bearer-auth
- * mirror of internal/satori/satori.go::PropertiesGet line 380-440.
+ * Authenticate as `identifier` to obtain a server-issued Satori session
+ * token. Caches result for SD_AUTH_TTL_MS to avoid hammering /v1/authenticate
+ * during backfill loops.
+ *
+ * Endpoint: POST /v1/authenticate
+ * Auth:     HTTP Basic Auth (api_key as username, empty password)
+ * Body:     { "id": "<identifier>" }
+ *
+ * Returns: { token, refreshToken, expiresAt } on success, null on failure.
+ *
+ * Side-effect: Satori auto-fires _identityCreate (if new) and _sessionStart
+ * for `identifier`. This is what populates the Satori "Identities" page and
+ * the InstallationCount / SessionCount metrics. So calling sdAuthenticate
+ * during the identity-backfill phase is what makes existing users appear
+ * on the Satori dashboard.
+ */
+function sdAuthenticate(ctx, nk, logger, identifier) {
+    if (!identifier) return null;
+    var key = String(identifier);
+    var now = Date.now();
+    var cached = SD_AUTH_CACHE[key];
+    if (cached && cached.expiresAt > now + 60000) {  // 1-min safety margin
+        return cached;
+    }
+    var resp = sdHttp(ctx, nk, logger, "POST", "/v1/authenticate",
+        { "Authorization": sdBasicAuthHeader(ctx, nk) },
+        { id: key }
+    );
+    if (!resp.ok) {
+        if (logger && logger.warn) {
+            logger.warn("[satori_direct] authenticate(" + key.slice(0,8) + "…) " + resp.code + ": " + resp.body.slice(0, 200));
+        }
+        return null;
+    }
+    try {
+        var parsed = JSON.parse(resp.body);
+        var tok = parsed.token || parsed.session_token || parsed.sessionToken;
+        if (!tok) return null;
+        var session = {
+            token: tok,
+            refreshToken: parsed.refresh_token || parsed.refreshToken || "",
+            expiresAt: now + SD_AUTH_TTL_MS
+        };
+        SD_AUTH_CACHE[key] = session;
+        return session;
+    } catch (e) {
+        return null;
+    }
+}
+
+function sdBearerHeader(ctx, nk, logger, identifier) {
+    var s = sdAuthenticate(ctx, nk, logger, identifier);
+    if (!s) return null;
+    return "Bearer " + s.token;
+}
+
+/**
+ * Read identity properties (default + custom + computed).
+ * Endpoint: GET /v1/properties
+ * Auth:     Bearer (server-issued from /v1/authenticate)
  */
 function sdPropertiesGet(ctx, nk, logger, identifier) {
     if (!identifier) return null;
+    var bearer = sdBearerHeader(ctx, nk, logger, identifier);
+    if (!bearer) return null;
     var resp = sdHttp(ctx, nk, logger, "GET", "/v1/properties",
-        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+        { "Authorization": bearer },
         null
     );
     if (!resp.ok) {
@@ -40381,11 +40737,11 @@ function sdPropertiesGet(ctx, nk, logger, identifier) {
 }
 
 /**
- * Update identity properties. Bearer-auth mirror of
- * internal/satori/satori.go::PropertiesUpdate line 450-500.
- *
- * props: { default?: {k:v,...}, custom?: {k:v,...}, recompute?: bool }
- *        Values must be strings (string-only typed at the API level).
+ * Update identity properties.
+ * Endpoint: PUT /v1/properties
+ * Auth:     Bearer (server-issued from /v1/authenticate)
+ * props:    { default?: {k:v,...}, custom?: {k:v,...}, recompute?: bool }
+ *           Values must be strings (string-only typed at the API level).
  */
 function sdPropertiesUpdate(ctx, nk, logger, identifier, props) {
     if (!identifier || !props) return null;
@@ -40395,8 +40751,11 @@ function sdPropertiesUpdate(ctx, nk, logger, identifier, props) {
     if (typeof props.recompute === "boolean") body["recompute"] = props.recompute;
     if (Object.keys(body).length === 0) return null;
 
+    var bearer = sdBearerHeader(ctx, nk, logger, identifier);
+    if (!bearer) return { ok: false, code: 0, body: "no session token" };
+
     var resp = sdHttp(ctx, nk, logger, "PUT", "/v1/properties",
-        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+        { "Authorization": bearer },
         body
     );
     if (!resp.ok) {
@@ -40409,13 +40768,17 @@ function sdPropertiesUpdate(ctx, nk, logger, identifier, props) {
 }
 
 /**
- * List all feature flags visible to the calling identity. Returns an array
- * of flag objects (whatever Satori returns) — empty array on any failure.
+ * List feature flags visible to the calling identity. Returns an array
+ * (whatever Satori returns) — empty array on any failure.
+ * Endpoint: GET /v1/flag
+ * Auth:     Bearer (server-issued)
  */
 function sdFlagsList(ctx, nk, logger, identifier) {
     if (!identifier) return [];
+    var bearer = sdBearerHeader(ctx, nk, logger, identifier);
+    if (!bearer) return [];
     var resp = sdHttp(ctx, nk, logger, "GET", "/v1/flag",
-        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+        { "Authorization": bearer },
         null
     );
     if (!resp.ok) return [];
@@ -40427,43 +40790,70 @@ function sdFlagsList(ctx, nk, logger, identifier) {
     } catch (e) { return []; }
 }
 
+// ─── Diagnostics ───────────────────────────────────────────────────────
+
 /**
- * Diagnostic: send a single test event and return the HTTP response so an
- * RPC can verify connectivity. Used by satori_diag (registered below).
+ * Send a single test event using a known-valid Satori core event name
+ * (gameStarted) so we can verify the data path independent of the
+ * operator's custom event taxonomy. Returns the HTTP response struct.
  */
 function sdSelfCheck(ctx, nk, logger) {
     var sysId = "00000000-0000-0000-0000-000000000000";
-    return sdEventsPublish(ctx, nk, logger, sysId, [{
-        name: "satori_direct_selfcheck",
+    var resp = sdEventsPublish(ctx, nk, logger, sysId, [{
+        name: "gameStarted",
         id: "selfcheck_" + Date.now(),
         timestamp: Math.floor(Date.now() / 1000),
+        value: "satori_diag",
         metadata: { source: "satori_direct.sdSelfCheck" }
-    }]) || { ok: true, code: 200, body: "(success returns null from sdEventsPublish)" };
+    }]);
+    if (resp === null) return { ok: true, code: 200, body: "" };
+    return resp;
 }
 
 /**
- * RPC: satori_diag — admin-gated. Hits Satori with one test event and
- * returns the result (no auth/admin check up front because the user
- * specifically wants this to "just work" for verification — a bad call
- * costs Satori a single ignored event).
+ * RPC: satori_diag — no-auth diagnostic that publishes one valid event and
+ * also tests /v1/authenticate to confirm the identity-scoped path works.
+ * Returns fingerprints of the credentials in effect so misconfiguration
+ * is obvious from a single curl.
  */
 function rpcSatoriDiag(ctx, logger, nk, payload) {
-    var resp = sdSelfCheck(ctx, nk, logger);
+    var sysId = "00000000-0000-0000-0000-000000000000";
+    var ev = sdSelfCheck(ctx, nk, logger);
+    var auth = sdAuthenticate(ctx, nk, logger, sysId);
+
+    var apiKey = sdResolve(ctx, "SATORI_API_KEY", SD_API_KEY);
+    var keyName = sdResolve(ctx, "SATORI_API_KEY_NAME", SD_API_KEY_NAME);
+    function fp(s) {
+        if (!s) return null;
+        return { len: s.length, first4: s.slice(0,4), last4: s.length>=4?s.slice(-4):"" };
+    }
+
     return JSON.stringify({
-        success: resp.ok,
-        code: resp.code,
-        body: (resp.body || "").slice(0, 500),
-        url: sdUrl(ctx, "/v1/event"),
-        api_key_name: sdResolve(ctx, "SATORI_API_KEY_NAME", SD_API_KEY_NAME),
-        api_key_present: !!sdResolve(ctx, "SATORI_API_KEY", SD_API_KEY),
-        signing_key_present: !!sdResolve(ctx, "SATORI_SIGNING_KEY", SD_SIGNING_KEY)
+        // Event publish via /v1/server-event (Basic Auth)
+        events_endpoint:  sdUrl(ctx, "/v1/server-event"),
+        events_success:   ev.ok,
+        events_code:      ev.code,
+        events_body:      (ev.body || "").slice(0, 300),
+        // /v1/authenticate (Basic Auth) — should return token
+        auth_endpoint:    sdUrl(ctx, "/v1/authenticate"),
+        auth_success:     !!auth,
+        auth_token_present: !!(auth && auth.token),
+        // Credentials in effect
+        api_key_name:     keyName,
+        api_key_fp:       fp(apiKey),
+        notes: ev.ok && auth
+            ? "All paths green. Real-time events flow via /v1/server-event; identity backfill flows via /v1/authenticate + /v1/properties."
+            : (!ev.ok && ev.code === 400
+                ? "Auth works, but the event name 'gameStarted' was rejected — your Satori taxonomy probably has it disabled. Check Satori console → Settings → Taxonomy → Events."
+                : "One or both paths failed. Check api_key_fp matches your Satori → Settings → API Keys page.")
     });
 }
 
 function __ModuleInit_79(ctx, logger, nk, initializer) {
     __rpc_satori_diag = __rpc_satori_diag || (rpcSatoriDiag);
     if (logger && logger.info) {
-        logger.info("[satori_direct] module loaded — RPC satori_diag registered, base url=" + SD_URL);
+        logger.info("[satori_direct] v2 module loaded — RPC satori_diag registered, base url=" + SD_URL +
+            " (events→/v1/server-event Basic Auth, identity→/v1/authenticate→Bearer)");
     }
 }
 

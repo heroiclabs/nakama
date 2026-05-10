@@ -545,39 +545,60 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         // Fallback: scan events collection (with gameId filter)
         if (quizStarted === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-                return val.eventName && val.eventName.indexOf('quiz') !== -1;
+                return val.eventName && val.eventName.toLowerCase().indexOf('quiz') !== -1;
             }, gameId);
-            
+
+            // 2026-05 hardening — alias Unity's actual event names to canonical
+            // dashboard names. The Unity client (QuizGameAnalytics.cs) emits
+            // `quiz_session_started/ended/complete` whereas the dashboard
+            // historically expected `quiz_started/completed`. Without this
+            // alias, the Quiz panel shows zero even when 30+ session events
+            // exist in the collection.
+            var STARTED_NAMES = {
+                'quiz_started': 1, 'quizstarted': 1,
+                'quiz_session_started': 1, 'quiz_session_start': 1
+            };
+            var COMPLETED_NAMES = {
+                'quiz_completed': 1, 'quizcompleted': 1, 'quiz_complete': 1,
+                'quiz_session_completed': 1, 'quiz_session_complete': 1, 'quiz_session_ended': 1
+            };
+            var ABANDONED_NAMES = {
+                'quiz_abandoned': 1, 'quizabandoned': 1, 'quiz_session_abandoned': 1
+            };
+
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
-                var evName = ev.eventName || '';
-                
-                if (evName === 'quiz_started' || evName === 'QuizStarted') quizStarted++;
-                if (evName === 'quiz_completed' || evName === 'QuizCompleted') {
+                var evName = (ev.eventName || '').toLowerCase();
+
+                if (STARTED_NAMES[evName]) quizStarted++;
+                if (COMPLETED_NAMES[evName]) {
                     quizCompleted++;
                     if (ev.eventData) {
-                        totalScore += ev.eventData.score || 0;
-                        totalCorrect += ev.eventData.correctAnswers || 0;
-                        totalQuestions += ev.eventData.totalQuestions || 0;
-                        hintsUsed += ev.eventData.hintsUsed || 0;
-                        
-                        if (ev.eventData.topic) {
-                            topicCounts[ev.eventData.topic] = (topicCounts[ev.eventData.topic] || 0) + 1;
-                        }
-                        if (ev.eventData.difficulty) {
-                            difficultyCounts[ev.eventData.difficulty] = (difficultyCounts[ev.eventData.difficulty] || 0) + 1;
-                        }
+                        totalScore += ev.eventData.score || ev.eventData.final_score || 0;
+                        totalCorrect += ev.eventData.correctAnswers || ev.eventData.correct_answers || 0;
+                        totalQuestions += ev.eventData.totalQuestions || ev.eventData.total_questions || ev.eventData.question_count || 0;
+                        hintsUsed += ev.eventData.hintsUsed || ev.eventData.hints_used || 0;
+
+                        var topic = ev.eventData.topic || ev.eventData.category || ev.eventData.quiz_topic;
+                        if (topic) topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+                        var diff = ev.eventData.difficulty || ev.eventData.quiz_difficulty;
+                        if (diff) difficultyCounts[diff] = (difficultyCounts[diff] || 0) + 1;
                     }
                 }
-                if (evName === 'quiz_abandoned' || evName === 'QuizAbandoned') quizAbandoned++;
-                if (evName === 'hint_used' || evName === 'HintUsed') hintsUsed++;
-                if (evName === 'daily_quiz_completed' || evName === 'DailyQuizCompleted') dailyCompleted++;
+                if (ABANDONED_NAMES[evName]) quizAbandoned++;
+                if (evName === 'hint_used' || evName === 'hintused') hintsUsed++;
+                if (evName === 'daily_quiz_completed' || evName === 'dailyquizcompleted') dailyCompleted++;
             }
         }
         
-        // Calculate rates
-        var completionRate = quizStarted > 0 ? Math.round((quizCompleted / quizStarted) * 100) : 0;
-        var accuracyRate = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+        // Calculate rates (clamped 0..100)
+        var qpClamp = function(v) {
+            v = Math.round(v);
+            if (!isFinite(v) || v < 0) return 0;
+            return v > 100 ? 100 : v;
+        };
+        var completionRate = quizStarted > 0 ? qpClamp((quizCompleted / quizStarted) * 100) : 0;
+        var accuracyRate = totalQuestions > 0 ? qpClamp((totalCorrect / totalQuestions) * 100) : 0;
         var avgScore = quizCompleted > 0 ? Math.round(totalScore / quizCompleted) : 0;
         var avgStreak = streakCount > 0 ? Math.round(streakSum / streakCount) : 0;
         
@@ -717,33 +738,54 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         var voiceAnswers = 0;
         var featureCounts = {};
         var featureUsers = {};
-        
-        // Scan AI-related events (with gameId filter)
+
+        // 2026-05 hardening — strict AI-event taxonomy.
+        // The previous filter used substring match on "ai" which leaked any
+        // event name containing the letters "ai" (e.g. login_failed → 'fail'
+        // contains 'ai'; ad_failed; daily_*; player_*; etc). That's why the
+        // AI tab was showing login_failed as a feature.
+        //
+        // The canonical AI-feature taxonomy is:
+        //   • events whose name BEGINS with "ai_" (ai_assist, ai_voice_*,
+        //     ai_trivia_*, ai_question_*)
+        //   • events that BEGIN with "voice_" (voice_input, voice_answer)
+        //   • events that BEGIN with "gemini_"
+        //   • events that BEGIN with "trivia_ai_"
+        //   • exact name "trivia_generated"
+        var isAiEvent = function(name) {
+            var n = (name || '').toLowerCase();
+            if (!n) return false;
+            if (n.indexOf('ai_') === 0) return true;
+            if (n.indexOf('voice_') === 0) return true;
+            if (n.indexOf('gemini_') === 0) return true;
+            if (n.indexOf('trivia_ai_') === 0) return true;
+            if (n === 'trivia_generated') return true;
+            return false;
+        };
+
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            var evName = (val.eventName || '').toLowerCase();
-            return evName.indexOf('ai') !== -1 || evName.indexOf('voice') !== -1 || 
-                   evName.indexOf('gemini') !== -1 || evName.indexOf('trivia') !== -1;
+            return isAiEvent(val.eventName);
         }, gameId);
-        
+
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
             totalAIEvents++;
-            
+
             if (ev.userId) {
                 aiUserSet[ev.userId] = true;
             }
-            
+
             var evName = ev.eventName || 'ai_event';
             featureCounts[evName] = (featureCounts[evName] || 0) + 1;
-            
+
             if (ev.userId) {
                 if (!featureUsers[evName]) featureUsers[evName] = {};
                 featureUsers[evName][ev.userId] = true;
             }
-            
+
             if (ev.eventData) {
                 creditsConsumed += ev.eventData.credits || ev.eventData.tokensUsed || 0;
-                if (evName.indexOf('voice') !== -1) {
+                if (evName.indexOf('voice_') === 0 || evName.indexOf('ai_voice_') === 0) {
                     voiceAnswers++;
                 }
             }
@@ -872,49 +914,56 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         
         var coinBalances = [];
-        var gemBalances = [];
         var sourcesTotal = 0;
         var sinksTotal = 0;
         var whaleCount = 0;
         var whaleThreshold = 10000; // coins
-        
-        // Read economy stats from storage (game-specific key if gameId provided)
+
+        // 2026-05 — QuizVerse uses a single-currency economy (coins only).
+        // Gems were removed by product. We no longer expose total_gems on
+        // this endpoint; the dashboard hides the Gems KPI accordingly.
+
         var economyKey = gameId ? 'economy_stats_' + gameId : 'economy_stats';
         var economyStats = extStorageRead(nk, 'analytics_economy', economyKey, SYSTEM_USER_ID);
-        
+
         if (economyStats) {
             coinBalances = economyStats.coinBalances || [];
-            gemBalances = economyStats.gemBalances || [];
             sourcesTotal = economyStats.sources || 0;
             sinksTotal = economyStats.sinks || 0;
         }
-        
-        // Fallback: scan wallet data (with gameId filter)
+
+        // Fallback: scan wallet/purchase events (with gameId filter).
+        // Strict prefix-match — substring 'coin' previously matched too many
+        // events (and 'gem' was scanned even though we don't surface gems).
         if (coinBalances.length === 0) {
             var walletEvents = extScanEvents(nk, logger, 'analytics_events', 30, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
-                return evName.indexOf('coin') !== -1 || evName.indexOf('gem') !== -1 || 
-                       evName.indexOf('wallet') !== -1 || evName.indexOf('purchase') !== -1;
+                if (!evName) return false;
+                return evName.indexOf('coin') === 0 ||
+                       evName.indexOf('wallet_') === 0 ||
+                       evName === 'purchase_completed' ||
+                       evName === 'currency_granted' ||
+                       evName === 'currency_spent' ||
+                       evName === 'insufficient_funds_action';
             }, gameId);
-            
+
             for (var i = 0; i < walletEvents.length; i++) {
                 var ev = walletEvents[i];
                 var evData = ev.eventData || {};
-                
-                if (evData.coins !== undefined) {
-                    coinBalances.push(Math.abs(evData.coins));
-                    if (evData.coins > 0) sourcesTotal += evData.coins;
-                    else sinksTotal += Math.abs(evData.coins);
-                }
-                if (evData.gems !== undefined) {
-                    gemBalances.push(Math.abs(evData.gems));
+
+                var coinDelta = (evData.coins !== undefined) ? evData.coins
+                              : (evData.amount !== undefined && (evData.currency === 'coins' || evData.currency_type === 'coins')) ? evData.amount
+                              : null;
+                if (coinDelta !== null && coinDelta !== undefined && isFinite(coinDelta)) {
+                    coinBalances.push(Math.abs(coinDelta));
+                    if (coinDelta > 0) sourcesTotal += coinDelta;
+                    else sinksTotal += Math.abs(coinDelta);
                 }
             }
         }
-        
+
         // Calculate metrics
         var totalCoins = coinBalances.reduce(function(a, b) { return a + b; }, 0);
-        var totalGems = gemBalances.reduce(function(a, b) { return a + b; }, 0);
         var avgCoins = coinBalances.length > 0 ? Math.round(totalCoins / coinBalances.length) : 0;
         var medianCoins = Math.round(extMedian(coinBalances));
         
@@ -944,7 +993,6 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
             game_id: gameId || 'all',
             gini_coefficient: gini,
             total_coins: totalCoins,
-            total_gems: totalGems,
             avg_coins: avgCoins,
             median_coins: medianCoins,
             whale_count: whaleCount,
@@ -1052,8 +1100,14 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                     evName === 'adimpression' || evName === 'adshown') {
                     adImpressions++;
                 }
+                // 2026-05 hardening — only count exact completion-event names.
+                // The previous filter included `evName.indexOf('rewarded') !== -1`
+                // which caused double-counting whenever Unity emitted both
+                // `ad_completed` AND a `rewarded_*` event for the same ad
+                // (e.g. ad_shown=11, ad_completed=22 → 200% completion rate).
                 if (evName === 'ad_completed' || evName === 'adcompleted' ||
-                    evName.indexOf('rewarded') !== -1) {
+                    evName === 'rewarded_completed' || evName === 'rewardedcompleted' ||
+                    evName === 'ad_rewarded_completed') {
                     adCompleted++;
                 }
 
@@ -1110,11 +1164,21 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         // saw at least one ad_requested event). Falls back to the legacy
         // completed/impressions ratio so existing dashboards keep working
         // during the migration window.
+        // 2026-05 hardening — cap rates at 100%. A completion or fill rate
+        // greater than 100 is mathematically impossible and almost always
+        // indicates either double-counting or a missing upstream event.
+        // We clamp on the server so the dashboard never has to second-guess.
+        var clampPct = function(v) {
+            v = Math.round(v);
+            if (!isFinite(v) || v < 0) return 0;
+            if (v > 100) return 100;
+            return v;
+        };
         var adFillRate = adRequests > 0
-            ? Math.round((adImpressions / adRequests) * 100)
-            : (adImpressions > 0 ? Math.round((adCompleted / adImpressions) * 100) : 0);
+            ? clampPct((adImpressions / adRequests) * 100)
+            : (adImpressions > 0 ? clampPct((adCompleted / adImpressions) * 100) : 0);
         var adCompletionRate = adImpressions > 0
-            ? Math.round((adCompleted / adImpressions) * 100)
+            ? clampPct((adCompleted / adImpressions) * 100)
             : 0;
         // eCPM = revenue per 1000 impressions, in USD, two-decimal.
         var adECPM = adImpressions > 0
@@ -1130,7 +1194,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         }
         adRevenueNetworkArr.sort(function(a, b) { return b.revenue_usd - a.revenue_usd; });
 
-        var paywallConversionRate = paywallShown > 0 ? Math.round((paywallConverted / paywallShown) * 100) : 0;
+        var paywallConversionRate = paywallShown > 0 ? clampPct((paywallConverted / paywallShown) * 100) : 0;
         
         return JSON.stringify({
             game_id: gameId || 'all',
