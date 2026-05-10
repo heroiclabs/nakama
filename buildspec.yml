@@ -173,7 +173,14 @@ phases:
       # dead because the bundle didn't compile).
       - echo "=== Post-rollout JS runtime smoke test ==="
       - |
-        if ! ./scripts/smoke-test-js-runtime.sh cluster "$K8S_NAMESPACE" "$K8S_DEPLOYMENT"; then
+        set +e
+        ./scripts/smoke-test-js-runtime.sh cluster "$K8S_NAMESPACE" "$K8S_DEPLOYMENT"
+        SMOKE_RC=$?
+        set -e
+        ROLLED_BACK=false
+        NONFATAL_ROLLOUT_BLOCKED=false
+
+        if [ "$SMOKE_RC" -ne 0 ]; then
           echo "✗ Post-rollout smoke test FAILED — auto-rolling back to $PREVIOUS_IMAGE"
           # ─── Auto-rollback (EKS-2) ───────────────────────────────────
           # Two-tier strategy:
@@ -190,13 +197,28 @@ phases:
             kubectl rollout undo deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE"
           fi
           kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=5m
-          echo "✓ Rolled back. Build marked FAILED so the pipeline stops here."
-          exit 1
+          ROLLED_BACK=true
+          if [ "$SMOKE_RC" -eq 3 ]; then
+            NONFATAL_ROLLOUT_BLOCKED=true
+            echo "Rolled back after AWS CNI pod-IP exhaustion. Build stays successful because the image smoke passed and production is restored to the previous image."
+          else
+            echo "Rolled back. Build marked FAILED so the pipeline stops here."
+            exit 1
+          fi
         fi
-      - echo "=== Verifying live image ==="
-      - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-      - kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
-      - echo "{\"image\":\"${REPOSITORY_URI}@${IMAGE_DIGEST}\",\"tag\":\"${IMAGE_VERSION}\",\"git\":\"${CODEBUILD_RESOLVED_SOURCE_VERSION}\",\"previous_image\":\"${PREVIOUS_IMAGE}\"}" > image-manifest.json
+
+        echo "=== Verifying live image ==="
+        LIVE_IMAGE=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}')
+        echo "$LIVE_IMAGE"
+        kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
+        printf '{"image":"%s","tag":"%s","git":"%s","previous_image":"%s","live_image":"%s","rolled_back":%s,"nonfatal_rollout_blocked":%s}\n' \
+          "${REPOSITORY_URI}@${IMAGE_DIGEST}" \
+          "$IMAGE_VERSION" \
+          "$CODEBUILD_RESOLVED_SOURCE_VERSION" \
+          "$PREVIOUS_IMAGE" \
+          "$LIVE_IMAGE" \
+          "$ROLLED_BACK" \
+          "$NONFATAL_ROLLOUT_BLOCKED" > image-manifest.json
 
 artifacts:
   files:

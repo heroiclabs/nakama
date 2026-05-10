@@ -30,6 +30,8 @@
 set -eu
 
 MODE="${1:-}"
+# Buildspec treats this as non-fatal after rollback; all app/runtime failures stay exit 1.
+INFRA_ROLLOUT_BLOCKED_RC=3
 
 fail() {
     echo "✗ smoke-test FAILED: $*" >&2
@@ -206,6 +208,7 @@ EOF
         ROLLOUT_RC=$?
         set -e
         if [ "$ROLLOUT_RC" -ne 0 ]; then
+            INFRA_ROLLOUT_BLOCKED=0
             echo
             echo "════════════════════════════════════════════════════════════════"
             echo "✗ rollout did not finish in 10 minutes — capturing diagnostics"
@@ -254,8 +257,13 @@ EOF
                 echo "Pod: $POD"
                 echo "════════════════════════════════════════════════════════════════"
                 echo "── kubectl describe (events, container statuses, restartCount) ──"
-                kubectl describe pod -n "$NS" "$POD" \
+                POD_DESCRIBE=$(kubectl describe pod -n "$NS" "$POD" 2>&1 || true)
+                echo "$POD_DESCRIBE" \
                     | sed -n '/^Containers:/,/^Conditions:/p; /^Events:/,$p' || true
+                if echo "$POD_DESCRIBE" | grep -qF 'plugin type="aws-cni"' \
+                    && echo "$POD_DESCRIBE" | grep -qF 'failed to assign an IP address to container'; then
+                    INFRA_ROLLOUT_BLOCKED=1
+                fi
                 echo
                 echo "── Current container logs (last 200 lines) ──"
                 kubectl logs -n "$NS" "$POD" --tail=200 --all-containers=true 2>&1 || true
@@ -268,6 +276,10 @@ EOF
             echo "════════════════════════════════════════════════════════════════"
             echo "End of diagnostics — buildspec will now auto-rollback."
             echo "════════════════════════════════════════════════════════════════"
+            if [ "$INFRA_ROLLOUT_BLOCKED" = "1" ]; then
+                echo "Detected infrastructure rollout block: AWS CNI could not assign a pod IP."
+                exit "$INFRA_ROLLOUT_BLOCKED_RC"
+            fi
             exit 1
         fi
 
