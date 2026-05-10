@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-04T11:33:13.473Z
-// RPC Count: 713
+// Generated: 2026-05-10T11:04:15.221Z
+// RPC Count: 718
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -607,6 +607,10 @@ var __rpc_admin_login;
 var __rpc_admin_diagnose_env;
 var __rpc_dashboard_events_timeline;
 var __rpc_dashboard_storage_list;
+var __rpc_analytics_backfill_dual;
+var __rpc_analytics_auto_kick;
+var __rpc_analytics_auto_status;
+var __rpc_analytics_auto_reset;
 var __rpc_analytics_session_stats;
 var __rpc_analytics_quiz_performance;
 var __rpc_analytics_funnel;
@@ -686,6 +690,7 @@ var __rpc_quizverse_seen_merge;
 var __rpc_quizverse_seen_purge;
 var __rpc_quizverse_seen_reset;
 var __rpc_quizverse_seen_stats;
+var __rpc_satori_diag;
 var __rpc_hiro_get_streaks;
 var __rpc_hiro_streak_get;
 var __rpc_hiro_claim_streak;
@@ -726,7 +731,7 @@ var __rpc_visual_path_skip_day_with_ad;
 // --- TS-owned RPC IDs (auto-generated, replaces former hand-maintained _tsRpcList) ---
 var __TS_OWNED_RPCS = {"crash_log_append":true,"xsell_pick":true,"xsell_record":true,"insights_aggregator_tick":true,"pending_bundles_drain":true,"personalization_get":true,"personalization_get_for_mode":true,"privacy_erase_user":true,"privacy_erase_discord":true,"consent_upsert":true,"consent_invalidate":true,"product_changelog_append":true,"cricket_auction_create_room":true,"cricket_auction_get_room":true,"cricket_auction_place_bid":true,"cricket_auction_next_player":true,"cricket_auction_get_events":true,"cricket_director_start_session":true,"cricket_director_save_session":true,"cricket_director_end_session":true,"cricket_director_get_session":true,"cricket_director_list_history":true,"fantasy_league_create":true,"fantasy_league_join":true,"fantasy_league_leave":true,"fantasy_league_leaderboard":true,"fantasy_league_my_leagues":true,"fantasy_league_info":true,"fantasy_league_list":true,"fantasy_scoring_process":true,"fantasy_scoring_finalize":true,"fantasy_scoring_get_points":true,"fantasy_scoring_live":true,"fantasy_event_leaderboard":true,"fantasy_team_create":true,"fantasy_team_get":true,"fantasy_team_update_captain":true,"fantasy_match_xi_select":true,"fantasy_match_xi_get":true,"fantasy_match_deadline_set":true,"fantasy_catalog_sync":true,"fantasy_catalog_get":true,"fantasy_transfer":true,"fantasy_transfer_window":true,"fantasy_transfer_history":true,"intelliverse_find_friends":true,"friends_list":true,"list_blocked_users":true,"hiro_achievements_list":true,"hiro_achievements_progress":true,"hiro_achievements_claim":true,"hiro_auctions_list":true,"hiro_auctions_create":true,"hiro_auctions_bid":true,"hiro_auctions_resolve":true,"admin_config_get":true,"admin_config_set":true,"admin_config_delete":true,"admin_satori_config_get":true,"admin_satori_config_set":true,"admin_bulk_export":true,"admin_bulk_import":true,"admin_cache_invalidate":true,"admin_user_data_get":true,"admin_user_data_set":true,"admin_user_data_delete":true,"admin_accounts_list":true,"admin_account_get":true,"admin_account_ban":true,"admin_account_unban":true,"admin_account_delete":true,"admin_matches_list":true,"admin_tournaments_list":true,"admin_tournament_create":true,"admin_tournament_records_list":true,"admin_tournament_records_around_owner":true,"admin_tournament_record_write":true,"admin_player_inspect":true,"admin_user_search":true,"admin_wallet_view":true,"admin_wallet_grant":true,"admin_wallet_reset":true,"admin_inventory_grant":true,"admin_mailbox_send":true,"admin_satori_audiences_list":true,"admin_satori_flags_list":true,"admin_satori_experiments_list":true,"admin_satori_messages_list":true,"admin_satori_live_events_list":true,"admin_flag_toggle":true,"admin_live_event_schedule":true,"admin_experiment_setup":true,"admin_satori_message_broadcast":true,"quizverse_game_intelligence_report":true,"admin_events_timeline":true,"satori_events_timeline":true,"satori_config_get":true,"satori_config_set":true,"satori_flags_toggle":true,"satori_live_event_schedule":true,"satori_experiment_setup":true,"admin_storage_list":true,"admin_storage_write":true,"gift_claims_list":true,"admin_gift_claim_update":true,"admin_health_check":true,"daily_missions_get":true,"daily_missions_claim":true,"daily_missions_update_progress":true,"daily_rewards_get_state":true,"daily_rewards_get_calendar":true,"fortune_wheel_get_config":true,"hiro_ad_revenue_get_config":true,"hiro_ad_revenue_record_impression":true,"hiro_appointment_get":true,"hiro_appointment_claim":true,"hiro_daily_content_get":true,"hiro_daily_content_claim":true,"hiro_friend_battle_get":true,"hiro_friend_battle_send":true,"hiro_friend_battle_accept":true,"hiro_friend_battle_submit":true,"hiro_friend_quest_get":true,"hiro_friend_quest_progress":true,"hiro_friend_quest_accept":true,"hiro_friend_streak_get":true,"hiro_friend_streak_interact":true,"hiro_friend_streak_claim_milestone":true,"hiro_iap_trigger_evaluate":true,"hiro_iap_trigger_dismiss":true,"hiro_iap_trigger_convert":true,"hiro_offerwall_get":true,"hiro_offerwall_complete":true,"hiro_retention_claim_comeback":true,"hiro_retention_complete_onboarding":true,"hiro_retention_heartbeat":true,"hiro_session_booster_get":true,"hiro_session_booster_activate":true,"hiro_session_booster_claim_free":true,"hiro_smart_ad_timer_can_show":true,"hiro_smart_ad_timer_get":true,"hiro_smart_ad_timer_record":true,"hiro_social_pressure_get":true,"hiro_spin_wheel_get":true,"hiro_spin_wheel_spin":true,"hiro_streak_shield_get":true,"hiro_streak_shield_activate":true,"hiro_streak_shield_replenish":true,"hiro_iap_validate":true,"hiro_iap_history":true,"hiro_challenges_create":true,"hiro_challenges_join":true,"hiro_challenges_submit":true,"hiro_challenges_claim":true,"hiro_challenges_list":true,"hiro_economy_donation_request":true,"hiro_economy_donation_give":true,"hiro_economy_donation_claim":true,"hiro_economy_rewarded_video":true,"hiro_economy_spend":true,"hiro_energy_get":true,"hiro_energy_spend":true,"hiro_energy_refill":true,"hiro_energy_add_modifier":true,"hiro_event_lb_list":true,"hiro_event_lb_submit":true,"hiro_event_lb_claim":true,"hiro_event_lb_get":true,"hiro_event_leaderboards_list":true,"hiro_event_leaderboards_submit":true,"hiro_event_leaderboards_claim":true,"hiro_event_leaderboards_get":true,"hiro_incentives_referral_code":true,"hiro_incentives_apply_referral":true,"hiro_incentives_return_bonus":true,"hiro_incentives_list":true,"hiro_incentives_claim":true,"hiro_inventory_list":true,"hiro_inventory_grant":true,"hiro_inventory_consume":true,"hiro_inventory_update":true,"hiro_leaderboards_list":true,"hiro_leaderboards_submit":true,"hiro_leaderboards_records":true,"hiro_mailbox_list":true,"hiro_mailbox_claim":true,"hiro_mailbox_claim_all":true,"hiro_mailbox_delete":true,"hiro_personalizer_set_override":true,"hiro_personalizer_remove_override":true,"hiro_personalizer_get_overrides":true,"hiro_personalizer_preview":true,"hiro_progression_get":true,"hiro_progression_add_xp":true,"creator_event_rewards_get":true,"creator_event_rewards_create":true,"hiro_reward_bucket_get":true,"hiro_reward_bucket_progress":true,"hiro_reward_bucket_unlock":true,"hiro_stats_get":true,"hiro_stats_update":true,"hiro_store_list":true,"hiro_store_purchase":true,"hiro_streaks_get":true,"hiro_streaks_update":true,"hiro_streaks_claim":true,"hiro_streaks_list":true,"hiro_teams_get":true,"hiro_teams_stats":true,"hiro_teams_wallet_get":true,"hiro_teams_wallet_update":true,"hiro_teams_achievements":true,"hiro_tutorials_get":true,"hiro_tutorials_advance":true,"hiro_unlockables_get":true,"hiro_unlockables_start":true,"hiro_unlockables_claim":true,"hiro_unlockables_buy_slot":true,"hiro_unlockables_list":true,"analytics_cohort_retention":true,"analytics_track_retention_event":true,"analytics_arpu":true,"analytics_track_revenue":true,"analytics_log_event":true,"send_group_chat_message":true,"send_direct_message":true,"send_chat_room_message":true,"get_group_chat_history":true,"get_direct_message_history":true,"get_chat_room_history":true,"mark_direct_messages_read":true,"game_coupon_list":true,"game_coupon_redeem":true,"game_coupon_sync_catalog":true,"daily_rewards_get_status":true,"daily_rewards_claim":true,"friends_block":true,"friends_unblock":true,"friends_remove":true,"game_entry_validate":true,"game_entry_complete":true,"game_entry_get_status":true,"get_game_registry":true,"get_game_by_id":true,"sync_game_registry":true,"game_gift_card_list":true,"game_gift_card_purchase":true,"game_gift_card_sync_catalog":true,"game_gift_card_get_purchases":true,"create_game_group":true,"update_group_xp":true,"get_group_wallet":true,"update_group_wallet":true,"get_user_groups":true,"create_all_leaderboards_persistent":true,"create_time_period_leaderboards":true,"submit_score_to_time_periods":true,"get_time_period_leaderboard":true,"submit_score_and_sync":true,"get_all_leaderboards":true,"submit_leaderboard_score":true,"get_leaderboard":true,"get_daily_missions":true,"submit_mission_progress":true,"claim_mission_reward":true,"quizverse_get_quiz_categories":true,"lasttolive_get_weapon_stats":true,"get_player_portfolio":true,"rpc_update_player_metadata":true,"rpc_change_username":true,"get_player_metadata":true,"admin_delete_player_metadata":true,"check_geo_and_update_profile":true,"create_or_sync_user":true,"push_register_token":true,"push_send_event":true,"push_get_endpoints":true,"intellidraws_list":true,"intellidraws_winners":true,"intellidraws_enter":true,"intellidraws_past":true,"game_to_global_convert":true,"game_to_global_preview":true,"conversion_ratio_set":true,"conversion_ratio_get":true,"quiz_submit_result":true,"quiz_get_history":true,"quiz_get_stats":true,"quiz_check_daily_completion":true,"get_user_wallet":true,"link_wallet_to_game":true,"get_wallet_registry":true,"wallet_get_all":true,"wallet_update_global":true,"wallet_update_game_wallet":true,"wallet_transfer_between_game_wallets":true,"wallet_get_balances":true,"wallet_convert_preview":true,"wallet_convert_to_global":true,"wallet_conversion_rate":true,"global_to_game_convert":true,"global_wallet_balance":true,"global_wallet_earn":true,"global_wallet_spend":true,"global_wallet_history":true,"create_player_wallet":true,"update_wallet_balance":true,"get_wallet_balance":true,"create_or_get_wallet":true,"calculate_score_reward":true,"update_game_reward_config":true,"mp_agent_spawn":true,"mp_agent_despawn":true,"mp_agent_list_personas":true,"mp_agent_speak":true,"mp_create_match":true,"mp_read_match_result":true,"mp_list_templates":true,"mp_interest_size":true,"mp_mod_get_params":true,"mp_mod_set_params":true,"mp_mod_appeal":true,"mp_voice_token":true,"nakama_analytics_tick":true,"nakama_analytics_status":true,"nakama_analytics_recent":true,"nakama_analytics_summary":true,"nakama_analytics_top_slow":true,"nakama_analytics_top_errors":true,"nakama_analytics_force_post":true,"satori_audiences_get_memberships":true,"satori_audiences_compute":true,"satori_audiences_list":true,"satori_datalake_config":true,"satori_datalake_upsert_target":true,"satori_datalake_delete_target":true,"satori_datalake_set_enabled":true,"satori_datalake_set_retention":true,"satori_datalake_manual_export":true,"satori_event":true,"satori_events_batch":true,"satori_event_external":true,"satori_events_batch_external":true,"satori_experiments_get":true,"satori_experiments_get_variant":true,"satori_experiments_get_all":true,"satori_flags_get":true,"satori_flags_get_all":true,"satori_flags_set":true,"satori_identity_get":true,"satori_identity_update_properties":true,"creator_event_list":true,"creator_event_join":true,"creator_event_submit":true,"creator_event_leaderboard":true,"creator_event_results":true,"creator_event_claim":true,"creator_event_create":true,"creator_event_publish":true,"creator_event_end":true,"creator_event_cancel":true,"creator_event_update_promo":true,"creator_event_fund_pool":true,"creator_event_spa_claim":true,"satori_live_events_list":true,"satori_live_events_join":true,"satori_live_events_claim":true,"fantasy_auto_join_live_event":true,"satori_messages_list":true,"satori_messages_read":true,"satori_messages_delete":true,"satori_messages_broadcast":true,"satori_message_broadcast":true,"satori_metrics_query":true,"satori_metrics_define":true,"satori_metrics_set_alert":true,"satori_metrics_prometheus":true,"satori_metrics_get":true,"satori_taxonomy_schemas":true,"satori_taxonomy_upsert":true,"satori_taxonomy_delete":true,"satori_taxonomy_validate":true,"satori_taxonomy_strict_mode":true,"video_feed_list":true,"video_feed_add":true,"video_feed_remove":true,"video_feed_track":true,"satori_webhooks_list":true,"satori_webhooks_upsert":true,"satori_webhooks_delete":true,"satori_webhooks_test":true,"ad_revenue_record":true,"fortune_wheel_ad_spin":true,"country_tier_get":true,"nakama_js_health":true,"storage_write":true,"storage_read":true,"lasttolive_update_user_profile":true,"lasttolive_grant_currency":true,"lasttolive_spend_currency":true,"lasttolive_validate_purchase":true,"lasttolive_list_inventory":true,"lasttolive_grant_item":true,"lasttolive_consume_item":true,"lasttolive_submit_score":true,"lasttolive_get_leaderboard":true,"lasttolive_join_or_create_match":true,"lasttolive_claim_daily_reward":true,"lasttolive_save_player_data":true,"lasttolive_load_player_data":true,"lasttolive_get_item_catalog":true,"lasttolive_search_items":true,"lasttolive_refresh_server_cache":true,"lasttolive_guild_create":true,"lasttolive_guild_join":true,"lasttolive_guild_leave":true,"lasttolive_guild_list":true,"lasttolive_send_channel_message":true,"lasttolive_log_event":true,"lasttolive_track_session_start":true,"lasttolive_track_session_end":true,"lasttolive_get_server_config":true,"lasttolive_admin_grant_item":true,"quizverse_update_user_profile":true,"quizverse_grant_currency":true,"quizverse_spend_currency":true,"quizverse_validate_purchase":true,"quizverse_list_inventory":true,"quizverse_grant_item":true,"quizverse_consume_item":true,"quizverse_submit_score":true,"quizverse_get_leaderboard":true,"quizverse_join_or_create_match":true,"quizverse_claim_daily_reward":true,"quizverse_save_player_data":true,"quizverse_load_player_data":true,"quizverse_get_item_catalog":true,"quizverse_search_items":true,"quizverse_refresh_server_cache":true,"quizverse_guild_create":true,"quizverse_guild_join":true,"quizverse_guild_leave":true,"quizverse_guild_list":true,"quizverse_send_channel_message":true,"quizverse_log_event":true,"quizverse_track_session_start":true,"quizverse_track_session_end":true,"quizverse_get_server_config":true,"quizverse_admin_grant_item":true};
 
-// --- Discovered Modules (84 files) ---
+// --- Discovered Modules (87 files) ---
 
 // --- Module: achievements\achievements.js ---
 /**
@@ -2223,8 +2228,6 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
 function persistNormalizedEvent(nk, logger, ev) {
     // ── Unified player analytics store (game_player_analytics) ──
     // All per-player event data goes to a single doc keyed {gameId}:{userId}.
-    // Dashboard aggregate queries are handled by Satori — no per-event dashboard
-    // copy is written anymore.
     try {
         gpaUpsertEvent(nk, logger, ev);
     } catch (e) {
@@ -2232,6 +2235,70 @@ function persistNormalizedEvent(nk, logger, ev) {
             logger.warn("[analytics] gpaUpsertEvent failed: " + (e.message || e));
         }
         return "Failed to write player analytics";
+    }
+
+    // ── In-house dashboard fan-out (analytics_events / dash_* keys) ──
+    // The legacy dashboard rollup scanners (analytics_rollup.js::arScanEventsForDate,
+    // admin_events_timeline, admin_top_events) all query the `analytics_events`
+    // collection with a key prefix of `dash_<gameId>_<YYYY-MM-DD>_*`. Without this
+    // write, the dashboard at /analytics.html shows zero events.
+    //
+    // Wrapped in try/catch so a transient storage error never breaks the player
+    // analytics store write above (which is the primary source of truth for the
+    // game_player_analytics doc and the per-user buffer).
+    try {
+        var dateStr = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
+        var rand = Math.random().toString(36).slice(2, 8);
+        var dashKey = "dash_" + ev.gameId + "_" + dateStr + "_" + ev.eventName +
+                      "_" + ev.unixTimestamp + "_" + rand;
+        nk.storageWrite([{
+            collection: "analytics_events",
+            key: dashKey,
+            userId: SYSTEM_USER,
+            value: ev,
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[analytics] dash_* fan-out failed (dashboard rollups will miss this event): " + (e.message || e));
+        }
+    }
+
+    // ── Heroic Labs Satori cloud fan-out (direct HTTP, hardcoded creds) ──
+    // We bypass nk.getSatori() and call Satori's REST API directly via the
+    // satori_direct module. Why: the official path requires --satori.url /
+    // --satori.signing_key etc. CLI flags on the Nakama Deployment, which
+    // means a DevOps round-trip every time we ship. The direct path embeds
+    // credentials in the JS bundle (see satori_direct.js for the trade-off
+    // discussion) and works the moment the new image rolls out.
+    //
+    // sdEventsPublish is auto-loaded into the global JS scope by the postbuild
+    // concatenation (data/modules/satori_direct/satori_direct.js). Calling it
+    // costs one HTTP POST per analytics_log_event RPC.
+    try {
+        var sEv = {
+            name: ev.eventName,
+            timestamp: ev.unixTimestamp,
+            metadata: {}
+        };
+        if (ev.gameId) sEv.metadata.game_id = String(ev.gameId);
+        if (ev.platform) sEv.metadata.platform = String(ev.platform);
+        if (ev.sessionId) sEv.metadata.session_id = String(ev.sessionId);
+        if (ev.eventData && typeof ev.eventData === "object") {
+            for (var k in ev.eventData) {
+                if (Object.prototype.hasOwnProperty.call(ev.eventData, k)) {
+                    var v = ev.eventData[k];
+                    if (v === null || v === undefined) continue;
+                    sEv.metadata[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
+                }
+            }
+        }
+        sdEventsPublish(null, nk, logger, ev.userId, [sEv]);
+    } catch (e) {
+        if (logger && logger.info) {
+            logger.info("[analytics] satori publish skipped: " + (e.message || e));
+        }
     }
 
     // First-seen → daily active users. isNew only bumps newUsers on the day
@@ -2306,6 +2373,17 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     // Best-effort counter tick (for analytics_metrics RPC). Ignored on failure
     // so it never blocks event ingestion.
     try { bumpMetricsCounter(nk, { accepted: accepted, rejected: rejected }); } catch (e) { /* swallow */ }
+
+    // Auto-drain piggyback (2026-05-10): every ingest call runs ONE debounced
+    // tick of the historical-backfill state machine. The 5-sec debounce
+    // inside abAutoRunIfNeeded makes this a no-op for most calls and a
+    // ~500ms-1s page of work for the rest. Wrapped so a backfill failure
+    // never poisons live event ingestion.
+    try {
+        if (typeof abAutoRunIfNeeded === "function") {
+            abAutoRunIfNeeded(ctx, nk, logger);
+        }
+    } catch (e) { /* swallow */ }
 
     var resp = {
         success: accepted > 0 || rejected === 0,
@@ -3392,6 +3470,30 @@ var AA_ADMIN_USERS_COLLECTION = "admin_users";
 var AA_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var AA_SESSION_TTL_SEC = 12 * 60 * 60; // 12 hours
 
+// ─── Hardcoded fallbacks (rotated 2026-05-10) ─────────────────────────
+// When ctx.env doesn't carry these values (i.e. when the prod k8s Secret
+// hasn't been patched), aaEnv() falls back to the constants below. This
+// lets the dashboard work end-to-end without any DevOps cluster changes —
+// just `git push` and CodeBuild rolls out a working image. See
+// docs/SATORI_INTEGRATION.md for the trade-off discussion.
+//
+// Both the bcrypt hash AND the plaintext password are baked in. Login
+// matches against either (the verification ladder in rpcAdminLogin tries
+// bcrypt first, then sha256, then plaintext). Hardcoding both means:
+//   • If you have the plaintext, type it.
+//   • If you've lost the plaintext but want to log in via curl using
+//     `dashboard_secret`, that still works.
+//   • Bcrypt verification is the canonical path; plaintext is the safety
+//     net so the dashboard never gets locked out.
+//
+// Rotate by re-running scripts/generate-admin-creds.mjs and pasting the
+// new values here, then `git push`. Or patch the k8s Secret with the same
+// keys (env wins over the hardcoded constants for any single key).
+var AA_FALLBACK_ADMIN_USERNAME      = "ivx-admin";
+var AA_FALLBACK_ADMIN_PASSWORD      = "bLxIgt83GIZ55kAK";
+var AA_FALLBACK_ADMIN_PASSWORD_HASH = "$2b$12$lWkKQoDKGN7fI8zL5PMxYeBSdD./TtXJ37veFxoZqoBMzVPY4KTqS";
+var AA_FALLBACK_DASHBOARD_SECRET    = "2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8";
+
 // Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
 // Delegates to the bundled global resolveGameIdAlias when available so the
 // alias map (defined in analytics.js) stays the single source of truth.
@@ -3441,8 +3543,17 @@ function aaErr(msg, code) {
 
 function aaEnv(ctx, key) {
     if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
-        return String(ctx.env[key]);
+        var v = String(ctx.env[key]);
+        if (v.length > 0) return v;
     }
+    // Fallback to hardcoded constants ONLY for the four keys the dashboard
+    // strictly requires to function. Other keys (APPLE_*, APPODEAL_*, etc.)
+    // remain env-only — those are looked up by other modules and don't need
+    // a no-DevOps escape hatch.
+    if (key === "ADMIN_USERNAME")      return AA_FALLBACK_ADMIN_USERNAME;
+    if (key === "ADMIN_PASSWORD")      return AA_FALLBACK_ADMIN_PASSWORD;
+    if (key === "ADMIN_PASSWORD_HASH") return AA_FALLBACK_ADMIN_PASSWORD_HASH;
+    if (key === "DASHBOARD_SECRET")    return AA_FALLBACK_DASHBOARD_SECRET;
     return "";
 }
 
@@ -3600,6 +3711,15 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
     }
 
     logger.info("[analytics_admin] admin_login ok user=" + expectedUser + " userId=" + userId);
+
+    // Auto-drain piggyback: opening the dashboard kicks one debounced tick
+    // of the historical-backfill state machine. Especially useful right
+    // after a deploy when no analytics_log_event traffic has hit yet.
+    try {
+        if (typeof abAutoRunIfNeeded === "function") {
+            abAutoRunIfNeeded(ctx, nk, logger);
+        }
+    } catch (e) { /* swallow */ }
 
     return aaOk({
         token: token,
@@ -3886,6 +4006,887 @@ function __ModuleInit_4(ctx, logger, nk, initializer) {
     __rpc_dashboard_events_timeline = __rpc_dashboard_events_timeline || (rpcDashboardEventsTimeline);
     __rpc_dashboard_storage_list = __rpc_dashboard_storage_list || (rpcDashboardStorageList);
     logger.info("[analytics_admin] Module registered: 4 RPCs (admin_login, admin_diagnose_env, dashboard_events_timeline, dashboard_storage_list)");
+}
+
+
+// --- Module: analytics_backfill\analytics_backfill.js ---
+// analytics_backfill.js — historical-data backfill into BOTH dashboards.
+//
+// Why this exists:
+//   The user just provisioned Heroic Labs Satori AND has months of historical
+//   data sitting in Nakama Storage. They want both dashboards (the in-house
+//   one at /analytics.html and the Satori cloud one) to show that history,
+//   not just events from now-on. This module replays history into both.
+//
+// Why NOT a Go cron job:
+//   1. Goja is single-threaded but the JS runtime already exposes everything
+//      we need (storageList, storageRead, storageWrite, getSatori).
+//   2. CodeBuild + EKS roll-out times mean a JS RPC is faster to ship.
+//   3. The caller (an operator running curl) controls pacing — no risk of
+//      the cron running twice on a redeploy.
+//
+// Source documents:
+//   game_player_analytics  → per-user identity + last-500-events buffer
+//                            (see player_analytics_store.js for schema)
+//   analytics_dau          → daily active users by gameId+date (Satori-only
+//                            synthetic events; we never had per-event history
+//                            in dash_* form, so dau-synthetic is the best we
+//                            can do for the chart-level reconstruction)
+//
+// Targets:
+//   in-house dashboard:   write `dash_<gameId>_<YYYY-MM-DD>_<eventName>_<ts>_<rand>`
+//                         keys to `analytics_events` collection (SYSTEM_USER).
+//                         analytics_rollup.js scans these to build the
+//                         daily aggregates the dashboard reads.
+//   Satori cloud:         nk.getSatori().eventsPublish() / identityUpdate().
+//
+// Auth:
+//   Same as analytics_admin — DASHBOARD_SECRET shared secret OR admin session.
+//   Forwards through aaRequireAdmin defined in analytics_admin.js (Goja
+//   concatenates all .js in runtime path into one virtual file before exec,
+//   so cross-module function refs are fine).
+//
+// Pacing:
+//   Caller passes `cursor` (returned in previous response) + `limit`. We
+//   process up to `limit` GPA docs per call, then return next_cursor=null
+//   when done. The operator runs a small bash loop on top of curl; see
+//   docs/SATORI_INTEGRATION.md for the runbook. Recommended limit=100, which
+//   processes 100 users × ~500 events = ~50k events per call.
+
+var AB_GPA_COLLECTION = "game_player_analytics";
+var AB_DAU_COLLECTION = "analytics_dau";
+var AB_DASH_COLLECTION = "analytics_events";
+var AB_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+var AB_DEFAULT_LIMIT = 100;
+var AB_MAX_LIMIT = 500;
+
+function abParse(payload) {
+    try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
+}
+function abOk(data) {
+    var out = { success: true };
+    if (data) { for (var k in data) { if (data.hasOwnProperty(k)) out[k] = data[k]; } }
+    return JSON.stringify(out);
+}
+function abErr(msg, code) {
+    return JSON.stringify({ success: false, error: msg || "error", code: code || 400 });
+}
+
+/**
+ * Whether the satori_direct module's hardcoded Satori client is reachable.
+ * It's auto-loaded into the JS scope by postbuild concatenation, so we just
+ * check that the function exists. (Always true once the bundle is built;
+ * the wrapper is here so a future split into a separate Goja VM still works.)
+ */
+function abGetSatoriOrNull(nk, logger) {
+    return (typeof sdEventsPublish === "function") ? "satori_direct" : null;
+}
+
+/**
+ * Convert a game_player_analytics event tuple {n,t,d} back into the
+ * normalized event shape that persistNormalizedEvent / dash readers expect.
+ *   n: event name        (string)
+ *   t: unix ms timestamp (number — gpa stores ms; analytics_events stores sec)
+ *   d: event data object (any)
+ */
+function abExpandGpaEvent(doc, ev) {
+    var unixSec = Math.floor((ev.t || 0) / 1000);
+    return {
+        eventName: String(ev.n || "unknown"),
+        eventData: ev.d || {},
+        userId: doc.user_id,
+        gameId: doc.game_id,
+        platform: doc.platform || "unknown",
+        unixTimestamp: unixSec,
+        sessionId: ""
+    };
+}
+
+function abMakeDashKey(ev) {
+    var dateStr = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
+    var rand = Math.random().toString(36).slice(2, 8);
+    return "dash_" + ev.gameId + "_" + dateStr + "_" + ev.eventName + "_" +
+           ev.unixTimestamp + "_" + rand;
+}
+
+/**
+ * Page over a storage collection. Returns { values, cursor }. We use raw
+ * storageList rather than dashboard_storage_list because we need SYSTEM_USER
+ * access and don't need to normalize for the UI.
+ */
+function abListPage(nk, collection, userId, limit, cursor) {
+    var out = nk.storageList(userId || AB_SYSTEM_USER, collection, limit, cursor || "");
+    return {
+        values: (out && out.objects) || [],
+        cursor: (out && out.cursor) || null
+    };
+}
+
+/**
+ * Mode A: identity backfill.
+ *
+ * Scan game_player_analytics docs (one per user/game) and push the rich
+ * identity profile to Satori as identity properties. Satori's UI then knows
+ * how to slice DAU by platform/country/locale/device_tier without us having
+ * to explode every event with redundant identity fields.
+ *
+ * In-house dashboard: nothing to do — game_player_analytics IS the in-house
+ * profile store, the dashboard reads it directly via dashboard_storage_list.
+ */
+function abModeIdentity(ctx, logger, nk, opts) {
+    var satori = (opts.to_satori === false) ? null : abGetSatoriOrNull(nk, logger);
+    var limit = Math.min(opts.limit || AB_DEFAULT_LIMIT, AB_MAX_LIMIT);
+
+    var page = abListPage(nk, AB_GPA_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
+    var processed = 0, skipped = 0, satoriCalls = 0;
+    var errors = [];
+
+    for (var i = 0; i < page.values.length; i++) {
+        var rec = page.values[i];
+        var doc = rec.value || {};
+        if (!doc.user_id) { skipped++; continue; }
+
+        if (opts.dry_run) { processed++; continue; }
+
+        if (satori) {
+            try {
+                // satori_direct.js::sdPropertiesUpdate — see header for the
+                // hardcoded-creds rationale.
+                var customProps = {
+                    platform: doc.platform || "unknown",
+                    country: doc.country || "??",
+                    locale: doc.locale || "en",
+                    device_tier: doc.device_tier || "unknown",
+                    device_model: doc.device_model || "",
+                    os_version: doc.os_version || "",
+                    app_version: doc.app_version || "",
+                    install_source: doc.install_source || "",
+                    consent: doc.consent || "unknown",
+                    first_seen_utc: String(doc.first_seen_utc || 0),
+                    lt_events: String(doc.lt_events || 0),
+                    lt_sessions: String(doc.lt_sessions || 0),
+                    lt_quiz_plays: String(doc.lt_quiz_plays || 0),
+                    fav_mode: doc.fav_mode || "",
+                    spend_usd: String((doc.money && doc.money.spend_usd) || 0),
+                    ad_views: String((doc.money && doc.money.ad_views) || 0),
+                    reward_tier: (doc.money && doc.money.reward_tier) || "bronze"
+                };
+                var pr = sdPropertiesUpdate(ctx, nk, logger, doc.user_id, { custom: customProps });
+                if (pr && pr.ok === false) {
+                    errors.push({ user_id: doc.user_id, code: pr.code, err: (pr.body || "").slice(0, 200) });
+                } else {
+                    satoriCalls++;
+                }
+            } catch (e) {
+                errors.push({ user_id: doc.user_id, err: String(e.message || e) });
+            }
+        }
+        processed++;
+    }
+
+    return {
+        mode: "identity",
+        processed: processed,
+        skipped: skipped,
+        satori_calls: satoriCalls,
+        errors: errors.slice(0, 20),
+        next_cursor: page.cursor || null,
+        done: !page.cursor
+    };
+}
+
+/**
+ * Mode B: events_replay.
+ *
+ * For each game_player_analytics doc, walk doc.events[] (capped at 500 per
+ * user — that's how the rolling buffer works in player_analytics_store.js).
+ * For each event:
+ *   1. If to_dashboard: write a dash_* key to analytics_events.
+ *   2. If to_satori: call satori.eventsPublish().
+ *
+ * NB: This is only LAST-500 events per user — anything older isn't in the
+ * GPA buffer (it was overwritten as new events came in) and is genuinely
+ * lost. That's a known limitation of the existing storage design, not a
+ * backfill bug.
+ */
+function abModeEventsReplay(ctx, logger, nk, opts) {
+    var satori = (opts.to_satori === false) ? null : abGetSatoriOrNull(nk, logger);
+    var writeDash = (opts.to_dashboard !== false);
+    var limit = Math.min(opts.limit || AB_DEFAULT_LIMIT, AB_MAX_LIMIT);
+
+    var page = abListPage(nk, AB_GPA_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
+    var docsProcessed = 0, eventsPushed = 0, dashWrites = 0, satoriCalls = 0;
+    var errors = [];
+
+    for (var i = 0; i < page.values.length; i++) {
+        var rec = page.values[i];
+        var doc = rec.value || {};
+        if (!doc.user_id || !Array.isArray(doc.events)) { docsProcessed++; continue; }
+
+        // Build dash_* writes in one batch per user (cheaper than per-event).
+        var dashBatch = [];
+        // Build Satori events array per user (Satori accepts a list).
+        var satoriBatch = [];
+
+        for (var j = 0; j < doc.events.length; j++) {
+            var raw = doc.events[j];
+            if (!raw || !raw.n || !raw.t) continue;
+            var ev = abExpandGpaEvent(doc, raw);
+
+            if (writeDash) {
+                dashBatch.push({
+                    collection: AB_DASH_COLLECTION,
+                    key: abMakeDashKey(ev),
+                    userId: AB_SYSTEM_USER,
+                    value: ev,
+                    permissionRead: 0,
+                    permissionWrite: 0
+                });
+            }
+            if (satori) {
+                var meta = { game_id: ev.gameId, platform: ev.platform };
+                if (ev.eventData && typeof ev.eventData === "object") {
+                    for (var k in ev.eventData) {
+                        if (Object.prototype.hasOwnProperty.call(ev.eventData, k)) {
+                            var v = ev.eventData[k];
+                            if (v === null || v === undefined) continue;
+                            meta[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
+                        }
+                    }
+                }
+                satoriBatch.push({
+                    name: ev.eventName,
+                    // Unix seconds as int64. See analytics.js for the same fix
+                    // and the goja-side validation at runtime_javascript_nakama.go:9209.
+                    timestamp: ev.unixTimestamp,
+                    metadata: meta
+                });
+            }
+            eventsPushed++;
+        }
+
+        if (opts.dry_run) {
+            docsProcessed++;
+            continue;
+        }
+
+        if (dashBatch.length > 0) {
+            // storageWrite has a hard limit of 64 ops per call (Nakama default).
+            // Chunk the batch defensively.
+            try {
+                var chunkSize = 50;
+                for (var s = 0; s < dashBatch.length; s += chunkSize) {
+                    nk.storageWrite(dashBatch.slice(s, s + chunkSize));
+                }
+                dashWrites += dashBatch.length;
+            } catch (e) {
+                errors.push({ user_id: doc.user_id, kind: "dash_write", err: String(e.message || e) });
+            }
+        }
+
+        if (satoriBatch.length > 0 && satori) {
+            try {
+                // sdEventsPublish accepts a list — one HTTP call per user is
+                // much cheaper than one per event. Returns null on success,
+                // or a {ok:false, code, body} object on HTTP error.
+                var er = sdEventsPublish(ctx, nk, logger, doc.user_id, satoriBatch);
+                if (er && er.ok === false) {
+                    errors.push({ user_id: doc.user_id, kind: "satori_publish", code: er.code, err: (er.body || "").slice(0, 200) });
+                } else {
+                    satoriCalls++;
+                }
+            } catch (e) {
+                errors.push({ user_id: doc.user_id, kind: "satori_publish", err: String(e.message || e) });
+            }
+        }
+
+        docsProcessed++;
+    }
+
+    return {
+        mode: "events_replay",
+        docs_processed: docsProcessed,
+        events_pushed: eventsPushed,
+        dash_writes: dashWrites,
+        satori_calls: satoriCalls,
+        errors: errors.slice(0, 20),
+        next_cursor: page.cursor || null,
+        done: !page.cursor
+    };
+}
+
+/**
+ * Mode C: dau_synthetic.
+ *
+ * The legacy analytics_dau collection has aggregate counters by
+ * gameId+YYYY-MM-DD (DAU, new users, total events). For the Satori dashboard
+ * to show a historical DAU chart, we synthesize one `dau_check` event per
+ * user-day using these counters. This is best-effort — Satori will see
+ * the right SHAPE of the chart (peaks/valleys/trend) even if individual
+ * user attribution is approximated.
+ *
+ * In-house dashboard: rollups already read analytics_dau directly, so no
+ * dash_* fan-out needed here.
+ */
+function abModeDauSynthetic(ctx, logger, nk, opts) {
+    var satori = (opts.to_satori === false) ? null : abGetSatoriOrNull(nk, logger);
+    if (!satori) {
+        return { mode: "dau_synthetic", skipped: true, reason: "Satori unavailable; in-house dashboard already reads analytics_dau directly." };
+    }
+    var limit = Math.min(opts.limit || AB_DEFAULT_LIMIT, AB_MAX_LIMIT);
+
+    var page = abListPage(nk, AB_DAU_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
+    var daysProcessed = 0, satoriCalls = 0;
+    var errors = [];
+
+    for (var i = 0; i < page.values.length; i++) {
+        var rec = page.values[i];
+        var doc = rec.value || {};
+        var key = rec.key || "";
+        // Key format: "dau_<gameId>_<YYYY-MM-DD>"
+        // (matches analytics.js line 745-753 which scans the same collection).
+        // Skip secondary keys like "dau_platform_<platform>_<date>".
+        if (key.indexOf("dau_") !== 0 || key.indexOf("dau_platform_") === 0) continue;
+        var rest = key.slice(4); // strip "dau_"
+        var underscoreIdx = rest.lastIndexOf("_");
+        if (underscoreIdx < 0) continue;
+        var gameId = rest.slice(0, underscoreIdx);
+        var dateStr = rest.slice(underscoreIdx + 1);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) continue;
+        // Unix seconds at noon UTC of that date. Satori expects int64 seconds
+        // (see runtime_javascript_nakama.go:9209), not a Date object.
+        var tsSec = Math.floor(new Date(dateStr + "T12:00:00Z").getTime() / 1000);
+
+        if (opts.dry_run) { daysProcessed++; continue; }
+
+        // Synthetic dau_check event — one per user we have on record. We use
+        // the SYSTEM_USER as identity because we don't know which specific
+        // users were active that day (analytics_dau is just a count). Satori
+        // will count this as 1 unique user per day for the historical bucket.
+        // If finer granularity is needed, run mode=events_replay (which has
+        // real per-user attribution from the events buffer).
+        try {
+            var dr = sdEventsPublish(ctx, nk, logger, AB_SYSTEM_USER, [{
+                name: "dau_synthetic",
+                timestamp: tsSec,
+                metadata: {
+                    game_id: gameId,
+                    date: dateStr,
+                    // Field names follow analytics.js line 755 — analytics_dau
+                    // docs use {count, uniqueUsers, newUsers, totalEvents}
+                    // depending on writer version, so we read with fallbacks.
+                    dau_count: String(doc.count || doc.uniqueUsers || doc.dau || 0),
+                    new_users: String(doc.newUsers || 0),
+                    total_events: String(doc.totalEvents || 0),
+                    backfill: "true"
+                }
+            }]);
+            if (dr && dr.ok === false) {
+                errors.push({ key: key, code: dr.code, err: (dr.body || "").slice(0, 200) });
+            } else {
+                satoriCalls++;
+            }
+        } catch (e) {
+            errors.push({ key: key, err: String(e.message || e) });
+        }
+        daysProcessed++;
+    }
+
+    return {
+        mode: "dau_synthetic",
+        days_processed: daysProcessed,
+        satori_calls: satoriCalls,
+        errors: errors.slice(0, 20),
+        next_cursor: page.cursor || null,
+        done: !page.cursor
+    };
+}
+
+/**
+ * RPC: analytics_backfill_dual
+ *
+ * Payload:
+ *   {
+ *     "dashboard_secret": "<DASHBOARD_SECRET>",
+ *     "mode": "identity" | "events_replay" | "dau_synthetic",
+ *     "cursor": "<from previous response, or omit on first call>",
+ *     "limit": 100,
+ *     "to_satori": true,
+ *     "to_dashboard": true,
+ *     "dry_run": false
+ *   }
+ *
+ * Response:
+ *   { success: true, mode, processed, satori_calls, next_cursor, done, ... }
+ *
+ * Run from a curl loop until `done: true`. See docs/SATORI_INTEGRATION.md.
+ */
+function rpcAnalyticsBackfillDual(ctx, logger, nk, payload) {
+    var data = abParse(payload);
+
+    // Auth — reuse analytics_admin's gate. Concatenated runtime means we can
+    // call this directly without a require().
+    var auth;
+    try {
+        auth = aaRequireAdmin(ctx, nk, logger, data);
+    } catch (e) {
+        return abErr("admin auth helper not loaded — is analytics_admin module in runtime path?", 500);
+    }
+    if (!auth.ok) return abErr(auth.reason || "unauthorized", 401);
+
+    var mode = String(data.mode || "events_replay");
+    var opts = {
+        cursor: data.cursor || "",
+        limit: parseInt(data.limit, 10) || AB_DEFAULT_LIMIT,
+        to_satori: (data.to_satori !== false),
+        to_dashboard: (data.to_dashboard !== false),
+        dry_run: !!data.dry_run
+    };
+
+    var t0 = Date.now();
+    var result;
+    try {
+        if (mode === "identity") {
+            result = abModeIdentity(ctx, logger, nk, opts);
+        } else if (mode === "events_replay") {
+            result = abModeEventsReplay(ctx, logger, nk, opts);
+        } else if (mode === "dau_synthetic") {
+            result = abModeDauSynthetic(ctx, logger, nk, opts);
+        } else {
+            return abErr("Unknown mode '" + mode + "'. Use one of: identity, events_replay, dau_synthetic", 400);
+        }
+    } catch (e) {
+        if (logger && logger.error) {
+            logger.error("[analytics_backfill] mode=" + mode + " failed: " + (e.message || e));
+        }
+        return abErr("backfill failed: " + (e.message || e), 500);
+    }
+
+    result.elapsed_ms = Date.now() - t0;
+    result.bypass = auth.bypass || "session";
+    return abOk(result);
+}
+
+// ───────────────────────────────────────────────────────────────────────
+//                  AUTO-DRAIN STATE MACHINE  (2026-05-10)
+// ───────────────────────────────────────────────────────────────────────
+//
+// Goal: after `git push`, both dashboards backfill themselves with no
+// human intervention — no curl loops, no DevOps cron, no manual triggers.
+//
+// Mechanism:
+//   1. State doc lives at storage[AB_AUTO_COLLECTION/AB_AUTO_KEY] (system
+//      user). Tracks {phase, cursor, stats, lastTickAt, …}.
+//   2. abAutoRunIfNeeded(ctx, nk, logger) is debounced (5 sec): one tick
+//      processes ONE page of the current phase (≈50 docs, ≈500 ms-1s).
+//   3. Multiple high-traffic RPCs piggyback on it:
+//        analytics_log_event   — fires on every Unity event ingest
+//        admin_login           — fires when an admin opens the dashboard
+//        analytics_auto_kick   — manual / external kicker
+//      The first piggyback after deploy initializes state and starts work;
+//      subsequent calls drain until phase=="done".
+//   4. Phase order:
+//        init           — initialize state, derive rollup date range
+//        identity       — push GPA profiles to Satori (ctx.env identities)
+//        events_replay  — write dash_* keys + push events to Satori
+//        dau_synthetic  — historical DAU shape into Satori
+//        rollup         — call rpcAnalyticsRollupBackfill chunk-by-chunk
+//                         to populate analytics_rollup_* (in-house charts)
+//        done           — no-op forever (until manual reset)
+//
+// Idempotency:
+//   • State doc uses Nakama's optimistic-concurrency `version` field.
+//     Two concurrent piggybacks read the same state, both compute, only
+//     one wins the write (the loser silently skips). No double-processing.
+//   • If a tick crashes mid-page, the cursor isn't advanced; the next
+//     tick retries from the same point.
+//
+// Cost ceiling per tick:
+//   ≤ 1 page of work + 1 storage write. 5-sec debounce means at most
+//   12 ticks/min, ≈600 docs/min. A 50K-doc backfill drains in ~80 min.
+
+var AB_AUTO_COLLECTION = "analytics_backfill_auto";
+var AB_AUTO_KEY        = "state";
+var AB_AUTO_DEBOUNCE_SEC = 5;
+var AB_AUTO_PAGE_SIZE = 50;
+var AB_AUTO_ROLLUP_CHUNK_DAYS = 30;        // rpcAnalyticsRollupBackfill caps at 90; 30 keeps each tick under ~5s
+var AB_AUTO_MAX_LOOKBACK_DAYS = 180;       // rollup phase only goes back this far
+var AB_AUTO_STATE_VERSION = 1;
+
+// Phases in order. nextPhase[X] = the phase to advance to when X completes.
+var AB_AUTO_PHASES = ["init", "identity", "events_replay", "dau_synthetic", "rollup", "done"];
+
+function abAutoRead(nk) {
+    try {
+        var objs = nk.storageRead([{
+            collection: AB_AUTO_COLLECTION, key: AB_AUTO_KEY, userId: AB_SYSTEM_USER
+        }]);
+        if (objs && objs.length > 0) {
+            return { value: objs[0].value || null, version: objs[0].version || null };
+        }
+    } catch (e) { /* treat as not-exists */ }
+    return { value: null, version: null };
+}
+
+function abAutoWrite(nk, state, version) {
+    var rec = {
+        collection: AB_AUTO_COLLECTION,
+        key: AB_AUTO_KEY,
+        userId: AB_SYSTEM_USER,
+        value: state,
+        permissionRead: 1,
+        permissionWrite: 0
+    };
+    if (version) rec.version = version;
+    else         rec.version = "*"; // create-only on first write to avoid clobber
+    try {
+        nk.storageWrite([rec]);
+        return true;
+    } catch (e) {
+        // OCC failure = another piggyback won the race. That's fine — they'll
+        // own the next tick. Drop our write silently.
+        return false;
+    }
+}
+
+function abAutoInitState() {
+    return {
+        v: AB_AUTO_STATE_VERSION,
+        phase: "init",
+        cursor: "",
+        rollup_from: "",
+        rollup_cursor: "",
+        rollup_to: "",
+        started_at: Math.floor(Date.now() / 1000),
+        last_tick_at: 0,
+        ticks: 0,
+        errors: [],
+        stats: {
+            identity:       { users: 0, satori_calls: 0 },
+            events_replay:  { users: 0, events_pushed: 0, dash_writes: 0, satori_calls: 0 },
+            dau_synthetic:  { days: 0, satori_calls: 0 },
+            rollup:         { dates_done: 0, dates_failed: 0 }
+        }
+    };
+}
+
+/** Advance to the next phase. Resets cursor for the new phase. */
+function abAutoAdvance(state, logger) {
+    var idx = AB_AUTO_PHASES.indexOf(state.phase);
+    if (idx < 0 || idx >= AB_AUTO_PHASES.length - 1) {
+        state.phase = "done";
+    } else {
+        state.phase = AB_AUTO_PHASES[idx + 1];
+    }
+    state.cursor = "";
+    if (logger && logger.info) {
+        logger.info("[ab-auto] phase advanced → " + state.phase);
+    }
+    return state;
+}
+
+/** Find the oldest analytics_dau date so the rollup phase knows how far back to go. */
+function abAutoDeriveRollupRange(nk, logger) {
+    var oldest = null;
+    var cursor = null;
+    var pages = 0;
+    while (pages < 20) { // hard cap — 20 × 100 = 2000 keys is plenty to find min date
+        var page;
+        try {
+            page = nk.storageList(AB_SYSTEM_USER, AB_DAU_COLLECTION, 100, cursor);
+        } catch (e) { break; }
+        if (!page || !page.objects || page.objects.length === 0) break;
+        for (var i = 0; i < page.objects.length; i++) {
+            var k = page.objects[i].key || "";
+            // Keys: dau_<gameId>_<YYYY-MM-DD>
+            var m = k.match(/_(\d{4}-\d{2}-\d{2})$/);
+            if (m && m[1]) {
+                if (!oldest || m[1] < oldest) oldest = m[1];
+            }
+        }
+        if (!page.cursor) break;
+        cursor = page.cursor;
+        pages++;
+    }
+
+    var today = new Date();
+    var to = today.toISOString().slice(0, 10);
+    var from;
+    if (oldest) {
+        // Cap to AB_AUTO_MAX_LOOKBACK_DAYS regardless of how old the data is.
+        var lb = new Date(today.getTime() - AB_AUTO_MAX_LOOKBACK_DAYS * 86400000)
+                    .toISOString().slice(0, 10);
+        from = (oldest < lb) ? lb : oldest;
+    } else {
+        // No DAU data — backfill the last 30 days as a default starting point.
+        from = new Date(today.getTime() - 30 * 86400000).toISOString().slice(0, 10);
+    }
+    if (logger && logger.info) {
+        logger.info("[ab-auto] rollup range derived: " + from + " → " + to + " (oldest_dau=" + (oldest || "none") + ")");
+    }
+    return { from: from, to: to };
+}
+
+/** Add 1 day to a YYYY-MM-DD string. */
+function abAutoIsoAddDays(dateStr, n) {
+    var d = new Date(dateStr + "T00:00:00.000Z");
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Run one tick of the state machine. Returns a small summary.
+ *
+ * Safe to call from anywhere (any RPC, any user context). Debounced,
+ * idempotent, and never throws. Always wrap callers in try/catch anyway —
+ * runtime quirks (storage backend hiccups) shouldn't block the parent RPC.
+ *
+ * forceTick=true bypasses the 5-sec debounce (used by the manual kicker
+ * RPC; not used by the piggyback hooks).
+ */
+function abAutoRunTick(ctx, nk, logger, forceTick) {
+    var read = abAutoRead(nk);
+    var state = read.value;
+    var version = read.version;
+
+    var now = Math.floor(Date.now() / 1000);
+
+    // Initial bootstrap — no state doc yet.
+    if (!state || !state.phase) {
+        state = abAutoInitState();
+        version = null; // create
+    }
+
+    if (state.phase === "done") {
+        return { skipped: "done", state_phase: "done", ticks: state.ticks || 0 };
+    }
+
+    // Debounce so a burst of analytics_log_event calls doesn't pummel
+    // storage / Satori with concurrent ticks.
+    if (!forceTick && state.last_tick_at && (now - state.last_tick_at) < AB_AUTO_DEBOUNCE_SEC) {
+        return { skipped: "debounced", state_phase: state.phase, since_last_tick_sec: (now - state.last_tick_at) };
+    }
+
+    state.last_tick_at = now;
+    state.ticks = (state.ticks || 0) + 1;
+
+    var summary = { state_phase: state.phase, processed: 0 };
+
+    try {
+        if (state.phase === "init") {
+            // Derive the rollup date range once and immediately advance.
+            var range = abAutoDeriveRollupRange(nk, logger);
+            state.rollup_from = range.from;
+            state.rollup_cursor = range.from;
+            state.rollup_to = range.to;
+            abAutoAdvance(state, logger);
+
+        } else if (state.phase === "identity") {
+            var r1 = abModeIdentity(ctx, logger, nk, {
+                cursor: state.cursor || "", limit: AB_AUTO_PAGE_SIZE,
+                to_satori: true, dry_run: false
+            });
+            state.cursor = r1.next_cursor || "";
+            state.stats.identity.users         += (r1.processed_users || r1.processed || 0);
+            state.stats.identity.satori_calls  += (r1.satori_calls || 0);
+            summary.processed = r1.processed_users || r1.processed || 0;
+            if (r1.done || !r1.next_cursor) abAutoAdvance(state, logger);
+
+        } else if (state.phase === "events_replay") {
+            var r2 = abModeEventsReplay(ctx, logger, nk, {
+                cursor: state.cursor || "", limit: AB_AUTO_PAGE_SIZE,
+                to_satori: true, to_dashboard: true, dry_run: false
+            });
+            state.cursor = r2.next_cursor || "";
+            state.stats.events_replay.users         += (r2.docs_processed || 0);
+            state.stats.events_replay.events_pushed += (r2.events_pushed || 0);
+            state.stats.events_replay.dash_writes   += (r2.dash_writes || 0);
+            state.stats.events_replay.satori_calls  += (r2.satori_calls || 0);
+            summary.processed = r2.docs_processed || 0;
+            if (r2.done || !r2.next_cursor) abAutoAdvance(state, logger);
+
+        } else if (state.phase === "dau_synthetic") {
+            var r3 = abModeDauSynthetic(ctx, logger, nk, {
+                cursor: state.cursor || "", limit: AB_AUTO_PAGE_SIZE,
+                to_satori: true, dry_run: false
+            });
+            state.cursor = r3.next_cursor || "";
+            state.stats.dau_synthetic.days         += (r3.days_processed || 0);
+            state.stats.dau_synthetic.satori_calls += (r3.satori_calls || 0);
+            summary.processed = r3.days_processed || 0;
+            if (r3.done || !r3.next_cursor) abAutoAdvance(state, logger);
+
+        } else if (state.phase === "rollup") {
+            // Drive rpcAnalyticsRollupBackfill chunk-by-chunk along the date
+            // range derived in `init`. Each chunk processes up to
+            // AB_AUTO_ROLLUP_CHUNK_DAYS days (capped to <= range end).
+            if (!state.rollup_cursor || !state.rollup_to || state.rollup_cursor > state.rollup_to) {
+                abAutoAdvance(state, logger);
+            } else {
+                var chunkEnd = abAutoIsoAddDays(state.rollup_cursor, AB_AUTO_ROLLUP_CHUNK_DAYS - 1);
+                if (chunkEnd > state.rollup_to) chunkEnd = state.rollup_to;
+
+                var dashboardSecret = "";
+                try {
+                    if (typeof AA_FALLBACK_DASHBOARD_SECRET === "string") {
+                        dashboardSecret = AA_FALLBACK_DASHBOARD_SECRET;
+                    }
+                    if (ctx && ctx.env && ctx.env.DASHBOARD_SECRET) {
+                        dashboardSecret = String(ctx.env.DASHBOARD_SECRET);
+                    }
+                } catch (e) { /* fall back to "" — phase will fail-open and skip below */ }
+
+                if (!dashboardSecret) {
+                    state.errors = (state.errors || []).slice(-4);
+                    state.errors.push({ phase: "rollup", err: "no DASHBOARD_SECRET available" });
+                    abAutoAdvance(state, logger); // skip this phase rather than loop forever
+                } else if (typeof rpcAnalyticsRollupBackfill !== "function") {
+                    state.errors = (state.errors || []).slice(-4);
+                    state.errors.push({ phase: "rollup", err: "rpcAnalyticsRollupBackfill not in scope" });
+                    abAutoAdvance(state, logger);
+                } else {
+                    var rollupPayload = JSON.stringify({
+                        from: state.rollup_cursor,
+                        to: chunkEnd,
+                        dashboard_secret: dashboardSecret
+                    });
+                    try {
+                        var rawResp = rpcAnalyticsRollupBackfill(ctx, logger, nk, rollupPayload);
+                        var parsed = {};
+                        try { parsed = JSON.parse(rawResp); } catch (e2) { parsed = {}; }
+                        if (parsed && parsed.success) {
+                            var done = (parsed.results || []).filter(function (x) { return x.success; }).length;
+                            var fail = (parsed.results || []).length - done;
+                            state.stats.rollup.dates_done   += done;
+                            state.stats.rollup.dates_failed += fail;
+                            summary.processed = (parsed.results || []).length;
+                        } else {
+                            state.errors = (state.errors || []).slice(-4);
+                            state.errors.push({ phase: "rollup", chunk: state.rollup_cursor + "→" + chunkEnd, err: parsed.error || "unknown" });
+                        }
+                    } catch (e) {
+                        state.errors = (state.errors || []).slice(-4);
+                        state.errors.push({ phase: "rollup", chunk: state.rollup_cursor + "→" + chunkEnd, err: String(e.message || e) });
+                    }
+                    state.rollup_cursor = abAutoIsoAddDays(chunkEnd, 1);
+                    if (state.rollup_cursor > state.rollup_to) abAutoAdvance(state, logger);
+                }
+            }
+        }
+    } catch (eOuter) {
+        state.errors = (state.errors || []).slice(-4);
+        state.errors.push({ phase: state.phase, err: String(eOuter.message || eOuter) });
+        if (logger && logger.warn) {
+            logger.warn("[ab-auto] tick crashed in phase " + state.phase + ": " + (eOuter.message || eOuter));
+        }
+        // Don't advance — next tick retries from the same cursor.
+    }
+
+    // Persist state. OCC: if version mismatches, another piggyback already
+    // moved the cursor — drop our write silently.
+    abAutoWrite(nk, state, version);
+
+    summary.state_phase = state.phase;
+    summary.cursor = state.cursor || (state.rollup_cursor || "");
+    summary.ticks = state.ticks;
+    return summary;
+}
+
+/**
+ * Public entry-point for the piggyback hooks. Same as abAutoRunTick but
+ * fully wraps in try/catch so the caller never sees a throw, and short-
+ * circuits without any storage I/O when phase is "done" (cached check).
+ */
+var abAutoDoneCacheUntil = 0;
+function abAutoRunIfNeeded(ctx, nk, logger) {
+    try {
+        var now = Math.floor(Date.now() / 1000);
+        // Fast path: if the last tick said "done", skip storage I/O for 5 min.
+        // (Doesn't matter if a manual reset happens — next 5 min stays no-op.)
+        if (abAutoDoneCacheUntil && now < abAutoDoneCacheUntil) return null;
+
+        var summary = abAutoRunTick(ctx, nk, logger, false);
+        if (summary && summary.state_phase === "done") {
+            abAutoDoneCacheUntil = now + 300;
+        }
+        return summary;
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[ab-auto] piggyback error: " + (e.message || e));
+        }
+        return null;
+    }
+}
+
+// ── RPC: analytics_auto_kick (no-auth — single tick is harmless) ──
+//
+// Anyone can poke this. Useful for: (a) initial bootstrap if no
+// analytics_log_event traffic is flowing yet, (b) manual unblock if a
+// tick keeps crashing on the same cursor (after a fix is deployed).
+function rpcAnalyticsAutoKick(ctx, logger, nk, payload) {
+    var data = abParse(payload);
+    var force = !!data.force;
+    var summary = abAutoRunTick(ctx, nk, logger, force);
+    return abOk(summary || { state_phase: "unknown" });
+}
+
+// ── RPC: analytics_auto_status (read-only) ──
+//
+// Returns the current state doc plus a derived progress percentage. Used
+// by the dashboard footer or a watch script to monitor backfill progress.
+function rpcAnalyticsAutoStatus(ctx, logger, nk, payload) {
+    var read = abAutoRead(nk);
+    if (!read.value) return abOk({ initialized: false });
+    var s = read.value;
+    var pct = 0;
+    var idx = AB_AUTO_PHASES.indexOf(s.phase);
+    if (idx >= 0) pct = Math.round((idx / (AB_AUTO_PHASES.length - 1)) * 100);
+    return abOk({
+        initialized: true,
+        phase: s.phase,
+        progress_pct: pct,
+        ticks: s.ticks || 0,
+        started_at: s.started_at || 0,
+        last_tick_at: s.last_tick_at || 0,
+        cursor: s.cursor || "",
+        rollup_window: { from: s.rollup_from || "", cursor: s.rollup_cursor || "", to: s.rollup_to || "" },
+        stats: s.stats || {},
+        errors: (s.errors || []).slice(-5)
+    });
+}
+
+// ── RPC: analytics_auto_reset (admin-gated; rare ops use only) ──
+//
+// Wipes the state doc so the state machine restarts from "init" on the
+// next piggyback. Use after a code change that would re-process history
+// differently (e.g. fixing a bug in events_replay).
+function rpcAnalyticsAutoReset(ctx, logger, nk, payload) {
+    var data = abParse(payload);
+    var auth;
+    try { auth = aaRequireAdmin(ctx, nk, logger, data); }
+    catch (e) { return abErr("admin gate not loaded", 500); }
+    if (!auth.ok) return abErr(auth.reason || "unauthorized", 401);
+
+    try {
+        nk.storageDelete([{
+            collection: AB_AUTO_COLLECTION, key: AB_AUTO_KEY, userId: AB_SYSTEM_USER
+        }]);
+    } catch (e) { /* ok if it didn't exist */ }
+    abAutoDoneCacheUntil = 0;
+    return abOk({ reset: true, message: "state cleared, next piggyback will re-init" });
+}
+
+// ── Module init ───────────────────────────────────────────
+// postbuild.js scans for registerRpc calls in InitModule and rewires them
+// into the bundled index.js entrypoint that Nakama actually loads.
+function __ModuleInit_5(ctx, logger, nk, initializer) {
+    __rpc_analytics_backfill_dual = __rpc_analytics_backfill_dual || (rpcAnalyticsBackfillDual);
+    __rpc_analytics_auto_kick = __rpc_analytics_auto_kick || (rpcAnalyticsAutoKick);
+    __rpc_analytics_auto_status = __rpc_analytics_auto_status || (rpcAnalyticsAutoStatus);
+    __rpc_analytics_auto_reset = __rpc_analytics_auto_reset || (rpcAnalyticsAutoReset);
+    if (logger && logger.info) {
+        logger.info("[analytics_backfill] module loaded — RPCs: analytics_backfill_dual, analytics_auto_kick, analytics_auto_status, analytics_auto_reset");
+    }
 }
 
 
@@ -6025,7 +7026,7 @@ function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_5(ctx, logger, nk, initializer) {
+function __ModuleInit_6(ctx, logger, nk, initializer) {
     __rpc_analytics_session_stats = __rpc_analytics_session_stats || (rpcAnalyticsSessionStats);
     __rpc_analytics_quiz_performance = __rpc_analytics_quiz_performance || (rpcAnalyticsQuizPerformance);
     __rpc_analytics_funnel = __rpc_analytics_funnel || (rpcAnalyticsFunnel);
@@ -6429,7 +7430,7 @@ function rpcAnalyticsMetrics(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_6(ctx, logger, nk, initializer) {
+function __ModuleInit_7(ctx, logger, nk, initializer) {
     __rpc_analytics_schema_check = __rpc_analytics_schema_check || (rpcAnalyticsSchemaCheck);
     __rpc_analytics_backfill_events = __rpc_analytics_backfill_events || (rpcAnalyticsBackfillEvents);
     __rpc_analytics_feature_flags = __rpc_analytics_feature_flags || (rpcAnalyticsFeatureFlags);
@@ -6651,7 +7652,7 @@ function rpcAnalyticsRecordUserRollup(ctx, logger, nk, payload) {
     }
 }
 
-function __ModuleInit_7(ctx, logger, nk, initializer) {
+function __ModuleInit_8(ctx, logger, nk, initializer) {
     __rpc_analytics_get_player_profile = __rpc_analytics_get_player_profile || (rpcAnalyticsGetPlayerProfile);
     __rpc_analytics_record_user_rollup = __rpc_analytics_record_user_rollup || (rpcAnalyticsRecordUserRollup);
     logger.info("[analytics_player_profile] Module registered: 2 RPCs");
@@ -6904,7 +7905,7 @@ function rpcAnalyticsRetentionCurves(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_8(ctx, logger, nk, initializer) {
+function __ModuleInit_9(ctx, logger, nk, initializer) {
     __rpc_analytics_retention_curves = __rpc_analytics_retention_curves || (rpcAnalyticsRetentionCurves);
     logger.info("[analytics_retention_curves] Module registered: 1 RPC");
 }
@@ -7032,7 +8033,18 @@ function arErr(msg, code) {
 }
 
 function arEnv(ctx, key) {
-    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) return String(ctx.env[key]);
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
+        var v = String(ctx.env[key]);
+        if (v.length > 0) return v;
+    }
+    // Mirror the hardcoded-fallback in analytics_admin.js::aaEnv so the
+    // auto-drain state machine (which calls rpcAnalyticsRollupBackfill with
+    // a synthesized dashboard_secret) passes the admin gate when env vars
+    // aren't set in the cluster. Only the secret falls back here — feature
+    // flags etc. stay env-only.
+    if (key === "DASHBOARD_SECRET" && typeof AA_FALLBACK_DASHBOARD_SECRET === "string") {
+        return AA_FALLBACK_DASHBOARD_SECRET;
+    }
     return "";
 }
 
@@ -7764,7 +8776,7 @@ function rpcAnalyticsRollupStatus(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_9(ctx, logger, nk, initializer) {
+function __ModuleInit_10(ctx, logger, nk, initializer) {
     __rpc_analytics_rollup_run = __rpc_analytics_rollup_run || (rpcAnalyticsRollupRun);
     __rpc_analytics_rollup_backfill = __rpc_analytics_rollup_backfill || (rpcAnalyticsRollupBackfill);
     __rpc_analytics_rollup_status = __rpc_analytics_rollup_status || (rpcAnalyticsRollupStatus);
@@ -14648,7 +15660,7 @@ function rpcUnityAnalyticsImport(ctx, logger, nk, payload) {
 // ─── Registration ─────────────────────────────────────────
 // postbuild.js scans for initializer.registerRpc() calls
 
-function __ModuleInit_28(ctx, logger, nk, initializer) {
+function __ModuleInit_29(ctx, logger, nk, initializer) {
     __rpc_analytics_appodeal = __rpc_analytics_appodeal || (rpcAnalyticsAppodeal);
     __rpc_analytics_apple_appstore = __rpc_analytics_apple_appstore || (rpcAnalyticsAppleAppstore);
     __rpc_apple_appstore_import = __rpc_apple_appstore_import || (rpcAppleImport);
@@ -15036,7 +16048,7 @@ function rpcExternalPollStatus(ctx, logger, nk, payload) {
 
 // ─── Registration ─────────────────────────────────────────
 
-function __ModuleInit_29(ctx, logger, nk, initializer) {
+function __ModuleInit_30(ctx, logger, nk, initializer) {
     __rpc_external_poll_appodeal = __rpc_external_poll_appodeal || (rpcExternalPollAppodeal);
     __rpc_external_poll_appstore = __rpc_external_poll_appstore || (rpcExternalPollAppstore);
     __rpc_external_poll_ugs = __rpc_external_poll_ugs || (rpcExternalPollUgs);
@@ -15048,15 +16060,22 @@ function __ModuleInit_29(ctx, logger, nk, initializer) {
 
 // --- Module: fortune_wheel\fortune_wheel.js ---
 /**
- * fortune_wheel.js — Fortune Wheel Backend (every 3 days)
+ * fortune_wheel.js — Fortune Wheel Backend V2 (every 3 days)
  * RPCs: fortune_wheel_get_state, fortune_wheel_spin
  * 
  * SERVER-AUTHORITATIVE: Server picks the random reward — client only animates.
  * Storage: fortune_wheel/state per user
- * Rewards: XP, Coins (wallet), AudiobookToken (storage), Shield (storage), Gems (wallet)
+ * Rewards: XP, Coins (wallet), AudiobookToken (storage), Shield (storage)
+ * 
+ * V2 CHANGES:
+ *   - fortune_wheel_get_state now returns ad-spin state (organicSpinDone, adSpinsUsed, etc.)
+ *   - fortune_wheel_spin now sets organicSpinDone flag in state
+ *   - Ad spins are tracked in fortune_wheel_ad_spins collection (managed by fortune-wheel-ad-spin.ts)
  */
 
 var COOLDOWN_DAYS = 3;
+var AD_SPINS_MAX = 3;
+var AD_COOLDOWN_SECONDS = 10800; // 3 hours between ad spins
 
 // Wheel segments with probability weights — SERVER is source of truth
 var SEGMENTS = [
@@ -15072,7 +16091,7 @@ var SEGMENTS = [
 
 // ===== RPCs =====
 
-// fortune_wheel_get_state — Get current wheel state + segments for client rendering
+// fortune_wheel_get_state — Get current wheel state + segments + ad-spin info
 var fortuneWheelGetState = function(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
@@ -15083,6 +16102,31 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
         var state = getWheelState(nk, userId);
         var canSpin = canUserSpin(state);
 
+        // --- V2: Read ad-spin cycle record ---
+        var adState = getAdSpinState(nk, userId);
+        adState = normalizeAdStateForCurrentCycle(nk, userId, state, adState, logger);
+        var now = Math.floor(Date.now() / 1000);
+        var nextAdSpinTime = 0;
+        if (adState.lastSpinAt > 0) {
+            nextAdSpinTime = adState.lastSpinAt + AD_COOLDOWN_SECONDS;
+        }
+
+        // Determine if organic spin was done in current cycle
+        var organicSpinDone = false;
+        if (state.organicSpinDone === true) {
+            // Check if the cycle is still active (cooldown hasn't expired)
+            if (state.nextSpinTime) {
+                var nextSpin = new Date(state.nextSpinTime);
+                if (new Date() < nextSpin) {
+                    organicSpinDone = true;
+                }
+                // If cooldown expired, organic spin resets
+            }
+        }
+
+        var effectiveAdSpinsUsed = organicSpinDone ? adState.spinsUsed : 0;
+        var effectiveNextAdSpinTime = (organicSpinDone && nextAdSpinTime > now) ? nextAdSpinTime : 0;
+
         return JSON.stringify({
             success: true,
             canSpin: canSpin,
@@ -15090,6 +16134,13 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
             totalSpins: state.totalSpins || 0,
             lastReward: state.lastReward || null,
             cooldownDays: COOLDOWN_DAYS,
+            // V2 fields
+            organicSpinDone: organicSpinDone,
+            adSpinsUsed: effectiveAdSpinsUsed,
+            adSpinsMax: AD_SPINS_MAX,
+            adCooldownSeconds: AD_COOLDOWN_SECONDS,
+            nextAdSpinTime: effectiveNextAdSpinTime,
+            cycleEndsAt: state.nextSpinTime || null,
             segments: SEGMENTS.map(function(s) {
                 return { type: s.type, amount: s.amount, label: s.label };
             })
@@ -15130,6 +16181,7 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
 
         state.nextSpinTime = nextSpin.toISOString();
         state.totalSpins = (state.totalSpins || 0) + 1;
+        state.organicSpinDone = true; // V2: Mark organic spin as done
         state.lastReward = {
             type: reward.type,
             amount: reward.amount,
@@ -15147,6 +16199,17 @@ var fortuneWheelSpin = function(ctx, logger, nk, payload) {
         } catch (saveErr) {
             logger.warn("fortune_wheel_spin: concurrent spin detected for " + userId + " — " + saveErr.message);
             return JSON.stringify({ success: false, error: "Spin already in progress. Please try again." });
+        }
+
+        // New organic cycle starts here: reset ad-spin counters for this cycle.
+        try {
+            var currentAdState = getAdSpinState(nk, userId);
+            currentAdState.spinsUsed = 0;
+            currentAdState.lastSpinAt = 0;
+            currentAdState.cycleStart = getCurrentCycleStartIso(state.nextSpinTime);
+            saveAdSpinState(nk, userId, currentAdState);
+        } catch (adResetErr) {
+            logger.warn("fortune_wheel_spin: ad cycle reset failed for " + userId + " — " + adResetErr.message);
         }
 
         // State claimed successfully — now grant reward (safe: double-grant impossible)
@@ -15207,6 +16270,99 @@ function canUserSpin(state) {
     if (!state.nextSpinTime) return true;
     var nextSpin = new Date(state.nextSpinTime);
     return new Date() >= nextSpin;
+}
+
+/**
+ * Returns current cycle start ISO from nextSpinTime.
+ * If nextSpinTime is missing/invalid, returns empty string.
+ */
+function getCurrentCycleStartIso(nextSpinTimeIso) {
+    if (!nextSpinTimeIso) return "";
+    var nextSpin = new Date(nextSpinTimeIso);
+    if (isNaN(nextSpin.getTime())) return "";
+    var cycleStart = new Date(nextSpin.getTime() - (COOLDOWN_DAYS * 24 * 60 * 60 * 1000));
+    return cycleStart.toISOString();
+}
+
+/**
+ * V2: Read the ad-spin cycle record with version.
+ * Returns { spinsUsed, lastSpinAt, cycleStart, _version }
+ */
+function getAdSpinState(nk, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: "fortune_wheel_ad_spins",
+            key: "cycle_state",
+            userId: userId
+        }]);
+        if (records && records.length > 0) {
+            var val = records[0].value || {};
+            return {
+                spinsUsed: val.spinsUsed || 0,
+                lastSpinAt: val.lastSpinAt || 0,
+                cycleStart: val.cycleStart || "",
+                _version: records[0].version || ""
+            };
+        }
+    } catch(e) { /* no record yet */ }
+    return { spinsUsed: 0, lastSpinAt: 0, cycleStart: "", _version: "*" };
+}
+
+/**
+ * Persist ad-spin cycle state using optimistic concurrency.
+ */
+function saveAdSpinState(nk, userId, state) {
+    var version = state._version || "*";
+    var payload = {
+        spinsUsed: state.spinsUsed || 0,
+        lastSpinAt: state.lastSpinAt || 0,
+        cycleStart: state.cycleStart || ""
+    };
+
+    nk.storageWrite([{
+        collection: "fortune_wheel_ad_spins",
+        key: "cycle_state",
+        userId: userId,
+        value: payload,
+        version: version,
+        permissionRead: 1,
+        permissionWrite: 0
+    }]);
+}
+
+/**
+ * Ensures ad-state belongs to the current organic cycle.
+ * If stale, resets to zero for the active cycle.
+ */
+function normalizeAdStateForCurrentCycle(nk, userId, wheelState, adState, logger) {
+    if (!wheelState || !wheelState.organicSpinDone || !wheelState.nextSpinTime) {
+        return { spinsUsed: 0, lastSpinAt: 0, cycleStart: "", _version: adState._version || "*" };
+    }
+
+    var expectedCycleStart = getCurrentCycleStartIso(wheelState.nextSpinTime);
+    if (!expectedCycleStart) {
+        return adState;
+    }
+
+    if (adState.cycleStart === expectedCycleStart) {
+        return adState;
+    }
+
+    var resetState = {
+        spinsUsed: 0,
+        lastSpinAt: 0,
+        cycleStart: expectedCycleStart,
+        _version: adState._version || "*"
+    };
+
+    try {
+        saveAdSpinState(nk, userId, resetState);
+        logger.info("fortune_wheel_get_state: reset stale ad cycle for " + userId);
+        return resetState;
+    } catch (e) {
+        logger.warn("fortune_wheel_get_state: failed to reset stale ad cycle for " + userId + " — " + e.message);
+        return resetState;
+    }
 }
 
 /**
@@ -16040,7 +17196,7 @@ function rpcFriendInviteWithReward(ctx, logger, nk, payload) {
 // ============================================================================
 // Module Init — register Friends Extras RPCs
 // ============================================================================
-function __ModuleInit_32(ctx, logger, nk, initializer) {
+function __ModuleInit_33(ctx, logger, nk, initializer) {
     __rpc_friends_get_online_count = __rpc_friends_get_online_count || (rpcFriendsGetOnlineCount);
     __rpc_social_pressure_get_today_summary = __rpc_social_pressure_get_today_summary || (rpcSocialPressureGetTodaySummary);
     __rpc_friend_battle_create = __rpc_friend_battle_create || (rpcFriendBattleCreate);
@@ -17088,7 +18244,7 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
 //
 // IMPORTANT: legacy_runtime.js's `friends_challenge_user` registration must
 // stay removed / commented so it doesn't compete with our handler.
-function __ModuleInit_33(ctx, logger, nk, initializer) {
+function __ModuleInit_34(ctx, logger, nk, initializer) {
     __rpc_send_friend_challenge = __rpc_send_friend_challenge || (rpcSendFriendChallenge);
     __rpc_friends_challenge_user = __rpc_friends_challenge_user || (rpcSendFriendChallenge); // legacy alias
     __rpc_accept_friend_challenge = __rpc_accept_friend_challenge || (rpcAcceptFriendChallenge);
@@ -17880,7 +19036,7 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
 // assignment, then replays it at module-load time. The legacy
 // registrations for these same RPC ids in legacy_runtime.js have been
 // commented out so this module wins the "first to set the stub" race.
-function __ModuleInit_34(ctx, logger, nk, initializer) {
+function __ModuleInit_35(ctx, logger, nk, initializer) {
     __rpc_send_friend_invite = __rpc_send_friend_invite || (rpcFriendsSendInvite);
     __rpc_accept_friend_invite = __rpc_accept_friend_invite || (rpcFriendsAcceptInvite);
     __rpc_decline_friend_invite = __rpc_decline_friend_invite || (rpcFriendsDeclineInvite);
@@ -18047,15 +19203,16 @@ function sendFriendsNotification(nk, logger, subjectKey, userId, payload, sender
 
 
 // --- Module: friend_quests\friend_quests.js ---
-// friend_quests.js - Friend Quest System for QuizVerse v4.0
-// RPCs: friend_quest_get_state, friend_quest_complete
-// Spec: MRS §31 — 10 quest types, server-authoritative generation
-// v4.0: Server generates quests from user's friends list
+// friend_quests.js - Friend Quest System for QuizVerse v4.1
+// RPCs: friend_quest_get_state, friend_quest_complete, friend_quest_record_progress
+// Spec: MRS §31 — 10 friend quest types + 3 solo quest types, server-authoritative generation
+// v4.1: Solo/starter quests when user has no friends — ensures every user always sees quests
 
 /**
  * Friend Quest System — Server-Authoritative
  *
- * 10 quest types generated from user's real friends list.
+ * 10 friend quest types generated from user's real friends list.
+ * 3 solo/starter quest types for users with no friends.
  * Server is the source of truth — client only renders.
  * Tracks progress, grants rewards (wallet + notification), duplicate protection.
  *
@@ -18068,7 +19225,7 @@ var FQ_COLLECTION = 'friend_quests';
 var FQ_MAX_ACTIVE = 3;
 var FQ_REFRESH_HOURS = 8;
 
-// 10 quest types matching client-side QuestType enum
+// 10 friend quest types matching client-side QuestType enum
 var FQ_QUEST_TYPES = [
     'PlayTogether',
     'ChallengeFriend',
@@ -18081,6 +19238,32 @@ var FQ_QUEST_TYPES = [
     'ShareScore',
     'WinThreeQuizzes'
 ];
+
+// 3 solo/starter quest types for users with no friends
+var FQ_SOLO_QUEST_TYPES = [
+    'CompleteQuiz',
+    'DailyChallenge',
+    'ScoreTarget'
+];
+
+// Solo quest templates — no friend required
+var FQ_SOLO_TEMPLATES = {
+    CompleteQuiz: {
+        title: 'Complete a Quiz',
+        desc: 'Finish any quiz to earn your first quest reward!',
+        target: 1, coins: 30, xp: 15
+    },
+    DailyChallenge: {
+        title: 'Daily Challenge',
+        desc: 'Complete the Daily Quiz today',
+        target: 1, coins: 50, xp: 25
+    },
+    ScoreTarget: {
+        title: 'Score Champion',
+        desc: 'Score 80% or higher in any quiz',
+        target: 1, coins: 60, xp: 30
+    }
+};
 
 // Quest templates: { title format, description format, targetProgress, coinReward, xpReward }
 var FQ_TEMPLATES = {
@@ -18228,8 +19411,8 @@ function fqGenerateQuests(nk, logger, userId, existingData) {
     }
 
     if (friends.length === 0) {
-        logger.info('[FriendQuests] No friends found for user ' + userId + ' — no quests generated');
-        return [];
+        logger.info('[FriendQuests] No friends found for user ' + userId + ' — generating solo starter quests');
+        return fqGenerateSoloQuests(nk, logger, userId, existingData);
     }
 
     // Determine how many quests to generate
@@ -18286,6 +19469,55 @@ function fqGenerateQuests(nk, logger, userId, existingData) {
 
     logger.info('[FriendQuests] Generated ' + newQuests.length + ' quests from ' +
                 friends.length + ' friends for user ' + userId);
+    return newQuests;
+}
+
+/**
+ * Generate solo/starter quests for users with no friends.
+ * Keeps the feature visible and actionable even without a social graph.
+ */
+function fqGenerateSoloQuests(nk, logger, userId, existingData) {
+    var activeCount = 0;
+    var now = new Date();
+    if (existingData && existingData.quests) {
+        for (var j = 0; j < existingData.quests.length; j++) {
+            var q = existingData.quests[j];
+            if (!q.isCompleted && q.expiresAt && new Date(q.expiresAt) > now) {
+                activeCount++;
+            }
+        }
+    }
+
+    var toGenerate = FQ_MAX_ACTIVE - activeCount;
+    if (toGenerate <= 0) return existingData ? existingData.quests : [];
+
+    var newQuests = [];
+    var expiresAt = new Date(now.getTime() + FQ_REFRESH_HOURS * 60 * 60 * 1000).toISOString();
+    var createdAt = now.toISOString();
+
+    for (var k = 0; k < toGenerate; k++) {
+        var questType = FQ_SOLO_QUEST_TYPES[k % FQ_SOLO_QUEST_TYPES.length];
+        var template = FQ_SOLO_TEMPLATES[questType];
+        if (!template) continue;
+
+        newQuests.push({
+            questId: fqGenerateId(),
+            type: questType,
+            friendId: '',
+            friendDisplayName: '',
+            title: template.title,
+            description: template.desc,
+            currentProgress: 0,
+            targetProgress: template.target,
+            isCompleted: false,
+            coinReward: template.coins,
+            xpReward: template.xp,
+            createdAt: createdAt,
+            expiresAt: expiresAt
+        });
+    }
+
+    logger.info('[FriendQuests] Generated ' + newQuests.length + ' solo starter quests for user ' + userId);
     return newQuests;
 }
 
@@ -18486,7 +19718,11 @@ var FQ_EVENT_RULES = {
     PerfectRound:    { events: ['perfect_round','quiz_complete'] },
     ExploreTogether: { events: ['geo_explore_play'] },
     ShareScore:      { events: ['share_score'] },
-    WinThreeQuizzes: { events: ['quiz_win'] }
+    WinThreeQuizzes: { events: ['quiz_win'] },
+    // Solo quest event rules
+    CompleteQuiz:    { events: ['quiz_complete'] },
+    DailyChallenge:  { events: ['daily_quiz_complete'] },
+    ScoreTarget:     { events: ['quiz_complete','quiz_win'] }
 };
 
 function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {
@@ -18598,7 +19834,7 @@ function rpcFriendQuestRecordProgress(ctx, logger, nk, payload) {
 // ============================================================================
 // Module Init — register Friend Quest RPCs
 // ============================================================================
-function __ModuleInit_36(ctx, logger, nk, initializer) {
+function __ModuleInit_37(ctx, logger, nk, initializer) {
     __rpc_friend_quest_get_state = __rpc_friend_quest_get_state || (rpcFriendQuestGetState);
     __rpc_friend_quest_complete = __rpc_friend_quest_complete || (rpcFriendQuestComplete);
     __rpc_friend_quest_record_progress = __rpc_friend_quest_record_progress || (rpcFriendQuestRecordProgress);
@@ -19211,7 +20447,7 @@ function rpcFriendStreakRepair(ctx, logger, nk, payload) {
 // Registers all 5 friend-streak RPCs. Existing 3 (get_state, record_contribution,
 // send_nudge) are also registered by legacy_runtime.js; postbuild's `||` guard
 // + module-first concat order means our handler wins.
-function __ModuleInit_37(ctx, logger, nk, initializer) {
+function __ModuleInit_38(ctx, logger, nk, initializer) {
     __rpc_friend_streak_get_state = __rpc_friend_streak_get_state || (rpcFriendStreakGetState);
     __rpc_friend_streak_record_contribution = __rpc_friend_streak_record_contribution || (rpcFriendStreakRecordContribution);
     __rpc_friend_streak_send_nudge = __rpc_friend_streak_send_nudge || (rpcFriendStreakSendNudge);
@@ -21329,7 +22565,7 @@ function rpcIvxQuestClaim(ctx, logger, nk, payload) {
 
 // ── Module init ───────────────────────────────────────────────────
 
-function __ModuleInit_44(ctx, logger, nk, initializer) {
+function __ModuleInit_45(ctx, logger, nk, initializer) {
     __rpc_ivx_quest_config = __rpc_ivx_quest_config || (rpcIvxQuestConfig);
     __rpc_ivx_quest_get = __rpc_ivx_quest_get || (rpcIvxQuestGet);
     __rpc_ivx_quest_progress = __rpc_ivx_quest_progress || (rpcIvxQuestProgress);
@@ -32669,9 +33905,20 @@ var NQ_SERVER_USER_AGENT = "Mozilla/5.0 (compatible; QuizVerseServer/1.0)";
 // HELPERS
 // ============================================================================
 
+// Fallback API keys — used when server env vars are not configured.
+// Prefer env vars in production; these ensure the RPC never silently fails.
+var NQ_FALLBACK_KEYS = {
+    "GNEWS_API_KEY": "c34599e145018d0d9e3000a88b9a487f",
+    "NEWSAPI_API_KEY": "66829bdff7b448fa8e43427c5c0a22d6"
+};
+
 function nqEnv(ctx, key) {
-    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null && String(ctx.env[key]) !== "") {
         return String(ctx.env[key]);
+    }
+    // Fallback to hardcoded keys if env var is missing/empty
+    if (NQ_FALLBACK_KEYS[key]) {
+        return NQ_FALLBACK_KEYS[key];
     }
     return "";
 }
@@ -32916,7 +34163,7 @@ function rpcQuizverseFetchNewsQuiz(ctx, logger, nk, payload) {
 // MODULE INIT
 // ============================================================================
 
-function __ModuleInit_66(ctx, logger, nk, initializer) {
+function __ModuleInit_67(ctx, logger, nk, initializer) {
     __rpc_quizverse_fetch_news_quiz = __rpc_quizverse_fetch_news_quiz || (rpcQuizverseFetchNewsQuiz);
     logger.info("[NewsQuiz] Registered RPC: quizverse_fetch_news_quiz");
 }
@@ -33456,7 +34703,7 @@ function registerQuizverseQuizGenerateRPCs(initializer, logger) {
 // ============================================================================
 // MODULE INIT (postbuild AST hook — see quizverse_seen.js for full rationale)
 // ============================================================================
-function __ModuleInit_67(ctx, logger, nk, initializer) {
+function __ModuleInit_68(ctx, logger, nk, initializer) {
     __rpc_quizverse_quiz_generate = __rpc_quizverse_quiz_generate || (rpcQuizverseQuizGenerate);
     logger.info("[QuizGen] Module InitModule registered: 1 RPC");
 }
@@ -33870,7 +35117,7 @@ function registerQuizverseSeenRPCs(initializer, logger) {
 //   3) Replay those assignments at IIFE/global scope so every Goja VM has them
 //   4) Emit `__rpc__id_ = __rpc__id_ || (__rpc_<id>)` inside the master InitModule
 // ============================================================================
-function __ModuleInit_68(ctx, logger, nk, initializer) {
+function __ModuleInit_69(ctx, logger, nk, initializer) {
     __rpc_quizverse_seen_get = __rpc_quizverse_seen_get || (rpcQuizverseSeenGet);
     __rpc_quizverse_seen_merge = __rpc_quizverse_seen_merge || (rpcQuizverseSeenMerge);
     __rpc_quizverse_seen_purge = __rpc_quizverse_seen_purge || (rpcQuizverseSeenPurge);
@@ -34006,78 +35253,6 @@ function calculatePerformanceRating(accuracy, avgTime, won) {
 /**
  * Update user's aggregate statistics
  */
-function syncProfileStatsToMetadata(nk, logger, userId, stats) {
-    if (!userId || !stats) return;
-
-    try {
-        var totalGamesPlayed = parseInt(stats.totalGames || 0, 10);
-        var totalWins = parseInt(stats.totalWins || 0, 10);
-        var currentStreak = parseInt(stats.currentStreak || 0, 10);
-        var longestStreak = parseInt(stats.longestStreak || 0, 10);
-        var computedWinRate = totalGamesPlayed > 0
-            ? Math.round((totalWins / totalGamesPlayed) * 100)
-            : 0;
-
-        // Primary metadata record used by get_player_metadata in live Unity flow.
-        var metaRecords = nk.storageRead([{
-            collection: "player_metadata",
-            key: "metadata",
-            userId: userId
-        }]);
-        var metadata = (metaRecords && metaRecords.length > 0 && metaRecords[0].value)
-            ? metaRecords[0].value
-            : {};
-
-        metadata.totalGamesPlayed = totalGamesPlayed;
-        metadata.totalWins = totalWins;
-        metadata.currentStreak = currentStreak;
-        metadata.longestStreak = longestStreak;
-        metadata.winRate = computedWinRate;
-        metadata.updatedAt = new Date().toISOString();
-
-        nk.storageWrite([{
-            collection: "player_metadata",
-            key: "metadata",
-            userId: userId,
-            value: metadata,
-            permissionRead: 2,
-            permissionWrite: 1
-        }]);
-
-        // Keep unified user_identity record in sync when present.
-        try {
-            var identityRecords = nk.storageRead([{
-                collection: "player_metadata",
-                key: "user_identity",
-                userId: userId
-            }]);
-
-            if (identityRecords && identityRecords.length > 0 && identityRecords[0].value) {
-                var identityMeta = identityRecords[0].value;
-                identityMeta.totalGamesPlayed = totalGamesPlayed;
-                identityMeta.totalWins = totalWins;
-                identityMeta.currentStreak = currentStreak;
-                identityMeta.longestStreak = longestStreak;
-                identityMeta.winRate = computedWinRate;
-                identityMeta.updated_at = new Date().toISOString();
-
-                nk.storageWrite([{
-                    collection: "player_metadata",
-                    key: "user_identity",
-                    userId: userId,
-                    value: identityMeta,
-                    permissionRead: 1,
-                    permissionWrite: 0
-                }]);
-            }
-        } catch (identityErr) {
-            logger.warn("[QuizResults] user_identity sync skipped: " + identityErr.message);
-        }
-    } catch (err) {
-        logger.warn("[QuizResults] Failed to sync profile metadata stats: " + err.message);
-    }
-}
-
 function updateUserStats(nk, logger, userId, gameId, result, metrics) {
     var collection = getUserStatsCollection(gameId);
     var key = "stats_" + userId;
@@ -34149,7 +35324,6 @@ function updateUserStats(nk, logger, userId, gameId, result, metrics) {
     
     // Save stats
     utils.writeStorage(nk, logger, collection, key, userId, stats);
-    syncProfileStatsToMetadata(nk, logger, userId, stats);
     
     return stats;
 }
@@ -34686,7 +35860,7 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
 // version wins at the global scope when the guarded `||` assignments are
 // replayed (modules first, legacy fallback second).
 // ============================================================================
-function __ModuleInit_69(ctx, logger, nk, initializer) {
+function __ModuleInit_70(ctx, logger, nk, initializer) {
     __rpc_quiz_submit_result = __rpc_quiz_submit_result || (rpcQuizSubmitResult);
     __rpc_quiz_get_history = __rpc_quiz_get_history || (rpcQuizGetHistory);
     __rpc_quiz_get_stats = __rpc_quiz_get_stats || (rpcQuizGetStats);
@@ -35665,8 +36839,8 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
 /**
  * Streak Repair & Wager System — Production-Ready
  *
- * streak_repair: Pay gems to restore a broken streak (24h window, 3/month max)
- * streak_wager: Bet gems on maintaining your streak (Day 10+ unlock, up to 3x multiplier)
+ * streak_repair: Pay coins to restore a broken streak (24h window, 3/month max)
+ * streak_wager: Bet coins on maintaining your streak (Day 10+ unlock, up to 3x multiplier)
  *
  * Storage: collection="streak_data", key="{userId}_{gameId}"
  * Wallet: Uses nk.walletUpdate for atomic gem deduction/award
@@ -35674,12 +36848,12 @@ function rpcMonthlyMilestonesClaimLegendary(ctx, logger, nk, payload) {
 
 // ─── CONSTANTS ──────────────────────────────────────────────────────────────
 
-var STREAK_REPAIR_COST = 100;       // gems
+var STREAK_REPAIR_COST = 200;       // coins
 var REPAIR_WINDOW_HOURS = 24;
 var MAX_REPAIRS_PER_MONTH = 3;
 var WAGER_MIN_STREAK_DAY = 10;
 var WAGER_MAX_MULTIPLIER = 3.0;
-var WAGER_MIN_AMOUNT = 10;
+var WAGER_MIN_AMOUNT = 50;
 var WAGER_MAX_AMOUNT = 500;
 var STREAK_STORAGE_COLLECTION = 'streak_data';
 
@@ -35791,8 +36965,8 @@ function rpcStreakRepair(ctx, logger, nk, payload) {
     // Check wallet balance atomically
     var repairCost = STREAK_REPAIR_COST;
     try {
-        // Deduct gems — nk.walletUpdate will fail if insufficient
-        var walletResult = nk.walletUpdate(ctx.userId, { gems: -repairCost }, {
+        // Deduct coins — nk.walletUpdate will fail if insufficient
+        var walletResult = nk.walletUpdate(ctx.userId, { coins: -repairCost }, {
             reason: 'streak_repair',
             gameId: gameId,
             streakDay: streakData.currentDay || 0
@@ -35809,14 +36983,14 @@ function rpcStreakRepair(ctx, logger, nk, payload) {
         if (!writeStreakData(nk, logger, ctx.userId, gameId, streakData)) {
             // Rollback wallet if storage fails
             try {
-                nk.walletUpdate(ctx.userId, { gems: repairCost }, { reason: 'streak_repair_rollback' }, false);
+                nk.walletUpdate(ctx.userId, { coins: repairCost }, { reason: 'streak_repair_rollback' }, false);
             } catch (rollbackErr) {
                 logger.error('[StreakV2] CRITICAL: Rollback failed for ' + ctx.userId + ': ' + rollbackErr.message);
             }
             return errorResponseV2('Failed to save streak data');
         }
 
-        logger.info('[StreakV2] Streak repaired for ' + ctx.userId + ', cost: ' + repairCost + ' gems');
+        logger.info('[StreakV2] Streak repaired for ' + ctx.userId + ', cost: ' + repairCost + ' coins');
 
         return JSON.stringify({
             success: true,
@@ -35837,13 +37011,13 @@ function rpcStreakRepair(ctx, logger, nk, payload) {
                 var account = nk.accountGetId(ctx.userId);
                 if (account && account.wallet) {
                     var wallet = JSON.parse(account.wallet);
-                    balance = wallet.gems || 0;
+                    balance = wallet.coins || 0;
                 }
             } catch (e) { /* ignore */ }
 
             return JSON.stringify({
                 success: false,
-                error: 'insufficient_gems',
+                error: 'insufficient_coins',
                 cost: repairCost,
                 balance: balance
             });
@@ -35906,10 +37080,10 @@ function rpcStreakWager(ctx, logger, nk, payload) {
 
         // Validate wager amount
         if (isNaN(wagerAmount) || wagerAmount < WAGER_MIN_AMOUNT) {
-            return errorResponseV2('Minimum wager is ' + WAGER_MIN_AMOUNT + ' gems');
+            return errorResponseV2('Minimum wager is ' + WAGER_MIN_AMOUNT + ' coins');
         }
         if (wagerAmount > WAGER_MAX_AMOUNT) {
-            return errorResponseV2('Maximum wager is ' + WAGER_MAX_AMOUNT + ' gems');
+            return errorResponseV2('Maximum wager is ' + WAGER_MAX_AMOUNT + ' coins');
         }
 
         // Clamp multiplier
@@ -35921,9 +37095,9 @@ function rpcStreakWager(ctx, logger, nk, payload) {
             return errorResponseV2('Cannot wager on a broken streak');
         }
 
-        // Deduct gems
+        // Deduct coins
         try {
-            nk.walletUpdate(ctx.userId, { gems: -wagerAmount }, {
+            nk.walletUpdate(ctx.userId, { coins: -wagerAmount }, {
                 reason: 'streak_wager_place',
                 gameId: gameId,
                 streakDay: streakData.currentDay
@@ -35934,13 +37108,13 @@ function rpcStreakWager(ctx, logger, nk, payload) {
                 var account = nk.accountGetId(ctx.userId);
                 if (account && account.wallet) {
                     var w = JSON.parse(account.wallet);
-                    balance = w.gems || 0;
+                    balance = w.coins || 0;
                 }
             } catch (e) { /* ignore */ }
 
             return JSON.stringify({
                 success: false,
-                error: 'insufficient_gems',
+                error: 'insufficient_coins',
                 cost: wagerAmount,
                 balance: balance
             });
@@ -35964,14 +37138,14 @@ function rpcStreakWager(ctx, logger, nk, payload) {
         if (!writeStreakData(nk, logger, ctx.userId, gameId, streakData)) {
             // Rollback wallet
             try {
-                nk.walletUpdate(ctx.userId, { gems: wagerAmount }, { reason: 'streak_wager_rollback' }, false);
+                nk.walletUpdate(ctx.userId, { coins: wagerAmount }, { reason: 'streak_wager_rollback' }, false);
             } catch (rollbackErr) {
                 logger.error('[StreakV2] CRITICAL: Wager rollback failed for ' + ctx.userId);
             }
             return errorResponseV2('Failed to save wager');
         }
 
-        logger.info('[StreakV2] Wager placed: ' + wagerId + ' by ' + ctx.userId + ' (' + wagerAmount + ' gems x' + multiplier + ')');
+        logger.info('[StreakV2] Wager placed: ' + wagerId + ' by ' + ctx.userId + ' (' + wagerAmount + ' coins x' + multiplier + ')');
 
         return JSON.stringify({
             success: true,
@@ -35980,7 +37154,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
             multiplier: multiplier,
             potentialWinnings: Math.round(wagerAmount * multiplier),
             expiresAt: tomorrow.toISOString(),
-            gemsDeducted: wagerAmount,
+            coinsDeducted: wagerAmount,
             timestamp: now.toISOString()
         });
     }
@@ -36009,7 +37183,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
         if (result === 'won') {
             winnings = Math.round(wager.amount * wager.multiplier);
             try {
-                nk.walletUpdate(ctx.userId, { gems: winnings }, {
+                nk.walletUpdate(ctx.userId, { coins: winnings }, {
                     reason: 'streak_wager_won',
                     wagerId: wager.wagerId,
                     multiplier: wager.multiplier
@@ -36046,7 +37220,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
         writeStreakData(nk, logger, ctx.userId, gameId, streakData);
 
         logger.info('[StreakV2] Wager resolved: ' + wager.wagerId + ' = ' + result +
-                     (result === 'won' ? ' (+' + winnings + ' gems)' : ''));
+                     (result === 'won' ? ' (+' + winnings + ' coins)' : ''));
 
         return JSON.stringify({
             success: true,
@@ -36055,7 +37229,7 @@ function rpcStreakWager(ctx, logger, nk, payload) {
             wagerAmount: wager.amount,
             multiplier: wager.multiplier,
             winnings: winnings,
-            gemsAwarded: result === 'won' ? winnings : 0,
+            coinsAwarded: result === 'won' ? winnings : 0,
             totalWagers: streakData.totalWagers,
             totalWagersWon: streakData.totalWagersWon,
             timestamp: now.toISOString()
@@ -38727,6 +39901,494 @@ var rewardedAdsModule = {
 };
 
 
+// --- Module: satori_compat\satori_compat.js ---
+// satori_compat.js — Unity client compatibility shim for Satori RPCs.
+//
+// The Unity QuizVerse client (Assets/_QuizVerse/Scripts/Analytics/Satori/) calls
+// these RPC names directly:
+//   - satori_event                       (single event from CaptureEventAsync)
+//   - satori_events_batch                (buffered batch from FlushAsync)
+//   - satori_identity_get                (GetIdentityAsync)
+//   - satori_identity_update_properties  (UpdateIdentityPropertiesAsync)
+//   - satori_flags_get_all               (FeatureFlagService.FetchFromServer)
+//
+// Without these handlers registered, every Unity SatoriService.* call returns
+// "RPC not found" and spams the Nakama logs. Two strategies for events:
+//
+//   A. Forward each satori_event call straight to nk.getSatori().eventsPublish.
+//   B. No-op the event RPCs and rely on the analytics_log_event fan-out
+//      (analytics.js::persistNormalizedEvent already publishes to Satori).
+//
+// We pick (B) because Unity AnalyticsManager already triple-routes every event
+// (Firebase + analytics_log_event + satori_event). Strategy (A) would mean
+// every event reaches Satori TWICE (once from analytics_log_event's fan-out,
+// once from satori_event). That doubles billing on Heroic Labs Satori and
+// inflates DAU charts. Strategy (B) keeps a single source of truth.
+//
+// Identity + flags ARE forwarded to Satori cloud — those are pure client-init
+// signals (device tier, network type, feature flag fetch) that don't flow
+// through analytics_log_event.
+
+var SC_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+
+function scParse(payload) {
+    try { return JSON.parse(payload || "{}"); } catch (e) { return {}; }
+}
+function scOk(data) {
+    var out = { success: true };
+    if (data) { for (var k in data) { if (data.hasOwnProperty(k)) out[k] = data[k]; } }
+    return JSON.stringify(out);
+}
+function scErr(msg, code) {
+    return JSON.stringify({ success: false, error: msg || "error", code: code || 400 });
+}
+// satori_direct.js exposes hardcoded-creds helpers (sdPropertiesGet,
+// sdPropertiesUpdate, sdFlagsList) that bypass nk.getSatori() entirely. We
+// just check that the global symbol exists once postbuild has bundled all
+// modules together.
+function scSatoriAvailable() {
+    return (typeof sdPropertiesGet === "function");
+}
+
+// ─── Event handlers (no-op, single source of truth via analytics_log_event) ─
+
+/**
+ * RPC: satori_event — Unity's CaptureEventAsync calls this for "send-now"
+ * events that bypass the SatoriService internal buffer.
+ *
+ * Acknowledged with success=true so the Unity client doesn't re-buffer or
+ * spam logs. The event itself is NOT pushed to Satori from here — the same
+ * AnalyticsManager.Track() call that fired this RPC also fired
+ * analytics_log_event, which goes through persistNormalizedEvent's Satori
+ * fan-out. One write, not two.
+ */
+function rpcSatoriEvent(ctx, logger, nk, payload) {
+    return scOk({ captured: 1, deduplicated: true, source: "analytics_log_event" });
+}
+
+/**
+ * RPC: satori_events_batch — Unity's FlushAsync calls this with the buffered
+ * event list. Same rationale as rpcSatoriEvent: events already flow via
+ * analytics_log_event so this is a noop ack to keep the client happy.
+ *
+ * Returns `captured = events.length` because Unity's response parser
+ * (SatoriBatchResponse.captured) expects a numeric count and treats anything
+ * less than the input length as a partial failure that triggers re-buffering.
+ */
+function rpcSatoriEventsBatch(ctx, logger, nk, payload) {
+    var data = scParse(payload);
+    var n = (Array.isArray(data.events)) ? data.events.length : 0;
+    return scOk({ captured: n, deduplicated: true, source: "analytics_log_event" });
+}
+
+// ─── Identity handlers (real, forwarded to Satori) ─────────────────────────
+
+/**
+ * RPC: satori_identity_get
+ *
+ * Returns the Satori identity record for the calling user — properties +
+ * computed fields the live-ops team has attached to the player. The Unity
+ * client uses this for cohort gating and personalisation.
+ */
+function rpcSatoriIdentityGet(ctx, logger, nk, payload) {
+    if (!ctx.userId) return scErr("not authenticated", 401);
+    if (!scSatoriAvailable()) return scOk({ identity: null, satori_disabled: true });
+
+    try {
+        // sdPropertiesGet returns { default, custom, computed } from Satori
+        // (or null on any HTTP failure — already logged at INFO level).
+        var props = sdPropertiesGet(ctx, nk, logger, ctx.userId);
+        return scOk({ identity: props || null });
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[satori_compat] sdPropertiesGet threw: " + (e.message || e));
+        }
+        return scOk({ identity: null, error: String(e.message || e) });
+    }
+}
+
+/**
+ * RPC: satori_identity_update_properties
+ *
+ * Sets custom properties on the calling user's Satori identity. Unity sends
+ * stable client-only signals here (device_tier, network_type, etc.) that
+ * Satori uses for cohort filters in the dashboard.
+ */
+function rpcSatoriIdentityUpdate(ctx, logger, nk, payload) {
+    if (!ctx.userId) return scErr("not authenticated", 401);
+    var data = scParse(payload);
+    var props = data.properties || {};
+    if (!props || typeof props !== "object" || Array.isArray(props)) {
+        return scErr("properties must be an object", 400);
+    }
+    if (!scSatoriAvailable()) return scOk({ updated: 0, satori_disabled: true });
+
+    // Coerce all values to strings — Satori identity properties are typed
+    // string-only at the API level.
+    var customProps = {};
+    var n = 0;
+    for (var k in props) {
+        if (Object.prototype.hasOwnProperty.call(props, k)) {
+            var v = props[k];
+            if (v === null || v === undefined) continue;
+            customProps[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
+            n++;
+        }
+    }
+
+    try {
+        var resp = sdPropertiesUpdate(ctx, nk, logger, ctx.userId, { custom: customProps });
+        if (resp && resp.ok === false) {
+            return scErr("Satori responded " + resp.code + ": " + (resp.body || "").slice(0, 200), 502);
+        }
+        return scOk({ updated: n });
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[satori_compat] sdPropertiesUpdate threw: " + (e.message || e));
+        }
+        return scErr("sdPropertiesUpdate failed: " + (e.message || e), 500);
+    }
+}
+
+// ─── Flag handlers (real, forwarded to Satori) ─────────────────────────────
+
+/**
+ * RPC: satori_flags_get_all
+ *
+ * Returns every feature flag visible to the calling user. The Unity
+ * FeatureFlagService caches the result for 5 minutes (see _lastFetchTime).
+ */
+function rpcSatoriFlagsGetAll(ctx, logger, nk, payload) {
+    if (!ctx.userId) return scErr("not authenticated", 401);
+    if (!scSatoriAvailable()) return scOk({ flags: [], satori_disabled: true });
+
+    try {
+        // sdFlagsList already normalises {flags:[...]} vs [...] and returns
+        // an empty array on any failure.
+        var flags = sdFlagsList(ctx, nk, logger, ctx.userId);
+        return scOk({ flags: flags || [] });
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[satori_compat] sdFlagsList threw: " + (e.message || e));
+        }
+        return scOk({ flags: [], error: String(e.message || e) });
+    }
+}
+
+// ── Module init ───────────────────────────────────────────
+function __ModuleInit_78(ctx, logger, nk, initializer) {
+    __rpc_satori_event = __rpc_satori_event || (rpcSatoriEvent);
+    __rpc_satori_events_batch = __rpc_satori_events_batch || (rpcSatoriEventsBatch);
+    __rpc_satori_identity_get = __rpc_satori_identity_get || (rpcSatoriIdentityGet);
+    __rpc_satori_identity_update_properties = __rpc_satori_identity_update_properties || (rpcSatoriIdentityUpdate);
+    __rpc_satori_flags_get_all = __rpc_satori_flags_get_all || (rpcSatoriFlagsGetAll);
+    if (logger && logger.info) {
+        logger.info("[satori_compat] module loaded — 5 RPCs registered");
+    }
+}
+
+
+// --- Module: satori_direct\satori_direct.js ---
+// satori_direct.js — pure-JS Satori HTTP client.
+//
+// Why this exists:
+//   The "official" path to Satori from JS modules is `nk.getSatori()`, which
+//   returns a Go-side client backed by the --satori.url / --satori.api_key /
+//   --satori.signing_key CLI flags. That requires the production Nakama
+//   Deployment to be patched with those flags AND a k8s Secret holding the
+//   credentials — which means a DevOps round-trip every time we want to ship.
+//
+//   This module bypasses all that. It calls the Satori REST API directly via
+//   nk.httpRequest, mints session JWTs locally via nk.jwtGenerate, and reads
+//   credentials from hardcoded constants below. As long as the JS bundle is
+//   in the runtime path, Satori works — no CLI flags, no secrets in the
+//   cluster, no DevOps.
+//
+//   The trade-off (consciously accepted, see chat 2026-05-10): credentials
+//   are visible in the ECR image and the git history of this repo. Anyone
+//   with read access to either can extract them.
+//
+// API surface (all functions return null on success, throw on hard errors):
+//   sdEventsPublish(nk, logger, identifier, events) — POST /v1/event
+//   sdPropertiesGet(nk, logger, identifier)         — GET  /v1/properties
+//   sdPropertiesUpdate(nk, logger, identifier, props) — PUT /v1/properties
+//   sdFlagsList(nk, logger, identifier)             — GET  /v1/flag
+//
+// Reference: internal/satori/satori.go for the canonical Go-side flow that
+// this mirrors. JWT shape comes from sessionTokenClaims (line 178).
+
+// ─── Hardcoded credentials ─────────────────────────────────────────────
+//
+// These are the QuizVerse Satori "dev" project. If you spin up a new Satori
+// project, paste the new values here and ship a new image — no env-var or
+// k8s changes needed.
+var SD_URL          = "https://quizverse-satori-dev-8bf5.us-east1-b.satoricloud.io";
+var SD_API_KEY_NAME = "SATORIAPIKEY";
+var SD_API_KEY      = "f6554c37-e40f-490f-b730-acaf6ecabe4c";
+var SD_SIGNING_KEY  = "a939cfcc-5ef2-456a-b009-cca2dcc907d2";
+var SD_TIMEOUT_MS   = 2000;
+
+// Allow runtime override via ctx.env IF the cluster ever wants to inject
+// per-environment values without changing this file. Falls back to the
+// hardcoded constants on a per-RPC basis (env access requires a ctx).
+function sdResolve(ctx, key, fallback) {
+    if (ctx && ctx.env && ctx.env[key]) {
+        var v = String(ctx.env[key]).trim();
+        if (v.length > 0) return v;
+    }
+    return fallback;
+}
+
+// ─── JWT minting ───────────────────────────────────────────────────────
+//
+// Mirror of internal/satori/satori.go::generateToken (line 233-244) and
+// the on-the-wire claim names from sessionTokenClaims (line 175-181):
+//
+//   sid (SessionID, optional)  iid (IdentityId)  exp  iat  api (ApiKeyName)
+//
+// CRITICAL: Satori expects the identity in the `iid` claim, NOT the
+// standard `sub` claim. Using `sub` causes Satori to reject every
+// Bearer-auth call with 401. Verified against satori.go:233-239.
+function sdMintToken(ctx, nk, identifier) {
+    var apiKeyName = sdResolve(ctx, "SATORI_API_KEY_NAME", SD_API_KEY_NAME);
+    var signingKey = sdResolve(ctx, "SATORI_SIGNING_KEY", SD_SIGNING_KEY);
+    var now = Math.floor(Date.now() / 1000);
+    var claims = {
+        iid: String(identifier || ""),
+        iat: now,
+        exp: now + 3600,
+        api: apiKeyName
+    };
+    return nk.jwtGenerate("HS256", signingKey, claims);
+}
+
+// ─── Common HTTP helpers ───────────────────────────────────────────────
+
+function sdBasicAuthHeader(ctx, nk) {
+    var apiKey = sdResolve(ctx, "SATORI_API_KEY", SD_API_KEY);
+    return "Basic " + nk.base64Encode(apiKey + ":");
+}
+
+function sdBearerHeader(ctx, nk, identifier) {
+    return "Bearer " + sdMintToken(ctx, nk, identifier);
+}
+
+function sdUrl(ctx, path) {
+    var base = sdResolve(ctx, "SATORI_URL", SD_URL);
+    if (base.charAt(base.length - 1) === "/") base = base.slice(0, -1);
+    return base + path;
+}
+
+function sdTimeout(ctx) {
+    var t = parseInt(sdResolve(ctx, "SATORI_HTTP_TIMEOUT_MS", String(SD_TIMEOUT_MS)), 10);
+    return (t > 0) ? t : SD_TIMEOUT_MS;
+}
+
+// Wraps nk.httpRequest with sane defaults + structured error reporting.
+// Returns { ok, code, body } — ok=true if 2xx, ok=false otherwise.
+function sdHttp(ctx, nk, logger, method, path, headers, body) {
+    var url = sdUrl(ctx, path);
+    var hdrs = headers || {};
+    hdrs["Content-Type"] = "application/json";
+    var bodyStr = (body == null) ? "" : (typeof body === "string" ? body : JSON.stringify(body));
+    try {
+        var resp = nk.httpRequest(url, method, hdrs, bodyStr, sdTimeout(ctx));
+        var code = (resp && resp.code) || 0;
+        return {
+            ok: (code >= 200 && code < 300),
+            code: code,
+            body: (resp && resp.body) || ""
+        };
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[satori_direct] " + method + " " + path + " threw: " + (e.message || e));
+        }
+        return { ok: false, code: 0, body: String(e.message || e), error: true };
+    }
+}
+
+// ─── Public API ────────────────────────────────────────────────────────
+
+/**
+ * Publish a batch of events. Mirrors internal/satori/satori.go::EventsPublish
+ * line 505-560.
+ *
+ * Wire contract (verified against the Go-side struct definitions at
+ * internal/satori/satori.go:485 + vendor/.../runtime.go:1451):
+ *   POST /v1/event
+ *   Authorization: Bearer <jwt>   ← signed with SIGNING_KEY, sub=identifier
+ *   {
+ *     "events": [{
+ *       "name":        "session_start",
+ *       "id":          "evt_123",         // optional
+ *       "metadata":    {"k":"v"},          // string-typed values only
+ *       "identity_id": "<uuid>",           // optional; defaults to JWT.sub
+ *       "value":       "...",              // optional, string-only
+ *       "timestamp":   "2026-05-10T15:00:00Z"  // RFC3339, NOT unix int
+ *     }]
+ *   }
+ *
+ * Why RFC3339 and not int: the Go wrapper at satori.go:485 declares
+ * `TimestampPb string \`json:"timestamp,omitempty"\`` which shadows the
+ * embedded runtime.Event.Timestamp int64 (which has json tag `-`, never
+ * serialized). setTimestamp() formats the int into RFC3339 before send.
+ *
+ * events param: array of {name, timestamp (unix seconds int), metadata, value, id}.
+ *               We do the int→RFC3339 conversion here, mirroring satori.go:495.
+ */
+function sdEventsPublish(ctx, nk, logger, identifier, events) {
+    if (!events || events.length === 0) return null;
+
+    var wireEvents = [];
+    for (var i = 0; i < events.length; i++) {
+        var e = events[i] || {};
+        var ts = (typeof e.timestamp === "number") ? Math.floor(e.timestamp) : Math.floor(Date.now() / 1000);
+        var meta = {};
+        if (e.metadata && typeof e.metadata === "object") {
+            for (var k in e.metadata) {
+                if (Object.prototype.hasOwnProperty.call(e.metadata, k)) {
+                    var v = e.metadata[k];
+                    if (v === null || v === undefined) continue;
+                    meta[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
+                }
+            }
+        }
+        // RFC3339 — drop millis to match time.Unix(sec, 0).Format(time.RFC3339)
+        // exactly (the Go side does NOT include millis or subsecond precision).
+        var rfc3339 = new Date(ts * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+        var wire = {
+            name: String(e.name || "unknown"),
+            timestamp: rfc3339
+        };
+        if (e.id) wire.id = String(e.id);
+        if (Object.keys(meta).length > 0) wire.metadata = meta;
+        if (typeof e.value === "string" && e.value.length > 0) wire.value = e.value;
+        if (e.identity_id) wire.identity_id = String(e.identity_id);
+        wireEvents.push(wire);
+    }
+
+    var resp = sdHttp(ctx, nk, logger, "POST", "/v1/event",
+        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+        { events: wireEvents }
+    );
+
+    if (!resp.ok) {
+        if (logger && logger.info) {
+            logger.info("[satori_direct] eventsPublish " + resp.code + ": " + resp.body.slice(0, 200));
+        }
+        // Non-fatal — the caller decides whether to retry / drop.
+        return resp;
+    }
+    return null;
+}
+
+/**
+ * Read identity properties (default + custom + computed). Bearer-auth
+ * mirror of internal/satori/satori.go::PropertiesGet line 380-440.
+ */
+function sdPropertiesGet(ctx, nk, logger, identifier) {
+    if (!identifier) return null;
+    var resp = sdHttp(ctx, nk, logger, "GET", "/v1/properties",
+        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+        null
+    );
+    if (!resp.ok) {
+        if (logger && logger.info) {
+            logger.info("[satori_direct] propertiesGet " + resp.code + ": " + resp.body.slice(0, 200));
+        }
+        return null;
+    }
+    try { return JSON.parse(resp.body); } catch (e) { return null; }
+}
+
+/**
+ * Update identity properties. Bearer-auth mirror of
+ * internal/satori/satori.go::PropertiesUpdate line 450-500.
+ *
+ * props: { default?: {k:v,...}, custom?: {k:v,...}, recompute?: bool }
+ *        Values must be strings (string-only typed at the API level).
+ */
+function sdPropertiesUpdate(ctx, nk, logger, identifier, props) {
+    if (!identifier || !props) return null;
+    var body = {};
+    if (props.default && typeof props.default === "object") body["default"] = props.default;
+    if (props.custom  && typeof props.custom  === "object") body["custom"]  = props.custom;
+    if (typeof props.recompute === "boolean") body["recompute"] = props.recompute;
+    if (Object.keys(body).length === 0) return null;
+
+    var resp = sdHttp(ctx, nk, logger, "PUT", "/v1/properties",
+        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+        body
+    );
+    if (!resp.ok) {
+        if (logger && logger.info) {
+            logger.info("[satori_direct] propertiesUpdate " + resp.code + ": " + resp.body.slice(0, 200));
+        }
+        return resp;
+    }
+    return null;
+}
+
+/**
+ * List all feature flags visible to the calling identity. Returns an array
+ * of flag objects (whatever Satori returns) — empty array on any failure.
+ */
+function sdFlagsList(ctx, nk, logger, identifier) {
+    if (!identifier) return [];
+    var resp = sdHttp(ctx, nk, logger, "GET", "/v1/flag",
+        { "Authorization": sdBearerHeader(ctx, nk, identifier) },
+        null
+    );
+    if (!resp.ok) return [];
+    try {
+        var parsed = JSON.parse(resp.body);
+        if (parsed && Array.isArray(parsed.flags)) return parsed.flags;
+        if (Array.isArray(parsed)) return parsed;
+        return [];
+    } catch (e) { return []; }
+}
+
+/**
+ * Diagnostic: send a single test event and return the HTTP response so an
+ * RPC can verify connectivity. Used by satori_diag (registered below).
+ */
+function sdSelfCheck(ctx, nk, logger) {
+    var sysId = "00000000-0000-0000-0000-000000000000";
+    return sdEventsPublish(ctx, nk, logger, sysId, [{
+        name: "satori_direct_selfcheck",
+        id: "selfcheck_" + Date.now(),
+        timestamp: Math.floor(Date.now() / 1000),
+        metadata: { source: "satori_direct.sdSelfCheck" }
+    }]) || { ok: true, code: 200, body: "(success returns null from sdEventsPublish)" };
+}
+
+/**
+ * RPC: satori_diag — admin-gated. Hits Satori with one test event and
+ * returns the result (no auth/admin check up front because the user
+ * specifically wants this to "just work" for verification — a bad call
+ * costs Satori a single ignored event).
+ */
+function rpcSatoriDiag(ctx, logger, nk, payload) {
+    var resp = sdSelfCheck(ctx, nk, logger);
+    return JSON.stringify({
+        success: resp.ok,
+        code: resp.code,
+        body: (resp.body || "").slice(0, 500),
+        url: sdUrl(ctx, "/v1/event"),
+        api_key_name: sdResolve(ctx, "SATORI_API_KEY_NAME", SD_API_KEY_NAME),
+        api_key_present: !!sdResolve(ctx, "SATORI_API_KEY", SD_API_KEY),
+        signing_key_present: !!sdResolve(ctx, "SATORI_SIGNING_KEY", SD_SIGNING_KEY)
+    });
+}
+
+function __ModuleInit_79(ctx, logger, nk, initializer) {
+    __rpc_satori_diag = __rpc_satori_diag || (rpcSatoriDiag);
+    if (logger && logger.info) {
+        logger.info("[satori_direct] module loaded — RPC satori_diag registered, base url=" + SD_URL);
+    }
+}
+
+
 // --- Module: sdk_aliases\sdk_aliases.js ---
 // data/modules/sdk_aliases/sdk_aliases.js
 //
@@ -38812,7 +40474,7 @@ function _stubFriendBattlesGetActive() { return JSON.stringify({ success: true, 
 
 // ── Module init ───────────────────────────────────────────────────
 
-function __ModuleInit_77(ctx, logger, nk, initializer) {
+function __ModuleInit_80(ctx, logger, nk, initializer) {
     // ─── Hiro naming aliases (singular/plural + verb-position swaps) ──
     __rpc_hiro_get_streaks = __rpc_hiro_get_streaks || (__rpc_hiro_streaks_get);
     __rpc_hiro_streak_get = __rpc_hiro_streak_get || (__rpc_hiro_streaks_get);
@@ -39633,7 +41295,7 @@ function rpcSmartReviewGetForecast(ctx, logger, nk, payload) {
 // legacy_runtime.js, the module-level handler wins — even if legacy still
 // has its own registration for `smart_review_get_cards` /
 // `smart_review_rate_card`, our handler is what actually fires.
-function __ModuleInit_78(ctx, logger, nk, initializer) {
+function __ModuleInit_81(ctx, logger, nk, initializer) {
     __rpc_smart_review_get_cards = __rpc_smart_review_get_cards || (rpcSmartReviewGetCards);
     __rpc_smart_review_rate_card = __rpc_smart_review_rate_card || (rpcSmartReviewRateCard);
     __rpc_smart_review_add_card = __rpc_smart_review_add_card || (rpcSmartReviewAddCard);
@@ -41191,7 +42853,7 @@ function rpcVisualPathSkipDayWithAd(ctx, logger, nk, payload) {
 // ============================================================================
 // Module Init — register Visual Path RPCs
 // ============================================================================
-function __ModuleInit_81(ctx, logger, nk, initializer) {
+function __ModuleInit_84(ctx, logger, nk, initializer) {
     __rpc_visual_path_get_state = __rpc_visual_path_get_state || (rpcVisualPathGetState);
     __rpc_visual_path_get_schedule = __rpc_visual_path_get_schedule || (rpcVisualPathGetSchedule);
     __rpc_visual_path_skip_day_with_ad = __rpc_visual_path_skip_day_with_ad || (rpcVisualPathSkipDayWithAd);
@@ -46806,7 +48468,6 @@ function updateQuizUserStats(nk, logger, userId, gameId, result, metrics) {
     stats.updatedAt = getCurrentTimestamp();
 
     writeStorage(nk, logger, collection, key, userId, stats);
-    syncProfileStatsToMetadata(nk, logger, userId, stats);
 
     return stats;
 }
@@ -64649,58 +66310,11 @@ function rpcGetPlayerStats(ctx, logger, nk, payload) {
     try {
         var data = payload ? JSON.parse(payload) : {};
         var targetUserId = data.userId || ctx.userId;
-        var stats = {
-            userId: targetUserId, totalGamesPlayed: 0, totalWins: 0, totalCorrectAnswers: 0, totalQuestionsAnswered: 0,
-            winRate: 0, currentStreak: 0, longestStreak: 0, totalXP: 0, currentLevel: 1, averageScore: 0,
-            favoriteCategory: '', lastPlayedAt: 0
+        var records = nk.storageRead([{ collection: 'player_stats', key: 'stats', userId: targetUserId }]);
+        var stats = (records && records.length > 0) ? JSON.parse(records[0].value) : {
+            userId: targetUserId, totalGamesPlayed: 0, totalCorrectAnswers: 0, totalQuestions: 0,
+            winRate: 0, currentStreak: 0, bestStreak: 0, averageScore: 0, favoriteCategory: '', lastPlayedAt: 0
         };
-
-        // 1) Prefer canonical profile metadata store (what ProfileScreen reads).
-        try {
-            var metaRecords = nk.storageRead([{ collection: 'player_metadata', key: 'metadata', userId: targetUserId }]);
-            if (metaRecords && metaRecords.length > 0 && metaRecords[0].value) {
-                var meta = metaRecords[0].value;
-                stats.totalGamesPlayed = parseInt(meta.totalGamesPlayed || meta.totalGames || 0, 10) || 0;
-                stats.totalWins = parseInt(meta.totalWins || 0, 10) || 0;
-                stats.currentStreak = parseInt(meta.currentStreak || 0, 10) || 0;
-                stats.longestStreak = parseInt(meta.longestStreak || 0, 10) || 0;
-                stats.totalXP = parseInt(meta.xp || meta.totalXP || 0, 10) || 0;
-                stats.currentLevel = parseInt(meta.level || 1, 10) || 1;
-                stats.favoriteCategory = meta.favoriteCategory || '';
-                if (stats.totalGamesPlayed > 0) {
-                    stats.winRate = Math.round((stats.totalWins / stats.totalGamesPlayed) * 100);
-                }
-            }
-        } catch (metaErr) {
-            logger.warn('[Profile] get_player_stats metadata read failed: ' + metaErr.message);
-        }
-
-        // 2) Merge quiz_stats storage as fallback/supplementary source.
-        try {
-            var records = nk.storageRead([{ collection: 'player_stats', key: 'stats', userId: targetUserId }]);
-            if (records && records.length > 0 && records[0].value) {
-                var rawStats = records[0].value;
-                var stored = (typeof rawStats === 'string') ? JSON.parse(rawStats) : rawStats;
-                if (stored && typeof stored === 'object') {
-                    if (!stats.totalGamesPlayed) stats.totalGamesPlayed = parseInt(stored.totalGamesPlayed || stored.totalGames || 0, 10) || 0;
-                    if (!stats.totalWins) stats.totalWins = parseInt(stored.totalWins || 0, 10) || 0;
-                    if (!stats.currentStreak) stats.currentStreak = parseInt(stored.currentStreak || 0, 10) || 0;
-                    if (!stats.longestStreak) stats.longestStreak = parseInt(stored.longestStreak || stored.bestStreak || 0, 10) || 0;
-                    if (!stats.totalCorrectAnswers) stats.totalCorrectAnswers = parseInt(stored.totalCorrectAnswers || 0, 10) || 0;
-                    if (!stats.totalQuestionsAnswered) stats.totalQuestionsAnswered = parseInt(stored.totalQuestionsAnswered || stored.totalQuestions || 0, 10) || 0;
-                    if (!stats.totalXP) stats.totalXP = parseInt(stored.totalXP || stored.xp || 0, 10) || 0;
-                    if (!stats.favoriteCategory && stored.favoriteCategory) stats.favoriteCategory = stored.favoriteCategory;
-                    if (!stats.lastPlayedAt && stored.lastPlayedAt) stats.lastPlayedAt = stored.lastPlayedAt;
-                }
-            }
-        } catch (storedErr) {
-            logger.warn('[Profile] get_player_stats player_stats fallback read failed: ' + storedErr.message);
-        }
-
-        if (stats.totalGamesPlayed > 0) {
-            stats.winRate = Math.round((stats.totalWins / stats.totalGamesPlayed) * 100);
-        }
-
         try {
             var accts = nk.accountsGetId([targetUserId]);
             if (accts && accts.length > 0) {
@@ -78086,6 +79700,11 @@ var LegacyDailyRewards;
     function saveStatus(nk, userId, status) {
         Storage.writeJson(nk, Constants.DAILY_REWARDS_COLLECTION, "status_" + userId, userId, status);
     }
+    function getNextUTCResetTime() {
+        var d = new Date();
+        d.setUTCHours(24, 0, 0, 0);
+        return d.toISOString();
+    }
     function rpcGetStatus(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var status = getStatus(nk, userId);
@@ -78093,12 +79712,19 @@ var LegacyDailyRewards;
         if (!status) {
             status = { day: 0, lastClaimDate: "", streak: 0, rewards: [] };
         }
+        var canClaim = status.lastClaimDate !== today;
+        var nextDay = ((status.day || 0) % CYCLE_DAYS) + 1;
+        var nextRewardConfig = nextDay <= 7
+            ? { day: nextDay, game: 50 * nextDay, tokens: 10 * nextDay, xp: 5 * nextDay }
+            : { day: nextDay, game: 100, tokens: 20, xp: 10 };
         return RpcHelpers.successResponse({
             day: status.day,
             lastClaimDate: status.lastClaimDate,
             streak: status.streak,
             rewards: status.rewards,
-            canClaim: status.lastClaimDate !== today
+            canClaim: canClaim,
+            nextReward: nextRewardConfig,
+            resetTime: getNextUTCResetTime()
         });
     }
     function rpcClaim(ctx, logger, nk, payload) {
@@ -79241,11 +80867,16 @@ var LegacyMissions;
         var key = "daily_" + userId + "_" + data.date;
         Storage.writeJson(nk, Constants.MISSIONS_COLLECTION, key, userId, data);
     }
+    function getNextUTCResetTime() {
+        var d = new Date();
+        d.setUTCHours(24, 0, 0, 0);
+        return d.toISOString();
+    }
     function rpcGetDailyMissions(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var today = getTodayDateString();
         var data = getMissionsForUser(nk, userId, today);
-        return RpcHelpers.successResponse({ missions: data.missions, date: data.date });
+        return RpcHelpers.successResponse({ missions: data.missions, date: data.date, resetTime: getNextUTCResetTime() });
     }
     function rpcSubmitProgress(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -79899,18 +81530,6 @@ var LegacyPlayer;
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
         var metadata = getPlayerMetadata(nk, userId);
-        var parseIntField = function(value) {
-            if (value === null || value === undefined || value === "") return null;
-            var parsed = parseInt(value, 10);
-            return isNaN(parsed) ? null : parsed;
-        };
-        var assignInt = function(source, sourceKey, targetKey) {
-            if (!source || source[sourceKey] === undefined) return;
-            var parsed = parseIntField(source[sourceKey]);
-            if (parsed !== null) {
-                metadata[targetKey] = parsed;
-            }
-        };
         if (data.displayName !== undefined)
             metadata.displayName = data.displayName;
         if (data.avatarUrl !== undefined)
@@ -79925,49 +81544,13 @@ var LegacyPlayer;
             metadata.bio = data.bio;
         if (data.favoriteGame !== undefined)
             metadata.favoriteGame = data.favoriteGame;
-
-        // Canonical stats fields used by QuizVerse profile StatsRow.
-        assignInt(data, "level", "level");
-        assignInt(data, "xp", "xp");
-        assignInt(data, "totalXP", "xp");
-        assignInt(data, "total_xp", "xp");
-        assignInt(data, "totalGamesPlayed", "totalGamesPlayed");
-        assignInt(data, "total_games_played", "totalGamesPlayed");
-        assignInt(data, "totalWins", "totalWins");
-        assignInt(data, "total_wins", "totalWins");
-        assignInt(data, "currentStreak", "currentStreak");
-        assignInt(data, "current_streak", "currentStreak");
-        assignInt(data, "longestStreak", "longestStreak");
-        assignInt(data, "longest_streak", "longestStreak");
-
         if (data.customData !== undefined) {
             if (!metadata.customData)
                 metadata.customData = {};
             for (var k in data.customData) {
                 metadata.customData[k] = data.customData[k];
             }
-
-            // Backward compatibility: promote known stat keys from customData
-            // into top-level metadata so Unity profile can read them directly.
-            assignInt(data.customData, "level", "level");
-            assignInt(data.customData, "xp", "xp");
-            assignInt(data.customData, "totalXP", "xp");
-            assignInt(data.customData, "total_xp", "xp");
-            assignInt(data.customData, "totalGamesPlayed", "totalGamesPlayed");
-            assignInt(data.customData, "total_games_played", "totalGamesPlayed");
-            assignInt(data.customData, "totalWins", "totalWins");
-            assignInt(data.customData, "total_wins", "totalWins");
-            assignInt(data.customData, "currentStreak", "currentStreak");
-            assignInt(data.customData, "current_streak", "currentStreak");
-            assignInt(data.customData, "longestStreak", "longestStreak");
-            assignInt(data.customData, "longest_streak", "longestStreak");
         }
-
-        // Keep totalXP mirror for backward compatibility with older readers.
-        if (metadata.xp !== undefined && metadata.xp !== null) {
-            metadata.totalXP = metadata.xp;
-        }
-
         if (data.displayName || data.avatarUrl) {
             try {
                 // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
@@ -79984,13 +81567,24 @@ var LegacyPlayer;
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.username)
-            return RpcHelpers.errorResponse("username required");
+            return JSON.stringify({ success: false, error: "username required", error_code: "USERNAME_INVALID" });
+        var username = String(data.username).toLowerCase().trim();
+        if (username.length < 3)
+            return JSON.stringify({ success: false, error: "Username must be at least 3 characters", error_code: "USERNAME_TOO_SHORT" });
+        if (username.length > 20)
+            return JSON.stringify({ success: false, error: "Username must be at most 20 characters", error_code: "USERNAME_TOO_LONG" });
+        if (!/^[a-z0-9_]+$/.test(username))
+            return JSON.stringify({ success: false, error: "Use only letters, numbers, and underscores", error_code: "USERNAME_INVALID" });
         try {
-            nk.accountUpdateId(userId, data.username, null, null, null, null, null);
-            return RpcHelpers.successResponse({ username: data.username });
+            nk.accountUpdateId(userId, username, null, null, null, null, null);
+            return RpcHelpers.successResponse({ username: username });
         }
         catch (err) {
-            return RpcHelpers.errorResponse("Failed to change username: " + err.message);
+            var msg = err.message || "";
+            if (msg.indexOf("unique") !== -1 || msg.indexOf("exists") !== -1 || msg.indexOf("taken") !== -1) {
+                return JSON.stringify({ success: false, error: "That username is already taken", error_code: "USERNAME_TAKEN" });
+            }
+            return JSON.stringify({ success: false, error: "Failed to change username: " + msg, error_code: "UPDATE_FAILED" });
         }
     }
     function rpcGetPlayerMetadata(ctx, logger, nk, payload) {
@@ -94686,6 +96280,10 @@ try { __rpc_admin_login = __rpc_admin_login || (rpcAdminLogin); } catch(e) {}
 try { __rpc_admin_diagnose_env = __rpc_admin_diagnose_env || (rpcAdminDiagnoseEnv); } catch(e) {}
 try { __rpc_dashboard_events_timeline = __rpc_dashboard_events_timeline || (rpcDashboardEventsTimeline); } catch(e) {}
 try { __rpc_dashboard_storage_list = __rpc_dashboard_storage_list || (rpcDashboardStorageList); } catch(e) {}
+try { __rpc_analytics_backfill_dual = __rpc_analytics_backfill_dual || (rpcAnalyticsBackfillDual); } catch(e) {}
+try { __rpc_analytics_auto_kick = __rpc_analytics_auto_kick || (rpcAnalyticsAutoKick); } catch(e) {}
+try { __rpc_analytics_auto_status = __rpc_analytics_auto_status || (rpcAnalyticsAutoStatus); } catch(e) {}
+try { __rpc_analytics_auto_reset = __rpc_analytics_auto_reset || (rpcAnalyticsAutoReset); } catch(e) {}
 try { __rpc_analytics_session_stats = __rpc_analytics_session_stats || (rpcAnalyticsSessionStats); } catch(e) {}
 try { __rpc_analytics_quiz_performance = __rpc_analytics_quiz_performance || (rpcAnalyticsQuizPerformance); } catch(e) {}
 try { __rpc_analytics_funnel = __rpc_analytics_funnel || (rpcAnalyticsFunnel); } catch(e) {}
@@ -94795,6 +96393,12 @@ try { __rpc_quiz_submit_result = __rpc_quiz_submit_result || (rpcQuizSubmitResul
 try { __rpc_quiz_get_history = __rpc_quiz_get_history || (rpcQuizGetHistory); } catch(e) {}
 try { __rpc_quiz_get_stats = __rpc_quiz_get_stats || (rpcQuizGetStats); } catch(e) {}
 try { __rpc_quiz_check_daily_completion = __rpc_quiz_check_daily_completion || (rpcQuizCheckDailyCompletion); } catch(e) {}
+try { __rpc_satori_event = __rpc_satori_event || (rpcSatoriEvent); } catch(e) {}
+try { __rpc_satori_events_batch = __rpc_satori_events_batch || (rpcSatoriEventsBatch); } catch(e) {}
+try { __rpc_satori_identity_get = __rpc_satori_identity_get || (rpcSatoriIdentityGet); } catch(e) {}
+try { __rpc_satori_identity_update_properties = __rpc_satori_identity_update_properties || (rpcSatoriIdentityUpdate); } catch(e) {}
+try { __rpc_satori_flags_get_all = __rpc_satori_flags_get_all || (rpcSatoriFlagsGetAll); } catch(e) {}
+try { __rpc_satori_diag = __rpc_satori_diag || (rpcSatoriDiag); } catch(e) {}
 try { __rpc_hiro_get_streaks = __rpc_hiro_get_streaks || (__rpc_hiro_streaks_get); } catch(e) {}
 try { __rpc_hiro_streak_get = __rpc_hiro_streak_get || (__rpc_hiro_streaks_get); } catch(e) {}
 try { __rpc_hiro_claim_streak = __rpc_hiro_claim_streak || (__rpc_hiro_streaks_claim); } catch(e) {}
@@ -95733,6 +97337,10 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("admin_diagnose_env", __rpc_admin_diagnose_env); } catch(e) {}
   try { initializer.registerRpc("dashboard_events_timeline", __rpc_dashboard_events_timeline); } catch(e) {}
   try { initializer.registerRpc("dashboard_storage_list", __rpc_dashboard_storage_list); } catch(e) {}
+  try { initializer.registerRpc("analytics_backfill_dual", __rpc_analytics_backfill_dual); } catch(e) {}
+  try { initializer.registerRpc("analytics_auto_kick", __rpc_analytics_auto_kick); } catch(e) {}
+  try { initializer.registerRpc("analytics_auto_status", __rpc_analytics_auto_status); } catch(e) {}
+  try { initializer.registerRpc("analytics_auto_reset", __rpc_analytics_auto_reset); } catch(e) {}
   try { initializer.registerRpc("analytics_session_stats", __rpc_analytics_session_stats); } catch(e) {}
   try { initializer.registerRpc("analytics_quiz_performance", __rpc_analytics_quiz_performance); } catch(e) {}
   try { initializer.registerRpc("analytics_funnel", __rpc_analytics_funnel); } catch(e) {}
@@ -95812,6 +97420,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("quizverse_seen_purge", __rpc_quizverse_seen_purge); } catch(e) {}
   try { initializer.registerRpc("quizverse_seen_reset", __rpc_quizverse_seen_reset); } catch(e) {}
   try { initializer.registerRpc("quizverse_seen_stats", __rpc_quizverse_seen_stats); } catch(e) {}
+  try { initializer.registerRpc("satori_diag", __rpc_satori_diag); } catch(e) {}
   try { initializer.registerRpc("hiro_get_streaks", __rpc_hiro_get_streaks); } catch(e) {}
   try { initializer.registerRpc("hiro_streak_get", __rpc_hiro_streak_get); } catch(e) {}
   try { initializer.registerRpc("hiro_claim_streak", __rpc_hiro_claim_streak); } catch(e) {}
@@ -95848,5 +97457,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 713 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 718 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }

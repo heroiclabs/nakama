@@ -236,8 +236,6 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
 function persistNormalizedEvent(nk, logger, ev) {
     // ── Unified player analytics store (game_player_analytics) ──
     // All per-player event data goes to a single doc keyed {gameId}:{userId}.
-    // Dashboard aggregate queries are handled by Satori — no per-event dashboard
-    // copy is written anymore.
     try {
         gpaUpsertEvent(nk, logger, ev);
     } catch (e) {
@@ -245,6 +243,70 @@ function persistNormalizedEvent(nk, logger, ev) {
             logger.warn("[analytics] gpaUpsertEvent failed: " + (e.message || e));
         }
         return "Failed to write player analytics";
+    }
+
+    // ── In-house dashboard fan-out (analytics_events / dash_* keys) ──
+    // The legacy dashboard rollup scanners (analytics_rollup.js::arScanEventsForDate,
+    // admin_events_timeline, admin_top_events) all query the `analytics_events`
+    // collection with a key prefix of `dash_<gameId>_<YYYY-MM-DD>_*`. Without this
+    // write, the dashboard at /analytics.html shows zero events.
+    //
+    // Wrapped in try/catch so a transient storage error never breaks the player
+    // analytics store write above (which is the primary source of truth for the
+    // game_player_analytics doc and the per-user buffer).
+    try {
+        var dateStr = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
+        var rand = Math.random().toString(36).slice(2, 8);
+        var dashKey = "dash_" + ev.gameId + "_" + dateStr + "_" + ev.eventName +
+                      "_" + ev.unixTimestamp + "_" + rand;
+        nk.storageWrite([{
+            collection: "analytics_events",
+            key: dashKey,
+            userId: SYSTEM_USER,
+            value: ev,
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[analytics] dash_* fan-out failed (dashboard rollups will miss this event): " + (e.message || e));
+        }
+    }
+
+    // ── Heroic Labs Satori cloud fan-out (direct HTTP, hardcoded creds) ──
+    // We bypass nk.getSatori() and call Satori's REST API directly via the
+    // satori_direct module. Why: the official path requires --satori.url /
+    // --satori.signing_key etc. CLI flags on the Nakama Deployment, which
+    // means a DevOps round-trip every time we ship. The direct path embeds
+    // credentials in the JS bundle (see satori_direct.js for the trade-off
+    // discussion) and works the moment the new image rolls out.
+    //
+    // sdEventsPublish is auto-loaded into the global JS scope by the postbuild
+    // concatenation (data/modules/satori_direct/satori_direct.js). Calling it
+    // costs one HTTP POST per analytics_log_event RPC.
+    try {
+        var sEv = {
+            name: ev.eventName,
+            timestamp: ev.unixTimestamp,
+            metadata: {}
+        };
+        if (ev.gameId) sEv.metadata.game_id = String(ev.gameId);
+        if (ev.platform) sEv.metadata.platform = String(ev.platform);
+        if (ev.sessionId) sEv.metadata.session_id = String(ev.sessionId);
+        if (ev.eventData && typeof ev.eventData === "object") {
+            for (var k in ev.eventData) {
+                if (Object.prototype.hasOwnProperty.call(ev.eventData, k)) {
+                    var v = ev.eventData[k];
+                    if (v === null || v === undefined) continue;
+                    sEv.metadata[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
+                }
+            }
+        }
+        sdEventsPublish(null, nk, logger, ev.userId, [sEv]);
+    } catch (e) {
+        if (logger && logger.info) {
+            logger.info("[analytics] satori publish skipped: " + (e.message || e));
+        }
     }
 
     // First-seen → daily active users. isNew only bumps newUsers on the day
@@ -319,6 +381,17 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     // Best-effort counter tick (for analytics_metrics RPC). Ignored on failure
     // so it never blocks event ingestion.
     try { bumpMetricsCounter(nk, { accepted: accepted, rejected: rejected }); } catch (e) { /* swallow */ }
+
+    // Auto-drain piggyback (2026-05-10): every ingest call runs ONE debounced
+    // tick of the historical-backfill state machine. The 5-sec debounce
+    // inside abAutoRunIfNeeded makes this a no-op for most calls and a
+    // ~500ms-1s page of work for the rest. Wrapped so a backfill failure
+    // never poisons live event ingestion.
+    try {
+        if (typeof abAutoRunIfNeeded === "function") {
+            abAutoRunIfNeeded(ctx, nk, logger);
+        }
+    } catch (e) { /* swallow */ }
 
     var resp = {
         success: accepted > 0 || rejected === 0,

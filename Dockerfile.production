@@ -61,6 +61,27 @@ COPY vendor ./vendor
 # ---------------------------------------------------------------------------
 FROM gomod AS server
 COPY . .
+# ── Modern analytics dashboard overlay (CB-5 fix, 2026-05-10) ──
+# console/ui/dist/analytics.html is embedded into the Nakama Go binary at
+# build time via `//go:embed ui/dist/*` in console/ui.go. The file currently
+# in console/ui/dist/ is a stale legacy build that authenticates via device
+# auth and calls deprecated RPC names (admin_events_timeline, etc.) — the
+# served dashboard at /analytics.html is therefore empty in production.
+#
+# The maintained source-of-truth lives at web/analytics-dashboard/index.html
+# (admin_login auth, current RPC names, Satori-aware). We overlay it over the
+# legacy file BEFORE go build so the embedded copy is the modern one.
+#
+# If web/analytics-dashboard/index.html does not exist (older branches), the
+# `cp` is a no-op — the legacy file stays in place. `set -e` is on by default
+# in the Dockerfile RUN shell, so a real failure (e.g. unreadable file) would
+# still abort the build.
+RUN if [ -f web/analytics-dashboard/index.html ]; then \
+      cp web/analytics-dashboard/index.html console/ui/dist/analytics.html; \
+      echo ">>> Overlaid modern analytics dashboard onto console/ui/dist/analytics.html"; \
+    else \
+      echo ">>> WARNING: web/analytics-dashboard/index.html missing — embedded dashboard stays on legacy version"; \
+    fi
 RUN go build -trimpath -mod=vendor -ldflags "-s -w" -o /out/nakama .
 
 # ---------------------------------------------------------------------------

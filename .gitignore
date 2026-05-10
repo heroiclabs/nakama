@@ -258,6 +258,10 @@ jspm_packages/
 .yarn-integrity
 
 # dotenv environment variables file
+# Note: .env contains live production secrets (Satori API key, Appodeal,
+# Apple App Store private key, etc.). Never commit. Use .env.example as the
+# template for a new clone.
+.env
 .env*.local
 
 # parcel-bundler cache (https://parceljs.org/)

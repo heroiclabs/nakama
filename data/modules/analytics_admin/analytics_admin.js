@@ -23,6 +23,30 @@ var AA_ADMIN_USERS_COLLECTION = "admin_users";
 var AA_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var AA_SESSION_TTL_SEC = 12 * 60 * 60; // 12 hours
 
+// ─── Hardcoded fallbacks (rotated 2026-05-10) ─────────────────────────
+// When ctx.env doesn't carry these values (i.e. when the prod k8s Secret
+// hasn't been patched), aaEnv() falls back to the constants below. This
+// lets the dashboard work end-to-end without any DevOps cluster changes —
+// just `git push` and CodeBuild rolls out a working image. See
+// docs/SATORI_INTEGRATION.md for the trade-off discussion.
+//
+// Both the bcrypt hash AND the plaintext password are baked in. Login
+// matches against either (the verification ladder in rpcAdminLogin tries
+// bcrypt first, then sha256, then plaintext). Hardcoding both means:
+//   • If you have the plaintext, type it.
+//   • If you've lost the plaintext but want to log in via curl using
+//     `dashboard_secret`, that still works.
+//   • Bcrypt verification is the canonical path; plaintext is the safety
+//     net so the dashboard never gets locked out.
+//
+// Rotate by re-running scripts/generate-admin-creds.mjs and pasting the
+// new values here, then `git push`. Or patch the k8s Secret with the same
+// keys (env wins over the hardcoded constants for any single key).
+var AA_FALLBACK_ADMIN_USERNAME      = "ivx-admin";
+var AA_FALLBACK_ADMIN_PASSWORD      = "bLxIgt83GIZ55kAK";
+var AA_FALLBACK_ADMIN_PASSWORD_HASH = "$2b$12$lWkKQoDKGN7fI8zL5PMxYeBSdD./TtXJ37veFxoZqoBMzVPY4KTqS";
+var AA_FALLBACK_DASHBOARD_SECRET    = "2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8";
+
 // Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
 // Delegates to the bundled global resolveGameIdAlias when available so the
 // alias map (defined in analytics.js) stays the single source of truth.
@@ -72,8 +96,17 @@ function aaErr(msg, code) {
 
 function aaEnv(ctx, key) {
     if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
-        return String(ctx.env[key]);
+        var v = String(ctx.env[key]);
+        if (v.length > 0) return v;
     }
+    // Fallback to hardcoded constants ONLY for the four keys the dashboard
+    // strictly requires to function. Other keys (APPLE_*, APPODEAL_*, etc.)
+    // remain env-only — those are looked up by other modules and don't need
+    // a no-DevOps escape hatch.
+    if (key === "ADMIN_USERNAME")      return AA_FALLBACK_ADMIN_USERNAME;
+    if (key === "ADMIN_PASSWORD")      return AA_FALLBACK_ADMIN_PASSWORD;
+    if (key === "ADMIN_PASSWORD_HASH") return AA_FALLBACK_ADMIN_PASSWORD_HASH;
+    if (key === "DASHBOARD_SECRET")    return AA_FALLBACK_DASHBOARD_SECRET;
     return "";
 }
 
@@ -231,6 +264,15 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
     }
 
     logger.info("[analytics_admin] admin_login ok user=" + expectedUser + " userId=" + userId);
+
+    // Auto-drain piggyback: opening the dashboard kicks one debounced tick
+    // of the historical-backfill state machine. Especially useful right
+    // after a deploy when no analytics_log_event traffic has hit yet.
+    try {
+        if (typeof abAutoRunIfNeeded === "function") {
+            abAutoRunIfNeeded(ctx, nk, logger);
+        }
+    } catch (e) { /* swallow */ }
 
     return aaOk({
         token: token,

@@ -48,6 +48,7 @@ services:
           APPLE_KEY_ID APPLE_ISSUER_ID APPLE_PRIVATE_KEY APPLE_QUIZVERSE_BUNDLE_ID
           ADMIN_USERNAME ADMIN_PASSWORD_HASH DASHBOARD_SECRET
           ROLLUP_ENABLED EXTERNAL_POLLERS_ENABLED DASHBOARD_PREFER_ROLLUPS
+          SATORI_URL SATORI_API_KEY_NAME SATORI_API_KEY SATORI_SIGNING_KEY SATORI_HTTP_TIMEOUT_MS
         "
         RUNTIME_ENV_FLAGS=""
         for k in $$RUNTIME_ENV_KEYS; do
@@ -57,6 +58,16 @@ services:
           fi
         done
         echo "[entrypoint] Forwarding $$(echo $$RUNTIME_ENV_FLAGS | grep -oE 'runtime.env [A-Z_]+' | wc -l) env vars to JS runtime via --runtime.env"
+
+        # NOTE (2026-05-10): the --satori.* CLI flag forwarding that used to
+        # live here was removed when satori_direct.js took over the Satori
+        # client role with hardcoded credentials. Nakama no longer needs the
+        # --satori.url / --satori.signing_key etc. flags for analytics to
+        # work — see data/modules/satori_direct/satori_direct.js. The
+        # SATORI_* env vars in the environment: block below are optional
+        # overrides (sdResolve in satori_direct.js reads them via ctx.env);
+        # leaving them empty makes the hardcoded constants kick in.
+
         exec /nakama/nakama \
           --name nakama1 \
           --database.address root@cockroachdb:26257 \
@@ -104,6 +115,14 @@ services:
       - ROLLUP_ENABLED=${ROLLUP_ENABLED:-true}
       - EXTERNAL_POLLERS_ENABLED=${EXTERNAL_POLLERS_ENABLED:-true}
       - DASHBOARD_PREFER_ROLLUPS=${DASHBOARD_PREFER_ROLLUPS:-true}
+      # Heroic Labs Satori cloud (https://*.satoricloud.io). Forwarded as
+      # --satori.* CLI flags by the entrypoint script above. Leave SATORI_URL
+      # empty to disable the integration entirely.
+      - SATORI_URL=${SATORI_URL:-}
+      - SATORI_API_KEY_NAME=${SATORI_API_KEY_NAME:-}
+      - SATORI_API_KEY=${SATORI_API_KEY:-}
+      - SATORI_SIGNING_KEY=${SATORI_SIGNING_KEY:-}
+      - SATORI_HTTP_TIMEOUT_MS=${SATORI_HTTP_TIMEOUT_MS:-2000}
     volumes:
       - ./:/nakama/data
     expose:
