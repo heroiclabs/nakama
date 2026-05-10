@@ -59,9 +59,15 @@ namespace LegacyUserMgmtSync {
   }
 
   function readEnv(key: string): string {
+    // Goja (Nakama's JS runtime) doesn't expose `process`, but Node does
+    // when the same source is run through tsc/postbuild for tests. Reach
+    // through `globalThis` so TypeScript is happy without pulling in the
+    // entire @types/node package — the runtime guard keeps it safe in goja.
     try {
-      if (typeof process !== "undefined" && (process as any).env) {
-        var v = (process as any).env[key];
+      var g: any = (typeof globalThis !== "undefined") ? globalThis : null;
+      var p: any = g && g.process;
+      if (p && p.env) {
+        var v = p.env[key];
         return typeof v === "string" ? v : "";
       }
     } catch (_) { /* goja sandbox: no process — fall through */ }

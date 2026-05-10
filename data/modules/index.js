@@ -1,6 +1,6 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-10T14:34:08.286Z
+// Generated: 2026-05-10T14:46:55.419Z
 // RPC Count: 729
 // ============================================================
 
@@ -83520,7 +83520,23 @@ var LegacyPlayer;
             }
         }
         savePlayerMetadata(nk, userId, metadata);
-        return RpcHelpers.successResponse({ metadata: metadata });
+        // Best-effort sync to UserMgmt. Never fails the RPC — Nakama state is the
+        // source of truth for game data; UserMgmt is the source of truth for
+        // identity (firstName/lastName/etc). Sync result is surfaced to the caller
+        // under `userMgmtSync` so the client can decide whether to warn the user.
+        var syncFields = {};
+        if (data.displayName !== undefined)
+            syncFields.userName = data.displayName;
+        if (data.firstName !== undefined)
+            syncFields.firstName = data.firstName;
+        if (data.lastName !== undefined)
+            syncFields.lastName = data.lastName;
+        if (data.age !== undefined)
+            syncFields.age = data.age;
+        if (data.phoneNumber !== undefined)
+            syncFields.phoneNumber = data.phoneNumber;
+        var syncResult = LegacyUserMgmtSync.pushProfile(nk, logger, userId, String(data._cognito_jwt || ""), syncFields);
+        return RpcHelpers.successResponse({ metadata: metadata, userMgmtSync: syncResult });
     }
     function rpcChangeUsername(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -83536,7 +83552,8 @@ var LegacyPlayer;
             return JSON.stringify({ success: false, error: "Use only letters, numbers, and underscores", error_code: "USERNAME_INVALID" });
         try {
             nk.accountUpdateId(userId, username, null, null, null, null, null);
-            return RpcHelpers.successResponse({ username: username });
+            var syncResult = LegacyUserMgmtSync.pushProfile(nk, logger, userId, String(data._cognito_jwt || ""), { userName: username });
+            return RpcHelpers.successResponse({ username: username, userMgmtSync: syncResult });
         }
         catch (err) {
             var msg = err.message || "";
@@ -84078,6 +84095,144 @@ var LegacyQuiz;
     LegacyQuiz.register = register;
     register();
 })(LegacyQuiz || (LegacyQuiz = {}));
+/**
+ * UserMgmt Sync — Best-effort propagation of player profile fields from Nakama
+ * to the Intelliverse-X-UserManagement service (NestJS).
+ *
+ * Direction: Nakama RPC → UserMgmt PUT /api/user/user/profile
+ *
+ * Auth: Caller's Cognito access token (forwarded from Unity via the RPC payload
+ * field `_cognito_jwt`). UserMgmt validates the JWT against Cognito, so Nakama
+ * never needs UserMgmt admin credentials for this flow.
+ *
+ * Loop prevention: requests carry `X-Sync-Origin: nakama-rpc`. UserMgmt's
+ * profile-update endpoint does not currently push back to Nakama, so this is
+ * defence-in-depth — if a future change adds reverse sync, it can short-circuit
+ * on this header.
+ *
+ * Failure model: best-effort. The Nakama write has already succeeded by the
+ * time this is called, so we never throw. Errors are logged and surfaced in
+ * the RPC response under `userMgmtSync` so Unity can decide whether to warn.
+ *
+ * Configuration: production defaults are hardcoded so the feature works
+ * immediately after a CodeBuild deploy without any env-var wiring. Env vars
+ * are optional overrides — once they're set, they win:
+ *   USERMGMT_API_BASE_URL   override the hardcoded BASE_URL_DEFAULT
+ *   USERMGMT_SYNC_ENABLED   "false" | "0" to disable; anything else (incl.
+ *                           unset) keeps it enabled
+ */
+var LegacyUserMgmtSync;
+(function (LegacyUserMgmtSync) {
+    // ─── Production hardcoded defaults ──────────────────────────────────────────
+    // These match Unity's IVXURLs.BaseUrl. Update both places if the public API
+    // gateway hostname ever changes.
+    var BASE_URL_DEFAULT = "https://api.intelli-verse-x.ai";
+    var SYNC_ENABLED_DEFAULT = true;
+    /**
+     * Maps Nakama profile fields → UserMgmt PUT /api/user/user/profile body.
+     * Only fields that exist on the UserMgmt endpoint are forwarded.
+     * UserMgmt-unknown fields (avatarUrl, bio, language, country, timezone)
+     * are intentionally dropped; avatar uploads happen direct Unity → UserMgmt.
+     */
+    function buildBody(input) {
+        var body = {};
+        if (input.userName !== undefined)
+            body.userName = input.userName;
+        if (input.firstName !== undefined)
+            body.firstName = input.firstName;
+        if (input.lastName !== undefined)
+            body.lastName = input.lastName;
+        if (input.age !== undefined)
+            body.age = input.age;
+        if (input.phoneNumber !== undefined)
+            body.phoneNumber = input.phoneNumber;
+        return body;
+    }
+    function readEnv(key) {
+        // Goja (Nakama's JS runtime) doesn't expose `process`, but Node does
+        // when the same source is run through tsc/postbuild for tests. Reach
+        // through `globalThis` so TypeScript is happy without pulling in the
+        // entire @types/node package — the runtime guard keeps it safe in goja.
+        try {
+            var g = (typeof globalThis !== "undefined") ? globalThis : null;
+            var p = g && g.process;
+            if (p && p.env) {
+                var v = p.env[key];
+                return typeof v === "string" ? v : "";
+            }
+        }
+        catch (_) { /* goja sandbox: no process — fall through */ }
+        return "";
+    }
+    function isEnabled() {
+        var v = readEnv("USERMGMT_SYNC_ENABLED");
+        if (v === "false" || v === "0")
+            return false; // explicit disable
+        if (v === "true" || v === "1")
+            return true; // explicit enable
+        return SYNC_ENABLED_DEFAULT; // unset → use default
+    }
+    function getBaseUrl() {
+        var v = readEnv("USERMGMT_API_BASE_URL");
+        return (v && v.length > 0 ? v : BASE_URL_DEFAULT).replace(/\/+$/, "");
+    }
+    /**
+     * Forwards a profile update to UserMgmt. Synchronous, single attempt, ~10s
+     * Nakama HTTP timeout. Caller MUST already have committed the Nakama write
+     * before invoking this — there is no rollback.
+     *
+     * @param fields  Source fields (Nakama-shape). Pass only what changed.
+     * @param jwt     Cognito access token from Unity (the same token Unity
+     *                would use to call UserMgmt directly). Empty string → skip.
+     */
+    function pushProfile(nk, logger, nakamaUserId, jwt, fields) {
+        if (!isEnabled()) {
+            return { enabled: false, skipped: "USERMGMT_SYNC_ENABLED=false" };
+        }
+        var baseUrl = getBaseUrl();
+        if (!jwt) {
+            // Old clients don't pass JWT — silently skip rather than failing the RPC.
+            return { enabled: true, skipped: "no JWT" };
+        }
+        var body = buildBody(fields);
+        var keys = Object.keys(body);
+        if (keys.length === 0) {
+            return { enabled: true, skipped: "no syncable fields" };
+        }
+        var url = baseUrl + "/api/user/user/profile";
+        var headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + jwt,
+            "X-Sync-Origin": "nakama-rpc"
+        };
+        var resp;
+        try {
+            resp = nk.httpRequest(url, "put", headers, JSON.stringify(body));
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.warn("[UserMgmtSync] network error for " + nakamaUserId + ": " + msg);
+            return { enabled: true, success: false, error: msg, errorCode: "NETWORK" };
+        }
+        if (resp.code >= 200 && resp.code < 300) {
+            logger.info("[UserMgmtSync] OK " + resp.code + " for " + nakamaUserId + " fields=" + keys.join(","));
+            return { enabled: true, success: true, statusCode: resp.code, syncedFields: keys };
+        }
+        var errCode = "HTTP_" + resp.code;
+        if (resp.code === 401 || resp.code === 403)
+            errCode = "UNAUTHORIZED";
+        else if (resp.code === 400 || resp.code === 422)
+            errCode = "VALIDATION";
+        else if (resp.code === 409)
+            errCode = "CONFLICT";
+        else if (resp.code >= 500)
+            errCode = "USERMGMT_5XX";
+        var bodyPreview = (resp.body || "").substring(0, 256);
+        logger.warn("[UserMgmtSync] " + errCode + " " + resp.code + " for " + nakamaUserId + ": " + bodyPreview);
+        return { enabled: true, success: false, statusCode: resp.code, error: bodyPreview, errorCode: errCode };
+    }
+    LegacyUserMgmtSync.pushProfile = pushProfile;
+})(LegacyUserMgmtSync || (LegacyUserMgmtSync = {}));
 var LegacyWallet;
 (function (LegacyWallet) {
     var DEFAULT_REWARD_CONFIG = {
@@ -97280,62 +97435,45 @@ var EventBus;
         PRIZE_FULFILLMENT_REQUESTED: "prize_fulfillment_requested",
     };
 })(EventBus || (EventBus = {}));
-// fortune-wheel-ad-spin.ts
-// PLAN-ADS-OPTIMIZATION-v2 §4 placement #19: Lucky Wheel free spin via rewarded ad.
+// fortune-wheel-ad-spin.ts — V2
+// Fortune Wheel ad-spin: server-authoritative spin + reward grant after rewarded ad.
 //
-// The FortuneWheelPopup on the Unity client shows a "Watch Ad for Free Spin"
-// button when the user has exhausted their organic spins. This RPC bypasses
-// the normal cooldown — it does NOT consume a regular spin token; instead
-// it issues a separate "ad_spin" token that the wheel UI consumes for one
-// bonus spin.
+// V2 CHANGES (breaking from V1):
+//   - Removed tier-gating (T1/T2/T3) — all players: max 3 ad spins per cycle
+//   - Switched from daily tracking to per-cycle tracking (cycle = 3-day organic cooldown)
+//   - Server now picks the reward (weighted random) and grants it atomically
+//   - Returns segmentIndex + reward (same shape as fortune_wheel_spin)
+//   - Validates organic spin was done first (can't ad-spin without organic)
+//   - Validates cycle hasn't expired (no ad-spins after 3-day cooldown ends)
+//   - 3-hour cooldown between ad spins (10800 seconds)
 //
 // Flow:
-// 1. Client calls `fortune_wheel_ad_spin` after user clicks "Watch Ad" and
-//    the rewarded video completes successfully (client holds a valid
-//    rewarded_ad_claim receipt).
-// 2. Server validates: tier gate (T2/T3 only), daily cap, and optional
-//    claim receipt verification.
-// 3. Returns { success: true, spinsGranted: 1 } — client adds 1 to
-//    its local spin counter.
+//   1. Client watches rewarded ad → calls fortune_wheel_ad_spin
+//   2. Server validates: organic done, cycle active, cap not hit, cooldown elapsed
+//   3. Server picks weighted random segment, grants reward
+//   4. Returns { success: true, segmentIndex, reward } — client animates
 var FortuneWheelAdSpin;
 (function (FortuneWheelAdSpin) {
     var COLLECTION = "fortune_wheel_ad_spins";
-    var DAILY_KEY_PREFIX = "daily_";
-    // Per-tier configuration
-    var TIER_CONFIG = {
-        "t1": { enabled: false, maxPerDay: 0, cooldownSeconds: 0 },
-        "t2": { enabled: true, maxPerDay: 3, cooldownSeconds: 3600 }, // 1 hour cooldown, 3/day
-        "t3": { enabled: true, maxPerDay: 5, cooldownSeconds: 1800 } // 30 min cooldown, 5/day
-    };
-    function getTodayKey() {
-        var now = new Date();
-        var y = now.getUTCFullYear();
-        var m = now.getUTCMonth() + 1;
-        var d = now.getUTCDate();
-        return y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d;
-    }
-    function getUserTier(nk, userId) {
-        var _a;
-        try {
-            var records = nk.storageRead([{
-                    collection: "geo_tier",
-                    key: "resolved",
-                    userId: userId
-                }]);
-            if (records && records.length > 0 && ((_a = records[0].value) === null || _a === void 0 ? void 0 : _a.tier)) {
-                var tier = records[0].value.tier.toLowerCase();
-                if (tier === "t1" || tier === "t2" || tier === "t3")
-                    return tier;
-            }
-        }
-        catch ( /* fall through */_b) { /* fall through */ }
-        return "t3";
-    }
-    function getDailyRecord(nk, userId, todayKey) {
+    var CYCLE_KEY = "cycle_state";
+    var AD_SPINS_MAX = 3;
+    var AD_COOLDOWN_SECONDS = 10800; // 3 hours
+    // Must match SEGMENTS in fortune_wheel.js exactly
+    var SEGMENTS = [
+        { type: "XP", amount: 100, label: "100 XP", weight: 20 },
+        { type: "Coins", amount: 50, label: "50 Coins", weight: 25 },
+        { type: "XP", amount: 250, label: "250 XP", weight: 15 },
+        { type: "AudiobookToken", amount: 1, label: "Audiobook Token", weight: 8 },
+        { type: "Coins", amount: 150, label: "150 Coins", weight: 12 },
+        { type: "Shield", amount: 24, label: "24h Shield", weight: 10 },
+        { type: "XP", amount: 500, label: "500 XP", weight: 5 },
+        { type: "AudiobookToken", amount: 2, label: "2 Audiobook Tokens", weight: 5 }
+    ];
+    function getCycleState(nk, userId) {
         try {
             var records = nk.storageRead([{
                     collection: COLLECTION,
-                    key: DAILY_KEY_PREFIX + todayKey,
+                    key: CYCLE_KEY,
                     userId: userId
                 }]);
             if (records && records.length > 0) {
@@ -97343,84 +97481,215 @@ var FortuneWheelAdSpin;
             }
         }
         catch ( /* fall through */_a) { /* fall through */ }
-        return { date: todayKey, spinsUsed: 0, lastSpinAt: 0 };
+        return { spinsUsed: 0, lastSpinAt: 0, cycleStart: "" };
+    }
+    function saveCycleState(nk, userId, state) {
+        nk.storageWrite([{
+                collection: COLLECTION,
+                key: CYCLE_KEY,
+                userId: userId,
+                value: state,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    function getWheelState(nk, userId) {
+        try {
+            var records = nk.storageRead([{
+                    collection: "fortune_wheel",
+                    key: "state",
+                    userId: userId
+                }]);
+            if (records && records.length > 0) {
+                return records[0].value || {};
+            }
+        }
+        catch ( /* fall through */_a) { /* fall through */ }
+        return {};
+    }
+    function getWeightedRandomIndex() {
+        var totalWeight = 0;
+        for (var i = 0; i < SEGMENTS.length; i++) {
+            totalWeight += SEGMENTS[i].weight;
+        }
+        var roll = Math.floor(Math.random() * totalWeight);
+        var cumulative = 0;
+        for (var i = 0; i < SEGMENTS.length; i++) {
+            cumulative += SEGMENTS[i].weight;
+            if (roll < cumulative)
+                return i;
+        }
+        return SEGMENTS.length - 1;
+    }
+    function grantReward(nk, userId, rewardType, amount, logger) {
+        switch (rewardType) {
+            case "XP": {
+                var changeset = { xp: +amount };
+                try {
+                    nk.walletUpdate(userId, changeset, {}, true);
+                }
+                catch (e) {
+                    logger.warn("[FortuneWheelAdSpin] XP grant failed: " + e);
+                }
+                break;
+            }
+            case "Coins": {
+                var changeset = { coins: +amount };
+                try {
+                    nk.walletUpdate(userId, changeset, {}, true);
+                }
+                catch (e) {
+                    logger.warn("[FortuneWheelAdSpin] Coin grant failed: " + e);
+                }
+                break;
+            }
+            case "AudiobookToken": {
+                try {
+                    var tokenObj = nk.storageRead([{
+                            collection: "audiobook",
+                            key: "tokens",
+                            userId: userId
+                        }]);
+                    var tokens = (tokenObj && tokenObj.length > 0)
+                        ? (tokenObj[0].value.count || 0)
+                        : 0;
+                    tokens += amount;
+                    nk.storageWrite([{
+                            collection: "audiobook",
+                            key: "tokens",
+                            userId: userId,
+                            value: { count: tokens, lastGranted: new Date().toISOString() },
+                            permissionRead: 1,
+                            permissionWrite: 0
+                        }]);
+                }
+                catch (e) {
+                    logger.warn("[FortuneWheelAdSpin] AudiobookToken grant failed: " + e);
+                }
+                break;
+            }
+            case "Shield": {
+                try {
+                    nk.storageWrite([{
+                            collection: "streak_shield",
+                            key: "pending_grant",
+                            userId: userId,
+                            value: { hours: amount, source: "fortune_wheel_ad", timestamp: new Date().toISOString() },
+                            permissionRead: 1,
+                            permissionWrite: 0
+                        }]);
+                }
+                catch (e) {
+                    logger.warn("[FortuneWheelAdSpin] Shield grant failed: " + e);
+                }
+                break;
+            }
+            default:
+                logger.warn("[FortuneWheelAdSpin] Unknown reward type: " + rewardType);
+        }
     }
     /**
-     * RPC: fortune_wheel_ad_spin
+     * RPC: fortune_wheel_ad_spin (V2)
      *
-     * Grants 1 bonus fortune wheel spin after a rewarded ad completion.
-     * Tier-gated: T1 disabled, T2/T3 have separate caps and cooldowns.
+     * Server-authoritative ad-spin: validates state, picks reward, grants atomically.
+     * No tier-gating. All players: max 3 ad spins per 3-day cycle, 3hr gap.
      */
     function rpcFortuneWheelAdSpin(ctx, logger, nk, payload) {
         var userId = ctx.userId;
         if (!userId) {
             return JSON.stringify({ success: false, error: "Authentication required" });
         }
-        var tier = getUserTier(nk, userId);
-        var config = TIER_CONFIG[tier] || TIER_CONFIG["t3"];
-        // Tier gate
-        if (!config.enabled) {
-            logger.info("[FortuneWheelAdSpin] Blocked for ".concat(tier, " user ").concat(userId));
+        // 1. Read organic wheel state — must have done organic spin first
+        var wheelState = getWheelState(nk, userId);
+        if (!wheelState.organicSpinDone) {
             return JSON.stringify({
                 success: false,
-                error: "Feature not available for your region",
-                errorCode: "TIER_GATED",
-                tier: tier
+                error: "Organic spin required first",
+                errorCode: "ORGANIC_NOT_DONE"
             });
         }
+        // 2. Verify cycle is still active (cooldown hasn't expired yet)
+        if (wheelState.nextSpinTime) {
+            var cycleEnd = new Date(wheelState.nextSpinTime);
+            if (new Date() >= cycleEnd) {
+                // Cycle expired — organic spin resets, ad spins reset too
+                return JSON.stringify({
+                    success: false,
+                    error: "Cycle expired. New organic spin available.",
+                    errorCode: "CYCLE_EXPIRED",
+                    canSpin: true
+                });
+            }
+        }
+        // 3. Read cycle ad-spin state
         var now = Math.floor(Date.now() / 1000);
-        var todayKey = getTodayKey();
-        var daily = getDailyRecord(nk, userId, todayKey);
-        // Daily cap check
-        if (daily.spinsUsed >= config.maxPerDay) {
+        var cycle = getCycleState(nk, userId);
+        // If cycle state is from a previous cycle, reset it
+        if (cycle.cycleStart && wheelState.nextSpinTime) {
+            // cycleStart should match the current organic spin cycle
+            // If the stored cycleStart is before the current organic spin time minus COOLDOWN,
+            // it's stale and we reset.
+            var currentCycleStart = new Date(new Date(wheelState.nextSpinTime).getTime() - (3 * 24 * 60 * 60 * 1000)).toISOString();
+            if (cycle.cycleStart < currentCycleStart) {
+                cycle = { spinsUsed: 0, lastSpinAt: 0, cycleStart: currentCycleStart };
+            }
+        }
+        // 4. Check ad spin cap
+        if (cycle.spinsUsed >= AD_SPINS_MAX) {
             return JSON.stringify({
                 success: false,
-                error: "Daily ad-spin limit reached",
-                errorCode: "DAILY_CAP",
-                tier: tier,
-                spinsUsed: daily.spinsUsed,
-                maxPerDay: config.maxPerDay,
-                resetsAt: todayKey + "T00:00:00Z (next day)"
+                error: "All ad spins used for this cycle",
+                errorCode: "AD_CAP_REACHED",
+                spinsUsed: cycle.spinsUsed,
+                adSpinsMax: AD_SPINS_MAX
             });
         }
-        // Cooldown check
-        var elapsed = now - daily.lastSpinAt;
-        if (daily.lastSpinAt > 0 && elapsed < config.cooldownSeconds) {
-            var remaining = config.cooldownSeconds - elapsed;
-            return JSON.stringify({
-                success: false,
-                error: "Cooldown active",
-                errorCode: "COOLDOWN",
-                tier: tier,
-                cooldownRemaining: remaining,
-                canSpinAt: daily.lastSpinAt + config.cooldownSeconds
-            });
+        // 5. Check 3-hour cooldown between ad spins
+        if (cycle.lastSpinAt > 0) {
+            var elapsed = now - cycle.lastSpinAt;
+            if (elapsed < AD_COOLDOWN_SECONDS) {
+                var remaining = AD_COOLDOWN_SECONDS - elapsed;
+                return JSON.stringify({
+                    success: false,
+                    error: "Ad spin cooldown active",
+                    errorCode: "AD_COOLDOWN",
+                    cooldownRemaining: remaining,
+                    canSpinAt: cycle.lastSpinAt + AD_COOLDOWN_SECONDS
+                });
+            }
         }
-        // Grant the spin — update daily record
-        daily.spinsUsed += 1;
-        daily.lastSpinAt = now;
+        // 6. SERVER picks the reward (weighted random)
+        var segmentIndex = getWeightedRandomIndex();
+        var reward = SEGMENTS[segmentIndex];
+        // 7. Update cycle state
+        cycle.spinsUsed += 1;
+        cycle.lastSpinAt = now;
+        if (!cycle.cycleStart && wheelState.nextSpinTime) {
+            cycle.cycleStart = new Date(new Date(wheelState.nextSpinTime).getTime() - (3 * 24 * 60 * 60 * 1000)).toISOString();
+        }
         try {
-            nk.storageWrite([{
-                    collection: COLLECTION,
-                    key: DAILY_KEY_PREFIX + todayKey,
-                    userId: userId,
-                    value: daily,
-                    permissionRead: 1,
-                    permissionWrite: 0
-                }]);
+            saveCycleState(nk, userId, cycle);
         }
         catch (err) {
-            logger.error("[FortuneWheelAdSpin] Storage write failed: ".concat(err));
+            logger.error("[FortuneWheelAdSpin] Cycle state write failed: ".concat(err));
             return JSON.stringify({ success: false, error: "Server error" });
         }
-        logger.info("[FortuneWheelAdSpin] Granted ad-spin #".concat(daily.spinsUsed, "/").concat(config.maxPerDay, " for ").concat(userId, " (").concat(tier, ")"));
+        // 8. Grant reward atomically
+        grantReward(nk, userId, reward.type, reward.amount, logger);
+        logger.info("[FortuneWheelAdSpin] V2 ad-spin #".concat(cycle.spinsUsed, "/").concat(AD_SPINS_MAX, " for ").concat(userId, " \u2192 segment ").concat(segmentIndex, " (").concat(reward.label, ")"));
+        // 9. Return same shape as fortune_wheel_spin for consistent client handling
         return JSON.stringify({
             success: true,
-            spinsGranted: 1,
-            tier: tier,
-            spinsUsed: daily.spinsUsed,
-            maxPerDay: config.maxPerDay,
-            cooldownSeconds: config.cooldownSeconds
+            segmentIndex: segmentIndex,
+            reward: {
+                type: reward.type,
+                amount: reward.amount,
+                label: reward.label
+            },
+            spinsUsed: cycle.spinsUsed,
+            adSpinsMax: AD_SPINS_MAX,
+            adCooldownSeconds: AD_COOLDOWN_SECONDS,
+            nextAdSpinTime: cycle.lastSpinAt + AD_COOLDOWN_SECONDS
         });
     }
     FortuneWheelAdSpin.rpcFortuneWheelAdSpin = rpcFortuneWheelAdSpin;
@@ -97429,7 +97698,7 @@ var FortuneWheelAdSpin;
      */
     function register(initializer, logger) {
         __rpc_fortune_wheel_ad_spin = rpcFortuneWheelAdSpin;
-        logger.info("[FortuneWheelAdSpin] ✓ Registered RPC: fortune_wheel_ad_spin");
+        logger.info("[FortuneWheelAdSpin] ✓ Registered RPC: fortune_wheel_ad_spin (V2)");
     }
     FortuneWheelAdSpin.register = register;
 })(FortuneWheelAdSpin || (FortuneWheelAdSpin = {}));

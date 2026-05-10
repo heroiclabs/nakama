@@ -927,6 +927,55 @@ declare namespace LegacyQuestsEconomyBridge {
 declare namespace LegacyQuiz {
     function register(initializer: nkruntime.Initializer): void;
 }
+/**
+ * UserMgmt Sync — Best-effort propagation of player profile fields from Nakama
+ * to the Intelliverse-X-UserManagement service (NestJS).
+ *
+ * Direction: Nakama RPC → UserMgmt PUT /api/user/user/profile
+ *
+ * Auth: Caller's Cognito access token (forwarded from Unity via the RPC payload
+ * field `_cognito_jwt`). UserMgmt validates the JWT against Cognito, so Nakama
+ * never needs UserMgmt admin credentials for this flow.
+ *
+ * Loop prevention: requests carry `X-Sync-Origin: nakama-rpc`. UserMgmt's
+ * profile-update endpoint does not currently push back to Nakama, so this is
+ * defence-in-depth — if a future change adds reverse sync, it can short-circuit
+ * on this header.
+ *
+ * Failure model: best-effort. The Nakama write has already succeeded by the
+ * time this is called, so we never throw. Errors are logged and surfaced in
+ * the RPC response under `userMgmtSync` so Unity can decide whether to warn.
+ *
+ * Configuration: production defaults are hardcoded so the feature works
+ * immediately after a CodeBuild deploy without any env-var wiring. Env vars
+ * are optional overrides — once they're set, they win:
+ *   USERMGMT_API_BASE_URL   override the hardcoded BASE_URL_DEFAULT
+ *   USERMGMT_SYNC_ENABLED   "false" | "0" to disable; anything else (incl.
+ *                           unset) keeps it enabled
+ */
+declare namespace LegacyUserMgmtSync {
+    interface SyncResult {
+        enabled: boolean;
+        skipped?: string;
+        success?: boolean;
+        statusCode?: number;
+        error?: string;
+        errorCode?: string;
+        syncedFields?: string[];
+    }
+    /**
+     * Forwards a profile update to UserMgmt. Synchronous, single attempt, ~10s
+     * Nakama HTTP timeout. Caller MUST already have committed the Nakama write
+     * before invoking this — there is no rollback.
+     *
+     * @param fields  Source fields (Nakama-shape). Pass only what changed.
+     * @param jwt     Cognito access token from Unity (the same token Unity
+     *                would use to call UserMgmt directly). Empty string → skip.
+     */
+    function pushProfile(nk: nkruntime.Nakama, logger: nkruntime.Logger, nakamaUserId: string, jwt: string, fields: {
+        [key: string]: any;
+    }): SyncResult;
+}
 declare namespace LegacyWallet {
     function rpcGetUserWallet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcLinkWalletToGame(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
@@ -2760,10 +2809,10 @@ declare namespace EventBus {
 }
 declare namespace FortuneWheelAdSpin {
     /**
-     * RPC: fortune_wheel_ad_spin
+     * RPC: fortune_wheel_ad_spin (V2)
      *
-     * Grants 1 bonus fortune wheel spin after a rewarded ad completion.
-     * Tier-gated: T1 disabled, T2/T3 have separate caps and cooldowns.
+     * Server-authoritative ad-spin: validates state, picks reward, grants atomically.
+     * No tier-gating. All players: max 3 ad spins per 3-day cycle, 3hr gap.
      */
     function rpcFortuneWheelAdSpin(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     /**
