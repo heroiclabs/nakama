@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-10T15:26:09.343Z
-// RPC Count: 736
+// Generated: 2026-05-10T15:32:09.513Z
+// RPC Count: 738
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -655,6 +655,8 @@ var __rpc_analytics_retention_curves;
 var __rpc_analytics_rollup_run;
 var __rpc_analytics_rollup_backfill;
 var __rpc_analytics_rollup_status;
+var __rpc_analytics_modes_daily_read;
+var __rpc_analytics_dropoff_daily_read;
 var __rpc_analytics_appodeal;
 var __rpc_analytics_apple_appstore;
 var __rpc_apple_appstore_import;
@@ -9816,6 +9818,24 @@ var AR_META_COLLECTION = "analytics_rollup_meta";
 var AR_EVENTS_COLLECTION = "analytics_events";
 var AR_FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
 
+// Phase 4 (2026-05) — pre-aggregated rollups for the new dashboard tabs.
+// Both are written by rpcAnalyticsRollupRun in the same scan-pass as the
+// canonical daily rollup, so the cron only needs one trigger.
+//
+// analytics_modes_daily   key: modes_<gameId>_<YYYY-MM-DD>
+//   per-quiz-mode breakdown: sessions, users, completes, abandons, revenue,
+//   ad-impressions, avg session seconds, top categories. Powers the "Quiz
+//   Modes" dashboard tab and the per-mode global filter without forcing it
+//   to re-scan analytics_events live.
+//
+// analytics_dropoff_daily key: dropoff_<gameId>_<YYYY-MM-DD>
+//   churn-signal counts (cold_start_no_quiz, onboarding_abandoned,
+//   quiz_abandoned, pre_iap_drop, streak_broken, screen_left), plus a
+//   per-question abandonment histogram (last_question_index → count) and
+//   a per-screen exit-rate map. Powers the "Drop-off & Churn" tab.
+var AR_MODES_COLLECTION = "analytics_modes_daily";
+var AR_DROPOFF_COLLECTION = "analytics_dropoff_daily";
+
 // Legacy → canonical event-name aliases. Must match EVENT_ALIASES in
 // analytics.js so events ingested with the old names (before analytics.js
 // began normalizing at write time) still roll up against the canonical
@@ -10435,6 +10455,243 @@ function arUpdateRetention(nk, logger, gameId, cohortDateStr, activeUserSet, tod
     arWriteOne(nk, AR_RETENTION_COLLECTION, key, AR_SYSTEM_USER, existing);
 }
 
+// ─── Phase 4: per-mode + drop-off compute helpers ──────────
+
+/**
+ * Per-quiz-mode breakdown for one game on one date.
+ *
+ * Aggregates events whose eventData.quiz_mode is set (auto-injected by
+ * AnalyticsManager.InjectGlobalContext on every event during a quiz) into
+ * a compact map keyed by mode name. Output shape powers the Quiz Modes
+ * dashboard tab — see web/analytics-dashboard/index.html::loadModes.
+ *
+ * @param events   already-filtered events for the day (from arScanEventsForDate)
+ * @param gameId   canonical UUID — events with a different gameId are skipped
+ * @param dateStr  YYYY-MM-DD (echoed into the doc)
+ */
+function arComputeModesDaily(events, gameId, dateStr) {
+    gameId = arResolveGameId(gameId);
+    var modes = {}; // mode → {sessions_started, sessions_completed, sessions_abandoned, total_questions, total_correct, total_seconds, users:{}, revenue, ad_impressions, categories:{}}
+
+    function bucket(name) {
+        if (!modes[name]) {
+            modes[name] = {
+                sessions_started: 0,
+                sessions_completed: 0,
+                sessions_abandoned: 0,
+                total_questions: 0,
+                total_correct: 0,
+                total_seconds: 0,
+                ended_count: 0,
+                users: {},
+                revenue_usd: 0,
+                ad_impressions: 0,
+                categories: {}
+            };
+        }
+        return modes[name];
+    }
+
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        if (gameId && gameId !== "all" && arResolveGameId(ev.gameId) !== gameId) continue;
+
+        var data = ev.eventData || {};
+        var mode = data.quiz_mode || data.quizMode || data.game_mode || data.gameMode;
+        if (!mode) continue;
+
+        var b = bucket(String(mode));
+        var name = ev.eventName || "";
+        if (AR_EVENT_ALIASES[name]) name = AR_EVENT_ALIASES[name];
+
+        if (ev.userId) b.users[ev.userId] = true;
+
+        if (data.category || data.category_name) {
+            var cat = String(data.category || data.category_name);
+            b.categories[cat] = (b.categories[cat] || 0) + 1;
+        }
+
+        if (name === "quiz_session_started" || name === "quiz_start") {
+            b.sessions_started++;
+        } else if (name === "quiz_session_ended" || name === "quiz_complete") {
+            b.sessions_completed++;
+            b.ended_count++;
+            var dur = parseFloat(data.duration_seconds || data.durationSeconds || 0);
+            if (isFinite(dur) && dur > 0 && dur < 86400) b.total_seconds += dur;
+        } else if (name === "quiz_abandoned") {
+            b.sessions_abandoned++;
+            b.ended_count++;
+            var aDur = parseFloat(data.duration_seconds || 0);
+            if (isFinite(aDur) && aDur > 0 && aDur < 86400) b.total_seconds += aDur;
+        } else if (name === "question_answered" || name === "answer_submitted") {
+            b.total_questions++;
+            if (data.is_correct === true || data.is_correct === "true" || data.isCorrect === true) {
+                b.total_correct++;
+            }
+        } else if (name === "iap_purchased" || name === "purchase_completed") {
+            var price = parseFloat(data.price_usd || data.priceUsd || data.revenue_usd || 0);
+            if (isFinite(price) && price > 0) b.revenue_usd += price;
+        } else if (name === "ad_impression" || name === "ad_shown") {
+            b.ad_impressions++;
+        }
+    }
+
+    // Materialize into a sorted array for the dashboard
+    var modesOut = [];
+    for (var m in modes) {
+        if (!modes.hasOwnProperty(m)) continue;
+        var v = modes[m];
+        var topCats = [];
+        for (var c in v.categories) topCats.push({ category: c, count: v.categories[c] });
+        topCats.sort(function (a, b) { return b.count - a.count; });
+        topCats = topCats.slice(0, 5);
+
+        modesOut.push({
+            mode: m,
+            sessions_started: v.sessions_started,
+            sessions_completed: v.sessions_completed,
+            sessions_abandoned: v.sessions_abandoned,
+            total_questions: v.total_questions,
+            total_correct: v.total_correct,
+            accuracy_pct: v.total_questions > 0
+                ? Math.round((v.total_correct / v.total_questions) * 1000) / 10
+                : 0,
+            avg_session_seconds: v.ended_count > 0
+                ? Math.round(v.total_seconds / v.ended_count)
+                : 0,
+            unique_users: Object.keys(v.users).length,
+            revenue_usd: Math.round(v.revenue_usd * 100) / 100,
+            ad_impressions: v.ad_impressions,
+            completion_rate_pct: v.sessions_started > 0
+                ? Math.round((v.sessions_completed / v.sessions_started) * 1000) / 10
+                : 0,
+            abandon_rate_pct: v.sessions_started > 0
+                ? Math.round((v.sessions_abandoned / v.sessions_started) * 1000) / 10
+                : 0,
+            top_categories: topCats
+        });
+    }
+    modesOut.sort(function (a, b) { return b.unique_users - a.unique_users; });
+
+    return {
+        gameId: gameId || "all",
+        date: dateStr,
+        modes: modesOut,
+        mode_count: modesOut.length,
+        computed_at: new Date().toISOString()
+    };
+}
+
+/**
+ * Per-day drop-off / churn signal aggregation.
+ *
+ * Surfaces the metrics requested in Q4=A:
+ *   • cold_start_no_quiz       (sessions ended without quiz_session_started)
+ *   • onboarding_abandoned     (count of onboarding_abandoned events)
+ *   • quiz_abandoned           (count of quiz_abandoned events)
+ *   • pre_iap_drop             (paywall_shown users with no purchase_completed)
+ *   • streak_broken            (count of streak_broken events)
+ *   • screen_left              (overall count + per-screen exit map)
+ *   • per_question_abandon     (last_question_index histogram from quiz_abandoned)
+ *
+ * Output powers the Drop-off & Churn dashboard tab without it having to
+ * scan analytics_events live for every render.
+ */
+function arComputeDropoffDaily(events, gameId, dateStr) {
+    gameId = arResolveGameId(gameId);
+    var signals = {
+        cold_start_no_quiz: 0,
+        onboarding_abandoned: 0,
+        quiz_abandoned: 0,
+        pre_iap_drop: 0,
+        streak_broken: 0,
+        screen_left: 0
+    };
+    var screenExits = {}; // screen → {entries, exits, total_time_ms}
+    var perQuestion = {}; // last_question_index → count
+
+    // For pre_iap_drop: users that saw paywall but never completed a purchase
+    var paywallUsers = {};
+    var purchasedUsers = {};
+
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        if (gameId && gameId !== "all" && arResolveGameId(ev.gameId) !== gameId) continue;
+
+        var data = ev.eventData || {};
+        var name = ev.eventName || "";
+        if (AR_EVENT_ALIASES[name]) name = AR_EVENT_ALIASES[name];
+
+        if (name === "cold_start_no_quiz") signals.cold_start_no_quiz++;
+        else if (name === "onboarding_abandoned" || name === "onboarding_quit") signals.onboarding_abandoned++;
+        else if (name === "quiz_abandoned") {
+            signals.quiz_abandoned++;
+            var lastIdx = data.last_question_index !== undefined ? data.last_question_index
+                        : (data.question_index !== undefined ? data.question_index : null);
+            if (lastIdx !== null && lastIdx !== undefined) {
+                var k = String(lastIdx);
+                perQuestion[k] = (perQuestion[k] || 0) + 1;
+            }
+        }
+        else if (name === "streak_broken") signals.streak_broken++;
+        else if (name === "screen_left" || name === "screen_back_pressed") {
+            signals.screen_left++;
+            var screen = data.screen_name || data.screen || "unknown";
+            if (!screenExits[screen]) screenExits[screen] = { entries: 0, exits: 0, total_time_ms: 0 };
+            screenExits[screen].exits++;
+            var t = parseFloat(data.time_on_screen_ms || data.duration_ms || 0);
+            if (isFinite(t) && t > 0 && t < 1800000) screenExits[screen].total_time_ms += t;
+        }
+        else if (name === "screen_view") {
+            var sc = data.screen_name || data.screen;
+            if (sc) {
+                if (!screenExits[sc]) screenExits[sc] = { entries: 0, exits: 0, total_time_ms: 0 };
+                screenExits[sc].entries++;
+            }
+        }
+        else if (name === "paywall_shown" || name === "paywall_viewed") {
+            if (ev.userId) paywallUsers[ev.userId] = true;
+        }
+        else if (name === "iap_purchased" || name === "purchase_completed") {
+            if (ev.userId) purchasedUsers[ev.userId] = true;
+        }
+    }
+
+    // pre_iap_drop = paywall users that did NOT purchase today
+    for (var pu in paywallUsers) {
+        if (!purchasedUsers[pu]) signals.pre_iap_drop++;
+    }
+
+    // Compute exit_rate per screen
+    var screenOut = [];
+    for (var s in screenExits) {
+        var e = screenExits[s];
+        screenOut.push({
+            screen_name: s,
+            entries: e.entries,
+            exits: e.exits,
+            avg_time_ms: e.exits > 0 ? Math.round(e.total_time_ms / e.exits) : 0,
+            exit_rate_pct: e.entries > 0
+                ? Math.round((e.exits / e.entries) * 1000) / 10
+                : 0
+        });
+    }
+    screenOut.sort(function (a, b) { return b.exits - a.exits; });
+
+    var perQList = [];
+    for (var q in perQuestion) perQList.push({ question_index: parseInt(q, 10), abandons: perQuestion[q] });
+    perQList.sort(function (a, b) { return a.question_index - b.question_index; });
+
+    return {
+        gameId: gameId || "all",
+        date: dateStr,
+        signals: signals,
+        per_question_abandon: perQList,
+        screen_exits: screenOut,
+        computed_at: new Date().toISOString()
+    };
+}
+
 // ─── RPC: analytics_rollup_run ────────────────────────────
 
 function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
@@ -10511,6 +10768,19 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_" + gameId + "_" + dateStr, AR_SYSTEM_USER, {
             gameId: gameId, date: dateStr, funnel: roll.funnel, funnel_order: roll.funnel_order
         });
+
+        // Phase 4 — per-mode and dropoff rollups (computed in same pass).
+        // arComputeModesDaily / arComputeDropoffDaily reuse the same `events`
+        // array so we don't pay the storageList scan cost twice.
+        try {
+            var modesDoc = arComputeModesDaily(events, gameId, dateStr);
+            arWriteOne(nk, AR_MODES_COLLECTION, "modes_" + gameId + "_" + dateStr, AR_SYSTEM_USER, modesDoc);
+        } catch (eM) { logger.warn("[analytics_rollup] modes rollup failed for " + gameId + ": " + eM.message); }
+        try {
+            var dropDoc = arComputeDropoffDaily(events, gameId, dateStr);
+            arWriteOne(nk, AR_DROPOFF_COLLECTION, "dropoff_" + gameId + "_" + dateStr, AR_SYSTEM_USER, dropDoc);
+        } catch (eD) { logger.warn("[analytics_rollup] dropoff rollup failed for " + gameId + ": " + eD.message); }
+
         written.push({ scope: gameId, date: dateStr, dau: roll.dau, events: roll.event_count, new_users: roll.new_users });
 
         // Retention seed: cohort = users whose first-seen is THIS date
@@ -10537,6 +10807,14 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_all_" + dateStr, AR_SYSTEM_USER, {
         gameId: "all", date: dateStr, funnel: allRollup.funnel, funnel_order: allRollup.funnel_order
     });
+    try {
+        var modesAllDoc = arComputeModesDaily(events, "all", dateStr);
+        arWriteOne(nk, AR_MODES_COLLECTION, "modes_all_" + dateStr, AR_SYSTEM_USER, modesAllDoc);
+    } catch (eMa) { logger.warn("[analytics_rollup] modes rollup failed for all: " + eMa.message); }
+    try {
+        var dropAllDoc = arComputeDropoffDaily(events, "all", dateStr);
+        arWriteOne(nk, AR_DROPOFF_COLLECTION, "dropoff_all_" + dateStr, AR_SYSTEM_USER, dropAllDoc);
+    } catch (eDa) { logger.warn("[analytics_rollup] dropoff rollup failed for all: " + eDa.message); }
     written.unshift({ scope: "all", date: dateStr, dau: allRollup.dau, events: allRollup.event_count, new_users: allRollup.new_users });
 
     // Record success marker.
@@ -10639,13 +10917,236 @@ function rpcAnalyticsRollupStatus(ctx, logger, nk, payload) {
     });
 }
 
+// ─── Phase 4: dashboard reader RPCs (modes + dropoff rollups) ──────────
+
+/**
+ * Reads N days of analytics_modes_daily and unions per-mode metrics.
+ *
+ * Payload: { game_id?, days?: 1-90 (default 7), dashboard_secret? }
+ * Returns: { modes: [{mode, sessions_started, sessions_completed,
+ *            sessions_abandoned, total_questions, accuracy_pct,
+ *            avg_session_seconds, unique_users, revenue_usd,
+ *            ad_impressions, completion_rate_pct, abandon_rate_pct,
+ *            top_categories: [...], days_present }, ...] }
+ *
+ * Falls back to the on-demand analytics_modes_breakdown RPC when no
+ * rollup docs exist for the period (cold-start grace).
+ */
+function rpcAnalyticsModesDailyRead(ctx, logger, nk, payload) {
+    var data = arParse(payload);
+    // Same admin/secret gate as the other dashboard RPCs.
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var days = parseInt(data.days, 10) || 7;
+    if (days < 1) days = 1; if (days > 90) days = 90;
+    var gameId = arResolveGameId(data.game_id || data.gameId || "all") || "all";
+
+    // Build keys for last N days
+    var union = {};
+    var rollupsFound = 0;
+    var today = new Date();
+    for (var d = 0; d < days; d++) {
+        var dt = new Date(today);
+        dt.setUTCDate(dt.getUTCDate() - d);
+        var ds = arIsoDate(dt);
+        var key = "modes_" + gameId + "_" + ds;
+        var doc = arReadOne(nk, AR_MODES_COLLECTION, key, AR_SYSTEM_USER);
+        if (!doc || !doc.modes) continue;
+        rollupsFound++;
+        for (var i = 0; i < doc.modes.length; i++) {
+            var m = doc.modes[i];
+            if (!union[m.mode]) {
+                union[m.mode] = {
+                    mode: m.mode,
+                    sessions_started: 0,
+                    sessions_completed: 0,
+                    sessions_abandoned: 0,
+                    total_questions: 0,
+                    total_correct: 0,
+                    total_session_seconds: 0,
+                    ended_count: 0,
+                    unique_users: 0,
+                    revenue_usd: 0,
+                    ad_impressions: 0,
+                    days_present: 0,
+                    _users_seen: {} // best-effort dedupe via day count rather than user IDs
+                };
+            }
+            var u = union[m.mode];
+            u.sessions_started += m.sessions_started || 0;
+            u.sessions_completed += m.sessions_completed || 0;
+            u.sessions_abandoned += m.sessions_abandoned || 0;
+            u.total_questions += m.total_questions || 0;
+            u.total_correct += m.total_correct || 0;
+            u.revenue_usd += m.revenue_usd || 0;
+            u.ad_impressions += m.ad_impressions || 0;
+            // unique_users is approximate over multiple days (same user
+            // playing on 7 separate days would be counted 7 times). For
+            // exact lifetime uniques use the live RPC.
+            u.unique_users += m.unique_users || 0;
+            // Reconstruct total session seconds from avg × ended_count
+            // (we only stored avg in the per-day doc).
+            var ec = (m.sessions_completed || 0) + (m.sessions_abandoned || 0);
+            if (ec > 0) {
+                u.total_session_seconds += (m.avg_session_seconds || 0) * ec;
+                u.ended_count += ec;
+            }
+            u.days_present++;
+        }
+    }
+
+    var modesOut = [];
+    for (var mn in union) {
+        var v = union[mn];
+        modesOut.push({
+            mode: v.mode,
+            sessions_started: v.sessions_started,
+            sessions_completed: v.sessions_completed,
+            sessions_abandoned: v.sessions_abandoned,
+            total_questions: v.total_questions,
+            total_correct: v.total_correct,
+            accuracy_pct: v.total_questions > 0
+                ? Math.round((v.total_correct / v.total_questions) * 1000) / 10
+                : 0,
+            avg_session_seconds: v.ended_count > 0
+                ? Math.round(v.total_session_seconds / v.ended_count)
+                : 0,
+            unique_users_estimate: v.unique_users,
+            revenue_usd: Math.round(v.revenue_usd * 100) / 100,
+            ad_impressions: v.ad_impressions,
+            completion_rate_pct: v.sessions_started > 0
+                ? Math.round((v.sessions_completed / v.sessions_started) * 1000) / 10
+                : 0,
+            abandon_rate_pct: v.sessions_started > 0
+                ? Math.round((v.sessions_abandoned / v.sessions_started) * 1000) / 10
+                : 0,
+            days_present: v.days_present
+        });
+    }
+    modesOut.sort(function (a, b) { return b.sessions_started - a.sessions_started; });
+
+    return arOk({
+        game_id: gameId,
+        days: days,
+        rollups_found: rollupsFound,
+        modes: modesOut,
+        source: rollupsFound > 0 ? "rollup_daily" : "rollup_empty",
+        hint: rollupsFound === 0
+            ? "No rollup docs for this period — call analytics_rollup_run for each missing date, or use the live analytics_modes_breakdown RPC."
+            : "Aggregated " + rollupsFound + " day(s) of pre-computed rollups."
+    });
+}
+
+/**
+ * Reads N days of analytics_dropoff_daily and unions per-day signals.
+ *
+ * Payload: { game_id?, days?: 1-90 (default 7), dashboard_secret? }
+ * Returns: { signals: { cold_start_no_quiz, onboarding_abandoned, ... },
+ *            per_question_abandon: [...], screen_exits: [...] }
+ */
+function rpcAnalyticsDropoffDailyRead(ctx, logger, nk, payload) {
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var days = parseInt(data.days, 10) || 7;
+    if (days < 1) days = 1; if (days > 90) days = 90;
+    var gameId = arResolveGameId(data.game_id || data.gameId || "all") || "all";
+
+    var unionSignals = {
+        cold_start_no_quiz: 0,
+        onboarding_abandoned: 0,
+        quiz_abandoned: 0,
+        pre_iap_drop: 0,
+        streak_broken: 0,
+        screen_left: 0
+    };
+    var perQ = {};        // index → count
+    var screenAgg = {};   // screen → {entries, exits, total_time_ms_weighted, weight}
+    var rollupsFound = 0;
+    var today = new Date();
+
+    for (var d = 0; d < days; d++) {
+        var dt = new Date(today);
+        dt.setUTCDate(dt.getUTCDate() - d);
+        var ds = arIsoDate(dt);
+        var key = "dropoff_" + gameId + "_" + ds;
+        var doc = arReadOne(nk, AR_DROPOFF_COLLECTION, key, AR_SYSTEM_USER);
+        if (!doc) continue;
+        rollupsFound++;
+        if (doc.signals) {
+            for (var k in unionSignals) {
+                unionSignals[k] += (doc.signals[k] || 0);
+            }
+        }
+        if (doc.per_question_abandon) {
+            for (var i = 0; i < doc.per_question_abandon.length; i++) {
+                var p = doc.per_question_abandon[i];
+                var idxStr = String(p.question_index);
+                perQ[idxStr] = (perQ[idxStr] || 0) + (p.abandons || 0);
+            }
+        }
+        if (doc.screen_exits) {
+            for (var j = 0; j < doc.screen_exits.length; j++) {
+                var s = doc.screen_exits[j];
+                if (!screenAgg[s.screen_name]) {
+                    screenAgg[s.screen_name] = {
+                        entries: 0, exits: 0,
+                        weighted_time_ms: 0, weight_exits: 0
+                    };
+                }
+                var sa = screenAgg[s.screen_name];
+                sa.entries += s.entries || 0;
+                sa.exits += s.exits || 0;
+                sa.weighted_time_ms += (s.avg_time_ms || 0) * (s.exits || 0);
+                sa.weight_exits += (s.exits || 0);
+            }
+        }
+    }
+
+    var perQArr = [];
+    for (var pq in perQ) perQArr.push({ question_index: parseInt(pq, 10), abandons: perQ[pq] });
+    perQArr.sort(function (a, b) { return a.question_index - b.question_index; });
+
+    var screenArr = [];
+    for (var sn in screenAgg) {
+        var v = screenAgg[sn];
+        screenArr.push({
+            screen_name: sn,
+            entries: v.entries,
+            exits: v.exits,
+            avg_time_ms: v.weight_exits > 0 ? Math.round(v.weighted_time_ms / v.weight_exits) : 0,
+            exit_rate_pct: v.entries > 0
+                ? Math.round((v.exits / v.entries) * 1000) / 10
+                : 0
+        });
+    }
+    screenArr.sort(function (a, b) { return b.exits - a.exits; });
+
+    return arOk({
+        game_id: gameId,
+        days: days,
+        rollups_found: rollupsFound,
+        signals: unionSignals,
+        per_question_abandon: perQArr,
+        screen_exits: screenArr,
+        source: rollupsFound > 0 ? "rollup_daily" : "rollup_empty",
+        hint: rollupsFound === 0
+            ? "No rollup docs for this period — call analytics_rollup_run for each missing date, or use the live analytics_dropoff_funnel / analytics_screen_exit_heatmap RPCs."
+            : "Aggregated " + rollupsFound + " day(s) of pre-computed rollups."
+    });
+}
+
 // ─── Registration ─────────────────────────────────────────
 
 function __ModuleInit_12(ctx, logger, nk, initializer) {
     __rpc_analytics_rollup_run = __rpc_analytics_rollup_run || (rpcAnalyticsRollupRun);
     __rpc_analytics_rollup_backfill = __rpc_analytics_rollup_backfill || (rpcAnalyticsRollupBackfill);
     __rpc_analytics_rollup_status = __rpc_analytics_rollup_status || (rpcAnalyticsRollupStatus);
-    logger.info("[analytics_rollup] Module registered: 3 RPCs (run, backfill, status)");
+    __rpc_analytics_modes_daily_read = __rpc_analytics_modes_daily_read || (rpcAnalyticsModesDailyRead);
+    __rpc_analytics_dropoff_daily_read = __rpc_analytics_dropoff_daily_read || (rpcAnalyticsDropoffDailyRead);
+    logger.info("[analytics_rollup] Module registered: 5 RPCs (run, backfill, status, modes_daily_read, dropoff_daily_read)");
 }
 
 
@@ -83911,7 +84412,18 @@ var LegacyPush;
                 });
             }
             savePushTokens(nk, userId, tokensData);
-            return RpcHelpers.successResponse({ success: true, provider: provider });
+            // Flat response shape — matches Unity's PushRegisterResponse fields exactly so
+            // JsonConvert.DeserializeObject reads endpointArn/platform/userId/gameId without
+            // an extra .data unwrap step. Do NOT wrap in RpcHelpers.successResponse here.
+            return JSON.stringify({
+                success: true,
+                userId: userId,
+                gameId: gameId,
+                platform: platform,
+                endpointArn: provider && provider.endpointArn ? provider.endpointArn : "",
+                registeredAt: new Date().toISOString(),
+                provider: provider
+            });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to register token");
@@ -83962,14 +84474,16 @@ var LegacyPush;
                     code: code,
                     persistent: data.persistent !== false
                 }]);
-            return RpcHelpers.successResponse({
+            // Flat response shape — matches Unity's PushSendResponse {success, messageId,
+            // eventType, recipientCount, sentAt, error}. No .data wrap.
+            return JSON.stringify({
                 success: true,
                 messageId: "nakama_notification_" + Date.now(),
                 eventType: data.eventType || subject,
                 recipientCount: 1,
+                sentAt: new Date().toISOString(),
                 providerConfigured: providerResults.length > 0,
-                providerResults: providerResults,
-                sentAt: new Date().toISOString()
+                providerResults: providerResults
             });
         }
         catch (e) {
@@ -83984,15 +84498,21 @@ var LegacyPush;
             var tokensData = getPushTokens(nk, targetUserId);
             var endpoints = tokensData.tokens.map(function (t) {
                 return {
-                    token: t.token,
-                    platform: t.platform,
                     endpointArn: t.endpointArn,
-                    provider: t.provider,
-                    providerRegisteredAt: t.providerRegisteredAt,
-                    providerError: t.providerError
+                    platform: t.platform,
+                    enabled: !t.providerError,
+                    createdAt: t.providerRegisteredAt ? new Date(t.providerRegisteredAt * 1000).toISOString() : "",
+                    lastUpdated: t.updatedAt ? new Date(t.updatedAt * 1000).toISOString() : ""
                 };
             });
-            return RpcHelpers.successResponse({ endpoints: endpoints });
+            // Flat response shape — matches Unity's PushEndpointsResponse {success, userId,
+            // gameId, endpoints[], error}. No .data wrap.
+            return JSON.stringify({
+                success: true,
+                userId: targetUserId,
+                gameId: data.gameId || "quizverse",
+                endpoints: endpoints
+            });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to get endpoints");
@@ -84255,11 +84775,23 @@ var LegacyPush;
         var tokensData = getPushTokens(nk, userId);
         if (!tokensData.tokens || tokensData.tokens.length === 0)
             return false;
+        // CRITICAL for client-side deep-link routing: every FCM/APNS data dict that
+        // reaches the device MUST contain `eventType` so Unity's FCMManager can route
+        // it to the correct screen (HandleNotificationType switches on this key).
+        // Defensive merge — if a buggy/old Lambda fails to forward our top-level
+        // eventType into the FCM data field, this guarantees the client still sees it.
+        var mergedData = { eventType: eventType };
+        if (opts.data) {
+            for (var k in opts.data) {
+                if (k !== "eventType")
+                    mergedData[k] = opts.data[k];
+            }
+        }
         var sent = 0;
         for (var i = 0; i < tokensData.tokens.length; i++) {
             var t = tokensData.tokens[i];
             var providerResult = sendProviderPush(ctx, logger, nk, t, {
-                title: title, body: body, data: opts.data || {},
+                title: title, body: body, data: mergedData,
                 gameId: opts.gameId || "quizverse", eventType: eventType
             });
             if (providerResult.success === true)
@@ -84268,7 +84800,7 @@ var LegacyPush;
         try {
             nk.notificationsSend([{
                     userId: userId, subject: eventType,
-                    content: { eventType: eventType, title: title, body: body, data: opts.data || {} },
+                    content: { eventType: eventType, title: title, body: body, data: mergedData },
                     code: DEFAULT_PUSH_NOTIFICATION_CODE, persistent: true
                 }]);
         }
@@ -99393,6 +99925,8 @@ try { __rpc_analytics_retention_curves = __rpc_analytics_retention_curves || (rp
 try { __rpc_analytics_rollup_run = __rpc_analytics_rollup_run || (rpcAnalyticsRollupRun); } catch(e) {}
 try { __rpc_analytics_rollup_backfill = __rpc_analytics_rollup_backfill || (rpcAnalyticsRollupBackfill); } catch(e) {}
 try { __rpc_analytics_rollup_status = __rpc_analytics_rollup_status || (rpcAnalyticsRollupStatus); } catch(e) {}
+try { __rpc_analytics_modes_daily_read = __rpc_analytics_modes_daily_read || (rpcAnalyticsModesDailyRead); } catch(e) {}
+try { __rpc_analytics_dropoff_daily_read = __rpc_analytics_dropoff_daily_read || (rpcAnalyticsDropoffDailyRead); } catch(e) {}
 try { __rpc_analytics_appodeal = __rpc_analytics_appodeal || (rpcAnalyticsAppodeal); } catch(e) {}
 try { __rpc_analytics_apple_appstore = __rpc_analytics_apple_appstore || (rpcAnalyticsAppleAppstore); } catch(e) {}
 try { __rpc_apple_appstore_import = __rpc_apple_appstore_import || (rpcAppleImport); } catch(e) {}
@@ -100468,6 +101002,8 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("analytics_rollup_run", __rpc_analytics_rollup_run); } catch(e) {}
   try { initializer.registerRpc("analytics_rollup_backfill", __rpc_analytics_rollup_backfill); } catch(e) {}
   try { initializer.registerRpc("analytics_rollup_status", __rpc_analytics_rollup_status); } catch(e) {}
+  try { initializer.registerRpc("analytics_modes_daily_read", __rpc_analytics_modes_daily_read); } catch(e) {}
+  try { initializer.registerRpc("analytics_dropoff_daily_read", __rpc_analytics_dropoff_daily_read); } catch(e) {}
   try { initializer.registerRpc("analytics_appodeal", __rpc_analytics_appodeal); } catch(e) {}
   try { initializer.registerRpc("analytics_apple_appstore", __rpc_analytics_apple_appstore); } catch(e) {}
   try { initializer.registerRpc("apple_appstore_import", __rpc_apple_appstore_import); } catch(e) {}
@@ -100558,5 +101094,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 736 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 738 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
