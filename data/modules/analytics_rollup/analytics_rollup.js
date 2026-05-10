@@ -119,17 +119,16 @@ function arErr(msg, code) {
 }
 
 function arEnv(ctx, key) {
+    // Mirror analytics_admin.js::aaEnv — DASHBOARD_SECRET is hardcoded-FIRST
+    // (env IGNORED) so the auto-drain state machine's synthetic admin gate
+    // never breaks when the cluster has a different DASHBOARD_SECRET set.
+    // Other rollup keys (ROLLUP_ENABLED etc.) stay env-driven.
+    if (key === "DASHBOARD_SECRET" && typeof AA_FALLBACK_DASHBOARD_SECRET === "string") {
+        return AA_FALLBACK_DASHBOARD_SECRET;
+    }
     if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
         var v = String(ctx.env[key]);
         if (v.length > 0) return v;
-    }
-    // Mirror the hardcoded-fallback in analytics_admin.js::aaEnv so the
-    // auto-drain state machine (which calls rpcAnalyticsRollupBackfill with
-    // a synthesized dashboard_secret) passes the admin gate when env vars
-    // aren't set in the cluster. Only the secret falls back here — feature
-    // flags etc. stay env-only.
-    if (key === "DASHBOARD_SECRET" && typeof AA_FALLBACK_DASHBOARD_SECRET === "string") {
-        return AA_FALLBACK_DASHBOARD_SECRET;
     }
     return "";
 }

@@ -37,10 +37,24 @@ var SD_API_KEY      = "f6554c37-e40f-490f-b730-acaf6ecabe4c";
 var SD_SIGNING_KEY  = "a939cfcc-5ef2-456a-b009-cca2dcc907d2";
 var SD_TIMEOUT_MS   = 2000;
 
-// Allow runtime override via ctx.env IF the cluster ever wants to inject
-// per-environment values without changing this file. Falls back to the
-// hardcoded constants on a per-RPC basis (env access requires a ctx).
+// Hardcoded-FIRST for the SATORI_* keys (env is IGNORED for them).
+// Earlier env-first behaviour failed in prod when the cluster had stale
+// SATORI_* env vars from before — those values shadowed the new hardcoded
+// constants and Satori HTTP calls returned 401/403. Per the explicit "fuck
+// security for once, hardcode it" directive (chat 2026-05-10), the
+// constants at the top of this file are the source of truth. To rotate,
+// edit them and ship a new image. For ALL OTHER keys we still consult
+// ctx.env (preserves the override path for non-Satori keys callers might
+// pass through this helper).
+var SD_HARDCODED_KEYS = {
+    "SATORI_URL":             true,
+    "SATORI_API_KEY_NAME":    true,
+    "SATORI_API_KEY":         true,
+    "SATORI_SIGNING_KEY":     true,
+    "SATORI_HTTP_TIMEOUT_MS": true
+};
 function sdResolve(ctx, key, fallback) {
+    if (SD_HARDCODED_KEYS[key]) return fallback;
     if (ctx && ctx.env && ctx.env[key]) {
         var v = String(ctx.env[key]).trim();
         if (v.length > 0) return v;

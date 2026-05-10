@@ -1,6 +1,14 @@
 # Heroic Labs Satori + In-House Dashboard Integration
 
-**Updated:** 2026-05-10 (v2 — hardcoded credentials path)  •  **Owner:** Backend / Analytics
+**Updated:** 2026-05-10 (v3 — hardcoded ALWAYS wins, env IGNORED for critical keys)  •  **Owner:** Backend / Analytics
+
+> **v3 patch note (2026-05-10 evening):** Hardcoded constants for `ADMIN_USERNAME`,
+> `ADMIN_PASSWORD`, `ADMIN_PASSWORD_HASH`, `DASHBOARD_SECRET`, and the five
+> `SATORI_*` keys are now **force-overrides** — `ctx.env` is IGNORED for them.
+> v2 was env-first → fallback-to-hardcoded, which silently broke when the prod
+> cluster had stale `ADMIN_*` / `SATORI_*` env vars set. New diagnostic RPC
+> `analytics_creds_check` returns fingerprints of the values the running pod is
+> actually using.
 
 This is the runbook for getting analytics flowing to **both** dashboards:
 
@@ -81,9 +89,16 @@ patch that we no longer require — instead, `satori_direct.js`:
    - `PUT  /v1/properties` — Bearer JWT, body `{default?, custom?, recompute?}`
    - `GET  /v1/flag` — Bearer JWT
 
-`satori_direct.sdResolve(ctx, key, fallback)` reads `ctx.env[key]` first and
-returns the hardcoded constant only if env is missing. So if you ever DO patch
-the cluster Secret, env wins — no code change needed to flip back.
+`satori_direct.sdResolve(ctx, key, fallback)` returns the hardcoded constant
+**directly** for the five `SATORI_*` keys (`SATORI_URL`, `SATORI_API_KEY_NAME`,
+`SATORI_API_KEY`, `SATORI_SIGNING_KEY`, `SATORI_HTTP_TIMEOUT_MS`) — `ctx.env` is
+ignored for them. Same for `aaEnv` (admin keys + secret) and `arEnv`
+(`DASHBOARD_SECRET`). To rotate any of these values: edit the constant in source
+and ship a new image. There is no env-var override path; that's intentional —
+the env-first behaviour bit us in v2 when prod had stale values from a long-gone
+deployment that silently shadowed the new constants and broke login + Satori
+auth. If you absolutely need an env-driven path again, edit `aaEnv` / `sdResolve`
+/ `arEnv` and remove the early-return blocks marked "Hardcoded-FIRST".
 
 ## Phase-1: deploy
 
@@ -167,6 +182,127 @@ curl -X POST \
 # Verify in-house dashboard: login → events timeline → look for smoke_test
 # Verify Satori cloud:        Events → Live → filter name=smoke_test
 ```
+
+## Phase-2.5: diagnose "Invalid credentials" / "no Satori data"
+
+If you push, the build succeeds, but login still says invalid OR Satori still
+shows zero events, run these in order. Each is no-auth (or self-mints a token)
+so they work even when login is broken.
+
+### Step 1 — confirm the new image is actually running
+
+```bash
+# kubectl path (if you have kubeconfig)
+kubectl -n aicart get deployment intelliverse-nakama \
+  -o jsonpath='{.spec.template.spec.containers[0].image}'
+# Expected: image tag matches the latest commit SHA you pushed.
+
+# HTTP path (no kubectl needed) — every pod tags health response with build sha
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/nakama_js_health?http_key=defaultkey" \
+  -H 'Content-Type: application/json' -d '""' | jq
+# Expected: { "payload": "{\"ok\":true,\"build\":\"<sha>\",...}" }
+# If sha is OLD → CodeBuild patched ECR but kubectl set image hasn't restarted
+# the pods yet (or the rollout is paused). Check the AWS CodeBuild logs and
+# the Deployment's lastUpdateTime.
+```
+
+### Step 2 — confirm what credentials the pod is using (no auth needed)
+
+```bash
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_creds_check?http_key=defaultkey" \
+  -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
+```
+
+Expected response (fingerprints only, never the full secret):
+
+```json
+{
+  "admin_username": "ivx-admin",
+  "admin_password_hash_fp":  { "set": true, "len": 60, "first4": "$2b$", "last4": "KTqS" },
+  "admin_password_plain_fp": { "set": true, "len": 16, "first4": "bLxI", "last4": "5kAK" },
+  "dashboard_secret_fp":     { "set": true, "len": 64, "first4": "2074", "last4": "d34c8" },
+  "cluster_env_set": {
+    "ADMIN_USERNAME": false,
+    "ADMIN_PASSWORD_HASH": false,
+    "ADMIN_PASSWORD": false,
+    "DASHBOARD_SECRET": false,
+    "SATORI_URL": false,
+    "SATORI_API_KEY": false,
+    "SATORI_SIGNING_KEY": false
+  },
+  "admin_creds_source": "hardcoded"
+}
+```
+
+What to check:
+
+- `admin_username` should be `ivx-admin`. If it's anything else → the wrong
+  bundle is loaded; old code is running. Verify Step 1.
+- `admin_password_plain_fp.first4 + last4` should match the password you're
+  typing (`bLxI…5kAK`). If they don't match, your typed password is wrong, not
+  the server's. Re-type carefully — copy/paste from the runbook.
+- `cluster_env_set.*` flags being `true` is now harmless (env is ignored), but
+  they tell you the cluster Secret WAS patched at some point — clean it up
+  later for hygiene.
+
+### Step 3 — confirm Satori is actually reachable + auth works
+
+```bash
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/satori_diag?http_key=defaultkey" \
+  -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
+```
+
+Expected:
+
+```json
+{
+  "success": true,
+  "code": 200,
+  "url": "https://quizverse-satori-dev-8bf5.us-east1-b.satoricloud.io/v1/event",
+  "api_key_name": "SATORIAPIKEY",
+  "api_key_present": true,
+  "signing_key_present": true,
+  "body": ""
+}
+```
+
+If `success=false`:
+
+| `code` | Meaning | Fix |
+|--------|---------|-----|
+| `401`  | API key rejected | Rotate `SD_API_KEY` constant in `satori_direct.js`, regenerate via `node postbuild.js`, re-push. |
+| `403`  | JWT rejected (signing key wrong) | Rotate `SD_SIGNING_KEY` constant. |
+| `400`  | Bad request body | Bundle mismatch — confirm Step 1. |
+| `0`    | Network / DNS to Satori host failed | Check egress rules + DNS. |
+
+### Step 4 — confirm backfill is progressing
+
+```bash
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_status?http_key=defaultkey" \
+  -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
+```
+
+Expected over time:
+
+- First call: `{ phase: "init", ... }` or `{ phase: "identity", cursor: "...", stats: { processed: N } }`
+- After ~10 minutes of normal traffic: phase advances to `events_replay` then
+  `dau_synthetic` then `rollup`.
+- Final: `{ phase: "done", ... }` — backfill complete; nothing more to do.
+
+If `phase` doesn't advance for 30+ minutes:
+
+```bash
+# Force a tick (bypasses the 5-min "done" debounce)
+curl -s "https://nakama-rest.intelli-verse-x.ai/v2/rpc/analytics_auto_kick?http_key=defaultkey" \
+  -H 'Content-Type: application/json' -d '""' | jq -r '.payload | fromjson'
+```
+
+### Step 5 — if all the above are green but the dashboard still rejects login
+
+Almost certainly your browser cached the old `analytics.html`. Hard-reload
+(Ctrl+Shift+R) on the dashboard URL or open it in an incognito window. The
+embedded asset changed in v2 (new `Dockerfile.production` overlay copies the
+modern dashboard over the legacy one before `go build`).
 
 ## Phase-3: historical backfill (now automatic)
 

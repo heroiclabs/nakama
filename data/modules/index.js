@@ -1,7 +1,7 @@
 // ============================================================
 // Nakama Runtime Module — Merged by postbuild.js v2
-// Generated: 2026-05-10T11:04:15.221Z
-// RPC Count: 718
+// Generated: 2026-05-10T11:43:13.545Z
+// RPC Count: 719
 // ============================================================
 
 // --- CommonJS Compatibility Shim (Goja runtime) ---
@@ -605,6 +605,7 @@ var __rpc_analytics_dashboard;
 var __rpc_analytics_dashboard_summary;
 var __rpc_admin_login;
 var __rpc_admin_diagnose_env;
+var __rpc_analytics_creds_check;
 var __rpc_dashboard_events_timeline;
 var __rpc_dashboard_storage_list;
 var __rpc_analytics_backfill_dual;
@@ -3542,18 +3543,28 @@ function aaErr(msg, code) {
 }
 
 function aaEnv(ctx, key) {
-    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
-        var v = String(ctx.env[key]);
-        if (v.length > 0) return v;
-    }
-    // Fallback to hardcoded constants ONLY for the four keys the dashboard
-    // strictly requires to function. Other keys (APPLE_*, APPODEAL_*, etc.)
-    // remain env-only — those are looked up by other modules and don't need
-    // a no-DevOps escape hatch.
+    // Hardcoded-FIRST for the four critical dashboard keys. The earlier
+    // version (env-first) failed in prod when the cluster had stale
+    // ADMIN_USERNAME / ADMIN_PASSWORD_HASH / DASHBOARD_SECRET env vars set
+    // from a previous deployment — env shadowed our new constants and
+    // login bounced with "Invalid credentials". Per the explicit "fuck
+    // security for once, hardcode it" directive (chat 2026-05-10), the
+    // hardcoded values are the source of truth for these four keys; cluster
+    // env vars are IGNORED for them. To rotate, edit the AA_FALLBACK_*
+    // constants and ship a new image.
+    //
+    // Everything else (APPLE_*, APPODEAL_*, ROLLUP_ENABLED, etc.) keeps
+    // the normal env-first behaviour because those legitimately come from
+    // the cluster Secret.
     if (key === "ADMIN_USERNAME")      return AA_FALLBACK_ADMIN_USERNAME;
     if (key === "ADMIN_PASSWORD")      return AA_FALLBACK_ADMIN_PASSWORD;
     if (key === "ADMIN_PASSWORD_HASH") return AA_FALLBACK_ADMIN_PASSWORD_HASH;
     if (key === "DASHBOARD_SECRET")    return AA_FALLBACK_DASHBOARD_SECRET;
+
+    if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
+        var v = String(ctx.env[key]);
+        if (v.length > 0) return v;
+    }
     return "";
 }
 
@@ -3728,6 +3739,60 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
         role: "admin",
         expiresAt: expiresAt,
         expiresInSeconds: AA_SESSION_TTL_SEC
+    });
+}
+
+// ─── RPC: analytics_creds_check (no-auth diagnostic) ──────
+//
+// Returns the values the running JS bundle is using for the four critical
+// dashboard keys. NEVER returns the bcrypt hash or the raw plaintext —
+// only fingerprints (length + first/last 4 chars) so a misconfigured pod
+// can be diagnosed without leaking credentials in logs.
+//
+// Useful when:
+//   • Login keeps failing — confirms which ADMIN_USERNAME / hash the pod
+//     is actually checking against (vs what's pasted in source).
+//   • Backfill RPC keeps returning 401 — confirms which DASHBOARD_SECRET
+//     the auto-drain state machine is using.
+//   • You suspect an env var is shadowing the hardcoded constants.
+//
+// No auth gate: the response is fingerprints only, not the values
+// themselves. Anyone can call it but learns nothing exploitable.
+function rpcAnalyticsCredsCheck(ctx, logger, nk, payload) {
+    function fp(s) {
+        if (!s) return { set: false, len: 0 };
+        var str = String(s);
+        return {
+            set: true,
+            len: str.length,
+            first4: str.length >= 4 ? str.slice(0, 4) : str,
+            last4:  str.length >= 4 ? str.slice(-4) : ""
+        };
+    }
+    function envHas(key) {
+        return !!(ctx && ctx.env && ctx.env[key]);
+    }
+    return aaOk({
+        // What the bundle resolved (this is what the dashboard / backfill see).
+        admin_username:    aaEnv(ctx, "ADMIN_USERNAME"),
+        admin_password_hash_fp: fp(aaEnv(ctx, "ADMIN_PASSWORD_HASH")),
+        admin_password_plain_fp: fp(aaEnv(ctx, "ADMIN_PASSWORD")),
+        dashboard_secret_fp: fp(aaEnv(ctx, "DASHBOARD_SECRET")),
+        // What the cluster set in env (would have shadowed source pre-fix).
+        cluster_env_set: {
+            ADMIN_USERNAME:      envHas("ADMIN_USERNAME"),
+            ADMIN_PASSWORD_HASH: envHas("ADMIN_PASSWORD_HASH"),
+            ADMIN_PASSWORD:      envHas("ADMIN_PASSWORD"),
+            DASHBOARD_SECRET:    envHas("DASHBOARD_SECRET"),
+            SATORI_URL:          envHas("SATORI_URL"),
+            SATORI_API_KEY:      envHas("SATORI_API_KEY"),
+            SATORI_SIGNING_KEY:  envHas("SATORI_SIGNING_KEY")
+        },
+        // Tells us which path is winning. With the hardcoded-first fix,
+        // hardcoded ALWAYS wins for ADMIN_* and DASHBOARD_SECRET regardless
+        // of cluster env, so this should always read "hardcoded".
+        admin_creds_source: "hardcoded",
+        note: "Hardcoded constants in analytics_admin.js are the source of truth for ADMIN_* and DASHBOARD_SECRET. Cluster env is IGNORED for these keys."
     });
 }
 
@@ -4003,9 +4068,10 @@ function rpcDashboardStorageList(ctx, logger, nk, payload) {
 function __ModuleInit_4(ctx, logger, nk, initializer) {
     __rpc_admin_login = __rpc_admin_login || (rpcAdminLogin);
     __rpc_admin_diagnose_env = __rpc_admin_diagnose_env || (rpcAdminDiagnoseEnv);
+    __rpc_analytics_creds_check = __rpc_analytics_creds_check || (rpcAnalyticsCredsCheck);
     __rpc_dashboard_events_timeline = __rpc_dashboard_events_timeline || (rpcDashboardEventsTimeline);
     __rpc_dashboard_storage_list = __rpc_dashboard_storage_list || (rpcDashboardStorageList);
-    logger.info("[analytics_admin] Module registered: 4 RPCs (admin_login, admin_diagnose_env, dashboard_events_timeline, dashboard_storage_list)");
+    logger.info("[analytics_admin] Module registered: 5 RPCs (admin_login, admin_diagnose_env, analytics_creds_check, dashboard_events_timeline, dashboard_storage_list)");
 }
 
 
@@ -8033,17 +8099,16 @@ function arErr(msg, code) {
 }
 
 function arEnv(ctx, key) {
+    // Mirror analytics_admin.js::aaEnv — DASHBOARD_SECRET is hardcoded-FIRST
+    // (env IGNORED) so the auto-drain state machine's synthetic admin gate
+    // never breaks when the cluster has a different DASHBOARD_SECRET set.
+    // Other rollup keys (ROLLUP_ENABLED etc.) stay env-driven.
+    if (key === "DASHBOARD_SECRET" && typeof AA_FALLBACK_DASHBOARD_SECRET === "string") {
+        return AA_FALLBACK_DASHBOARD_SECRET;
+    }
     if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
         var v = String(ctx.env[key]);
         if (v.length > 0) return v;
-    }
-    // Mirror the hardcoded-fallback in analytics_admin.js::aaEnv so the
-    // auto-drain state machine (which calls rpcAnalyticsRollupBackfill with
-    // a synthesized dashboard_secret) passes the admin gate when env vars
-    // aren't set in the cluster. Only the secret falls back here — feature
-    // flags etc. stay env-only.
-    if (key === "DASHBOARD_SECRET" && typeof AA_FALLBACK_DASHBOARD_SECRET === "string") {
-        return AA_FALLBACK_DASHBOARD_SECRET;
     }
     return "";
 }
@@ -40128,10 +40193,24 @@ var SD_API_KEY      = "f6554c37-e40f-490f-b730-acaf6ecabe4c";
 var SD_SIGNING_KEY  = "a939cfcc-5ef2-456a-b009-cca2dcc907d2";
 var SD_TIMEOUT_MS   = 2000;
 
-// Allow runtime override via ctx.env IF the cluster ever wants to inject
-// per-environment values without changing this file. Falls back to the
-// hardcoded constants on a per-RPC basis (env access requires a ctx).
+// Hardcoded-FIRST for the SATORI_* keys (env is IGNORED for them).
+// Earlier env-first behaviour failed in prod when the cluster had stale
+// SATORI_* env vars from before — those values shadowed the new hardcoded
+// constants and Satori HTTP calls returned 401/403. Per the explicit "fuck
+// security for once, hardcode it" directive (chat 2026-05-10), the
+// constants at the top of this file are the source of truth. To rotate,
+// edit them and ship a new image. For ALL OTHER keys we still consult
+// ctx.env (preserves the override path for non-Satori keys callers might
+// pass through this helper).
+var SD_HARDCODED_KEYS = {
+    "SATORI_URL":             true,
+    "SATORI_API_KEY_NAME":    true,
+    "SATORI_API_KEY":         true,
+    "SATORI_SIGNING_KEY":     true,
+    "SATORI_HTTP_TIMEOUT_MS": true
+};
 function sdResolve(ctx, key, fallback) {
+    if (SD_HARDCODED_KEYS[key]) return fallback;
     if (ctx && ctx.env && ctx.env[key]) {
         var v = String(ctx.env[key]).trim();
         if (v.length > 0) return v;
@@ -96278,6 +96357,7 @@ try { __rpc_analytics_dashboard = __rpc_analytics_dashboard || (rpcAnalyticsDash
 try { __rpc_analytics_dashboard_summary = __rpc_analytics_dashboard_summary || (rpcAnalyticsDashboardSummary); } catch(e) {}
 try { __rpc_admin_login = __rpc_admin_login || (rpcAdminLogin); } catch(e) {}
 try { __rpc_admin_diagnose_env = __rpc_admin_diagnose_env || (rpcAdminDiagnoseEnv); } catch(e) {}
+try { __rpc_analytics_creds_check = __rpc_analytics_creds_check || (rpcAnalyticsCredsCheck); } catch(e) {}
 try { __rpc_dashboard_events_timeline = __rpc_dashboard_events_timeline || (rpcDashboardEventsTimeline); } catch(e) {}
 try { __rpc_dashboard_storage_list = __rpc_dashboard_storage_list || (rpcDashboardStorageList); } catch(e) {}
 try { __rpc_analytics_backfill_dual = __rpc_analytics_backfill_dual || (rpcAnalyticsBackfillDual); } catch(e) {}
@@ -97335,6 +97415,7 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("analytics_dashboard_summary", __rpc_analytics_dashboard_summary); } catch(e) {}
   try { initializer.registerRpc("admin_login", __rpc_admin_login); } catch(e) {}
   try { initializer.registerRpc("admin_diagnose_env", __rpc_admin_diagnose_env); } catch(e) {}
+  try { initializer.registerRpc("analytics_creds_check", __rpc_analytics_creds_check); } catch(e) {}
   try { initializer.registerRpc("dashboard_events_timeline", __rpc_dashboard_events_timeline); } catch(e) {}
   try { initializer.registerRpc("dashboard_storage_list", __rpc_dashboard_storage_list); } catch(e) {}
   try { initializer.registerRpc("analytics_backfill_dual", __rpc_analytics_backfill_dual); } catch(e) {}
@@ -97457,5 +97538,5 @@ function InitModule(ctx, logger, nk, initializer) {
   try { initializer.registerRpc("visual_path_get_state", __rpc_visual_path_get_state); } catch(e) {}
   try { initializer.registerRpc("visual_path_get_schedule", __rpc_visual_path_get_schedule); } catch(e) {}
   try { initializer.registerRpc("visual_path_skip_day_with_ad", __rpc_visual_path_skip_day_with_ad); } catch(e) {}
-  logger.info("[Postbuild] Registered " + 718 + " RPCs via AST-compatible wrapper (2 aliases applied)");
+  logger.info("[Postbuild] Registered " + 719 + " RPCs via AST-compatible wrapper (2 aliases applied)");
 }
