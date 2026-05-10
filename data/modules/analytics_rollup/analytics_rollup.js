@@ -427,6 +427,46 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
     var adCompletions = 0;    // ad_completed (rewarded watched-to-end)
     var adSkips = 0;          // ad_skipped (rewarded closed early)
     var adRevenueByNetwork = {}; // network → usd (ILRD-grade attribution)
+
+    // Phase 4 (2026-05) — extra monetization KPIs surfaced through the
+    // dashboard's Revenue panel. The previous dashboard live-scan path
+    // computed these by re-walking analytics_events on every page load —
+    // moving them into the rollup means the panel can render from one
+    // single document read.
+    var paywallShown = 0;
+    var paywallConverted = 0;
+    var paywallDismissed = 0;
+    var storeOpens = 0;
+    var iapStarted = 0;
+    var iapFailed = 0;
+    var productPurchases = {};   // product_id → count
+    var adTypeCounts = {};       // ad_type    → count
+
+    // Phase 4 (2026-05) — audience-breakdown dimensions (country / platform /
+    // device_tier / install_source / consent_state / att_status / locale /
+    // app_version). Each dimension is a {value: {events, users:{}}} bag so
+    // we can emit both event volume AND unique-user counts (the latter is
+    // the only meaningful slice for "X% of installs are from US"). Keys
+    // are folded into "unknown" when missing so the dashboard can show
+    // tagging coverage gaps.
+    var audDims = {
+        country: {}, device_tier: {}, install_source: {},
+        consent_state: {}, att_status: {}, locale: {}, app_version: {},
+        platform: {}
+    };
+    function audBump(dim, val, userId) {
+        if (val === null || val === undefined || val === "") val = "unknown";
+        var k = String(val);
+        var slot = audDims[dim];
+        if (!slot[k]) slot[k] = { events: 0, users: {} };
+        slot[k].events++;
+        if (userId) slot[k].users[userId] = true;
+    }
+
+    // Phase 4 — explicit retention_d1/7/30 milestone counts so the
+    // dashboard's Retention tab can render straight from the rollup.
+    var retentionMilestones = { retention_d1: 0, retention_d7: 0, retention_d30: 0 };
+
     var aiUsage = {};
     var funnel = {};
     for (var fi = 0; fi < AR_FUNNEL_STEPS.length; fi++) {
@@ -480,12 +520,27 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             }
         }
 
-        // Revenue
-        if (eventName === "iap_purchased") {
+        // Revenue — IAP purchase completion. Both legacy `iap_purchased`
+        // and the canonical `purchase_completed` (Phase 2 IAP taxonomy)
+        // count as a paid IAP; AR_EVENT_ALIASES already collapses
+        // purchase_completed → iap_purchased, but we accept both names
+        // explicitly here so the rollup is robust even if the alias is
+        // ever turned off. Track product_id breakdown for the Revenue
+        // panel's top-products card.
+        if (eventName === "iap_purchased" || eventName === "purchase_completed") {
             iapCount++;
             var price = parseFloat(data.price_usd || data.priceUsd || 0);
             if (isFinite(price) && price > 0) revenueUsd += price;
+            var prodId = data.product_id || data.productId;
+            if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
         }
+        // Phase 4 — non-revenue IAP funnel signals.
+        if (eventName === "purchase_started" || eventName === "iap_started") iapStarted++;
+        if (eventName === "purchase_failed"  || eventName === "iap_failed")  iapFailed++;
+        if (eventName === "paywall_shown")     paywallShown++;
+        if (eventName === "paywall_converted") paywallConverted++;
+        if (eventName === "paywall_dismissed") paywallDismissed++;
+        if (eventName === "store_opened")      storeOpens++;
         // ── Ad funnel (2026-04 hardened taxonomy) ────────────────
         // The new Unity client emits canonical AD_* events. Both `ad_impression`
         // (legacy) and `ad_shown` (canonical) are counted as impressions so
@@ -525,6 +580,34 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
         } else if (eventName === "ad_skipped") {
             adSkips++;
         }
+
+        // Ad-type breakdown — accept both legacy `adType` and canonical
+        // `ad_type`. Counted on impression events only so we don't
+        // double-count requests/clicks/etc.
+        if (eventName === "ad_impression" || eventName === "ad_shown") {
+            var adType = data.ad_type || data.adType;
+            if (adType) adTypeCounts[adType] = (adTypeCounts[adType] || 0) + 1;
+        }
+
+        // Phase 4 — retention milestones (RetentionAnalytics.cs fires once
+        // per install). Captured directly so the dashboard can read the
+        // retention tab from the rollup instead of scanning ~30 days of
+        // events per page load.
+        if (eventName === "retention_day_1" || eventName === "retention_d1") retentionMilestones.retention_d1++;
+        if (eventName === "retention_day_7" || eventName === "retention_d7") retentionMilestones.retention_d7++;
+        if (eventName === "retention_day_30" || eventName === "retention_d30") retentionMilestones.retention_d30++;
+
+        // Phase 4 — audience-breakdown dimensions. Read every event so the
+        // distribution reflects the active population, not just events
+        // that happen to carry a particular field. Falls back to "unknown".
+        audBump("country",        data.country,        userId);
+        audBump("device_tier",    data.device_tier,    userId);
+        audBump("install_source", data.install_source, userId);
+        audBump("consent_state",  data.consent_state,  userId);
+        audBump("att_status",     data.att_status,     userId);
+        audBump("locale",         data.locale,         userId);
+        audBump("app_version",    data.app_version,    userId);
+        audBump("platform",       data.platform || ev.platform, userId);
 
         // AI
         if (eventName === "ai_host_used" || eventName === "ai_fortune_teller_used" ||
@@ -616,7 +699,20 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             ad_revenue_by_network: adRevenueByNetwork,
             ad_ecpm_usd: adImpressions > 0
                 ? Math.round((adRevenueUsd / adImpressions) * 100000) / 100  // $/1000 imp
-                : 0
+                : 0,
+            // Phase 4 — IAP funnel + product breakdown so the Revenue
+            // panel reads everything it needs from this one doc.
+            iap_started: iapStarted,
+            iap_failed: iapFailed,
+            paywall_shown: paywallShown,
+            paywall_converted: paywallConverted,
+            paywall_dismissed: paywallDismissed,
+            paywall_conversion_rate_pct: paywallShown > 0
+                ? Math.round((paywallConverted / paywallShown) * 100)
+                : 0,
+            store_opens: storeOpens,
+            top_products: arTopN(productPurchases, 10, "product_id", "purchases"),
+            ad_types: arTopN(adTypeCounts, 5, "type", "count")
         },
         funnel: funnelOut,
         funnel_order: funnelOrder,
@@ -625,9 +721,56 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
         top_screens: topScreens,
         platform_breakdown: platformBreakdown,
         errors: errorsByCategory,
+        // Phase 4 — retention + audience breakdown, computed once per day
+        // and surfaced through their dedicated dashboard RPCs.
+        retention_milestones: retentionMilestones,
+        audience: {
+            country:        arMaterializeAud(audDims.country, 25),
+            platform:       arMaterializeAud(audDims.platform, 10),
+            device_tier:    arMaterializeAud(audDims.device_tier, 10),
+            install_source: arMaterializeAud(audDims.install_source, 10),
+            consent_state:  arMaterializeAud(audDims.consent_state, 10),
+            att_status:     arMaterializeAud(audDims.att_status, 10),
+            locale:         arMaterializeAud(audDims.locale, 25),
+            app_version:    arMaterializeAud(audDims.app_version, 25)
+        },
         computed_at: new Date().toISOString(),
         event_count: events.length
     };
+}
+
+// Phase 4 helpers — used inside arComputeRollup. Defined as module-scope
+// functions (not closures) so postbuild concatenation can hoist them
+// alongside the rest of the analytics_rollup symbols.
+function arTopN(map, n, keyName, valueName) {
+    var arr = [];
+    for (var k in map) {
+        if (map.hasOwnProperty(k)) {
+            var entry = {};
+            entry[keyName] = k;
+            entry[valueName] = map[k];
+            arr.push(entry);
+        }
+    }
+    arr.sort(function (a, b) { return b[valueName] - a[valueName]; });
+    return arr.slice(0, n);
+}
+
+function arMaterializeAud(dimSlot, topN) {
+    var arr = [];
+    for (var k in dimSlot) {
+        if (!dimSlot.hasOwnProperty(k)) continue;
+        var entry = dimSlot[k];
+        arr.push({
+            value: k,
+            events: entry.events,
+            unique_users: entry.users ? Object.keys(entry.users).length : 0
+        });
+    }
+    arr.sort(function (a, b) {
+        return (b.unique_users - a.unique_users) || (b.events - a.events);
+    });
+    return arr.slice(0, topN);
 }
 
 // ─── Core: retention cohort update ────────────────────────

@@ -24,6 +24,42 @@ function extSafeJsonParse(payload) {
     try { return JSON.parse(payload || '{}'); } catch (e) { return {}; }
 }
 
+// Phase 4 (2026-05) — fetch the rollup doc from analytics_rollup_daily
+// across a window of N days. Returns an array of {date, doc, missing}
+// entries newest-first, where doc=null when the rollup didn't run for
+// that date (cold-start days). Uses readRollupDaily from analytics.js
+// which is hoisted to global scope by postbuild.js. The "all" gameId
+// fan-in is the same one the rollup writes (gameId === "all" doc).
+function extReadRollupRange(nk, gameId, days) {
+    var out = [];
+    var now = new Date();
+    var resolvedGid = gameId || "all";
+    for (var d = 0; d < days; d++) {
+        var date = new Date(now.getTime() - d * 86400000);
+        var dateStr = date.toISOString().slice(0, 10);
+        var doc = null;
+        try {
+            if (typeof readRollupDaily === "function") {
+                doc = readRollupDaily(nk, resolvedGid, dateStr);
+            }
+        } catch (e) { /* swallow — falls back to event scan */ }
+        out.push({ date: dateStr, doc: doc, missing: !doc });
+    }
+    return out;
+}
+
+// Returns true if at least one day in the rollup range carries a doc.
+// The dashboard treats "no rollup days at all" as cold-start and falls
+// back to the live event scan for that RPC; a partial range still
+// counts as rollup-served (we patch the missing days with zeros).
+function extRollupHasAny(rangeArr) {
+    if (!rangeArr || rangeArr.length === 0) return false;
+    for (var i = 0; i < rangeArr.length; i++) {
+        if (rangeArr[i].doc) return true;
+    }
+    return false;
+}
+
 function extIsoDate(value) {
     if (!value) return null;
     var parsed = new Date(value);
@@ -667,51 +703,95 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
         var funnelType = data.funnel || 'onboarding';
-        
+
         var stepCounts = {};
         var stepOrder = [];
-        
-        // Define funnel steps by type
+
+        // Funnel definitions per type. The "default" funnel uses the canonical
+        // AR_FUNNEL_STEPS taxonomy that analytics_rollup.js populates in
+        // analytics_funnel_daily — that's the rollup-served path. The other
+        // types (onboarding/quiz/purchase) still scan events because the
+        // rollup doesn't bucket them separately.
         if (funnelType === 'onboarding') {
             stepOrder = ['app_open', 'onboarding_start', 'name_entered', 'avatar_selected', 'tutorial_completed', 'first_quiz_completed'];
         } else if (funnelType === 'quiz') {
             stepOrder = ['quiz_view', 'quiz_started', 'first_answer', 'quiz_completed'];
         } else if (funnelType === 'purchase') {
             stepOrder = ['store_opened', 'product_viewed', 'purchase_started', 'purchase_completed'];
+        } else if (funnelType === 'canonical' || funnelType === 'default') {
+            // The canonical AR_FUNNEL_STEPS used by analytics_rollup.js.
+            stepOrder = ['app_open', 'onboarded', 'login_success', 'session_start',
+                        'quiz_start', 'quiz_complete', 'iap_clicked', 'iap_purchased'];
         } else {
             stepOrder = ['step_1', 'step_2', 'step_3', 'step_4'];
         }
-        
-        // Initialize counts
+
         for (var i = 0; i < stepOrder.length; i++) {
             stepCounts[stepOrder[i]] = 0;
         }
-        
-        // Read funnel data (game-specific key if gameId provided)
-        for (var d = 0; d < days; d++) {
-            var dateStr = extDaysAgo(d);
-            var key = gameId 
-                ? 'funnel_' + funnelType + '_' + gameId + '_' + dateStr 
-                : 'funnel_' + funnelType + '_' + dateStr;
-            var stats = extStorageRead(nk, 'analytics_funnel', key, SYSTEM_USER_ID);
-            
-            if (stats && stats.steps) {
-                for (var step in stats.steps) {
-                    if (stepCounts.hasOwnProperty(step)) {
-                        stepCounts[step] += stats.steps[step];
+
+        // Phase 4 (2026-05) — analytics_funnel_daily rollup. The Phase 4
+        // rollup writes one doc per game per day with shape
+        //   { funnel: { step: { users, total_events } }, funnel_order: [...] }
+        // keyed `funnel_<gameId>_<date>`. We aggregate users (deduped across
+        // days is impossible without user lists — the rollup only stores
+        // per-day uniques — so the union is actually a "sum of daily uniques",
+        // which is the same upper-bound estimate AR_RETENTION uses). Powers
+        // the canonical funnel; per-type funnels (onboarding/quiz/purchase)
+        // still go through the legacy storage / live-scan path below.
+        var rollupServedFunnel = false;
+        var funnelRollupHits = 0;
+        if (funnelType === 'canonical' || funnelType === 'default') {
+            for (var fd = 0; fd < days; fd++) {
+                var fDateStr = extDaysAgo(fd);
+                var funnelKey = "funnel_" + (gameId || "all") + "_" + fDateStr;
+                var fDoc = extStorageRead(nk, 'analytics_funnel_daily', funnelKey, SYSTEM_USER_ID);
+                if (fDoc && fDoc.funnel) {
+                    funnelRollupHits++;
+                    for (var fStep in fDoc.funnel) {
+                        if (stepCounts.hasOwnProperty(fStep) && fDoc.funnel[fStep]) {
+                            // Prefer unique users over event count for funnel
+                            // step counts (canonical industry definition).
+                            stepCounts[fStep] += fDoc.funnel[fStep].users || fDoc.funnel[fStep].total_events || 0;
+                        }
+                    }
+                }
+            }
+            rollupServedFunnel = funnelRollupHits > 0;
+        }
+
+        // Per-type rollups — the legacy `analytics_funnel` collection (NOT
+        // the new analytics_funnel_daily) is read here. Nothing currently
+        // writes to it but we keep the read for any operator who wires up
+        // a custom funnel rollup later.
+        if (!rollupServedFunnel) {
+            for (var d = 0; d < days; d++) {
+                var dateStr = extDaysAgo(d);
+                var key = gameId
+                    ? 'funnel_' + funnelType + '_' + gameId + '_' + dateStr
+                    : 'funnel_' + funnelType + '_' + dateStr;
+                var stats = extStorageRead(nk, 'analytics_funnel', key, SYSTEM_USER_ID);
+
+                if (stats && stats.steps) {
+                    for (var step in stats.steps) {
+                        if (stepCounts.hasOwnProperty(step)) {
+                            stepCounts[step] += stats.steps[step];
+                        }
                     }
                 }
             }
         }
-        
-        // Fallback: scan events (with gameId filter)
+
+        // Fallback: scan events (with gameId filter). Cold-start path —
+        // only triggers when both the rollup and the legacy per-type
+        // funnel collection were empty.
         if (stepCounts[stepOrder[0]] === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
-            
+
             for (var j = 0; j < events.length; j++) {
                 var ev = events[j];
                 var evName = (ev.eventName || '').toLowerCase().replace(/([A-Z])/g, '_$1').toLowerCase();
-                
+
                 for (var s = 0; s < stepOrder.length; s++) {
                     if (evName.indexOf(stepOrder[s]) !== -1 || evName === stepOrder[s]) {
                         stepCounts[stepOrder[s]]++;
@@ -749,7 +829,14 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
         return JSON.stringify({
             game_id: gameId || 'all',
             steps: steps,
-            worst_drop_off: worstDropOff
+            worst_drop_off: worstDropOff,
+            _meta: {
+                funnel_type: funnelType,
+                read_path: rollupServedFunnel ? "rollup-preferred" :
+                           (stepCounts[stepOrder[0]] > 0 ? "legacy-storage" : "live-scan"),
+                rollup_hits: funnelRollupHits,
+                generated_at: new Date().toISOString()
+            }
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] funnel error: ' + e.message);
@@ -1052,7 +1139,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var adImpressions = 0;
         var adCompleted = 0;
         var adRevenue = 0;
@@ -1073,47 +1160,77 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var adClicks = 0;
         var adRevenueByNetwork = {};
 
-        // Read monetization stats (game-specific key if gameId provided)
-        for (var d = 0; d < days; d++) {
-            var dateStr = extDaysAgo(d);
-            var key = gameId 
-                ? 'monetization_' + gameId + '_' + dateStr 
-                : 'monetization_' + dateStr;
-            var stats = extStorageRead(nk, 'analytics_monetization', key, SYSTEM_USER_ID);
-            
-            var dayRevenue = 0;
-            
-            if (stats) {
-                adImpressions += stats.impressions || 0;
-                adCompleted += stats.completed || 0;
-                dayRevenue = stats.revenue || 0;
-                adRevenue += dayRevenue;
-                iapCompleted += stats.iap || 0;
-                paywallShown += stats.paywallShown || 0;
-                paywallConverted += stats.paywallConverted || 0;
-                storeOpens += stats.storeOpens || 0;
-                
-                if (stats.adTypes) {
-                    for (var t in stats.adTypes) {
-                        adTypeCounts[t] = (adTypeCounts[t] || 0) + stats.adTypes[t];
+        // Phase 4 (2026-05) — read analytics_rollup_daily first. The Phase 4
+        // rollup compute writes every monetization KPI we need (revenue,
+        // IAP funnel, paywall, store opens, top products, ad types, full
+        // ad funnel + per-network revenue). One single doc per game per
+        // day, vs the legacy live-scan path that re-walked thousands of
+        // events on every dashboard load. We still fall back to the live
+        // scan for cold-start days (no rollup yet).
+        var rollupRange = extReadRollupRange(nk, gameId, days);
+        var rollupServed = extRollupHasAny(rollupRange);
+        var readPath = rollupServed ? "rollup-preferred" : "live-scan";
+        var rollupHits = 0;
+        var liveFallbacks = 0;
+
+        if (rollupServed) {
+            for (var ri = 0; ri < rollupRange.length; ri++) {
+                var entry = rollupRange[ri];
+                var dayRev = 0;
+                if (entry.doc && entry.doc.revenue) {
+                    var rv = entry.doc.revenue;
+                    adImpressions    += rv.ad_impressions || 0;
+                    adCompleted      += rv.ad_completions || 0;
+                    adRevenue        += rv.ad_revenue_usd || 0;
+                    adRequests       += rv.ad_requests || 0;
+                    adLoadFailures   += rv.ad_load_failures || 0;
+                    adSkips          += rv.ad_skips || 0;
+                    adClicks         += rv.ad_clicks || 0;
+                    iapCompleted     += rv.iap_count || 0;
+                    paywallShown     += rv.paywall_shown || 0;
+                    paywallConverted += rv.paywall_converted || 0;
+                    storeOpens       += rv.store_opens || 0;
+                    dayRev            = rv.ad_revenue_usd || 0;
+                    if (rv.ad_revenue_by_network) {
+                        for (var nn in rv.ad_revenue_by_network) {
+                            if (rv.ad_revenue_by_network.hasOwnProperty(nn)) {
+                                adRevenueByNetwork[nn] = (adRevenueByNetwork[nn] || 0) + rv.ad_revenue_by_network[nn];
+                            }
+                        }
                     }
-                }
-                
-                if (stats.products) {
-                    for (var p in stats.products) {
-                        productPurchases[p] = (productPurchases[p] || 0) + stats.products[p];
+                    if (rv.top_products) {
+                        for (var pi = 0; pi < rv.top_products.length; pi++) {
+                            var pp = rv.top_products[pi];
+                            productPurchases[pp.product_id] = (productPurchases[pp.product_id] || 0) + pp.purchases;
+                        }
                     }
+                    if (rv.ad_types) {
+                        for (var ti = 0; ti < rv.ad_types.length; ti++) {
+                            var tt = rv.ad_types[ti];
+                            adTypeCounts[tt.type] = (adTypeCounts[tt.type] || 0) + tt.count;
+                        }
+                    }
+                    rollupHits++;
+                } else {
+                    liveFallbacks++;  // missing day in the range
                 }
+                dailyAdRevenue.unshift({ date: entry.date, revenue: dayRev });
             }
-            
-            dailyAdRevenue.unshift({
-                date: dateStr,
-                revenue: dayRevenue
-            });
         }
-        
-        // Fallback: scan events (with gameId filter)
-        if (adImpressions === 0) {
+
+        // Fallback: scan events (with gameId filter). Triggers when NO day
+        // in the range had a rollup doc (cold-start project) or when the
+        // operator forces it via DASHBOARD_PREFER_ROLLUPS=false. Partial
+        // ranges (some days missing) are intentionally NOT live-scanned
+        // here — running an event scan per missing day defeats the whole
+        // point of the rollup. Operators with stale ranges can re-run
+        // analytics_rollup_backfill to fill the gaps cheaply.
+        if (!rollupServed && adImpressions === 0) {
+            readPath = "live-scan";
+            // Reset dailyAdRevenue (rollup loop above may have pushed
+            // empty {date, revenue:0} entries that we don't want when
+            // we're going to scan events anyway).
+            dailyAdRevenue = [];
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
                 var match = evName.indexOf('ad') !== -1 || evName.indexOf('purchase') !== -1 || 
@@ -1254,7 +1371,13 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             ad_clicks: adClicks,
             ad_completion_rate_pct: adCompletionRate,
             ad_ecpm_usd: adECPM,
-            ad_revenue_by_network: adRevenueNetworkArr
+            ad_revenue_by_network: adRevenueNetworkArr,
+            _meta: {
+                read_path: readPath,
+                rollup_hits: rollupHits,
+                live_fallbacks: liveFallbacks,
+                generated_at: new Date().toISOString()
+            }
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] monetization_detail error: ' + e.message);
@@ -2086,7 +2209,92 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
-        // Per-dimension event-count maps and per-dimension user-set maps.
+        // Phase 4 (2026-05) — analytics_rollup_daily carries pre-computed
+        // top-N for every audience dimension. Merging across N days = N
+        // small array merges instead of an O(events × dims) live walk.
+        // The rollup only stores the top-N (25 for country/locale/version,
+        // 10 for the rest); long-tail values get clipped — fine for an
+        // executive dashboard where the tail is noise anyway.
+        //
+        // Cross-day dedupe of unique_users is impossible from rollup data
+        // (each day's rollup persists its own unique-user count, the user
+        // IDs themselves aren't stored). We sum events and SUM unique_users
+        // across days as an upper bound, same convention as DAU→WAU/MAU
+        // in rpcAnalyticsDashboard's wau_estimated/mau_estimated path.
+
+        var rollupRange = extReadRollupRange(nk, gameId, days);
+        var rollupServed = extRollupHasAny(rollupRange);
+        var rollupHits = 0;
+
+        if (rollupServed) {
+            // Aggregate dimension → value → {events, unique_users}
+            var agg = {
+                country: {}, platform: {}, device_tier: {},
+                install_source: {}, consent_state: {}, att_status: {},
+                locale: {}, app_version: {}
+            };
+            var totalEvents = 0;
+            var totalUserSum = 0;
+
+            for (var ri = 0; ri < rollupRange.length; ri++) {
+                var doc = rollupRange[ri].doc;
+                if (!doc || !doc.audience) continue;
+                rollupHits++;
+                totalEvents += doc.event_count || 0;
+                totalUserSum += doc.dau || 0;
+                for (var dim in agg) {
+                    if (!doc.audience[dim]) continue;
+                    var rows = doc.audience[dim];
+                    for (var r = 0; r < rows.length; r++) {
+                        var row = rows[r];
+                        if (!agg[dim][row.value]) agg[dim][row.value] = { events: 0, unique_users: 0 };
+                        agg[dim][row.value].events += row.events || 0;
+                        agg[dim][row.value].unique_users += row.unique_users || 0;
+                    }
+                }
+            }
+
+            function materializeAgg(dimName, topN) {
+                var bag = agg[dimName];
+                var arr = [];
+                for (var v in bag) {
+                    if (bag.hasOwnProperty(v)) {
+                        arr.push({
+                            value: v,
+                            events: bag[v].events,
+                            unique_users: bag[v].unique_users
+                        });
+                    }
+                }
+                arr.sort(function (a, b) { return (b.unique_users - a.unique_users) || (b.events - a.events); });
+                return arr.slice(0, topN);
+            }
+
+            return JSON.stringify({
+                game_id:        gameId || 'all',
+                days:           days,
+                total_events:   totalEvents,
+                unique_users:   totalUserSum,
+                unique_users_estimated: true,   // sum-of-daily-uniques upper bound
+                country:        materializeAgg('country', 25),
+                device_tier:    materializeAgg('device_tier', 10),
+                install_source: materializeAgg('install_source', 10),
+                consent_state:  materializeAgg('consent_state', 10),
+                att_status:     materializeAgg('att_status', 10),
+                locale:         materializeAgg('locale', 25),
+                app_version:    materializeAgg('app_version', 25),
+                platform:       materializeAgg('platform', 10),
+                _meta: {
+                    read_path: "rollup-preferred",
+                    rollup_hits: rollupHits,
+                    generated_at: new Date().toISOString()
+                }
+            });
+        }
+
+        // Cold-start fallback — original live event scan path. Same shape
+        // as the rollup-served response but without the `unique_users_estimated`
+        // flag (live scan has the real per-user dedupe).
         var dims = {
             country:        { events: {}, users: {} },
             device_tier:    { events: {}, users: {} },
@@ -2098,37 +2306,33 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
             platform:       { events: {}, users: {} }
         };
         var totalUsers = {};
-        var totalEvents = 0;
+        var totalEventsLive = 0;
 
-        // Scan ALL events (not filtered) so the distribution reflects the true
-        // population. The `null` filter avoids the regex cost on the hot path.
         var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
 
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
-            var d = ev.eventData || {};
-            totalEvents++;
+            var ed = ev.eventData || {};
+            totalEventsLive++;
             if (ev.userId) totalUsers[ev.userId] = true;
 
-            // Each user-property field — fall back to "unknown" so the
-            // dashboard can show what fraction is missing context.
             var fields = [
-                ['country',        d.country],
-                ['device_tier',    d.device_tier],
-                ['install_source', d.install_source],
-                ['consent_state',  d.consent_state],
-                ['att_status',     d.att_status],
-                ['locale',         d.locale],
-                ['app_version',    d.app_version],
-                ['platform',       d.platform || ev.platform]
+                ['country',        ed.country],
+                ['device_tier',    ed.device_tier],
+                ['install_source', ed.install_source],
+                ['consent_state',  ed.consent_state],
+                ['att_status',     ed.att_status],
+                ['locale',         ed.locale],
+                ['app_version',    ed.app_version],
+                ['platform',       ed.platform || ev.platform]
             ];
 
             for (var f = 0; f < fields.length; f++) {
-                var dim = fields[f][0];
+                var dim2 = fields[f][0];
                 var val = (fields[f][1] != null && fields[f][1] !== '')
                     ? String(fields[f][1])
                     : 'unknown';
-                var slot = dims[dim];
+                var slot = dims[dim2];
                 slot.events[val] = (slot.events[val] || 0) + 1;
                 if (ev.userId) {
                     if (!slot.users[val]) slot.users[val] = {};
@@ -2137,7 +2341,6 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
             }
         }
 
-        // Materialize each dimension as a sorted top-N array.
         function materialize(dimName, topN) {
             var slot = dims[dimName];
             var arr = [];
@@ -2156,7 +2359,7 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
         return JSON.stringify({
             game_id:        gameId || 'all',
             days:           days,
-            total_events:   totalEvents,
+            total_events:   totalEventsLive,
             unique_users:   Object.keys(totalUsers).length,
             country:        materialize('country', 25),
             device_tier:    materialize('device_tier', 10),
@@ -2165,7 +2368,12 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
             att_status:     materialize('att_status', 10),
             locale:         materialize('locale', 25),
             app_version:    materialize('app_version', 25),
-            platform:       materialize('platform', 10)
+            platform:       materialize('platform', 10),
+            _meta: {
+                read_path: "live-scan",
+                rollup_hits: 0,
+                generated_at: new Date().toISOString()
+            }
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] audience_breakdown error: ' + e.message);
@@ -2192,22 +2400,54 @@ function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
 
         var counts = { retention_d1: 0, retention_d7: 0, retention_d30: 0 };
         var dailyMap = { retention_d1: {}, retention_d7: {}, retention_d30: {} };
-        var milestoneEvents = {
-            'retention_d1': 1, 'retention_d7': 1, 'retention_d30': 1
-        };
 
-        var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            return !!milestoneEvents[(val.eventName || '').toLowerCase()];
-        }, gameId);
+        // Phase 4 (2026-05) — read analytics_rollup_daily.retention_milestones
+        // first. arComputeRollup tallies retention_day_1/7/30 events per
+        // day per game in the same scan it does for everything else, so
+        // a 30-day retention chart is now N storage reads instead of one
+        // ~30k-event live scan.
+        var rollupRange = extReadRollupRange(nk, gameId, days);
+        var rollupServed = extRollupHasAny(rollupRange);
+        var rollupHits = 0;
 
-        for (var i = 0; i < events.length; i++) {
-            var ev = events[i];
-            var name = (ev.eventName || '').toLowerCase();
-            if (!counts.hasOwnProperty(name)) continue;
-            counts[name]++;
-            var dt = (ev.timestamp || '').substring(0, 10);
-            if (dt) {
-                dailyMap[name][dt] = (dailyMap[name][dt] || 0) + 1;
+        if (rollupServed) {
+            for (var ri = 0; ri < rollupRange.length; ri++) {
+                var entry = rollupRange[ri];
+                if (!entry.doc || !entry.doc.retention_milestones) continue;
+                var rm = entry.doc.retention_milestones;
+                if (rm.retention_d1)  { counts.retention_d1  += rm.retention_d1;  dailyMap.retention_d1[entry.date]  = rm.retention_d1; }
+                if (rm.retention_d7)  { counts.retention_d7  += rm.retention_d7;  dailyMap.retention_d7[entry.date]  = rm.retention_d7; }
+                if (rm.retention_d30) { counts.retention_d30 += rm.retention_d30; dailyMap.retention_d30[entry.date] = rm.retention_d30; }
+                rollupHits++;
+            }
+        }
+
+        // Cold-start fallback — same shape as before. Only runs when no
+        // rollup days exist at all (operator hasn't run the rollup yet).
+        if (!rollupServed) {
+            var milestoneEvents = {
+                'retention_d1': 1, 'retention_d7': 1, 'retention_d30': 1,
+                'retention_day_1': 1, 'retention_day_7': 1, 'retention_day_30': 1
+            };
+
+            var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
+                return !!milestoneEvents[(val.eventName || '').toLowerCase()];
+            }, gameId);
+
+            for (var i = 0; i < events.length; i++) {
+                var ev = events[i];
+                var rawName = (ev.eventName || '').toLowerCase();
+                // Normalize retention_day_N → retention_dN (matches dailyMap keys).
+                var name = rawName === 'retention_day_1'  ? 'retention_d1'
+                         : rawName === 'retention_day_7'  ? 'retention_d7'
+                         : rawName === 'retention_day_30' ? 'retention_d30'
+                         : rawName;
+                if (!counts.hasOwnProperty(name)) continue;
+                counts[name]++;
+                var dt = (ev.timestamp || '').substring(0, 10);
+                if (dt) {
+                    dailyMap[name][dt] = (dailyMap[name][dt] || 0) + 1;
+                }
             }
         }
 
@@ -2234,6 +2474,11 @@ function rpcAnalyticsRetentionMilestones(ctx, logger, nk, payload) {
                 d1:  dailyArr('retention_d1'),
                 d7:  dailyArr('retention_d7'),
                 d30: dailyArr('retention_d30')
+            },
+            _meta: {
+                read_path: rollupServed ? "rollup-preferred" : "live-scan",
+                rollup_hits: rollupHits,
+                generated_at: new Date().toISOString()
             }
         });
     } catch (e) {
