@@ -1478,6 +1478,7 @@
                 <span class="tab-group-divider"></span>
                 <button class="tab" data-tab="errors">🐛 Errors</button>
                 <button class="tab" data-tab="events">📋 Events</button>
+                <button class="tab" data-tab="archive">🗄️ Archive</button>
                 <button class="tab" data-tab="storage">💾 Storage</button>
                 <button class="tab" data-tab="diagnose">🩺 Diagnose</button>
             </div>
@@ -1485,6 +1486,26 @@
         
         <!-- Overview Tab -->
         <div id="overview" class="tab-content active">
+            <!-- Phase 6 — All-time / lifetime KPI strip (analytics_history_lifetime_read).
+                 Populated lazily on first render so it doesn't block the rest of overview. -->
+            <div class="chart-card" id="lifetimeStripCard" style="margin-bottom:1rem">
+                <h3>🌐 All-time totals
+                    <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;margin-left:0.5rem"
+                          id="lifetimeStripRange">computing…</span>
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="loadLifetimeStrip()" title="Refresh">↻</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <div class="kpi-grid" id="lifetimeStripKpis">
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
+                    </div>
+                </div>
+            </div>
             <!-- Health Score Bar (populated by JS) -->
             <div id="healthBar" class="hidden">
                 <div class="health-score-circle" id="healthScoreCircle">—</div>
@@ -1580,6 +1601,78 @@
             </div>
         </div>
         
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <!-- Archive Tab (Phase 6 — analytics_history_browse).                -->
+        <!-- Unbounded date-range raw event browser. Cursor-paginated so a    -->
+        <!-- 10M-event project still scrolls cleanly. Used for support /      -->
+        <!-- forensic drill-downs ("show me all of user X's events since      -->
+        <!-- 2024-01"); the regular Events tab keeps its 30-day timeline.    -->
+        <!-- ──────────────────────────────────────────────────────────────── -->
+        <div id="archive" class="tab-content">
+            <!-- Lifetime totals strip — same data as Overview's strip but
+                 game-scoped to the current selection. Quick at-a-glance
+                 context for archive queries (e.g. "we're searching across
+                 481 days / 1.2M events"). -->
+            <div class="chart-card">
+                <h3>🌐 Project Lifetime
+                    <div class="card-actions"><button class="card-btn" onclick="loadArchiveLifetime()" title="Refresh">↻</button><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                </h3>
+                <div class="card-body">
+                    <div class="kpi-grid" id="archiveLifetimeKpis">
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Browser -->
+            <div class="chart-card">
+                <h3>🗄️ Archive Event Browser
+                    <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;margin-left:0.5rem">unbounded date range · cursor-paginated</span>
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="archiveBrowserSearch(true)" title="Run search">🔎 Search</button>
+                        <button class="card-btn" onclick="archiveBrowserNext()" id="archiveBrowserNextBtn" disabled title="Next page">Next →</button>
+                        <button class="card-btn" onclick="archiveBrowserExportCsv()" title="Export visible rows">⬇ CSV</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <div id="archiveFilterBar" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;align-items:center">
+                        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary)">
+                            From
+                            <input id="archiveFrom" type="date"
+                                   style="padding:0.45rem 0.6rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem" />
+                        </label>
+                        <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary)">
+                            To
+                            <input id="archiveTo" type="date"
+                                   style="padding:0.45rem 0.6rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem" />
+                        </label>
+                        <input id="archiveUserId" type="search" placeholder="user_id (optional, exact UUID)"
+                               style="flex:2 1 240px;padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem"
+                               onkeydown="if(event.key==='Enter') archiveBrowserSearch(true)" />
+                        <input id="archiveEventName" type="search" placeholder="event_name (optional, exact)"
+                               style="flex:1 1 180px;padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem"
+                               onkeydown="if(event.key==='Enter') archiveBrowserSearch(true)" />
+                        <select id="archiveLimit"
+                                style="flex:0 0 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                            <option value="50" selected>50 / page</option>
+                            <option value="100">100 / page</option>
+                            <option value="200">200 / page</option>
+                        </select>
+                    </div>
+                    <div id="archiveResultMeta" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">
+                        Pick a date range (or leave blank for all-time), optionally filter by user / event name, then click <strong>Search</strong>.
+                    </div>
+                    <div id="archiveResultContent">
+                        <div class="loading">Awaiting search…</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Storage Tab (NEW - Uses admin_storage_list) -->
         <div id="storage" class="tab-content">
             <div class="chart-card">
@@ -1645,6 +1738,9 @@
                 <button class="period-btn" data-period="7d" onclick="loadRevenue('7d')">7 Days</button>
                 <button class="period-btn active" data-period="30d" onclick="loadRevenue('30d')">30 Days</button>
                 <button class="period-btn" data-period="90d" onclick="loadRevenue('90d')">90 Days</button>
+                <!-- Phase 6 — long-tail ranges read analytics_history_monthly_read instead of analytics_arpu. -->
+                <button class="period-btn" data-period="1y"  onclick="loadRevenue('1y')">1 Year</button>
+                <button class="period-btn" data-period="all" onclick="loadRevenue('all')">All-time</button>
             </div>
             <div class="kpi-grid" id="revenueKpis">
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
@@ -1670,6 +1766,12 @@
         
         <!-- Retention Tab -->
         <div id="retention" class="tab-content">
+            <div class="period-selector">
+                <button class="period-btn active" data-period="30d" onclick="loadRetention('30d')">30 Days</button>
+                <button class="period-btn" data-period="90d" onclick="loadRetention('90d')">90 Days</button>
+                <button class="period-btn" data-period="1y"  onclick="loadRetention('1y')">1 Year</button>
+                <button class="period-btn" data-period="all" onclick="loadRetention('all')">All-time</button>
+            </div>
             <div class="kpi-grid" id="retentionKpis">
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
@@ -2499,6 +2601,7 @@
             modes:     () => loadModes(),
             playerprofile: () => loadPlayerProfileTab(),
             dropoff:   () => loadDropoff(),
+            archive:   () => loadArchive(),
             diagnose:  () => loadDiagnose()
         };
 
@@ -2880,6 +2983,9 @@
         async function loadOverview() {
             try {
                 document.getElementById('overviewKpis').innerHTML = skKpi(7);
+                // Phase 6 — fire the lifetime strip in parallel; it has its own
+                // skeleton + error handling and never blocks the rest of overview.
+                loadLifetimeStrip().catch(() => { /* swallow — non-fatal */ });
                 const payload = getGamePayload();
                 const data = await callRpc('analytics_dashboard', payload);
                 if (data.error) {
@@ -3004,11 +3110,21 @@
         
         async function loadRevenue(period = '30d') {
             try {
-                // Update period selector UI
-                document.querySelectorAll('.period-btn').forEach(btn => {
+                // Update period selector UI (only revenue-tab buttons — other tabs
+                // also have .period-btn elements so we scope to #revenue).
+                document.querySelectorAll('#revenue .period-btn').forEach(btn => {
                     btn.classList.toggle('active', btn.dataset.period === period);
                 });
                 document.getElementById('revenueKpis').innerHTML = skKpi(4);
+
+                // Phase 6 — long-tail ranges (1y / all) read the monthly rollup
+                // tier instead of the live-aggregated analytics_arpu RPC. The
+                // analytics_history_monthly_read RPC returns up to 60 monthly
+                // buckets each carrying revenue.usd / iap_count / paywall_*.
+                if (period === '1y' || period === 'all') {
+                    return await loadRevenueLongTail(period);
+                }
+
                 const payload = { period: period, ...getGamePayload() };
                 const data = await callRpc('analytics_arpu', payload);
                 
@@ -3131,11 +3247,17 @@
             </table>`;
         }
 
-        async function loadRetention() {
+        async function loadRetention(period = '30d') {
+            // Phase 6 — sync the period-button active state. Buttons drive the
+            // monthly-rollup-backed `loadRetentionMilestones(period)` so we
+            // can render 1Y / All-time milestone trends without a live event scan.
+            document.querySelectorAll('#retention .period-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.period === period);
+            });
             // Always populate the new D1/D7/D30 milestone strip. It works for
             // "all games" too (server aggregates), so we fire it before the
             // per-game cohort gate below.
-            try { loadRetentionMilestones(); } catch (_) { /* non-fatal */ }
+            try { loadRetentionMilestones(period); } catch (_) { /* non-fatal */ }
             const kpis = document.getElementById('retentionKpis');
             const heatmap = document.getElementById('retentionHeatmap');
             try {
@@ -3756,12 +3878,17 @@
         // Loaded as part of loadRetention so the new D1/D7/D30 milestone strip
         // appears whenever the Retention tab is opened.
         // ─────────────────────────────────────────────────────────────────────
-        async function loadRetentionMilestones() {
+        async function loadRetentionMilestones(period = '30d') {
             const host = document.getElementById('retentionMilestoneKpis');
             if (!host) return;
             try {
+                // Phase 6 — period → days for the milestone scan window. The
+                // server still pages backwards through analytics_rollup_daily
+                // (rollup-preferred), so 1Y / All-time is cheap (≤ 365 doc reads).
+                const daysByPeriod = { '30d': 30, '90d': 90, '1y': 365, 'all': 365 * 5 };
+                const days = daysByPeriod[period] || 30;
                 const data = await callRpc('analytics_retention_milestones', {
-                    days: 30, ...getGamePayload()
+                    days: days, ...getGamePayload()
                 });
                 if (!data || data.error) {
                     host.innerHTML = `<div class="error">${(data && data.error) || 'No milestone data'}</div>`;
@@ -4156,6 +4283,364 @@
             }
         }
         
+        // ─────────────────────────────────────────────────────────────────────
+        // Phase 6 — Long-tail history loaders
+        //
+        // Three RPC tiers feed three new UX surfaces:
+        //   - analytics_history_lifetime_read  → Overview + Archive lifetime KPI strip
+        //   - analytics_history_monthly_read   → Revenue 1Y / All-time charts,
+        //                                        Retention 1Y / All-time milestone trend
+        //   - analytics_history_browse         → Archive tab raw event browser
+        //
+        // The lifetime strip is fired in parallel with loadOverview so a slow
+        // lifetime read never blocks the rest of the overview. Long-tail
+        // periods on Revenue route through loadRevenueLongTail (below) instead
+        // of analytics_arpu so they read 12-60 small monthly docs instead of
+        // doing a year-long live event scan.
+        // ─────────────────────────────────────────────────────────────────────
+
+        async function loadLifetimeStrip() {
+            const host = document.getElementById('lifetimeStripKpis');
+            const range = document.getElementById('lifetimeStripRange');
+            if (!host) return;
+            try {
+                const data = await callRpc('analytics_history_lifetime_read', getGamePayload());
+                if (!data || data.error || !data.doc) {
+                    host.innerHTML = `
+                        <div class="kpi-card" style="grid-column: span 2;">
+                            <div class="icon">🌐</div>
+                            <div class="label">All-time totals</div>
+                            <div class="value plain" style="font-size: 1rem; color: var(--text-muted);">
+                                Not computed yet — run <code>analytics_history_recompute</code> once after this deploy.
+                            </div>
+                        </div>`;
+                    if (range) range.textContent = data?.hint || 'no data yet';
+                    return;
+                }
+                const d = data.doc;
+                const rev = d.revenue || {};
+                if (range) {
+                    range.textContent = (d.range_start && d.range_end)
+                        ? `${d.range_start} → ${d.range_end} · ${formatNumber(d.days_folded || 0)} days`
+                        : 'computed';
+                }
+                host.innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">📦</div>
+                        <div class="label">Total Events Ever</div>
+                        <div class="value">${formatNumber(d.event_count || 0)}</div>
+                        <div class="trend">since ${d.range_start || '—'}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">👥</div>
+                        <div class="label">Total New Users</div>
+                        <div class="value">${formatNumber(d.new_users || 0)}</div>
+                        <div class="trend">first-seen across lifetime</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">💰</div>
+                        <div class="label">Lifetime Revenue (USD)</div>
+                        <div class="value currency positive">${(rev.usd || 0).toFixed(2)}</div>
+                        <div class="trend">${formatNumber(rev.iap_count || 0)} IAPs</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📺</div>
+                        <div class="label">Lifetime Ad Revenue</div>
+                        <div class="value currency">${(rev.ad_revenue_usd || 0).toFixed(2)}</div>
+                        <div class="trend">${formatNumber(rev.ad_impressions || 0)} impressions</div>
+                    </div>
+                `;
+            } catch (e) {
+                console.warn('Lifetime strip load failed:', e);
+                host.innerHTML = `<div class="error">Lifetime read failed: ${e.message}</div>`;
+            }
+        }
+
+        // Long-tail Revenue chart — reads 12 (1y) or 60 (all-time) monthly
+        // rollup docs and bins them into the existing Revenue cards/charts.
+        // Falls back to analytics_arpu if the rollup tier is empty (cold start).
+        async function loadRevenueLongTail(period) {
+            const months = period === 'all' ? 60 : 12;
+            const data = await callRpc('analytics_history_monthly_read', {
+                months, ...getGamePayload()
+            });
+            if (!data || data.error || !data.series || data.series.length === 0) {
+                document.getElementById('revenueKpis').innerHTML = `
+                    <div class="kpi-card" style="grid-column: span 2;">
+                        <div class="icon">⏳</div>
+                        <div class="label">${period === 'all' ? 'All-time' : '1 Year'} Revenue</div>
+                        <div class="value plain" style="font-size:0.95rem;color:var(--text-muted)">
+                            No monthly rollups yet — run <code>analytics_history_recompute</code> once
+                            (or wait for the next analytics_rollup_run).
+                        </div>
+                    </div>`;
+                return;
+            }
+
+            // Aggregate series.
+            let totalRevenueUsd = 0, totalIapCount = 0, totalAdRevenue = 0;
+            let totalPaywallShown = 0, totalPaywallConverted = 0, totalNewUsers = 0;
+            const labels = [];
+            const revBars = [];
+            const adBars = [];
+            data.series.forEach(entry => {
+                labels.push(entry.month.slice(2));   // YY-MM (compact)
+                if (!entry.doc) { revBars.push(0); adBars.push(0); return; }
+                const r = entry.doc.revenue || {};
+                revBars.push(r.usd || 0);
+                adBars.push(r.ad_revenue_usd || 0);
+                totalRevenueUsd       += r.usd || 0;
+                totalIapCount         += r.iap_count || 0;
+                totalAdRevenue        += r.ad_revenue_usd || 0;
+                totalPaywallShown     += r.paywall_shown || 0;
+                totalPaywallConverted += r.paywall_converted || 0;
+                totalNewUsers         += entry.doc.new_users || 0;
+            });
+            const conversionPct = totalPaywallShown > 0
+                ? ((totalPaywallConverted / totalPaywallShown) * 100).toFixed(1)
+                : '0.0';
+            const arppu = totalIapCount > 0
+                ? (totalRevenueUsd / totalIapCount).toFixed(2)
+                : '0.00';
+
+            const periodLabel = period === 'all' ? `All-time (${data.months_found} months)` : `Last ${data.months_found} months`;
+            document.getElementById('revenueKpis').innerHTML = `
+                <div class="kpi-card">
+                    <div class="icon">💰</div>
+                    <div class="label">Total Revenue (${periodLabel})</div>
+                    <div class="value currency positive">${totalRevenueUsd.toFixed(2)}</div>
+                    <div class="trend">${formatNumber(totalIapCount)} IAPs</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="icon">📺</div>
+                    <div class="label">Total Ad Revenue</div>
+                    <div class="value currency">${totalAdRevenue.toFixed(2)}</div>
+                    <div class="trend">over ${data.months_found} months</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="icon">🎯</div>
+                    <div class="label">Paywall Conversion</div>
+                    <div class="value plain">${conversionPct}%</div>
+                    <div class="trend">${formatNumber(totalPaywallConverted)} of ${formatNumber(totalPaywallShown)}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="icon">👤</div>
+                    <div class="label">ARPPU</div>
+                    <div class="value currency">${arppu}</div>
+                    <div class="trend">avg per paying user</div>
+                </div>
+            `;
+
+            // Revenue bar chart — IAP + ad stacked.
+            const revCanvas = document.getElementById('revenueChart');
+            if (revCanvas) {
+                if (charts['revenueChart']) charts['revenueChart'].destroy();
+                charts['revenueChart'] = new Chart(revCanvas, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [
+                            { label: 'IAP Revenue (USD)', data: revBars, backgroundColor: 'rgba(34,197,94,0.7)' },
+                            { label: 'Ad Revenue (USD)',  data: adBars,  backgroundColor: 'rgba(99,102,241,0.7)' }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } }
+                    }
+                });
+            }
+
+            // Conversion doughnut — paywall view → conversion across the full window.
+            createDoughnutChart('conversionChart',
+                ['Converted', 'Did not convert'],
+                [totalPaywallConverted, Math.max(0, totalPaywallShown - totalPaywallConverted)],
+                ['rgba(34,197,94,0.8)', 'rgba(100,116,139,0.5)']
+            );
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Phase 6 — Archive Tab (analytics_history_browse)
+        //
+        // Cursor-paginated raw event browser. Walks analytics_events directly
+        // (no rollup tier — by definition the user is asking for raw rows).
+        // Server-side caps protect against runaway scans on huge projects.
+        // ─────────────────────────────────────────────────────────────────────
+
+        const _archiveState = {
+            cursor: null,
+            rows: [],
+            lastFilters: null
+        };
+
+        async function loadArchive() {
+            // First-load just renders the lifetime strip; the search is
+            // explicit (operator-driven) so we don't accidentally scan
+            // millions of events on every tab open.
+            loadArchiveLifetime().catch(() => {});
+        }
+
+        async function loadArchiveLifetime() {
+            const host = document.getElementById('archiveLifetimeKpis');
+            if (!host) return;
+            try {
+                const data = await callRpc('analytics_history_lifetime_read', getGamePayload());
+                if (!data || data.error || !data.doc) {
+                    host.innerHTML = `
+                        <div class="kpi-card" style="grid-column: span 2;">
+                            <div class="icon">⏳</div>
+                            <div class="label">Lifetime Totals</div>
+                            <div class="value plain" style="font-size:0.9rem;color:var(--text-muted)">
+                                Not computed yet for this game scope.
+                            </div>
+                        </div>`;
+                    return;
+                }
+                const d = data.doc;
+                const rev = d.revenue || {};
+                host.innerHTML = `
+                    <div class="kpi-card">
+                        <div class="icon">📅</div>
+                        <div class="label">Active Days</div>
+                        <div class="value">${formatNumber(d.days_folded || 0)}</div>
+                        <div class="trend">${d.range_start || '—'} → ${d.range_end || '—'}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📦</div>
+                        <div class="label">Events Ever</div>
+                        <div class="value">${formatNumber(d.event_count || 0)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">👥</div>
+                        <div class="label">New Users Lifetime</div>
+                        <div class="value">${formatNumber(d.new_users || 0)}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">💰</div>
+                        <div class="label">Lifetime Revenue</div>
+                        <div class="value currency positive">${(rev.usd || 0).toFixed(2)}</div>
+                        <div class="trend">+ ad ${(rev.ad_revenue_usd || 0).toFixed(2)}</div>
+                    </div>
+                `;
+            } catch (e) {
+                host.innerHTML = `<div class="error">Lifetime read failed: ${e.message}</div>`;
+            }
+        }
+
+        function _archiveBuildPayload(reset) {
+            const fromVal  = document.getElementById('archiveFrom')?.value || '';
+            const toVal    = document.getElementById('archiveTo')?.value   || '';
+            const userVal  = (document.getElementById('archiveUserId')?.value || '').trim();
+            const evNVal   = (document.getElementById('archiveEventName')?.value || '').trim();
+            const limitVal = parseInt(document.getElementById('archiveLimit')?.value || '50', 10);
+            const payload = { limit: limitVal, ...getGamePayload() };
+            if (fromVal) payload.from_date = fromVal;
+            if (toVal)   payload.to_date   = toVal;
+            if (userVal) payload.user_id   = userVal;
+            if (evNVal)  payload.event_name = evNVal;
+            if (!reset && _archiveState.cursor) payload.cursor = _archiveState.cursor;
+            return payload;
+        }
+
+        async function archiveBrowserSearch(reset = true) {
+            const meta    = document.getElementById('archiveResultMeta');
+            const content = document.getElementById('archiveResultContent');
+            const nextBtn = document.getElementById('archiveBrowserNextBtn');
+            if (reset) {
+                _archiveState.cursor = null;
+                _archiveState.rows = [];
+            }
+            if (content) content.innerHTML = '<div class="loading">Scanning analytics_events…</div>';
+            try {
+                const payload = _archiveBuildPayload(reset);
+                _archiveState.lastFilters = payload;
+                const data = await callRpc('analytics_history_browse', payload);
+                if (!data || data.error) {
+                    if (content) content.innerHTML = `<div class="error">${(data && data.error) || 'Browse failed'}</div>`;
+                    if (nextBtn) nextBtn.disabled = true;
+                    return;
+                }
+                const newRows = data.events || [];
+                _archiveState.rows.push(...newRows);
+                _archiveState.cursor = data.next_cursor || null;
+                if (nextBtn) nextBtn.disabled = !(data.has_more && data.next_cursor);
+
+                if (meta) {
+                    const f = data.filters || {};
+                    const filterBits = [];
+                    if (f.from_date)  filterBits.push(`from <strong>${f.from_date}</strong>`);
+                    if (f.to_date)    filterBits.push(`to <strong>${f.to_date}</strong>`);
+                    if (f.game_id)    filterBits.push(`game <strong>${f.game_id.slice(0,8)}…</strong>`);
+                    if (f.user_id)    filterBits.push(`user <strong>${f.user_id.slice(0,8)}…</strong>`);
+                    if (f.event_name) filterBits.push(`event <strong>${f.event_name}</strong>`);
+                    meta.innerHTML = `Loaded <strong>${formatNumber(_archiveState.rows.length)}</strong> rows${filterBits.length ? ' · ' + filterBits.join(' · ') : ''} · scanned ${formatNumber(data.scanned)} this page${data.has_more ? ' · <em>more available</em>' : ' · end of results'}`;
+                }
+
+                if (content) content.innerHTML = _archiveRenderTable(_archiveState.rows);
+            } catch (e) {
+                if (content) content.innerHTML = `<div class="error">Browse failed: ${e.message}</div>`;
+                if (nextBtn) nextBtn.disabled = true;
+            }
+        }
+
+        async function archiveBrowserNext() {
+            return archiveBrowserSearch(false);
+        }
+
+        function _archiveRenderTable(rows) {
+            if (!rows || rows.length === 0) {
+                return '<div class="empty-state" style="padding:1rem;color:var(--text-muted)">No events match those filters in the requested window.</div>';
+            }
+            const head = `<tr>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Timestamp</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Event</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">User</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Game</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Properties</th>
+            </tr>`;
+            const rowsHtml = rows.map(ev => {
+                const props = ev.properties || {};
+                const propsTrim = JSON.stringify(props);
+                const propsCell = propsTrim.length > 220
+                    ? propsTrim.slice(0, 220) + '…'
+                    : propsTrim;
+                return `<tr style="border-bottom:1px solid #1f2937">
+                    <td style="padding:0.45rem 0.75rem;color:#cbd5e1;font-family:monospace;font-size:0.78rem;white-space:nowrap">${ev.timestamp || '—'}</td>
+                    <td style="padding:0.45rem 0.75rem;color:#f8fafc;font-weight:500">${ev.event_name || '—'}</td>
+                    <td style="padding:0.45rem 0.75rem;color:#94a3b8;font-family:monospace;font-size:0.78rem">${(ev.user_id || '').slice(0, 8)}…</td>
+                    <td style="padding:0.45rem 0.75rem;color:#94a3b8;font-family:monospace;font-size:0.78rem">${(ev.game_id || '').slice(0, 8)}…</td>
+                    <td style="padding:0.45rem 0.75rem;color:#cbd5e1;font-family:monospace;font-size:0.75rem;max-width:520px;overflow:hidden;text-overflow:ellipsis" title="${propsTrim.replace(/"/g,'&quot;')}">${propsCell}</td>
+                </tr>`;
+            }).join('');
+            return `<div style="overflow-x:auto;max-height:560px"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                <thead style="border-bottom:1px solid #2d2d3a;position:sticky;top:0;background:var(--bg-secondary,#0f172a)">${head}</thead>
+                <tbody>${rowsHtml}</tbody>
+            </table></div>`;
+        }
+
+        function archiveBrowserExportCsv() {
+            const rows = _archiveState.rows || [];
+            if (!rows.length) { alert('No archive results loaded yet. Run a search first.'); return; }
+            const cols = ['timestamp', 'event_name', 'user_id', 'game_id', 'properties_json'];
+            const lines = [cols.join(',')];
+            rows.forEach(ev => {
+                lines.push([
+                    '"' + (ev.timestamp || '') + '"',
+                    '"' + (ev.event_name || '').replace(/"/g, '""') + '"',
+                    '"' + (ev.user_id || '') + '"',
+                    '"' + (ev.game_id || '') + '"',
+                    '"' + JSON.stringify(ev.properties || {}).replace(/"/g, '""') + '"'
+                ].join(','));
+            });
+            const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url;
+            a.download = `quizverse_archive_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
         // ─────────────────────────────────────────────────────────────────────
         // Storage Browser (uses admin_storage_list)
         // ─────────────────────────────────────────────────────────────────────
