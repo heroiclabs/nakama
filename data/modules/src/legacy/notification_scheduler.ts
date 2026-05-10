@@ -163,7 +163,28 @@ namespace LegacyNotifScheduler {
   }
 
   // Register the match handler. Call from InitModule.
+  //
+  // Defensive guard required (build #200 root-cause): postbuild.js scans
+  // for "<NS>" + "." + "register = register;" patterns and auto-injects a
+  // bare `register();` call right after each one. That trick populates
+  // __rpc_* stubs on every pooled Goja VM. It works when the body is
+  // only rewritten registerRpc lines, but registerMatch calls survive
+  // unrewritten and would deref `undefined` at IIFE auto-invoke time —
+  // throwing a TypeError that escapes the IIFE and halts the rest of
+  // the bundle's top-level evaluation (~15 KB later, including the
+  // JsRuntimeHealth IIFE). The smoke-test 404 from build #200 was that
+  // exact path: the runtime loaded but nakama_js_health was never
+  // assigned to its __rpc_ stub.
+  //
+  // The check below makes this function a no-op when called with an
+  // undefined initializer (the IIFE auto-invoke case), so file evaluation
+  // never aborts. The REAL handler registration still happens when
+  // InitModule calls register() with the genuine initializer object.
+  // (postbuild.js was also hardened to skip auto-invoke for any single-
+  // param register whose body still touches initializer.something() —
+  // belt + suspenders for future modules.)
   export function register(initializer: nkruntime.Initializer): void {
+    if (!initializer || typeof initializer.registerMatch !== "function") return;
     initializer.registerMatch<SchedulerState>(MATCH_NAME, {
       matchInit: matchInit,
       matchJoinAttempt: matchJoinAttempt,

@@ -426,9 +426,47 @@ if (modulesContent) {
 // runtime evaluation, so even nakama_js_health was never registered →
 // pre-push smoke test got HTTP 404 → image never reached ECR.
 
+// Replace every // line comment and every /* */ block comment with the same
+// number of spaces / newlines as the original, so character offsets line up
+// 1:1 with the source. We scan THIS scrubbed copy with the regex, then apply
+// insertions back into the ORIGINAL content at the same offsets — which means
+// the regex can't match comment text any more, but the rendered bundle still
+// carries the original comments verbatim.
+function stripCommentsPreserveOffsets(src) {
+  var out = '';
+  var i = 0;
+  var n = src.length;
+  while (i < n) {
+    var c = src.charCodeAt(i);
+    var c2 = i + 1 < n ? src.charCodeAt(i + 1) : 0;
+    if (c === 0x2F /* / */ && c2 === 0x2F /* / */) {
+      while (i < n && src.charCodeAt(i) !== 0x0A /* \n */) { out += ' '; i++; }
+    } else if (c === 0x2F /* / */ && c2 === 0x2A /* * */) {
+      out += '  '; i += 2;
+      while (i < n) {
+        if (src.charCodeAt(i) === 0x2A /* * */ && i + 1 < n && src.charCodeAt(i + 1) === 0x2F /* / */) {
+          out += '  '; i += 2; break;
+        }
+        out += src.charCodeAt(i) === 0x0A ? '\n' : ' ';
+        i++;
+      }
+    } else {
+      out += src[i]; i++;
+    }
+  }
+  return out;
+}
+
 function autoInvokeRegister(content) {
   var count = 0;
   var skipped = [];
+  // Build #201 fix: scan a comment-stripped copy. The original `content` is
+  // still the source-of-truth for the body / declaration / insertion offset,
+  // but `scan` is what the regex sees so a literal `Namespace.register =
+  // register;` written inside a doc comment can never trigger a false match
+  // (which historically broke the bundle by injecting `register();` into
+  // the middle of a // line comment, splitting it across statements).
+  var scan = stripCommentsPreserveOffsets(content);
   // Capture the function declaration's parameter list so we can decide.
   // Pattern matches `Namespace.register = register;` and also captures
   // the corresponding `function register(<params>)` declaration's args.
@@ -439,15 +477,17 @@ function autoInvokeRegister(content) {
   var assignRe = /(\w+)\.register\s*=\s*register\s*;/g;
   var m;
   var insertions = [];
-  while ((m = assignRe.exec(content)) !== null) {
+  while ((m = assignRe.exec(scan)) !== null) {
     var nsName = m[1];
     var assignIdx = m.index;
     var assignEnd = assignIdx + m[0].length;
     // Look back from the assignment for the most recent `function register(`
-    // declaration. Limit search window to ~16KB to keep this O(N).
+    // declaration AND its body so we can both inspect the param list and
+    // scan the body for unsafe references. Limit search window to ~16KB.
+    // Use `scan` (comment-stripped) so docstrings can't disturb the search.
     var windowStart = Math.max(0, assignIdx - 16384);
-    var window = content.substring(windowStart, assignIdx);
-    var declRe = /function\s+register\s*\(([^)]*)\)/g;
+    var window = scan.substring(windowStart, assignIdx);
+    var declRe = /function\s+register\s*\(([^)]*)\)\s*\{/g;
     var lastDecl = null;
     var dm;
     while ((dm = declRe.exec(window)) !== null) lastDecl = dm;
@@ -472,6 +512,50 @@ function autoInvokeRegister(content) {
     if (paramCount > 1) {
       skipped.push(nsName + '(' + paramList + ')');
       continue;
+    }
+    // Body scan (build #200 root-cause): even single-param register()
+    // bodies are UNSAFE if they touch `initializer.<x>()` for any `<x>`
+    // other than `registerRpc` — postbuild only rewrites registerRpc, so
+    // anything like `initializer.registerMatch(...)`, `initializer.registerRtBefore(...)`,
+    // `initializer.registerHook(...)`, etc. survives into the runtime
+    // and would explode at IIFE auto-invoke time (initializer === undefined).
+    // The fallout is silent: the throw escapes the IIFE, halting bundle
+    // evaluation past it — every namespace declared LATER in the file
+    // (including JsRuntimeHealth, ~15 KB further down) never runs.
+    if (lastDecl) {
+      var bodyStart = lastDecl.index + lastDecl[0].length;
+      // Find the matching close brace (depth-tracked from `{` after params).
+      var depth = 1;
+      var i = bodyStart;
+      var len = window.length;
+      while (i < len && depth > 0) {
+        var ch = window.charCodeAt(i);
+        if (ch === 0x7B /* { */) depth++;
+        else if (ch === 0x7D /* } */) depth--;
+        i++;
+      }
+      var bodySrc = window.substring(bodyStart, i);
+      // Param name (e.g. `initializer`, `init`, `i`) — the unsafe pattern
+      // is `<param>.SOMETHING(` where SOMETHING is anything except
+      // registerRpc (rewritten). Match the param name dynamically.
+      var paramName = paramList.replace(/[^A-Za-z0-9_$]/g, '');
+      if (paramName) {
+        // Escape regex meta in the param name (it's already an identifier
+        // but cheap defense). Look for `<paramName>.<word>(` where word
+        // is NOT registerRpc.
+        var escName = paramName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var bodyRe  = new RegExp('\\b' + escName + '\\s*\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\(', 'g');
+        var bm;
+        var unsafeCall = null;
+        while ((bm = bodyRe.exec(bodySrc)) !== null) {
+          if (bm[1] !== 'registerRpc') { unsafeCall = bm[1]; break; }
+        }
+        if (unsafeCall) {
+          skipped.push(nsName + '(' + paramList + ') [body calls ' +
+                       paramName + '.' + unsafeCall + '() — auto-invoke unsafe]');
+          continue;
+        }
+      }
     }
     insertions.push({ at: assignEnd, ns: nsName });
   }
