@@ -13007,13 +13007,27 @@ var LegacyNotifScheduler;
     function nowMinute() {
         return Math.floor(Date.now() / 60000);
     }
-    // Returns true if the current UTC minute is on the requested cadence
-    // boundary AND we haven't already dispatched at this minute.
+    // Returns true when at least `periodMin` minutes have elapsed since this
+    // task last fired. Elapsed-time semantics (vs "fire on minute boundary
+    // m % periodMin === 0") so a delayed matchLoop tick — GC pause, pod
+    // restart at :00, momentary load — doesn't cause us to skip the entire
+    // 30-minute window. Trade-off: schedule drifts off-clock over time, but
+    // every cron handler enforces a per-user once-per-day marker so users
+    // never get duplicate pushes regardless of drift.
+    //
+    // First-call deferral: on a fresh match (new pod boot), `last` would be 0
+    // and every task would fire on the very first tick (thundering herd
+    // across 5 crons + a bunch of users on each). We instead initialize
+    // `last = nowMinute()` so the first dispatch happens after `periodMin`
+    // minutes — same cadence, no boot-time spike.
     function shouldDispatch(state, task, periodMin) {
         var m = nowMinute();
-        if ((m % periodMin) !== 0)
+        var last = state.lastDispatchedMinute[task];
+        if (last === undefined || last === 0) {
+            state.lastDispatchedMinute[task] = m;
             return false;
-        if (state.lastDispatchedMinute[task] === m)
+        }
+        if (m - last < periodMin)
             return false;
         state.lastDispatchedMinute[task] = m;
         return true;
@@ -13281,7 +13295,7 @@ var LegacyPush;
     //
     // ⚠️ TODO(ops): paste the actual REGISTER URL between the quotes below.
     // The SEND URL is from the production push-notification documentation.
-    var PUSH_REGISTER_URL_DEFAULT = ""; // FIXME: paste push-register-endpoint Lambda Function URL here
+    var PUSH_REGISTER_URL_DEFAULT = "https://alwe7byu637jhiwnkyzlg2fphm0fxioh.lambda-url.us-east-1.on.aws/";
     var PUSH_SEND_URL_DEFAULT = "https://dp3gdkvjst4dwlehmuk3o7l4zm0rjapm.lambda-url.us-east-1.on.aws/";
     function getPushTokens(nk, userId) {
         var key = "token_" + userId;
@@ -13488,11 +13502,19 @@ var LegacyPush;
                 }]);
             // Flat response shape — matches Unity's PushSendResponse {success, messageId,
             // eventType, recipientCount, sentAt, error}. No .data wrap.
+            // recipientCount = number of provider endpoints that accepted the push.
+            // The in-app inbox notification (notificationsSend above) is always
+            // delivered for the user, but we report device-push delivery here.
+            var successCount = 0;
+            for (var pr = 0; pr < providerResults.length; pr++) {
+                if (providerResults[pr] && providerResults[pr].success === true)
+                    successCount++;
+            }
             return JSON.stringify({
                 success: true,
                 messageId: "nakama_notification_" + Date.now(),
                 eventType: data.eventType || subject,
-                recipientCount: 1,
+                recipientCount: successCount,
                 sentAt: new Date().toISOString(),
                 providerConfigured: providerResults.length > 0,
                 providerResults: providerResults

@@ -171,6 +171,15 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Legacy] Registering push RPCs...");
     LegacyPush.register(initializer);
 
+    logger.info("[Legacy] Registering notification scheduler match...");
+    LegacyNotifScheduler.register(initializer);
+    // Spawn one in-process scheduler match per pod. The match runs forever,
+    // ticks at 1 Hz, and dispatches the five notif_cron_* RPCs at their own
+    // cadence. Replaces external K8s CronJob / EventBridge scheduling.
+    // Per-user `notif_send_markers` storage dedup makes this safe across
+    // multiple Nakama replicas (first writer wins, others see the marker).
+    LegacyNotifScheduler.spawnSchedulerMatch(logger, nk);
+
     logger.info("[Legacy] Registering player RPCs...");
     LegacyPlayer.register(initializer);
 

@@ -14,6 +14,22 @@ namespace LegacyPush {
 
   var DEFAULT_PUSH_NOTIFICATION_CODE = 7001;
 
+  // ─── Production hardcoded Lambda Function URLs ──────────────────────────────
+  // Single source of truth for the AWS Lambda Function URLs that back our push
+  // pipeline. Hardcoded so the system works even when Nakama starts without the
+  // PUSH_REGISTER_URL / PUSH_LAMBDA_URL / PUSH_SEND_URL env vars set (e.g. on
+  // first deploy, or in a fresh K8s manifest). Env vars still take precedence
+  // when present, so ops can rotate URLs without a Nakama rebuild.
+  //
+  // Update both values below if the Lambda URLs ever change.
+  //   - REGISTER URL → push-register-endpoint Lambda (creates SNS endpoint ARN)
+  //   - SEND URL     → push-send-notification Lambda (publishes to SNS endpoint)
+  //
+  // ⚠️ TODO(ops): paste the actual REGISTER URL between the quotes below.
+  // The SEND URL is from the production push-notification documentation.
+  var PUSH_REGISTER_URL_DEFAULT = "https://alwe7byu637jhiwnkyzlg2fphm0fxioh.lambda-url.us-east-1.on.aws/";
+  var PUSH_SEND_URL_DEFAULT     = "https://dp3gdkvjst4dwlehmuk3o7l4zm0rjapm.lambda-url.us-east-1.on.aws/";
+
   function getPushTokens(nk: nkruntime.Nakama, userId: string): PushTokenData {
     var key = "token_" + userId;
     var data = Storage.readJson<PushTokenData>(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId);
@@ -43,7 +59,7 @@ namespace LegacyPush {
   }
 
   function registerProviderEndpoint(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, token: string, platform: string, gameId: string): any {
-    var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL");
+    var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL") || PUSH_REGISTER_URL_DEFAULT;
     if (!registerUrl) return { configured: false };
 
     try {
@@ -79,7 +95,7 @@ namespace LegacyPush {
   }
 
   function sendProviderPush(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, endpoint: any, payload: any): any {
-    var sendUrl = env(ctx, "PUSH_SEND_URL");
+    var sendUrl = env(ctx, "PUSH_SEND_URL") || PUSH_SEND_URL_DEFAULT;
     if (!sendUrl) return { configured: false };
     if (!endpoint.endpointArn) return { configured: true, success: false, error: "endpointArn missing" };
 
@@ -207,11 +223,18 @@ namespace LegacyPush {
       }]);
       // Flat response shape — matches Unity's PushSendResponse {success, messageId,
       // eventType, recipientCount, sentAt, error}. No .data wrap.
+      // recipientCount = number of provider endpoints that accepted the push.
+      // The in-app inbox notification (notificationsSend above) is always
+      // delivered for the user, but we report device-push delivery here.
+      var successCount = 0;
+      for (var pr = 0; pr < providerResults.length; pr++) {
+        if (providerResults[pr] && providerResults[pr].success === true) successCount++;
+      }
       return JSON.stringify({
         success: true,
         messageId: "nakama_notification_" + Date.now(),
         eventType: data.eventType || subject,
-        recipientCount: 1,
+        recipientCount: successCount,
         sentAt: new Date().toISOString(),
         providerConfigured: providerResults.length > 0,
         providerResults: providerResults
@@ -855,6 +878,15 @@ namespace LegacyPush {
       { skipQuietHours: true, data: { screen: "challenges", fromUserId: d.fromUserId || "", mode: mode } });
     return RpcHelpers.successResponse({ sent: ok });
   }
+
+  // Internal aliases so the in-process scheduler match can invoke each cron
+  // handler directly without an HTTP round-trip. The RPC versions remain
+  // registered for ops use (manual fire / external trigger / curl).
+  export var runDailyQuizCron     = rpcNotifCronDailyQuiz;
+  export var runWeeklyQuizCron    = rpcNotifCronWeeklyQuiz;
+  export var runIdleWinbackCron   = rpcNotifCronIdleWinback;
+  export var runStreakWarningCron = rpcNotifCronStreakWarning;
+  export var runMotivationCron    = rpcNotifCronMotivation;
 
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("push_register_token", rpcPushRegisterToken);

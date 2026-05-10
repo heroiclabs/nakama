@@ -2,11 +2,20 @@ const AWS = require('aws-sdk');
 const sns = new AWS.SNS();
 const pinpoint = new AWS.Pinpoint();
 
-const SNS_PLATFORM_APPLICATION_ARN_IOS = process.env.SNS_PLATFORM_APP_ARN_IOS;
-const SNS_PLATFORM_APPLICATION_ARN_ANDROID = process.env.SNS_PLATFORM_APP_ARN_ANDROID;
-const SNS_PLATFORM_APPLICATION_ARN_WEB = process.env.SNS_PLATFORM_APP_ARN_WEB;
-const SNS_PLATFORM_APPLICATION_ARN_WINDOWS = process.env.SNS_PLATFORM_APP_ARN_WINDOWS;
-const PINPOINT_APPLICATION_ID = process.env.PINPOINT_APPLICATION_ID;
+// ─── Production hardcoded SNS Platform Application ARNs ────────────────────
+// Single source of truth. The Lambda works even when SNS_PLATFORM_APP_ARN_*
+// env vars are missing (e.g. on a fresh deploy or after an env-var wipe).
+// Env vars still take precedence so ops can rotate ARNs without redeploying.
+//
+// Update these values if the SNS Platform App is ever recreated.
+const SNS_ARN_IOS_DEFAULT     = "arn:aws:sns:us-east-1:970547373533:app/APNS/intelliverse-ios";
+const SNS_ARN_ANDROID_DEFAULT = "arn:aws:sns:us-east-1:970547373533:app/GCM/IntelliVerseX-Android";
+
+const SNS_PLATFORM_APPLICATION_ARN_IOS     = process.env.SNS_PLATFORM_APP_ARN_IOS     || SNS_ARN_IOS_DEFAULT;
+const SNS_PLATFORM_APPLICATION_ARN_ANDROID = process.env.SNS_PLATFORM_APP_ARN_ANDROID || SNS_ARN_ANDROID_DEFAULT;
+const SNS_PLATFORM_APPLICATION_ARN_WEB     = process.env.SNS_PLATFORM_APP_ARN_WEB; // optional (no default yet)
+const SNS_PLATFORM_APPLICATION_ARN_WINDOWS = process.env.SNS_PLATFORM_APP_ARN_WINDOWS; // optional (no default yet)
+const PINPOINT_APPLICATION_ID              = process.env.PINPOINT_APPLICATION_ID;
 
 exports.handler = async (event) => {
     console.log('Register endpoint request:', JSON.stringify(event, null, 2));

@@ -40,44 +40,56 @@ exports.handler = async (event) => {
     try {
         let message;
         let messageStructure = 'json';
-        
+
+        // Always merge gameId + eventType into the custom data dict that the
+        // device receives. The Unity FCMManager / iOS handler reads eventType
+        // from this dict to route deep-links correctly.
+        const customData = Object.assign({}, data || {}, {
+            gameId: gameId || '',
+            eventType: eventType || ''
+        });
+
         if (platform === 'ios') {
-            const apnsPayload = {
+            // Mirrors the deployed Lambda (see index.mjs). Custom keys
+            // (gameId, eventType, ...) live at the TOP level of the APNS
+            // dict — that's where iOS delivers them to the app.
+            const apnsPayload = Object.assign({
                 aps: {
-                    alert: {
-                        title: title,
-                        body: messageBody
-                    },
+                    alert: { title: title, body: messageBody },
                     sound: 'default',
-                    badge: 1
-                },
-                ...data
-            };
-            
+                    badge: 1,
+                    'mutable-content': 1,
+                    'content-available': 1,
+                    'thread-id': eventType || 'general'
+                }
+            }, customData);
+
             message = JSON.stringify({
                 default: `${title}: ${messageBody}`,
                 APNS: JSON.stringify(apnsPayload),
                 APNS_SANDBOX: JSON.stringify(apnsPayload)
             });
-            
+
         } else if (platform === 'android' || platform === 'web') {
+            // Mirrors the deployed Lambda (see index.mjs). Custom keys live
+            // in `data:` per FCM contract — Unity reads them via
+            // `MessageReceivedEventArgs.Message.Data`.
             const fcmPayload = {
                 notification: {
                     title: title,
-                    body: messageBody
+                    body: messageBody,
+                    tag: eventType || 'general'
                 },
-                data: {
-                    ...data,
-                    gameId: gameId || '',
-                    eventType: eventType || ''
-                }
+                data: customData,
+                priority: 'high',
+                time_to_live: 3600
             };
-            
+
             message = JSON.stringify({
                 default: `${title}: ${messageBody}`,
                 GCM: JSON.stringify(fcmPayload)
             });
-            
+
         } else if (platform === 'windows') {
             const wnsPayload = {
                 notification: {
