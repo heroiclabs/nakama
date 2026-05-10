@@ -1178,6 +1178,19 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     } catch (eDa) { logger.warn("[analytics_rollup] dropoff rollup failed for all: " + eDa.message); }
     written.unshift({ scope: "all", date: dateStr, dau: allRollup.dau, events: allRollup.event_count, new_users: allRollup.new_users });
 
+    // Phase 6 — bump the monthly/yearly/lifetime tiers for every game we
+    // just rolled up (plus the platform-wide "all" bucket). arvBumpForDate
+    // reads the daily we just wrote and refreshes the longer-tail tiers
+    // in place. Best-effort — failures don't fail the daily run.
+    if (typeof arvBumpForDate === "function") {
+        for (var gb = 0; gb < gameIds.length; gb++) {
+            try { arvBumpForDate(nk, logger, gameIds[gb], dateStr); }
+            catch (eGB) { logger.warn("[analytics_rollup] history bump failed " + gameIds[gb] + ": " + eGB.message); }
+        }
+        try { arvBumpForDate(nk, logger, "all", dateStr); }
+        catch (eAB) { logger.warn("[analytics_rollup] history bump failed all: " + eAB.message); }
+    }
+
     // Record success marker.
     arWriteOne(nk, AR_META_COLLECTION, "last_success", AR_SYSTEM_USER, {
         date: dateStr,
