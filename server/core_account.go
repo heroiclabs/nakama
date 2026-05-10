@@ -508,7 +508,9 @@ INSERT INTO users (
 	create_time,
 	update_time,
 	verify_time,
-	disable_time
+	disable_time,
+	facebook_instant_game_id,
+	apple_id
 )
 VALUES (
 	$1,
@@ -530,12 +532,14 @@ VALUES (
 	$17,
 	$18,
 	$19,
-	$20
+	$20,
+	nullif(trim($21), ''),
+	nullif(trim($22), '')
 )`
 			_, err := tx.ExecContext(ctx, query, data.Account.User.Id, data.Account.User.Username, data.Account.User.DisplayName, data.Account.User.AvatarUrl, data.Account.User.LangTag,
 				data.Account.User.Location, data.Account.User.Timezone, data.Account.User.Metadata, data.Account.Wallet, data.Account.Email, "", data.Account.User.FacebookId,
 				data.Account.User.GoogleId, data.Account.User.GamecenterId, data.Account.User.SteamId, data.Account.CustomId, data.Account.User.CreateTime.AsTime(),
-				data.Account.User.UpdateTime.AsTime(), data.Account.VerifyTime.AsTime(), data.Account.DisableTime.AsTime())
+				data.Account.User.UpdateTime.AsTime(), data.Account.VerifyTime.AsTime(), data.Account.DisableTime.AsTime(), data.Account.User.FacebookInstantGameId, data.Account.User.AppleId)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
 					return err
