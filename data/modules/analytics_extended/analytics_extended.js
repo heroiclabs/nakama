@@ -1,7 +1,7 @@
 /**
  * Analytics Extended Module
  * Implements 14 analytics RPCs for the dashboard.
- * 
+ *
  * RPCs:
  *   - analytics_session_stats
  *   - analytics_quiz_performance
@@ -291,41 +291,41 @@ function extScanEvents(nk, logger, collection, days, filter, gameId) {
 
     // Determine which collections to scan
     var collectionsToScan = (collection === 'analytics_events') ? EVENT_COLLECTIONS : [collection];
-    
+
     for (var c = 0; c < collectionsToScan.length; c++) {
         var currentCollection = collectionsToScan[c];
-        
+
         try {
             var cursor = null;
             var iterations = 0;
             var maxIterations = 20;
-            
+
             do {
                 var result = nk.storageList(SYSTEM_USER_ID, currentCollection, 100, cursor);
                 if (!result || !result.objects) break;
-                
+
                 for (var i = 0; i < result.objects.length; i++) {
                     var obj = result.objects[i];
                     var val = extNormalizeEvent(obj.value, obj.key);
                     if (!val) continue;
-                    
+
                     // GameId filter (supports both key prefix and value.gameId)
                     if (canonicalGameId) {
                         var rawEventGameId = val.gameId || extractGameIdFromKey(obj.key);
                         var eventGameId = extResolveGameId(rawEventGameId);
                         if (eventGameId !== canonicalGameId) continue;
                     }
-                    
+
                     // Date filter
                     var eventDate = val.date || extIsoDate(val.timestamp) || obj.key.slice(-10);
                     if (eventDate && eventDate < cutoffDate) continue;
-                    
+
                     // Custom filter
                     if (filter && !filter(val, obj)) continue;
-                    
+
                     events.push(val);
                 }
-                
+
                 cursor = result.cursor;
                 iterations++;
             } while (cursor && iterations < maxIterations);
@@ -333,7 +333,7 @@ function extScanEvents(nk, logger, collection, days, filter, gameId) {
             logger.warn('[AnalyticsExtended] Scan error (' + currentCollection + '): ' + e.message);
         }
     }
-    
+
     return events;
 }
 
@@ -401,7 +401,7 @@ function extCountByField(events, field) {
 function extTopN(counts, n, labelKey, countKey) {
     labelKey = labelKey || 'name';
     countKey = countKey || 'count';
-    
+
     var arr = [];
     for (var k in counts) {
         var item = {};
@@ -459,68 +459,332 @@ function extMatchesModeFilter(payloadData, ev) {
     return String(got).toLowerCase() === w;
 }
 
+function extEventData(ev) {
+    if (!ev) return {};
+    return ev.eventData || ev.properties || ev.data || {};
+}
+
+function extEventName(ev) {
+    if (!ev) return '';
+    return String(ev.eventName || ev.event || ev.name || '').toLowerCase();
+}
+
+function extEventTimestampSeconds(ev) {
+    if (!ev) return 0;
+    var d = extEventData(ev);
+    var raw = ev.timestamp || ev.created_at || ev.createdAt || ev.time || d.timestamp || d.created_at || d.createdAt || d.time || null;
+    if (raw === null || raw === undefined || raw === '') return 0;
+    if (typeof raw === 'number') {
+        return raw > 10000000000 ? Math.floor(raw / 1000) : Math.floor(raw);
+    }
+    var asNumber = parseFloat(raw);
+    if (isFinite(asNumber) && String(raw).match(/^\d+(\.\d+)?$/)) {
+        return asNumber > 10000000000 ? Math.floor(asNumber / 1000) : Math.floor(asNumber);
+    }
+    var parsed = Date.parse(raw);
+    return isNaN(parsed) ? 0 : Math.floor(parsed / 1000);
+}
+
+function extEventDate(ev) {
+    var d = extEventData(ev);
+    var direct = ev && (ev.date || d.date || d.event_date || d.eventDate);
+    var dateStr = extIsoDate(direct);
+    if (dateStr) return dateStr;
+    var ts = extEventTimestampSeconds(ev);
+    if (!ts) return null;
+    return new Date(ts * 1000).toISOString().slice(0, 10);
+}
+
+function extEventHour(ev) {
+    var d = extEventData(ev);
+    var hour = parseInt(d.hour || d.utc_hour || d.utcHour, 10);
+    if (isFinite(hour) && hour >= 0 && hour < 24) return hour;
+    var ts = extEventTimestampSeconds(ev);
+    if (!ts) return 0;
+    return new Date(ts * 1000).getUTCHours();
+}
+
+function extDurationSecondsFromEvent(ev) {
+    var d = extEventData(ev);
+    var secondKeys = [
+        'duration_seconds', 'durationSeconds',
+        'session_duration_seconds', 'sessionDurationSeconds',
+        'time_spent_seconds', 'timeSpentSeconds',
+        'elapsed_seconds', 'elapsedSeconds',
+        'duration'
+    ];
+    for (var i = 0; i < secondKeys.length; i++) {
+        var v = parseFloat(d[secondKeys[i]]);
+        if (isFinite(v) && v > 0 && v < 86400) return v;
+    }
+    var msKeys = ['duration_ms', 'durationMs', 'session_duration_ms', 'sessionDurationMs', 'time_spent_ms', 'timeSpentMs'];
+    for (var j = 0; j < msKeys.length; j++) {
+        var ms = parseFloat(d[msKeys[j]]);
+        if (isFinite(ms) && ms > 0 && ms < 86400000) return ms / 1000;
+    }
+    return 0;
+}
+
+function extIsSessionStartName(name) {
+    return name === 'session_start' ||
+        name === 'session_started' ||
+        name === 'app_session_start' ||
+        name === 'app_open' ||
+        name === 'first_open' ||
+        name === 'quiz_session_started' ||
+        name === 'quiz_session_start' ||
+        name === 'quiz_started' ||
+        name === 'quiz_start';
+}
+
+function extIsSessionEndName(name) {
+    return name === 'session_end' ||
+        name === 'session_ended' ||
+        name === 'app_session_end' ||
+        name === 'quiz_session_ended' ||
+        name === 'quiz_session_end' ||
+        name === 'quiz_completed' ||
+        name === 'quiz_complete' ||
+        name === 'quiz_abandoned';
+}
+
+function extAddDurationSamples(durations, value, count) {
+    if (!isFinite(value) || value <= 0 || value >= 86400) return;
+    var limit = Math.min(parseInt(count, 10) || 1, 500);
+    for (var i = 0; i < limit; i++) durations.push(value);
+}
+
+function extBuildSessionStatsFromEvents(events, days) {
+    var dailyMap = {};
+    var dailyStats = [];
+    for (var d = 0; d < days; d++) {
+        var dateStr = extDaysAgo(d);
+        dailyMap[dateStr] = { date: dateStr, sessions: 0, durationTotal: 0, durationCount: 0 };
+    }
+
+    var sessions = {};
+    var hourCounts = {};
+    var durations = [];
+
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        var eventDate = extEventDate(ev);
+        if (!eventDate || !dailyMap[eventDate]) continue;
+
+        var data = extEventData(ev);
+        var name = extEventName(ev);
+        var isStart = extIsSessionStartName(name);
+        var isEnd = extIsSessionEndName(name);
+        var sid = data.session_id || data.sessionId || data.sid || ev.session_id || ev.sessionId || null;
+        if (!sid && !isStart && !isEnd) continue;
+
+        var ts = extEventTimestampSeconds(ev);
+        var userId = ev.userId || ev.user_id || data.user_id || data.userId || 'anonymous';
+        var key = sid ? (userId + '|' + sid) : (userId + '|' + name + '|' + eventDate + '|' + (ts || i));
+        var s = sessions[key];
+        if (!s) {
+            s = sessions[key] = {
+                date: eventDate,
+                firstTs: ts || 0,
+                lastTs: ts || 0,
+                startTs: 0,
+                endTs: 0,
+                explicitDuration: 0,
+                hour: extEventHour(ev),
+                hasStart: false,
+                hasEnd: false
+            };
+        }
+
+        if (ts) {
+            if (!s.firstTs || ts < s.firstTs) {
+                s.firstTs = ts;
+                s.date = eventDate;
+                s.hour = extEventHour(ev);
+            }
+            if (!s.lastTs || ts > s.lastTs) s.lastTs = ts;
+        }
+        if (isStart) {
+            s.hasStart = true;
+            if (ts && (!s.startTs || ts < s.startTs)) {
+                s.startTs = ts;
+                s.date = eventDate;
+                s.hour = extEventHour(ev);
+            }
+        }
+        if (isEnd) {
+            s.hasEnd = true;
+            if (ts && (!s.endTs || ts > s.endTs)) s.endTs = ts;
+        }
+        var explicitDuration = extDurationSecondsFromEvent(ev);
+        if (explicitDuration > s.explicitDuration) s.explicitDuration = explicitDuration;
+    }
+
+    var totalSessions = 0;
+    for (var key in sessions) {
+        if (!sessions.hasOwnProperty(key)) continue;
+        var session = sessions[key];
+        var bucket = dailyMap[session.date];
+        if (!bucket) continue;
+
+        totalSessions++;
+        bucket.sessions++;
+        var h = String(session.hour || 0);
+        hourCounts[h] = (hourCounts[h] || 0) + 1;
+
+        var duration = session.explicitDuration || 0;
+        if (!duration && session.startTs && session.endTs && session.endTs > session.startTs) {
+            duration = session.endTs - session.startTs;
+        }
+        if (!duration && session.firstTs && session.lastTs && session.lastTs > session.firstTs) {
+            duration = session.lastTs - session.firstTs;
+        }
+        if (isFinite(duration) && duration > 0 && duration < 86400) {
+            durations.push(duration);
+            bucket.durationTotal += duration;
+            bucket.durationCount++;
+        }
+    }
+
+    for (var r = days - 1; r >= 0; r--) {
+        var dayStr = extDaysAgo(r);
+        var b = dailyMap[dayStr] || { date: dayStr, sessions: 0, durationTotal: 0, durationCount: 0 };
+        dailyStats.push({
+            date: dayStr,
+            sessions: b.sessions,
+            avg_duration: b.durationCount > 0 ? Math.round(b.durationTotal / b.durationCount) : 0
+        });
+    }
+
+    return {
+        totalSessions: totalSessions,
+        durations: durations,
+        hourCounts: hourCounts,
+        dailyStats: dailyStats
+    };
+}
+
 // ─── RPC: analytics_session_stats ─────────────────────────
 
 function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
+        if (days < 1) days = 7;
+        if (days > 365) days = 365;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var totalSessions = 0;
         var durations = [];
         var hourCounts = {};
         var dailyStats = [];
-        
-        // Read session summaries from storage (game-specific key if gameId provided)
+        var rollupReadDays = 0;
+        var aggregateReadDays = 0;
+
+        // Prefer daily rollups, then legacy session aggregates. If both are cold,
+        // derive counts directly from analytics_events so the dashboard does not
+        // show zero while the raw activity log has usable session evidence.
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
-            var key = gameId 
-                ? 'session_stats_' + gameId + '_' + dateStr 
-                : 'session_stats_' + dateStr;
-            var stats = extStorageRead(nk, 'analytics_sessions', key, SYSTEM_USER_ID);
-            
             var daySessions = 0;
             var dayAvgDuration = 0;
-            
-            if (stats) {
-                daySessions = stats.totalSessions || stats.count || 0;
-                dayAvgDuration = stats.avgDuration || 0;
-                totalSessions += daySessions;
-                
-                // Add durations for percentile calculation
-                if (stats.durations && Array.isArray(stats.durations)) {
-                    for (var i = 0; i < stats.durations.length; i++) {
-                        durations.push(stats.durations[i]);
-                    }
-                } else if (dayAvgDuration > 0) {
-                    // Estimate durations from average
-                    for (var j = 0; j < Math.min(daySessions, 50); j++) {
-                        durations.push(dayAvgDuration * (0.5 + Math.random()));
-                    }
+            var addedRawDurations = false;
+
+            var rollupDoc = null;
+            try {
+                if (typeof readRollupDaily === 'function') {
+                    rollupDoc = readRollupDaily(nk, gameId || 'all', dateStr);
                 }
-                
-                // Hour distribution
-                if (stats.hourDistribution) {
-                    for (var h in stats.hourDistribution) {
-                        hourCounts[h] = (hourCounts[h] || 0) + stats.hourDistribution[h];
+            } catch (_) { rollupDoc = null; }
+
+            if (rollupDoc && rollupDoc.sessions) {
+                var rs = rollupDoc.sessions;
+                var starts = parseInt(rs.starts || rs.session_starts || 0, 10) || 0;
+                var count = parseInt(rs.count || rs.ends || rs.session_count || 0, 10) || 0;
+                daySessions = Math.max(starts, count);
+                var totalDuration = parseFloat(rs.total_duration_seconds || rs.totalDurationSeconds || 0) || 0;
+                dayAvgDuration = parseFloat(rs.avg_duration_seconds || rs.avgDurationSeconds || rs.avgDuration || 0) || 0;
+                if (!dayAvgDuration && daySessions > 0 && totalDuration > 0) {
+                    dayAvgDuration = totalDuration / daySessions;
+                }
+                if (daySessions > 0 || totalDuration > 0) rollupReadDays++;
+            }
+
+            if (!daySessions) {
+                var key = gameId
+                    ? 'session_stats_' + gameId + '_' + dateStr
+                    : 'session_stats_' + dateStr;
+                var stats = extStorageRead(nk, 'analytics_sessions', key, SYSTEM_USER_ID);
+
+                if (stats) {
+                    daySessions = parseInt(stats.totalSessions || stats.count || stats.sessions || 0, 10) || 0;
+                    dayAvgDuration = parseFloat(stats.avgDuration || stats.avg_duration_seconds || stats.avg_duration || 0) || 0;
+                    var statsTotalDuration = parseFloat(stats.totalDuration || stats.total_duration_seconds || 0) || 0;
+                    if (!dayAvgDuration && daySessions > 0 && statsTotalDuration > 0) {
+                        dayAvgDuration = statsTotalDuration / daySessions;
                     }
+
+                    if (stats.durations && Array.isArray(stats.durations)) {
+                        for (var i = 0; i < stats.durations.length; i++) {
+                            var rawDuration = parseFloat(stats.durations[i]);
+                            if (isFinite(rawDuration) && rawDuration > 0 && rawDuration < 86400) durations.push(rawDuration);
+                        }
+                        addedRawDurations = true;
+                    }
+
+                    if (stats.hourDistribution) {
+                        for (var h in stats.hourDistribution) {
+                            hourCounts[h] = (hourCounts[h] || 0) + stats.hourDistribution[h];
+                        }
+                    }
+                    if (daySessions > 0) aggregateReadDays++;
                 }
             }
-            
+
+            if (daySessions > 0) {
+                totalSessions += daySessions;
+                if (!addedRawDurations && dayAvgDuration > 0) {
+                    extAddDurationSamples(durations, dayAvgDuration, daySessions);
+                }
+            }
+
             dailyStats.unshift({
                 date: dateStr,
                 sessions: daySessions,
                 avg_duration: Math.round(dayAvgDuration)
             });
         }
-        
+
+        var usedLiveEvents = false;
+        var needsLiveEvents = totalSessions === 0 || durations.length === 0 || Object.keys(hourCounts).length === 0;
+        if (needsLiveEvents) {
+            var liveEvents = extScanEvents(nk, logger, 'analytics_events', days, function(v) {
+                var n = extEventName(v);
+                if (n.indexOf('error') !== -1 || n === 'exception') return false;
+                return extMatchesModeFilter(data, v);
+            }, gameId);
+            var liveStats = extBuildSessionStatsFromEvents(liveEvents, days);
+            if (liveStats.totalSessions > 0) {
+                if (totalSessions === 0) {
+                    totalSessions = liveStats.totalSessions;
+                    dailyStats = liveStats.dailyStats;
+                    durations = liveStats.durations;
+                    hourCounts = liveStats.hourCounts;
+                    usedLiveEvents = true;
+                } else {
+                    if (durations.length === 0) durations = liveStats.durations;
+                    if (Object.keys(hourCounts).length === 0) hourCounts = liveStats.hourCounts;
+                    usedLiveEvents = true;
+                }
+            }
+        }
+
         // Calculate metrics
         var avgDuration = durations.length > 0 ? Math.round(durations.reduce(function(a, b) { return a + b; }, 0) / durations.length) : 0;
         var medianDuration = Math.round(extMedian(durations));
         var p95Duration = Math.round(extPercentile(durations, 95));
         var sessionsPerDayAvg = days > 0 ? Math.round(totalSessions / days) : 0;
-        
+
         // Peak hours
         var peakHours = [];
         for (var hour = 0; hour < 24; hour++) {
@@ -529,8 +793,7 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
                 count: hourCounts[hour.toString()] || hourCounts[hour] || 0
             });
         }
-        peakHours.sort(function(a, b) { return b.count - a.count; });
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             total_sessions: totalSessions,
@@ -538,8 +801,14 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
             median_duration_seconds: medianDuration,
             p95_duration_seconds: p95Duration,
             sessions_per_day_avg: sessionsPerDayAvg,
-            peak_hours: peakHours.slice(0, 12),
-            daily_breakdown: dailyStats
+            peak_hours: peakHours,
+            daily_breakdown: dailyStats,
+            _meta: {
+                source: usedLiveEvents && totalSessions > 0 && rollupReadDays === 0 && aggregateReadDays === 0 ? 'analytics_events' : 'rollup_or_aggregate',
+                rollup_days: rollupReadDays,
+                aggregate_days: aggregateReadDays,
+                live_event_fallback: usedLiveEvents
+            }
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] session_stats error: ' + e.message);
@@ -554,7 +823,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var quizStarted = 0;
         var quizCompleted = 0;
         var quizAbandoned = 0;
@@ -567,15 +836,15 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         var streakCount = 0;
         var topicCounts = {};
         var difficultyCounts = {};
-        
+
         // Read quiz stats from storage (game-specific key if gameId provided)
         for (var d = 0; d < days; d++) {
             var dateStr = extDaysAgo(d);
-            var key = gameId 
-                ? 'quiz_stats_' + gameId + '_' + dateStr 
+            var key = gameId
+                ? 'quiz_stats_' + gameId + '_' + dateStr
                 : 'quiz_stats_' + dateStr;
             var stats = extStorageRead(nk, 'analytics_quiz', key, SYSTEM_USER_ID);
-            
+
             if (stats) {
                 quizStarted += stats.started || 0;
                 quizCompleted += stats.completed || 0;
@@ -584,23 +853,23 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
                 totalScore += stats.totalScore || 0;
                 totalCorrect += stats.correctAnswers || 0;
                 totalQuestions += stats.totalQuestions || 0;
-                
+
                 if (d === 0) {
                     dailyCompleted = stats.dailyCompleted || stats.completed || 0;
                 }
-                
+
                 if (stats.avgStreak) {
                     streakSum += stats.avgStreak;
                     streakCount++;
                 }
-                
+
                 // Topic breakdown
                 if (stats.topics) {
                     for (var t in stats.topics) {
                         topicCounts[t] = (topicCounts[t] || 0) + stats.topics[t];
                     }
                 }
-                
+
                 // Difficulty breakdown
                 if (stats.difficulty) {
                     for (var df in stats.difficulty) {
@@ -609,7 +878,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         // Fallback: scan events collection (with gameId filter)
         if (quizStarted === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
@@ -659,7 +928,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
                 if (evName === 'daily_quiz_completed' || evName === 'dailyquizcompleted') dailyCompleted++;
             }
         }
-        
+
         // Calculate rates (clamped 0..100)
         var qpClamp = function(v) {
             v = Math.round(v);
@@ -670,11 +939,11 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
         var accuracyRate = totalQuestions > 0 ? qpClamp((totalCorrect / totalQuestions) * 100) : 0;
         var avgScore = quizCompleted > 0 ? Math.round(totalScore / quizCompleted) : 0;
         var avgStreak = streakCount > 0 ? Math.round(streakSum / streakCount) : 0;
-        
+
         // Convert to arrays
         var topTopics = extTopN(topicCounts, 10, 'topic', 'count');
         var difficultyBreakdown = extTopN(difficultyCounts, 5, 'difficulty', 'count');
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             quiz_started: quizStarted,
@@ -799,12 +1068,12 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         // Build funnel steps with conversion metrics
         var steps = [];
         var totalFirst = stepCounts[stepOrder[0]] || 1;
         var worstDropOff = { step: '', drop_pct: 0 };
-        
+
         for (var k = 0; k < stepOrder.length; k++) {
             var stepName = stepOrder[k];
             var count = stepCounts[stepName];
@@ -812,7 +1081,7 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
             var previousCount = k > 0 ? stepCounts[stepOrder[k - 1]] : count;
             var pctOfPrevious = previousCount > 0 ? Math.round((count / previousCount) * 100) : 100;
             var dropOffPct = 100 - pctOfPrevious;
-            
+
             steps.push({
                 name: stepName.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); }),
                 count: count,
@@ -820,12 +1089,12 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
                 pct_of_previous: pctOfPrevious,
                 drop_off_pct: dropOffPct
             });
-            
+
             if (dropOffPct > worstDropOff.drop_pct && k > 0) {
                 worstDropOff = { step: stepName, drop_pct: dropOffPct };
             }
         }
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             steps: steps,
@@ -851,7 +1120,7 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var totalAIEvents = 0;
         var aiUserSet = {};
         var creditsConsumed = 0;
@@ -911,15 +1180,15 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         var totalAIUsers = Object.keys(aiUserSet).length;
-        
+
         // Read DAU to calculate adoption % (game-specific if filtered)
         var dauKey = gameId ? 'dau_' + gameId + '_' + extDaysAgo(0) : 'dau_platform_' + extDaysAgo(0);
         var todayDau = extStorageRead(nk, 'analytics_dau', dauKey, SYSTEM_USER_ID);
         var totalActiveUsers = (todayDau && todayDau.count) ? todayDau.count : (todayDau && todayDau.uniqueUsers) ? todayDau.uniqueUsers : 100;
         var aiAdoptionPct = totalActiveUsers > 0 ? Math.round((totalAIUsers / totalActiveUsers) * 100) : 0;
-        
+
         // Build features array
         var features = [];
         for (var feat in featureCounts) {
@@ -931,7 +1200,7 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
             });
         }
         features.sort(function(a, b) { return b.events - a.events; });
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             total_ai_events: totalAIEvents,
@@ -955,7 +1224,7 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         // Define features to track
         var featureDefs = [
             { name: 'Daily Quiz', collection: 'daily_quiz', eventName: 'daily_quiz' },
@@ -969,23 +1238,23 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
             { name: 'AI Trivia', collection: 'ai_trivia', eventName: 'ai_trivia' },
             { name: 'Streaks', collection: 'streaks', eventName: 'streak' }
         ];
-        
+
         // Get total active users (game-specific if filtered)
         var dauKey = gameId ? 'dau_' + gameId + '_' + extDaysAgo(0) : 'dau_platform_' + extDaysAgo(0);
         var todayDau = extStorageRead(nk, 'analytics_dau', dauKey, SYSTEM_USER_ID);
         var totalActiveUsers = (todayDau && todayDau.count) ? todayDau.count : 100;
-        
+
         var features = [];
         var lowAdoptionFeatures = [];
-        
+
         // Scan events for feature usage (with gameId filter)
         var allEvents = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
         var featureUserSets = {};
-        
+
         for (var i = 0; i < allEvents.length; i++) {
             var ev = allEvents[i];
             var evName = (ev.eventName || '').toLowerCase();
-            
+
             for (var j = 0; j < featureDefs.length; j++) {
                 var feat = featureDefs[j];
                 if (evName.indexOf(feat.eventName) !== -1) {
@@ -994,27 +1263,27 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         // Build features array
         for (var k = 0; k < featureDefs.length; k++) {
             var f = featureDefs[k];
             var userCount = featureUserSets[f.name] ? Object.keys(featureUserSets[f.name]).length : 0;
             var adoptionPct = Math.round((userCount / Math.max(1, totalActiveUsers)) * 100);
-            
+
             features.push({
                 name: f.name,
                 users_count: userCount,
                 adoption_pct: adoptionPct,
                 collection: f.collection
             });
-            
+
             if (adoptionPct < 20 && userCount > 0) {
                 lowAdoptionFeatures.push('Boost ' + f.name + ' engagement (' + adoptionPct + '% adoption)');
             }
         }
-        
+
         features.sort(function(a, b) { return b.adoption_pct - a.adoption_pct; });
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             features: features,
@@ -1033,7 +1302,7 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var sampleSize = parseInt(data.sample_size, 10) || 100;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var coinBalances = [];
         var sourcesTotal = 0;
         var sinksTotal = 0;
@@ -1089,12 +1358,12 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
         var totalCoins = coinBalances.reduce(function(a, b) { return a + b; }, 0);
         var avgCoins = coinBalances.length > 0 ? Math.round(totalCoins / coinBalances.length) : 0;
         var medianCoins = Math.round(extMedian(coinBalances));
-        
+
         // Count whales
         for (var j = 0; j < coinBalances.length; j++) {
             if (coinBalances[j] > whaleThreshold) whaleCount++;
         }
-        
+
         // Calculate Gini coefficient (inequality measure)
         var gini = 0;
         if (coinBalances.length > 1) {
@@ -1102,16 +1371,16 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
             var n = sorted.length;
             var sumOfDiffs = 0;
             var sumOfBalances = totalCoins;
-            
+
             for (var k = 0; k < n; k++) {
                 sumOfDiffs += (2 * (k + 1) - n - 1) * sorted[k];
             }
-            
+
             gini = sumOfBalances > 0 ? Math.round((sumOfDiffs / (n * sumOfBalances)) * 100) / 100 : 0;
         }
-        
+
         var sourceSinkRatio = sinksTotal > 0 ? Math.round((sourcesTotal / sinksTotal) * 100) / 100 : 0;
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             gini_coefficient: gini,
@@ -1233,13 +1502,13 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             dailyAdRevenue = [];
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
-                var match = evName.indexOf('ad') !== -1 || evName.indexOf('purchase') !== -1 || 
-                       evName.indexOf('iap') !== -1 || evName.indexOf('store') !== -1 || 
+                var match = evName.indexOf('ad') !== -1 || evName.indexOf('purchase') !== -1 ||
+                       evName.indexOf('iap') !== -1 || evName.indexOf('store') !== -1 ||
                        evName.indexOf('paywall') !== -1;
                 if (!match) return false;
                 return extMatchesModeFilter(data, val);
             }, gameId);
-            
+
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
                 var evName = (ev.eventName || '').toLowerCase();
@@ -1313,7 +1582,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                 if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
             }
         }
-        
+
         // ── Computed funnel rates ─────────────────────────────────
         // True fill-rate = impressions / requests (only meaningful when we
         // saw at least one ad_requested event). Falls back to the legacy
@@ -1350,7 +1619,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         adRevenueNetworkArr.sort(function(a, b) { return b.revenue_usd - a.revenue_usd; });
 
         var paywallConversionRate = paywallShown > 0 ? clampPct((paywallConverted / paywallShown) * 100) : 0;
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             ad_impressions: adImpressions,
@@ -1392,36 +1661,36 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var platformCounts = {};
         var platformUsers = {};
         var osVersionCounts = {};
         var deviceCounts = {};
-        
+
         // Scan events for platform data (with gameId filter)
         var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
-        
+
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
             var evData = ev.eventData || {};
-            
+
             var platform = evData.platform || ev.platform || 'unknown';
             platformCounts[platform] = (platformCounts[platform] || 0) + 1;
-            
+
             if (ev.userId) {
                 if (!platformUsers[platform]) platformUsers[platform] = {};
                 platformUsers[platform][ev.userId] = true;
             }
-            
+
             if (evData.osVersion) {
                 osVersionCounts[evData.osVersion] = (osVersionCounts[evData.osVersion] || 0) + 1;
             }
-            
+
             if (evData.deviceModel) {
                 deviceCounts[evData.deviceModel] = (deviceCounts[evData.deviceModel] || 0) + 1;
             }
         }
-        
+
         // Augment with the per-platform daily counter that ingestion writes
         // via trackPlatform() in analytics.js. The previous implementation
         // here read `dau_<platform>_<date>` keys that ingestion never writes
@@ -1446,7 +1715,7 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
                 // counter scan is too expensive without the gameId prefix.
             }
         }
-        
+
         // Build platforms array
         var platforms_arr = [];
         for (var plat in platformCounts) {
@@ -1457,7 +1726,7 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             });
         }
         platforms_arr.sort(function(a, b) { return b.events - a.events; });
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             platforms: platforms_arr,
@@ -1477,37 +1746,37 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var buttonClicks = {};
         var screenViews = {};
         var screenTime = {};
         var screenTimeCounts = {};
         var popupShown = {};
-        
+
         // Scan UI-related events (with gameId filter)
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();
-            return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 || 
+            return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 ||
                    evName.indexOf('screen') !== -1 || evName.indexOf('popup') !== -1 ||
                    evName.indexOf('button') !== -1 || evName.indexOf('tap') !== -1;
         }, gameId);
-        
+
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
             var evName = ev.eventName || '';
             var evData = ev.eventData || {};
-            
+
             // Button clicks
             if (evName.toLowerCase().indexOf('click') !== -1 || evName.toLowerCase().indexOf('tap') !== -1) {
                 var button = evData.button || evData.buttonName || evName;
                 buttonClicks[button] = (buttonClicks[button] || 0) + 1;
             }
-            
+
             // Screen views
             if (evName.toLowerCase().indexOf('screen') !== -1 || evName.toLowerCase().indexOf('view') !== -1) {
                 var screen = evData.screen || evData.screenName || evName;
                 screenViews[screen] = (screenViews[screen] || 0) + 1;
-                
+
                 if (evData.duration || evData.timeSpent) {
                     if (!screenTime[screen]) screenTime[screen] = 0;
                     if (!screenTimeCounts[screen]) screenTimeCounts[screen] = 0;
@@ -1515,14 +1784,14 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
                     screenTimeCounts[screen]++;
                 }
             }
-            
+
             // Popups
             if (evName.toLowerCase().indexOf('popup') !== -1 || evName.toLowerCase().indexOf('modal') !== -1) {
                 var popup = evData.popup || evData.popupName || evName;
                 popupShown[popup] = (popupShown[popup] || 0) + 1;
             }
         }
-        
+
         // Calculate average screen time
         var screenTimeAvg = [];
         for (var s in screenTime) {
@@ -1532,7 +1801,7 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
             });
         }
         screenTimeAvg.sort(function(a, b) { return b.avg_seconds - a.avg_seconds; });
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             buttons: extTopN(buttonClicks, 15, 'button', 'count'),
@@ -1554,17 +1823,17 @@ function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
         var days = parseInt(data.days, 10) || 7;
         var limit = parseInt(data.limit, 10) || 50;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Filter by specific game — alias slugs to canonical UUIDs
-        
+
         var playerStats = {};
-        
+
         // Scan events and aggregate by user (with optional game filter) - use extScanEvents with gameId
         var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
-        
+
         for (var i = 0; i < events.length; i++) {
             var ev = events[i];
             var userId = ev.userId;
             if (!userId) continue;
-            
+
             if (!playerStats[userId]) {
                 playerStats[userId] = {
                     user_id: userId,
@@ -1580,13 +1849,13 @@ function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
                     game_id: ev.gameId || gameId || 'all'
                 };
             }
-            
+
             var ps = playerStats[userId];
             ps.total_events++;
-            
+
             var evName = (ev.eventName || '').toLowerCase();
             var evData = ev.eventData || {};
-            
+
             if (evName.indexOf('quiz_completed') !== -1 || evName.indexOf('quizcompleted') !== -1) {
                 ps.quiz_completed++;
                 ps.total_score += evData.score || 0;
@@ -1603,12 +1872,12 @@ function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
             if (evName.indexOf('purchase') !== -1 || evName.indexOf('iap') !== -1) {
                 ps.purchases++;
             }
-            
+
             if (ev.timestamp && ev.timestamp > ps.last_active) {
                 ps.last_active = ev.timestamp;
             }
         }
-        
+
         // Try to fetch display names for top players
         var userIds = Object.keys(playerStats).slice(0, limit);
         if (userIds.length > 0) {
@@ -1626,7 +1895,7 @@ function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
                 logger.warn('[AnalyticsExtended] Could not fetch user names: ' + e.message);
             }
         }
-        
+
         // Convert to array and sort by total events
         var players = [];
         for (var uid in playerStats) {
@@ -1634,12 +1903,12 @@ function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
         }
         players.sort(function(a, b) { return b.total_events - a.total_events; });
         players = players.slice(0, limit);
-        
+
         // Get DAU for total active users count (game-specific if filtered)
         var dauKey = gameId ? 'dau_' + gameId + '_' + extDaysAgo(0) : 'dau_platform_' + extDaysAgo(0);
         var todayDau = extStorageRead(nk, 'analytics_dau', dauKey, SYSTEM_USER_ID);
         var totalActiveUsers = (todayDau && todayDau.count) ? todayDau.count : Object.keys(playerStats).length;
-        
+
         return JSON.stringify({
             total_active_users: totalActiveUsers,
             users_sampled: Object.keys(playerStats).length,
@@ -1660,7 +1929,7 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var totalErrors = 0;
         var errorsByRpc = {};
         // 2026-04 hardening: dedicated category bucket so the dashboard can
@@ -1681,11 +1950,11 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();
             if (canonicalErrorEvents[evName]) return true;
-            return evName.indexOf('error') !== -1 || evName.indexOf('crash') !== -1 || 
+            return evName.indexOf('error') !== -1 || evName.indexOf('crash') !== -1 ||
                    evName.indexOf('exception') !== -1 || evName.indexOf('fail') !== -1 ||
                    evName.indexOf('timeout') !== -1;
         }, gameId);
-        
+
         // 2026-04 hardening — when none of rpcName / function / eventName are
         // populated, prod was bucketing 100s of errors into a single "unknown"
         // row that gave operators no actionable signal. We now widen the
@@ -1755,10 +2024,10 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
                       'uncategorized';
             errorsByCategory[cat] = (errorsByCategory[cat] || 0) + 1;
         }
-        
+
         // Also check error logs storage
         var errorLogs = extStorageList(nk, 'error_logs', SYSTEM_USER_ID, 100);
-        
+
         for (var j = 0; j < errorLogs.length; j++) {
             var errObj = errorLogs[j];
             var errVal = errObj.value || {};
@@ -1804,22 +2073,22 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
                 }
             }
         }
-        
+
         // Convert to array and find most failing
         var errorsList = [];
         var mostFailing = { name: 'none', count: 0 };
-        
+
         for (var rpc in errorsByRpc) {
             var errInfo = errorsByRpc[rpc];
             errorsList.push(errInfo);
-            
+
             if (errInfo.count > mostFailing.count) {
                 mostFailing = { name: rpc, count: errInfo.count };
             }
         }
-        
+
         errorsList.sort(function(a, b) { return b.count - a.count; });
-        
+
         // Build category breakdown array (sorted desc) for the dashboard.
         var errorsByCategoryArr = [];
         for (var cName in errorsByCategory) {
@@ -1845,7 +2114,7 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
 /**
  * Segment players into categories: whale, power_user, casual, at_risk, churned, new_user
  * Uses player_analytics_profile collection from Phase 2.
- * 
+ *
  * Segment Definitions:
  * - whale: totalSpent > $100
  * - power_user: 10+ sessions in last 7 days AND 5+ day login streak
@@ -1858,7 +2127,7 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         // Thresholds (configurable)
         var WHALE_THRESHOLD = 100; // $100 total spent
         var POWER_USER_SESSIONS = 10; // 10+ sessions in 7 days
@@ -1866,7 +2135,7 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
         var AT_RISK_DAYS = 7;
         var CHURNED_DAYS = 14;
         var NEW_USER_DAYS = 7;
-        
+
         var now = new Date();
         var segments = {
             whale: 0,
@@ -1877,22 +2146,22 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
             new_user: 0,
             total_profiled: 0
         };
-        
+
         // Scan player_analytics_profile collection
         try {
             var cursor = null;
             var iterations = 0;
             var maxIterations = 50;
-            
+
             do {
                 var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
                 if (!result || !result.objects) break;
-                
+
                 for (var i = 0; i < result.objects.length; i++) {
                     var obj = result.objects[i];
                     var profile = extResolveProfile(obj.value, gameId);
                     if (!profile) continue;
-                    
+
                     segments.total_profiled++;
 
                     var daysSinceActive = extDaysSince(extProfileLastSeen(profile));
@@ -1901,7 +2170,7 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
                     var totalSpent = extProfileTotalSpent(profile);
                     var recentSessions = extProfileRecentSessions(profile);
                     var loginStreak = extProfileStreak(profile);
-                    
+
                     // Classify into segments (mutually exclusive priority order)
                     if (daysSinceActive >= CHURNED_DAYS) {
                         segments.churned++;
@@ -1917,17 +2186,17 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
                         segments.casual++;
                     }
                 }
-                
+
                 cursor = result.cursor;
                 iterations++;
             } while (cursor && iterations < maxIterations);
         } catch (e) {
             logger.warn('[AnalyticsExtended] player_segments scan error: ' + e.message);
         }
-        
+
         // Calculate percentages
         var total = segments.total_profiled || 1;
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             segments: {
@@ -1966,11 +2235,11 @@ function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         // Thresholds
         var AT_RISK_DAYS = 7;
         var CHURNED_DAYS = 14;
-        
+
         var now = new Date();
         var stats = {
             active: 0,          // < 7 days
@@ -1980,37 +2249,37 @@ function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
             at_risk_trend: 0,   // Change from previous period
             churn_rate_pct: 0
         };
-        
+
         // Track activity by day for trend analysis
         var inactivityBuckets = {};
         for (var d = 0; d <= 30; d++) {
             inactivityBuckets[d] = 0;
         }
-        
+
         // Scan player_analytics_profile collection
         try {
             var cursor = null;
             var iterations = 0;
             var maxIterations = 50;
-            
+
             do {
                 var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
                 if (!result || !result.objects) break;
-                
+
                 for (var i = 0; i < result.objects.length; i++) {
                     var obj = result.objects[i];
                     var profile = extResolveProfile(obj.value, gameId);
                     if (!profile) continue;
-                    
+
                     stats.total_profiled++;
 
                     var daysSinceActive = extDaysSince(extProfileLastSeen(profile));
-                    
+
                     // Track in buckets
                     if (daysSinceActive <= 30) {
                         inactivityBuckets[daysSinceActive] = (inactivityBuckets[daysSinceActive] || 0) + 1;
                     }
-                    
+
                     // Classify
                     if (daysSinceActive >= CHURNED_DAYS) {
                         stats.churned++;
@@ -2020,20 +2289,20 @@ function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
                         stats.active++;
                     }
                 }
-                
+
                 cursor = result.cursor;
                 iterations++;
             } while (cursor && iterations < maxIterations);
         } catch (e) {
             logger.warn('[AnalyticsExtended] churn_risk scan error: ' + e.message);
         }
-        
+
         // Calculate churn rate
         var total = stats.total_profiled || 1;
         stats.churn_rate_pct = Math.round((stats.churned / total) * 100);
         var atRiskRate = Math.round((stats.at_risk / total) * 100);
         var activeRate = Math.round((stats.active / total) * 100);
-        
+
         // Build inactivity distribution (days 1-30)
         var distribution = [];
         for (var day = 1; day <= 30; day++) {
@@ -2042,7 +2311,7 @@ function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
                 count: inactivityBuckets[day] || 0
             });
         }
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             summary: {
@@ -2078,7 +2347,7 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
-        
+
         var stats = {
             total_users: 0,
             free_users: 0,
@@ -2088,65 +2357,65 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
             rewarded_ad_watched: 0,  // Watched at least one rewarded ad
             repeat_purchasers: 0     // More than 1 IAP
         };
-        
+
         // Scan player_analytics_profile collection
         try {
             var cursor = null;
             var iterations = 0;
             var maxIterations = 50;
-            
+
             do {
                 var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
                 if (!result || !result.objects) break;
-                
+
                 for (var i = 0; i < result.objects.length; i++) {
                     var obj = result.objects[i];
                     var profile = extResolveProfile(obj.value, gameId);
                     if (!profile) continue;
-                    
+
                     stats.total_users++;
 
                     var totalSpent = extProfileTotalSpent(profile);
                     var purchaseCount = extProfilePurchaseCount(profile);
                     var adRemovalPurchased = extProfileAdRemovalPurchased(profile);
                     var rewardedAdsWatched = extProfileRewardedAds(profile);
-                    
+
                     // Classify
                     var hasMonetized = totalSpent > 0 || rewardedAdsWatched > 0;
-                    
+
                     if (hasMonetized) {
                         stats.any_monetization++;
                     } else {
                         stats.free_users++;
                     }
-                    
+
                     if (totalSpent > 0 || purchaseCount > 0) {
                         stats.first_iap++;
-                        
+
                         if (purchaseCount > 1) {
                             stats.repeat_purchasers++;
                         }
                     }
-                    
+
                     if (adRemovalPurchased) {
                         stats.ad_removal++;
                     }
-                    
+
                     if (rewardedAdsWatched > 0) {
                         stats.rewarded_ad_watched++;
                     }
                 }
-                
+
                 cursor = result.cursor;
                 iterations++;
             } while (cursor && iterations < maxIterations);
         } catch (e) {
             logger.warn('[AnalyticsExtended] conversion_funnel scan error: ' + e.message);
         }
-        
+
         // Calculate conversion rates
         var total = stats.total_users || 1;
-        
+
         var conversionRates = {
             any_monetization: Math.round((stats.any_monetization / total) * 100),
             first_iap: Math.round((stats.first_iap / total) * 100),
@@ -2154,7 +2423,7 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
             rewarded_ad: Math.round((stats.rewarded_ad_watched / total) * 100),
             repeat_purchase: stats.first_iap > 0 ? Math.round((stats.repeat_purchasers / stats.first_iap) * 100) : 0
         };
-        
+
         // Build funnel visualization data
         var funnel = [
             { step: 'Total Users', count: stats.total_users, pct: 100 },
@@ -2164,7 +2433,7 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
             { step: 'Ad Removal', count: stats.ad_removal, pct: conversionRates.ad_removal },
             { step: 'Repeat Purchaser', count: stats.repeat_purchasers, pct: Math.round((stats.repeat_purchasers / total) * 100) }
         ];
-        
+
         return JSON.stringify({
             game_id: gameId || 'all',
             total_users: stats.total_users,

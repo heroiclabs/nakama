@@ -645,7 +645,7 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var parsed = {};
     try { parsed = JSON.parse(payload || '{}'); } catch (e) { /* ignore */ }
 
-    var gameId = parsed.game_id || parsed.gameId || 'all';
+    var gameId = resolveGameIdAlias(parsed.game_id || parsed.gameId || 'all');
     var days = parseInt(parsed.days, 10) || 30;
 
     var now = new Date();
@@ -705,11 +705,15 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
             liveFallbacks++;
 
             if (record) {
-                dayUsers = record.count || record.uniqueUsers || (record.users ? record.users.length : 0);
+                var uniqueUsersRaw = record.uniqueUsers;
+                var recordUsers = record.users || (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw : []);
+                dayUsers = (parseInt(record.count, 10) || 0) ||
+                    (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw.length : (parseInt(uniqueUsersRaw, 10) || 0)) ||
+                    (recordUsers ? recordUsers.length : 0);
                 dayNewUsers = record.newUsers || 0;
                 if (d === 0) newUsersToday = dayNewUsers;
 
-                var userList = record.users || record.uniqueUsers || [];
+                var userList = recordUsers || [];
                 if (Array.isArray(userList) && userList.length > 0) {
                     dayHasUserList = true;
                     for (var ui = 0; ui < userList.length; ui++) {

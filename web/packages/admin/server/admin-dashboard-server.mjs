@@ -7,6 +7,8 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const distDir = resolve(process.env.ADMIN_DASHBOARD_DIST_DIR ?? join(__dirname, "..", "dist"));
 const basePath = normalizePrefix(process.env.ADMIN_DASHBOARD_BASE_PATH ?? "/admin-dashboard");
 const apiPrefix = `${basePath}/api`;
+const legacyAnalyticsPath = `${basePath}/legacy-analytics`;
+const canonicalAnalyticsUrl = "https://nakama.intelli-verse-x.ai/analytics.html";
 const port = Number(process.env.PORT ?? process.env.ADMIN_DASHBOARD_PORT ?? 8080);
 const nakamaBaseUrl = stripTrailingSlash(process.env.NAKAMA_BASE_URL ?? "http://intelliverse-nakama:7350");
 const nakamaHttpKey = process.env.NAKAMA_HTTP_KEY ?? "";
@@ -255,6 +257,16 @@ function serveStatic(req, res, url) {
 
   if (url.pathname === basePath) {
     res.writeHead(301, { Location: `${basePath}/` });
+    res.end();
+    return;
+  }
+
+  if (url.pathname === legacyAnalyticsPath || url.pathname.startsWith(`${legacyAnalyticsPath}/`)) {
+    res.writeHead(308, {
+      Location: canonicalAnalyticsUrl,
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    });
     res.end();
     return;
   }

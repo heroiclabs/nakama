@@ -36,17 +36,17 @@
             --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
             --shadow-glow: 0 0 20px var(--accent-glow);
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-primary);
-            background-image: 
+            background-image:
                 radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
                 radial-gradient(ellipse 60% 40% at 100% 100%, rgba(139, 92, 246, 0.1), transparent);
             color: var(--text-primary);
@@ -54,7 +54,7 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
-        
+
         /* Login Modal */
         .login-overlay {
             position: fixed;
@@ -68,11 +68,11 @@
             justify-content: center;
             z-index: 1000;
         }
-        
+
         .login-overlay.hidden {
             display: none;
         }
-        
+
         .login-box {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -83,12 +83,12 @@
             text-align: center;
             box-shadow: var(--shadow-lg), var(--shadow-glow);
         }
-        
+
         .login-logo {
             font-size: 3rem;
             margin-bottom: 1rem;
         }
-        
+
         .login-box h2 {
             margin-bottom: 0.5rem;
             font-size: 1.75rem;
@@ -98,18 +98,18 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        
+
         .login-box p {
             color: var(--text-secondary);
             margin-bottom: 2rem;
             font-size: 0.9rem;
         }
-        
+
         .input-group {
             margin-bottom: 1rem;
             text-align: left;
         }
-        
+
         .input-group label {
             display: block;
             font-size: 0.8rem;
@@ -117,7 +117,7 @@
             margin-bottom: 0.5rem;
             font-weight: 500;
         }
-        
+
         .login-box input {
             width: 100%;
             background: var(--bg-secondary);
@@ -128,13 +128,13 @@
             font-size: 1rem;
             transition: all 0.2s ease;
         }
-        
+
         .login-box input:focus {
             outline: none;
             border-color: var(--accent);
             box-shadow: 0 0 0 3px var(--accent-glow);
         }
-        
+
         .login-box button {
             width: 100%;
             background: var(--gradient-1);
@@ -148,22 +148,22 @@
             margin-top: 0.5rem;
             transition: background 0.2s;
         }
-        
+
         .login-box button:hover {
             background: var(--accent-light);
         }
-        
+
         .login-error {
             color: var(--danger);
             font-size: 0.875rem;
             margin-top: 1rem;
             display: none;
         }
-        
+
         .login-error.show {
             display: block;
         }
-        
+
         .header {
             background: var(--bg-secondary);
             padding: 1rem 2rem;
@@ -176,13 +176,13 @@
             top: 0;
             z-index: 100;
         }
-        
+
         .header-left {
             display: flex;
             align-items: center;
             gap: 1.5rem;
         }
-        
+
         .back-btn {
             display: flex;
             align-items: center;
@@ -198,13 +198,13 @@
             transition: all 0.2s;
             text-decoration: none;
         }
-        
+
         .back-btn:hover {
             border-color: var(--accent);
             color: var(--text-primary);
             background: rgba(99, 102, 241, 0.1);
         }
-        
+
         .header h1 {
             font-size: 1.5rem;
             display: flex;
@@ -212,11 +212,11 @@
             gap: 0.75rem;
             font-weight: 700;
         }
-        
+
         .header h1 .logo {
             font-size: 1.75rem;
         }
-        
+
         .game-selector {
             display: flex;
             align-items: center;
@@ -226,13 +226,13 @@
             border-radius: 10px;
             padding: 0.5rem 1rem;
         }
-        
+
         .game-selector label {
             font-size: 0.8rem;
             color: var(--text-muted);
             font-weight: 500;
         }
-        
+
         .game-selector select {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -251,35 +251,35 @@
             min-width: 160px;
             transition: all 0.2s ease;
         }
-        
+
         .game-selector select:hover {
             border-color: var(--accent);
             background-color: var(--bg-card);
         }
-        
+
         .game-selector select:focus {
             outline: none;
             border-color: var(--accent);
             box-shadow: 0 0 0 3px var(--accent-glow);
         }
-        
+
         .game-selector select option {
             background: var(--bg-secondary);
             color: var(--text-primary);
             padding: 0.5rem;
         }
-        
+
         .game-selector select option:checked {
             background: var(--accent);
             color: white;
         }
-        
+
         .config-panel {
             display: flex;
             gap: 1rem;
             align-items: center;
         }
-        
+
         .config-panel button {
             background: var(--accent);
             color: white;
@@ -290,50 +290,50 @@
             font-weight: 500;
             transition: background 0.2s;
         }
-        
+
         .config-panel button:hover {
             background: var(--accent-light);
         }
-        
+
         .config-panel button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-        
+
         .config-panel button.logout-btn {
             background: transparent;
             border: 1px solid var(--border);
             color: var(--text-secondary);
         }
-        
+
         .config-panel button.logout-btn:hover {
             border-color: var(--danger);
             color: var(--danger);
         }
-        
+
         .status {
             padding: 0.25rem 0.75rem;
             border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 500;
         }
-        
+
         .status.connected {
             background: rgba(34, 197, 94, 0.2);
             color: var(--success);
         }
-        
+
         .status.disconnected {
             background: rgba(239, 68, 68, 0.2);
             color: var(--danger);
         }
-        
+
         .main {
             padding: 2rem;
             max-width: 1600px;
             margin: 0 auto;
         }
-        
+
         .tabs {
             display: flex;
             gap: 0.5rem;
@@ -342,7 +342,7 @@
             padding-bottom: 1rem;
             flex-wrap: wrap;
         }
-        
+
         .tab {
             background: transparent;
             border: none;
@@ -357,33 +357,33 @@
             align-items: center;
             gap: 0.5rem;
         }
-        
+
         .tab:hover {
             color: var(--text-primary);
             background: var(--bg-card);
         }
-        
+
         .tab.active {
             color: var(--text-primary);
             background: var(--accent);
             box-shadow: var(--shadow-sm);
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
-        
+
         .kpi-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 1rem;
             margin-bottom: 2rem;
         }
-        
+
         .kpi-card {
             background: var(--bg-card);
             border-radius: 16px;
@@ -393,7 +393,7 @@
             position: relative;
             overflow: hidden;
         }
-        
+
         .kpi-card::before {
             content: '';
             position: absolute;
@@ -405,23 +405,23 @@
             opacity: 0;
             transition: opacity 0.2s;
         }
-        
+
         .kpi-card:hover {
             background: var(--bg-card-hover);
             border-color: var(--border-light);
             transform: translateY(-2px);
             box-shadow: var(--shadow-md);
         }
-        
+
         .kpi-card:hover::before {
             opacity: 1;
         }
-        
+
         .kpi-card .icon {
             font-size: 1.5rem;
             margin-bottom: 0.75rem;
         }
-        
+
         .kpi-card .label {
             color: var(--text-muted);
             font-size: 0.8rem;
@@ -430,7 +430,7 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-        
+
         .kpi-card .value {
             font-size: 2.25rem;
             font-weight: 800;
@@ -440,17 +440,17 @@
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        
+
         .kpi-card .value.plain {
             background: none;
             -webkit-text-fill-color: var(--text-primary);
         }
-        
+
         .kpi-card .value.currency::before {
             content: '$';
             font-size: 1.25rem;
         }
-        
+
         .kpi-card .trend {
             font-size: 0.8rem;
             margin-top: 0.75rem;
@@ -458,30 +458,30 @@
             align-items: center;
             gap: 0.5rem;
         }
-        
+
         .kpi-card .trend.positive {
             color: var(--success);
         }
-        
+
         .kpi-card .trend.positive::before {
             content: '↗';
         }
-        
+
         .kpi-card .trend.negative {
             color: var(--danger);
         }
-        
+
         .kpi-card .trend.negative::before {
             content: '↘';
         }
-        
+
         .chart-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
-        
+
         .chart-card {
             background: var(--bg-card);
             border-radius: 16px;
@@ -489,11 +489,11 @@
             border: 1px solid var(--border);
             transition: all 0.2s ease;
         }
-        
+
         .chart-card:hover {
             border-color: var(--border-light);
         }
-        
+
         .chart-card h3 {
             font-size: 0.9rem;
             margin-bottom: 0.85rem;
@@ -504,34 +504,34 @@
             justify-content: space-between;
             gap: 0.5rem;
         }
-        
+
         .chart-container {
             position: relative;
             height: 250px;
         }
-        
+
         .data-table {
             width: 100%;
             border-collapse: collapse;
         }
-        
+
         .data-table th,
         .data-table td {
             padding: 0.75rem 1rem;
             text-align: left;
             border-bottom: 1px solid var(--border);
         }
-        
+
         .data-table th {
             color: var(--text-secondary);
             font-weight: 500;
             font-size: 0.875rem;
         }
-        
+
         .data-table tr:hover {
             background: rgba(255, 255, 255, 0.02);
         }
-        
+
         .progress-bar {
             background: var(--bg-secondary);
             border-radius: 4px;
@@ -541,20 +541,20 @@
             margin-left: 0.5rem;
             vertical-align: middle;
         }
-        
+
         .progress-bar .fill {
             background: var(--accent);
             height: 100%;
             border-radius: 4px;
             transition: width 0.3s;
         }
-        
+
         .loading {
             text-align: center;
             padding: 2rem;
             color: var(--text-secondary);
         }
-        
+
         .loading::after {
             content: '';
             display: inline-block;
@@ -567,11 +567,11 @@
             margin-left: 0.5rem;
             vertical-align: middle;
         }
-        
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        
+
         .error {
             background: rgba(239, 68, 68, 0.1);
             border: 1px solid var(--danger);
@@ -580,7 +580,7 @@
             border-radius: 8px;
             margin-bottom: 1rem;
         }
-        
+
         .funnel-step {
             display: flex;
             flex-direction: column;
@@ -592,41 +592,41 @@
             border-left: 4px solid var(--border);
             position: relative;
         }
-        
+
         .funnel-step .name {
             flex: 1;
             font-weight: 500;
         }
-        
+
         .funnel-step .count {
             width: 80px;
             text-align: right;
         }
-        
+
         .funnel-step .pct {
             width: 80px;
             text-align: right;
             color: var(--text-secondary);
         }
-        
+
         .funnel-step .drop {
             width: 100px;
             text-align: right;
             font-size: 0.875rem;
         }
-        
+
         .funnel-step .drop.high {
             color: var(--danger);
         }
-        
+
         .funnel-step .drop.medium {
             color: var(--warning);
         }
-        
+
         .funnel-step .drop.low {
             color: var(--success);
         }
-        
+
         .score-badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -634,30 +634,30 @@
             font-size: 0.875rem;
             font-weight: 500;
         }
-        
+
         .score-badge.power_user { background: rgba(34, 197, 94, 0.2); color: var(--success); }
         .score-badge.engaged { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
         .score-badge.moderate { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
         .score-badge.at_risk { background: rgba(249, 115, 22, 0.2); color: #f97316; }
         .score-badge.churning { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
-        
+
         .empty-state {
             text-align: center;
             padding: 3rem;
             color: var(--text-secondary);
         }
-        
+
         .empty-state h3 {
             margin-bottom: 0.5rem;
             color: var(--text-primary);
         }
-        
+
         .period-selector {
             display: flex;
             gap: 0.5rem;
             margin-bottom: 1.5rem;
         }
-        
+
         .period-btn {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -668,12 +668,12 @@
             font-size: 0.875rem;
             transition: all 0.2s;
         }
-        
+
         .period-btn:hover {
             border-color: var(--accent);
             color: var(--text-primary);
         }
-        
+
         .period-btn.active {
             background: var(--accent);
             border-color: var(--accent);
@@ -1357,7 +1357,7 @@
             <div id="loginError" class="login-error">Invalid credentials. Please try again.</div>
         </div>
     </div>
-    
+
     <header class="header">
         <div class="header-left">
             <a href="https://nakama-rest.intelli-verse-x.ai" class="back-btn" title="Back to Nakama Console">
@@ -1403,7 +1403,7 @@
             <button class="logout-btn" onclick="logout()">🚪 Logout</button>
         </div>
     </header>
-    
+
     <!-- Fullscreen chart modal -->
     <div id="fullscreenModal">
         <div class="modal-inner">
@@ -1483,7 +1483,7 @@
                 <button class="tab" data-tab="diagnose">🩺 Diagnose</button>
             </div>
         </nav>
-        
+
         <!-- Overview Tab -->
         <div id="overview" class="tab-content active">
             <!-- Phase 6 — All-time / lifetime KPI strip (analytics_history_lifetime_read).
@@ -1532,7 +1532,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- ──────────────────────────────────────────────────────────────── -->
         <!-- Events Tab — world-class per-event drilldown                     -->
         <!-- Surfaces every user-property (country, device_tier, install_     -->
@@ -1600,7 +1600,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- ──────────────────────────────────────────────────────────────── -->
         <!-- Archive Tab (Phase 6 — analytics_history_browse).                -->
         <!-- Unbounded date-range raw event browser. Cursor-paginated so a    -->
@@ -1682,7 +1682,7 @@
                 </div></div>
             </div>
         </div>
-        
+
         <!-- Diagnose Tab (admin_diagnose_env + rollup + pollers) -->
         <div id="diagnose" class="tab-content">
             <div class="chart-card">
@@ -1703,7 +1703,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="chart-card">
                 <h3>⚙ Admin Actions
                     <div class="card-actions">
@@ -1731,7 +1731,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Revenue Tab -->
         <div id="revenue" class="tab-content">
             <div class="period-selector">
@@ -1763,7 +1763,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Retention Tab -->
         <div id="retention" class="tab-content">
             <div class="period-selector">
@@ -1812,7 +1812,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Sessions Tab -->
         <div id="sessions" class="tab-content">
             <div class="kpi-grid" id="sessionKpis">
@@ -1836,7 +1836,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Funnel Tab -->
         <div id="funnel" class="tab-content">
             <div class="chart-card">
@@ -1846,7 +1846,7 @@
                 </div></div>
             </div>
         </div>
-        
+
         <!-- Economy Tab -->
         <div id="economy" class="tab-content">
             <div class="kpi-grid" id="economyKpis">
@@ -1869,7 +1869,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Errors Tab -->
         <div id="errors" class="tab-content">
             <div class="kpi-grid" id="errorKpis">
@@ -1895,7 +1895,7 @@
                 </table></div>
             </div>
         </div>
-        
+
         <!-- Features Tab -->
         <div id="features" class="tab-content">
             <div class="chart-card">
@@ -2273,7 +2273,7 @@
             </div>
         </div>
     </main>
-    
+
     <footer class="footer">
         <div class="footer-content">
             <span id="lastUpdated">Last updated: —</span>
@@ -2296,29 +2296,29 @@
             color: var(--text-muted);
             font-size: 0.8rem;
         }
-        
+
         .footer-content {
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 1rem;
         }
-        
+
         .footer-divider {
             color: var(--border);
         }
-        
+
         #selectedGameLabel {
             color: var(--accent-light);
             font-weight: 500;
         }
     </style>
-    
+
     <script>
         // ─────────────────────────────────────────────────────────────────────
         // Configuration & State
         // ─────────────────────────────────────────────────────────────────────
-        
+
         // Production Nakama Server Configuration
         //
         // Admin auth is now SERVER-VALIDATED via the `admin_login` RPC defined in
@@ -2348,7 +2348,7 @@
                 'cricketvr': { name: 'Cricket VR', icon: '🏏' }
             }
         };
-        
+
         let charts = {};
         let sessionToken = null;      // Admin session token from admin_login
         let adminUsername = null;     // For display only
@@ -2358,11 +2358,11 @@
         let selectedDays = 30;
         let selectedMode = '';
         let autoRefreshTimer = null;
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Admin Authentication
         // ─────────────────────────────────────────────────────────────────────
-        
+
         // Calls the server-side `admin_login` RPC. On success we get a real
         // Nakama admin session token, stored in sessionStorage so page refreshes
         // stay authenticated until token expiry.
@@ -2370,13 +2370,13 @@
             const username = document.getElementById('adminUsername').value.trim();
             const password = document.getElementById('adminPassword').value;
             const errEl = document.getElementById('loginError');
-            
+
             if (!username || !password) {
                 errEl.textContent = 'Enter username and password.';
                 errEl.classList.add('show');
                 return;
             }
-            
+
             errEl.classList.remove('show');
             try {
                 // admin_login is called anonymously using the public server key
@@ -2386,7 +2386,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(JSON.stringify({ username, password }))
                 });
-                
+
                 if (!resp.ok) {
                     const text = await resp.text().catch(() => '');
                     errEl.textContent = resp.status === 401
@@ -2396,36 +2396,36 @@
                     document.getElementById('adminPassword').value = '';
                     return;
                 }
-                
+
                 const wrapped = await resp.json();
                 const data = wrapped && wrapped.payload ? JSON.parse(wrapped.payload) : wrapped;
-                
+
                 if (!data || !data.success || !data.token) {
                     errEl.textContent = data && data.error ? data.error : 'Login failed.';
                     errEl.classList.add('show');
                     document.getElementById('adminPassword').value = '';
                     return;
                 }
-                
+
                 sessionToken     = data.token;
                 adminUsername    = data.username || username;
                 adminExpiresAt   = data.expiresAt || null;
                 isAuthenticated  = true;
-                
+
                 sessionStorage.setItem(CONFIG.adminTokenStorageKey, JSON.stringify({
                     token: sessionToken,
                     username: adminUsername,
                     expiresAt: adminExpiresAt
                 }));
-                
+
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('connectionStatus').className = 'status connected';
                 document.getElementById('connectionStatus').textContent = 'Connected';
-                
+
                 // Optionally display who's logged in
                 const hdr = document.getElementById('adminBadge');
                 if (hdr) hdr.textContent = adminUsername;
-                
+
                 refreshAll();
                 // Populate the global mode-filter dropdown once (uses the
                 // analytics_modes_breakdown RPC to discover what quiz_modes
@@ -2452,7 +2452,7 @@
                 errEl.classList.add('show');
             }
         }
-        
+
         function logout() {
             isAuthenticated = false;
             sessionToken = null;
@@ -2465,7 +2465,7 @@
             document.getElementById('connectionStatus').className = 'status disconnected';
             document.getElementById('connectionStatus').textContent = 'Disconnected';
         }
-        
+
         function checkAuth() {
             const raw = sessionStorage.getItem(CONFIG.adminTokenStorageKey);
             if (!raw) return false;
@@ -2487,11 +2487,11 @@
                 return true;
             } catch { return false; }
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Game Selection
         // ─────────────────────────────────────────────────────────────────────
-        
+
         function onGameChange() {
             selectedGameId = document.getElementById('gameSelector').value;
             const game = CONFIG.games[selectedGameId];
@@ -2518,7 +2518,7 @@
                 badge.classList.add('hidden');
             }
         }
-        
+
         function getGamePayload() {
             const out = {};
             if (selectedGameId !== 'all') out.gameId = selectedGameId;
@@ -2574,7 +2574,7 @@
                 .replace(/_/g, ' ')
                 .replace(/\\b([a-z])/g, (m, c) => c.toUpperCase());
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Tab Lazy Loading
         // ─────────────────────────────────────────────────────────────────────
@@ -2641,17 +2641,17 @@
                 loadTab(tab.dataset.tab);
             });
         });
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Nakama API Client
         // ─────────────────────────────────────────────────────────────────────
-        
+
         // Legacy device-auth removed. Authentication now happens only through
         // `admin_login` RPC (see attemptLogin above). All dashboard RPCs are
         // gated server-side by `requireAdmin` which verifies the session carries
         // a role=admin marker, or that the user is registered in
         // `admin_users` collection.
-        
+
         // sessionStorage response cache: 30-second TTL per (rpcId, payload).
         // Keeps tab-switching instant without staleness on long-dwell sessions.
         const RPC_CACHE_TTL_MS = 30 * 1000;
@@ -2666,11 +2666,11 @@
             'admin_login',
             'admin_diagnose_env'
         ]);
-        
+
         function rpcCacheKey(rpcId, payload) {
             return 'rpc:' + rpcId + ':' + JSON.stringify(payload || {});
         }
-        
+
         function rpcCacheGet(key) {
             try {
                 const raw = sessionStorage.getItem(key);
@@ -2681,13 +2681,13 @@
                 return entry.data;
             } catch { return null; }
         }
-        
+
         function rpcCachePut(key, data) {
             try {
                 sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }));
             } catch { /* quota exceeded → ignore */ }
         }
-        
+
         function rpcCacheClear() {
             try {
                 const keys = [];
@@ -2698,14 +2698,14 @@
                 keys.forEach(k => sessionStorage.removeItem(k));
             } catch { /* ignore */ }
         }
-        
+
         async function callRpc(rpcId, payload = {}, options = {}) {
             if (!sessionToken) {
                 // No admin token → force user back to login.
                 logout();
                 throw new Error('Not authenticated. Please sign in.');
             }
-            
+
             // Cache lookup (skipped for mutations + when bypass=true).
             const cacheable = !options.bypassCache && !RPC_CACHE_BYPASS.has(rpcId);
             const cacheKey = cacheable ? rpcCacheKey(rpcId, payload) : null;
@@ -2713,7 +2713,7 @@
                 const cached = rpcCacheGet(cacheKey);
                 if (cached) return cached;
             }
-            
+
             const response = await fetch(`${CONFIG.serverUrl}/v2/rpc/${rpcId}`, {
                 method: 'POST',
                 headers: {
@@ -2722,7 +2722,7 @@
                 },
                 body: JSON.stringify(JSON.stringify(payload))
             });
-            
+
             if (!response.ok) {
                 if (response.status === 401 || response.status === 403) {
                     // Token expired or user lost admin rights → force re-login.
@@ -2745,13 +2745,13 @@
                 } catch (_) { /* keep raw bodyText */ }
                 throw new Error(`RPC ${rpcId} failed (HTTP ${response.status}): ${(bodyText || '').toString().substring(0, 240)}`);
             }
-            
+
             const data = await response.json();
             const parsed = data.payload ? JSON.parse(data.payload) : data;
             if (cacheable) rpcCachePut(cacheKey, parsed);
             return parsed;
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Chart Helpers
         //
@@ -2818,7 +2818,7 @@
             }));
             return { labels: newLabels, datasets: newDatasets, decimated: true, originalCount: labels.length };
         }
-        
+
         function createLineChart(canvasId, labels, datasets, options = {}) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
@@ -2862,7 +2862,7 @@
             charts[canvasId] = chart;
             return chart;
         }
-        
+
         function createBarChart(canvasId, labels, data, titleOrOpts = {}) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
@@ -2909,7 +2909,7 @@
             charts[canvasId] = chart;
             return chart;
         }
-        
+
         function createDoughnutChart(canvasId, labels, data, colors) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
@@ -2944,7 +2944,7 @@
             charts[canvasId] = chart;
             return chart;
         }
-        
+
         function formatNumber(num) {
             if (num === null || num === undefined || isNaN(num)) return '—';
             num = Number(num);
@@ -2953,13 +2953,13 @@
             if (num >= 1000)    return num.toLocaleString();
             return num.toString();
         }
-        
+
         function formatDuration(seconds) {
             if (seconds < 60) return seconds + 's';
             if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + (seconds % 60) + 's';
             return Math.floor(seconds / 3600) + 'h ' + Math.floor((seconds % 3600) / 60) + 'm';
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Skeleton Helpers
         // ─────────────────────────────────────────────────────────────────────
@@ -2979,14 +2979,14 @@
         // ─────────────────────────────────────────────────────────────────────
         // Data Loaders
         // ─────────────────────────────────────────────────────────────────────
-        
+
         async function loadOverview() {
             try {
                 document.getElementById('overviewKpis').innerHTML = skKpi(7);
                 // Phase 6 — fire the lifetime strip in parallel; it has its own
                 // skeleton + error handling and never blocks the rest of overview.
                 loadLifetimeStrip().catch(() => { /* swallow — non-fatal */ });
-                const payload = getGamePayload();
+                const payload = { days: selectedDays, ...getGamePayload() };
                 const data = await callRpc('analytics_dashboard', payload);
                 if (data.error) {
                     document.getElementById('overviewKpis').innerHTML = `<div class="error">${data.error}</div>`;
@@ -3107,7 +3107,7 @@
                     </div>`;
             }
         }
-        
+
         async function loadRevenue(period = '30d') {
             try {
                 // Update period selector UI (only revenue-tab buttons — other tabs
@@ -3127,16 +3127,16 @@
 
                 const payload = { period: period, ...getGamePayload() };
                 const data = await callRpc('analytics_arpu', payload);
-                
+
                 if (data.error) {
                     document.getElementById('revenueKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
+
                 const arppuHealth = data.arppu > 5 ? 'positive' : data.arppu < 1 ? 'negative' : '';
                 const convRateNum = parseFloat(data.conversionRate) || 0;
                 const convHealth = convRateNum > 3 ? 'positive' : convRateNum < 1 ? 'negative' : '';
-                
+
                 const totalPurchases = data.totalPurchases ?? data.total_purchases ?? data.iap_count ?? 0;
                 const daysBack       = data.daysBack       ?? data.days_back       ?? data.days       ?? selectedDays ?? 7;
                 document.getElementById('revenueKpis').innerHTML = `
@@ -3177,13 +3177,13 @@
                         <div class="trend">Over ${daysBack} days</div>
                     </div>
                 `;
-                
+
                 // Revenue metrics chart (bar)
-                createBarChart('revenueChart', 
+                createBarChart('revenueChart',
                     ['Total Revenue', 'ARPU × 100', 'ARPPU × 10'],
                     [data.totalRevenue, (data.arpu || 0) * 100, (data.arppu || 0) * 10]
                 );
-                
+
                 // Conversion funnel (doughnut)
                 const nonPaying = data.avgDau - data.uniquePayingUsers;
                 createDoughnutChart('conversionChart',
@@ -3191,13 +3191,13 @@
                     [data.uniquePayingUsers, nonPaying > 0 ? nonPaying : 0],
                     ['rgba(34, 197, 94, 0.8)', 'rgba(100, 116, 139, 0.5)']
                 );
-                
+
             } catch (e) {
                 console.error('Revenue error:', e);
                 document.getElementById('revenueKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
             }
         }
-        
+
         // ─── Retention ─────────────────────────────────────────────────────
         //
         // Reads analytics_retention_curves (Phase-3 RPC) which aggregates the
@@ -3261,8 +3261,9 @@
             const kpis = document.getElementById('retentionKpis');
             const heatmap = document.getElementById('retentionHeatmap');
             try {
-                const sel = document.getElementById('gameSelect');
-                const gameId = sel ? sel.value : 'all';
+                const gameId = (selectedGameId && selectedGameId !== 'all')
+                    ? selectedGameId
+                    : (document.getElementById('gameSelector')?.value || 'all');
                 if (!gameId || gameId === 'all') {
                     // Per-game constraint is enforced server-side — surface it clearly
                     // rather than letting the RPC bounce back a 400.
@@ -3278,7 +3279,8 @@
                 kpis.innerHTML = skKpi(6);
                 if (heatmap) heatmap.innerHTML = '<div style="color:#94a3b8;padding:1rem;">Loading cohorts…</div>';
 
-                const data = await callRpc('analytics_retention_curves', { gameId, days: 30 });
+                const cohortDays = period === '90d' ? 90 : ((period === '1y' || period === 'all') ? 120 : 30);
+                const data = await callRpc('analytics_retention_curves', { gameId, days: cohortDays });
 
                 if (!data || data.success === false) {
                     const msg = (data && (data.error || data.message)) || 'Unknown error';
@@ -3328,22 +3330,22 @@
                 if (heatmap) heatmap.innerHTML = '';
             }
         }
-        
+
         async function loadSessions() {
             try {
                 document.getElementById('sessionKpis').innerHTML = skKpi(4);
                 const payload = { days: selectedDays, ...getGamePayload() };
                 const data = await callRpc('analytics_session_stats', payload);
-                
+
                 if (data.error) {
                     document.getElementById('sessionKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
+
                 document.getElementById('sessionKpis').innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">📊</div>
-                        <div class="label">Total Sessions (7d)</div>
+                        <div class="label">Total Sessions (${selectedDays}d)</div>
                         <div class="value">${formatNumber(data.total_sessions)}</div>
                     </div>
                     <div class="kpi-card">
@@ -3367,7 +3369,7 @@
                         <div class="value">${data.sessions_per_day_avg}</div>
                     </div>
                 `;
-                
+
                 // Hourly distribution
                 if (data.peak_hours) {
                     const hours = Array.from({length: 24}, (_, i) => i);
@@ -3377,7 +3379,7 @@
                     });
                     createBarChart('hourlyChart', hours.map(h => h + ':00'), hourCounts);
                 }
-                
+
                 // Daily breakdown
                 if (data.daily_breakdown && data.daily_breakdown.length > 0) {
                     createLineChart('dailySessionChart',
@@ -3401,13 +3403,13 @@
                         }
                     );
                 }
-                
+
             } catch (e) {
                 console.error('Sessions error:', e);
                 document.getElementById('sessionKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
             }
         }
-        
+
         async function loadFunnel() {
             try {
                 const payload = { days: selectedDays, ...getGamePayload() };
@@ -3418,7 +3420,7 @@
                 }
                 const steps = data.steps || [];
                 document.getElementById('funnelSteps').innerHTML = steps.map(step => `
-                    <div class="funnel-step" style="border-left-color: ${step.drop_off_pct > 50 ? 'var(--danger)' : step.drop_off_pct > 25 ? 'var(--warning)' : 'var(--success)'};">  
+                    <div class="funnel-step" style="border-left-color: ${step.drop_off_pct > 50 ? 'var(--danger)' : step.drop_off_pct > 25 ? 'var(--warning)' : 'var(--success)'};">
                         <div style="display:flex;justify-content:space-between;align-items:center;">
                             <strong>${step.name.replace(/_/g,' ')}</strong>
                             <span style="font-size:1.25rem;font-weight:700;color:var(--accent-light);">${formatNumber(step.count)}</span>
@@ -3438,7 +3440,7 @@
                 document.getElementById('funnelSteps').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
             }
         }
-        
+
         async function loadEconomy() {
             try {
                 const payload = getGamePayload();
@@ -3499,7 +3501,7 @@
                 document.getElementById('economyKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
             }
         }
-        
+
         async function loadErrors() {
             try {
                 document.getElementById('errorKpis').innerHTML = skKpi(2);
@@ -3574,7 +3576,7 @@
                 document.getElementById('errorKpis').innerHTML = `<div class="error">Failed to load: ${e.message}</div>`;
             }
         }
-        
+
         async function loadFeatures() {
             try {
                 const data = await callRpc('analytics_feature_adoption', getGamePayload());
@@ -3937,12 +3939,12 @@
                 host.innerHTML = `<div class="error">Failed to load milestones: ${e.message}</div>`;
             }
         }
-        
-        
+
+
         // ─────────────────────────────────────────────────────────────────────
         // Events Timeline Viewer (uses admin_events_timeline)
         // ─────────────────────────────────────────────────────────────────────
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Events Tab — world-class per-event drilldown.
         // We fetch once, cache locally in `_eventsCache`, and re-render purely
@@ -4284,7 +4286,7 @@
                 }
             }
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Phase 6 — Long-tail history loaders
         //
@@ -4676,24 +4678,24 @@
         // ─────────────────────────────────────────────────────────────────────
         // Storage Browser (uses admin_storage_list)
         // ─────────────────────────────────────────────────────────────────────
-        
+
         async function loadStorage() {
             try {
-                const payload = { 
+                const payload = {
                     collection: 'analytics_events',
                     limit: 50,
-                    ...getGamePayload() 
+                    ...getGamePayload()
                 };
                 const data = await callRpc('dashboard_storage_list', payload);
-                
+
                 const container = document.getElementById('storageContent');
                 if (!container) return;
-                
+
                 if (data.error) {
                     container.innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                
+
                 if (!data.objects || data.objects.length === 0) {
                     container.innerHTML = `
                         <div class="empty-state">
@@ -4703,7 +4705,7 @@
                     `;
                     return;
                 }
-                
+
                 let html = `
                     <div style="margin-bottom: 1rem; color: var(--text-secondary);">
                         Found <strong>${data.objects.length}</strong> storage objects
@@ -4720,7 +4722,7 @@
                         </thead>
                         <tbody>
                 `;
-                
+
                 data.objects.forEach(obj => {
                     const updated = obj.update_time ? new Date(obj.update_time).toLocaleString() : '-';
                     // dashboard_storage_list returns pre-truncated `value_preview`;
@@ -4739,10 +4741,10 @@
                         </tr>
                     `;
                 });
-                
+
                 html += '</tbody></table>';
                 container.innerHTML = html;
-                
+
             } catch (e) {
                 console.error('Storage error:', e);
                 const container = document.getElementById('storageContent');
@@ -4751,7 +4753,7 @@
                 }
             }
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Runtime Diagnostics (admin_diagnose_env)
         //
@@ -4760,7 +4762,7 @@
         //   2) Are the new admin/dashboard RPCs registered (module redeployed)?
         //   3) Is the analytics_events pipeline actually receiving events from clients?
         // ─────────────────────────────────────────────────────────────────────
-        
+
         async function loadDiagnose() {
             const container = document.getElementById('diagnoseContent');
             if (!container) return;
@@ -4773,12 +4775,12 @@
                     callRpc('external_poll_status', {}).catch(e => ({ _error: e.message }))
                 ]);
                 const data = envRes && !envRes._error ? envRes : {};
-                
+
                 const env = data.envVars || {};
                 const missing = data.missingEnvVars || [];
                 const probe = data.storageProbe || {};
                 const rpcs = data.expectedRpcs || [];
-                
+
                 // Render rollup status
                 let rollupHtml = '';
                 if (rollupRes && !rollupRes._error) {
@@ -4797,7 +4799,7 @@
                 } else {
                     rollupHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">Nightly Rollup</div><div style="color:#f87171">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(rollupRes && rollupRes._error) || 'Module not deployed.'}</div></div>`;
                 }
-                
+
                 // Render poller status
                 let pollerHtml = '';
                 if (pollerRes && !pollerRes._error) {
@@ -4817,7 +4819,7 @@
                 } else {
                     pollerHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">External Pollers</div><div style="color:#f87171">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(pollerRes && pollerRes._error) || 'Module not deployed.'}</div></div>`;
                 }
-                
+
                 const envRows = Object.keys(env).sort().map(k => `
                     <tr>
                         <td><code>${k}</code></td>
@@ -4826,9 +4828,9 @@
                             : '<span style="color:#f87171;font-weight:600">❌ MISSING</span>'}</td>
                     </tr>
                 `).join('');
-                
+
                 const rpcList = rpcs.map(r => `<code style="display:inline-block;margin:2px 4px;padding:2px 8px;background:var(--bg-secondary);border-radius:4px;font-size:0.8rem">${r}</code>`).join('');
-                
+
                 const pipelineOk = (probe.analytics_events_sample_count || 0) > 0;
 
                 // Native Go plugin probe — metrics counter doc is the most
@@ -4873,20 +4875,20 @@
                     ${nativeMetrics.hint ? `<div style="margin-bottom:1rem;padding:0.75rem 1rem;border-radius:8px;background:var(--bg-secondary);font-size:0.85rem;">
                         <strong>Native metrics:</strong> ${nativeMetrics.hint}
                     </div>` : ''}
-                    
+
                     ${probe.hint ? `<div class="${pipelineOk ? '' : 'error'}" style="margin-bottom:1rem;padding:0.75rem 1rem;border-radius:8px;background:var(--bg-secondary);">
                         <strong>Hint:</strong> ${probe.hint}
                     </div>` : ''}
-                    
+
                     <h4 style="margin:1rem 0 0.5rem 0;">Expected RPCs (should all be registered after redeploy)</h4>
                     <div>${rpcList}</div>
-                    
+
                     <h4 style="margin:1.5rem 0 0.5rem 0;">Runtime Environment Variables</h4>
                     <table class="data-table">
                         <thead><tr><th>Key</th><th>Status</th></tr></thead>
                         <tbody>${envRows}</tbody>
                     </table>
-                    
+
                     <div style="margin-top:1rem;color:var(--text-secondary);font-size:0.8rem;">
                         Auth path: <code>${data.bypass || '-'}</code> · Checked at <code>${data.timestamp || '-'}</code>
                     </div>
@@ -4902,17 +4904,17 @@
                 </div>`;
             }
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Admin actions (Diagnose tab) — Phase 2
         // ─────────────────────────────────────────────────────────────────────
-        
+
         function yesterdayISO() {
             const d = new Date();
             d.setUTCDate(d.getUTCDate() - 1);
             return d.toISOString().slice(0, 10);
         }
-        
+
         function appendAdminOutput(title, obj) {
             const el = document.getElementById('adminActionContent');
             if (!el) return;
@@ -4921,7 +4923,7 @@
             const prefix = `[${stamp}] ${title}\n`;
             el.textContent = prefix + body + '\n\n' + el.textContent;
         }
-        
+
         async function adminSampleEvent() {
             appendAdminOutput('Sample Event — sending…', { note: 'Firing synthetic admin_diag event' });
             try {
@@ -4945,7 +4947,7 @@
                 appendAdminOutput('Sample Event FAILED', { error: e.message });
             }
         }
-        
+
         async function adminRunRollup() {
             const date = prompt('Rollup date (YYYY-MM-DD):', yesterdayISO());
             if (!date) return;
@@ -4957,7 +4959,7 @@
                 appendAdminOutput(`Rollup ${date} FAILED`, { error: e.message });
             }
         }
-        
+
         async function adminPollAll() {
             appendAdminOutput('Polling all external providers…', {});
             try {
@@ -4967,7 +4969,7 @@
                 appendAdminOutput('Poll All FAILED', { error: e.message });
             }
         }
-        
+
         async function adminRollupStatus() {
             try {
                 const data = await callRpc('analytics_rollup_status', {});
@@ -4976,7 +4978,7 @@
                 appendAdminOutput('Rollup Status FAILED', { error: e.message });
             }
         }
-        
+
         async function adminPollerStatus() {
             try {
                 const data = await callRpc('external_poll_status', {});
@@ -4985,7 +4987,7 @@
                 appendAdminOutput('Poller Status FAILED', { error: e.message });
             }
         }
-        
+
         async function adminBackfillRollup() {
             const from = prompt('Backfill FROM (YYYY-MM-DD):', '');
             if (!from) return;
@@ -4999,7 +5001,7 @@
                 appendAdminOutput('Backfill FAILED', { error: e.message });
             }
         }
-        
+
         async function adminSchemaCheck() {
             appendAdminOutput('Running schema check…', {});
             try {
@@ -5009,7 +5011,7 @@
                 appendAdminOutput('Schema Check FAILED', { error: e.message });
             }
         }
-        
+
         async function adminBackfillEvents() {
             const fix = confirm('FIX mode?\n\n"OK" = rewrite legacy-shape events in place.\n"Cancel" = dry run (safe; no writes).');
             appendAdminOutput(`Normalizing events (fix=${fix})…`, {});
@@ -5020,7 +5022,7 @@
                 appendAdminOutput('Normalize Events FAILED', { error: e.message });
             }
         }
-        
+
         async function adminMetrics() {
             try {
                 const data = await callRpc('analytics_metrics', {});
@@ -5029,7 +5031,7 @@
                 appendAdminOutput('Metrics Snapshot FAILED', { error: e.message });
             }
         }
-        
+
         async function adminFeatureFlags() {
             try {
                 const data = await callRpc('analytics_feature_flags', {});
@@ -5040,7 +5042,7 @@
         }
 
         async function adminRetentionPreview() {
-            const sel = document.getElementById('gameSelect');
+            const sel = document.getElementById('gameSelector');
             const gameId = sel && sel.value !== 'all' ? sel.value : null;
             if (!gameId) {
                 appendAdminOutput('Retention Preview — select a specific game first', {});
@@ -5075,7 +5077,7 @@
         // Each step writes a line to the admin output console. At the end,
         // a summary banner reports pass count and any red flags.
         async function adminRunSmokeTest() {
-            const sel = document.getElementById('gameSelect');
+            const sel = document.getElementById('gameSelector');
             const gameId = (sel && sel.value !== 'all')
                 ? sel.value
                 : '126bf539-dae2-4bcf-964d-316c0fa1f92b'; // QuizVerse default
@@ -5162,7 +5164,7 @@
                 hints: hints.length ? hints : ['Pipeline is healthy.']
             });
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Utilities: Toast, CSV Export, Stickiness
         // ─────────────────────────────────────────────────────────────────────
@@ -5763,7 +5765,7 @@
         // ─────────────────────────────────────────────────────────────────────
         // Refresh All
         // ─────────────────────────────────────────────────────────────────────
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Sortable Tables
         // ─────────────────────────────────────────────────────────────────────
@@ -6159,15 +6161,15 @@
 
         async function refreshAll() {
             if (!isAuthenticated) return;
-            
+
             const btn = document.getElementById('refreshBtn');
             btn.disabled = true;
             btn.textContent = '⏳ Loading...';
-            
+
             // Update game label in footer
             const game = CONFIG.games[selectedGameId];
             document.getElementById('selectedGameLabel').textContent = `${game.icon} ${game.name}`;
-            
+
             try {
                 // Mark all tabs stale — they will reload on next click (lazy)
                 loadedTabs.clear();
@@ -6176,7 +6178,7 @@
                 await loadTab(active);
                 // Pre-load overview in the background if it wasn't the active tab
                 if (active !== 'overview') loadTab('overview');
-                
+
                 const now = new Date();
                 document.getElementById('lastUpdated').textContent = `Last updated: ${now.toLocaleTimeString()}`;
                 showToast('Dashboard refreshed ✓', 'success', 2500);
@@ -6184,7 +6186,7 @@
                 console.error('Refresh error:', e);
                 showToast('Refresh failed: ' + e.message, 'error');
             }
-            
+
             btn.disabled = false;
             btn.textContent = '🔄 Refresh';
         }
@@ -6223,17 +6225,17 @@
                 : _playersData;
             renderPlayersRows(filtered);
         }
-        
+
         // ─────────────────────────────────────────────────────────────────────
         // Initialize
         // ─────────────────────────────────────────────────────────────────────
-        
+
         document.addEventListener('DOMContentLoaded', () => {
             // Restore session auth and lazy-load the initial (overview) tab
             if (checkAuth()) {
                 loadTab('overview');
             }
-            
+
             // Allow Enter key on login inputs
             const handleLoginKeypress = (e) => { if (e.key === 'Enter') attemptLogin(); };
             document.getElementById('adminUsername').addEventListener('keypress', handleLoginKeypress);

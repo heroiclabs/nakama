@@ -121,13 +121,13 @@ type TabKey = (typeof TABS)[number]["key"];
 
 /**
  * URL of the standalone analytics dashboard (web/analytics-dashboard/index.html).
- * Hosted alongside Nakama at `/admin-dashboard/` in production. Override via
+ * Hosted by the Nakama console at `/analytics.html` in production. Override via
  * VITE_ANALYTICS_DASHBOARD_URL when iterating locally.
  */
 const STANDALONE_DASHBOARD_URL =
   (import.meta as unknown as { env?: Record<string, string | undefined> }).env
     ?.VITE_ANALYTICS_DASHBOARD_URL ??
-  "/admin-dashboard/legacy-analytics/";
+  "https://nakama.intelli-verse-x.ai/analytics.html";
 
 /* ------------------------------------------------------------------ */
 /*  Utility                                                            */
@@ -1714,8 +1714,7 @@ export function AnalyticsPage() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Standalone Dashboard tab — embeds the full analytics dashboard    */
-/*  shipped from web/analytics-dashboard/ via the EKS-hosted iframe.  */
+/*  Standalone Dashboard tab — embeds the canonical analytics.html.    */
 /* ------------------------------------------------------------------ */
 
 function StandaloneDashboardTab() {

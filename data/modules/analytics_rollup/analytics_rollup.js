@@ -529,7 +529,7 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
         // panel's top-products card.
         if (eventName === "iap_purchased" || eventName === "purchase_completed") {
             iapCount++;
-            var price = parseFloat(data.price_usd || data.priceUsd || 0);
+            var price = parseFloat(data.price_usd || data.priceUsd || data.revenue_usd || data.revenueUsd || data.amount_usd || data.amountUsd || data.price || data.amount || data.value || 0);
             if (isFinite(price) && price > 0) revenueUsd += price;
             var prodId = data.product_id || data.productId;
             if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
@@ -890,7 +890,7 @@ function arComputeModesDaily(events, gameId, dateStr) {
                 b.total_correct++;
             }
         } else if (name === "iap_purchased" || name === "purchase_completed") {
-            var price = parseFloat(data.price_usd || data.priceUsd || data.revenue_usd || 0);
+            var price = parseFloat(data.price_usd || data.priceUsd || data.revenue_usd || data.revenueUsd || data.amount_usd || data.amountUsd || data.price || data.amount || data.value || 0);
             if (isFinite(price) && price > 0) b.revenue_usd += price;
         } else if (name === "ad_impression" || name === "ad_shown") {
             b.ad_impressions++;

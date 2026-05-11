@@ -41,7 +41,7 @@ This document explains how game developers and operators should use the hosted N
 | Audiences | `https://nakama-rest.intelli-verse-x.ai/admin-dashboard/audiences` |
 | Messages | `https://nakama-rest.intelli-verse-x.ai/admin-dashboard/messages` |
 | Analytics hub | `https://nakama-rest.intelli-verse-x.ai/admin-dashboard/analytics` |
-| Legacy/custom analytics dashboard | `https://nakama-rest.intelli-verse-x.ai/admin-dashboard/legacy-analytics/` |
+| Standalone analytics dashboard | `https://nakama.intelli-verse-x.ai/analytics.html` |
 | Normal Nakama console | `https://nakama.intelli-verse-x.ai/` |
 | Nakama REST API base | `https://nakama-rest.intelli-verse-x.ai/` |
 
@@ -51,7 +51,7 @@ This document explains how game developers and operators should use the hosted N
 
 The browser uses a login-gated admin session. Nakama HTTP key and optional console credentials stay server-side in the dashboard proxy.
 
-The legacy one-file analytics dashboard from `web/analytics-dashboard/index.html` is still available, but it is now nested under `/admin-dashboard/legacy-analytics/` so the React admin app and the custom game analytics dashboard can coexist.
+The standalone one-file analytics dashboard from `web/analytics-dashboard/index.html` is available at `https://nakama.intelli-verse-x.ai/analytics.html`. The duplicate `/admin-dashboard/legacy-analytics/` route now redirects to that canonical URL.
 
 Source locations:
 
@@ -476,13 +476,13 @@ Use `/admin-dashboard/analytics` for the React analytics hub:
 | Tab | Purpose |
 | --- | --- |
 | Overview | Runtime health, high-level metrics, sampled users |
-| Live Dashboard | Embeds the legacy/custom game analytics dashboard from `/legacy-analytics/` |
+| Live Dashboard | Embeds the canonical standalone analytics dashboard from `https://nakama.intelli-verse-x.ai/analytics.html` |
 | Player Events | Looks up events for a specific user |
 | Metrics & Alerts | Satori metrics and alert thresholds |
 | Cohort Analysis | User cohort buckets |
 | Data Lake / Webhooks | Data lake targets, webhook config, manual export/poller controls |
 
-Use `/admin-dashboard/legacy-analytics/` for the custom game analytics dashboard:
+Use `https://nakama.intelli-verse-x.ai/analytics.html` for the standalone custom game analytics dashboard:
 
 | Area | Purpose |
 | --- | --- |
@@ -502,7 +502,7 @@ Use `/admin-dashboard/legacy-analytics/` for the custom game analytics dashboard
 | Storage | Analytics storage browser |
 | Diagnose | Runtime env/RPC/storage diagnostics |
 
-Current audit result: the legacy dashboard loads at `/admin-dashboard/legacy-analytics/` and still has its own login overlay. Because it is embedded in the React analytics page, it may require a second login unless session storage already contains the legacy admin token.
+Current audit result: the standalone dashboard is kept at `https://nakama.intelli-verse-x.ai/analytics.html`. The duplicate `/admin-dashboard/legacy-analytics/` route redirects to that canonical URL.
 
 ### 5. Use MCP for Higher-Level Decisions
 
@@ -616,21 +616,20 @@ Recommended fix:
 
 ### Conditional: Mixed Auth Models Create Operator Confusion
 
-There are currently two admin experiences:
+There are currently two analytics entrypoints:
 
 1. React admin shell: login-gated route load through the admin proxy.
-2. Legacy analytics dashboard: has an `ivx-admin` login overlay and admin session token.
+2. Standalone analytics dashboard: `https://nakama.intelli-verse-x.ai/analytics.html`.
 
 Observed issue:
 
-- `/analytics` embeds `/legacy-analytics/`, which may ask for a second login inside the iframe.
-- Operators can see both the React analytics shell and the legacy dashboard controls, but authentication semantics differ.
+- `/analytics` embeds the canonical standalone `analytics.html` page.
+- `/admin-dashboard/legacy-analytics/` redirects to `https://nakama.intelli-verse-x.ai/analytics.html`.
 
 Recommended fix:
 
-- Use one admin auth model.
-- Share admin session between React shell and legacy analytics or fully migrate legacy analytics into React.
-- Remove duplicated login UX.
+- Keep only `https://nakama.intelli-verse-x.ai/analytics.html` for the standalone dashboard.
+- Do not recreate a separate copied dashboard under `/admin-dashboard/legacy-analytics/`; keep it as a redirect only.
 
 ### Fixed: Some Infrastructure Pages Used Wrong Auth For Nakama HTTP APIs
 
@@ -765,7 +764,7 @@ Status: Implemented in the admin proxy. Viewer/Analyst roles can read dashboards
 5. Open `/admin-dashboard/hiro-config`.
 6. Add a matching `challenges` config entry with rewards.
 7. Verify in game with `hiro_challenges_list`.
-8. Monitor `/admin-dashboard/analytics` and `/legacy-analytics/`.
+8. Monitor `/admin-dashboard/analytics` and `https://nakama.intelli-verse-x.ai/analytics.html`.
 
 ### Roll Out a New Feature
 
@@ -806,7 +805,7 @@ Status: Implemented in the admin proxy. Viewer/Analyst roles can read dashboards
 - [x] Satori messages page works without player user ID.
 - [x] Satori live events page uses admin-safe list RPC.
 - [x] Matches/accounts/storage pages route through the server-side proxy.
-- [x] Legacy analytics shares React admin auth or is fully migrated.
+- [x] Duplicate `/admin-dashboard/legacy-analytics/` route redirects to the canonical analytics page.
 - [x] Monaco is bundled or pinned with CSP/SRI.
 - [x] Hiro/Satori JSON schemas validate configs before save.
 - [x] QuizVerse default challenge/incentive/flag/event templates are seeded.
@@ -816,8 +815,8 @@ Status: Implemented in the admin proxy. Viewer/Analyst roles can read dashboards
 
 ## Bottom Line
 
-The dashboard is now hosted under `/admin-dashboard` as a login-gated React console backed by a server-side proxy. Security-critical production hardening, Satori player inbox delivery, seeded QuizVerse LiveOps templates, config schema validation, legacy analytics auth handoff, analytics freshness/source diagnostics, and Android FCM/SNS provider handoff are signed off.
+The dashboard is now hosted under `/admin-dashboard` as a login-gated React console backed by a server-side proxy. Security-critical production hardening, Satori player inbox delivery, seeded QuizVerse LiveOps templates, config schema validation, standalone analytics routing, analytics freshness/source diagnostics, and Android FCM/SNS provider handoff are signed off.
 
 Real device push status update: the Nakama runtime is provider-aware and production is wired to Lambda `ivx-push-provider-bridge` through `PUSH_REGISTER_URL`, `PUSH_LAMBDA_URL`, and `PUSH_SEND_URL`. Android registration now creates an SNS endpoint ARN and `push_send_event` returns a provider `messageId` for a stored FCM token. This signs off the Android provider handoff; physical notification display still needs someone holding the device to confirm receipt. A Nakama device ID is still not enough for OS push; the test needs the actual Firebase registration token or APNs device token from the physical device. iOS APNs remains pending because no Apple APNs key/cert, iOS SNS platform app ARN, or populated `push_token_ios` exists in production.
 
-Browser QA status: core LiveOps, analytics, account, storage, player-search, match, and legacy analytics routes now pass in browser. The previous `/v2/console/account` 404 and `/v2/match` 401 gaps are fixed by admin/runtime RPC wrappers, and `/admin-dashboard/legacy-analytics/` now serves the legacy dashboard HTML instead of the React SPA fallback.
+Browser QA status: core LiveOps, analytics, account, storage, player-search, and match routes pass in browser. The previous `/v2/console/account` 404 and `/v2/match` 401 gaps are fixed by admin/runtime RPC wrappers, and the standalone analytics dashboard is kept at `https://nakama.intelli-verse-x.ai/analytics.html`.
