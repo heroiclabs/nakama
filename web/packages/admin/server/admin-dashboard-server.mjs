@@ -8,6 +8,16 @@ const distDir = resolve(process.env.ADMIN_DASHBOARD_DIST_DIR ?? join(__dirname, 
 const basePath = normalizePrefix(process.env.ADMIN_DASHBOARD_BASE_PATH ?? "/admin-dashboard");
 const apiPrefix = `${basePath}/api`;
 const legacyAnalyticsPath = `${basePath}/legacy-analytics`;
+const legacyAnalyticsRedirectPaths = new Set([
+  "/analytics",
+  "/analytics/",
+  "/analytics-dashboard",
+  "/analytics-dashboard/",
+  "/legacy-analytics",
+  "/legacy-analytics/",
+  legacyAnalyticsPath,
+  `${legacyAnalyticsPath}/`,
+]);
 const canonicalAnalyticsUrl = "https://nakama.intelli-verse-x.ai/analytics.html";
 const port = Number(process.env.PORT ?? process.env.ADMIN_DASHBOARD_PORT ?? 8080);
 const nakamaBaseUrl = stripTrailingSlash(process.env.NAKAMA_BASE_URL ?? "http://intelliverse-nakama:7350");
@@ -261,7 +271,12 @@ function serveStatic(req, res, url) {
     return;
   }
 
-  if (url.pathname === legacyAnalyticsPath || url.pathname.startsWith(`${legacyAnalyticsPath}/`)) {
+  if (
+    legacyAnalyticsRedirectPaths.has(url.pathname)
+    || url.pathname.startsWith(`${legacyAnalyticsPath}/`)
+    || url.pathname.startsWith("/legacy-analytics/")
+    || url.pathname.startsWith("/analytics-dashboard/")
+  ) {
     res.writeHead(308, {
       Location: canonicalAnalyticsUrl,
       "Cache-Control": "no-store",

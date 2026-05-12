@@ -22,14 +22,53 @@ var AO_EVENTS_COLLECTION = "analytics_events";
 // IVXAnalyticsEvents taxonomy). Missing fields are reported, not failures.
 var AO_EXPECTED_FIELDS = {
     __any__:              ["gameId", "eventName", "eventData"],
+    app_launched:         ["session_id", "platform"],
+    app_open:             ["session_id", "platform"],
+    app_backgrounded:     ["session_id"],
+    app_crashed:          ["error_category", "error_message"],
     session_start:        ["session_id", "platform"],
+    session_heartbeat:    ["session_id"],
     session_end:          ["session_id", "duration_seconds"],
+    login_started:        ["provider"],
+    login_success:        ["provider"],
+    identity_linked:      ["provider"],
     screen_view:          ["screen_name"],
+    screen_viewed:        ["screen_id"],
+    screen_left:          ["screen_id"],
+    button_clicked:       ["screen_id", "button_id"],
+    modal_shown:          ["modal_id"],
+    modal_closed:         ["modal_id"],
+    loading_started:      ["screen_id"],
+    loading_completed:    ["screen_id", "duration_ms"],
+    mode_selected:        ["mode"],
+    topic_selected:       ["topic_id"],
     quiz_start:           ["quiz_mode", "quiz_id"],
+    question_viewed:      ["question_id", "question_index"],
+    answer_selected:      ["question_id", "answer_id"],
+    answer_changed:       ["question_id"],
+    answer_submitted:     ["question_id", "is_correct", "time_to_answer"],
+    question_result:      ["question_id", "is_correct"],
+    hint_used:            ["question_id", "hint_count"],
+    time_expired:         ["question_id"],
+    quiz_abandoned:       ["quiz_mode", "quiz_session_id"],
     quiz_complete:        ["quiz_mode", "quiz_id", "score", "correct_count", "total_questions"],
+    purchase_intent:      ["product_id"],
     iap_purchased:        ["product_id", "price_usd", "currency"],
+    purchase_failed:      ["product_id", "error_code"],
     ad_impression:        ["ad_placement", "ad_network"],
     ad_clicked:           ["ad_placement", "ad_network"],
+    reward_claimed:       ["reward_type", "reward_amount"],
+    offer_eligible:       ["offer_id"],
+    offer_assigned:       ["offer_id", "variant_id"],
+    offer_viewed:         ["offer_id"],
+    offer_clicked:        ["offer_id"],
+    offer_purchased:      ["offer_id", "price_usd"],
+    offer_dismissed:      ["offer_id"],
+    offer_cooldown_blocked:["offer_id"],
+    satori_flags_loaded:  ["flag_count"],
+    flag_exposed:         ["flag_key", "variant"],
+    experiment_exposed:   ["experiment_id", "variant"],
+    remote_config_applied:["config_version"],
     ai_host_used:         ["prompt_tokens", "response_tokens"],
     error_logged:         ["error_category", "error_message"],
 
@@ -108,6 +147,10 @@ function rpcAnalyticsSchemaCheck(ctx, logger, nk, payload) {
     var eventNames = {};
     var missingGameId = 0;
     var legacyShape = 0;
+    var canonicalizedEvents = 0;
+    var eventsWithoutContract = {};
+    var aliasPairs = {};
+    var schemaVersionDist = {};   // Phase 2: schema version distribution
     var totalScanned = 0;
     var totalMatched = 0;
     var cursor = null;
@@ -134,6 +177,18 @@ function rpcAnalyticsSchemaCheck(ctx, logger, nk, payload) {
 
             if (!ev.gameId) missingGameId++;
             if (ev.gameID || ev.event || ev.properties) legacyShape++;
+            if (ev.canonicalized) {
+                canonicalizedEvents++;
+                var fromName = ev.originalEventName || "__unknown__";
+                var aliasKey = fromName + " -> " + name;
+                aliasPairs[aliasKey] = (aliasPairs[aliasKey] || 0) + 1;
+            }
+            if (!AO_EXPECTED_FIELDS[name]) {
+                eventsWithoutContract[name] = (eventsWithoutContract[name] || 0) + 1;
+            }
+            // Phase 2: track schema_version distribution.
+            var sv = String(ev.schemaVersion || 1);
+            schemaVersionDist[sv] = (schemaVersionDist[sv] || 0) + 1;
 
             var required = AO_EXPECTED_FIELDS[name] || [];
             var all = (AO_EXPECTED_FIELDS.__any__ || []).concat(required);
@@ -170,17 +225,32 @@ function rpcAnalyticsSchemaCheck(ctx, logger, nk, payload) {
     }
     byEvent.sort(function (a, b) { return b.count - a.count; });
 
+    function topMap(map, limit) {
+        var out = [];
+        for (var k in map) {
+            if (Object.prototype.hasOwnProperty.call(map, k)) out.push({ name: k, count: map[k] });
+        }
+        out.sort(function (a, b) { return b.count - a.count; });
+        return out.slice(0, limit || 20);
+    }
+
     return aoOk({
         sampled: totalMatched,
         scanned: totalScanned,
         days: days,
         missing_gameid: missingGameId,
         legacy_shape_events: legacyShape,
+        canonicalized_events: canonicalizedEvents,
+        alias_pairs: topMap(aliasPairs, 20),
+        events_without_field_contract: topMap(eventsWithoutContract, 25),
+        schema_version_distribution: schemaVersionDist,
         event_count: byEvent.length,
         by_event: byEvent.slice(0, 50),
         hint: legacyShape > 0
             ? "Found legacy-shape events (gameID / event / properties). Run analytics_backfill_events to normalize."
-            : "All sampled events match the canonical shape."
+            : (topMap(eventsWithoutContract, 1).length > 0
+                ? "Some event names have no field contract yet. Add them to AO_EXPECTED_FIELDS or migrate callers to canonical events."
+                : "All sampled events match the canonical shape and known field contracts.")
     });
 }
 
@@ -353,7 +423,14 @@ function rpcAnalyticsMetrics(ctx, logger, nk, payload) {
         checkedAt: new Date().toISOString(),
         events_today_accepted: (todayCounter && todayCounter.events_accepted) || 0,
         events_today_rejected: (todayCounter && todayCounter.events_rejected) || 0,
+        alias_normalized_today: (todayCounter && todayCounter.alias_normalized) || 0,
+        schema_v2_events_today:   (todayCounter && todayCounter.schema_v2_events)   || 0,
+        schema_v2_warnings_today: (todayCounter && todayCounter.schema_v2_warnings) || 0,
         log_calls_today: (todayCounter && todayCounter.log_calls) || 0,
+        satori_publish_success_today: (todayCounter && todayCounter.satori_publish_success) || 0,
+        satori_publish_failure_today: (todayCounter && todayCounter.satori_publish_failure) || 0,
+        satori_publish_filtered_today: (todayCounter && todayCounter.satori_publish_filtered) || 0,
+        satori_publish_dropped_today: (todayCounter && todayCounter.satori_publish_dropped) || 0,
         last_rollup_date: rollupMeta ? rollupMeta.date : null,
         last_rollup_unix: rollupMeta && rollupMeta.timestamp
             ? Math.floor(new Date(rollupMeta.timestamp).getTime() / 1000)

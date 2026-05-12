@@ -83,12 +83,16 @@ var SD_EVENT_ALLOWLIST = {
     "onboarding_started": true, "onboarding_complete": true,
     "onboarding_completed": true, "onboarding_abandoned": true,
     // Quiz core (the big retention drivers)
-    "quiz_started": true, "quiz_completed": true, "quiz_abandoned": true,
+    "quiz_start": true, "quiz_started": true,
+    "quiz_complete": true, "quiz_completed": true,
+    "quiz_abandoned": true,
     "answer_submitted": true,
     // Monetization (high-signal — every event powers ARPU / paywall A/B)
+    "iap_clicked": true, "iap_purchased": true,
     "purchase_started": true, "purchase_completed": true,
     "purchase_failed": true, "iap_impression": true, "iap_failed": true,
-    "ad_shown": true, "ad_completed": true, "ad_revenue": true,
+    "ad_requested": true, "ad_shown": true, "ad_impression": true,
+    "ad_completed": true, "ad_load_failed": true, "ad_revenue": true,
     "paywall_shown": true, "paywall_converted": true,
     "paywall_dismissed": true, "premium_conversion": true,
     "store_opened": true,
@@ -280,18 +284,24 @@ var SD_EVENT_MAP = {
     "pageview":             "screenViewed",
     // Monetization (these map to Revenue + ARPU metrics)
     "purchase":             "purchaseCompleted",
+    "iap_purchased":        "purchaseCompleted",
     "iap_purchase":         "purchaseCompleted",
     "iap_completed":        "purchaseCompleted",
     "iap_success":          "purchaseCompleted",
     "purchase_completed":   "purchaseCompleted",
+    "iap_clicked":          "purchaseIntent",
     "purchase_intent":      "purchaseIntent",
     // Ads (these feed adImpression / adRevenue computed properties)
+    "ad_requested":         "adPlacementStarted",
+    "ad_shown":             "adImpression",
     "ad_impression":        "adImpression",
     "adimpression":         "adImpression",
+    "ad_revenue":           "adImpression",
     "ad_started":           "adStarted",
     "ad_start":             "adStarted",
     "ad_completed":         "adPlacementSucceeded",
     "ad_succeeded":         "adPlacementSucceeded",
+    "ad_load_failed":       "adPlacementFailed",
     "ad_failed":            "adPlacementFailed",
     "ad_placement_started": "adPlacementStarted",
     // Tutorials / onboarding
@@ -413,6 +423,15 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
 
     if (wireEvents.length === 0) {
         // All events were synthetic/no-op — nothing to send, treat as success.
+        try {
+            if (typeof bumpMetricsCounter === "function") {
+                bumpMetricsCounter(nk, {
+                    satori_publish_filtered: filteredOut,
+                    satori_publish_dropped: dropped,
+                    log_calls: false
+                });
+            }
+        } catch (eCountNoop) { /* metrics must never block Satori fan-out */ }
         return null;
     }
 
@@ -422,6 +441,16 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
     );
 
     if (!resp.ok) {
+        try {
+            if (typeof bumpMetricsCounter === "function") {
+                bumpMetricsCounter(nk, {
+                    satori_publish_failure: wireEvents.length,
+                    satori_publish_filtered: filteredOut,
+                    satori_publish_dropped: dropped,
+                    log_calls: false
+                });
+            }
+        } catch (eCountFail) { /* metrics must never block Satori fan-out */ }
         if (logger && logger.info) {
             logger.info("[satori_direct] eventsPublish " + resp.code +
                 " (sent=" + wireEvents.length + " skipped=" + dropped +
@@ -429,6 +458,16 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
         }
         return resp;
     }
+    try {
+        if (typeof bumpMetricsCounter === "function") {
+            bumpMetricsCounter(nk, {
+                satori_publish_success: wireEvents.length,
+                satori_publish_filtered: filteredOut,
+                satori_publish_dropped: dropped,
+                log_calls: false
+            });
+        }
+    } catch (eCountOk) { /* metrics must never block Satori fan-out */ }
     return null;
 }
 

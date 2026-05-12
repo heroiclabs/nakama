@@ -46,11 +46,14 @@ function resolveGameIdAlias(gameId) {
 var EVENT_ALIASES = {
     "quiz_started": "quiz_start",
     "quiz_completed": "quiz_complete",
+    "quiz_session_completed": "quiz_complete",
     "quiz_abandon": "quiz_abandoned",
     "purchase_completed": "iap_purchased",
     "purchase_started": "iap_clicked",
     "iap_completed": "iap_purchased",
     "iap_started": "iap_clicked",
+    "iap_purchase_completed": "iap_purchased",
+    "iap_purchase_started": "iap_clicked",
     "login_succeeded": "login_success",
     "onboarding_completed": "onboarded",
     "onboarding_complete": "onboarded",
@@ -111,6 +114,7 @@ function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
 
     var eventName = rawEvent.eventName || rawEvent.event_name || rawEvent.event || null;
     if (!eventName) return { __invalid: "Missing eventName" };
+    var originalEventName = eventName;
     if (EVENT_ALIASES[eventName]) eventName = EVENT_ALIASES[eventName];
 
     var eventData = rawEvent.eventData || rawEvent.event_data || rawEvent.properties || rawEvent.data || {};
@@ -136,6 +140,37 @@ function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
     if (!eventData.session_number && rawEvent.session_number) eventData.session_number = rawEvent.session_number;
     if (!eventData.current_scene && rawEvent.current_scene) eventData.current_scene = rawEvent.current_scene;
     if (!eventData.quiz_mode && rawEvent.quiz_mode) eventData.quiz_mode = rawEvent.quiz_mode;
+
+    // ── Phase 2: additional dimensional fields (v2 schema) ──
+    // quiz_session_id is a per-play-through UUID, distinct from the lobby session_id.
+    if (!eventData.quiz_session_id && rawEvent.quiz_session_id) eventData.quiz_session_id = rawEvent.quiz_session_id;
+    // screen_id: which screen originated the event (e.g. 'quiz_lobby', 'quiz_result').
+    if (!eventData.screen_id && rawEvent.screen_id) eventData.screen_id = rawEvent.screen_id;
+    // privacy_tier: 0=unclassified, 1=non_pii, 2=pii_risk.
+    if (eventData.privacy_tier === undefined && rawEvent.privacy_tier !== undefined) {
+        eventData.privacy_tier = rawEvent.privacy_tier;
+    }
+
+    // ── Phase 2: schema version detection ──
+    var schemaVersion = parseInt(rawEvent.schema_version, 10) || 1;
+    var clientEventId = rawEvent.client_event_id || null;
+    var eventTime     = rawEvent.event_time     || null;
+
+    // v2 warning-mode validation. tpValidateV2 is defined in analytics_tracking_plan.js
+    // and concatenated at global scope by postbuild.js. Guard ensures graceful degradation
+    // on environments where the module hasn't been bundled yet.
+    var v2Warnings = [];
+    if (schemaVersion === 2 && typeof tpValidateV2 === "function") {
+        try {
+            var v2Result = tpValidateV2(rawEvent, eventName, eventData);
+            v2Warnings = v2Result.warnings || [];
+        } catch (e) { /* never block ingestion on validation errors */ }
+    }
+
+    // Auto-assign privacy tier from tracking plan when client didn't provide one.
+    if (eventData.privacy_tier === undefined && typeof tpGetPrivacyTier === "function") {
+        try { eventData.privacy_tier = tpGetPrivacyTier(eventName); } catch (e) { /* swallow */ }
+    }
 
     // Server-authoritative user id.
     var userId = ctx.userId;
@@ -190,11 +225,21 @@ function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
         userId: userId,
         gameId: gameId,
         eventName: eventName,
+        originalEventName: originalEventName,
+        canonicalized: originalEventName !== eventName,
         eventData: eventData,
         platform: eventData.platform || null,
         sessionId: eventData.session_id || null,
         timestamp: new Date(unixTs * 1000).toISOString(),
-        unixTimestamp: unixTs
+        unixTimestamp: unixTs,
+        // ── Phase 2: schema v2 fields ──
+        schemaVersion:  schemaVersion,
+        clientEventId:  clientEventId,
+        eventTime:      eventTime,
+        quizSessionId:  eventData.quiz_session_id || null,
+        screenId:       eventData.screen_id       || null,
+        privacyTier:    eventData.privacy_tier !== undefined ? eventData.privacy_tier : 1,
+        v2Warnings:     v2Warnings
     };
 }
 
@@ -380,6 +425,9 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
 
     var accepted = 0;
     var rejected = 0;
+    var aliasNormalized = 0;
+    var v2EventsCount   = 0;
+    var v2WarningsCount = 0;
     var errors = [];
 
     for (var i = 0; i < inbound.length; i++) {
@@ -394,6 +442,11 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
             rejected++;
             errors.push({ index: i, reason: err });
         } else {
+            if (normalized.canonicalized) aliasNormalized++;
+            if (normalized.schemaVersion === 2) {
+                v2EventsCount++;
+                v2WarningsCount += (normalized.v2Warnings && normalized.v2Warnings.length) || 0;
+            }
             accepted++;
         }
     }
@@ -402,7 +455,15 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
 
     // Best-effort counter tick (for analytics_metrics RPC). Ignored on failure
     // so it never blocks event ingestion.
-    try { bumpMetricsCounter(nk, { accepted: accepted, rejected: rejected }); } catch (e) { /* swallow */ }
+    try {
+        bumpMetricsCounter(nk, {
+            accepted:         accepted,
+            rejected:         rejected,
+            alias_normalized: aliasNormalized,
+            schema_v2_events:   v2EventsCount,
+            schema_v2_warnings: v2WarningsCount
+        });
+    } catch (e) { /* swallow */ }
 
     // Auto-drain piggyback (2026-05-10): every ingest call runs ONE debounced
     // tick of the historical-backfill state machine. The 5-sec debounce
@@ -416,11 +477,14 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     } catch (e) { /* swallow */ }
 
     var resp = {
-        success: accepted > 0 || rejected === 0,
-        accepted: accepted,
-        rejected: rejected
+        success:          accepted > 0 || rejected === 0,
+        accepted:         accepted,
+        rejected:         rejected,
+        alias_normalized: aliasNormalized,
+        schema_v2_events: v2EventsCount
     };
-    if (errors.length > 0) resp.errors = errors.slice(0, 20);
+    if (v2WarningsCount > 0) resp.v2_warnings_total = v2WarningsCount;
+    if (errors.length > 0)   resp.errors = errors.slice(0, 20);
     return JSON.stringify(resp);
 }
 
@@ -493,7 +557,15 @@ function bumpMetricsCounter(nk, delta) {
         if (!rec) rec = { date: today, events_accepted: 0, events_rejected: 0, log_calls: 0, updated_at: null };
         rec.events_accepted += (delta.accepted || 0);
         rec.events_rejected += (delta.rejected || 0);
-        rec.log_calls += 1;
+        rec.alias_normalized = (rec.alias_normalized || 0) + (delta.alias_normalized || 0);
+        rec.satori_publish_success = (rec.satori_publish_success || 0) + (delta.satori_publish_success || 0);
+        rec.satori_publish_failure = (rec.satori_publish_failure || 0) + (delta.satori_publish_failure || 0);
+        rec.satori_publish_filtered = (rec.satori_publish_filtered || 0) + (delta.satori_publish_filtered || 0);
+        rec.satori_publish_dropped = (rec.satori_publish_dropped || 0) + (delta.satori_publish_dropped || 0);
+        // Phase 2: schema v2 counters.
+        rec.schema_v2_events   = (rec.schema_v2_events   || 0) + (delta.schema_v2_events   || 0);
+        rec.schema_v2_warnings = (rec.schema_v2_warnings || 0) + (delta.schema_v2_warnings || 0);
+        if (delta.log_calls !== false) rec.log_calls += 1;
         rec.updated_at = new Date().toISOString();
         return rec;
     });
