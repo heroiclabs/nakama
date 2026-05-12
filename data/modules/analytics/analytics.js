@@ -97,6 +97,121 @@ function resolveEventTimestamp(rawEvent) {
     return candidate;
 }
 
+// ─── Phase 8: event name safety guard ────────────────────────────────────────
+//
+// Validates the raw eventName BEFORE alias expansion so malformed input
+// never reaches the rest of the normalization pipeline.
+// Returns { ok: true } or { ok: false, reason: string }.
+//
+// Rules:
+//   1. Must be a non-empty string.
+//   2. Length 1–128 chars (protects storage keys + Satori taxonomy).
+//   3. Only alphanumeric, underscore, hyphen (no spaces, slashes, brackets,
+//      injection patterns). This is the canonical event-name alphabet already
+//      used by all our typed wrappers — rejecting others catches client bugs
+//      early rather than silently persisting junk into analytics_events.
+//   4. Must not look like a script-injection or SQL fragment.
+//
+// Phase 8 also supports ANALYTICS_STRICT_EVENTS=true, which additionally
+// rejects any event not registered in the tracking plan. Default: false.
+var AN_EVENT_NAME_RE = /^[a-zA-Z0-9_\-]{1,128}$/;
+var AN_INJECTION_RE  = /[<>;"'`]|--|\/\*|\*\/|<script/i;
+
+function eventNameSafety(ctx, name) {
+    if (!name || typeof name !== "string") {
+        return { ok: false, reason: "eventName must be a non-empty string" };
+    }
+    if (!AN_EVENT_NAME_RE.test(name)) {
+        return { ok: false, reason: "eventName '" + name.slice(0, 64) +
+            "' contains invalid characters (allowed: a-z A-Z 0-9 _ -)" };
+    }
+    if (AN_INJECTION_RE.test(name)) {
+        return { ok: false, reason: "eventName rejected: injection pattern detected" };
+    }
+    return { ok: true };
+}
+
+// ─── 2026-05 Pipeline observability: failed-event ring buffer ─────────────────
+//
+// When normalizeInboundEvent or persistNormalizedEvent rejects an event, the
+// reason is returned to the caller in the RPC response — but operators have no
+// way to drill into rejected events historically (which event names, which
+// reasons, which clients). To plug that gap without bloating storage we record
+// each rejected event into a small per-day capped collection. The dashboard
+// reads this via analytics_failed_events_recent (registered in
+// analytics_hardening.js) and surfaces it in the Pipeline tab.
+//
+// Storage shape:
+//   collection: "analytics_failed_events"
+//   key:        "fail_{YYYY-MM-DD}_{unix}_{rand}"
+//   userId:     SYSTEM_USER
+//   value:      { reason, event_name?, game_id?, user_id, raw_event_keys[],
+//                 client_event_id?, schema_version?, platform?,
+//                 occurred_at_iso, occurred_at_unix }
+//
+// Failures here NEVER bubble — capturing failures must not itself cause
+// ingestion to fail. We hard-cap raw_event_keys to 32 names so a malicious
+// client can't blow up the ring buffer.
+var AN_FAILED_COLLECTION = "analytics_failed_events";
+
+function recordFailedEvent(nk, logger, ctx, rawEvent, reason) {
+    try {
+        var nowSec = utils.getUnixTimestamp();
+        var dateStr = new Date(nowSec * 1000).toISOString().slice(0, 10);
+        var rand = Math.random().toString(36).slice(2, 8);
+        var key = "fail_" + dateStr + "_" + nowSec + "_" + rand;
+        var keys = [];
+        if (rawEvent && typeof rawEvent === "object") {
+            var i = 0;
+            for (var k in rawEvent) {
+                if (Object.prototype.hasOwnProperty.call(rawEvent, k)) {
+                    keys.push(k);
+                    if (++i >= 32) break;
+                }
+            }
+        }
+        var value = {
+            reason:           String(reason || "unknown").slice(0, 256),
+            event_name:       (rawEvent && (rawEvent.eventName || rawEvent.event_name || rawEvent.event)) || null,
+            game_id:          (rawEvent && (rawEvent.gameId || rawEvent.game_id || rawEvent.gameID)) || null,
+            user_id:          (ctx && ctx.userId) || null,
+            client_event_id:  (rawEvent && rawEvent.client_event_id) || null,
+            schema_version:   (rawEvent && rawEvent.schema_version) || null,
+            platform:         (rawEvent && rawEvent.platform) || null,
+            raw_event_keys:   keys,
+            occurred_at_iso:  new Date(nowSec * 1000).toISOString(),
+            occurred_at_unix: nowSec
+        };
+        nk.storageWrite([{
+            collection: AN_FAILED_COLLECTION,
+            key: key,
+            userId: SYSTEM_USER,
+            value: value,
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        if (logger && logger.info) {
+            logger.info("[analytics] recordFailedEvent skipped: " + (e.message || e));
+        }
+    }
+}
+
+// ─── Phase 8: PII field list for Satori scrubbing ─────────────────────────────
+//
+// Fields that must be stripped from the Satori metadata bag for tier-2 events
+// (privacy_tier === 2). These are stored raw in analytics_events (Nakama) but
+// must NEVER be forwarded to Satori or any other 3rd-party sink.
+var AN_PII_FIELDS = {
+    "display_name": true, "username": true,    "user_name": true,
+    "email": true,        "phone": true,        "full_name": true,
+    "first_name": true,   "last_name": true,
+    "error_message": true,"crash_log": true,    "stack_trace": true,
+    "log_message": true,  "raw_message": true,  "message": true,
+    "ip_address": true,   "device_id": true,    "advertising_id": true,
+    "idfa": true,         "idfv": true,          "gaid": true
+};
+
 /**
  * Normalize a single inbound event into the canonical server-side record.
  * Handles legacy casings (gameID, eventData=properties, etc.) so the dashboard
@@ -114,6 +229,11 @@ function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
 
     var eventName = rawEvent.eventName || rawEvent.event_name || rawEvent.event || null;
     if (!eventName) return { __invalid: "Missing eventName" };
+
+    // Phase 8 — safety guard: reject malformed / injection event names early.
+    var nameCheck = eventNameSafety(ctx, eventName);
+    if (!nameCheck.ok) return { __invalid: nameCheck.reason };
+
     var originalEventName = eventName;
     if (EVENT_ALIASES[eventName]) eventName = EVENT_ALIASES[eventName];
 
@@ -165,6 +285,32 @@ function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
             var v2Result = tpValidateV2(rawEvent, eventName, eventData);
             v2Warnings = v2Result.warnings || [];
         } catch (e) { /* never block ingestion on validation errors */ }
+    }
+
+    // Phase 8 — schema enforcement mode.
+    // When ANALYTICS_ENFORCE_SCHEMA=true, v2 events missing required fields are
+    // REJECTED rather than warned. Default is false (warning-only) so existing
+    // clients that haven't upgraded to schema v2 are not suddenly broken.
+    // Turn this on only after confirming Unity clients emit client_event_id + event_time.
+    if (schemaVersion === 2 && v2Warnings.length > 0) {
+        var enforceRaw = (ctx && ctx.env && ctx.env["ANALYTICS_ENFORCE_SCHEMA"]) || "";
+        var enforce    = (enforceRaw === "true" || enforceRaw === "1");
+        if (enforce) {
+            // Only hard-reject for REQUIRED fields (client_event_id, event_time).
+            // Recommended-field warnings are always soft even in enforcement mode.
+            var hardFail = null;
+            for (var wi = 0; wi < v2Warnings.length; wi++) {
+                var wMsg = v2Warnings[wi];
+                if (wMsg && (wMsg.indexOf("client_event_id") !== -1 ||
+                             wMsg.indexOf("event_time") !== -1)) {
+                    hardFail = wMsg;
+                    break;
+                }
+            }
+            if (hardFail) {
+                return { __invalid: "[schema_v2_enforcement] " + hardFail };
+            }
+        }
     }
 
     // Auto-assign privacy tier from tracking plan when client didn't provide one.
@@ -346,8 +492,13 @@ function persistNormalizedEvent(nk, logger, ev) {
         if (ev.platform) sEv.metadata.platform = String(ev.platform);
         if (ev.sessionId) sEv.metadata.session_id = String(ev.sessionId);
         if (ev.eventData && typeof ev.eventData === "object") {
+            // Phase 8 — PII scrubbing: strip tier-2 fields before forwarding to Satori.
+            // These fields are stored raw in analytics_events (Nakama) but must never
+            // leave our infrastructure to 3rd-party sinks.
+            var isTier2 = (ev.privacyTier === 2);
             for (var k in ev.eventData) {
                 if (Object.prototype.hasOwnProperty.call(ev.eventData, k)) {
+                    if (isTier2 && AN_PII_FIELDS[k]) continue; // scrubbed
                     var v = ev.eventData[k];
                     if (v === null || v === undefined) continue;
                     sEv.metadata[k] = (typeof v === "object") ? JSON.stringify(v) : String(v);
@@ -434,13 +585,17 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         var normalized = normalizeInboundEvent(ctx, inbound[i], nk, logger);
         if (!normalized || normalized.__invalid) {
             rejected++;
-            errors.push({ index: i, reason: (normalized && normalized.__invalid) || "Invalid event" });
+            var rejReason = (normalized && normalized.__invalid) || "Invalid event";
+            errors.push({ index: i, reason: rejReason });
+            // Persist to ring buffer so the dashboard's Pipeline tab can show it.
+            recordFailedEvent(nk, logger, ctx, inbound[i], rejReason);
             continue;
         }
         var err = persistNormalizedEvent(nk, logger, normalized);
         if (err) {
             rejected++;
             errors.push({ index: i, reason: err });
+            recordFailedEvent(nk, logger, ctx, inbound[i], err);
         } else {
             if (normalized.canonicalized) aliasNormalized++;
             if (normalized.schemaVersion === 2) {
@@ -473,6 +628,16 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     try {
         if (typeof abAutoRunIfNeeded === "function") {
             abAutoRunIfNeeded(ctx, nk, logger);
+        }
+    } catch (e) { /* swallow */ }
+
+    // Satori identity piggyback (Phase 8 wiring, 2026-05): debounced 1 h.
+    // Keeps Satori trait properties (skill_band, churn_risk, spend_tier, …)
+    // fresh without any external cron dependency. The 1-h gate means this
+    // fires at most once per Nakama process per hour, regardless of traffic.
+    try {
+        if (typeof siAutoRunIfNeeded === "function") {
+            siAutoRunIfNeeded(ctx, nk, logger);
         }
     } catch (e) { /* swallow */ }
 

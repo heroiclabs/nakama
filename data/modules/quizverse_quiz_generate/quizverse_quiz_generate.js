@@ -2,21 +2,21 @@
 // Nakama V8 JavaScript runtime (No ES Modules)
 //
 // Fetches the question pool (from S3 URL), filters out seen questions using
-// the qv_seen ledger, handles exhaustion (purge stale → backfill oldest),
-// and returns a fresh, deduplicated set of questions.
+// the qv_seen ledger (via globalThis.__qvsSeen from quizverse_seen.js),
+// handles exhaustion (purge stale → backfill oldest), and returns a fresh,
+// deduplicated set of questions.
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-var QQG_COLLECTION = "qv_seen";
 var QQG_DEFAULT_COUNT = 10;
 var QQG_DEFAULT_REPEAT_AFTER_DAYS = 30;
 var QQG_MAX_COUNT = 50;
 var QQG_HTTP_TIMEOUT_MS = 10000;
 
 // ============================================================================
-// UTILITY HELPERS (self-contained, no cross-module deps)
+// UTILITY HELPERS
 // ============================================================================
 
 function qqgParsePayload(payload, requiredFields) {
@@ -34,40 +34,17 @@ function qqgParsePayload(payload, requiredFields) {
     return data;
 }
 
-function qqgStorageRead(nk, collection, key, userId) {
-    var records = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
-    if (records && records.length > 0 && records[0].value) {
-        return records[0].value;
-    }
-    return null;
-}
-
-function qqgStorageWrite(nk, collection, key, userId, value) {
-    nk.storageWrite([{
-        collection: collection,
-        key: key,
-        userId: userId,
-        value: value,
-        permissionRead: 1,
-        permissionWrite: 0
-    }]);
-}
-
-function qqgNowUnix() {
-    return Math.floor(Date.now() / 1000);
-}
-
+/**
+ * Slugify for question ID hashing — must match Unity's QuestionIdHasher.cs normalization.
+ * Kept here (not shared with __qvsSeen) because question ID computation is this module's
+ * own concern and the algorithm must stay stable independent of storage key changes.
+ */
 function qqgSlugify(str) {
     if (!str) return "unknown";
     return str.trim().toLowerCase()
         .replace(/[^a-z0-9]+/g, "_")
         .replace(/^_|_$/g, "")
         .substring(0, 64);
-}
-
-function qqgBuildStorageKey(scope, topic) {
-    var slug = qqgSlugify(topic);
-    return (scope || "global") + "_" + slug;
 }
 
 // ============================================================================
@@ -86,7 +63,6 @@ function qqgBuildStorageKey(scope, topic) {
  * @returns {string} stable question ID
  */
 function qqgComputeQuestionId(nk, prefix, topic, question, options) {
-    // Normalize
     var normalizedQ = (question || "").trim().toLowerCase();
     var normalizedOpts = [];
     if (options && options.length > 0) {
@@ -101,60 +77,11 @@ function qqgComputeQuestionId(nk, prefix, topic, question, options) {
         raw += "|" + normalizedOpts[j];
     }
 
-    // SHA-256 hash → first 12 hex chars
     var hashBytes = nk.sha256Hash(raw); // returns hex string
     var hash12 = hashBytes.substring(0, 12);
 
     var slug = qqgSlugify(topic);
     return prefix + "_" + slug + "_" + hash12;
-}
-
-// ============================================================================
-// SEEN LEDGER HELPERS (read-through, no external module dependency)
-// ============================================================================
-
-function qqgSeenRead(nk, userId, scope, topic) {
-    var key = qqgBuildStorageKey(scope, topic);
-    var data = qqgStorageRead(nk, QQG_COLLECTION, key, userId);
-    if (!data || !data.ids) {
-        return { ids: {} };
-    }
-    return data;
-}
-
-function qqgSeenMerge(nk, userId, scope, topic, questionIds) {
-    if (!questionIds || questionIds.length === 0) return;
-    var key = qqgBuildStorageKey(scope, topic);
-    var data = qqgStorageRead(nk, QQG_COLLECTION, key, userId);
-    if (!data || !data.ids) {
-        data = { ids: {}, version: 1 };
-    }
-    var now = qqgNowUnix();
-    for (var i = 0; i < questionIds.length; i++) {
-        if (questionIds[i]) data.ids[questionIds[i]] = now;
-    }
-    data.version = 1;
-    qqgStorageWrite(nk, QQG_COLLECTION, key, userId, data);
-}
-
-function qqgSeenPurgeStale(nk, userId, scope, topic, repeatAfterDays) {
-    var key = qqgBuildStorageKey(scope, topic);
-    var data = qqgStorageRead(nk, QQG_COLLECTION, key, userId);
-    if (!data || !data.ids) return 0;
-    var cutoff = qqgNowUnix() - (repeatAfterDays * 86400);
-    var purged = 0;
-    var keys = Object.keys(data.ids);
-    for (var i = 0; i < keys.length; i++) {
-        if (data.ids[keys[i]] < cutoff) {
-            delete data.ids[keys[i]];
-            purged++;
-        }
-    }
-    if (purged > 0) {
-        data.version = 1;
-        qqgStorageWrite(nk, QQG_COLLECTION, key, userId, data);
-    }
-    return purged;
 }
 
 // ============================================================================
@@ -180,14 +107,13 @@ function qqgFetchPool(nk, logger, url) {
 
         var parsed = JSON.parse(body);
 
-        // Handle different S3 JSON formats
         // Format 1: { questions: [...] }
         if (parsed.questions && Array.isArray(parsed.questions)) {
             return parsed.questions;
         }
         // Format 2: { topics: { science: { questions: [...] } } }
         if (parsed.topics && typeof parsed.topics === "object") {
-            return parsed;  // Return the whole object, topic extraction done later
+            return parsed;
         }
         // Format 3: Direct array
         if (Array.isArray(parsed)) {
@@ -210,15 +136,12 @@ function qqgFetchPool(nk, logger, url) {
 function qqgExtractTopicQuestions(poolData, topic) {
     if (!poolData) return [];
 
-    // If it's a direct array, return all (no topic filtering needed)
     if (Array.isArray(poolData)) {
         return poolData;
     }
 
-    // If it has topics, extract the specific topic
     if (poolData.topics && typeof poolData.topics === "object") {
         var topicSlug = qqgSlugify(topic);
-        // Try exact match first, then slug match
         for (var key in poolData.topics) {
             if (key === topic || qqgSlugify(key) === topicSlug) {
                 var topicData = poolData.topics[key];
@@ -232,7 +155,6 @@ function qqgExtractTopicQuestions(poolData, topic) {
         }
     }
 
-    // If it has a questions array at root
     if (poolData.questions && Array.isArray(poolData.questions)) {
         return poolData.questions;
     }
@@ -258,7 +180,7 @@ function qqgShuffle(arr) {
 }
 
 /**
- * Compute IDs for all questions in the pool and filter out seen ones.
+ * Compute IDs for all questions in the pool and split into unseen / seen.
  *
  * @returns {{ unseen: Array, seen: Array, allWithIds: Array }}
  */
@@ -272,7 +194,6 @@ function qqgFilterPool(nk, questions, seenIdSet, prefix, topic) {
         var qText = q.question || q.Question || q.text || "";
         var qOpts = q.options || q.Options || q.answers || [];
 
-        // Ensure options is an array of strings
         if (!Array.isArray(qOpts)) qOpts = [];
         var strOpts = [];
         for (var oi = 0; oi < qOpts.length; oi++) {
@@ -280,7 +201,7 @@ function qqgFilterPool(nk, questions, seenIdSet, prefix, topic) {
         }
 
         var qid = qqgComputeQuestionId(nk, prefix, topic, qText, strOpts);
-        q._qid = qid;  // Attach the ID to the question object
+        q._qid = qid;
         allWithIds.push(q);
 
         if (seenIdSet[qid]) {
@@ -295,12 +216,10 @@ function qqgFilterPool(nk, questions, seenIdSet, prefix, topic) {
 
 /**
  * Backfill from oldest-seen questions when pool is exhausted.
- * Sorts the seen questions by timestamp (oldest first) and takes the needed count.
  */
 function qqgBackfillFromOldest(seenQuestions, seenLedger, needed) {
     if (!seenQuestions || seenQuestions.length === 0 || needed <= 0) return [];
 
-    // Sort by their seen timestamp (oldest first)
     seenQuestions.sort(function(a, b) {
         var tsA = seenLedger.ids[a._qid] || 0;
         var tsB = seenLedger.ids[b._qid] || 0;
@@ -320,17 +239,19 @@ function qqgBackfillFromOldest(seenQuestions, seenLedger, needed) {
  * Server-authoritative question delivery.
  * Fetches pool → filters seen → handles exhaustion → returns fresh questions.
  *
+ * Seen ledger operations are delegated to globalThis.__qvsSeen (quizverse_seen.js)
+ * so that OCC, scope slugification, and the safety cap are all applied consistently.
+ *
  * Request:
  * {
- *   "mode": "PickATopic",           // Quiz mode name (for logging)
- *   "scope": "global",              // Ledger scope
- *   "topic": "science",             // Topic name
- *   "count": 10,                    // Number of questions requested
- *   "lang": "en",                   // Language code
- *   "question_bank_url": "https://...",  // S3 URL to fetch pool from
- *   "repeat_after_days": 30,        // Optional: days before recycling
- *   "id_prefix": "s3",              // Optional: prefix for question IDs (default "s3")
- *   "questions": [...]              // Optional: pre-fetched questions (skip HTTP fetch)
+ *   "mode": "PickATopic",
+ *   "scope": "global",
+ *   "topic": "science",
+ *   "count": 10,
+ *   "question_bank_url": "https://...",
+ *   "repeat_after_days": 30,
+ *   "id_prefix": "s3",
+ *   "questions": [...]    // optional: pre-fetched (skip HTTP)
  * }
  *
  * Response:
@@ -339,12 +260,9 @@ function qqgBackfillFromOldest(seenQuestions, seenLedger, needed) {
  *   "questions": [...],
  *   "question_ids": ["s3_science_abc123", ...],
  *   "meta": {
- *     "total_pool": 200,
- *     "unseen_pool": 185,
- *     "stale_recycled": 0,
- *     "backfilled": 0,
- *     "pool_exhaustion_pct": 7.5,
- *     "source": "s3_filtered"
+ *     "total_pool": 200, "unseen_pool": 185,
+ *     "stale_recycled": 0, "backfilled": 0,
+ *     "pool_exhaustion_pct": 7.5, "source": "s3_filtered"
  *   }
  * }
  */
@@ -354,6 +272,13 @@ function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
         var userId = ctx.userId;
         if (!userId) {
             return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        // Shared seen ledger — guaranteed available when any RPC is called
+        // (all modules finish loading before Nakama dispatches the first request)
+        var seen = globalThis.__qvsSeen;
+        if (!seen) {
+            return JSON.stringify({ success: false, error: "Seen ledger module not available" });
         }
 
         var mode = data.mode || "unknown";
@@ -369,13 +294,10 @@ function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
         // ── Step 1: Get the question pool ──
         var questions = null;
 
-        // Option A: Questions passed inline (client already fetched)
         if (data.questions && Array.isArray(data.questions) && data.questions.length > 0) {
             questions = data.questions;
             logger.info("[QuizGen] Using " + questions.length + " inline questions");
-        }
-        // Option B: Fetch from S3 URL
-        else if (data.question_bank_url) {
+        } else if (data.question_bank_url) {
             var poolData = qqgFetchPool(nk, logger, data.question_bank_url);
             if (poolData) {
                 questions = qqgExtractTopicQuestions(poolData, topic);
@@ -391,8 +313,8 @@ function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
             });
         }
 
-        // ── Step 2: Read the seen ledger ──
-        var seenLedger = qqgSeenRead(nk, userId, scope, topic);
+        // ── Step 2: Read seen ledger & build filter set ──
+        var seenLedger = seen.read(nk, userId, scope, topic);
         var seenIdSet = {};
         var seenKeys = Object.keys(seenLedger.ids);
         for (var si = 0; si < seenKeys.length; si++) {
@@ -410,14 +332,12 @@ function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
         var available = filtered.unseen;
 
         if (available.length < count) {
-            // Try purging stale entries first
-            var purged = qqgSeenPurgeStale(nk, userId, scope, topic, repeatAfterDays);
+            var purged = seen.purgeStale(nk, userId, scope, topic, repeatAfterDays);
             if (purged > 0) {
                 staleRecycled = purged;
                 logger.info("[QuizGen] Purged " + purged + " stale entries, re-filtering...");
 
-                // Re-read the ledger and re-filter
-                seenLedger = qqgSeenRead(nk, userId, scope, topic);
+                seenLedger = seen.read(nk, userId, scope, topic);
                 seenIdSet = {};
                 seenKeys = Object.keys(seenLedger.ids);
                 for (var si2 = 0; si2 < seenKeys.length; si2++) {
@@ -430,7 +350,6 @@ function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
         }
 
         if (available.length < count) {
-            // Backfill from oldest-seen
             var needed = count - available.length;
             var backfillItems = qqgBackfillFromOldest(filtered.seen, seenLedger, needed);
             backfilled = backfillItems.length;
@@ -450,7 +369,6 @@ function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
             var q = selected[qi];
             questionIds.push(q._qid);
 
-            // Clean up internal field before returning
             var cleanQ = {};
             for (var qk in q) {
                 if (qk !== "_qid") {
@@ -491,6 +409,136 @@ function rpcQuizverseQuizGenerate(ctx, logger, nk, payload) {
 }
 
 // ============================================================================
+// RPC: quizverse_seen_resolve
+// ============================================================================
+
+/**
+ * RPC: quizverse_seen_resolve
+ *
+ * Cross-references the user's seen ledger with the live question pool from S3
+ * and returns the actual question text for every question they have seen.
+ *
+ * Useful for debugging via the Nakama Dashboard → API Explorer.
+ *
+ * Request:
+ *   {
+ *     "scope": "global",
+ *     "topic": "science",
+ *     "url":   "https://your-bucket.s3.amazonaws.com/science.json",
+ *     "prefix": "s3"           // optional, default "s3"
+ *   }
+ *
+ * Response:
+ *   {
+ *     "success": true,
+ *     "seen_count": 12,
+ *     "pool_size": 80,
+ *     "seen_questions": [
+ *       {
+ *         "id":       "s3_science_a1b2c3d4e5f6",
+ *         "question": "What is the capital of France?",
+ *         "options":  ["Paris", "London", "Berlin", "Madrid"],
+ *         "correct":  "Paris",
+ *         "seen_on":  "2026-05-08T09:15:00Z",
+ *         "days_ago": 4
+ *       },
+ *       ...
+ *     ]
+ *   }
+ */
+function rpcQuizverseSeenResolve(ctx, logger, nk, payload) {
+    try {
+        var data = qqgParsePayload(payload, ["scope", "topic", "url"]);
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
+        }
+
+        var scope   = data.scope;
+        var topic   = data.topic;
+        var url     = data.url;
+        var prefix  = data.prefix || "s3";
+
+        // 1. Load the user's seen ledger
+        if (!globalThis.__qvsSeen) {
+            return JSON.stringify({ success: false, error: "__qvsSeen module not loaded" });
+        }
+        var seenIdSet = globalThis.__qvsSeen.getIdSet(nk, userId, scope, topic);
+        var seenLedger = globalThis.__qvsSeen.read(nk, userId, scope, topic);
+
+        // 2. Fetch question pool from S3
+        var poolData = qqgFetchPool(nk, logger, url);
+        if (!poolData) {
+            return JSON.stringify({ success: false, error: "Failed to fetch question pool from URL" });
+        }
+        var questions = qqgExtractTopicQuestions(poolData, topic);
+        if (!questions || questions.length === 0) {
+            return JSON.stringify({ success: false, error: "No questions found in pool for topic: " + topic });
+        }
+
+        // 3. Cross-reference: compute each question's ID, collect the ones that are seen
+        var seenQuestions = [];
+        var nowSec = Math.floor(Date.now() / 1000);
+
+        for (var i = 0; i < questions.length; i++) {
+            var q = questions[i];
+            var qText = q.question || q.Question || q.text || "";
+            var qOpts = q.options || q.Options || q.answers || [];
+            if (!Array.isArray(qOpts)) qOpts = [];
+
+            var strOpts = [];
+            for (var oi = 0; oi < qOpts.length; oi++) {
+                var opt = qOpts[oi];
+                strOpts.push(typeof opt === "object" ? (opt.text || opt.label || String(opt)) : String(opt));
+            }
+
+            var qId = qqgComputeQuestionId(nk, prefix, topic, qText, strOpts);
+
+            if (seenIdSet[qId]) {
+                var seenTs  = seenLedger.ids[qId] || 0;
+                var daysAgo = seenTs > 0 ? Math.floor((nowSec - seenTs) / 86400) : -1;
+                var seenIso = seenTs > 0 ? new Date(seenTs * 1000).toISOString() : null;
+
+                // Detect the correct answer (various field names used across question formats)
+                var correct = q.correct_answer || q.correctAnswer || q.answer || q.correct || null;
+                if (correct === null && q.correct_index !== undefined && strOpts.length > 0) {
+                    correct = strOpts[q.correct_index] || null;
+                }
+
+                seenQuestions.push({
+                    id:       qId,
+                    question: qText,
+                    options:  strOpts,
+                    correct:  correct,
+                    seen_on:  seenIso,
+                    days_ago: daysAgo
+                });
+            }
+        }
+
+        // Sort oldest-seen first so the dashboard view is chronological
+        seenQuestions.sort(function(a, b) {
+            return (seenLedger.ids[a.id] || 0) - (seenLedger.ids[b.id] || 0);
+        });
+
+        logger.info("[SeenResolve] user=" + userId +
+            " scope=" + scope + " topic=" + topic +
+            " pool=" + questions.length + " seen=" + seenQuestions.length);
+
+        return JSON.stringify({
+            success:        true,
+            seen_count:     seenQuestions.length,
+            pool_size:      questions.length,
+            seen_questions: seenQuestions
+        });
+
+    } catch (err) {
+        logger.error("[SeenResolve] error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+// ============================================================================
 // REGISTRATION
 // ============================================================================
 
@@ -502,7 +550,8 @@ function registerQuizverseQuizGenerateRPCs(initializer, logger) {
     }
 
     var rpcs = [
-        { id: "quizverse_quiz_generate", handler: rpcQuizverseQuizGenerate }
+        { id: "quizverse_quiz_generate",  handler: rpcQuizverseQuizGenerate },
+        { id: "quizverse_seen_resolve",   handler: rpcQuizverseSeenResolve }
     ];
 
     var registered = 0;
@@ -533,5 +582,6 @@ function registerQuizverseQuizGenerateRPCs(initializer, logger) {
 // ============================================================================
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("quizverse_quiz_generate", rpcQuizverseQuizGenerate);
-    logger.info("[QuizGen] Module InitModule registered: 1 RPC");
+    initializer.registerRpc("quizverse_seen_resolve",  rpcQuizverseSeenResolve);
+    logger.info("[QuizGen] Module InitModule registered: 2 RPCs");
 }

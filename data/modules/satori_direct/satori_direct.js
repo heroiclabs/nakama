@@ -104,6 +104,18 @@ var SD_EVENT_ALLOWLIST = {
     "milestone_first_multiplayer": true,
     // Errors (high priority — feed Satori segments for alerting)
     "error_logged": true, "auth_failure": true,
+    // Phase 5 — Satori personalization exposure events.
+    // Fired when Unity fetches flags/experiments so A/B test coverage
+    // is visible in the Satori console and can be sliced by segment.
+    // Also includes identity sync markers so ops can confirm when traits
+    // were last pushed (useful in debugging misfired offers/experiments).
+    "flag_exposure": true, "experiment_exposure": true,
+    "satori_identity_synced": true,
+    // Offer lifecycle (Phase 6 offer engine — allowlisted early so Satori
+    // auto-registers the taxonomy before we start sending production volume).
+    "offer_eligible": true, "offer_assigned": true, "offer_viewed": true,
+    "offer_clicked": true, "offer_purchased": true,
+    "offer_dismissed": true, "offer_cooldown_blocked": true,
     // Backfill marker — synthesised by analytics_backfill.js for days
     // where there's no real event to attribute DAU to. Keeps the Satori
     // dashboard non-empty for cold-start projects.

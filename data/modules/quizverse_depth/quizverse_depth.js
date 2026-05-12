@@ -2,6 +2,34 @@
 // Nakama V8 JavaScript runtime (No ES Modules)
 
 // ============================================================================
+// CONSTANTS
+// ============================================================================
+
+// Rolling cap: the knowledge-map RPC only reads the newest N entries so that
+// legacy documents written before the cap was enforced don't cause memory spikes.
+// Must match KM_HISTORY_MAX_ENTRIES in quiz_results.js.
+var QVD_HISTORY_READ_CAP = 2000;
+
+// Slug ↔ UUID lookup — mirrors analytics.js so both modules resolve identically.
+var QVD_SLUG_TO_UUID = {
+    "quiz-verse": "126bf539-dae2-4bcf-964d-316c0fa1f92b"
+};
+var QVD_UUID_TO_SLUG = {
+    "126bf539-dae2-4bcf-964d-316c0fa1f92b": "quiz-verse"
+};
+
+/**
+ * Resolve a game_id that may be a UUID OR a slug to its canonical slug.
+ * The history collection name is always slug-prefixed ("quiz-verse_quiz_history").
+ */
+function qvdResolveSlug(gameId) {
+    if (!gameId) return "quiz-verse";
+    // If it looks like a UUID, map to slug; otherwise assume it is already a slug.
+    var fromUuid = QVD_UUID_TO_SLUG[gameId];
+    return fromUuid || gameId;
+}
+
+// ============================================================================
 // UTILITY HELPERS
 // ============================================================================
 
@@ -55,11 +83,14 @@ function rpcQuizverseKnowledgeMap(ctx, logger, nk, payload) {
     try {
         var data = qvdParsePayload(payload, ["game_id"]);
         var userId = ctx.userId;
-        var gameId = data.game_id;
-        var collection = gameId + "_quiz_history";
+
+        // Resolve UUID or slug → slug so the collection name is always consistent
+        // with what quiz_results.js writes ("quiz-verse_quiz_history").
+        var gameSlug   = qvdResolveSlug(data.game_id);
+        var collection = gameSlug + "_quiz_history";
 
         var history = qvdStorageRead(nk, collection, "history", userId);
-        if (!history || !history.entries) {
+        if (!history || !Array.isArray(history.entries) || history.entries.length === 0) {
             return JSON.stringify({
                 success: true,
                 categories: {},
@@ -70,66 +101,116 @@ function rpcQuizverseKnowledgeMap(ctx, logger, nk, payload) {
             });
         }
 
-        var cats = {};
-        var totalQuizzes = history.entries.length;
+        // Respect the rolling cap: only aggregate the newest QVD_HISTORY_READ_CAP
+        // entries so legacy documents with no server-side cap don't spike memory.
+        var entries = history.entries;
+        if (entries.length > QVD_HISTORY_READ_CAP) {
+            entries = entries.slice(entries.length - QVD_HISTORY_READ_CAP);
+        }
 
-        for (var i = 0; i < history.entries.length; i++) {
-            var entry = history.entries[i];
-            var cat = entry.category || "general";
+        var cats = {};
+        var totalQuizzes = entries.length;
+
+        for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            if (!entry || typeof entry !== "object") continue;
+
+            // ── Category ─────────────────────────────────────────────────────
+            // Accept both "category" (canonical) and legacy "categoryName" /
+            // "categoryId" written by older client builds.
+            var cat = entry.category || entry.categoryName || entry.categoryId || "general";
+
+            // ── Correct flag ──────────────────────────────────────────────────
+            // Accept bool "correct", bool "was_correct", and the synthesized
+            // aggregate fallback that quiz_results.js writes.
+            var isCorrect;
+            if (entry.correct !== undefined) {
+                isCorrect = !!entry.correct;
+            } else if (entry.was_correct !== undefined) {
+                isCorrect = !!entry.was_correct;
+            } else {
+                isCorrect = false;
+            }
+
+            // ── Time ─────────────────────────────────────────────────────────
+            // Accept "time_ms" (canonical) and "timeMs" (camelCase alias).
+            var timeMs = parseInt(entry.time_ms || entry.timeMs || 0, 10);
+            if (isNaN(timeMs) || timeMs < 0) timeMs = 0;
+
             if (!cats[cat]) {
                 cats[cat] = { total_questions: 0, correct: 0, total_time_ms: 0 };
             }
             cats[cat].total_questions += 1;
-            if (entry.correct) {
-                cats[cat].correct += 1;
-            }
-            cats[cat].total_time_ms += (entry.time_ms || 0);
+            if (isCorrect) cats[cat].correct += 1;
+            cats[cat].total_time_ms += timeMs;
         }
 
+        // ── Per-category metrics + strength classification ────────────────────
         var strongest = null;
-        var weakest = null;
-        var highAcc = -1;
-        var lowAcc = 101;
-        var catKeys = Object.keys(cats);
+        var weakest   = null;
+        var highAcc   = -1;
+        var lowAcc    = 101;
+        var catKeys   = Object.keys(cats);
 
         for (var j = 0; j < catKeys.length; j++) {
             var k = catKeys[j];
             var c = cats[k];
-            var acc = c.total_questions > 0 ? Math.round((c.correct / c.total_questions) * 100) : 0;
-            var avgTime = c.total_questions > 0 ? Math.round(c.total_time_ms / c.total_questions) : 0;
+            var acc     = c.total_questions > 0
+                        ? Math.round((c.correct / c.total_questions) * 100) : 0;
+            var avgTime = c.total_questions > 0
+                        ? Math.round(c.total_time_ms / c.total_questions) : 0;
 
             var level = "weak";
-            if (acc >= 90) {
-                level = "expert";
-            } else if (acc >= 70) {
-                level = "strong";
-            } else if (acc >= 40) {
-                level = "moderate";
-            }
+            if      (acc >= 90) level = "expert";
+            else if (acc >= 70) level = "strong";
+            else if (acc >= 40) level = "moderate";
 
             cats[k] = {
                 total_questions: c.total_questions,
-                correct: c.correct,
-                accuracy_pct: acc,
-                avg_time_ms: avgTime,
-                strength_level: level
+                correct:         c.correct,
+                accuracy_pct:    acc,
+                avg_time_ms:     avgTime,
+                strength_level:  level
             };
 
             if (acc > highAcc) { highAcc = acc; strongest = k; }
-            if (acc < lowAcc) { lowAcc = acc; weakest = k; }
+            if (acc < lowAcc)  { lowAcc  = acc; weakest   = k; }
         }
 
+        // ── Coverage % ────────────────────────────────────────────────────────
+        // Read the authoritative total-category count from a system-level storage
+        // key ("quizverse_config / total_categories / system"). Falls back to a
+        // conservative estimate (knownCategories × 2, clamped to ≥ 20) so new
+        // players see a sensible non-100% figure before the config is set.
         var knownCategories = catKeys.length;
-        var assumedTotal = Math.max(knownCategories, 10);
-        var coveragePct = Math.round((knownCategories / assumedTotal) * 100);
+        var totalCategories = knownCategories; // fallback — set below
+        try {
+            var cfgRecords = nk.storageRead([{
+                collection: "quizverse_config",
+                key:        "total_categories",
+                userId:     "00000000-0000-0000-0000-000000000000"
+            }]);
+            if (cfgRecords && cfgRecords.length > 0 && cfgRecords[0].value &&
+                    typeof cfgRecords[0].value.total_categories === "number" &&
+                    cfgRecords[0].value.total_categories > 0) {
+                totalCategories = cfgRecords[0].value.total_categories;
+            } else {
+                // Conservative estimate: assume player has seen at most half the
+                // available categories so far. Minimum floor of 20.
+                totalCategories = Math.max(knownCategories * 2, 20);
+            }
+        } catch (cfgErr) {
+            totalCategories = Math.max(knownCategories * 2, 20);
+        }
+        var coveragePct = Math.min(100, Math.round((knownCategories / totalCategories) * 100));
 
         return JSON.stringify({
-            success: true,
-            categories: cats,
+            success:              true,
+            categories:           cats,
             overall_coverage_pct: coveragePct,
-            strongest: strongest,
-            weakest: weakest,
-            total_quizzes: totalQuizzes
+            strongest:            strongest,
+            weakest:              weakest,
+            total_quizzes:        totalQuizzes
         });
 
     } catch (err) {

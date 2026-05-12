@@ -20012,6 +20012,48 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
 
         logger.info('[AsyncChallenge] Results submitted for session: ' + sessionId + ' by user: ' + userId + ' score: ' + score);
 
+        // ── Knowledge Map history ─────────────────────────────────────────────
+        // Append a per-quiz aggregate entry to the knowledge-map rolling window.
+        // Uses the globalThis.__kmAppendHistory bridge registered by quiz_results.js
+        // so this module has no hard dependency on it (graceful no-op if absent).
+        //
+        // Category resolution order (most to least specific):
+        //   1. session.quizConfig.categoryName / topicName
+        //   2. session.quizConfig.CategoryName / TopicName  (Unity PascalCase)
+        //   3. session.quizModeName                          (mode as category)
+        //   4. "general"                                     (guaranteed fallback)
+        if (typeof globalThis.__kmAppendHistory === 'function') {
+            try {
+                var qc = (session && session.quizConfig) ? session.quizConfig : {};
+                var kmCategoryName = qc.categoryName || qc.topicName
+                                  || qc.CategoryName || qc.TopicName
+                                  || (session && session.quizModeName) || null;
+                var kmCategoryId   = qc.categoryId || qc.CategoryId || null;
+                var kmGameId       = (session && session.gameId) ? session.gameId : 'quiz-verse';
+
+                // Build lightweight data/result objects that match the shape
+                // appendKnowledgeMapHistory expects from quiz_submit_result.
+                var kmData = {
+                    gameId:          kmGameId,
+                    categoryName:    kmCategoryName,
+                    categoryId:      kmCategoryId,
+                    questionHistory: null          // per-question data not available here
+                };
+                var kmResult = {
+                    timeTakenSeconds: timeTaken,
+                    totalQuestions:   totalQuestions
+                };
+                var kmMetrics = {
+                    accuracy: totalQuestions > 0
+                        ? (correctAnswers / totalQuestions) * 100 : 0
+                };
+
+                globalThis.__kmAppendHistory(nk, logger, userId, kmData, kmResult, kmMetrics);
+            } catch (kmErr) {
+                logger.warn('[AsyncChallenge] KM history append failed (non-critical): ' + kmErr.message);
+            }
+        }
+
         return JSON.stringify({
             success: true,
             message: 'Results submitted successfully',

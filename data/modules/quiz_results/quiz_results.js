@@ -1,16 +1,144 @@
 // quiz_results.js - Quiz Results Tracking & Analytics System
 // Stores ALL quiz results from ALL game modes for analytics, history, and leaderboards
+//
+// Seen-question merging is delegated to globalThis.__qvsSeen (quizverse_seen.js)
+// so that OCC, scope/topic slugification, and the safety cap are applied consistently.
 
-// ---- Slugify (must match qvsSlugify in quizverse_seen.js exactly) ----
-function qrSlugify(str) {
-    if (!str) return "unknown";
-    return str.trim().toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_|_$/g, "")
-        .substring(0, 64) || "unknown";
+// ─────────────────────────────────────────────────────────────────────────────
+// KNOWLEDGE MAP HISTORY — constants
+// ─────────────────────────────────────────────────────────────────────────────
+// Maximum number of per-question history entries kept per user in the knowledge
+// map rolling window. Older entries are dropped when this cap is exceeded so the
+// storageRead payload stays bounded regardless of play-session count.
+var KM_HISTORY_MAX_ENTRIES = 2000;
+
+// Canonical UUID → slug map. Mirrors the entry in analytics.js so both systems
+// resolve to the same slug-based collection name without a shared dependency.
+var KM_UUID_TO_SLUG = {
+    "126bf539-dae2-4bcf-964d-316c0fa1f92b": "quiz-verse"
+};
+
+/**
+ * Resolve a gameId (UUID or slug) to its short slug, which is used as the
+ * prefix for the knowledge-map history collection.
+ * Returns the input unchanged if no mapping is found (graceful no-op).
+ */
+function kmResolveSlug(gameId) {
+    if (!gameId) return "quiz-verse";
+    var mapped = KM_UUID_TO_SLUG[gameId];
+    return mapped || gameId;
 }
-function qrBuildSeenKey(scope, topic) {
-    return (scope || "global") + "_" + qrSlugify(topic);
+
+/**
+ * Append per-question knowledge-map history entries for a completed quiz and
+ * persist them as a rolling window in Nakama storage.
+ *
+ * Called as a non-critical side-effect of quiz_submit_result. Any failure is
+ * caught and logged so it never blocks the main result submission.
+ *
+ * Entry sources (in priority order):
+ *  1. data.questionHistory   — [{category, correct, time_ms}] (AsyncChallenge / ScoreCalculationEngine)
+ *  1b. data.questionDetails  — [{category, isCorrect, timeTakenSeconds}] (IVXQuizResultsManager SDK)
+ *  2. data.categoryName + result aggregate — one synthesized entry per quiz
+ *
+ * The synthesized fallback maps:
+ *   category  = data.categoryName || data.categoryId || "general"
+ *   correct   = accuracy >= 60 %  (i.e. the player knew most of this category)
+ *   time_ms   = round(timeTakenSeconds / totalQuestions * 1000)  per-question avg
+ *
+ * Rolling window: after appending, entries are trimmed to KM_HISTORY_MAX_ENTRIES
+ * keeping the most recent ones so the document stays bounded forever.
+ */
+function appendKnowledgeMapHistory(nk, logger, userId, data, result, metrics) {
+    try {
+        var slug = kmResolveSlug(data.gameId);
+        var collection = slug + "_quiz_history";
+        var storageKey  = "history";
+
+        // Read current history document (may not exist yet for a new player).
+        var existing = null;
+        try {
+            var records = nk.storageRead([{ collection: collection, key: storageKey, userId: userId }]);
+            if (records && records.length > 0 && records[0].value) {
+                existing = records[0].value;
+            }
+        } catch (readErr) {
+            // Missing document is fine — we will create it below.
+            logger.debug("[KMHistory] No existing history for user " + userId + " — creating new document.");
+        }
+
+        var entries = (existing && Array.isArray(existing.entries)) ? existing.entries : [];
+
+        // ── Build new entries to append ───────────────────────────────────────
+        var newEntries = [];
+
+        // Priority 1: explicit per-question breakdown — QuestionHistoryEntry schema
+        // (from AsyncChallengeManager / ScoreCalculationEngine).
+        // Expected shape: [{category, correct, time_ms}]
+        // Also accepts alternate field names for forward/backward compat.
+        if (data.questionHistory && Array.isArray(data.questionHistory) && data.questionHistory.length > 0) {
+            for (var qi = 0; qi < data.questionHistory.length; qi++) {
+                var q = data.questionHistory[qi];
+                if (!q || typeof q !== "object") continue;
+                var cat     = q.category  || q.categoryName || q.categoryId || "general";
+                var correct = (q.correct !== undefined) ? !!q.correct
+                            : (q.was_correct !== undefined) ? !!q.was_correct
+                            : false;
+                var timeMs  = parseInt(q.time_ms || q.timeMs || 0, 10);
+                newEntries.push({ category: cat, correct: correct, time_ms: timeMs });
+            }
+        }
+
+        // Priority 1b: IVXQuizResultsManager.QuizResultData uses "questionDetails"
+        // (QuestionAnswerDetail[] schema from the SDK).  Fields: category, isCorrect,
+        // timeTakenSeconds (seconds, not ms).  This is the path used by
+        // DailyQuizManager and any mode submitting through QuizContainer.
+        if (newEntries.length === 0 &&
+            data.questionDetails && Array.isArray(data.questionDetails) && data.questionDetails.length > 0) {
+            for (var qd = 0; qd < data.questionDetails.length; qd++) {
+                var d = data.questionDetails[qd];
+                if (!d || typeof d !== "object") continue;
+                var cat     = d.category || d.concept || "general";
+                var correct = (d.isCorrect !== undefined) ? !!d.isCorrect : false;
+                var timeMs  = Math.round((parseFloat(d.timeTakenSeconds) || 0) * 1000);
+                newEntries.push({ category: cat, correct: correct, time_ms: timeMs });
+            }
+        }
+
+        // Priority 2: synthesize one aggregate entry from the quiz-level result.
+        // Used when Unity does not send a per-question breakdown (older clients,
+        // multiplayer modes, etc.).
+        if (newEntries.length === 0) {
+            var cat     = data.categoryName || data.categoryId || "general";
+            var correct = (typeof metrics.accuracy === "number") ? metrics.accuracy >= 60 : false;
+            var perQMs  = (result.totalQuestions > 0)
+                        ? Math.round((result.timeTakenSeconds * 1000) / result.totalQuestions)
+                        : 0;
+            newEntries.push({ category: cat, correct: correct, time_ms: perQMs });
+        }
+
+        // ── Append + enforce rolling cap ──────────────────────────────────────
+        var combined = entries.concat(newEntries);
+        if (combined.length > KM_HISTORY_MAX_ENTRIES) {
+            combined = combined.slice(combined.length - KM_HISTORY_MAX_ENTRIES);
+        }
+
+        nk.storageWrite([{
+            collection:      collection,
+            key:             storageKey,
+            userId:          userId,
+            value:           { entries: combined },
+            permissionRead:  1,
+            permissionWrite: 0
+        }]);
+
+        logger.info("[KMHistory] Appended " + newEntries.length + " entries for user " + userId +
+            " (total=" + combined.length + ", slug=" + slug + ")");
+
+    } catch (err) {
+        // Non-critical: never let a history write failure block the main submit.
+        logger.warn("[KMHistory] appendKnowledgeMapHistory failed (non-critical): " + err.message);
+    }
 }
 
 /**
@@ -335,7 +463,9 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
         });
         
         // 5. Merge seen question IDs into the qv_seen ledger (if provided)
-        // Check both top-level and metadata.seenQuestionIds (Unity SDK nests metadata as a sub-object)
+        // Delegates to globalThis.__qvsSeen (quizverse_seen.js) for OCC-safe,
+        // correctly slugified writes. Supports both top-level and nested metadata
+        // layouts from the Unity SDK.
         var seenIds = null;
         var seenScopeRaw = null;
         var seenTopicRaw = null;
@@ -343,7 +473,8 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
             seenIds = data.seenQuestionIds;
             seenScopeRaw = data.seenScope;
             seenTopicRaw = data.seenTopic;
-        } else if (data.metadata && data.metadata.seenQuestionIds && Array.isArray(data.metadata.seenQuestionIds) && data.metadata.seenQuestionIds.length > 0) {
+        } else if (data.metadata && data.metadata.seenQuestionIds &&
+                   Array.isArray(data.metadata.seenQuestionIds) && data.metadata.seenQuestionIds.length > 0) {
             seenIds = data.metadata.seenQuestionIds;
             seenScopeRaw = data.metadata.seenScope;
             seenTopicRaw = data.metadata.seenTopic;
@@ -352,44 +483,18 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
             try {
                 var seenScope = seenScopeRaw || "global";
                 var seenTopic = seenTopicRaw || data.categoryName || "general";
-                var seenKey = qrBuildSeenKey(seenScope, seenTopic);
-
-                var seenData = null;
-                try {
-                    var seenRecords = nk.storageRead([{ collection: "qv_seen", key: seenKey, userId: userId }]);
-                    if (seenRecords && seenRecords.length > 0 && seenRecords[0].value) {
-                        seenData = seenRecords[0].value;
-                    }
-                } catch (e) { /* first write */ }
-
-                if (!seenData || !seenData.ids) {
-                    seenData = { ids: {}, version: 1 };
-                }
-
-                var now = Math.floor(Date.now() / 1000);
-                for (var si = 0; si < seenIds.length; si++) {
-                    var sqid = seenIds[si];
-                    if (sqid && typeof sqid === "string") {
-                        seenData.ids[sqid] = now;
-                    }
-                }
-                seenData.version = 1;
-
-                nk.storageWrite([{
-                    collection: "qv_seen",
-                    key: seenKey,
-                    userId: userId,
-                    value: seenData,
-                    permissionRead: 1,
-                    permissionWrite: 0
-                }]);
-
+                globalThis.__qvsSeen.merge(nk, userId, seenScope, seenTopic, seenIds);
                 utils.logInfo(logger, "Merged " + seenIds.length +
-                    " seen IDs into qv_seen/" + seenKey + " for user " + userId);
+                    " seen IDs into qv_seen/" + globalThis.__qvsSeen.buildKey(seenScope, seenTopic) +
+                    " for user " + userId);
             } catch (seenErr) {
                 utils.logWarning(logger, "Seen ledger merge failed (non-critical): " + seenErr.message);
             }
         }
+
+        // 6. Append per-question entries to the knowledge-map history document.
+        // Non-critical: wrapped internally so failures never block the response.
+        appendKnowledgeMapHistory(nk, logger, userId, data, result, metrics);
 
         utils.logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
         
@@ -735,5 +840,15 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("quiz_get_history",           rpcQuizGetHistory);
     initializer.registerRpc("quiz_get_stats",             rpcQuizGetStats);
     initializer.registerRpc("quiz_check_daily_completion", rpcQuizCheckDailyCompletion);
-    logger.info("[QuizResults] Module InitModule registered: 4 RPCs");
+
+    // ── Cross-module bridge ───────────────────────────────────────────────────
+    // Expose appendKnowledgeMapHistory on globalThis so sibling modules
+    // (legacy_runtime.js, async_challenge, etc.) can write knowledge-map history
+    // entries without a hard module dependency.
+    // Pattern mirrors globalThis.__qvsSeen used by the seen-question ledger.
+    // Guarded with `||` so the first module to register wins (identical to the
+    // postbuild collision-rename convention used throughout this codebase).
+    globalThis.__kmAppendHistory = globalThis.__kmAppendHistory || appendKnowledgeMapHistory;
+
+    logger.info("[QuizResults] Module InitModule registered: 4 RPCs + __kmAppendHistory bridge");
 }

@@ -1,6 +1,6 @@
 // quizverse_seen.js - Per-user "seen question" ledger for zero-repetition quiz delivery
 // Nakama V8 JavaScript runtime (No ES Modules)
-// Collection: qv_seen | Key: {scope}_{topic_slug} | User-owned
+// Collection: qv_seen | Key: {scope_slug}_{topic_slug} | User-owned
 
 // ============================================================================
 // CONSTANTS
@@ -10,6 +10,7 @@ var QVS_COLLECTION = "qv_seen";
 var QVS_VERSION = 1;
 var QVS_DEFAULT_REPEAT_AFTER_DAYS = 30;
 var QVS_MAX_LEDGER_SIZE = 10000; // Safety cap per key
+var QVS_OCC_MAX_RETRIES = 3;    // Optimistic concurrency retries on version conflict
 
 // ============================================================================
 // UTILITY HELPERS
@@ -30,23 +31,40 @@ function qvsParsePayload(payload, requiredFields) {
     return data;
 }
 
+/**
+ * Read a storage record and return both its value AND its version token.
+ * The version token is used for OCC writes (prevents concurrent-session data loss).
+ *
+ * @returns {{ value: object|null, version: string }}
+ */
 function qvsStorageRead(nk, collection, key, userId) {
     var records = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
     if (records && records.length > 0 && records[0].value) {
-        return records[0].value;
+        return { value: records[0].value, version: records[0].version || "" };
     }
-    return null;
+    return { value: null, version: "" };
 }
 
-function qvsStorageWrite(nk, collection, key, userId, value) {
-    nk.storageWrite([{
+/**
+ * Write a storage record.
+ * When `version` is a non-empty string, Nakama performs an OCC check:
+ * the write is rejected if the stored version has changed since the read.
+ * Callers must catch the resulting error and retry.
+ * When `version` is falsy the write is unconditional (first-time creation).
+ */
+function qvsStorageWrite(nk, collection, key, userId, value, version) {
+    var writeObj = {
         collection: collection,
         key: key,
         userId: userId,
         value: value,
         permissionRead: 1,
         permissionWrite: 0
-    }]);
+    };
+    if (version) {
+        writeObj.version = version; // OCC guard — omit for unconditional first write
+    }
+    nk.storageWrite([writeObj]);
 }
 
 function qvsNowUnix() {
@@ -61,9 +79,13 @@ function qvsSlugify(str) {
         .substring(0, 64);
 }
 
+/**
+ * Build the Nakama storage key for a (scope, topic) pair.
+ * Both scope AND topic are slugified so that "daily quiz" and "daily_quiz"
+ * cannot collide with "daily" + topic "quiz".
+ */
 function qvsBuildStorageKey(scope, topic) {
-    var slug = qvsSlugify(topic);
-    return (scope || "global") + "_" + slug;
+    return qvsSlugify(scope || "global") + "_" + qvsSlugify(topic || "general");
 }
 
 // ============================================================================
@@ -71,85 +93,109 @@ function qvsBuildStorageKey(scope, topic) {
 // ============================================================================
 
 /**
- * Read the seen ledger for a given scope+topic.
+ * Read the seen ledger for a given (scope, topic).
  * Returns { ids: { questionId: unixTimestamp, ... }, version: 1 }
  */
 function qvsSeenRead(nk, userId, scope, topic) {
     var key = qvsBuildStorageKey(scope, topic);
-    var data = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
-    if (!data || !data.ids) {
+    var record = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
+    if (!record.value || !record.value.ids) {
         return { ids: {}, version: QVS_VERSION };
     }
-    return data;
+    return record.value;
 }
 
 /**
- * Merge new question IDs into the existing ledger.
- * Each ID gets the current Unix timestamp.
+ * Merge new question IDs into the seen ledger using OCC to prevent
+ * data loss when two quiz sessions finish at the same instant.
+ *
+ * Each ID gets the current Unix timestamp so staleness can be detected later.
+ * Retries up to QVS_OCC_MAX_RETRIES times on version conflict before throwing.
  */
 function qvsSeenMerge(nk, userId, scope, topic, questionIds) {
     if (!questionIds || questionIds.length === 0) return;
 
     var key = qvsBuildStorageKey(scope, topic);
-    var data = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
-    if (!data || !data.ids) {
-        data = { ids: {}, version: QVS_VERSION };
-    }
 
-    var now = qvsNowUnix();
-    for (var i = 0; i < questionIds.length; i++) {
-        var qid = questionIds[i];
-        if (qid && typeof qid === "string") {
-            data.ids[qid] = now;
+    for (var attempt = 0; attempt < QVS_OCC_MAX_RETRIES; attempt++) {
+        var record = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
+        var data = record.value || { ids: {}, version: QVS_VERSION };
+        if (!data.ids) data.ids = {};
+
+        var now = qvsNowUnix();
+        for (var i = 0; i < questionIds.length; i++) {
+            var qid = questionIds[i];
+            if (qid && typeof qid === "string") {
+                data.ids[qid] = now;
+            }
+        }
+
+        // Safety: cap ledger size by removing oldest entries
+        var idKeys = Object.keys(data.ids);
+        if (idKeys.length > QVS_MAX_LEDGER_SIZE) {
+            var sorted = idKeys.sort(function(a, b) { return data.ids[a] - data.ids[b]; });
+            var toRemove = sorted.length - QVS_MAX_LEDGER_SIZE;
+            for (var r = 0; r < toRemove; r++) {
+                delete data.ids[sorted[r]];
+            }
+        }
+
+        data.version = QVS_VERSION;
+
+        try {
+            qvsStorageWrite(nk, QVS_COLLECTION, key, userId, data, record.version);
+            return; // Success
+        } catch (writeErr) {
+            if (attempt === QVS_OCC_MAX_RETRIES - 1) {
+                throw writeErr; // Retries exhausted — propagate
+            }
+            // Version conflict from a concurrent write — re-read and retry
         }
     }
-
-    // Safety: cap ledger size by removing oldest entries
-    var idKeys = Object.keys(data.ids);
-    if (idKeys.length > QVS_MAX_LEDGER_SIZE) {
-        // Sort by timestamp ascending, remove oldest
-        var sorted = idKeys.sort(function(a, b) { return data.ids[a] - data.ids[b]; });
-        var toRemove = sorted.length - QVS_MAX_LEDGER_SIZE;
-        for (var r = 0; r < toRemove; r++) {
-            delete data.ids[sorted[r]];
-        }
-    }
-
-    data.version = QVS_VERSION;
-    qvsStorageWrite(nk, QVS_COLLECTION, key, userId, data);
 }
 
 /**
  * Purge stale entries older than repeatAfterDays.
+ * Uses OCC to avoid racing with a concurrent merge.
  * Returns the number of entries purged.
  */
 function qvsSeenPurgeStale(nk, userId, scope, topic, repeatAfterDays) {
     var key = qvsBuildStorageKey(scope, topic);
-    var data = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
-    if (!data || !data.ids) return 0;
 
-    var cutoff = qvsNowUnix() - (repeatAfterDays * 86400);
-    var purged = 0;
-    var ids = data.ids;
-    var keys = Object.keys(ids);
+    for (var attempt = 0; attempt < QVS_OCC_MAX_RETRIES; attempt++) {
+        var record = qvsStorageRead(nk, QVS_COLLECTION, key, userId);
+        if (!record.value || !record.value.ids) return 0;
 
-    for (var i = 0; i < keys.length; i++) {
-        if (ids[keys[i]] < cutoff) {
-            delete ids[keys[i]];
-            purged++;
+        var data = record.value;
+        var cutoff = qvsNowUnix() - (repeatAfterDays * 86400);
+        var purged = 0;
+        var keys = Object.keys(data.ids);
+
+        for (var i = 0; i < keys.length; i++) {
+            if (data.ids[keys[i]] < cutoff) {
+                delete data.ids[keys[i]];
+                purged++;
+            }
+        }
+
+        if (purged === 0) return 0; // Nothing to write
+
+        data.version = QVS_VERSION;
+
+        try {
+            qvsStorageWrite(nk, QVS_COLLECTION, key, userId, data, record.version);
+            return purged; // Success
+        } catch (writeErr) {
+            if (attempt === QVS_OCC_MAX_RETRIES - 1) {
+                throw writeErr;
+            }
         }
     }
-
-    if (purged > 0) {
-        data.version = QVS_VERSION;
-        qvsStorageWrite(nk, QVS_COLLECTION, key, userId, data);
-    }
-
-    return purged;
+    return 0;
 }
 
 /**
- * Get the set of seen IDs (keys only) for filtering.
+ * Get the set of seen IDs (keys only, boolean true values) for fast O(1) filtering.
  */
 function qvsSeenGetIdSet(nk, userId, scope, topic) {
     var data = qvsSeenRead(nk, userId, scope, topic);
@@ -221,7 +267,7 @@ function rpcQuizverseSeenMerge(ctx, logger, nk, payload) {
         var ledger = qvsSeenRead(nk, userId, data.scope, data.topic);
 
         logger.info("[QuizverseSeen] Merged " + data.question_ids.length +
-            " IDs for user " + userId + ", scope=" + data.scope + "_" + data.topic +
+            " IDs for user " + userId + ", scope=" + qvsBuildStorageKey(data.scope, data.topic) +
             ", total=" + Object.keys(ledger.ids).length);
 
         return JSON.stringify({
@@ -256,7 +302,7 @@ function rpcQuizverseSeenPurge(ctx, logger, nk, payload) {
         var ledger = qvsSeenRead(nk, userId, data.scope, data.topic);
 
         logger.info("[QuizverseSeen] Purged " + purged + " stale entries for user " +
-            userId + ", scope=" + data.scope + "_" + data.topic);
+            userId + ", key=" + qvsBuildStorageKey(data.scope, data.topic));
 
         return JSON.stringify({
             success: true,
@@ -273,6 +319,7 @@ function rpcQuizverseSeenPurge(ctx, logger, nk, payload) {
 /**
  * RPC: quizverse_seen_reset
  * Reset (clear) a user's seen ledger for a scope+topic. Debug/admin use.
+ * Reset is intentionally unconditional — it wins over any concurrent merge.
  *
  * Request: { "scope": "global", "topic": "science" }
  * Response: { "success": true, "cleared_count": 150 }
@@ -289,10 +336,11 @@ function rpcQuizverseSeenReset(ctx, logger, nk, payload) {
         var clearedCount = Object.keys(ledger.ids).length;
 
         var key = qvsBuildStorageKey(data.scope, data.topic);
-        qvsStorageWrite(nk, QVS_COLLECTION, key, userId, { ids: {}, version: QVS_VERSION });
+        // Unconditional reset — no OCC needed; caller intent is to wipe the ledger
+        qvsStorageWrite(nk, QVS_COLLECTION, key, userId, { ids: {}, version: QVS_VERSION }, null);
 
         logger.info("[QuizverseSeen] Reset ledger for user " + userId +
-            ", scope=" + data.scope + "_" + data.topic + ", cleared=" + clearedCount);
+            ", key=" + key + ", cleared=" + clearedCount);
 
         return JSON.stringify({
             success: true,
@@ -353,6 +401,22 @@ function rpcQuizverseSeenStats(ctx, logger, nk, payload) {
 }
 
 // ============================================================================
+// SHARED MODULE INTERFACE
+// Exposed on globalThis so quizverse_quiz_generate.js and quiz_results.js
+// can use the same battle-tested, OCC-correct implementation instead of
+// maintaining independent copies that risk diverging.
+// Safe to access from RPC handlers (called after all modules are loaded).
+// ============================================================================
+
+globalThis.__qvsSeen = {
+    buildKey:   qvsBuildStorageKey,
+    merge:      qvsSeenMerge,
+    purgeStale: qvsSeenPurgeStale,
+    read:       qvsSeenRead,
+    getIdSet:   qvsSeenGetIdSet
+};
+
+// ============================================================================
 // REGISTRATION
 // ============================================================================
 
@@ -364,11 +428,11 @@ function registerQuizverseSeenRPCs(initializer, logger) {
     }
 
     var rpcs = [
-        { id: "quizverse_seen_get", handler: rpcQuizverseSeenGet },
-        { id: "quizverse_seen_merge", handler: rpcQuizverseSeenMerge },
-        { id: "quizverse_seen_purge", handler: rpcQuizverseSeenPurge },
-        { id: "quizverse_seen_reset", handler: rpcQuizverseSeenReset },
-        { id: "quizverse_seen_stats", handler: rpcQuizverseSeenStats }
+        { id: "quizverse_seen_get",    handler: rpcQuizverseSeenGet },
+        { id: "quizverse_seen_merge",  handler: rpcQuizverseSeenMerge },
+        { id: "quizverse_seen_purge",  handler: rpcQuizverseSeenPurge },
+        { id: "quizverse_seen_reset",  handler: rpcQuizverseSeenReset },
+        { id: "quizverse_seen_stats",  handler: rpcQuizverseSeenStats }
     ];
 
     var registered = 0;

@@ -1481,6 +1481,7 @@
                 <button class="tab" data-tab="features">🎮 Features</button>
                 <button class="tab" data-tab="funnel">🎯 Funnel</button>
                 <button class="tab" data-tab="dropoff">🚪 Drop-off</button>
+                <button class="tab" data-tab="arcade">🕹️ Arcade</button>
             </div>
             <div class="tab-group-row">
                 <span class="tab-group-label">Players</span>
@@ -1499,6 +1500,7 @@
                 <button class="tab" data-tab="archive">🗄️ Archive</button>
                 <button class="tab" data-tab="storage">💾 Storage</button>
                 <button class="tab" data-tab="diagnose">🩺 Diagnose</button>
+                <button class="tab" data-tab="pipeline">🔌 Pipeline</button>
             </div>
         </nav>
 
@@ -1746,6 +1748,67 @@
                         <button class="card-btn" onclick="adminRetentionPreview()">👥 Retention Preview</button>
                     </div>
                     <div id="adminActionContent" style="color:var(--text-secondary);font-family:monospace;font-size:0.85rem;white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--bg-secondary);border-radius:8px;padding:0.75rem;">Action output will appear here.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pipeline Tab — end-to-end analytics pipeline observability -->
+        <div id="pipeline" class="tab-content">
+            <div class="chart-card">
+                <h3>🔌 Pipeline Health
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="loadPipelineTab()">↻ Refresh</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        End-to-end status of every stage in the Unity → Nakama → Satori → Dashboard pipeline.
+                        Surfaces the <code>analytics_health</code>, <code>analytics_freshness_check</code>,
+                        <code>analytics_enforcement_status</code>, and <code>analytics_failed_events_recent</code> RPCs.
+                    </p>
+                    <div id="pipelineOverall" class="kpi-grid" style="margin-bottom:1rem;">
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                        <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
+                    </div>
+                    <div id="pipelineStages"></div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🛡️ Schema Enforcement
+                    <div class="card-actions">
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <div id="pipelineEnforcement" style="color:var(--text-secondary);font-size:0.9rem;">
+                        <div class="loading">Loading enforcement status…</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>🚫 Recent Failed Events
+                    <div class="card-actions">
+                        <input id="pipelineFailedFilter" type="text" placeholder="filter by reason…"
+                               style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:4px 10px;border-radius:6px;font-size:0.85rem;"
+                               onkeydown="if(event.key==='Enter')loadPipelineFailedEvents()">
+                        <button class="card-btn" onclick="loadPipelineFailedEvents()">↻ Reload</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <p style="color: var(--text-secondary); margin-bottom: 0.75rem; font-size: 0.85rem;">
+                        Events rejected by the ingest pipeline (invalid event name, missing UUID, schema enforcement).
+                        Each row links the failure reason to the rejected payload's metadata so you can fix the client.
+                    </p>
+                    <div id="pipelineFailedSummary" style="margin-bottom:0.75rem;"></div>
+                    <div id="pipelineFailedTable" style="overflow-x:auto;">
+                        <div class="loading">Loading failed events…</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2290,6 +2353,138 @@
                 </div>
             </div>
         </div>
+
+        <!-- ═══════════════════════════════════════════════════════
+             ARCADE TAB — ArcadeSection scene analytics
+             ═══════════════════════════════════════════════════════ -->
+        <div id="arcade" class="tab-content">
+            <!-- KPI strip -->
+            <div class="kpi-grid" id="arcadeKpis" style="margin-bottom:1.5rem">
+                <div class="kpi-card"><div class="kpi-value" id="arcadeHubSessions">—</div><div class="kpi-label">Hub Sessions</div></div>
+                <div class="kpi-card"><div class="kpi-value" id="arcadeUniquePlayers">—</div><div class="kpi-label">Unique Players</div></div>
+                <div class="kpi-card"><div class="kpi-value" id="arcadeGameLaunches">—</div><div class="kpi-label">Game Launches</div></div>
+                <div class="kpi-card"><div class="kpi-value" id="arcadeCompletionRate">—</div><div class="kpi-label">Completion Rate</div></div>
+                <div class="kpi-card"><div class="kpi-value" id="arcadeAvgStreak">—</div><div class="kpi-label">Avg Streak (days)</div></div>
+            </div>
+
+            <div class="chart-grid">
+                <!-- Funnel: Hub → Launch → Complete -->
+                <div class="chart-card">
+                    <h3>🎯 Arcade Conversion Funnel
+                        <div class="card-actions">
+                            <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                        </div>
+                    </h3>
+                    <div class="card-body" id="arcadeFunnelBody">
+                        <div style="color:var(--text-muted);padding:1rem">Loading…</div>
+                    </div>
+                </div>
+
+                <!-- Game breakdown by type -->
+                <div class="chart-card">
+                    <h3>🕹️ Launches by Game
+                        <div class="card-actions">
+                            <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                        </div>
+                    </h3>
+                    <div class="card-body">
+                        <canvas id="arcadeGamesChart" height="160"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-grid">
+                <!-- Chess stats -->
+                <div class="chart-card">
+                    <h3>♟️ Chess Puzzles
+                        <div class="card-actions">
+                            <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                        </div>
+                    </h3>
+                    <div class="card-body" id="arcadeChessBody">
+                        <div style="color:var(--text-muted);padding:1rem">Loading…</div>
+                    </div>
+                </div>
+
+                <!-- 2048 stats -->
+                <div class="chart-card">
+                    <h3>🔢 Crystal 2048
+                        <div class="card-actions">
+                            <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                        </div>
+                    </h3>
+                    <div class="card-body" id="arcade2048Body">
+                        <div style="color:var(--text-muted);padding:1rem">Loading…</div>
+                    </div>
+                </div>
+
+                <!-- Hex stats -->
+                <div class="chart-card">
+                    <h3>⬡ Hex 2248
+                        <div class="card-actions">
+                            <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                        </div>
+                    </h3>
+                    <div class="card-body" id="arcadeHexBody">
+                        <div style="color:var(--text-muted);padding:1rem">Loading…</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-grid">
+                <!-- Score milestones (2048) -->
+                <div class="chart-card">
+                    <h3>🏆 2048 Score Milestones
+                        <div class="card-actions">
+                            <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                        </div>
+                    </h3>
+                    <div class="card-body">
+                        <table class="data-table" id="arcadeMilestonesTable">
+                            <thead><tr><th>Milestone</th><th>Players Reached</th><th>% of Players</th></tr></thead>
+                            <tbody><tr><td colspan="3" style="color:var(--text-muted);padding:1rem">Loading…</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Top Hex combo chains -->
+                <div class="chart-card">
+                    <h3>🔥 Top Hex Combos (chain ≥ 4)
+                        <div class="card-actions">
+                            <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                        </div>
+                    </h3>
+                    <div class="card-body">
+                        <canvas id="arcadeHexCombosChart" height="160"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top arcade players -->
+            <div class="chart-card" style="margin-top:1rem">
+                <h3>👑 Top Arcade Players
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="loadArcadeTab()">↻ Reload</button>
+                        <button class="card-btn" onclick="exportArcadePlayersCsv()">⬇ CSV</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <table class="data-table" id="arcadeTopPlayersTable">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>User ID</th><th>Hub Sessions</th>
+                                <th>Chess Played</th><th>2048 Played</th><th>Hex Played</th>
+                                <th>Best 2048 Score</th><th>Chess Solved</th><th>Last Active</th>
+                            </tr>
+                        </thead>
+                        <tbody><tr><td colspan="9" style="color:var(--text-muted);padding:1rem">Loading…</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- end #arcade -->
+
     </main>
 
     <footer class="footer">
@@ -2619,8 +2814,10 @@
             modes:     () => loadModes(),
             playerprofile: () => loadPlayerProfileTab(),
             dropoff:   () => loadDropoff(),
+            arcade:    () => loadArcadeTab(),
             archive:   () => loadArchive(),
-            diagnose:  () => loadDiagnose()
+            diagnose:  () => loadDiagnose(),
+            pipeline:  () => loadPipelineTab()
         };
 
         // Tracks which tabs have been loaded at least once since last refresh
@@ -4927,6 +5124,221 @@
         }
 
         // ─────────────────────────────────────────────────────────────────────
+        // Pipeline tab — end-to-end analytics pipeline observability
+        // Surfaces analytics_health, analytics_freshness_check,
+        // analytics_enforcement_status, and analytics_failed_events_recent.
+        // ─────────────────────────────────────────────────────────────────────
+
+        function _pipeStatusColor(s) {
+            if (s === 'fresh' || s === 'healthy' || s === 'present') return 'var(--success)';
+            if (s === 'degraded' || s === 'stale')                   return 'var(--warning)';
+            if (s === 'critical' || s === 'missing')                 return 'var(--danger)';
+            return 'var(--text-muted)';
+        }
+
+        function _pipeStatusBadge(label, status) {
+            const col = _pipeStatusColor(status);
+            return `<span style="background:${col}22;color:${col};border:1px solid ${col}55;border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;text-transform:uppercase;">${label||status||'?'}</span>`;
+        }
+
+        async function loadPipelineTab() {
+            // Fire all four RPCs in parallel; each tile renders independently so a single
+            // failure doesn't blank the whole tab.
+            const [hRes, fRes, eRes] = await Promise.allSettled([
+                callRpc('analytics_health',             {}),
+                callRpc('analytics_freshness_check',    {}),
+                callRpc('analytics_enforcement_status', {})
+            ]);
+            renderPipelineHealth(hRes.status === 'fulfilled' ? hRes.value : { _error: hRes.reason && hRes.reason.message });
+            renderPipelineFreshness(fRes.status === 'fulfilled' ? fRes.value : { _error: fRes.reason && fRes.reason.message });
+            renderPipelineEnforcement(eRes.status === 'fulfilled' ? eRes.value : { _error: eRes.reason && eRes.reason.message });
+            // Failed events is a separate (potentially heavier) call — render after the rest.
+            loadPipelineFailedEvents().catch(() => {});
+        }
+
+        function renderPipelineHealth(data) {
+            const el = document.getElementById('pipelineOverall');
+            if (!el) return;
+            if (!data || data._error) {
+                el.innerHTML = `<div class="error">analytics_health unavailable: ${escapeHtml((data && data._error) || 'unknown')}</div>`;
+                return;
+            }
+            const overall = data.overall || 'unknown';
+            const checks  = Array.isArray(data.checks) ? data.checks : [];
+            const okCount = checks.filter(c => c.ok && !c.skipped).length;
+            const skipped = checks.filter(c => c.skipped).length;
+            const failed  = checks.filter(c => !c.ok && !c.skipped).length;
+            const ingestCheck = checks.find(c => c.name === 'ingest_round_trip') || {};
+            const satoriCheck = checks.find(c => c.name === 'satori_connectivity') || {};
+            el.innerHTML = `
+                <div class="kpi-card">
+                    <div class="kpi-label">Overall</div>
+                    <div class="kpi-value">${_pipeStatusBadge(overall, overall)}</div>
+                    <div class="kpi-meta">${okCount} ok · ${failed} failed · ${skipped} skipped</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Ingest round-trip</div>
+                    <div class="kpi-value">${ingestCheck.skipped ? 'skipped' : (ingestCheck.ok ? '✅' : '❌')}</div>
+                    <div class="kpi-meta">${ingestCheck.ms != null ? ingestCheck.ms+' ms' : (ingestCheck.error ? escapeHtml(ingestCheck.error) : '—')}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Satori connectivity</div>
+                    <div class="kpi-value">${satoriCheck.skipped ? 'skipped' : (satoriCheck.ok ? '✅' : '❌')}</div>
+                    <div class="kpi-meta">${satoriCheck.ms != null ? satoriCheck.ms+' ms' : (satoriCheck.error ? escapeHtml(satoriCheck.error) : '—')}</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Tracking plan</div>
+                    <div class="kpi-value">${(checks.find(c=>c.name==='tracking_plan_loaded')||{}).ok ? '✅' : '❌'}</div>
+                    <div class="kpi-meta">PII scrub: ${(checks.find(c=>c.name==='pii_scrubbing')||{}).fields_count || 0} fields</div>
+                </div>`;
+        }
+
+        function renderPipelineFreshness(data) {
+            const el = document.getElementById('pipelineStages');
+            if (!el) return;
+            if (!data || data._error) {
+                el.innerHTML = `<div class="error">analytics_freshness_check unavailable: ${escapeHtml((data && data._error) || 'unknown')}</div>`;
+                return;
+            }
+            const stages = data.stages || {};
+            const order = ['event_ingest','daily_rollup','satori_identity_sync','satori_segments','external_poll','firecrawl'];
+            const labels = {
+                event_ingest:         'Event ingest',
+                daily_rollup:         'Daily rollup',
+                satori_identity_sync: 'Satori identity sync',
+                satori_segments:      'Satori segments',
+                external_poll:        'External polls',
+                firecrawl:            'Firecrawl'
+            };
+            const rows = order.filter(k => stages[k]).map(k => {
+                const s = stages[k];
+                return `<tr>
+                    <td style="font-weight:500;">${labels[k] || k}</td>
+                    <td>${_pipeStatusBadge(s.status, s.status)}</td>
+                    <td style="color:var(--text-secondary);">${s.age_human || '—'}</td>
+                    <td style="color:var(--text-muted);font-size:0.8rem;">${escapeHtml(s.last_at || s.last_run_at || '—')}</td>
+                </tr>`;
+            }).join('');
+            el.innerHTML = `
+                <table class="data-table" style="width:100%;">
+                    <thead><tr>
+                        <th>Stage</th><th>Status</th><th>Age</th><th>Last at</th>
+                    </tr></thead>
+                    <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:1rem;">No stages reported</td></tr>'}</tbody>
+                </table>
+                <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem;">
+                    Overall: ${_pipeStatusBadge(data.overall, data.overall)} · Checked at <code>${escapeHtml(data.checked_at || '')}</code>
+                </div>`;
+        }
+
+        function renderPipelineEnforcement(data) {
+            const el = document.getElementById('pipelineEnforcement');
+            if (!el) return;
+            if (!data || data._error) {
+                el.innerHTML = `<div class="error">analytics_enforcement_status unavailable: ${escapeHtml((data && data._error) || 'unknown')}</div>`;
+                return;
+            }
+            const enforce = !!data.enforce_schema;
+            const enforceBadge = enforce
+                ? `<span style="background:var(--success-bg);color:var(--success);border:1px solid var(--success)55;border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;">ENFORCING</span>`
+                : `<span style="background:var(--warning-bg);color:var(--warning);border:1px solid var(--warning)55;border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;">WARNING ONLY</span>`;
+            el.innerHTML = `
+                <div class="kpi-grid" style="margin-bottom:0.75rem;">
+                    <div class="kpi-card">
+                        <div class="kpi-label">Schema enforcement</div>
+                        <div class="kpi-value">${enforceBadge}</div>
+                        <div class="kpi-meta">env=<code>${escapeHtml(data.env_value || '(not set)')}</code></div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Today accepted</div>
+                        <div class="kpi-value">${(data.today_accepted||0).toLocaleString()}</div>
+                        <div class="kpi-meta">v2 events: ${(data.today_v2_events||0).toLocaleString()}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">Today rejected</div>
+                        <div class="kpi-value" style="color:${(data.today_rejected||0)>0?'var(--danger)':'inherit'}">${(data.today_rejected||0).toLocaleString()}</div>
+                        <div class="kpi-meta">${data.rejection_rate_pct||0}% rejection rate</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="kpi-label">v2 warnings today</div>
+                        <div class="kpi-value">${(data.today_v2_warnings||0).toLocaleString()}</div>
+                        <div class="kpi-meta">${data.warning_density_pct||0}% of v2 events</div>
+                    </div>
+                </div>
+                <div style="background:var(--bg-secondary);border-radius:8px;padding:0.75rem;margin-top:0.5rem;color:var(--text-primary);font-size:0.9rem;">
+                    <strong>Recommendation:</strong> ${escapeHtml(data.recommendation || '—')}
+                </div>
+                <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem;">
+                    PII scrub: ${(data.pii_scrub_fields||[]).length} fields ·
+                    Event-name rules: ${data.event_name_rules ? `max ${data.event_name_rules.max_length} chars, [${escapeHtml(data.event_name_rules.allowed_chars||'')}]` : '—'}
+                </div>`;
+        }
+
+        async function loadPipelineFailedEvents() {
+            const tableEl = document.getElementById('pipelineFailedTable');
+            const sumEl   = document.getElementById('pipelineFailedSummary');
+            if (!tableEl) return;
+            const filter = (document.getElementById('pipelineFailedFilter')||{}).value || '';
+            tableEl.innerHTML = '<div class="loading">Loading failed events…</div>';
+            try {
+                const data = await callRpc('analytics_failed_events_recent', {
+                    limit: 100,
+                    reason_contains: filter
+                });
+                if (!data || !data.success) {
+                    tableEl.innerHTML = `<div class="error">analytics_failed_events_recent error: ${escapeHtml((data && data.error) || 'unknown')}</div>`;
+                    return;
+                }
+                const items = data.items || [];
+                const reasons = data.reason_breakdown || {};
+                const byEvent = data.by_event || {};
+                const reasonChips = Object.entries(reasons)
+                    .sort((a,b) => b[1]-a[1])
+                    .slice(0, 8)
+                    .map(([r,n]) => `<span style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:11.5px;margin-right:6px;color:var(--text-secondary);">${escapeHtml(r)} <strong style="color:var(--danger)">${n}</strong></span>`).join('');
+                const evChips = Object.entries(byEvent)
+                    .sort((a,b) => b[1]-a[1])
+                    .slice(0, 8)
+                    .map(([n,c]) => `<span style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;padding:3px 9px;font-size:11.5px;margin-right:6px;color:var(--text-secondary);">${escapeHtml(n)} <strong>${c}</strong></span>`).join('');
+                sumEl.innerHTML = `
+                    <div style="margin-bottom:0.5rem;color:var(--text-secondary);font-size:0.85rem;">
+                        ${data.returned||0} of ${data.total||0} shown · top reasons:
+                    </div>
+                    <div style="margin-bottom:0.5rem;">${reasonChips || '<em style="color:var(--text-muted);">none</em>'}</div>
+                    <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.25rem;">top events:</div>
+                    <div>${evChips || '<em style="color:var(--text-muted);">none</em>'}</div>`;
+                if (!items.length) {
+                    tableEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem;">No rejected events 🎉</div>';
+                    return;
+                }
+                const rows = items.map(it => {
+                    const userCell = it.user_id
+                        ? `<a href="javascript:void(0)" onclick="openPlayerProfile('${it.user_id}')" style="color:var(--accent-light);">${escapeHtml(it.user_id.slice(0,8))}…</a>`
+                        : '—';
+                    return `<tr>
+                        <td style="white-space:nowrap;color:var(--text-muted);font-family:monospace;font-size:0.8rem;">${escapeHtml(it.occurred_at_iso || '')}</td>
+                        <td style="font-weight:500;">${escapeHtml(it.event_name || '(none)')}</td>
+                        <td style="color:var(--danger);font-size:0.85rem;">${escapeHtml(it.reason || '')}</td>
+                        <td style="font-size:0.8rem;color:var(--text-secondary);">${userCell}</td>
+                        <td style="font-size:0.8rem;">${escapeHtml(it.platform || '—')}</td>
+                        <td style="font-size:0.8rem;color:var(--text-muted);">v${it.schema_version || '?'}</td>
+                        <td style="font-size:0.8rem;color:var(--text-muted);font-family:monospace;">${(it.raw_event_keys||[]).slice(0,5).join(', ')}${(it.raw_event_keys||[]).length>5?'…':''}</td>
+                    </tr>`;
+                }).join('');
+                tableEl.innerHTML = `
+                    <table class="data-table" style="width:100%;">
+                        <thead><tr>
+                            <th>When</th><th>Event</th><th>Reason</th><th>User</th>
+                            <th>Platform</th><th>Schema</th><th>Keys</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>`;
+            } catch (e) {
+                tableEl.innerHTML = `<div class="error">analytics_failed_events_recent failed: ${escapeHtml(e.message || String(e))}</div>`;
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
         // Admin actions (Diagnose tab) — Phase 2
         // ─────────────────────────────────────────────────────────────────────
 
@@ -5605,6 +6017,301 @@
             app_open_low_engagement: { label: 'Opened 3+ times, no completion', action: 'Tutorial replay popup + easier-mode suggestion.' }
         };
 
+        // ═══════════════════════════════════════════════════════════════
+        //  ARCADE TAB — loads and renders all arcade game analytics
+        // ═══════════════════════════════════════════════════════════════
+        let _arcadeCache = null;
+        let _arcadeChartGames = null;
+        let _arcadeChartHexCombos = null;
+
+        async function loadArcadeTab() {
+            // Show loading states
+            ['arcadeFunnelBody','arcadeChessBody','arcade2048Body','arcadeHexBody'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '<div style="color:var(--text-muted);padding:1rem">Loading…</div>';
+            });
+            const kpiIds = ['arcadeHubSessions','arcadeUniquePlayers','arcadeGameLaunches','arcadeCompletionRate','arcadeAvgStreak'];
+            kpiIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '…'; });
+
+            try {
+                // Fetch last N days of arcade events (up to 500)
+                const data = await callRpc('dashboard_events_timeline', {
+                    days: selectedDays || 30,
+                    limit: 500,
+                    ...getGamePayload()
+                });
+                const events = (data && data.events) ? data.events : [];
+                _arcadeCache = events;
+                renderArcadeTab(events);
+            } catch (e) {
+                ['arcadeFunnelBody','arcadeChessBody','arcade2048Body','arcadeHexBody'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = `<div class="error">Failed: ${escapeHtml(e.message || String(e))}</div>`;
+                });
+            }
+        }
+
+        function renderArcadeTab(events) {
+            // ── Filter to arcade_* events only ──
+            const arcadeEvs = events.filter(ev => {
+                const name = ev.name || ev.event_name || '';
+                return name.startsWith('arcade_');
+            });
+
+            if (!arcadeEvs.length) {
+                const msg = '<div class="empty-state"><h3>No Arcade Events</h3><p>Play a game from the Arcade Hub to generate data.</p></div>';
+                ['arcadeFunnelBody','arcadeChessBody','arcade2048Body','arcadeHexBody'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.innerHTML = msg;
+                });
+                return;
+            }
+
+            // ── Group by event name ──
+            const byName = {};
+            const byUser = {};
+            arcadeEvs.forEach(ev => {
+                const name = ev.name || ev.event_name || '';
+                if (!byName[name]) byName[name] = [];
+                byName[name].push(ev);
+                const uid = ev.user_id || '';
+                if (uid) {
+                    if (!byUser[uid]) byUser[uid] = { uid, hub:0, chess:0, c2048:0, hex:0, chessSolved:0, best2048:0, lastTs:0 };
+                    const u = byUser[uid];
+                    if (name === 'arcade_hub_viewed') u.hub++;
+                    if (name === 'arcade_chess_puzzle_started') u.chess++;
+                    if (name === 'arcade_chess_puzzle_solved') u.chessSolved++;
+                    if (name === 'arcade_2048_game_started') u.c2048++;
+                    if (name === 'arcade_hex_game_started') u.hex++;
+                    if (name === 'arcade_2048_game_completed') {
+                        const sc = (ev.properties && ev.properties.score) ? parseInt(ev.properties.score) : 0;
+                        if (sc > u.best2048) u.best2048 = sc;
+                    }
+                    const ts = ev.unix_timestamp || 0;
+                    if (ts > u.lastTs) u.lastTs = ts;
+                }
+            });
+
+            const count = n => (byName[n] ? byName[n].length : 0);
+            const uniqueUsers = new Set(arcadeEvs.map(e => e.user_id).filter(Boolean));
+
+            // ── KPIs ──
+            setEl('arcadeHubSessions', fmt(count('arcade_hub_viewed')));
+            setEl('arcadeUniquePlayers', fmt(uniqueUsers.size));
+            const launches = count('arcade_game_launched');
+            setEl('arcadeGameLaunches', fmt(launches));
+            const completed = count('arcade_chess_puzzle_solved') + count('arcade_chess_puzzle_failed') +
+                              count('arcade_2048_game_completed') + count('arcade_hex_game_completed');
+            const started = count('arcade_chess_puzzle_started') + count('arcade_2048_game_started') + count('arcade_hex_game_started');
+            setEl('arcadeCompletionRate', started > 0 ? pct(completed / started) : '—');
+
+            // Avg streak on hub exit
+            const exitEvs = byName['arcade_hub_exited'] || [];
+            let streakSum = 0, streakCnt = 0;
+            exitEvs.forEach(ev => {
+                const s = ev.properties && ev.properties.arcade_streak ? parseInt(ev.properties.arcade_streak) : 0;
+                if (!isNaN(s)) { streakSum += s; streakCnt++; }
+            });
+            setEl('arcadeAvgStreak', streakCnt > 0 ? (streakSum / streakCnt).toFixed(1) : '—');
+
+            // ── Funnel ──
+            const funnelEl = document.getElementById('arcadeFunnelBody');
+            if (funnelEl) {
+                const hubV   = count('arcade_hub_viewed');
+                const launch = count('arcade_game_launched');
+                const compl  = completed;
+                const steps = [
+                    { label: 'Hub Viewed',     val: hubV },
+                    { label: 'Game Launched',  val: launch },
+                    { label: 'Game Completed', val: compl }
+                ];
+                const maxVal = Math.max(...steps.map(s => s.val), 1);
+                funnelEl.innerHTML = steps.map((s, i) => {
+                    const w = Math.round((s.val / maxVal) * 100);
+                    const drop = i > 0 && steps[i-1].val > 0 ? (100 - Math.round(s.val / steps[i-1].val * 100)) : 0;
+                    return `<div style="margin-bottom:0.75rem">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem">
+                            <span style="font-size:0.85rem;color:var(--text-secondary)">${escapeHtml(s.label)}</span>
+                            <span style="font-size:0.85rem;font-weight:600">${fmt(s.val)}${i > 0 && drop > 0 ? ` <span style="color:var(--danger);font-size:0.75rem">(-${drop}%)</span>` : ''}</span>
+                        </div>
+                        <div style="background:var(--bg-primary);border-radius:4px;height:10px">
+                            <div style="width:${w}%;background:var(--accent);border-radius:4px;height:100%"></div>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+
+            // ── Games launch bar chart ──
+            const gameLabels = ['chess','2048','hex'];
+            const gameCounts = [
+                (byName['arcade_chess_puzzle_started'] || []).length,
+                (byName['arcade_2048_game_started'] || []).length,
+                (byName['arcade_hex_game_started'] || []).length
+            ];
+            const gCtx = document.getElementById('arcadeGamesChart');
+            if (gCtx) {
+                if (_arcadeChartGames) _arcadeChartGames.destroy();
+                _arcadeChartGames = new Chart(gCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['♟️ Chess', '🔢 Crystal 2048', '⬡ Hex 2248'],
+                        datasets: [{ label: 'Games Started', data: gameCounts,
+                            backgroundColor: ['rgba(99,102,241,0.7)','rgba(59,130,246,0.7)','rgba(16,185,129,0.7)'],
+                            borderRadius: 6 }]
+                    },
+                    options: { responsive: true, plugins: { legend: { display: false } },
+                               scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#2d2d3a' } },
+                                         x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } }
+                });
+            }
+
+            // ── Chess section ──
+            const chessEl = document.getElementById('arcadeChessBody');
+            if (chessEl) {
+                const solved  = count('arcade_chess_puzzle_solved');
+                const failed  = count('arcade_chess_puzzle_failed');
+                const hints   = count('arcade_chess_hint_used');
+                const solRate = (solved + failed) > 0 ? pct(solved / (solved + failed)) : '—';
+                const hintEvs = byName['arcade_chess_hint_used'] || [];
+                let avgHints = '—';
+                if (hintEvs.length) {
+                    const total = hintEvs.reduce((s, e) => s + (parseInt((e.properties||{}).hint_level || 0)), 0);
+                    avgHints = (total / hintEvs.length).toFixed(1);
+                }
+                chessEl.innerHTML = `
+                    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
+                        <div class="kpi-card"><div class="kpi-value">${fmt(solved)}</div><div class="kpi-label">Solved</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(failed)}</div><div class="kpi-label">Failed</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${solRate}</div><div class="kpi-label">Solve Rate</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(hints)}</div><div class="kpi-label">Hints Used</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${avgHints}</div><div class="kpi-label">Avg Hints/Game</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_chess_solution_viewed'))}</div><div class="kpi-label">Solutions Viewed</div></div>
+                    </div>`;
+            }
+
+            // ── Crystal 2048 section ──
+            const c2048El = document.getElementById('arcade2048Body');
+            if (c2048El) {
+                const started2048 = count('arcade_2048_game_started');
+                const won2048     = (byName['arcade_2048_game_completed'] || []).filter(e => e.properties && e.properties.is_win).length;
+                const undos       = count('arcade_2048_undo_used');
+                c2048El.innerHTML = `
+                    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
+                        <div class="kpi-card"><div class="kpi-value">${fmt(started2048)}</div><div class="kpi-label">Games Started</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(won2048)}</div><div class="kpi-label">Games Won</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${started2048 > 0 ? pct(won2048/started2048) : '—'}</div><div class="kpi-label">Win Rate</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(undos)}</div><div class="kpi-label">Undos Used</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_2048_game_resumed'))}</div><div class="kpi-label">Games Resumed</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_2048_score_milestone'))}</div><div class="kpi-label">Milestone Hits</div></div>
+                    </div>`;
+
+                // Score milestones table
+                const milestones = [1024, 2048, 4096, 8192];
+                const milTbody = document.querySelector('#arcadeMilestonesTable tbody');
+                if (milTbody) {
+                    const milEvs = byName['arcade_2048_score_milestone'] || [];
+                    const totalPlayers = uniqueUsers.size || 1;
+                    milTbody.innerHTML = milestones.map(m => {
+                        const count_m = milEvs.filter(e => e.properties && parseInt(e.properties.milestone) === m).length;
+                        const uids_m  = new Set(milEvs.filter(e => e.properties && parseInt(e.properties.milestone) === m).map(e => e.user_id).filter(Boolean));
+                        return `<tr><td><strong>${m.toLocaleString()}</strong></td><td>${fmt(uids_m.size)}</td><td>${pct(uids_m.size / totalPlayers)}</td></tr>`;
+                    }).join('');
+                }
+            }
+
+            // ── Hex 2248 section ──
+            const hexEl = document.getElementById('arcadeHexBody');
+            if (hexEl) {
+                const startedHex = count('arcade_hex_game_started');
+                const wonHex     = (byName['arcade_hex_game_completed'] || []).filter(e => e.properties && e.properties.is_win).length;
+                const undosHex   = count('arcade_hex_undo_used');
+                const combos     = byName['arcade_hex_merge_combo'] || [];
+                hexEl.innerHTML = `
+                    <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
+                        <div class="kpi-card"><div class="kpi-value">${fmt(startedHex)}</div><div class="kpi-label">Games Started</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(wonHex)}</div><div class="kpi-label">Games Won</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${startedHex > 0 ? pct(wonHex/startedHex) : '—'}</div><div class="kpi-label">Win Rate</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(undosHex)}</div><div class="kpi-label">Undos Used</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(combos.length)}</div><div class="kpi-label">Big Combos (≥4)</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_hex_game_resumed'))}</div><div class="kpi-label">Games Resumed</div></div>
+                    </div>`;
+
+                // Hex combos bar chart (distribution by chain_length)
+                const chainDist = {};
+                combos.forEach(e => {
+                    const cl = (e.properties && e.properties.chain_length) ? String(e.properties.chain_length) : '?';
+                    chainDist[cl] = (chainDist[cl] || 0) + 1;
+                });
+                const chainKeys = Object.keys(chainDist).sort((a, b) => parseInt(a) - parseInt(b));
+                const hCtx = document.getElementById('arcadeHexCombosChart');
+                if (hCtx && chainKeys.length) {
+                    if (_arcadeChartHexCombos) _arcadeChartHexCombos.destroy();
+                    _arcadeChartHexCombos = new Chart(hCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: chainKeys.map(k => `Chain ${k}`),
+                            datasets: [{ label: 'Combo Count', data: chainKeys.map(k => chainDist[k]),
+                                backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 }]
+                        },
+                        options: { responsive: true, plugins: { legend: { display: false } },
+                                   scales: { y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: '#2d2d3a' } },
+                                             x: { ticks: { color: '#94a3b8' }, grid: { display: false } } } }
+                    });
+                } else if (hCtx) {
+                    hCtx.closest('.chart-card').querySelector('.card-body').innerHTML =
+                        '<div style="color:var(--text-muted);padding:1rem;text-align:center">No combo data yet</div>';
+                }
+            }
+
+            // ── Top arcade players table ──
+            const tbody = document.querySelector('#arcadeTopPlayersTable tbody');
+            if (tbody) {
+                const sorted = Object.values(byUser)
+                    .sort((a, b) => (b.hub + b.chess + b.c2048 + b.hex) - (a.hub + a.chess + a.c2048 + a.hex))
+                    .slice(0, 25);
+                if (!sorted.length) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="color:var(--text-muted);padding:1rem">No player data</td></tr>';
+                } else {
+                    tbody.innerHTML = sorted.map((u, i) => `<tr>
+                        <td>${i + 1}</td>
+                        <td><a class="pp-uid-link" onclick="openPlayerProfile('${escapeHtml(u.uid)}')" title="Open Player 360">${shortUid(u.uid)}</a></td>
+                        <td>${fmt(u.hub)}</td>
+                        <td>${fmt(u.chess)}</td>
+                        <td>${fmt(u.c2048)}</td>
+                        <td>${fmt(u.hex)}</td>
+                        <td>${u.best2048 > 0 ? fmt(u.best2048) : '—'}</td>
+                        <td>${fmt(u.chessSolved)}</td>
+                        <td>${u.lastTs ? new Date(u.lastTs * 1000).toLocaleDateString() : '—'}</td>
+                    </tr>`).join('');
+                }
+            }
+        }
+
+        function exportArcadePlayersCsv() {
+            if (!_arcadeCache) return;
+            const rows = [['User ID','Hub Sessions','Chess','2048','Hex','Best 2048','Chess Solved']];
+            const byUser = {};
+            _arcadeCache.filter(ev => (ev.name||ev.event_name||'').startsWith('arcade_')).forEach(ev => {
+                const name = ev.name || ev.event_name || '';
+                const uid = ev.user_id || ''; if (!uid) return;
+                if (!byUser[uid]) byUser[uid] = { uid, hub:0, chess:0, c2048:0, hex:0, chessSolved:0, best2048:0 };
+                const u = byUser[uid];
+                if (name === 'arcade_hub_viewed') u.hub++;
+                if (name === 'arcade_chess_puzzle_started') u.chess++;
+                if (name === 'arcade_chess_puzzle_solved') u.chessSolved++;
+                if (name === 'arcade_2048_game_started') u.c2048++;
+                if (name === 'arcade_hex_game_started') u.hex++;
+            });
+            Object.values(byUser).forEach(u => rows.push([u.uid, u.hub, u.chess, u.c2048, u.hex, u.best2048, u.chessSolved]));
+            const csv = rows.map(r => r.join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = 'arcade_players.csv'; a.click();
+        }
+
+        // ─── helper shims ───
+        function setEl(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+        function pct(v) { return isNaN(v) ? '—' : (v * 100).toFixed(1) + '%'; }
+
         async function loadDropoff() {
             try {
                 const [funnel, churn] = await Promise.all([
@@ -5909,27 +6616,30 @@
 
             try {
                 const cached = _ppCache.get(userId);
-                let profile, events;
+                let profile, events, km;
                 if (cached && Date.now() - cached.ts < _PP_CACHE_MS) {
                     profile = cached.profile;
                     events  = cached.events;
+                    km      = cached.km;
                 } else {
-                    const [pRes, eRes] = await Promise.allSettled([
+                    const [pRes, eRes, kmRes] = await Promise.allSettled([
                         callRpc('qe_player_full_profile', { user_id: userId }),
                         callRpc('dashboard_events_timeline', {
                             user_id: userId,
                             days:    Math.max(30, selectedDays || 30),
                             limit:   200,
                             ...getGamePayload()
-                        })
+                        }),
+                        callRpc('analytics_player_knowledge_map', { user_id: userId })
                     ]);
                     profile = pRes.status === 'fulfilled' ? pRes.value : { _error: pRes.reason && pRes.reason.message };
                     events  = eRes.status === 'fulfilled'
                         ? (eRes.value && eRes.value.events ? eRes.value.events : [])
                         : [];
-                    _ppCache.set(userId, { profile, events, ts: Date.now() });
+                    km      = kmRes.status === 'fulfilled' ? (kmRes.value || {}) : {};
+                    _ppCache.set(userId, { profile, events, km, ts: Date.now() });
                 }
-                renderPlayerProfile(userId, profile, events);
+                renderPlayerProfile(userId, profile, events, km);
             } catch (e) {
                 body.innerHTML = '<div class="pp-empty">Failed to load: ' + escapeHtml(e.message || String(e)) + '</div>';
             }
@@ -5941,7 +6651,7 @@
             document.body.style.overflow = '';
         }
 
-        function renderPlayerProfile(userId, profile, events) {
+        function renderPlayerProfile(userId, profile, events, km) {
             const body = document.getElementById('ppBody');
             profile = profile || {};
             events  = events  || [];
@@ -6092,6 +6802,126 @@
                         ${topEvents.map(([n,c]) => `<div><div class="k">${escapeHtml(n)}</div><div class="v">${formatNumber(c)}</div></div>`).join('')}
                     </div>
                 </div>` : ''}
+
+                ${(() => {
+                    // ── Arcade subsection ──
+                    const arcEvs = events.filter(e => (e.name||e.event_name||'').startsWith('arcade_'));
+                    if (!arcEvs.length) return '';
+                    const aCount = n => arcEvs.filter(e => (e.name||e.event_name||'') === n).length;
+                    const chessSolved  = aCount('arcade_chess_puzzle_solved');
+                    const chessFailed  = aCount('arcade_chess_puzzle_failed');
+                    const chess2Start  = aCount('arcade_chess_puzzle_started');
+                    const c2048Start   = aCount('arcade_2048_game_started');
+                    const c2048Won     = arcEvs.filter(e => (e.name||e.event_name||'') === 'arcade_2048_game_completed' && e.properties && e.properties.is_win).length;
+                    const hexStart     = aCount('arcade_hex_game_started');
+                    const hexWon       = arcEvs.filter(e => (e.name||e.event_name||'') === 'arcade_hex_game_completed' && e.properties && e.properties.is_win).length;
+                    const bestScore2048 = Math.max(0, ...arcEvs.filter(e => (e.name||e.event_name||'') === 'arcade_2048_game_completed').map(e => parseInt((e.properties||{}).score||0)));
+                    const combos       = aCount('arcade_hex_merge_combo');
+                    const undos2048    = aCount('arcade_2048_undo_used');
+                    const undosHex     = aCount('arcade_hex_undo_used');
+                    const milestones   = arcEvs.filter(e => (e.name||e.event_name||'') === 'arcade_2048_score_milestone').map(e => parseInt((e.properties||{}).milestone||0)).filter(Boolean);
+                    const maxMilestone = milestones.length ? Math.max(...milestones) : 0;
+                    return `
+                    <div class="pp-section">
+                        <h3>🕹️ Arcade</h3>
+                        <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+                            <div><div class="k">Hub Sessions</div><div class="v">${aCount('arcade_hub_viewed')}</div></div>
+                            <div><div class="k">Chess Started</div><div class="v">${chess2Start}</div></div>
+                            <div><div class="k">Chess Solved</div><div class="v">${chessSolved}</div></div>
+                            <div><div class="k">Chess Failed</div><div class="v">${chessFailed}</div></div>
+                            <div><div class="k">2048 Games</div><div class="v">${c2048Start}</div></div>
+                            <div><div class="k">2048 Wins</div><div class="v">${c2048Won}</div></div>
+                            <div><div class="k">Best 2048 Score</div><div class="v">${bestScore2048 > 0 ? bestScore2048.toLocaleString() : '—'}</div></div>
+                            <div><div class="k">2048 Max Milestone</div><div class="v">${maxMilestone > 0 ? maxMilestone.toLocaleString() : '—'}</div></div>
+                            <div><div class="k">Hex Games</div><div class="v">${hexStart}</div></div>
+                            <div><div class="k">Hex Wins</div><div class="v">${hexWon}</div></div>
+                            <div><div class="k">Hex Big Combos</div><div class="v">${combos}</div></div>
+                            <div><div class="k">Undos (2048)</div><div class="v">${undos2048}</div></div>
+                            <div><div class="k">Undos (Hex)</div><div class="v">${undosHex}</div></div>
+                        </div>
+                    </div>`;
+                })()}
+
+                ${(() => {
+                    // ── Knowledge Map section ──────────────────────────────────
+                    if (!km || !km.success || !km.categories || !Object.keys(km.categories).length) {
+                        return `<div class="pp-section">
+                            <h3>&#x1F9E0; Knowledge Map</h3>
+                            <div class="pp-empty" style="padding:12px 0;color:var(--text-muted);font-size:13px;">No quiz history available yet.</div>
+                        </div>`;
+                    }
+                    const catEntries = Object.entries(km.categories)
+                        .sort((a, b) => b[1].accuracy_pct - a[1].accuracy_pct);
+                    const levelBadge = l => {
+                        const colors = { expert:'#10b981', strong:'#6366f1', moderate:'#f59e0b', weak:'#ef4444' };
+                        return `<span style="background:${colors[l]||'#64748b'}22;color:${colors[l]||'#94a3b8'};border:1px solid ${colors[l]||'#94a3b8'}44;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;text-transform:uppercase;">${l}</span>`;
+                    };
+                    const coverageBar = pct => {
+                        const col = pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444';
+                        return `<div style="display:flex;align-items:center;gap:8px;">
+                            <div style="flex:1;height:6px;background:#2d2d3a;border-radius:3px;overflow:hidden;">
+                                <div style="width:${pct}%;height:100%;background:${col};border-radius:3px;transition:width .4s;"></div>
+                            </div>
+                            <span style="font-size:12px;color:${col};font-weight:700;min-width:32px;">${pct}%</span>
+                        </div>`;
+                    };
+                    const kmRows = catEntries.map(([cat, c]) => `
+                        <tr>
+                            <td style="font-weight:500;">${escapeHtml(cat)}</td>
+                            <td style="text-align:center;">${c.total_questions}</td>
+                            <td style="text-align:center;">${c.correct}</td>
+                            <td style="text-align:center;">
+                                <div style="display:flex;align-items:center;gap:6px;">
+                                    <div style="width:60px;height:5px;background:#2d2d3a;border-radius:2px;overflow:hidden;">
+                                        <div style="width:${c.accuracy_pct}%;height:100%;background:${c.accuracy_pct>=70?'#10b981':c.accuracy_pct>=40?'#f59e0b':'#ef4444'};border-radius:2px;"></div>
+                                    </div>
+                                    <span>${c.accuracy_pct}%</span>
+                                </div>
+                            </td>
+                            <td style="text-align:center;">${c.avg_time_ms > 0 ? (c.avg_time_ms/1000).toFixed(1)+'s' : '-'}</td>
+                            <td style="text-align:center;">${levelBadge(c.strength_level)}</td>
+                        </tr>`).join('');
+                    return `<div class="pp-section">
+                        <h3>&#x1F9E0; Knowledge Map</h3>
+                        <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr));margin-bottom:14px;">
+                            <div>
+                                <div class="k">Total Quizzes</div>
+                                <div class="v">${(km.total_quizzes||0).toLocaleString()}</div>
+                            </div>
+                            <div>
+                                <div class="k">Categories Seen</div>
+                                <div class="v">${km.categories_seen||catEntries.length}</div>
+                            </div>
+                            <div>
+                                <div class="k">Strongest Category</div>
+                                <div class="v" style="font-size:13px;">${km.strongest ? escapeHtml(km.strongest) : '—'}</div>
+                            </div>
+                            <div>
+                                <div class="k">Weakest Category</div>
+                                <div class="v" style="font-size:13px;color:var(--danger);">${km.weakest ? escapeHtml(km.weakest) : '—'}</div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div class="k" style="margin-bottom:4px;">Knowledge Coverage</div>
+                            ${coverageBar(km.overall_coverage_pct||0)}
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+                                <thead>
+                                    <tr style="color:var(--text-muted);border-bottom:1px solid var(--border);">
+                                        <th style="padding:6px 8px;text-align:left;">Category</th>
+                                        <th style="padding:6px 4px;text-align:center;">Questions</th>
+                                        <th style="padding:6px 4px;text-align:center;">Correct</th>
+                                        <th style="padding:6px 8px;text-align:center;">Accuracy</th>
+                                        <th style="padding:6px 4px;text-align:center;">Avg Time</th>
+                                        <th style="padding:6px 4px;text-align:center;">Level</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${kmRows}</tbody>
+                            </table>
+                        </div>
+                    </div>`;
+                })()}
 
                 <div class="pp-section">
                     <h3>Recent Timeline (${events.length} events, last ${Math.max(30, selectedDays || 30)} days)</h3>
