@@ -59,8 +59,14 @@ namespace LegacyPush {
   }
 
   function registerProviderEndpoint(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, token: string, platform: string, gameId: string): any {
+    var normalizedPlatform = normalizePlatform(platform);
     var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL") || PUSH_REGISTER_URL_DEFAULT;
-    if (!registerUrl) return { configured: false };
+    if (!registerUrl) {
+      logger.warn("[Push] registerProviderEndpoint: no register URL configured for platform=%s userId=%s", normalizedPlatform, userId);
+      return { configured: false };
+    }
+
+    logger.info("[Push] Registering %s endpoint for userId=%s gameId=%s", normalizedPlatform, userId, gameId || "quizverse");
 
     try {
       var body = JSON.stringify({
@@ -68,41 +74,60 @@ namespace LegacyPush {
         gameId: gameId || "quizverse",
         deviceToken: token,
         token: token,
-        platform: normalizePlatform(platform)
+        platform: normalizedPlatform
       });
       var resp: any = nk.httpRequest(registerUrl, "post", { "Content-Type": "application/json" }, body, 10000);
       var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
       var responseBody = parsed && parsed.body && typeof parsed.body === "string" ? parseJsonSafe(parsed.body) : parsed;
       var code = resp && resp.code ? resp.code : 0;
       if (code >= 200 && code < 300 && responseBody && responseBody.success !== false) {
+        var arn = responseBody.endpointArn || responseBody.EndpointArn || "";
+        logger.info("[Push] %s endpoint registered successfully. endpointArn=%s", normalizedPlatform, arn);
         return {
           configured: true,
           success: true,
           provider: "sns",
-          endpointArn: responseBody.endpointArn || responseBody.EndpointArn,
+          endpointArn: arn,
           raw: responseBody
         };
       }
+      var errMsg = (responseBody && (responseBody.error || responseBody.message)) || ("HTTP " + code);
+      logger.warn("[Push] %s endpoint registration failed: %s | HTTP %s | userId=%s | " +
+        "Fix: check Lambda logs, verify APNs key in Firebase (iOS) or FCM sender ID (Android).",
+        normalizedPlatform, errMsg, code, userId);
       return {
         configured: true,
         success: false,
-        error: (responseBody && (responseBody.error || responseBody.message)) || ("Provider registration failed with HTTP " + code)
+        error: errMsg
       };
     } catch (e: any) {
-      logger.error("[LegacyPush] provider registration failed: %s", e.message || String(e));
+      logger.error("[Push] registerProviderEndpoint exception: platform=%s userId=%s error=%s",
+        normalizedPlatform, userId, e.message || String(e));
       return { configured: true, success: false, error: e.message || String(e) };
     }
   }
 
   function sendProviderPush(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, endpoint: any, payload: any): any {
+    var normalizedPlatform = normalizePlatform(endpoint.platform);
     var sendUrl = env(ctx, "PUSH_SEND_URL") || PUSH_SEND_URL_DEFAULT;
-    if (!sendUrl) return { configured: false };
-    if (!endpoint.endpointArn) return { configured: true, success: false, error: "endpointArn missing" };
+    if (!sendUrl) {
+      logger.warn("[Push] sendProviderPush: no send URL configured for platform=%s", normalizedPlatform);
+      return { configured: false };
+    }
+    if (!endpoint.endpointArn) {
+      logger.warn("[Push] sendProviderPush: endpointArn missing for platform=%s — " +
+        "device has no registered SNS endpoint. " +
+        "Fix: re-run push_register_token from the device. " +
+        "iOS: verify APNs Auth Key is uploaded in Firebase Console → Project Settings → Cloud Messaging. " +
+        "Android: verify google-services.json sender ID matches Firebase project.",
+        normalizedPlatform);
+      return { configured: true, success: false, error: "endpointArn missing" };
+    }
 
     try {
       var body = JSON.stringify({
         endpointArn: endpoint.endpointArn,
-        platform: normalizePlatform(endpoint.platform),
+        platform: normalizedPlatform,
         title: payload.title,
         body: payload.body,
         data: payload.data || {},
@@ -114,15 +139,21 @@ namespace LegacyPush {
       var responseBody = parsed && parsed.body && typeof parsed.body === "string" ? parseJsonSafe(parsed.body) : parsed;
       var code = resp && resp.code ? resp.code : 0;
       if (code >= 200 && code < 300 && responseBody && responseBody.success !== false) {
+        logger.info("[Push] Push sent to %s endpoint. eventType=%s messageId=%s",
+          normalizedPlatform, payload.eventType || "push_event", responseBody.messageId || "");
         return { configured: true, success: true, messageId: responseBody.messageId, raw: responseBody };
       }
+      var errMsg = (responseBody && (responseBody.error || responseBody.message)) || ("HTTP " + code);
+      logger.warn("[Push] Push to %s failed: %s | HTTP %s | arn=%s",
+        normalizedPlatform, errMsg, code, endpoint.endpointArn);
       return {
         configured: true,
         success: false,
-        error: (responseBody && (responseBody.error || responseBody.message)) || ("Provider send failed with HTTP " + code)
+        error: errMsg
       };
     } catch (e: any) {
-      logger.error("[LegacyPush] provider send failed: %s", e.message || String(e));
+      logger.error("[Push] sendProviderPush exception: platform=%s arn=%s error=%s",
+        normalizedPlatform, endpoint.endpointArn || "none", e.message || String(e));
       return { configured: true, success: false, error: e.message || String(e) };
     }
   }
@@ -134,7 +165,12 @@ namespace LegacyPush {
       var token = data.token;
       var platform = data.platform || "unknown";
       var gameId = data.gameId || data.game_id || "quizverse";
-      if (!token) return RpcHelpers.errorResponse("token required");
+      logger.info("[Push] push_register_token: userId=%s platform=%s gameId=%s tokenPrefix=%s",
+        userId, platform, gameId, token ? token.substring(0, 10) + "..." : "MISSING");
+      if (!token) {
+        logger.warn("[Push] push_register_token rejected: no token provided. userId=%s platform=%s", userId, platform);
+        return RpcHelpers.errorResponse("token required");
+      }
       var tokensData = getPushTokens(nk, userId);
       var now = Math.floor(Date.now() / 1000);
       var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId);
@@ -162,6 +198,17 @@ namespace LegacyPush {
         });
       }
       savePushTokens(nk, userId, tokensData);
+      var finalArn = provider && provider.endpointArn ? provider.endpointArn : "";
+      if (finalArn) {
+        logger.info("[Push] push_register_token SUCCESS: userId=%s platform=%s endpointArn=%s",
+          userId, platform, finalArn);
+      } else {
+        logger.warn("[Push] push_register_token INCOMPLETE: token stored but no endpointArn. " +
+          "userId=%s platform=%s providerError=%s | " +
+          "iOS fix: upload APNs Auth Key in Firebase Console → Project Settings → Cloud Messaging. " +
+          "Android fix: verify google-services.json is correct and Lambda has FCM server key.",
+          userId, platform, (provider && provider.error) || "none");
+      }
       // Flat response shape — matches Unity's PushRegisterResponse fields exactly so
       // JsonConvert.DeserializeObject reads endpointArn/platform/userId/gameId without
       // an extra .data unwrap step. Do NOT wrap in RpcHelpers.successResponse here.
@@ -170,11 +217,12 @@ namespace LegacyPush {
         userId: userId,
         gameId: gameId,
         platform: platform,
-        endpointArn: provider && provider.endpointArn ? provider.endpointArn : "",
+        endpointArn: finalArn,
         registeredAt: new Date().toISOString(),
         provider: provider
       });
     } catch (e: any) {
+      logger.error("[Push] push_register_token exception: %s", e.message || String(e));
       return RpcHelpers.errorResponse(e.message || "Failed to register token");
     }
   }
@@ -191,11 +239,27 @@ namespace LegacyPush {
         data: data.data || {}
       };
       var code = Number(data.code || DEFAULT_PUSH_NOTIFICATION_CODE);
-      if (!targetUserId) return RpcHelpers.errorResponse("userId required");
+      if (!targetUserId) {
+        logger.warn("[Push] push_send_event rejected: no targetUserId in payload.");
+        return RpcHelpers.errorResponse("userId required");
+      }
       if (!code || code <= 0) code = DEFAULT_PUSH_NOTIFICATION_CODE;
       var title = content.title || subject;
       var body = content.body || "";
       var tokensData = getPushTokens(nk, targetUserId);
+      logger.info("[Push] push_send_event: eventType=%s targetUserId=%s registeredTokens=%s",
+        subject, targetUserId, tokensData.tokens ? tokensData.tokens.length : 0);
+      if (!tokensData.tokens || tokensData.tokens.length === 0) {
+        logger.warn("[Push] push_send_event: targetUserId=%s has NO registered push tokens. " +
+          "The user must launch the app on a real device at least once after granting notification permission " +
+          "so push_register_token can run and create an SNS endpoint.", targetUserId);
+      } else {
+        var platforms: string[] = [];
+        for (var pi = 0; pi < tokensData.tokens.length; pi++) {
+          platforms.push(tokensData.tokens[pi].platform + (tokensData.tokens[pi].endpointArn ? "(arn✓)" : "(no-arn)"));
+        }
+        logger.info("[Push] push_send_event: endpoints=[%s]", platforms.join(", "));
+      }
       var providerResults: any[] = [];
       for (var i = 0; i < tokensData.tokens.length; i++) {
         var t: any = tokensData.tokens[i];
@@ -229,6 +293,13 @@ namespace LegacyPush {
       var successCount = 0;
       for (var pr = 0; pr < providerResults.length; pr++) {
         if (providerResults[pr] && providerResults[pr].success === true) successCount++;
+      }
+      if (successCount > 0) {
+        logger.info("[Push] push_send_event DONE: eventType=%s sentToDevices=%s/%s targetUserId=%s",
+          subject, successCount, providerResults.length, targetUserId);
+      } else if (providerResults.length > 0) {
+        logger.warn("[Push] push_send_event FAILED to reach any device: eventType=%s targetUserId=%s — " +
+          "check providerResults in the response body for per-platform errors.", subject, targetUserId);
       }
       return JSON.stringify({
         success: true,

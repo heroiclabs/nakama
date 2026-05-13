@@ -627,12 +627,16 @@ var rpcCollectablesGetAll = function(ctx, logger, nk, payload) {
     try {
         var data = JSON.parse(payload || '{}');
         
-        if (!data.game_id) {
+        // Normalize empty string to undefined so fallback logic can apply
+        var gameId = (data.game_id && String(data.game_id).trim() !== "") 
+            ? data.game_id 
+            : undefined;
+
+        if (!gameId) {
             throw Error("game_id is required");
         }
         
         var userId = ctx.userId;
-        var gameId = data.game_id;
         
         logger.info("[Collectables] Getting all for game: " + gameId + ", user: " + userId);
         

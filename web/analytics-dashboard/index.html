@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -3950,16 +3950,23 @@
                     return n + '%';
                 };
                 const usd = (v) => '$' + (Number(v || 0).toFixed(2));
+                // 2026-05 dashboard fix: when ad_requests=0 (project's ad SDK
+                // bypasses the waterfall manager so request signals aren't
+                // wired), the server falls back to completed/impressions for
+                // fill-rate. Surface that explicitly so operators don't
+                // mistake a fallback estimate for a real request-based metric.
+                const requestsTracked = (data.ad_requests || 0) > 0;
+                const fillSuffix = requestsTracked ? '' : ' *';
                 document.getElementById('monetKpis').innerHTML = [
                     // Ad funnel
-                    { label: 'Ad Requests',       value: num(data.ad_requests),       group: 'ads' },
+                    { label: 'Ad Requests' + (requestsTracked ? '' : ' (not tracked)'), value: num(data.ad_requests), group: 'ads' },
                     { label: 'Ad Impressions',    value: num(data.ad_impressions),    group: 'ads' },
                     { label: 'Ad Completed',      value: num(data.ad_completed),      group: 'ads' },
                     { label: 'Ad Skipped',        value: num(data.ad_skips),          group: 'ads' },
                     { label: 'Load Failures',     value: num(data.ad_load_failures),  group: 'ads' },
                     { label: 'Ad Clicks',         value: num(data.ad_clicks),         group: 'ads' },
                     // Ad rates
-                    { label: 'Fill Rate %',       value: pct(data.ad_fill_rate_pct),       group: 'rates' },
+                    { label: 'Fill Rate %' + fillSuffix,       value: pct(data.ad_fill_rate_pct),       group: 'rates' },
                     { label: 'Completion Rate %', value: pct(data.ad_completion_rate_pct), group: 'rates' },
                     // Revenue
                     { label: 'Ad Revenue',        value: usd(data.ad_revenue_total), group: 'rev' },
@@ -3969,7 +3976,14 @@
                     { label: 'Paywall Shown',     value: num(data.paywall_shown),    group: 'iap' },
                     { label: 'Conversion %',      value: pct(data.paywall_conversion_rate_pct), group: 'iap' },
                     { label: 'Store Opens',       value: num(data.store_opens),      group: 'iap' }
-                ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+                ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('') +
+                (requestsTracked ? '' :
+                    `<div style="grid-column: 1 / -1; padding: 0.5rem 0.75rem; margin-top: 0.5rem; ` +
+                    `font-size: 0.72rem; color: #94a3b8; border-top: 1px dashed rgba(148,163,184,0.25);">` +
+                    `* Fill Rate is estimated from impressions ÷ completions because the ad SDK ` +
+                    `(LevelPlay / Appodeal) is not yet wired to emit <code>ad_requested</code> ` +
+                    `signals. Wire <code>IVXAdsWaterfallManager.OnAdAttempt</code> or the SDK's ` +
+                    `equivalent load callback for true fill-rate.</div>`);
                 if (data.ad_types && data.ad_types.length > 0) {
                     if (charts.monetAdTypes) charts.monetAdTypes.destroy();
                     charts.monetAdTypes = createDoughnutChart('monetAdTypesChart', data.ad_types.map(a => a.type), data.ad_types.map(a => a.count));
@@ -6095,10 +6109,10 @@
             const uniqueUsers = new Set(arcadeEvs.map(e => e.user_id).filter(Boolean));
 
             // ── KPIs ──
-            setEl('arcadeHubSessions', fmt(count('arcade_hub_viewed')));
-            setEl('arcadeUniquePlayers', fmt(uniqueUsers.size));
+            setEl('arcadeHubSessions', formatNumber(count('arcade_hub_viewed')));
+            setEl('arcadeUniquePlayers', formatNumber(uniqueUsers.size));
             const launches = count('arcade_game_launched');
-            setEl('arcadeGameLaunches', fmt(launches));
+            setEl('arcadeGameLaunches', formatNumber(launches));
             const completed = count('arcade_chess_puzzle_solved') + count('arcade_chess_puzzle_failed') +
                               count('arcade_2048_game_completed') + count('arcade_hex_game_completed');
             const started = count('arcade_chess_puzzle_started') + count('arcade_2048_game_started') + count('arcade_hex_game_started');
@@ -6131,7 +6145,7 @@
                     return `<div style="margin-bottom:0.75rem">
                         <div style="display:flex;justify-content:space-between;margin-bottom:0.25rem">
                             <span style="font-size:0.85rem;color:var(--text-secondary)">${escapeHtml(s.label)}</span>
-                            <span style="font-size:0.85rem;font-weight:600">${fmt(s.val)}${i > 0 && drop > 0 ? ` <span style="color:var(--danger);font-size:0.75rem">(-${drop}%)</span>` : ''}</span>
+                            <span style="font-size:0.85rem;font-weight:600">${formatNumber(s.val)}${i > 0 && drop > 0 ? ` <span style="color:var(--danger);font-size:0.75rem">(-${drop}%)</span>` : ''}</span>
                         </div>
                         <div style="background:var(--bg-primary);border-radius:4px;height:10px">
                             <div style="width:${w}%;background:var(--accent);border-radius:4px;height:100%"></div>
@@ -6179,12 +6193,12 @@
                 }
                 chessEl.innerHTML = `
                     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
-                        <div class="kpi-card"><div class="kpi-value">${fmt(solved)}</div><div class="kpi-label">Solved</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(failed)}</div><div class="kpi-label">Failed</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(solved)}</div><div class="kpi-label">Solved</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(failed)}</div><div class="kpi-label">Failed</div></div>
                         <div class="kpi-card"><div class="kpi-value">${solRate}</div><div class="kpi-label">Solve Rate</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(hints)}</div><div class="kpi-label">Hints Used</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(hints)}</div><div class="kpi-label">Hints Used</div></div>
                         <div class="kpi-card"><div class="kpi-value">${avgHints}</div><div class="kpi-label">Avg Hints/Game</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_chess_solution_viewed'))}</div><div class="kpi-label">Solutions Viewed</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(count('arcade_chess_solution_viewed'))}</div><div class="kpi-label">Solutions Viewed</div></div>
                     </div>`;
             }
 
@@ -6196,12 +6210,12 @@
                 const undos       = count('arcade_2048_undo_used');
                 c2048El.innerHTML = `
                     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
-                        <div class="kpi-card"><div class="kpi-value">${fmt(started2048)}</div><div class="kpi-label">Games Started</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(won2048)}</div><div class="kpi-label">Games Won</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(started2048)}</div><div class="kpi-label">Games Started</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(won2048)}</div><div class="kpi-label">Games Won</div></div>
                         <div class="kpi-card"><div class="kpi-value">${started2048 > 0 ? pct(won2048/started2048) : '—'}</div><div class="kpi-label">Win Rate</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(undos)}</div><div class="kpi-label">Undos Used</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_2048_game_resumed'))}</div><div class="kpi-label">Games Resumed</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_2048_score_milestone'))}</div><div class="kpi-label">Milestone Hits</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(undos)}</div><div class="kpi-label">Undos Used</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(count('arcade_2048_game_resumed'))}</div><div class="kpi-label">Games Resumed</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(count('arcade_2048_score_milestone'))}</div><div class="kpi-label">Milestone Hits</div></div>
                     </div>`;
 
                 // Score milestones table
@@ -6213,7 +6227,7 @@
                     milTbody.innerHTML = milestones.map(m => {
                         const count_m = milEvs.filter(e => e.properties && parseInt(e.properties.milestone) === m).length;
                         const uids_m  = new Set(milEvs.filter(e => e.properties && parseInt(e.properties.milestone) === m).map(e => e.user_id).filter(Boolean));
-                        return `<tr><td><strong>${m.toLocaleString()}</strong></td><td>${fmt(uids_m.size)}</td><td>${pct(uids_m.size / totalPlayers)}</td></tr>`;
+                        return `<tr><td><strong>${m.toLocaleString()}</strong></td><td>${formatNumber(uids_m.size)}</td><td>${pct(uids_m.size / totalPlayers)}</td></tr>`;
                     }).join('');
                 }
             }
@@ -6227,12 +6241,12 @@
                 const combos     = byName['arcade_hex_merge_combo'] || [];
                 hexEl.innerHTML = `
                     <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);gap:0.75rem;margin-bottom:1rem">
-                        <div class="kpi-card"><div class="kpi-value">${fmt(startedHex)}</div><div class="kpi-label">Games Started</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(wonHex)}</div><div class="kpi-label">Games Won</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(startedHex)}</div><div class="kpi-label">Games Started</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(wonHex)}</div><div class="kpi-label">Games Won</div></div>
                         <div class="kpi-card"><div class="kpi-value">${startedHex > 0 ? pct(wonHex/startedHex) : '—'}</div><div class="kpi-label">Win Rate</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(undosHex)}</div><div class="kpi-label">Undos Used</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(combos.length)}</div><div class="kpi-label">Big Combos (≥4)</div></div>
-                        <div class="kpi-card"><div class="kpi-value">${fmt(count('arcade_hex_game_resumed'))}</div><div class="kpi-label">Games Resumed</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(undosHex)}</div><div class="kpi-label">Undos Used</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(combos.length)}</div><div class="kpi-label">Big Combos (≥4)</div></div>
+                        <div class="kpi-card"><div class="kpi-value">${formatNumber(count('arcade_hex_game_resumed'))}</div><div class="kpi-label">Games Resumed</div></div>
                     </div>`;
 
                 // Hex combos bar chart (distribution by chain_length)
@@ -6274,12 +6288,12 @@
                     tbody.innerHTML = sorted.map((u, i) => `<tr>
                         <td>${i + 1}</td>
                         <td><a class="pp-uid-link" onclick="openPlayerProfile('${escapeHtml(u.uid)}')" title="Open Player 360">${shortUid(u.uid)}</a></td>
-                        <td>${fmt(u.hub)}</td>
-                        <td>${fmt(u.chess)}</td>
-                        <td>${fmt(u.c2048)}</td>
-                        <td>${fmt(u.hex)}</td>
-                        <td>${u.best2048 > 0 ? fmt(u.best2048) : '—'}</td>
-                        <td>${fmt(u.chessSolved)}</td>
+                        <td>${formatNumber(u.hub)}</td>
+                        <td>${formatNumber(u.chess)}</td>
+                        <td>${formatNumber(u.c2048)}</td>
+                        <td>${formatNumber(u.hex)}</td>
+                        <td>${u.best2048 > 0 ? formatNumber(u.best2048) : '—'}</td>
+                        <td>${formatNumber(u.chessSolved)}</td>
                         <td>${u.lastTs ? new Date(u.lastTs * 1000).toLocaleDateString() : '—'}</td>
                     </tr>`).join('');
                 }
@@ -6311,6 +6325,7 @@
         // ─── helper shims ───
         function setEl(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
         function pct(v) { return isNaN(v) ? '—' : (v * 100).toFixed(1) + '%'; }
+        const fmt = formatNumber; // Alias for arcade charts
 
         async function loadDropoff() {
             try {

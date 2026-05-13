@@ -279,10 +279,11 @@ function segScanGpa(nk, logger, processFn, cursorIn, maxPages) {
         var page;
         try {
             // GPA docs are written under their owning userId, so we list
-            // across ALL users by passing "" (empty userId) to storageList.
-            // This is the documented way to scan a collection regardless
-            // of owner.
-            page = nk.storageList("", SEG_GPA_COLLECTION, SEG_PAGE_SIZE, cursor);
+            // across ALL users by passing null or undefined to storageList.
+            // Older Nakama versions accepted "", but >= 3.24.0 requires
+            // null/undefined for "list all users" mode ("expects empty or
+            // valid user id" reject path).
+            page = nk.storageList(undefined, SEG_GPA_COLLECTION, SEG_PAGE_SIZE, cursor);
         } catch (e) {
             if (logger && logger.warn) logger.warn("[segments] storageList GPA failed: " + (e.message || e));
             break;

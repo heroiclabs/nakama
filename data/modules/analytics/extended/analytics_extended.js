@@ -1325,6 +1325,16 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
         // Fallback: scan wallet/purchase events (with gameId filter).
         // Strict prefix-match — substring 'coin' previously matched too many
         // events (and 'gem' was scanned even though we don't surface gems).
+        //
+        // 2026-05 schema fix: the previous version looked for `evData.coins`
+        // or `evData.amount`+`currency='coins'` — neither key is emitted by
+        // the Unity client. EconomyAnalytics.TrackCoinsEarned writes
+        // `coins_earned: N` and TrackCoinsSpent writes `coins_spent: N`
+        // (both positive numbers). We now read those keys directly and use
+        // the event NAME to decide source vs sink (sign of the value is no
+        // longer reliable). `balance_after` is also collected as the true
+        // post-transaction balance sample for the Gini distribution — much
+        // more accurate than summing absolute deltas, which double-counts.
         if (coinBalances.length === 0) {
             var walletEvents = extScanEvents(nk, logger, 'analytics_events', 30, function(val) {
                 var evName = (val.eventName || '').toLowerCase();
@@ -1334,6 +1344,8 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
                        evName === 'purchase_completed' ||
                        evName === 'currency_granted' ||
                        evName === 'currency_spent' ||
+                       evName === 'balance_snapshot' ||
+                       evName === 'insufficient_coins' ||
                        evName === 'insufficient_funds_action';
                 if (!match) return false;
                 return extMatchesModeFilter(data, val);
@@ -1342,14 +1354,70 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
             for (var i = 0; i < walletEvents.length; i++) {
                 var ev = walletEvents[i];
                 var evData = ev.eventData || {};
+                var evName = (ev.eventName || '').toLowerCase();
 
-                var coinDelta = (evData.coins !== undefined) ? evData.coins
-                              : (evData.amount !== undefined && (evData.currency === 'coins' || evData.currency_type === 'coins')) ? evData.amount
-                              : null;
-                if (coinDelta !== null && coinDelta !== undefined && isFinite(coinDelta)) {
-                    coinBalances.push(Math.abs(coinDelta));
-                    if (coinDelta > 0) sourcesTotal += coinDelta;
-                    else sinksTotal += Math.abs(coinDelta);
+                // Read amount from any of the canonical property keys that
+                // QuizVerse actually emits. Order matters: prefer the
+                // explicit earned/spent keys, then generic `coins`, then
+                // `amount` with a coins currency tag.
+                var amount = null;
+                if (evData.coins_earned !== undefined && isFinite(evData.coins_earned)) {
+                    amount = Math.abs(evData.coins_earned);
+                } else if (evData.coins_spent !== undefined && isFinite(evData.coins_spent)) {
+                    amount = Math.abs(evData.coins_spent);
+                } else if (evData.coins !== undefined && isFinite(evData.coins)) {
+                    amount = Math.abs(evData.coins);
+                } else if (evData.amount !== undefined && isFinite(evData.amount) &&
+                           (evData.currency === 'coins' || evData.currency_type === 'coins')) {
+                    amount = Math.abs(evData.amount);
+                }
+
+                if (amount !== null && amount !== undefined && isFinite(amount) && amount > 0) {
+                    // Classify by event name — `coins_spent` / `*_spent`
+                    // events always represent a sink even though the amount
+                    // is positive in the payload.
+                    var isSink = (evName.indexOf('coins_spent') !== -1) ||
+                                 (evName.indexOf('currency_spent') !== -1) ||
+                                 (evName === 'wallet_spent') ||
+                                 (evName === 'insufficient_coins') ||
+                                 (evName === 'insufficient_funds_action');
+                    if (isSink) sinksTotal += amount;
+                    else        sourcesTotal += amount;
+                }
+
+                // Collect `balance_after` snapshots as the balance
+                // distribution sample. This is the player's wallet balance
+                // post-transaction — the right denominator for Gini /
+                // whales / median, far more accurate than per-event deltas.
+                var balance = null;
+                if (evData.balance_after !== undefined && isFinite(evData.balance_after)) {
+                    balance = evData.balance_after;
+                } else if (evData.balance_current !== undefined && isFinite(evData.balance_current)) {
+                    balance = evData.balance_current;
+                } else if (evData.current_balance !== undefined && isFinite(evData.current_balance)) {
+                    balance = evData.current_balance;
+                }
+                if (balance !== null && balance !== undefined && balance >= 0) {
+                    coinBalances.push(balance);
+                }
+            }
+
+            // Fallback: if no balance_after snapshots were emitted (older
+            // clients), seed the distribution sample from the absolute
+            // deltas so Gini / avg / median still return a non-zero value
+            // instead of 0 across the board. This matches the legacy
+            // behaviour pre-2026-05.
+            if (coinBalances.length === 0 && (sourcesTotal > 0 || sinksTotal > 0)) {
+                for (var bi = 0; bi < walletEvents.length; bi++) {
+                    var bev = walletEvents[bi].eventData || {};
+                    var bAmt = (bev.coins_earned !== undefined) ? bev.coins_earned
+                             : (bev.coins_spent  !== undefined) ? bev.coins_spent
+                             : (bev.coins        !== undefined) ? bev.coins
+                             : (bev.amount       !== undefined) ? bev.amount
+                             : null;
+                    if (bAmt !== null && isFinite(bAmt) && bAmt > 0) {
+                        coinBalances.push(Math.abs(bAmt));
+                    }
                 }
             }
         }

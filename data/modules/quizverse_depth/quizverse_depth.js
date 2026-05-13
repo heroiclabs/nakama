@@ -89,8 +89,16 @@ function rpcQuizverseKnowledgeMap(ctx, logger, nk, payload) {
         var gameSlug   = qvdResolveSlug(data.game_id);
         var collection = gameSlug + "_quiz_history";
 
+        logger.info("[KM-RPC] Start. userId=" + userId +
+                    " game_id=" + data.game_id +
+                    " resolved_slug=" + gameSlug +
+                    " collection=" + collection);
+
         var history = qvdStorageRead(nk, collection, "history", userId);
         if (!history || !Array.isArray(history.entries) || history.entries.length === 0) {
+            logger.info("[KM-RPC] No history found for userId=" + userId +
+                        " collection=" + collection +
+                        " — returning empty map (history=" + (history ? "exists_but_no_entries" : "missing") + ").");
             return JSON.stringify({
                 success: true,
                 categories: {},
@@ -104,9 +112,15 @@ function rpcQuizverseKnowledgeMap(ctx, logger, nk, payload) {
         // Respect the rolling cap: only aggregate the newest QVD_HISTORY_READ_CAP
         // entries so legacy documents with no server-side cap don't spike memory.
         var entries = history.entries;
+        var rawCount = entries.length;
         if (entries.length > QVD_HISTORY_READ_CAP) {
             entries = entries.slice(entries.length - QVD_HISTORY_READ_CAP);
         }
+
+        logger.info("[KM-RPC] History found. userId=" + userId +
+                    " rawEntries=" + rawCount +
+                    " cappedEntries=" + entries.length +
+                    " cap=" + QVD_HISTORY_READ_CAP);
 
         var cats = {};
         var totalQuizzes = entries.length;
@@ -204,6 +218,23 @@ function rpcQuizverseKnowledgeMap(ctx, logger, nk, payload) {
         }
         var coveragePct = Math.min(100, Math.round((knownCategories / totalCategories) * 100));
 
+        var catKeys2 = Object.keys(cats);
+        logger.info("[KM-RPC] Aggregation done. userId=" + userId +
+                    " categories=" + catKeys2.length +
+                    " coverage=" + coveragePct + "%" +
+                    " totalEntries=" + totalQuizzes +
+                    " strongest=" + (strongest || "null") +
+                    " weakest="   + (weakest   || "null") +
+                    " knownCats=" + knownCategories +
+                    " totalCats=" + totalCategories);
+
+        // Log any category that fell through to "general" as it may indicate
+        // that quiz modes are not sending category fields in their submissions.
+        if (cats["general"]) {
+            logger.warn("[KM-RPC] 'general' category has " + cats["general"].total_questions +
+                        " entries — quiz submissions may be missing category/categoryName fields.");
+        }
+
         return JSON.stringify({
             success:              true,
             categories:           cats,
@@ -214,7 +245,7 @@ function rpcQuizverseKnowledgeMap(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("rpcQuizverseKnowledgeMap error: " + err.message);
+        logger.error("[KM-RPC] Error: " + err.message + " stack=" + (err.stack || "N/A"));
         return JSON.stringify({ success: false, error: err.message });
     }
 }
