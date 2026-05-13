@@ -10765,43 +10765,216 @@ var LegacyAnalyticsRetention;
         }
         return RpcHelpers.successResponse({ eventType: eventType });
     }
+    function arpuResolveGameId(gameId) {
+        if (!gameId || gameId === "all" || gameId === "*")
+            return null;
+        var raw = String(gameId);
+        var lower = raw.toLowerCase();
+        if (lower === "quizverse" || lower === "quiz-verse")
+            return "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+        if (lower === "lasttolive" || lower === "last-to-live")
+            return "8f3b1c2a-5d6e-4f7a-9b8c-1d2e3f4a5b6c";
+        return raw;
+    }
+    function arpuReadRollup(nk, gameId, dayStr) {
+        return readAggStorage(nk, "analytics_rollup_daily", "rollup_" + (gameId || "all") + "_" + dayStr);
+    }
+    function arpuEventData(ev) {
+        return (ev && (ev.eventData || ev.properties || ev.data)) || {};
+    }
+    function arpuEventName(ev) {
+        if (!ev)
+            return "";
+        return String(ev.eventName || ev.event || ev.name || "").toLowerCase();
+    }
+    function arpuIsoDate(value) {
+        if (!value)
+            return "";
+        var parsed = new Date(value);
+        if (isNaN(parsed.getTime()))
+            return "";
+        return parsed.toISOString().split("T")[0];
+    }
+    function arpuTimestampDate(ev) {
+        var d = arpuEventData(ev);
+        var raw = ev.timestamp || ev.created_at || ev.createdAt || ev.time || d.timestamp || d.created_at || d.createdAt || d.time || "";
+        if (!raw)
+            return "";
+        if (typeof raw === "number") {
+            var seconds = raw > 10000000000 ? Math.floor(raw / 1000) : Math.floor(raw);
+            return new Date(seconds * 1000).toISOString().split("T")[0];
+        }
+        var asNumber = parseFloat(raw);
+        if (isFinite(asNumber) && String(raw).match(/^\d+(\.\d+)?$/)) {
+            var nSeconds = asNumber > 10000000000 ? Math.floor(asNumber / 1000) : Math.floor(asNumber);
+            return new Date(nSeconds * 1000).toISOString().split("T")[0];
+        }
+        return arpuIsoDate(raw);
+    }
+    function arpuDateFromKey(key) {
+        if (!key)
+            return "";
+        var parts = key.split("_");
+        for (var i = 0; i < parts.length; i++) {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(parts[i]))
+                return parts[i];
+        }
+        return "";
+    }
+    function arpuExtractGameIdFromKey(key) {
+        if (!key)
+            return null;
+        var parts = key.split("_");
+        if (parts.length < 2)
+            return null;
+        if (parts[0] === "dash" && parts.length >= 5) {
+            return /^\d{4}-\d{2}-\d{2}$/.test(parts[2]) ? parts[1] : null;
+        }
+        if (parts[0] === "event" && parts.length >= 5)
+            return parts[2];
+        if (parts.length >= 4)
+            return parts[0];
+        return null;
+    }
+    function arpuEventDate(ev, key) {
+        var d = arpuEventData(ev);
+        return arpuIsoDate(ev.date || d.date || d.event_date || d.eventDate) ||
+            arpuTimestampDate(ev) ||
+            arpuDateFromKey(key);
+    }
+    function arpuEventGameId(ev, key) {
+        var d = arpuEventData(ev);
+        return arpuResolveGameId(ev.gameId || ev.game_id || ev.gameID || d.gameId || d.game_id || d.gameID || arpuExtractGameIdFromKey(key));
+    }
+    function arpuRevenueAmount(d) {
+        var fields = ["price_usd", "priceUsd", "revenue_usd", "revenueUsd", "amount_usd", "amountUsd", "price", "amount", "value"];
+        for (var i = 0; i < fields.length; i++) {
+            var v = parseFloat(d[fields[i]]);
+            if (isFinite(v) && v > 0)
+                return v;
+        }
+        return 0;
+    }
+    function arpuIsPurchaseEvent(name) {
+        return name === "iap_purchased" ||
+            name === "purchase_completed" ||
+            name === "iap_completed" ||
+            name === "iap_purchase" ||
+            name === "product_purchased" ||
+            name === "store_purchase";
+    }
+    function arpuScanRevenueEvents(nk, gameId, daysBack, now) {
+        var cutoffDate = new Date(now - (daysBack - 1) * 86400000).toISOString().split("T")[0];
+        var out = { revenue: 0, purchases: 0, payingUsers: {}, activeUsers: {} };
+        var cursor = null;
+        var pages = 0;
+        try {
+            do {
+                var page = nk.storageList(Constants.SYSTEM_USER_ID, "analytics_events", 100, cursor);
+                if (!page || !page.objects)
+                    break;
+                for (var i = 0; i < page.objects.length; i++) {
+                    var obj = page.objects[i];
+                    var value = obj.value || {};
+                    var eventDate = arpuEventDate(value, obj.key);
+                    if (!eventDate || eventDate < cutoffDate)
+                        continue;
+                    var eventGameId = arpuEventGameId(value, obj.key);
+                    if (gameId && eventGameId !== gameId)
+                        continue;
+                    var d = arpuEventData(value);
+                    var uid = value.userId || value.user_id || d.userId || d.user_id || "";
+                    if (uid)
+                        out.activeUsers[uid] = true;
+                    var name = arpuEventName(value);
+                    if (!arpuIsPurchaseEvent(name))
+                        continue;
+                    out.purchases++;
+                    out.revenue += arpuRevenueAmount(d);
+                    if (uid)
+                        out.payingUsers[uid] = true;
+                }
+                cursor = page.cursor || null;
+                pages++;
+            } while (cursor && pages < 20);
+        }
+        catch (_) { }
+        return out;
+    }
     function rpcArpu(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);
         var period = data.period || "30d";
-        var gameId = data.gameId || null;
+        var gameId = arpuResolveGameId(data.gameId || data.game_id || null);
         var daysBack = period === "7d" ? 7 : period === "90d" ? 90 : 30;
         var now = Date.now();
         var totalRevenue = 0;
         var totalPurchases = 0;
         var uniquePayingUsers = [];
+        var uniquePayingUserMap = {};
         var totalActiveUsers = 0;
+        var rollupDays = 0;
+        var legacyRevenueDays = 0;
         for (var d = 0; d < daysBack; d++) {
             var dayStr = new Date(now - d * 86400000).toISOString().split("T")[0];
-            var revData = readAggStorage(nk, "analytics_revenue", "revenue_" + dayStr);
-            if (revData) {
-                totalRevenue += revData.totalAmount || 0;
-                totalPurchases += revData.purchaseCount || 0;
-                if (revData.payingUsers) {
-                    for (var i = 0; i < revData.payingUsers.length; i++) {
-                        if (uniquePayingUsers.indexOf(revData.payingUsers[i]) === -1)
-                            uniquePayingUsers.push(revData.payingUsers[i]);
-                    }
-                }
+            var rollup = arpuReadRollup(nk, gameId, dayStr);
+            if (rollup) {
+                var r = rollup.revenue || {};
+                totalRevenue += parseFloat(r.usd || r.iap_revenue_usd || 0) || 0;
+                totalPurchases += parseInt(r.iap_count || r.purchaseCount || 0, 10) || 0;
+                if (typeof rollup.dau === "number")
+                    totalActiveUsers += rollup.dau;
+                rollupDays++;
             }
-            var dauKey = gameId ? "dau_" + gameId + "_" + dayStr : "dau_platform_" + dayStr;
-            var dauData = readAggStorage(nk, "analytics_dau", dauKey);
-            if (dauData && dauData.count)
-                totalActiveUsers += dauData.count;
+            else {
+                var revData = readAggStorage(nk, "analytics_revenue", "revenue_" + dayStr);
+                if (revData) {
+                    totalRevenue += parseFloat(revData.totalAmount || 0) || 0;
+                    totalPurchases += parseInt(revData.purchaseCount || 0, 10) || 0;
+                    if (revData.payingUsers) {
+                        for (var i = 0; i < revData.payingUsers.length; i++) {
+                            uniquePayingUserMap[revData.payingUsers[i]] = true;
+                        }
+                    }
+                    legacyRevenueDays++;
+                }
+                var dauKey = gameId ? "dau_" + gameId + "_" + dayStr : "dau_platform_" + dayStr;
+                var dauData = readAggStorage(nk, "analytics_dau", dauKey);
+                if (dauData && dauData.count)
+                    totalActiveUsers += dauData.count;
+            }
         }
-        var avgDau = daysBack > 0 ? Math.round(totalActiveUsers / daysBack) : 0;
+        var scanned = arpuScanRevenueEvents(nk, gameId, daysBack, now);
+        for (var payer in scanned.payingUsers) {
+            if (scanned.payingUsers.hasOwnProperty(payer))
+                uniquePayingUserMap[payer] = true;
+        }
+        for (var p in uniquePayingUserMap) {
+            if (uniquePayingUserMap.hasOwnProperty(p))
+                uniquePayingUsers.push(p);
+        }
+        if (totalPurchases === 0 && scanned.purchases > 0)
+            totalPurchases = scanned.purchases;
+        if (totalRevenue === 0 && scanned.revenue > 0)
+            totalRevenue = scanned.revenue;
+        var scannedActiveUsers = Object.keys(scanned.activeUsers).length;
+        if (totalActiveUsers === 0 && scannedActiveUsers > 0)
+            totalActiveUsers = scannedActiveUsers;
+        var avgDau = daysBack > 0 ? Math.round((totalActiveUsers / daysBack) * 100) / 100 : 0;
         var arpu = avgDau > 0 ? (totalRevenue / avgDau).toFixed(2) : "0.00";
         var arppu = uniquePayingUsers.length > 0 ? (totalRevenue / uniquePayingUsers.length).toFixed(2) : "0.00";
+        var conversionBase = scannedActiveUsers > 0 ? scannedActiveUsers : totalActiveUsers;
         return RpcHelpers.successResponse({
             period: period, daysBack: daysBack, totalRevenue: totalRevenue,
             totalPurchases: totalPurchases, uniquePayingUsers: uniquePayingUsers.length,
             avgDau: avgDau, arpu: parseFloat(arpu), arppu: parseFloat(arppu),
-            conversionRate: avgDau > 0 ? ((uniquePayingUsers.length / avgDau) * 100).toFixed(2) + "%" : "0%",
-            gameId: gameId
+            conversionRate: conversionBase > 0 ? ((uniquePayingUsers.length / conversionBase) * 100).toFixed(2) + "%" : "0%",
+            gameId: gameId,
+            meta: {
+                rollupDays: rollupDays,
+                legacyRevenueDays: legacyRevenueDays,
+                eventPurchases: scanned.purchases,
+                eventActiveUsers: scannedActiveUsers
+            }
         });
     }
     function rpcTrackRevenue(ctx, logger, nk, payload) {
@@ -13368,51 +13541,69 @@ var LegacyPush;
         return p;
     }
     function registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId) {
+        var normalizedPlatform = normalizePlatform(platform);
         var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL") || PUSH_REGISTER_URL_DEFAULT;
-        if (!registerUrl)
+        if (!registerUrl) {
+            logger.warn("[Push] registerProviderEndpoint: no register URL configured for platform=%s userId=%s", normalizedPlatform, userId);
             return { configured: false };
+        }
+        logger.info("[Push] Registering %s endpoint for userId=%s gameId=%s", normalizedPlatform, userId, gameId || "quizverse");
         try {
             var body = JSON.stringify({
                 userId: userId,
                 gameId: gameId || "quizverse",
                 deviceToken: token,
                 token: token,
-                platform: normalizePlatform(platform)
+                platform: normalizedPlatform
             });
             var resp = nk.httpRequest(registerUrl, "post", { "Content-Type": "application/json" }, body, 10000);
             var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
             var responseBody = parsed && parsed.body && typeof parsed.body === "string" ? parseJsonSafe(parsed.body) : parsed;
             var code = resp && resp.code ? resp.code : 0;
             if (code >= 200 && code < 300 && responseBody && responseBody.success !== false) {
+                var arn = responseBody.endpointArn || responseBody.EndpointArn || "";
+                logger.info("[Push] %s endpoint registered successfully. endpointArn=%s", normalizedPlatform, arn);
                 return {
                     configured: true,
                     success: true,
                     provider: "sns",
-                    endpointArn: responseBody.endpointArn || responseBody.EndpointArn,
+                    endpointArn: arn,
                     raw: responseBody
                 };
             }
+            var errMsg = (responseBody && (responseBody.error || responseBody.message)) || ("HTTP " + code);
+            logger.warn("[Push] %s endpoint registration failed: %s | HTTP %s | userId=%s | " +
+                "Fix: check Lambda logs, verify APNs key in Firebase (iOS) or FCM sender ID (Android).", normalizedPlatform, errMsg, code, userId);
             return {
                 configured: true,
                 success: false,
-                error: (responseBody && (responseBody.error || responseBody.message)) || ("Provider registration failed with HTTP " + code)
+                error: errMsg
             };
         }
         catch (e) {
-            logger.error("[LegacyPush] provider registration failed: %s", e.message || String(e));
+            logger.error("[Push] registerProviderEndpoint exception: platform=%s userId=%s error=%s", normalizedPlatform, userId, e.message || String(e));
             return { configured: true, success: false, error: e.message || String(e) };
         }
     }
     function sendProviderPush(ctx, logger, nk, endpoint, payload) {
+        var normalizedPlatform = normalizePlatform(endpoint.platform);
         var sendUrl = env(ctx, "PUSH_SEND_URL") || PUSH_SEND_URL_DEFAULT;
-        if (!sendUrl)
+        if (!sendUrl) {
+            logger.warn("[Push] sendProviderPush: no send URL configured for platform=%s", normalizedPlatform);
             return { configured: false };
-        if (!endpoint.endpointArn)
+        }
+        if (!endpoint.endpointArn) {
+            logger.warn("[Push] sendProviderPush: endpointArn missing for platform=%s — " +
+                "device has no registered SNS endpoint. " +
+                "Fix: re-run push_register_token from the device. " +
+                "iOS: verify APNs Auth Key is uploaded in Firebase Console → Project Settings → Cloud Messaging. " +
+                "Android: verify google-services.json sender ID matches Firebase project.", normalizedPlatform);
             return { configured: true, success: false, error: "endpointArn missing" };
+        }
         try {
             var body = JSON.stringify({
                 endpointArn: endpoint.endpointArn,
-                platform: normalizePlatform(endpoint.platform),
+                platform: normalizedPlatform,
                 title: payload.title,
                 body: payload.body,
                 data: payload.data || {},
@@ -13424,16 +13615,19 @@ var LegacyPush;
             var responseBody = parsed && parsed.body && typeof parsed.body === "string" ? parseJsonSafe(parsed.body) : parsed;
             var code = resp && resp.code ? resp.code : 0;
             if (code >= 200 && code < 300 && responseBody && responseBody.success !== false) {
+                logger.info("[Push] Push sent to %s endpoint. eventType=%s messageId=%s", normalizedPlatform, payload.eventType || "push_event", responseBody.messageId || "");
                 return { configured: true, success: true, messageId: responseBody.messageId, raw: responseBody };
             }
+            var errMsg = (responseBody && (responseBody.error || responseBody.message)) || ("HTTP " + code);
+            logger.warn("[Push] Push to %s failed: %s | HTTP %s | arn=%s", normalizedPlatform, errMsg, code, endpoint.endpointArn);
             return {
                 configured: true,
                 success: false,
-                error: (responseBody && (responseBody.error || responseBody.message)) || ("Provider send failed with HTTP " + code)
+                error: errMsg
             };
         }
         catch (e) {
-            logger.error("[LegacyPush] provider send failed: %s", e.message || String(e));
+            logger.error("[Push] sendProviderPush exception: platform=%s arn=%s error=%s", normalizedPlatform, endpoint.endpointArn || "none", e.message || String(e));
             return { configured: true, success: false, error: e.message || String(e) };
         }
     }
@@ -13444,8 +13638,11 @@ var LegacyPush;
             var token = data.token;
             var platform = data.platform || "unknown";
             var gameId = data.gameId || data.game_id || "quizverse";
-            if (!token)
+            logger.info("[Push] push_register_token: userId=%s platform=%s gameId=%s tokenPrefix=%s", userId, platform, gameId, token ? token.substring(0, 10) + "..." : "MISSING");
+            if (!token) {
+                logger.warn("[Push] push_register_token rejected: no token provided. userId=%s platform=%s", userId, platform);
                 return RpcHelpers.errorResponse("token required");
+            }
             var tokensData = getPushTokens(nk, userId);
             var now = Math.floor(Date.now() / 1000);
             var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId);
@@ -13476,6 +13673,16 @@ var LegacyPush;
                 });
             }
             savePushTokens(nk, userId, tokensData);
+            var finalArn = provider && provider.endpointArn ? provider.endpointArn : "";
+            if (finalArn) {
+                logger.info("[Push] push_register_token SUCCESS: userId=%s platform=%s endpointArn=%s", userId, platform, finalArn);
+            }
+            else {
+                logger.warn("[Push] push_register_token INCOMPLETE: token stored but no endpointArn. " +
+                    "userId=%s platform=%s providerError=%s | " +
+                    "iOS fix: upload APNs Auth Key in Firebase Console → Project Settings → Cloud Messaging. " +
+                    "Android fix: verify google-services.json is correct and Lambda has FCM server key.", userId, platform, (provider && provider.error) || "none");
+            }
             // Flat response shape — matches Unity's PushRegisterResponse fields exactly so
             // JsonConvert.DeserializeObject reads endpointArn/platform/userId/gameId without
             // an extra .data unwrap step. Do NOT wrap in RpcHelpers.successResponse here.
@@ -13484,12 +13691,13 @@ var LegacyPush;
                 userId: userId,
                 gameId: gameId,
                 platform: platform,
-                endpointArn: provider && provider.endpointArn ? provider.endpointArn : "",
+                endpointArn: finalArn,
                 registeredAt: new Date().toISOString(),
                 provider: provider
             });
         }
         catch (e) {
+            logger.error("[Push] push_register_token exception: %s", e.message || String(e));
             return RpcHelpers.errorResponse(e.message || "Failed to register token");
         }
     }
@@ -13505,13 +13713,28 @@ var LegacyPush;
                 data: data.data || {}
             };
             var code = Number(data.code || DEFAULT_PUSH_NOTIFICATION_CODE);
-            if (!targetUserId)
+            if (!targetUserId) {
+                logger.warn("[Push] push_send_event rejected: no targetUserId in payload.");
                 return RpcHelpers.errorResponse("userId required");
+            }
             if (!code || code <= 0)
                 code = DEFAULT_PUSH_NOTIFICATION_CODE;
             var title = content.title || subject;
             var body = content.body || "";
             var tokensData = getPushTokens(nk, targetUserId);
+            logger.info("[Push] push_send_event: eventType=%s targetUserId=%s registeredTokens=%s", subject, targetUserId, tokensData.tokens ? tokensData.tokens.length : 0);
+            if (!tokensData.tokens || tokensData.tokens.length === 0) {
+                logger.warn("[Push] push_send_event: targetUserId=%s has NO registered push tokens. " +
+                    "The user must launch the app on a real device at least once after granting notification permission " +
+                    "so push_register_token can run and create an SNS endpoint.", targetUserId);
+            }
+            else {
+                var platforms = [];
+                for (var pi = 0; pi < tokensData.tokens.length; pi++) {
+                    platforms.push(tokensData.tokens[pi].platform + (tokensData.tokens[pi].endpointArn ? "(arn✓)" : "(no-arn)"));
+                }
+                logger.info("[Push] push_send_event: endpoints=[%s]", platforms.join(", "));
+            }
             var providerResults = [];
             for (var i = 0; i < tokensData.tokens.length; i++) {
                 var t = tokensData.tokens[i];
@@ -13547,6 +13770,13 @@ var LegacyPush;
             for (var pr = 0; pr < providerResults.length; pr++) {
                 if (providerResults[pr] && providerResults[pr].success === true)
                     successCount++;
+            }
+            if (successCount > 0) {
+                logger.info("[Push] push_send_event DONE: eventType=%s sentToDevices=%s/%s targetUserId=%s", subject, successCount, providerResults.length, targetUserId);
+            }
+            else if (providerResults.length > 0) {
+                logger.warn("[Push] push_send_event FAILED to reach any device: eventType=%s targetUserId=%s — " +
+                    "check providerResults in the response body for per-platform errors.", subject, targetUserId);
             }
             return JSON.stringify({
                 success: true,
