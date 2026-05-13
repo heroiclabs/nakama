@@ -669,6 +669,16 @@ func extractClientAddressFromContext(logger *zap.Logger, config Config, ctx cont
 	if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
 		// Look for gRPC-Gateway / LB header.
 		candidateAddresses = strings.Split(ips[0], ",")
+		// Handle grpc-gateway loopback peer
+		if len(candidateAddresses) > 1 {
+			if peerInfo, ok := peer.FromContext(ctx); ok {
+				if host, _, err := net.SplitHostPort(peerInfo.Addr.String()); err == nil {
+					if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+						candidateAddresses = candidateAddresses[:len(candidateAddresses)-1]
+					}
+				}
+			}
+		}
 	} else if peerInfo, ok := peer.FromContext(ctx); ok {
 		// If missing, try to look up gRPC peer info.
 		candidateAddresses = []string{peerInfo.Addr.String()}
