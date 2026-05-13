@@ -336,7 +336,33 @@ var SD_EVENT_MAP = {
     "achievement_updated":  "achievementUpdated",
     // Stats
     "stat_updated":         "statUpdated",
-    "stat_update":          "statUpdated"
+    "stat_update":          "statUpdated",
+    // ── QuizVerse-specific: map to closest Satori core event ──────────────
+    "quiz_start":           "levelStarted",
+    "quiz_started":         "levelStarted",
+    "quiz_session_started": "levelStarted",
+    "quiz_session_start":   "levelStarted",
+    "quiz_complete":        "levelCompleted",
+    "quiz_completed":       "levelCompleted",
+    "quiz_session_ended":   "levelCompleted",
+    "quiz_abandoned":       "levelFailed",
+    "quiz_session_abandoned":"levelFailed",
+    "answer_submitted":     "levelStepCompleted",
+    "onboarding_started":   "tutorialStarted",
+    "onboarding_complete":  "tutorialCompleted",
+    "onboarding_completed": "tutorialCompleted",
+    "onboarding_abandoned": "tutorialAbandoned",
+    "retention_day_1":      "retentionDay1",
+    "retention_day_7":      "retentionDay7",
+    "retention_day_30":     "retentionDay30",
+    "user_returned":        "playerReturned",
+    "error_logged":         "clientError",
+    "auth_failure":         "authFailure",
+    "mp_game_started":      "matchStarted",
+    "mp_game_completed":    "matchCompleted",
+    "paywall_shown":        "paywallImpression",
+    "paywall_converted":    "purchaseCompleted",
+    "paywall_dismissed":    "paywallDismissed"
 };
 function sdNormalizeEventName(rawName) {
     if (!rawName) return "";
@@ -425,11 +451,23 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
             timestamp: rfc3339
         };
         if (e.id) wire.id = String(e.id);
-        if (Object.keys(meta).length > 0) wire.metadata = meta;
         if (typeof e.value === "string" && e.value.length > 0) wire.value = e.value;
         // Prefer an explicit per-event identity_id; fall back to the caller-provided one.
         var iid = e.identity_id || identifier;
         if (iid) wire.identity_id = String(iid);
+
+        // Promote session_id to a top-level wire field per Satori server-event
+        // API spec. When present, Satori uses it to link the event to an existing
+        // session rather than auto-matching to the latest session.
+        var sid = e.session_id || meta.session_id || null;
+        if (sid) {
+            wire.session_id = String(sid);
+            delete meta.session_id;  // avoid redundancy in metadata
+        }
+        if (e.session_issued_at)  wire.session_issued_at  = String(Math.floor(Number(e.session_issued_at)  || 0));
+        if (e.session_expires_at) wire.session_expires_at = String(Math.floor(Number(e.session_expires_at) || 0));
+
+        if (Object.keys(meta).length > 0) wire.metadata = meta;
         wireEvents.push(wire);
     }
 

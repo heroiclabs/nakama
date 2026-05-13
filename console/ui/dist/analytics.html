@@ -1391,6 +1391,11 @@
                     <option value="126bf539-dae2-4bcf-964d-316c0fa1f92b" data-name="QuizVerse" selected>🧠 QuizVerse</option>
                     <option value="lasttolive" data-name="Last To Live">🎮 Last To Live</option>
                     <option value="cricketvr" data-name="Cricket VR">🏏 Cricket VR</option>
+                    <optgroup label="── Arcade ──">
+                    <option value="5c68cf9d-b738-4cca-bbb0-0ce80748239e" data-name="Chess Puzzles">♟️ Chess Puzzles</option>
+                    <option value="650636ba-7fa7-4441-9223-08ecd79677ae" data-name="Crystal 2048">🔢 Crystal 2048</option>
+                    <option value="02290eb7-bdd5-4dc2-b5d3-619127eeaa99" data-name="Hex 2248">⬡ Hex 2248</option>
+                    </optgroup>
                 </select>
             </div>
             <div class="header-controls">
@@ -1980,22 +1985,40 @@
         <!-- Features Tab -->
         <div id="features" class="tab-content">
             <div class="chart-card">
-                <h3>Feature Adoption <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <h3>Feature Health Overview <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><div id="featureKpis" class="kpi-grid" style="margin-top:1rem"></div></div>
+            </div>
+            <div class="chart-card">
+                <h3>Feature Adoption & Trends <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
                 <div class="card-body"><table class="data-table" id="featureTable">
                     <thead>
                         <tr>
                             <th class="sortable" onclick="sortTable('featureTable',0,this)">Feature</th>
                             <th class="sortable" onclick="sortTable('featureTable',1,this)">Users</th>
                             <th class="sortable" onclick="sortTable('featureTable',2,this)">Adoption %</th>
-                            <th>Progress</th>
+                            <th>Trend</th>
+                            <th>Engagement</th>
+                            <th>Cohorts</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr>
-                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr>
-                        <tr><td colspan="4"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr>
+                        <tr><td colspan="6"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr>
+                        <tr><td colspan="6"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr>
+                        <tr><td colspan="6"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr>
                     </tbody>
                 </table></div>
+            </div>
+            <div class="chart-card">
+                <h3>💡 Recommendations <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body">
+                    <ul id="featureRecommendations" style="margin:0.5rem 0;padding-left:1.5rem;color:var(--text-muted);font-size:0.85rem;line-height:1.6;">
+                        <li>Loading recommendations...</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3>📊 Feature Details & Insights <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body"><div id="featureDetailsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-top:1rem;"></div></div>
             </div>
         </div>
 
@@ -3802,26 +3825,60 @@
                     document.querySelector('#featureTable tbody').innerHTML = `<tr><td colspan="4" class="empty-state">${data.error}</td></tr>`;
                     return;
                 }
+                
                 const features = data.features || [];
+                
+                // Calculate KPIs
+                const healthyCount = features.filter(f => f.health === 'healthy').length;
+                const moderateCount = features.filter(f => f.health === 'moderate').length;
+                const atRiskCount = features.filter(f => f.health === 'at_risk').length;
+                const unusedCount = features.filter(f => f.health === 'unused').length;
+                const avgAdoption = features.length > 0 ? Math.round(features.reduce((sum, f) => sum + f.adoption_pct, 0) / features.length) : 0;
+                const avgEngagement = features.filter(f => f.users_count > 0).length > 0 
+                    ? Math.round(features.filter(f => f.users_count > 0).reduce((sum, f) => sum + f.events_per_user, 0) / features.filter(f => f.users_count > 0).length * 10) / 10 
+                    : 0;
+                
+                // Render KPIs
+                document.getElementById('featureKpis').innerHTML = [
+                    { label: '🟢 Healthy', value: healthyCount, color: 'var(--success)' },
+                    { label: '🟡 Moderate', value: moderateCount, color: 'var(--warning)' },
+                    { label: '🔴 At Risk', value: atRiskCount, color: 'var(--danger)' },
+                    { label: '⚪ Unused', value: unusedCount, color: 'var(--text-muted)' },
+                    { label: 'Avg Adoption', value: avgAdoption + '%', color: 'var(--primary)' },
+                    { label: 'Avg Engagement', value: avgEngagement + ' events/user', color: 'var(--primary)' }
+                ].map(k => `<div class="kpi-item"><div class="kpi-value" style="color:${k.color}">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+                
                 const tbody = document.querySelector('#featureTable tbody');
                 if (features.length) {
                     tbody.innerHTML = features.map(f => {
-                        const health = f.adoption_pct >= 30 ? 'positive' : f.adoption_pct >= 10 ? '' : 'negative';
+                        // Health-based styling
+                        const healthClass = f.adoption_pct >= 30 ? 'positive' : f.adoption_pct >= 10 ? '' : 'negative';
+                        const healthEmoji = f.health === 'healthy' ? '🟢' : f.health === 'moderate' ? '🟡' : f.health === 'at_risk' ? '🔴' : '⚪';
                         const barWidth = Math.min(f.adoption_pct, 100);
+                        
+                        // Engagement depth indicator
+                        const engagementDepth = f.events_per_user >= 10 ? '🔥 High' : f.events_per_user >= 3 ? '✓ Medium' : f.events_per_user > 0 ? '○ Low' : '—';
+                        const engagementColor = f.events_per_user >= 10 ? 'var(--success)' : f.events_per_user >= 3 ? 'var(--warning)' : 'var(--text-muted)';
+                        
                         return `<tr>
-                            <td>${f.name.replace(/_/g,' ')}</td>
+                            <td>${healthEmoji} ${f.name.replace(/_/g,' ')}</td>
                             <td>${formatNumber(f.users_count)}</td>
-                            <td><span class="${health}" style="font-weight:600;">${f.adoption_pct}%</span></td>
+                            <td><span class="${healthClass}" style="font-weight:600;">${f.adoption_pct}%</span></td>
                             <td>
                                 <div style="display:flex;align-items:center;gap:0.5rem;">
-                                    <div style="flex:1;background:var(--border);border-radius:4px;height:8px;min-width:60px;"><div style="width:${barWidth}%;background:var(--${health==='positive'?'success':health==='negative'?'danger':'warning'});height:8px;border-radius:4px;"></div></div>
-                                    <span style="font-size:0.72rem;color:var(--text-muted);white-space:nowrap;">${f.collection || ''}</span>
+                                    <div style="flex:1;background:var(--border);border-radius:4px;height:8px;min-width:60px;"><div style="width:${barWidth}%;background:var(--${healthClass==='positive'?'success':healthClass==='negative'?'danger':'warning'});height:8px;border-radius:4px;"></div></div>
+                                    <span style="font-size:0.72rem;color:${engagementColor};white-space:nowrap;" title="${f.events_per_user} events per user">${engagementDepth}</span>
                                 </div>
                             </td>
                         </tr>`;
                     }).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No feature data yet</td></tr>';
+                    tbody.innerHTML = `<tr><td colspan="4" style="padding:1rem 0.75rem;color:var(--text-muted);font-size:0.85rem;">
+                        No feature usage events in the last ${selectedDays} days. Expected events include:
+                        <code style="display:block;margin-top:0.5rem;padding:0.5rem;background:var(--card-bg);border-radius:4px;font-size:0.78rem;">
+                        daily_quiz_*, multiplayer_*, leaderboard_*, profile_*, store_*, voice_answer_*, ai_*, streak_*, friend_*
+                        </code>
+                    </td></tr>`;
                 }
                 const recs = document.getElementById('featureRecommendations');
                 if (recs && data.recommendations) {
@@ -3872,32 +3929,58 @@
         // ─────────────────────────────────────────────────────────────────────
         // AI Features
         // ─────────────────────────────────────────────────────────────────────
+        const AI_FEATURE_CATALOG = [
+            { label: 'AI Host (Voice Quiz)',  icon: '🎙️', hint: 'TrackAIHostSessionStarted()' },
+            { label: 'AI Fortune Teller',     icon: '🔮', hint: 'TrackFortuneSessionStarted()' },
+            { label: 'AI Voice Service',      icon: '🎤', hint: 'TrackAIVoiceSessionStarted()' },
+            { label: 'AI Tutor',              icon: '🎓', hint: 'TrackAITutorQuestionAsked()' },
+            { label: 'AI Chat',               icon: '💬', hint: 'TrackAIChatMessageSent()' },
+            { label: 'AI Custom Quiz',        icon: '🧠', hint: 'TrackAIQuizRequested()' },
+            { label: 'AI Avatar Generator',   icon: '🖼️', hint: 'TrackAIAvatarImageRequested()' },
+            { label: 'Link & Play',           icon: '🔗', hint: 'TrackLinkTypeSelected()' },
+            { label: 'Gemini API',            icon: '✨', hint: 'gemini_ events' },
+        ];
+
         async function loadAiFeatures() {
             try {
                 const data = await callRpc('analytics_ai_features', { days: selectedDays, ...getGamePayload() });
                 if (data.error) { document.querySelector('#aiFeatureTable tbody').innerHTML = `<tr><td colspan="4" class="empty-state">${data.error}</td></tr>`; return; }
-                // 2026-05 — when zero AI events exist, show em-dashes rather
-                // than a misleading "0%" (which historically rendered next to
-                // a non-AI feature like login_failed because of a substring-
-                // match bug in the server filter, since fixed).
+
                 const noAiData = !data.total_ai_events;
                 const adoption = noAiData ? '—' : (data.ai_adoption_pct ?? 0) + '%';
+
                 document.getElementById('aiKpis').innerHTML = [
-                    { label: 'Total AI Events', value: formatNumber(data.total_ai_events || 0) },
-                    { label: 'AI Users', value: formatNumber(data.total_ai_users || 0) },
-                    { label: 'AI Adoption %', value: adoption },
-                    { label: 'Credits Used', value: formatNumber(data.credits_consumed || 0) },
-                    { label: 'Voice Answers', value: formatNumber(data.voice_answers || 0) },
-                    { label: 'Users Sampled', value: formatNumber(data.users_sampled || 0) }
-                ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+                    { label: 'Total AI Events', value: formatNumber(data.total_ai_events || 0), icon: '⚡' },
+                    { label: 'AI Users',         value: formatNumber(data.total_ai_users || 0),  icon: '👤' },
+                    { label: 'AI Adoption %',    value: adoption,                                icon: '📈' },
+                    { label: 'Credits Used',     value: formatNumber(data.credits_consumed || 0),icon: '🪙' },
+                    { label: 'Voice Answers',    value: formatNumber(data.voice_answers || 0),   icon: '🎤' },
+                    { label: 'Users Sampled',    value: formatNumber(data.users_sampled || 0),   icon: '🔬' }
+                ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.icon} ${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('');
+
                 if (data.features && data.features.length > 0) {
+                    const chartLabels = data.features.map(f => {
+                        const cat = AI_FEATURE_CATALOG.find(c => c.label === f.feature);
+                        return (cat ? cat.icon + ' ' : '') + f.feature;
+                    });
+                    _heatmapClear('aiUsageChart');
                     if (charts.aiUsage) charts.aiUsage.destroy();
-                    charts.aiUsage = createBarChart('aiUsageChart', data.features.map(f => f.feature), data.features.map(f => f.events), 'Events per Feature');
-                    document.querySelector('#aiFeatureTable tbody').innerHTML = data.features.map(f =>
-                        `<tr><td>${f.feature}</td><td>${formatNumber(f.events)}</td><td>${formatNumber(f.unique_users)}</td><td><div style="background:#7c3aed;height:6px;border-radius:3px;width:${f.adoption_pct}%;min-width:2px"></div>${f.adoption_pct}%</td></tr>`
-                    ).join('');
+                    charts.aiUsage = createBarChart('aiUsageChart', chartLabels, data.features.map(f => f.events), 'Events');
+
+                    document.querySelector('#aiFeatureTable tbody').innerHTML = data.features.map(f => {
+                        const cat = AI_FEATURE_CATALOG.find(c => c.label === f.feature);
+                        const icon = (cat && cat.icon) || f.icon || '🤖';
+                        const bar = `<div style="display:flex;align-items:center;gap:6px"><div style="background:#7c3aed;height:6px;border-radius:3px;width:${Math.min(f.adoption_pct,100)}%;min-width:2px;flex-shrink:0;max-width:80px"></div><span>${f.adoption_pct}%</span></div>`;
+                        return `<tr><td>${icon} ${escapeHtml(f.feature)}</td><td>${formatNumber(f.events)}</td><td>${formatNumber(f.unique_users)}</td><td>${bar}</td></tr>`;
+                    }).join('');
                 } else {
-                    document.querySelector('#aiFeatureTable tbody').innerHTML = '<tr><td colspan="4" class="empty-state">No AI events found</td></tr>';
+                    _heatmapEmpty('aiUsageChart', 'No AI events in the last ' + selectedDays + ' days — call AIFeatureAnalytics.Track*() methods from your AI feature screens.');
+                    document.querySelector('#aiFeatureTable tbody').innerHTML =
+                        '<tr><td colspan="4" style="padding:0.5rem 0.75rem;color:var(--text-muted);font-size:0.8rem">' +
+                        'No AI events yet. Fire these tracking calls from your feature code:</td></tr>' +
+                        AI_FEATURE_CATALOG.map(c =>
+                            `<tr style="opacity:0.6"><td>${c.icon} ${escapeHtml(c.label)}</td><td colspan="3" style="color:var(--text-muted);font-size:0.78rem">${c.hint}</td></tr>`
+                        ).join('');
                 }
             } catch(e) { console.error('AI features error:', e); }
         }
@@ -3905,25 +3988,69 @@
         // ─────────────────────────────────────────────────────────────────────
         // Home Heatmap
         // ─────────────────────────────────────────────────────────────────────
+        function _heatmapEmpty(canvasId, msg) {
+            const c = document.getElementById(canvasId);
+            if (!c) return;
+            const parent = c.parentElement;
+            if (!parent) return;
+            c.style.display = 'none';
+            if (!parent.querySelector('.heatmap-empty')) {
+                const d = document.createElement('div');
+                d.className = 'heatmap-empty';
+                d.style.cssText = 'color:var(--text-muted);font-size:0.85rem;text-align:center;padding:2rem 1rem;';
+                d.textContent = msg || 'No data for this period';
+                parent.appendChild(d);
+            }
+        }
+        function _heatmapClear(canvasId) {
+            const c = document.getElementById(canvasId);
+            if (!c) return;
+            c.style.display = '';
+            const parent = c.parentElement;
+            if (parent) {
+                parent.querySelectorAll('.heatmap-empty').forEach(el => el.remove());
+            }
+        }
+
         async function loadHeatmap() {
             try {
                 const data = await callRpc('analytics_home_heatmap', { days: selectedDays, ...getGamePayload() });
                 if (data.error) { console.error('Heatmap error:', data.error); return; }
+
+                // Button Tap Frequency
+                _heatmapClear('heatmapButtonChart');
                 if (data.buttons && data.buttons.length > 0) {
                     if (charts.heatmapBtn) charts.heatmapBtn.destroy();
                     charts.heatmapBtn = createBarChart('heatmapButtonChart', data.buttons.map(b => b.button), data.buttons.map(b => b.count), 'Tap Count');
+                } else {
+                    _heatmapEmpty('heatmapButtonChart', 'No button tap events in the last ' + selectedDays + ' days — fire TrackHomeButtonTapped() from the home screen.');
                 }
+
+                // Top Screens by Views
+                _heatmapClear('heatmapScreenChart');
                 if (data.top_screens && data.top_screens.length > 0) {
                     if (charts.heatmapScreen) charts.heatmapScreen.destroy();
                     charts.heatmapScreen = createBarChart('heatmapScreenChart', data.top_screens.map(s => s.screen), data.top_screens.map(s => s.views), 'Views');
+                } else {
+                    _heatmapEmpty('heatmapScreenChart', 'No screen view events in the last ' + selectedDays + ' days.');
                 }
+
+                // Avg Time per Screen
+                _heatmapClear('heatmapTimeChart');
                 if (data.screen_time && data.screen_time.length > 0) {
                     if (charts.heatmapTime) charts.heatmapTime.destroy();
                     charts.heatmapTime = createBarChart('heatmapTimeChart', data.screen_time.map(s => s.screen), data.screen_time.map(s => s.avg_seconds), 'Avg Seconds');
+                } else {
+                    _heatmapEmpty('heatmapTimeChart', 'No screen dwell-time data — fire TrackScreenTimeSpent() when navigating away from screens.');
                 }
+
+                // Top Popups Shown
+                _heatmapClear('heatmapPopupChart');
                 if (data.top_popups && data.top_popups.length > 0) {
                     if (charts.heatmapPopup) charts.heatmapPopup.destroy();
                     charts.heatmapPopup = createDoughnutChart('heatmapPopupChart', data.top_popups.map(p => p.popup), data.top_popups.map(p => p.shown));
+                } else {
+                    _heatmapEmpty('heatmapPopupChart', 'No popup events in the last ' + selectedDays + ' days — fire TrackPopupShown() when showing popups.');
                 }
             } catch(e) { console.error('Heatmap error:', e); }
         }
@@ -4194,6 +4321,12 @@
             return String(v == null ? '' : v)
                 .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        function shortUid(uid) {
+            if (!uid) return '—';
+            const s = String(uid);
+            return s.length > 12 ? escapeHtml(s.substring(0, 8)) + '…' : escapeHtml(s);
         }
 
         function badgeHtml(key, val) {
@@ -5170,28 +5303,60 @@
             const failed  = checks.filter(c => !c.ok && !c.skipped).length;
             const ingestCheck = checks.find(c => c.name === 'ingest_round_trip') || {};
             const satoriCheck = checks.find(c => c.name === 'satori_connectivity') || {};
+            const tpCheck     = checks.find(c => c.name === 'tracking_plan_loaded') || {};
+            const piiCheck    = checks.find(c => c.name === 'pii_scrubbing') || {};
+
+            const ingestVal = ingestCheck.skipped
+                ? `<span style="color:var(--text-muted);font-size:0.95rem;">skipped</span>`
+                : ingestCheck.ok ? '✅' : '❌';
+            const ingestMeta = ingestCheck.skipped
+                ? `<button class="card-btn" style="font-size:10px;padding:2px 7px;margin-top:4px;" onclick="_testIngestRoundTrip()">Test now</button>`
+                : ingestCheck.ms != null ? ingestCheck.ms + ' ms' : escapeHtml(ingestCheck.error || '—');
+
             el.innerHTML = `
-                <div class="kpi-card">
+                <div class="kpi-card" style="border-left:3px solid ${_pipeStatusColor(overall)};">
                     <div class="kpi-label">Overall</div>
                     <div class="kpi-value">${_pipeStatusBadge(overall, overall)}</div>
                     <div class="kpi-meta">${okCount} ok · ${failed} failed · ${skipped} skipped</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Ingest round-trip</div>
-                    <div class="kpi-value">${ingestCheck.skipped ? 'skipped' : (ingestCheck.ok ? '✅' : '❌')}</div>
-                    <div class="kpi-meta">${ingestCheck.ms != null ? ingestCheck.ms+' ms' : (ingestCheck.error ? escapeHtml(ingestCheck.error) : '—')}</div>
+                    <div class="kpi-value">${ingestVal}</div>
+                    <div class="kpi-meta">${ingestMeta}</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Satori connectivity</div>
-                    <div class="kpi-value">${satoriCheck.skipped ? 'skipped' : (satoriCheck.ok ? '✅' : '❌')}</div>
-                    <div class="kpi-meta">${satoriCheck.ms != null ? satoriCheck.ms+' ms' : (satoriCheck.error ? escapeHtml(satoriCheck.error) : '—')}</div>
+                    <div class="kpi-value">${satoriCheck.skipped ? '<span style="color:var(--text-muted);">skipped</span>' : satoriCheck.ok ? '✅' : '❌'}</div>
+                    <div class="kpi-meta">${satoriCheck.ms != null ? satoriCheck.ms + ' ms' : satoriCheck.error ? escapeHtml(satoriCheck.error) : '—'}</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Tracking plan</div>
-                    <div class="kpi-value">${(checks.find(c=>c.name==='tracking_plan_loaded')||{}).ok ? '✅' : '❌'}</div>
-                    <div class="kpi-meta">PII scrub: ${(checks.find(c=>c.name==='pii_scrubbing')||{}).fields_count || 0} fields</div>
+                    <div class="kpi-value">${tpCheck.ok ? '✅' : '❌'}</div>
+                    <div class="kpi-meta">PII scrub: ${piiCheck.fields_count || 0} fields</div>
                 </div>`;
         }
+
+        async function _testIngestRoundTrip() {
+            showToast('Running ingest round-trip test…', 'info', 2500);
+            try {
+                const data = await callRpc('analytics_health', { skip_ingest_test: false });
+                const c = (data.checks || []).find(c => c.name === 'ingest_round_trip') || {};
+                if (c.ok) showToast(`✅ Ingest round-trip: ${c.ms} ms`, 'success', 3500);
+                else      showToast(`❌ Ingest failed: ${c.error || 'unknown'}`, 'error', 5000);
+                renderPipelineHealth(data);
+            } catch (e) {
+                showToast('Ingest test error: ' + e.message, 'error', 5000);
+            }
+        }
+
+        const _STAGE_LABELS = {
+            event_ingest:         { label: 'Event ingest',        icon: '📥', required: true },
+            daily_rollup:         { label: 'Daily rollup',         icon: '📊', required: true },
+            satori_identity_sync: { label: 'Satori identity sync', icon: '🔄', required: false },
+            satori_segments:      { label: 'Satori segments',      icon: '🏷️', required: false },
+            external_poll:        { label: 'External polls',       icon: '🔌', required: false },
+            firecrawl:            { label: 'Firecrawl',            icon: '🕷️', required: false }
+        };
 
         function renderPipelineFreshness(data) {
             const el = document.getElementById('pipelineStages');
@@ -5201,34 +5366,98 @@
                 return;
             }
             const stages = data.stages || {};
-            const order = ['event_ingest','daily_rollup','satori_identity_sync','satori_segments','external_poll','firecrawl'];
-            const labels = {
-                event_ingest:         'Event ingest',
-                daily_rollup:         'Daily rollup',
-                satori_identity_sync: 'Satori identity sync',
-                satori_segments:      'Satori segments',
-                external_poll:        'External polls',
-                firecrawl:            'Firecrawl'
-            };
+            const order = Object.keys(_STAGE_LABELS);
             const rows = order.filter(k => stages[k]).map(k => {
-                const s = stages[k];
+                const s   = stages[k];
+                const cfg = _STAGE_LABELS[k] || { label: k, icon: '⚙️', required: false };
+                const isOpt = s.optional || !cfg.required;
+                const optTag = isOpt
+                    ? `<span style="font-size:10px;color:var(--text-muted);margin-left:6px;background:var(--bg-secondary);padding:1px 5px;border-radius:3px;">optional</span>`
+                    : '';
+
+                let statusBadge;
+                if (isOpt && (s.status === 'missing' || s.status === 'never_run')) {
+                    statusBadge = `<span style="background:var(--bg-secondary);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:2px 9px;font-size:11px;font-weight:600;text-transform:uppercase;">${s.status}</span>`;
+                } else {
+                    statusBadge = _pipeStatusBadge(s.status, s.status);
+                }
+
+                let actionCell = '';
+                if (k === 'daily_rollup' && (s.status === 'critical' || s.status === 'stale')) {
+                    actionCell = `<button class="card-btn" style="font-size:10px;padding:2px 8px;" onclick="_runRollupNow(this)">▶ Run Now</button>`;
+                } else if (k === 'satori_identity_sync' && s.can_trigger) {
+                    actionCell = `<button class="card-btn" style="font-size:10px;padding:2px 8px;" onclick="_runSatoriSyncNow(this)">🔄 Sync Now</button>`;
+                } else if (k === 'event_ingest' && s.status === 'missing') {
+                    actionCell = `<span style="color:var(--text-muted);font-size:0.8rem;">No events yet</span>`;
+                }
+
+                const hintRow = s.hint
+                    ? `<tr><td colspan="5" style="padding:0 1rem 0.5rem 2.5rem;color:var(--text-muted);font-size:0.8rem;font-style:italic;">${escapeHtml(s.hint)}</td></tr>`
+                    : '';
+
                 return `<tr>
-                    <td style="font-weight:500;">${labels[k] || k}</td>
-                    <td>${_pipeStatusBadge(s.status, s.status)}</td>
+                    <td style="font-weight:500;">${cfg.icon} ${cfg.label}${optTag}</td>
+                    <td>${statusBadge}</td>
                     <td style="color:var(--text-secondary);">${s.age_human || '—'}</td>
-                    <td style="color:var(--text-muted);font-size:0.8rem;">${escapeHtml(s.last_at || s.last_run_at || '—')}</td>
-                </tr>`;
+                    <td style="color:var(--text-muted);font-size:0.8rem;font-family:monospace;">${escapeHtml(s.last_at || s.last_run_at || '—')}</td>
+                    <td>${actionCell}</td>
+                </tr>${hintRow}`;
             }).join('');
+
+            const reqOk     = data.required_ok     || 0;
+            const reqFailed = data.required_failed  || 0;
+            const reqStale  = data.required_stale   || 0;
+            const summaryColor = _pipeStatusColor(data.overall);
+
             el.innerHTML = `
                 <table class="data-table" style="width:100%;">
                     <thead><tr>
-                        <th>Stage</th><th>Status</th><th>Age</th><th>Last at</th>
+                        <th>Stage</th><th>Status</th><th>Age</th><th>Last at</th><th>Action</th>
                     </tr></thead>
-                    <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:1rem;">No stages reported</td></tr>'}</tbody>
+                    <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem;">No stages reported</td></tr>'}</tbody>
                 </table>
-                <div style="color:var(--text-muted);font-size:0.8rem;margin-top:0.5rem;">
-                    Overall: ${_pipeStatusBadge(data.overall, data.overall)} · Checked at <code>${escapeHtml(data.checked_at || '')}</code>
+                <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.75rem;padding:0.5rem 0.75rem;background:var(--bg-secondary);border-radius:8px;border-left:3px solid ${summaryColor};">
+                    <span>Overall: ${_pipeStatusBadge(data.overall, data.overall)}</span>
+                    <span style="color:var(--text-muted);font-size:0.8rem;">Required: ${reqOk} ok · ${reqFailed} critical · ${reqStale} stale</span>
+                    <span style="color:var(--text-muted);font-size:0.8rem;margin-left:auto;">Checked: <code>${escapeHtml(data.checked_at || '')}</code></span>
                 </div>`;
+        }
+
+        async function _runSatoriSyncNow(btn) {
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+            showToast('Syncing Satori identity properties…', 'info', 2000);
+            try {
+                const result = await callRpc('satori_identity_batch', { limit: 500, force: false });
+                const synced  = result && result.synced  || 0;
+                const skipped = result && result.skipped || 0;
+                const errors  = result && result.errors  || 0;
+                showToast(
+                    `✅ Satori sync: ${synced} synced · ${skipped} skipped · ${errors} errors`,
+                    errors > 0 ? 'warn' : 'success', 6000
+                );
+                const fresh = await callRpc('analytics_freshness_check', {});
+                renderPipelineFreshness(fresh);
+            } catch (e) {
+                showToast('Satori sync error: ' + e.message, 'error', 5000);
+                if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Now'; }
+            }
+        }
+
+        async function _runRollupNow(btn) {
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Running…'; }
+            showToast('Running daily rollup…', 'info', 2000);
+            try {
+                const yesterday = new Date();
+                yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+                const dateStr = yesterday.toISOString().slice(0, 10);
+                const result = await callRpc('analytics_run_rollup', { date: dateStr });
+                showToast(result && result.success ? `✅ Rollup done: ${result.events_processed || 0} events` : `⚠️ Rollup: ${result && result.error || 'check logs'}`, result && result.success ? 'success' : 'warn', 5000);
+                const fresh = await callRpc('analytics_freshness_check', {});
+                renderPipelineFreshness(fresh);
+            } catch (e) {
+                showToast('Rollup error: ' + e.message, 'error', 5000);
+                if (btn) { btn.disabled = false; btn.textContent = '▶ Run Now'; }
+            }
         }
 
         function renderPipelineEnforcement(data) {
@@ -5671,11 +5900,20 @@
                     if (charts.platformUsers) charts.platformUsers.destroy();
                     charts.platformUsers = createBarChart('platformUsersChart', labels, users, 'Unique Users');
                 }
+                _heatmapClear('platformOsChart');
                 if (data.os_versions && data.os_versions.length > 0) {
-                    createBarChart('platformOsChart', data.os_versions.map(o => o.version), data.os_versions.map(o => o.count), 'Count');
+                    if (charts.platformOs) charts.platformOs.destroy();
+                    charts.platformOs = createBarChart('platformOsChart', data.os_versions.map(o => o.version), data.os_versions.map(o => o.count), 'Count');
+                } else {
+                    _heatmapEmpty('platformOsChart', 'No OS version data yet — events need device_info or InjectGlobalContext running on the client.');
                 }
+
+                _heatmapClear('platformDeviceChart');
                 if (data.top_devices && data.top_devices.length > 0) {
-                    createBarChart('platformDeviceChart', data.top_devices.map(d => d.model), data.top_devices.map(d => d.count), 'Count');
+                    if (charts.platformDevice) charts.platformDevice.destroy();
+                    charts.platformDevice = createBarChart('platformDeviceChart', data.top_devices.map(d => d.model), data.top_devices.map(d => d.count), 'Count');
+                } else {
+                    _heatmapEmpty('platformDeviceChart', 'No device model data yet — events need device_model in the payload via InjectGlobalContext.');
                 }
             } catch(e) { console.error('Platforms error:', e); }
         }
@@ -6020,6 +6258,13 @@
         // ═══════════════════════════════════════════════════════════════
         //  ARCADE TAB — loads and renders all arcade game analytics
         // ═══════════════════════════════════════════════════════════════
+        const ARCADE_GAME_IDS = {
+            chess:   '5c68cf9d-b738-4cca-bbb0-0ce80748239e',
+            crystal: '650636ba-7fa7-4441-9223-08ecd79677ae',
+            hex:     '02290eb7-bdd5-4dc2-b5d3-619127eeaa99'
+        };
+        const ARCADE_ALL_IDS = Object.values(ARCADE_GAME_IDS);
+
         let _arcadeCache = null;
         let _arcadeChartGames = null;
         let _arcadeChartHexCombos = null;
@@ -6034,11 +6279,17 @@
             kpiIds.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '…'; });
 
             try {
-                // Fetch last N days of arcade events (up to 500)
+                // Always query all 3 arcade game IDs so we catch events regardless
+                // of which game is selected in the global game-selector dropdown.
+                // Also include QuizVerse UUID since arcade events fired from inside
+                // the QuizVerse shell may carry that game_id.
                 const data = await callRpc('dashboard_events_timeline', {
                     days: selectedDays || 30,
                     limit: 500,
-                    ...getGamePayload()
+                    game_ids: [
+                        ...ARCADE_ALL_IDS,
+                        '126bf539-dae2-4bcf-964d-316c0fa1f92b'   // QuizVerse (arcade hub host)
+                    ]
                 });
                 const events = (data && data.events) ? data.events : [];
                 _arcadeCache = events;
@@ -6555,7 +6806,30 @@
             if (!srcCanvas) return;
             const srcChart = Chart.getChart(srcCanvas)
                           || Object.values(window.charts || {}).find(c => c && c.canvas === srcCanvas);
-            if (!srcChart) { showToast('Chart not ready', 'warn', 1800); return; }
+            if (!srcChart) {
+                const modal = document.getElementById('fullscreenModal');
+                const modalCanvas = document.getElementById('modalCanvas');
+                document.getElementById('modalTitle').textContent = title || 'Chart';
+                if (_modalChartInstance) { _modalChartInstance.destroy(); _modalChartInstance = null; }
+                modal.classList.add('open');
+                document.body.style.overflow = 'hidden';
+                modalCanvas.style.display = 'none';
+                let emptyEl = modal.querySelector('.modal-empty-state');
+                if (!emptyEl) {
+                    emptyEl = document.createElement('div');
+                    emptyEl.className = 'modal-empty-state';
+                    emptyEl.style.cssText = 'color:var(--text-muted);text-align:center;padding:3rem;font-size:1rem;';
+                    modalCanvas.parentElement.insertBefore(emptyEl, modalCanvas);
+                }
+                const parentBody = srcCanvas.parentElement;
+                const inlineMsg = parentBody && parentBody.querySelector('.heatmap-empty');
+                emptyEl.textContent = (inlineMsg && inlineMsg.textContent) || 'No data available for this chart.';
+                return;
+            }
+            const modalCanvas2 = document.getElementById('modalCanvas');
+            if (modalCanvas2) modalCanvas2.style.display = '';
+            const existingEmpty = document.getElementById('fullscreenModal') && document.getElementById('fullscreenModal').querySelector('.modal-empty-state');
+            if (existingEmpty) existingEmpty.remove();
 
             const modal = document.getElementById('fullscreenModal');
             const modalCanvas = document.getElementById('modalCanvas');
@@ -6564,18 +6838,67 @@
             // Destroy previous modal chart
             if (_modalChartInstance) { _modalChartInstance.destroy(); _modalChartInstance = null; }
 
-            // Deep-clone the config
-            const cfg = JSON.parse(JSON.stringify(srcChart.config));
-            if (cfg.options) {
-                cfg.options.responsive  = true;
-                cfg.options.maintainAspectRatio = false;
-                if (!cfg.options.animation) cfg.options.animation = {};
-                cfg.options.animation.duration = 400;
-            }
-            _modalChartInstance = new Chart(modalCanvas, cfg);
-
+            // Open modal FIRST so the canvas has real dimensions when Chart.js
+            // measures it. Creating the chart while the modal is display:none
+            // gives a 0×0 canvas and renders blank.
             modal.classList.add('open');
             document.body.style.overflow = 'hidden';
+
+            // Wait one animation frame for the browser to lay out the modal,
+            // then build a safe config and create the chart.
+            requestAnimationFrame(() => {
+                try {
+                    // Build a safe config by copying only plain-data fields.
+                    // JSON.parse/stringify silently corrupts Chart.js configs that
+                    // contain CanvasGradient colors, plugin callback functions, or
+                    // circular refs — producing a blank render even when no error
+                    // is thrown. Instead we copy labels/data arrays directly and
+                    // reconstruct a clean options object.
+                    const srcData = srcChart.data;
+                    const srcOpts = srcChart.options || {};
+                    const cfg = {
+                        type: srcChart.config.type,
+                        data: {
+                            labels: srcData.labels ? srcData.labels.slice() : [],
+                            datasets: (srcData.datasets || []).map(function(ds) {
+                                return {
+                                    label:                ds.label,
+                                    data:                 (ds.data || []).slice(),
+                                    backgroundColor:      ds.backgroundColor,
+                                    borderColor:          ds.borderColor,
+                                    borderWidth:          ds.borderWidth,
+                                    fill:                 ds.fill,
+                                    tension:              ds.tension,
+                                    pointBackgroundColor: ds.pointBackgroundColor,
+                                    pointRadius:          ds.pointRadius,
+                                    type:                 ds.type
+                                };
+                            })
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            animation: { duration: 400 },
+                            plugins: {
+                                legend:  srcOpts.plugins && srcOpts.plugins.legend  ? srcOpts.plugins.legend  : {},
+                                tooltip: {}   // callbacks can't survive cloning; reset to defaults
+                            },
+                            scales: srcOpts.scales || {}
+                        }
+                    };
+
+                    // Replace the canvas element to clear any residual Chart.js state
+                    const wrap = modalCanvas.parentNode;
+                    modalCanvas.remove();
+                    const freshCanvas = document.createElement('canvas');
+                    freshCanvas.id = 'modalCanvas';
+                    wrap.appendChild(freshCanvas);
+                    _modalChartInstance = new Chart(freshCanvas, cfg);
+                } catch (err) {
+                    console.error('[expandChart] failed to render:', err);
+                    showToast('Could not expand chart', 'warn', 2500);
+                }
+            });
         }
 
         function closeFullscreen() {

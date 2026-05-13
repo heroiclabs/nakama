@@ -3,7 +3,13 @@
 
 var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
-var KNOWN_GAMES = ["quizverse", "lasttolive"];
+var KNOWN_GAMES = [
+    "quizverse", "lasttolive",
+    // Arcade mini-games
+    "5c68cf9d-b738-4cca-bbb0-0ce80748239e",  // Chess Puzzles
+    "650636ba-7fa7-4441-9223-08ecd79677ae",  // Crystal 2048
+    "02290eb7-bdd5-4dc2-b5d3-619127eeaa99"   // Hex 2248
+];
 
 // ============================================================================
 // HELPERS

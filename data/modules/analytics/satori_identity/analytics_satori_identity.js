@@ -682,19 +682,39 @@ function siAutoRunIfNeeded(ctx, nk, logger) {
         if (now < siPiggybackNextAllowedSec) return null;
         siPiggybackNextAllowedSec = now + SI_PIGGYBACK_DEBOUNCE_SEC;
 
-        // Build a minimal admin-scoped data bag for siRequireAdmin to accept.
-        var envSecret = (ctx && ctx.env && ctx.env["DASHBOARD_SECRET"]) || "";
+        // Use a system-user context so the admin gate always passes.
+        // siAutoRunIfNeeded is only called from rpcAnalyticsLogEvent (internal
+        // path) — never from a client RPC. The process-local debounce already
+        // rate-limits to at most one batch per hour, so no abuse surface here.
+        var sysCtx = { userId: SI_SYSTEM_USER, env: (ctx && ctx.env) || {} };
         var batchData = { limit: SI_PIGGYBACK_BATCH_LIMIT };
-        if (envSecret) batchData.dashboard_secret = envSecret;
-
-        // Re-use the same batch RPC function (not the HTTP endpoint).
-        // Wrap ctx temporarily so it satisfies the admin gate via secret.
         var fakePayload = JSON.stringify(batchData);
-        var result = JSON.parse(rpcSatoriIdentityBatch(ctx, logger, nk, fakePayload) || "{}");
-        if (logger && logger.info && result.synced > 0) {
-            logger.info("[satori_identity] piggyback synced=" + result.synced +
-                        " skipped=" + result.skipped);
+        var result = JSON.parse(rpcSatoriIdentityBatch(sysCtx, logger, nk, fakePayload) || "{}");
+        if (logger && logger.info) {
+            logger.info("[satori_identity] piggyback synced=" + (result.synced || 0) +
+                        " skipped=" + (result.skipped || 0) +
+                        " errors=" + (result.errors || 0));
         }
+
+        // Write a sync heartbeat so the Pipeline Health freshness check knows
+        // the Satori identity-sync stage is running, even when all users were
+        // recently synced (skipped > 0) and no new state docs were written.
+        try {
+            nk.storageWrite([{
+                collection: "analytics_rollup_meta",
+                key:        "satori_sync_heartbeat",
+                userId:     SI_SYSTEM_USER,
+                value:      {
+                    timestamp:  new Date().toISOString(),
+                    synced:     result.synced  || 0,
+                    skipped:    result.skipped || 0,
+                    errors:     result.errors  || 0,
+                    has_more:   result.has_more || false
+                },
+                permissionRead: 0, permissionWrite: 0
+            }]);
+        } catch (eHb) { /* best-effort — never block the piggyback */ }
+
         return result;
     } catch (e) {
         if (logger && logger.warn) {
