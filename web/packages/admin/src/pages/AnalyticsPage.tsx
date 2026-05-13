@@ -121,13 +121,9 @@ type TabKey = (typeof TABS)[number]["key"];
 
 /**
  * URL of the standalone analytics dashboard (web/analytics-dashboard/index.html).
- * Hosted by the Nakama console at `/analytics.html` in production. Override via
- * VITE_ANALYTICS_DASHBOARD_URL when iterating locally.
+ * Points directly to the production analytics dashboard.
  */
-const STANDALONE_DASHBOARD_URL =
-  (import.meta as unknown as { env?: Record<string, string | undefined> }).env
-    ?.VITE_ANALYTICS_DASHBOARD_URL ??
-  "https://nakama.intelli-verse-x.ai/analytics.html";
+const STANDALONE_DASHBOARD_URL = "https://nakama.intelli-verse-x.ai/analytics.html";
 
 /* ------------------------------------------------------------------ */
 /*  Utility                                                            */
@@ -1669,7 +1665,7 @@ export function AnalyticsPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
           <p className="text-muted-foreground">
-            Metrics, data lake, and cohort analysis
+            Metrics, data lake, and cohort analysis``
           </p>
         </div>
         <button
