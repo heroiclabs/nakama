@@ -687,9 +687,10 @@ func NewRuntime(ctx context.Context, logger, startupLogger *zap.Logger, db *sql.
 		config.GetSatori().SigningKey,
 		config.GetSession().TokenExpirySec,
 		int64(config.GetSatori().HttpTimeoutMs),
+		int64(config.GetSatori().CacheTTLSec),
 		!config.GetSatori().CacheDisabled,
 		config.GetSatori().CacheMode,
-		int64(config.GetSatori().CacheTTLSec),
+		config.GetSatori().RetryCount,
 	)
 
 	goModules,

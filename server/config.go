@@ -1462,6 +1462,7 @@ type SatoriConfig struct {
 	CacheTTLSec   int    `yaml:"cache_ttl_sec" json:"cache_ttl_sec" usage:"Cache TTL in seconds. Only used if caching is enabled and cache mode is 'time'. Default is 300 (5 minutes)."`
 	HttpTimeoutMs int    `yaml:"http_timeout_ms" json:"http_timeout_ms" usage:"Timeout for HTTP requests to Satori in milliseconds. Default 10000 (10 seconds)."`
 	ServerKey     string `yaml:"server_key" json:"server_key" usage:"Satori server key."`
+	RetryCount    int    `yaml:"retry_count" json:"retry_count" usage:"Maximum number of retries after a request fails. Defaults to 0 (no retries)."`
 }
 
 func (sc *SatoriConfig) GetUrl() string {
