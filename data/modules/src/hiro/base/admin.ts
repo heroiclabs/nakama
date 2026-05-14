@@ -1158,6 +1158,7 @@ namespace AdminConsole {
     var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {});
     var events: any[] = [];
 
+    // Add Satori-managed events
     for (var id in eventsConfig) {
       var def = eventsConfig[id] || {};
       events.push({
@@ -1172,6 +1173,44 @@ namespace AdminConsole {
         created_at: isoFromSec(def.createdAt),
         updated_at: isoFromSec(def.updatedAt)
       });
+    }
+
+    // Also fetch creator-portal events from Nakama storage (live_events collection)
+    try {
+      var cursor = "";
+      var creatorEventsCollection = "live_events";
+      for (var page = 0; page < 10; page++) { // Max 10 pages = 1000 events
+        var result = nk.storageList("", creatorEventsCollection, 100, cursor);
+        var objects = result.objects || [];
+        
+        for (var i = 0; i < objects.length; i++) {
+          var obj = objects[i];
+          if (!obj.value) continue;
+          
+          var ev: any = obj.value;
+          // Filter by gameId if specified
+          if (gameId && ev.gameId && ev.gameId !== gameId) continue;
+          
+          // Convert creator event to admin dashboard format
+          events.push({
+            id: ev.id || obj.key,
+            name: ev.title || "Untitled Creator Event",
+            description: ev.description || "",
+            start_time_sec: ev.scheduledAt || ev.createdAt,
+            end_time_sec: ev.scheduledAt ? (ev.scheduledAt + (ev.duration || 30) * 60) : undefined,
+            rewards_json: ev.prizes ? JSON.stringify(ev.prizes) : undefined,
+            audiences: [],
+            enabled: ev.status === "published",
+            created_at: isoFromSec(ev.createdAt),
+            updated_at: isoFromSec(ev.publishedAt)
+          });
+        }
+        
+        cursor = result.cursor || "";
+        if (!cursor) break;
+      }
+    } catch (e: any) {
+      logger.warn("[rpcAdminLiveEventsList] Failed to fetch creator events: %s", e.message || String(e));
     }
 
     return RpcHelpers.successResponse({ events: events, game_id: gameId || Constants.DEFAULT_GAME_ID });
