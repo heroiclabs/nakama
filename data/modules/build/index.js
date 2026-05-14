@@ -7653,6 +7653,7 @@ var AdminConsole;
         var gameId = adminGameId(data);
         var eventsConfig = readScopedConfig(nk, Constants.SATORI_CONFIGS_COLLECTION, "live_events", gameId, {});
         var events = [];
+        // Add Satori-managed events
         for (var id in eventsConfig) {
             var def = eventsConfig[id] || {};
             events.push({
@@ -7667,6 +7668,43 @@ var AdminConsole;
                 created_at: isoFromSec(def.createdAt),
                 updated_at: isoFromSec(def.updatedAt)
             });
+        }
+        // Also fetch creator-portal events from Nakama storage (live_events collection)
+        try {
+            var cursor = "";
+            var creatorEventsCollection = "live_events";
+            for (var page = 0; page < 10; page++) { // Max 10 pages = 1000 events
+                var result = nk.storageList("", creatorEventsCollection, 100, cursor);
+                var objects = result.objects || [];
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    if (!obj.value)
+                        continue;
+                    var ev = obj.value;
+                    // Filter by gameId if specified
+                    if (gameId && ev.gameId && ev.gameId !== gameId)
+                        continue;
+                    // Convert creator event to admin dashboard format
+                    events.push({
+                        id: ev.id || obj.key,
+                        name: ev.title || "Untitled Creator Event",
+                        description: ev.description || "",
+                        start_time_sec: ev.scheduledAt || ev.createdAt,
+                        end_time_sec: ev.scheduledAt ? (ev.scheduledAt + (ev.duration || 30) * 60) : undefined,
+                        rewards_json: ev.prizes ? JSON.stringify(ev.prizes) : undefined,
+                        audiences: [],
+                        enabled: ev.status === "published",
+                        created_at: isoFromSec(ev.createdAt),
+                        updated_at: isoFromSec(ev.publishedAt)
+                    });
+                }
+                cursor = result.cursor || "";
+                if (!cursor)
+                    break;
+            }
+        }
+        catch (e) {
+            logger.warn("[rpcAdminLiveEventsList] Failed to fetch creator events: %s", e.message || String(e));
         }
         return RpcHelpers.successResponse({ events: events, game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
@@ -10765,43 +10803,216 @@ var LegacyAnalyticsRetention;
         }
         return RpcHelpers.successResponse({ eventType: eventType });
     }
+    function arpuResolveGameId(gameId) {
+        if (!gameId || gameId === "all" || gameId === "*")
+            return null;
+        var raw = String(gameId);
+        var lower = raw.toLowerCase();
+        if (lower === "quizverse" || lower === "quiz-verse")
+            return "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+        if (lower === "lasttolive" || lower === "last-to-live")
+            return "8f3b1c2a-5d6e-4f7a-9b8c-1d2e3f4a5b6c";
+        return raw;
+    }
+    function arpuReadRollup(nk, gameId, dayStr) {
+        return readAggStorage(nk, "analytics_rollup_daily", "rollup_" + (gameId || "all") + "_" + dayStr);
+    }
+    function arpuEventData(ev) {
+        return (ev && (ev.eventData || ev.properties || ev.data)) || {};
+    }
+    function arpuEventName(ev) {
+        if (!ev)
+            return "";
+        return String(ev.eventName || ev.event || ev.name || "").toLowerCase();
+    }
+    function arpuIsoDate(value) {
+        if (!value)
+            return "";
+        var parsed = new Date(value);
+        if (isNaN(parsed.getTime()))
+            return "";
+        return parsed.toISOString().split("T")[0];
+    }
+    function arpuTimestampDate(ev) {
+        var d = arpuEventData(ev);
+        var raw = ev.timestamp || ev.created_at || ev.createdAt || ev.time || d.timestamp || d.created_at || d.createdAt || d.time || "";
+        if (!raw)
+            return "";
+        if (typeof raw === "number") {
+            var seconds = raw > 10000000000 ? Math.floor(raw / 1000) : Math.floor(raw);
+            return new Date(seconds * 1000).toISOString().split("T")[0];
+        }
+        var asNumber = parseFloat(raw);
+        if (isFinite(asNumber) && String(raw).match(/^\d+(\.\d+)?$/)) {
+            var nSeconds = asNumber > 10000000000 ? Math.floor(asNumber / 1000) : Math.floor(asNumber);
+            return new Date(nSeconds * 1000).toISOString().split("T")[0];
+        }
+        return arpuIsoDate(raw);
+    }
+    function arpuDateFromKey(key) {
+        if (!key)
+            return "";
+        var parts = key.split("_");
+        for (var i = 0; i < parts.length; i++) {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(parts[i]))
+                return parts[i];
+        }
+        return "";
+    }
+    function arpuExtractGameIdFromKey(key) {
+        if (!key)
+            return null;
+        var parts = key.split("_");
+        if (parts.length < 2)
+            return null;
+        if (parts[0] === "dash" && parts.length >= 5) {
+            return /^\d{4}-\d{2}-\d{2}$/.test(parts[2]) ? parts[1] : null;
+        }
+        if (parts[0] === "event" && parts.length >= 5)
+            return parts[2];
+        if (parts.length >= 4)
+            return parts[0];
+        return null;
+    }
+    function arpuEventDate(ev, key) {
+        var d = arpuEventData(ev);
+        return arpuIsoDate(ev.date || d.date || d.event_date || d.eventDate) ||
+            arpuTimestampDate(ev) ||
+            arpuDateFromKey(key);
+    }
+    function arpuEventGameId(ev, key) {
+        var d = arpuEventData(ev);
+        return arpuResolveGameId(ev.gameId || ev.game_id || ev.gameID || d.gameId || d.game_id || d.gameID || arpuExtractGameIdFromKey(key));
+    }
+    function arpuRevenueAmount(d) {
+        var fields = ["price_usd", "priceUsd", "revenue_usd", "revenueUsd", "amount_usd", "amountUsd", "price", "amount", "value"];
+        for (var i = 0; i < fields.length; i++) {
+            var v = parseFloat(d[fields[i]]);
+            if (isFinite(v) && v > 0)
+                return v;
+        }
+        return 0;
+    }
+    function arpuIsPurchaseEvent(name) {
+        return name === "iap_purchased" ||
+            name === "purchase_completed" ||
+            name === "iap_completed" ||
+            name === "iap_purchase" ||
+            name === "product_purchased" ||
+            name === "store_purchase";
+    }
+    function arpuScanRevenueEvents(nk, gameId, daysBack, now) {
+        var cutoffDate = new Date(now - (daysBack - 1) * 86400000).toISOString().split("T")[0];
+        var out = { revenue: 0, purchases: 0, payingUsers: {}, activeUsers: {} };
+        var cursor = null;
+        var pages = 0;
+        try {
+            do {
+                var page = nk.storageList(Constants.SYSTEM_USER_ID, "analytics_events", 100, cursor);
+                if (!page || !page.objects)
+                    break;
+                for (var i = 0; i < page.objects.length; i++) {
+                    var obj = page.objects[i];
+                    var value = obj.value || {};
+                    var eventDate = arpuEventDate(value, obj.key);
+                    if (!eventDate || eventDate < cutoffDate)
+                        continue;
+                    var eventGameId = arpuEventGameId(value, obj.key);
+                    if (gameId && eventGameId !== gameId)
+                        continue;
+                    var d = arpuEventData(value);
+                    var uid = value.userId || value.user_id || d.userId || d.user_id || "";
+                    if (uid)
+                        out.activeUsers[uid] = true;
+                    var name = arpuEventName(value);
+                    if (!arpuIsPurchaseEvent(name))
+                        continue;
+                    out.purchases++;
+                    out.revenue += arpuRevenueAmount(d);
+                    if (uid)
+                        out.payingUsers[uid] = true;
+                }
+                cursor = page.cursor || null;
+                pages++;
+            } while (cursor && pages < 20);
+        }
+        catch (_) { }
+        return out;
+    }
     function rpcArpu(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);
         var period = data.period || "30d";
-        var gameId = data.gameId || null;
+        var gameId = arpuResolveGameId(data.gameId || data.game_id || null);
         var daysBack = period === "7d" ? 7 : period === "90d" ? 90 : 30;
         var now = Date.now();
         var totalRevenue = 0;
         var totalPurchases = 0;
         var uniquePayingUsers = [];
+        var uniquePayingUserMap = {};
         var totalActiveUsers = 0;
+        var rollupDays = 0;
+        var legacyRevenueDays = 0;
         for (var d = 0; d < daysBack; d++) {
             var dayStr = new Date(now - d * 86400000).toISOString().split("T")[0];
-            var revData = readAggStorage(nk, "analytics_revenue", "revenue_" + dayStr);
-            if (revData) {
-                totalRevenue += revData.totalAmount || 0;
-                totalPurchases += revData.purchaseCount || 0;
-                if (revData.payingUsers) {
-                    for (var i = 0; i < revData.payingUsers.length; i++) {
-                        if (uniquePayingUsers.indexOf(revData.payingUsers[i]) === -1)
-                            uniquePayingUsers.push(revData.payingUsers[i]);
-                    }
-                }
+            var rollup = arpuReadRollup(nk, gameId, dayStr);
+            if (rollup) {
+                var r = rollup.revenue || {};
+                totalRevenue += parseFloat(r.usd || r.iap_revenue_usd || 0) || 0;
+                totalPurchases += parseInt(r.iap_count || r.purchaseCount || 0, 10) || 0;
+                if (typeof rollup.dau === "number")
+                    totalActiveUsers += rollup.dau;
+                rollupDays++;
             }
-            var dauKey = gameId ? "dau_" + gameId + "_" + dayStr : "dau_platform_" + dayStr;
-            var dauData = readAggStorage(nk, "analytics_dau", dauKey);
-            if (dauData && dauData.count)
-                totalActiveUsers += dauData.count;
+            else {
+                var revData = readAggStorage(nk, "analytics_revenue", "revenue_" + dayStr);
+                if (revData) {
+                    totalRevenue += parseFloat(revData.totalAmount || 0) || 0;
+                    totalPurchases += parseInt(revData.purchaseCount || 0, 10) || 0;
+                    if (revData.payingUsers) {
+                        for (var i = 0; i < revData.payingUsers.length; i++) {
+                            uniquePayingUserMap[revData.payingUsers[i]] = true;
+                        }
+                    }
+                    legacyRevenueDays++;
+                }
+                var dauKey = gameId ? "dau_" + gameId + "_" + dayStr : "dau_platform_" + dayStr;
+                var dauData = readAggStorage(nk, "analytics_dau", dauKey);
+                if (dauData && dauData.count)
+                    totalActiveUsers += dauData.count;
+            }
         }
-        var avgDau = daysBack > 0 ? Math.round(totalActiveUsers / daysBack) : 0;
+        var scanned = arpuScanRevenueEvents(nk, gameId, daysBack, now);
+        for (var payer in scanned.payingUsers) {
+            if (scanned.payingUsers.hasOwnProperty(payer))
+                uniquePayingUserMap[payer] = true;
+        }
+        for (var p in uniquePayingUserMap) {
+            if (uniquePayingUserMap.hasOwnProperty(p))
+                uniquePayingUsers.push(p);
+        }
+        if (totalPurchases === 0 && scanned.purchases > 0)
+            totalPurchases = scanned.purchases;
+        if (totalRevenue === 0 && scanned.revenue > 0)
+            totalRevenue = scanned.revenue;
+        var scannedActiveUsers = Object.keys(scanned.activeUsers).length;
+        if (totalActiveUsers === 0 && scannedActiveUsers > 0)
+            totalActiveUsers = scannedActiveUsers;
+        var avgDau = daysBack > 0 ? Math.round((totalActiveUsers / daysBack) * 100) / 100 : 0;
         var arpu = avgDau > 0 ? (totalRevenue / avgDau).toFixed(2) : "0.00";
         var arppu = uniquePayingUsers.length > 0 ? (totalRevenue / uniquePayingUsers.length).toFixed(2) : "0.00";
+        var conversionBase = scannedActiveUsers > 0 ? scannedActiveUsers : totalActiveUsers;
         return RpcHelpers.successResponse({
             period: period, daysBack: daysBack, totalRevenue: totalRevenue,
             totalPurchases: totalPurchases, uniquePayingUsers: uniquePayingUsers.length,
             avgDau: avgDau, arpu: parseFloat(arpu), arppu: parseFloat(arppu),
-            conversionRate: avgDau > 0 ? ((uniquePayingUsers.length / avgDau) * 100).toFixed(2) + "%" : "0%",
-            gameId: gameId
+            conversionRate: conversionBase > 0 ? ((uniquePayingUsers.length / conversionBase) * 100).toFixed(2) + "%" : "0%",
+            gameId: gameId,
+            meta: {
+                rollupDays: rollupDays,
+                legacyRevenueDays: legacyRevenueDays,
+                eventPurchases: scanned.purchases,
+                eventActiveUsers: scannedActiveUsers
+            }
         });
     }
     function rpcTrackRevenue(ctx, logger, nk, payload) {
