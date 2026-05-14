@@ -1288,9 +1288,7 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 
 		res, err := s.httpc.Do(req)
 		if err != nil {
-			retryErr = err
-			// Attempt a retry if request fails to reach server.
-			continue
+			return nil, err
 		}
 
 		resBody, err := io.ReadAll(res.Body)
