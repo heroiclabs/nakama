@@ -1,0 +1,114 @@
+version: 0.2
+
+# AWS CodeBuild spec for nakama-admin-dashboard.
+#
+# This builds the React-based admin dashboard from web/packages/admin
+# and deploys it to the nakama-admin-dashboard deployment in Kubernetes.
+#
+# Pipeline: nakama-admin-dashboard-pipeline
+# Trigger: Push to master branch (files in web/packages/admin/** or web/packages/shared/**)
+#
+# Required CodeBuild env vars:
+#   AWS_DEFAULT_REGION         e.g. us-east-1
+#   AWS_ACCOUNT_ID             e.g. 970547373533
+#   EKS_CLUSTER_NAME           e.g. ai-cart-auto-cluster
+#   K8S_NAMESPACE              e.g. aicart
+#   K8S_DEPLOYMENT             e.g. nakama-admin-dashboard
+#   K8S_CONTAINER              e.g. admin-dashboard
+#   ECR_REPOSITORY             e.g. nakama-admin-dashboard
+
+env:
+  variables:
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_ACCOUNT_ID: "970547373533"
+    EKS_CLUSTER_NAME: ai-cart-auto-cluster
+    K8S_NAMESPACE: aicart
+    K8S_DEPLOYMENT: nakama-admin-dashboard
+    K8S_CONTAINER: admin-dashboard
+    ECR_REPOSITORY: nakama-admin-dashboard
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing kubectl..."
+      - curl -sLO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+      - chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+      - kubectl version --client=true --output=yaml || true
+      - echo "Installing pnpm..."
+      - npm install -g pnpm@9
+
+  pre_build:
+    commands:
+      - echo "=== Computing image tags ==="
+      - COMMIT_HASH=$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c 1-7)
+      - if [ -z "$COMMIT_HASH" ]; then COMMIT_HASH="nogit"; fi
+      - BUILD_DATE=$(date +%Y%m%d-%H%M)
+      - IMAGE_VERSION="multigame-dashboard-monaco-${BUILD_DATE}-${COMMIT_HASH}"
+      - REPOSITORY_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPOSITORY}"
+      - echo "IMAGE_VERSION=$IMAGE_VERSION"
+      - echo "REPOSITORY_URI=$REPOSITORY_URI"
+      - echo "=== Logging into ECR ==="
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+      - echo "=== Configuring kubectl for EKS ==="
+      - aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER_NAME"
+      - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}' || true
+
+  build:
+    on-failure: ABORT
+    commands:
+      - echo "=== Installing dependencies ==="
+      - cd web
+      - pnpm install --frozen-lockfile
+      - echo "=== Building admin dashboard ==="
+      - pnpm -F @nakama/admin build
+      - cd ..
+      - echo "=== Building Docker image ==="
+      - cd web/packages/admin
+      - docker build -t "${REPOSITORY_URI}:${IMAGE_VERSION}" -t "${REPOSITORY_URI}:latest" .
+      - cd ../../..
+      - echo "=== Built image ==="
+      - docker images --digests "${REPOSITORY_URI}" | head -5
+
+  post_build:
+    commands:
+      - echo "=== Pushing immutable tag ${IMAGE_VERSION} ==="
+      - docker push "${REPOSITORY_URI}:${IMAGE_VERSION}"
+      - echo "=== Pushing :latest ==="
+      - docker push "${REPOSITORY_URI}:latest"
+      - echo "=== Resolving immutable digest from ECR ==="
+      - >
+        IMAGE_DIGEST=$(aws ecr describe-images
+        --repository-name "$ECR_REPOSITORY"
+        --image-ids imageTag="$IMAGE_VERSION"
+        --query 'imageDetails[0].imageDigest' --output text)
+      - echo "IMAGE_DIGEST=$IMAGE_DIGEST"
+      - echo "=== Capturing pre-rollout image for rollback ==="
+      - >
+        PREVIOUS_IMAGE=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE"
+        -o jsonpath='{.spec.template.spec.containers[0].image}')
+      - echo "PREVIOUS_IMAGE=$PREVIOUS_IMAGE"
+      - echo "=== Rolling deployment to ${IMAGE_VERSION} ==="
+      - >
+        kubectl set image
+        deployment/"$K8S_DEPLOYMENT"
+        "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
+        -n "$K8S_NAMESPACE"
+      - echo "=== Waiting for rollout ==="
+      - kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=5m
+      - echo "=== Verifying live image ==="
+      - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+      - kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
+      - printf '{"image":"%s","tag":"%s","git":"%s","previous_image":"%s"}\n' "${REPOSITORY_URI}@${IMAGE_DIGEST}" "$IMAGE_VERSION" "$CODEBUILD_RESOLVED_SOURCE_VERSION" "$PREVIOUS_IMAGE" > admin-dashboard-manifest.json
+
+artifacts:
+  files:
+    - admin-dashboard-manifest.json
+  name: nakama-admin-dashboard-build-${CODEBUILD_BUILD_NUMBER}
+
+cache:
+  paths:
+    - 'web/node_modules/**/*'
+    - 'web/packages/admin/node_modules/**/*'
+    - 'web/packages/shared/node_modules/**/*'
