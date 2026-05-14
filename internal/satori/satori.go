@@ -1256,14 +1256,8 @@ func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, templateId 
 }
 
 func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken string, url string, method string, queryParams url.Values, payload []byte, ipAddress ...string) ([]byte, error) {
-	retryCount := s.retryCount
-	if retryCount == 0 {
-		// No retries, allow a single request through.
-		retryCount = 1
-	}
-
 	var retryErr error
-	for attempt := 0; attempt < retryCount; attempt++ {
+	for attempt := 0; attempt <= s.retryCount; attempt++ {
 		var reader io.Reader
 		if payload != nil {
 			reader = bytes.NewReader(payload)
@@ -1294,7 +1288,9 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 
 		res, err := s.httpc.Do(req)
 		if err != nil {
-			return nil, err
+			retryErr = err
+			// Attempt a retry if request fails to reach server.
+			continue
 		}
 
 		resBody, err := io.ReadAll(res.Body)
