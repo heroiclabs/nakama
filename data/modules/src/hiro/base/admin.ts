@@ -1175,12 +1175,14 @@ namespace AdminConsole {
       });
     }
 
-    // Also fetch creator-portal events from Nakama storage (live_events collection)
+    // Also fetch creator-portal events from Nakama storage (live_events collection).
+    // Events published via creator_live_event_publish RPC are stored under the system
+    // user ID so storageList can find them without needing to know individual creator IDs.
     try {
       var cursor = "";
       var creatorEventsCollection = "live_events";
       for (var page = 0; page < 10; page++) { // Max 10 pages = 1000 events
-        var result = nk.storageList("", creatorEventsCollection, 100, cursor);
+        var result = nk.storageList(Constants.SYSTEM_USER_ID, creatorEventsCollection, 100, cursor);
         var objects = result.objects || [];
         
         for (var i = 0; i < objects.length; i++) {
@@ -1214,6 +1216,46 @@ namespace AdminConsole {
     }
 
     return RpcHelpers.successResponse({ events: events, game_id: gameId || Constants.DEFAULT_GAME_ID });
+  }
+
+  // Called by the creator portal to publish a live event.
+  // Stores the event under the SYSTEM user ID so rpcAdminLiveEventsList
+  // can find it via storageList(SYSTEM_USER_ID, "live_events", ...).
+  // The original creatorId field is preserved inside the value for attribution.
+  function rpcCreatorLiveEventPublish(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var event: any = data.event || data;
+
+    if (!event.id) {
+      throw new Error("event.id is required");
+    }
+
+    // Tag with the calling user as creator if not already set
+    if (!event.creatorId && ctx.userId) {
+      event.creatorId = ctx.userId;
+    }
+
+    // Default gameId to QuizVerse if not provided
+    if (!event.gameId) {
+      event.gameId = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    }
+
+    if (!event.createdAt) {
+      event.createdAt = Math.floor(Date.now() / 1000);
+    }
+
+    // Store under SYSTEM user so admin storageList can find it
+    nk.storageWrite([{
+      collection: "live_events",
+      key: event.id,
+      userId: Constants.SYSTEM_USER_ID,
+      value: event,
+      permissionRead: 2,
+      permissionWrite: 0,
+    }]);
+
+    logger.info("[rpcCreatorLiveEventPublish] Published event %s by creator %s", event.id, event.creatorId || "unknown");
+    return RpcHelpers.successResponse({ eventId: event.id, success: true });
   }
 
   function rpcAdminMessagesList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -1756,6 +1798,8 @@ namespace AdminConsole {
     initializer.registerRpc("admin_satori_live_events_list", rpcAdminLiveEventsList);
     initializer.registerRpc("admin_flag_toggle", rpcFlagToggle);
     initializer.registerRpc("admin_live_event_schedule", rpcLiveEventSchedule);
+    // Creator portal live event publish (stores under system user for admin visibility)
+    initializer.registerRpc("creator_live_event_publish", rpcCreatorLiveEventPublish);
     initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
     initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
     initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
