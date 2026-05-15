@@ -954,7 +954,7 @@ func (s *SatoriClient) MessageUpdate(ctx context.Context, id, messageId string, 
 		return runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.JoinPath(fmt.Sprintf("/v1/message/%s", messageId)).String()
+	url := s.url.JoinPath("/v1/message/", messageId).String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -992,7 +992,7 @@ func (s *SatoriClient) MessageDelete(ctx context.Context, id, messageId string) 
 		return errors.New("message id cannot be an empty string")
 	}
 
-	url := s.url.JoinPath(fmt.Sprintf("/v1/message/%s", messageId)).String()
+	url := s.url.JoinPath("/v1/message/", messageId).String()
 
 	sessionToken, err := s.generateToken(ctx, id)
 	if err != nil {
@@ -1304,13 +1304,26 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 				return resBody, nil
 			}
 			return nil, nil
-		case http.StatusRequestTimeout, http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		case http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			res.Body.Close()
+
+			var delay time.Duration
+			if res.StatusCode == http.StatusTooManyRequests {
+				v := res.Header.Get("Retry-After")
+				if i, err := strconv.Atoi(v); err == nil {
+					delay = time.Duration(i) * time.Second
+				}
+			} else {
+				backoff := time.Duration(min((2<<attempt)*100, 1000)) * time.Millisecond
+				delay = backoff + time.Duration(rand.Int64N(100))*time.Millisecond
+			}
+
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
-			case <-time.After(time.Duration(attempt*100)*time.Millisecond + time.Duration(rand.Int64N(50))*time.Millisecond):
+			case <-time.After(delay):
 			}
+
 			retryLogger := s.logger
 			if len(resBody) > 0 {
 				retryLogger = retryLogger.With(zap.String("response_body", string(resBody)))
