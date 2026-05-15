@@ -103,7 +103,7 @@ RUN test -s /build/realtime_tick.so || (echo "realtime_tick plugin produced no o
 #
 # postbuild.js has zero external deps — only Node builtins (fs, path) — so
 # the minimal `node:20-alpine` image is all we need. Runs in ~1s.
-FROM node:20-alpine AS jsbuilder
+FROM public.ecr.aws/docker/library/node:20-alpine AS jsbuilder
 
 WORKDIR /data-modules
 COPY data/modules /data-modules/
