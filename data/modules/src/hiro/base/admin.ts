@@ -1171,7 +1171,8 @@ namespace AdminConsole {
         audiences: firstArray(def.audiences) || (def.audienceId ? [def.audienceId] : []),
         enabled: def.enabled !== false,
         created_at: isoFromSec(def.createdAt),
-        updated_at: isoFromSec(def.updatedAt)
+        updated_at: isoFromSec(def.updatedAt),
+        source: "satori_platform"
       });
     }
 
@@ -1192,19 +1193,67 @@ namespace AdminConsole {
           var ev: any = obj.value;
           // Filter by gameId if specified
           if (gameId && ev.gameId && ev.gameId !== gameId) continue;
+
+          // Compute dynamic status based on current time
+          var nowSec = Math.floor(Date.now() / 1000);
+          var startSec = ev.scheduledAt || ev.createdAt || 0;
+          var endSec = startSec + (ev.duration || 30) * 60;
+          var derivedStatus = ev.status;
+          if (derivedStatus === "published") {
+            if (nowSec >= startSec && nowSec < endSec) derivedStatus = "live";
+            else if (nowSec >= endSec) derivedStatus = "ended";
+          }
+
+          // Build rewards_json from giftCardPrizes or prizes array
+          var rewardsJson: string | undefined = undefined;
+          if (ev.giftCardPrizes && ev.giftCardPrizes.tiers) {
+            rewardsJson = JSON.stringify(ev.giftCardPrizes.tiers.map(function(t: any) {
+              return { type: t.brand || "prize", rank: t.rank, amount: t.value, currency: t.currency, label: t.prize };
+            }));
+          } else if (ev.prizes && ev.prizes.length > 0) {
+            rewardsJson = JSON.stringify(ev.prizes);
+          } else if (ev.prizePool > 0) {
+            rewardsJson = JSON.stringify([{ type: "xut", amount: ev.prizePool, currency: "XUT" }]);
+          }
           
-          // Convert creator event to admin dashboard format
+          // Convert creator event to admin dashboard format with QuizVerse-specific fields
           events.push({
+            // Satori-compatible base fields
             id: ev.id || obj.key,
             name: ev.title || "Untitled Creator Event",
             description: ev.description || "",
-            start_time_sec: ev.scheduledAt || ev.createdAt,
-            end_time_sec: ev.scheduledAt ? (ev.scheduledAt + (ev.duration || 30) * 60) : undefined,
-            rewards_json: ev.prizes ? JSON.stringify(ev.prizes) : undefined,
+            start_time_sec: startSec,
+            end_time_sec: endSec,
+            rewards_json: rewardsJson,
             audiences: [],
-            enabled: ev.status === "published",
+            enabled: ev.status !== "ended" && ev.status !== "cancelled",
             created_at: isoFromSec(ev.createdAt),
-            updated_at: isoFromSec(ev.publishedAt)
+            updated_at: isoFromSec(ev.publishedAt || ev.createdAt),
+
+            // QuizVerse creator event specific fields
+            source: "quizverse_creator",
+            creator_id: ev.creatorId || obj.userId,
+            game_id: ev.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+            game_mode: ev.gameMode || "best_guess",
+            difficulty: ev.difficulty || "challenge",
+            category: ev.category || "",
+            custom_topic: ev.customTopic || "",
+            participant_count: ev.participantCount || 0,
+            prize_pool: ev.prizePool || 0,
+            entry_fee: ev.entryFee || 0,
+            gift_card_prizes: ev.giftCardPrizes || null,
+            prize_funding: ev.prizeFunding || null,
+            visibility: ev.visibility || "public",
+            region: ev.region || "global",
+            timezone: ev.timezone || "UTC",
+            duration_minutes: ev.duration || 30,
+            clue_count: ev.clues ? ev.clues.length : 0,
+            question_count: ev.questions ? ev.questions.length : 0,
+            promo_video_url: ev.promoVideoUrl || "",
+            deep_link_url: ev.deepLinkUrl || "",
+            status: derivedStatus,
+            published_at: isoFromSec(ev.publishedAt),
+            ended_at: isoFromSec(ev.endedAt)
           });
         }
         
@@ -1256,6 +1305,148 @@ namespace AdminConsole {
 
     logger.info("[rpcCreatorLiveEventPublish] Published event %s by creator %s", event.id, event.creatorId || "unknown");
     return RpcHelpers.successResponse({ eventId: event.id, success: true });
+  }
+
+  // Get detailed stats for a creator event (participation, leaderboard, etc.)
+  function rpcAdminCreatorEventStats(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.event_id && !data.eventId) return RpcHelpers.errorResponse("event_id required");
+    var eventId = data.event_id || data.eventId;
+
+    // Read the event definition
+    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+    if (!eventRecords || eventRecords.length === 0) {
+      return RpcHelpers.errorResponse("Event not found");
+    }
+    var event: any = eventRecords[0].value;
+
+    // Try to read leaderboard for this event
+    var leaderboardId = "creator_event_" + eventId;
+    var leaderboard: any[] = [];
+    var totalParticipants = 0;
+
+    try {
+      var lbResult = nk.leaderboardRecordsList(leaderboardId, [], 50, "");
+      var records = lbResult.records || [];
+      totalParticipants = records.length;
+      
+      for (var i = 0; i < records.length; i++) {
+        var rec = records[i];
+        leaderboard.push({
+          rank: rec.rank || i + 1,
+          user_id: rec.ownerId,
+          username: rec.username || "",
+          score: rec.score || 0,
+          subscore: rec.subscore || 0
+        });
+      }
+    } catch (lbErr: any) {
+      logger.info("[rpcAdminCreatorEventStats] No leaderboard found for event %s: %s", eventId, lbErr.message || String(lbErr));
+    }
+
+    // Also scan event_answers collection for participation stats
+    var answersCount = 0;
+    var correctAnswers = 0;
+    try {
+      var cursor = "";
+      for (var page = 0; page < 5; page++) {
+        var result = nk.storageList("", "event_answers", 100, cursor);
+        var objects = result.objects || [];
+        for (var j = 0; j < objects.length; j++) {
+          var ans: any = objects[j].value;
+          if (ans && ans.eventId === eventId) {
+            answersCount++;
+            if (ans.correct) correctAnswers++;
+          }
+        }
+        cursor = result.cursor || "";
+        if (!cursor) break;
+      }
+    } catch (ansErr: any) {
+      logger.warn("[rpcAdminCreatorEventStats] Failed to scan answers: %s", ansErr.message || String(ansErr));
+    }
+
+    // Use stored participant count if available and higher
+    var participantCount = Math.max(event.participantCount || 0, totalParticipants, answersCount);
+
+    return RpcHelpers.successResponse({
+      event_id: eventId,
+      title: event.title,
+      game_mode: event.gameMode,
+      status: event.status,
+      total_participants: participantCount,
+      total_answers: answersCount,
+      correct_answers: correctAnswers,
+      completion_rate: participantCount > 0 ? ((answersCount / participantCount) * 100).toFixed(1) : "0",
+      accuracy_rate: answersCount > 0 ? ((correctAnswers / answersCount) * 100).toFixed(1) : "0",
+      prize_pool: event.prizePool || 0,
+      gift_card_prizes: event.giftCardPrizes || null,
+      leaderboard: leaderboard
+    });
+  }
+
+  // Admin action: End or disable a creator event
+  function rpcAdminCreatorEventEnd(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.event_id && !data.eventId) return RpcHelpers.errorResponse("event_id required");
+    var eventId = data.event_id || data.eventId;
+    var reason = data.reason || "Ended by admin";
+
+    // Read the event
+    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+    if (!eventRecords || eventRecords.length === 0) {
+      return RpcHelpers.errorResponse("Event not found");
+    }
+    var event: any = eventRecords[0].value;
+
+    // Update status
+    event.status = "ended";
+    event.endedAt = Math.floor(Date.now() / 1000);
+    event.endedBy = "admin";
+    event.endReason = reason;
+
+    // Write back
+    nk.storageWrite([{
+      collection: "live_events",
+      key: eventId,
+      userId: Constants.SYSTEM_USER_ID,
+      value: event,
+      permissionRead: 2,
+      permissionWrite: 0,
+    }]);
+
+    logAdminAudit(nk, ctx, "admin_creator_event_end", { eventId: eventId }, { reason: reason });
+    logger.info("[rpcAdminCreatorEventEnd] Admin ended creator event %s: %s", eventId, reason);
+
+    return RpcHelpers.successResponse({ success: true, event_id: eventId, status: "ended" });
+  }
+
+  // Admin action: Get full details of a single creator event
+  function rpcAdminCreatorEventGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.event_id && !data.eventId) return RpcHelpers.errorResponse("event_id required");
+    var eventId = data.event_id || data.eventId;
+
+    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+    if (!eventRecords || eventRecords.length === 0) {
+      return RpcHelpers.errorResponse("Event not found");
+    }
+
+    var event: any = eventRecords[0].value;
+    var record = eventRecords[0];
+
+    return RpcHelpers.successResponse({
+      event: {
+        ...event,
+        storage_user_id: record.userId,
+        storage_version: record.version,
+        storage_create_time: isoFromSec(record.createTime),
+        storage_update_time: isoFromSec(record.updateTime)
+      }
+    });
   }
 
   function rpcAdminMessagesList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -1800,6 +1991,10 @@ namespace AdminConsole {
     initializer.registerRpc("admin_live_event_schedule", rpcLiveEventSchedule);
     // Creator portal live event publish (stores under system user for admin visibility)
     initializer.registerRpc("creator_live_event_publish", rpcCreatorLiveEventPublish);
+    // Creator event admin operations
+    initializer.registerRpc("admin_creator_event_get", rpcAdminCreatorEventGet);
+    initializer.registerRpc("admin_creator_event_stats", rpcAdminCreatorEventStats);
+    initializer.registerRpc("admin_creator_event_end", rpcAdminCreatorEventEnd);
     initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
     initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
     initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
