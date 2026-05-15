@@ -3,5 +3,17 @@ export type { AuthMode, RpcOptions } from "./client";
 export * as nakama from "./nakama";
 export * as hiro from "./hiro";
 export * as satori from "./satori";
+export * as quizverse from "./quizverse";
 export type { FeatureFlag, LiveEvent } from "./satori";
+export type {
+  CreatorEvent,
+  CreatorEventStats,
+  CreatorEventDetail,
+  GiftCardPrizes,
+  GiftCardTier,
+  LeaderboardEntry,
+  EventStatus,
+  EventGameMode,
+  EventDifficulty,
+} from "./quizverse";
 export * from "./types";
