@@ -36,7 +36,7 @@ import {
   XCircle,
   Sparkles,
 } from "lucide-react";
-import { serverKeyAuth, satori, quizverse, type LiveEvent, type CreatorEvent, type CreatorEventStats as CEvtStats } from "@nakama/shared";
+import { serverKeyAuth, satori, quizverse, type LiveEvent, type CreatorEvent, type CreatorEventStats as CEvtStats, type LeaderboardEntry } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
 type EventStatus = "active" | "upcoming" | "ended" | "all";
@@ -169,7 +169,7 @@ function useCreatorEvents(gameScope: string) {
     queryFn: () => quizverse.listCreatorEvents(serverKeyAuth(), rpcGameId(gameScope)),
     select: (data) => {
       const all = data?.events ?? [];
-      return all.filter((ev) => ev.source === "quizverse_creator");
+      return all.filter((ev: CreatorEvent) => ev.source === "quizverse_creator");
     },
     staleTime: 30_000,
   });
@@ -187,8 +187,8 @@ function useCreatorEventStats(eventId: string | null) {
 function useEndCreatorEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ eventId, reason }: { eventId: string; reason: string }) =>
-      quizverse.endCreatorEvent(eventId, reason, serverKeyAuth()),
+    mutationFn: ({ eventId }: { eventId: string }) =>
+      quizverse.endCreatorEvent(eventId, serverKeyAuth()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quizverse", "creator_events"] }),
   });
 }
@@ -530,7 +530,7 @@ function formatPrizes(prizes?: CreatorEvent["gift_card_prizes"], prizePool?: num
   if (!prizes || !prizes.tiers?.length) return "No prizes";
   if (prizes.totalValue) return `$${prizes.totalValue.toLocaleString()} in gift cards`;
   const total = prizes.tiers.reduce(
-    (sum: number, t) => sum + (t.value ?? 0),
+    (sum: number, t: { value?: number }) => sum + (t.value ?? 0),
     0,
   );
   return `$${total.toLocaleString()} in gift cards`;
@@ -766,7 +766,7 @@ function CreatorEventStatsPanel({ event, stats, isLoading, onClose }: CreatorEve
         <div className="space-y-2">
           <h4 className="text-xs font-medium text-muted-foreground">Top Players</h4>
           <div className="rounded-lg border border-border divide-y divide-border overflow-hidden">
-            {stats.leaderboard.slice(0, 5).map((entry, idx) => (
+            {stats.leaderboard.slice(0, 5).map((entry: LeaderboardEntry, idx: number) => (
               <div key={entry.user_id} className="flex items-center justify-between px-3 py-2 text-sm">
                 <div className="flex items-center gap-2">
                   <span className={cn(
@@ -842,7 +842,7 @@ export function EventsPage() {
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
-        (ev) =>
+        (ev: CreatorEvent) =>
           ev.name?.toLowerCase().includes(q) ||
           ev.id?.toLowerCase().includes(q) ||
           ev.description?.toLowerCase().includes(q) ||
@@ -850,9 +850,9 @@ export function EventsPage() {
       );
     }
     if (statusFilter !== "all") {
-      list = list.filter((ev) => deriveCreatorStatus(ev) === statusFilter);
+      list = list.filter((ev: CreatorEvent) => deriveCreatorStatus(ev) === statusFilter);
     }
-    return list.sort((a, b) => (b.start_time_sec ?? 0) - (a.start_time_sec ?? 0));
+    return list.sort((a: CreatorEvent, b: CreatorEvent) => (b.start_time_sec ?? 0) - (a.start_time_sec ?? 0));
   }, [creatorEvents, search, statusFilter]);
 
   const counts = useMemo(() => {
@@ -902,7 +902,7 @@ export function EventsPage() {
       if (reason === null) return;
       setEndingId(ev.id);
       endEvent.mutate(
-        { eventId: ev.id, reason },
+        { eventId: ev.id },
         { onSettled: () => setEndingId(null) },
       );
     },
@@ -1130,7 +1130,7 @@ export function EventsPage() {
           {/* List */}
           {!creatorLoading && filteredCreator.length > 0 && (
             <div className="space-y-3">
-              {filteredCreator.map((ev) => (
+              {filteredCreator.map((ev: CreatorEvent) => (
                 <CreatorEventRow
                   key={ev.id}
                   event={ev}
