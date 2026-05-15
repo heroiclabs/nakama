@@ -187,8 +187,8 @@ function useCreatorEventStats(eventId: string | null) {
 function useEndCreatorEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ eventId }: { eventId: string }) =>
-      quizverse.endCreatorEvent(eventId, serverKeyAuth()),
+    mutationFn: ({ eventId, reason }: { eventId: string; reason?: string }) =>
+      quizverse.endCreatorEvent(eventId, reason ?? "admin_ended", serverKeyAuth()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quizverse", "creator_events"] }),
   });
 }
