@@ -187,8 +187,8 @@ function useCreatorEventStats(eventId: string | null) {
 function useEndCreatorEvent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ eventId, reason }: { eventId: string; reason: string }) =>
-      quizverse.endCreatorEvent(eventId, reason, serverKeyAuth()),
+    mutationFn: ({ eventId }: { eventId: string }) =>
+      quizverse.endCreatorEvent(eventId, serverKeyAuth()),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["quizverse", "creator_events"] }),
   });
 }
@@ -902,7 +902,7 @@ export function EventsPage() {
       if (reason === null) return;
       setEndingId(ev.id);
       endEvent.mutate(
-        { eventId: ev.id, reason },
+        { eventId: ev.id },
         { onSettled: () => setEndingId(null) },
       );
     },
