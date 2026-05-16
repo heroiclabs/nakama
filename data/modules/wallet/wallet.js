@@ -409,8 +409,152 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
         timestamp: utils.getCurrentTimestamp()
     });
 }
-// At top, make sure you have access to utils and getGameWallet
-// (these are already used in other functions in this file)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// TUTORX AI COIN GATE — tracks daily free tier + game wallet
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+var TUTORX_CONFIG = {
+    FREE_MESSAGES_PER_DAY: 3,
+    COST_PER_MESSAGE: 5,
+    COLLECTION: "tutorx_daily_usage"
+};
+
+/**
+ * RPC: Check if user can send TutorX AI message
+ * Returns daily free tier status + coin balance for gating
+ * Payload: { gameId: "uuid" } (optional, defaults to QuizVerse ID)
+ */
+function rpcTutorXCheckAllowance(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC tutorx_check_allowance called");
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+
+    var parsed = utils.safeJsonParse(payload || "{}");
+    var data = parsed.data || {};
+    var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+
+    var today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var usageKey = "usage_" + userId + "_" + today;
+
+    // Read today's usage
+    var usage = { usedToday: 0, date: today };
+    try {
+        var records = nk.storageRead([{
+            collection: TUTORX_CONFIG.COLLECTION,
+            key: usageKey,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            usage = records[0].value;
+            if (usage.date !== today) {
+                usage = { usedToday: 0, date: today };
+            }
+        }
+    } catch (err) {
+        utils.logWarn(logger, "tutorx_check_allowance: storage read error: " + err.message);
+    }
+
+    var freeRemaining = TUTORX_CONFIG.FREE_MESSAGES_PER_DAY - usage.usedToday;
+    if (freeRemaining < 0) freeRemaining = 0;
+
+    // Get game wallet balance
+    var coinBalance = 0;
+    try {
+        var wallet = getGameWallet(nk, logger, userId, gameId);
+        coinBalance = (wallet.currencies && (wallet.currencies.game || wallet.currencies.tokens)) || 0;
+    } catch (err) {
+        utils.logWarn(logger, "tutorx_check_allowance: wallet read error: " + err.message);
+    }
+
+    var canUse = freeRemaining > 0 || coinBalance >= TUTORX_CONFIG.COST_PER_MESSAGE;
+
+    return JSON.stringify({
+        success: true,
+        canUse: canUse,
+        freeRemaining: freeRemaining,
+        coinBalance: coinBalance,
+        costPerMsg: TUTORX_CONFIG.COST_PER_MESSAGE,
+        usedToday: usage.usedToday,
+        userId: userId,
+        gameId: gameId,
+        timestamp: utils.getCurrentTimestamp()
+    });
+}
+
+/**
+ * RPC: Record TutorX AI message usage
+ * Increments daily usage counter (call after each AI message)
+ * Payload: { gameId: "uuid" } (optional)
+ */
+function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC tutorx_record_usage called");
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+
+    var parsed = utils.safeJsonParse(payload || "{}");
+    var data = parsed.data || {};
+
+    var today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var usageKey = "usage_" + userId + "_" + today;
+
+    // Read current usage
+    var usage = { usedToday: 0, date: today };
+    try {
+        var records = nk.storageRead([{
+            collection: TUTORX_CONFIG.COLLECTION,
+            key: usageKey,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            usage = records[0].value;
+            if (usage.date !== today) {
+                usage = { usedToday: 0, date: today };
+            }
+        }
+    } catch (err) {
+        utils.logWarn(logger, "tutorx_record_usage: storage read error: " + err.message);
+    }
+
+    // Increment
+    usage.usedToday++;
+
+    // Write back
+    try {
+        nk.storageWrite([{
+            collection: TUTORX_CONFIG.COLLECTION,
+            key: usageKey,
+            userId: userId,
+            value: usage,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        utils.logError(logger, "tutorx_record_usage: storage write failed: " + err.message);
+        return utils.handleError(ctx, null, "Failed to record usage");
+    }
+
+    var freeRemaining = TUTORX_CONFIG.FREE_MESSAGES_PER_DAY - usage.usedToday;
+    if (freeRemaining < 0) freeRemaining = 0;
+
+    utils.logInfo(logger, "tutorx_record_usage: user=" + userId + " usedToday=" + usage.usedToday);
+
+    return JSON.stringify({
+        success: true,
+        usedToday: usage.usedToday,
+        freeRemaining: freeRemaining,
+        timestamp: utils.getCurrentTimestamp()
+    });
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// WALLET BALANCE RPC (existing)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // RPC: Get balances for a specific game wallet
 // Payload: { gameId: "uuid" }
