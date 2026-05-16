@@ -3344,6 +3344,139 @@ function getWalletRegistry(ctx, logger, nk, payload) {
     }
 }
 
+// ============================================================================
+// TUTORX AI COIN GATE - Daily Free Tier + Coin Gating for DeepTutor
+// ============================================================================
+
+var TUTORX_CONFIG = {
+    FREE_MESSAGES_PER_DAY: 3,
+    COST_PER_MESSAGE: 5,
+    COLLECTION: "tutorx_daily_usage"
+};
+
+/**
+ * RPC: tutorx_check_allowance
+ * Check if user can send an AI message (free tier or has coins)
+ */
+function rpcTutorXCheckAllowance(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC tutorx_check_allowance called");
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return handleError(ctx, null, "User not authenticated");
+    }
+
+    var parsed = safeJsonParse(payload || "{}");
+    var data = parsed.data || {};
+    var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+
+    var today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var usageKey = "usage_" + userId + "_" + today;
+
+    var usage = { usedToday: 0, date: today };
+    try {
+        var records = nk.storageRead([{
+            collection: TUTORX_CONFIG.COLLECTION,
+            key: usageKey,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            usage = records[0].value;
+            if (usage.date !== today) {
+                usage = { usedToday: 0, date: today };
+            }
+        }
+    } catch (err) {
+        logWarn(logger, "tutorx_check_allowance: storage read error: " + err.message);
+    }
+
+    var freeRemaining = TUTORX_CONFIG.FREE_MESSAGES_PER_DAY - usage.usedToday;
+    if (freeRemaining < 0) freeRemaining = 0;
+
+    var coinBalance = 0;
+    try {
+        var wallet = getGameWallet(nk, logger, userId, gameId);
+        coinBalance = (wallet.currencies && (wallet.currencies.game || wallet.currencies.tokens)) || 0;
+    } catch (err) {
+        logWarn(logger, "tutorx_check_allowance: wallet read error: " + err.message);
+    }
+
+    var canUse = freeRemaining > 0 || coinBalance >= TUTORX_CONFIG.COST_PER_MESSAGE;
+
+    return JSON.stringify({
+        success: true,
+        canUse: canUse,
+        freeRemaining: freeRemaining,
+        coinBalance: coinBalance,
+        costPerMsg: TUTORX_CONFIG.COST_PER_MESSAGE,
+        usedToday: usage.usedToday,
+        userId: userId,
+        gameId: gameId,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+/**
+ * RPC: tutorx_record_usage
+ * Record that user sent an AI message (increments daily counter)
+ */
+function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC tutorx_record_usage called");
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return handleError(ctx, null, "User not authenticated");
+    }
+
+    var today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    var usageKey = "usage_" + userId + "_" + today;
+
+    var usage = { usedToday: 0, date: today };
+    try {
+        var records = nk.storageRead([{
+            collection: TUTORX_CONFIG.COLLECTION,
+            key: usageKey,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            usage = records[0].value;
+            if (usage.date !== today) {
+                usage = { usedToday: 0, date: today };
+            }
+        }
+    } catch (err) {
+        logWarn(logger, "tutorx_record_usage: storage read error: " + err.message);
+    }
+
+    usage.usedToday++;
+
+    try {
+        nk.storageWrite([{
+            collection: TUTORX_CONFIG.COLLECTION,
+            key: usageKey,
+            userId: userId,
+            value: usage,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        logError(logger, "tutorx_record_usage: storage write failed: " + err.message);
+        return handleError(ctx, null, "Failed to record usage");
+    }
+
+    var freeRemaining = TUTORX_CONFIG.FREE_MESSAGES_PER_DAY - usage.usedToday;
+    if (freeRemaining < 0) freeRemaining = 0;
+
+    logInfo(logger, "tutorx_record_usage: user=" + userId + " usedToday=" + usage.usedToday);
+
+    return JSON.stringify({
+        success: true,
+        usedToday: usage.usedToday,
+        freeRemaining: freeRemaining,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
 /**
  * RPC: Get balances for a specific game wallet
  * @param {object} ctx - Request context
@@ -23620,6 +23753,18 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[Wallet] Successfully registered 5 Enhanced Wallet RPCs');
     } catch (err) {
         logger.error('[Wallet] Failed to initialize: ' + err.message);
+    }
+
+    // Register TutorX AI Coin Gate RPCs
+    try {
+        logger.info('[TutorX] Initializing TutorX AI Coin Gate Module...');
+        initializer.registerRpc('tutorx_check_allowance', rpcTutorXCheckAllowance);
+        logger.info('[TutorX] Registered RPC: tutorx_check_allowance');
+        initializer.registerRpc('tutorx_record_usage', rpcTutorXRecordUsage);
+        logger.info('[TutorX] Registered RPC: tutorx_record_usage');
+        logger.info('[TutorX] Successfully registered 2 TutorX AI Coin Gate RPCs');
+    } catch (err) {
+        logger.error('[TutorX] Failed to initialize: ' + err.message);
     }
 
     // Register Analytics RPCs
