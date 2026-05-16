@@ -1170,11 +1170,15 @@
         }
         #fullscreenModal .modal-close:hover { border-color: var(--danger); color: var(--danger); }
         #fullscreenModal .modal-canvas-wrap {
-            flex: 1;
+            flex: 1 1 auto;
             position: relative;
-            min-height: 0;
+            min-height: 200px;
+            overflow: hidden;
         }
         #fullscreenModal canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100% !important;
             height: 100% !important;
         }
@@ -6844,60 +6848,99 @@
             modal.classList.add('open');
             document.body.style.overflow = 'hidden';
 
-            // Wait one animation frame for the browser to lay out the modal,
-            // then build a safe config and create the chart.
+            // Use a double-RAF + setTimeout to ensure the modal is fully laid out.
+            // Single RAF sometimes fires before the browser finishes layout on some devices.
             requestAnimationFrame(() => {
-                try {
-                    // Build a safe config by copying only plain-data fields.
-                    // JSON.parse/stringify silently corrupts Chart.js configs that
-                    // contain CanvasGradient colors, plugin callback functions, or
-                    // circular refs — producing a blank render even when no error
-                    // is thrown. Instead we copy labels/data arrays directly and
-                    // reconstruct a clean options object.
-                    const srcData = srcChart.data;
-                    const srcOpts = srcChart.options || {};
-                    const cfg = {
-                        type: srcChart.config.type,
-                        data: {
-                            labels: srcData.labels ? srcData.labels.slice() : [],
-                            datasets: (srcData.datasets || []).map(function(ds) {
-                                return {
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        try {
+                            // Build a safe config by copying only plain-data fields.
+                            // JSON.parse/stringify silently corrupts Chart.js configs that
+                            // contain CanvasGradient colors, plugin callback functions, or
+                            // circular refs — producing a blank render even when no error
+                            // is thrown. Instead we copy labels/data arrays directly and
+                            // reconstruct a clean options object.
+                            const srcData = srcChart.data;
+                            const srcOpts = srcChart.options || {};
+                            const chartType = srcChart.config.type;
+                            
+                            // Copy dataset properties safely - include all common properties
+                            const copyDataset = function(ds) {
+                                const copy = {
                                     label:                ds.label,
-                                    data:                 (ds.data || []).slice(),
-                                    backgroundColor:      ds.backgroundColor,
-                                    borderColor:          ds.borderColor,
+                                    data:                 Array.isArray(ds.data) ? ds.data.slice() : ds.data,
+                                    backgroundColor:      Array.isArray(ds.backgroundColor) ? ds.backgroundColor.slice() : ds.backgroundColor,
+                                    borderColor:          Array.isArray(ds.borderColor) ? ds.borderColor.slice() : ds.borderColor,
                                     borderWidth:          ds.borderWidth,
                                     fill:                 ds.fill,
                                     tension:              ds.tension,
                                     pointBackgroundColor: ds.pointBackgroundColor,
+                                    pointBorderColor:     ds.pointBorderColor,
                                     pointRadius:          ds.pointRadius,
-                                    type:                 ds.type
+                                    pointHoverRadius:     ds.pointHoverRadius,
+                                    type:                 ds.type,
+                                    borderRadius:         ds.borderRadius,
+                                    hoverBackgroundColor: ds.hoverBackgroundColor,
+                                    hoverBorderColor:     ds.hoverBorderColor,
+                                    barThickness:         ds.barThickness,
+                                    maxBarThickness:      ds.maxBarThickness,
+                                    hoverOffset:          ds.hoverOffset,
+                                    cutout:               ds.cutout,
+                                    rotation:             ds.rotation,
+                                    circumference:        ds.circumference,
+                                    stepped:              ds.stepped,
+                                    spanGaps:             ds.spanGaps,
+                                    stack:                ds.stack,
+                                    yAxisID:              ds.yAxisID,
+                                    xAxisID:              ds.xAxisID,
+                                    order:                ds.order,
+                                    hidden:               ds.hidden
                                 };
-                            })
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            animation: { duration: 400 },
-                            plugins: {
-                                legend:  srcOpts.plugins && srcOpts.plugins.legend  ? srcOpts.plugins.legend  : {},
-                                tooltip: {}   // callbacks can't survive cloning; reset to defaults
-                            },
-                            scales: srcOpts.scales || {}
-                        }
-                    };
+                                Object.keys(copy).forEach(k => copy[k] === undefined && delete copy[k]);
+                                return copy;
+                            };
+                            
+                            const cfg = {
+                                type: chartType,
+                                data: {
+                                    labels: srcData.labels ? srcData.labels.slice() : [],
+                                    datasets: (srcData.datasets || []).map(copyDataset)
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    animation: { duration: 400 },
+                                    plugins: {
+                                        legend:  srcOpts.plugins && srcOpts.plugins.legend  ? srcOpts.plugins.legend  : {},
+                                        tooltip: {}   // callbacks can't survive cloning; reset to defaults
+                                    },
+                                    scales: srcOpts.scales || {}
+                                }
+                            };
 
-                    // Replace the canvas element to clear any residual Chart.js state
-                    const wrap = modalCanvas.parentNode;
-                    modalCanvas.remove();
-                    const freshCanvas = document.createElement('canvas');
-                    freshCanvas.id = 'modalCanvas';
-                    wrap.appendChild(freshCanvas);
-                    _modalChartInstance = new Chart(freshCanvas, cfg);
-                } catch (err) {
-                    console.error('[expandChart] failed to render:', err);
-                    showToast('Could not expand chart', 'warn', 2500);
-                }
+                            // Replace the canvas element to clear any residual Chart.js state
+                            const wrap = modalCanvas.parentNode;
+                            modalCanvas.remove();
+                            const freshCanvas = document.createElement('canvas');
+                            freshCanvas.id = 'modalCanvas';
+                            wrap.appendChild(freshCanvas);
+                            
+                            // Ensure the canvas wrapper has proper dimensions before creating chart
+                            const wrapRect = wrap.getBoundingClientRect();
+                            if (wrapRect.width > 0 && wrapRect.height > 0) {
+                                _modalChartInstance = new Chart(freshCanvas, cfg);
+                            } else {
+                                // Fallback: wait another frame if dimensions still zero
+                                setTimeout(() => {
+                                    _modalChartInstance = new Chart(freshCanvas, cfg);
+                                }, 100);
+                            }
+                        } catch (err) {
+                            console.error('[expandChart] failed to render:', err);
+                            showToast('Could not expand chart', 'warn', 2500);
+                        }
+                    }, 50);
+                });
             });
         }
 

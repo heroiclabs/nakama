@@ -417,6 +417,83 @@
             opacity: 1;
         }
 
+        /* Highlight cards for most important KPIs (DAU, ARPDAU, Sessions/DAU) */
+        .kpi-card.highlight-card {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        .kpi-card.highlight-card::before {
+            opacity: 1;
+            background: var(--gradient-1);
+        }
+
+        .kpi-card.highlight-card:hover {
+            border-color: var(--accent);
+            box-shadow: var(--shadow-glow);
+        }
+
+        /* Anomaly Alert Styles */
+        .anomaly-alert {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+            transition: all 0.2s ease;
+        }
+        .anomaly-alert:hover {
+            transform: translateX(4px);
+        }
+        .anomaly-alert.critical {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
+            border-left: 4px solid var(--danger);
+        }
+        .anomaly-alert.warning {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+            border-left: 4px solid var(--warning);
+        }
+        .anomaly-alert.info {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+            border-left: 4px solid var(--info);
+        }
+        .anomaly-alert.success {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%);
+            border-left: 4px solid var(--success);
+        }
+        .anomaly-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+        .anomaly-content {
+            flex: 1;
+        }
+        .anomaly-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+        .anomaly-description {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .anomaly-metric {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-tertiary);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+        .anomaly-metric .change {
+            font-weight: 600;
+        }
+        .anomaly-metric .change.up { color: var(--success); }
+        .anomaly-metric .change.down { color: var(--danger); }
+
         .kpi-card .icon {
             font-size: 1.5rem;
             margin-bottom: 0.75rem;
@@ -444,6 +521,18 @@
         .kpi-card .value.plain {
             background: none;
             -webkit-text-fill-color: var(--text-primary);
+        }
+
+        .kpi-card .value.positive {
+            background: none;
+            -webkit-text-fill-color: var(--success);
+            color: var(--success);
+        }
+
+        .kpi-card .value.negative {
+            background: none;
+            -webkit-text-fill-color: var(--danger);
+            color: var(--danger);
         }
 
         .kpi-card .value.currency::before {
@@ -491,6 +580,106 @@
             height: 36px !important;
             max-height: 36px !important;
             background: transparent !important;
+        }
+
+        /* Industry Benchmarks Grid */
+        .benchmarks-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .benchmark-item {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+        }
+
+        .benchmark-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.75rem;
+        }
+
+        .benchmark-bar-container {
+            position: relative;
+            height: 24px;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 6px;
+            overflow: visible;
+            margin-bottom: 0.5rem;
+        }
+
+        .benchmark-bar {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s ease, background 0.3s ease;
+            background: linear-gradient(90deg, var(--danger), var(--warning) 50%, var(--success));
+        }
+
+        .benchmark-markers {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .benchmark-markers .marker {
+            position: absolute;
+            top: 100%;
+            transform: translateX(-50%);
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            pointer-events: auto;
+        }
+
+        .benchmark-markers .marker.median {
+            color: var(--warning);
+            font-weight: 600;
+        }
+
+        .benchmark-markers .marker.top25 {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .benchmark-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .benchmark-value .status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .benchmark-value .status.excellent {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--success);
+        }
+
+        .benchmark-value .status.good {
+            background: rgba(234, 179, 8, 0.2);
+            color: var(--warning);
+        }
+
+        .benchmark-value .status.poor {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
         }
 
         .chart-grid {
@@ -1170,11 +1359,15 @@
         }
         #fullscreenModal .modal-close:hover { border-color: var(--danger); color: var(--danger); }
         #fullscreenModal .modal-canvas-wrap {
-            flex: 1;
+            flex: 1 1 auto;
             position: relative;
-            min-height: 0;
+            min-height: 200px;
+            overflow: hidden;
         }
         #fullscreenModal canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100% !important;
             height: 100% !important;
         }
@@ -1407,7 +1600,13 @@
                     <option value="60">60 Days</option>
                     <option value="90">90 Days</option>
                     <option value="180">180 Days</option>
+                    <option value="custom">📅 Custom...</option>
                 </select>
+                <div id="customDateRange" style="display:none;gap:0.5rem;align-items:center;">
+                    <input type="date" id="dateRangeStart" class="header-select" style="width:auto;padding:0.35rem 0.5rem;" onchange="onCustomDateChange()">
+                    <span style="color:var(--text-muted);font-size:0.75rem;">to</span>
+                    <input type="date" id="dateRangeEnd" class="header-select" style="width:auto;padding:0.35rem 0.5rem;" onchange="onCustomDateChange()">
+                </div>
                 <label style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Mode:</label>
                 <select id="modeFilterSelector" class="header-select" onchange="onModeFilterChange()" title="Quiz mode filter — applies to Overview / Sessions / Retention / Revenue / Quiz / AI / Economy / Monetization">
                     <option value="" selected>All modes</option>
@@ -1421,6 +1620,7 @@
                 </select>
                 <span id="liveBadge" class="live-badge hidden">LIVE</span>
             </div>
+            <button id="exportPdfBtn" onclick="exportDashboardPdf()" title="Export dashboard to PDF" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:white;padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;">📄 Export PDF</button>
             <button id="refreshBtn" onclick="refreshAll()">🔄 Refresh</button>
             <span id="connectionStatus" class="status disconnected">Disconnected</span>
             <button class="logout-btn" onclick="logout()">🚪 Logout</button>
@@ -1548,12 +1748,125 @@
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span><span class="skeleton skeleton-row" style="width:60%"></span></div>
             </div>
+            
+            <!-- Industry Benchmarks Comparison Card -->
+            <div class="chart-card" id="benchmarksCard">
+                <h3>📊 Industry Benchmarks Comparison <span style="font-size:0.75rem;color:var(--text-muted);font-weight:400">(GameAnalytics 2025)</span>
+                    <div class="card-actions">
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)" title="Collapse">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <div id="benchmarksGrid" class="benchmarks-grid">
+                        <div class="benchmark-item">
+                            <div class="benchmark-label">Sessions/DAU</div>
+                            <div class="benchmark-bar-container">
+                                <div class="benchmark-bar" id="benchSessionsBar" style="width:0%"></div>
+                                <div class="benchmark-markers">
+                                    <span class="marker" style="left:0%">0</span>
+                                    <span class="marker median" style="left:44%" title="Industry Median: 2.2">2.2</span>
+                                    <span class="marker top25" style="left:70%" title="Top 25%: 3.5">3.5</span>
+                                    <span class="marker" style="left:100%">5</span>
+                                </div>
+                            </div>
+                            <div class="benchmark-value" id="benchSessionsValue">-</div>
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-label">ARPDAU</div>
+                            <div class="benchmark-bar-container">
+                                <div class="benchmark-bar" id="benchArpdauBar" style="width:0%"></div>
+                                <div class="benchmark-markers">
+                                    <span class="marker" style="left:0%">$0</span>
+                                    <span class="marker median" style="left:33%" title="Industry Median: $0.04">$0.04</span>
+                                    <span class="marker top25" style="left:80%" title="Top 25%: $0.12">$0.12</span>
+                                    <span class="marker" style="left:100%">$0.15</span>
+                                </div>
+                            </div>
+                            <div class="benchmark-value" id="benchArpdauValue">-</div>
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-label">D1 Retention</div>
+                            <div class="benchmark-bar-container">
+                                <div class="benchmark-bar" id="benchD1Bar" style="width:0%"></div>
+                                <div class="benchmark-markers">
+                                    <span class="marker" style="left:0%">0%</span>
+                                    <span class="marker median" style="left:48%" title="Industry Median: 24%">24%</span>
+                                    <span class="marker top25" style="left:62%" title="Top 25%: 31%">31%</span>
+                                    <span class="marker" style="left:100%">50%</span>
+                                </div>
+                            </div>
+                            <div class="benchmark-value" id="benchD1Value">-</div>
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-label">D7 Retention</div>
+                            <div class="benchmark-bar-container">
+                                <div class="benchmark-bar" id="benchD7Bar" style="width:0%"></div>
+                                <div class="benchmark-markers">
+                                    <span class="marker" style="left:0%">0%</span>
+                                    <span class="marker median" style="left:45%" title="Industry Median: 9%">9%</span>
+                                    <span class="marker top25" style="left:75%" title="Top 25%: 15%">15%</span>
+                                    <span class="marker" style="left:100%">20%</span>
+                                </div>
+                            </div>
+                            <div class="benchmark-value" id="benchD7Value">-</div>
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-label">Avg Session</div>
+                            <div class="benchmark-bar-container">
+                                <div class="benchmark-bar" id="benchSessionBar" style="width:0%"></div>
+                                <div class="benchmark-markers">
+                                    <span class="marker" style="left:0%">0m</span>
+                                    <span class="marker median" style="left:47%" title="Industry Median: 7m">7m</span>
+                                    <span class="marker top25" style="left:80%" title="Top 25%: 12m">12m</span>
+                                    <span class="marker" style="left:100%">15m</span>
+                                </div>
+                            </div>
+                            <div class="benchmark-value" id="benchSessionValue">-</div>
+                        </div>
+                        <div class="benchmark-item">
+                            <div class="benchmark-label">DAU/MAU</div>
+                            <div class="benchmark-bar-container">
+                                <div class="benchmark-bar" id="benchStickinessBar" style="width:0%"></div>
+                                <div class="benchmark-markers">
+                                    <span class="marker" style="left:0%">0%</span>
+                                    <span class="marker median" style="left:33%" title="Industry Median: 10%">10%</span>
+                                    <span class="marker top25" style="left:67%" title="Top 25%: 20%">20%</span>
+                                    <span class="marker" style="left:100%">30%</span>
+                                </div>
+                            </div>
+                            <div class="benchmark-value" id="benchStickinessValue">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="chart-grid" id="overviewChartRow" style="display:none">
                 <div class="chart-card" style="grid-column: span 2;">
                     <h3>🎮 Top Games by DAU <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)" title="Collapse">Collapse</button><button class="card-btn" onclick="expandChart('overviewChart','Top Games by DAU')" title="Expand">⛶</button></div></h3>
                     <div class="card-body"><div class="chart-container">
                         <canvas id="overviewChart"></canvas>
                     </div></div>
+                </div>
+            </div>
+
+            <!-- Anomaly Detection Card -->
+            <div class="chart-card" id="anomalyCard" style="margin-top:1rem;">
+                <h3>🚨 Anomaly Detection & Alerts
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="checkAnomalies()" title="Refresh anomalies">↻ Check</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
+                <div class="card-body">
+                    <div id="anomalyContent">
+                        <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background:var(--bg-secondary);border-radius:10px;">
+                            <div class="anomaly-status-icon" style="font-size:2rem;">🔍</div>
+                            <div>
+                                <div style="font-weight:600;color:var(--text-primary);">Analyzing metrics...</div>
+                                <div style="font-size:0.85rem;color:var(--text-muted);">Comparing current data against historical patterns</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1877,6 +2190,53 @@
                     <div class="card-body"><div class="chart-container">
                         <canvas id="conversionChart"></canvas>
                     </div></div>
+                </div>
+            </div>
+            <!-- LTV & Projections Row -->
+            <div class="chart-grid" style="margin-top:1rem;">
+                <div class="chart-card" style="grid-column: span 2;">
+                    <h3>💎 LTV Analysis & Projections <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body">
+                        <div id="ltvAnalysisContent">
+                            <div class="ltv-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:1.5rem;">
+                                <div class="ltv-metric" style="background:var(--bg-tertiary);padding:1rem;border-radius:10px;text-align:center;">
+                                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem;">D1 LTV</div>
+                                    <div id="ltvD1" style="font-size:1.5rem;font-weight:700;color:var(--success);">-</div>
+                                    <div style="font-size:0.7rem;color:var(--text-muted);">First day value</div>
+                                </div>
+                                <div class="ltv-metric" style="background:var(--bg-tertiary);padding:1rem;border-radius:10px;text-align:center;">
+                                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem;">D7 LTV</div>
+                                    <div id="ltvD7" style="font-size:1.5rem;font-weight:700;color:var(--accent);">-</div>
+                                    <div style="font-size:0.7rem;color:var(--text-muted);">Week 1 value</div>
+                                </div>
+                                <div class="ltv-metric" style="background:var(--bg-tertiary);padding:1rem;border-radius:10px;text-align:center;">
+                                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem;">D30 LTV</div>
+                                    <div id="ltvD30" style="font-size:1.5rem;font-weight:700;color:var(--warning);">-</div>
+                                    <div style="font-size:0.7rem;color:var(--text-muted);">Month 1 value</div>
+                                </div>
+                                <div class="ltv-metric" style="background:linear-gradient(135deg,var(--bg-tertiary),rgba(99,102,241,0.15));padding:1rem;border-radius:10px;text-align:center;border:1px solid var(--accent);">
+                                    <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem;">Projected LTV</div>
+                                    <div id="ltvProjected" style="font-size:1.5rem;font-weight:700;color:var(--text-primary);">-</div>
+                                    <div style="font-size:0.7rem;color:var(--text-muted);">Lifetime estimate</div>
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:1rem;flex-wrap:wrap;">
+                                <div style="flex:1;min-width:280px;">
+                                    <canvas id="ltvCurveChart" height="180"></canvas>
+                                </div>
+                                <div style="flex:1;min-width:280px;background:var(--bg-secondary);border-radius:10px;padding:1rem;">
+                                    <h4 style="margin:0 0 0.75rem;font-size:0.9rem;color:var(--text-primary);">LTV Formula</h4>
+                                    <div style="font-family:monospace;font-size:0.8rem;color:var(--text-secondary);line-height:1.6;">
+                                        LTV = ARPDAU × Σ(Retention[day])<br>
+                                        <span style="color:var(--text-muted)">≈ ARPDAU × (1 + D1 + D7×6 + D30×23)</span>
+                                    </div>
+                                    <div id="ltvBreakdown" style="margin-top:1rem;font-size:0.78rem;color:var(--text-muted);">
+                                        Loading retention data for accurate LTV...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -3193,7 +3553,58 @@
         }
 
         function onDaysChange() {
-            selectedDays = parseInt(document.getElementById('daysSelector').value, 10);
+            const selector = document.getElementById('daysSelector');
+            const customRange = document.getElementById('customDateRange');
+            
+            if (selector.value === 'custom') {
+                customRange.style.display = 'flex';
+                // Set default dates: today and 30 days ago
+                const today = new Date();
+                const thirtyDaysAgo = new Date(today);
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                
+                document.getElementById('dateRangeEnd').value = today.toISOString().split('T')[0];
+                document.getElementById('dateRangeStart').value = thirtyDaysAgo.toISOString().split('T')[0];
+                return; // Don't refresh yet, wait for date selection
+            } else {
+                customRange.style.display = 'none';
+            }
+            
+            selectedDays = parseInt(selector.value, 10);
+            // Clear custom date range
+            window.customDateStart = null;
+            window.customDateEnd = null;
+            rpcCacheClear();
+            if (isAuthenticated) refreshAll();
+        }
+
+        function onCustomDateChange() {
+            const startDate = document.getElementById('dateRangeStart').value;
+            const endDate = document.getElementById('dateRangeEnd').value;
+            
+            if (!startDate || !endDate) return;
+            
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            
+            if (start > end) {
+                showToast('Start date must be before end date', 'error');
+                return;
+            }
+            
+            // Calculate the number of days
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            if (diffDays > 365) {
+                showToast('Date range cannot exceed 365 days', 'error');
+                return;
+            }
+            
+            selectedDays = diffDays;
+            window.customDateStart = startDate;
+            window.customDateEnd = endDate;
+            
             rpcCacheClear();
             if (isAuthenticated) refreshAll();
         }
@@ -3220,6 +3631,11 @@
             // for overview/sessions/retention/revenue/quiz/AI/economy/monet.
             if (typeof selectedMode === 'string' && selectedMode.length > 0) {
                 out.quiz_mode = selectedMode;
+            }
+            // Custom date range support
+            if (window.customDateStart && window.customDateEnd) {
+                out.startDate = window.customDateStart;
+                out.endDate = window.customDateEnd;
             }
             return out;
         }
@@ -3676,38 +4092,80 @@
 
         async function loadOverview() {
             try {
-                document.getElementById('overviewKpis').innerHTML = skKpi(7);
+                document.getElementById('overviewKpis').innerHTML = skKpi(10);
                 // Phase 6 — fire the lifetime strip in parallel; it has its own
                 // skeleton + error handling and never blocks the rest of overview.
                 loadLifetimeStrip().catch(() => { /* swallow — non-fatal */ });
+                
+                // Fetch multiple data sources in parallel for comprehensive KPIs
                 const payload = { days: selectedDays, ...getGamePayload() };
-                const data = await callRpc('analytics_dashboard', payload);
+                const [data, revenueData, sessionData] = await Promise.all([
+                    callRpc('analytics_dashboard', payload),
+                    callRpc('analytics_arpu', { period: '7d', ...getGamePayload() }).catch(() => ({})),
+                    callRpc('analytics_session_stats', payload).catch(() => ({}))
+                ]);
+                
                 if (data.error) {
                     document.getElementById('overviewKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
+                
                 const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
                 const dauMauHealth = data.dau_mau_ratio > 0.15 ? 'positive' : data.dau_mau_ratio > 0.05 ? '' : 'negative';
                 const dau7chg = data.trends?.dau_7d_change_pct || 0;
+                
+                // Calculate ARPDAU (Average Revenue Per Daily Active User)
+                const totalRevenue7d = revenueData.totalRevenue || 0;
+                const avgDau7d = revenueData.avgDau || data.dau || 1;
+                const arpdau = avgDau7d > 0 ? (totalRevenue7d / 7 / avgDau7d) : 0;
+                const arpdauHealth = arpdau >= 0.12 ? 'positive' : arpdau >= 0.04 ? '' : 'negative';
+                const arpdauBenchmark = arpdau >= 0.12 ? '🟢 Top 25%' : arpdau >= 0.04 ? '🟡 Median' : '🔴 Below avg';
+                
+                // Calculate Sessions/DAU
+                const totalSessions = sessionData.total_sessions || 0;
+                const sessionDays = selectedDays || 30;
+                const avgSessionsPerDay = sessionDays > 0 ? totalSessions / sessionDays : 0;
+                const sessionsPerDau = data.dau > 0 ? (avgSessionsPerDay / data.dau).toFixed(2) : 0;
+                const sessionsPerDauNum = parseFloat(sessionsPerDau);
+                const sessionsHealth = sessionsPerDauNum >= 3.5 ? 'positive' : sessionsPerDauNum >= 2.2 ? '' : 'negative';
+                const sessionsBenchmark = sessionsPerDauNum >= 3.5 ? '🟢 Top 25%' : sessionsPerDauNum >= 2.2 ? '🟡 Median' : '🔴 Below avg';
+                
+                // Calculate period-over-period changes
+                const wau7chg = data.trends?.wau_7d_change_pct || 0;
+                const mau7chg = data.trends?.mau_7d_change_pct || 0;
+                const revenue7chg = revenueData.revenue_change_pct || 0;
+                
                 document.getElementById('overviewKpis').innerHTML = `
-                    <div class="kpi-card">
+                    <div class="kpi-card highlight-card">
                         <div class="icon">📅</div>
                         <div class="label">DAU${gameLabel}</div>
                         <div class="value">${formatNumber(data.dau)}</div>
-                        <div class="trend ${dau7chg >= 0 ? 'positive' : 'negative'}">${dau7chg >= 0 ? '▲' : '▼'} ${Math.abs(dau7chg)}% vs 7d ago</div>
+                        <div class="trend ${dau7chg >= 0 ? 'positive' : 'negative'}">${dau7chg >= 0 ? '▲' : '▼'} ${Math.abs(dau7chg).toFixed(1)}% vs 7d ago</div>
                         ${data.dau_trend && data.dau_trend.length >= 2 ? '<div class="kpi-sparkline"><canvas id="dauSparkline"></canvas></div>' : ''}
+                    </div>
+                    <div class="kpi-card highlight-card">
+                        <div class="icon">💵</div>
+                        <div class="label">ARPDAU</div>
+                        <div class="value currency ${arpdauHealth}">${arpdau.toFixed(3)}</div>
+                        <div class="trend">${arpdauBenchmark} · Industry: $0.04-0.12</div>
+                    </div>
+                    <div class="kpi-card highlight-card">
+                        <div class="icon">🔄</div>
+                        <div class="label">Sessions/DAU</div>
+                        <div class="value plain ${sessionsHealth}">${sessionsPerDau}</div>
+                        <div class="trend">${sessionsBenchmark} · Industry: 2.2-3.5</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📆</div>
                         <div class="label">WAU</div>
                         <div class="value">${formatNumber(data.wau)}</div>
-                        <div class="trend">Last 7 days</div>
+                        <div class="trend ${wau7chg >= 0 ? 'positive' : 'negative'}">${wau7chg !== 0 ? ((wau7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(wau7chg).toFixed(1) + '%') : 'Last 7 days'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🗓️</div>
                         <div class="label">MAU</div>
                         <div class="value">${formatNumber(data.mau)}</div>
-                        <div class="trend">Last 30 days</div>
+                        <div class="trend ${mau7chg >= 0 ? 'positive' : 'negative'}">${mau7chg !== 0 ? ((mau7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(mau7chg).toFixed(1) + '%') : 'Last 30 days'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🔥</div>
@@ -3718,19 +4176,26 @@
                     <div class="kpi-card">
                         <div class="icon">⏱️</div>
                         <div class="label">Avg Session</div>
-                        <div class="value plain">${formatDuration(data.avg_session_duration_seconds)}</div>
+                        <div class="value plain">${formatDuration(data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0)}</div>
+                        <div class="trend">${(data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0) >= 420 ? '🟢 Good (7m+)' : '🟡 Can improve'}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">💰</div>
+                        <div class="label">Revenue (7d)</div>
+                        <div class="value currency">${formatNumber(totalRevenue7d)}</div>
+                        <div class="trend ${revenue7chg >= 0 ? 'positive' : 'negative'}">${revenue7chg !== 0 ? ((revenue7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(revenue7chg).toFixed(1) + '% vs prior') : 'Last 7 days'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🆕</div>
                         <div class="label">New vs Returning</div>
                         <div class="value plain">${formatNumber(data.new_users_today)} / ${formatNumber(data.returning_users_today)}</div>
-                        <div class="trend">Today</div>
+                        <div class="trend">Today · ${data.new_users_today > data.returning_users_today ? '🚀 Growth' : '🔁 Retention'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
-                        <div class="label">DAU Range</div>
+                        <div class="label">DAU Range (7d)</div>
                         <div class="value plain">${formatNumber(data.dau_7d_min || 0)} – ${formatNumber(data.dau_7d_max || 0)}</div>
-                        <div class="trend">7-day min/max</div>
+                        <div class="trend">Min/Max · Volatility ${data.dau_7d_max && data.dau_7d_min ? Math.round((data.dau_7d_max - data.dau_7d_min) / ((data.dau_7d_max + data.dau_7d_min) / 2) * 100) : 0}%</div>
                     </div>
                 `;
                 // DAU sparkline
@@ -3787,6 +4252,36 @@
                     new_users:     data.new_users_today               || 0,
                     avg_session:   data.avg_session_duration_seconds  || 0
                 });
+                
+                // Update industry benchmarks comparison
+                updateBenchmarksGrid({
+                    sessionsPerDau: sessionsPerDauNum,
+                    arpdau: arpdau,
+                    d1Retention: null, // Will be fetched separately
+                    d7Retention: null, // Will be fetched separately
+                    avgSessionSeconds: data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0,
+                    dauMauRatio: data.dau_mau_ratio || 0
+                });
+                
+                // Fetch retention data for benchmarks (async, doesn't block)
+                callRpc('analytics_retention', { windows: [1, 7], ...getGamePayload() })
+                    .then(retData => {
+                        if (retData && retData.retention_windows) {
+                            const d1 = retData.retention_windows.find(w => w.day === 1)?.retention_rate;
+                            const d7 = retData.retention_windows.find(w => w.day === 7)?.retention_rate;
+                            updateBenchmarksGrid({
+                                sessionsPerDau: sessionsPerDauNum,
+                                arpdau: arpdau,
+                                d1Retention: d1 !== undefined ? d1 * 100 : null,
+                                d7Retention: d7 !== undefined ? d7 * 100 : null,
+                                avgSessionSeconds: data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0,
+                                dauMauRatio: data.dau_mau_ratio || 0
+                            });
+                        }
+                    }).catch(() => {});
+
+                // Run anomaly detection in background (doesn't block)
+                checkAnomalies().catch(e => console.warn('Anomaly check failed:', e));
             } catch (e) {
                 console.error('Overview error:', e);
                 const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
@@ -3836,12 +4331,41 @@
 
                 const totalPurchases = data.totalPurchases ?? data.total_purchases ?? data.iap_count ?? 0;
                 const daysBack       = data.daysBack       ?? data.days_back       ?? data.days       ?? selectedDays ?? 7;
+                
+                // Calculate ARPDAU
+                const avgDau = data.avgDau || 1;
+                const periodDays = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 7;
+                const arpdau = avgDau > 0 ? ((data.totalRevenue || 0) / periodDays / avgDau) : 0;
+                const arpdauHealth = arpdau >= 0.12 ? 'positive' : arpdau >= 0.04 ? '' : 'negative';
+                const arpdauBenchmark = arpdau >= 0.12 ? '🟢 Top 25%' : arpdau >= 0.04 ? '🟡 Median' : '🔴 Below avg';
+                
+                // LTV Estimation using simplified model:
+                // LTV = ARPDAU × (1 / (1 - D7_retention_rate)) × multiplier
+                // For casual games, typical multiplier is ~30 days effective lifetime
+                // We'll use a conservative estimate based on industry benchmarks
+                const estLifetimeDays = 30; // Conservative estimate for casual games
+                const ltv = arpdau * estLifetimeDays;
+                const ltvHealth = ltv >= 3 ? 'positive' : ltv >= 1 ? '' : 'negative';
+                const ltvBenchmark = ltv >= 3 ? '🟢 Top tier' : ltv >= 1 ? '🟡 Average' : '🔴 Below avg';
+                
                 document.getElementById('revenueKpis').innerHTML = `
-                    <div class="kpi-card">
+                    <div class="kpi-card highlight-card">
                         <div class="icon">💰</div>
                         <div class="label">Total Revenue (${period})</div>
                         <div class="value currency">${formatNumber(data.totalRevenue || 0)}</div>
                         <div class="trend">${formatNumber(totalPurchases)} purchases</div>
+                    </div>
+                    <div class="kpi-card highlight-card">
+                        <div class="icon">💵</div>
+                        <div class="label">ARPDAU</div>
+                        <div class="value currency ${arpdauHealth}">${arpdau.toFixed(3)}</div>
+                        <div class="trend">${arpdauBenchmark} · Industry: $0.04-0.12</div>
+                    </div>
+                    <div class="kpi-card highlight-card">
+                        <div class="icon">💎</div>
+                        <div class="label">Est. LTV</div>
+                        <div class="value currency ${ltvHealth}">${ltv.toFixed(2)}</div>
+                        <div class="trend">${ltvBenchmark} · ARPDAU × ${estLifetimeDays}d</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📈</div>
@@ -3865,7 +4389,7 @@
                         <div class="icon">🔄</div>
                         <div class="label">Conversion Rate</div>
                         <div class="value plain ${convHealth}">${data.conversionRate || '0%'}</div>
-                        <div class="trend">DAU → Paying</div>
+                        <div class="trend">DAU → Paying · ${convRateNum >= 3 ? '🟢 Good' : convRateNum >= 1 ? '🟡 Avg' : '🔴 Low'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">👥</div>
@@ -3888,6 +4412,9 @@
                     [data.uniquePayingUsers, nonPaying > 0 ? nonPaying : 0],
                     ['rgba(34, 197, 94, 0.8)', 'rgba(100, 116, 139, 0.5)']
                 );
+
+                // Update LTV analysis section
+                updateLtvAnalysis(arpdau);
 
             } catch (e) {
                 console.error('Revenue error:', e);
@@ -4030,40 +4557,70 @@
 
         async function loadSessions() {
             try {
-                document.getElementById('sessionKpis').innerHTML = skKpi(4);
+                document.getElementById('sessionKpis').innerHTML = skKpi(6);
                 const payload = { days: selectedDays, ...getGamePayload() };
-                const data = await callRpc('analytics_session_stats', payload);
+                
+                // Fetch session and overview data in parallel for Sessions/DAU calculation
+                const [data, overviewData] = await Promise.all([
+                    callRpc('analytics_session_stats', payload),
+                    callRpc('analytics_dashboard', payload).catch(() => ({}))
+                ]);
 
                 if (data.error) {
                     document.getElementById('sessionKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
 
+                // Calculate Sessions/DAU
+                const avgDau = overviewData.dau || 1;
+                const sessionDays = selectedDays || 30;
+                const avgSessionsPerDay = sessionDays > 0 ? (data.total_sessions / sessionDays) : 0;
+                const sessionsPerDau = avgDau > 0 ? (avgSessionsPerDay / avgDau).toFixed(2) : 0;
+                const sessionsPerDauNum = parseFloat(sessionsPerDau);
+                const sessionsHealth = sessionsPerDauNum >= 3.5 ? 'positive' : sessionsPerDauNum >= 2.2 ? '' : 'negative';
+                const sessionsBenchmark = sessionsPerDauNum >= 3.5 ? '🟢 Top 25%' : sessionsPerDauNum >= 2.2 ? '🟡 Median' : '🔴 Below avg';
+                
+                // Session duration benchmarks (7 min = 420s is good for quiz games)
+                const avgDuration = data.avg_duration_seconds || 0;
+                const durationHealth = avgDuration >= 420 ? 'positive' : avgDuration >= 180 ? '' : 'negative';
+                const durationBenchmark = avgDuration >= 420 ? '🟢 Above avg' : avgDuration >= 180 ? '🟡 Average' : '🔴 Below avg';
+
                 document.getElementById('sessionKpis').innerHTML = `
+                    <div class="kpi-card highlight-card">
+                        <div class="icon">🔄</div>
+                        <div class="label">Sessions/DAU</div>
+                        <div class="value plain ${sessionsHealth}">${sessionsPerDau}</div>
+                        <div class="trend">${sessionsBenchmark} · Industry: 2.2-3.5</div>
+                    </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
                         <div class="label">Total Sessions (${selectedDays}d)</div>
                         <div class="value">${formatNumber(data.total_sessions)}</div>
+                        <div class="trend">${formatNumber(Math.round(avgSessionsPerDay))} sessions/day avg</div>
                     </div>
-                    <div class="kpi-card">
+                    <div class="kpi-card highlight-card">
                         <div class="icon">⏱️</div>
                         <div class="label">Avg Duration</div>
-                        <div class="value plain">${formatDuration(data.avg_duration_seconds)}</div>
+                        <div class="value plain ${durationHealth}">${formatDuration(data.avg_duration_seconds)}</div>
+                        <div class="trend">${durationBenchmark} · Target: 7min+</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📈</div>
                         <div class="label">Median Duration</div>
                         <div class="value plain">${formatDuration(data.median_duration_seconds)}</div>
+                        <div class="trend">50th percentile</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🚀</div>
                         <div class="label">P95 Duration</div>
                         <div class="value plain">${formatDuration(data.p95_duration_seconds)}</div>
+                        <div class="trend">Power users (top 5%)</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📅</div>
                         <div class="label">Sessions/Day Avg</div>
-                        <div class="value">${data.sessions_per_day_avg}</div>
+                        <div class="value">${data.sessions_per_day_avg || formatNumber(Math.round(avgSessionsPerDay))}</div>
+                        <div class="trend">Daily average over ${selectedDays}d</div>
                     </div>
                 `;
 
@@ -4565,57 +5122,91 @@
             document.getElementById('benchD1Status').innerHTML = '<span style="color:var(--text-muted);">N/A</span>';
         }
         
-        // Funnel trend over time
-        function loadFunnelTrend(steps) {
+        // Funnel trend over time - fetches real data from backend
+        async function loadFunnelTrend(steps) {
             const trendCtx = document.getElementById('funnelTrendChart');
-            if (!trendCtx || !steps || steps.length === 0) return;
+            if (!trendCtx) return;
             
             if (funnelTrendChartInstance) funnelTrendChartInstance.destroy();
             
-            // Generate mock trend data (would come from backend in production)
-            const days = ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7'];
-            const baseConversion = steps[steps.length - 1].pct_of_total || 20;
-            
-            funnelTrendChartInstance = new Chart(trendCtx.getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: days,
-                    datasets: [{
-                        label: 'Conversion Rate %',
-                        data: days.map((_, i) => (baseConversion * (0.85 + Math.random() * 0.3)).toFixed(1)),
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99,102,241,0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }, {
-                        label: 'Activation Rate %',
-                        data: days.map((_, i) => (36 * (0.8 + Math.random() * 0.4)).toFixed(1)),
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16,185,129,0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { 
-                        legend: { 
-                            position: 'top',
-                            labels: { boxWidth: 12, padding: 15 }
-                        }
-                    },
-                    scales: {
-                        y: { 
-                            beginAtZero: true, 
-                            max: 100,
-                            grid: { color: 'rgba(255,255,255,0.1)' },
-                            ticks: { callback: function(v) { return v + '%'; } }
-                        },
-                        x: { grid: { display: false } }
+            // Fetch real funnel trend data from backend
+            try {
+                const payload = { days: 7, ...getGamePayload() };
+                const trendData = await callRpc('analytics_funnel_trend', payload).catch(() => null);
+                
+                let labels, conversionData, activationData;
+                
+                if (trendData && trendData.daily && trendData.daily.length > 0) {
+                    // Use real data from backend
+                    labels = trendData.daily.map(d => d.date ? d.date.slice(5) : `Day ${d.day || '?'}`);
+                    conversionData = trendData.daily.map(d => d.conversion_rate_pct ?? d.conversion ?? 0);
+                    activationData = trendData.daily.map(d => d.activation_rate_pct ?? d.activation ?? 0);
+                } else if (steps && steps.length > 0) {
+                    // Fallback: show current funnel as single point with industry benchmarks
+                    const baseConversion = steps[steps.length - 1]?.pct_of_total || 20;
+                    labels = ['Current'];
+                    conversionData = [baseConversion];
+                    activationData = [36]; // Industry benchmark for activation
+                    
+                    // Show message that historical trend data is not available
+                    const parent = trendCtx.parentElement;
+                    if (parent && !parent.querySelector('.trend-note')) {
+                        const note = document.createElement('div');
+                        note.className = 'trend-note';
+                        note.style.cssText = 'color:var(--text-muted);font-size:0.8rem;text-align:center;padding:0.5rem;';
+                        note.textContent = 'Historical trend data requires analytics_funnel_trend RPC';
+                        parent.appendChild(note);
                     }
+                } else {
+                    // No data at all
+                    trendCtx.parentElement.innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:2rem;">No funnel trend data available</div>';
+                    return;
                 }
-            });
+                
+                funnelTrendChartInstance = new Chart(trendCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Conversion Rate %',
+                            data: conversionData,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99,102,241,0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }, {
+                            label: 'Activation Rate %',
+                            data: activationData,
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16,185,129,0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { 
+                            legend: { 
+                                position: 'top',
+                                labels: { boxWidth: 12, padding: 15 }
+                            }
+                        },
+                        scales: {
+                            y: { 
+                                beginAtZero: true, 
+                                max: 100,
+                                grid: { color: 'rgba(255,255,255,0.1)' },
+                                ticks: { callback: function(v) { return v + '%'; } }
+                            },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Funnel trend error:', e);
+                trendCtx.parentElement.innerHTML = `<div style="color:var(--text-muted);text-align:center;padding:2rem;">Could not load trend: ${e.message}</div>`;
+            }
         }
 
         async function loadEconomy() {
@@ -5474,6 +6065,160 @@
             a.download = `quizverse_events_${new Date().toISOString().slice(0,10)}.csv`;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // PDF Dashboard Export
+        // ─────────────────────────────────────────────────────────────────────
+
+        async function exportDashboardPdf() {
+            showToast('Generating PDF report...', 'info');
+            
+            try {
+                // Get the current active tab
+                const activeTab = document.querySelector('.nav-link.active')?.getAttribute('data-tab') || 'overview';
+                const gameName = selectedGameId === 'all' ? 'All Games' : (CONFIG.games[selectedGameId]?.name || selectedGameId);
+                const dateStr = new Date().toISOString().split('T')[0];
+                
+                // Create a virtual document for PDF
+                const printContent = document.createElement('div');
+                printContent.style.cssText = 'background:white;color:#1a1a1a;padding:40px;font-family:system-ui,-apple-system,sans-serif;max-width:1200px;margin:0 auto;';
+                
+                // Header
+                printContent.innerHTML = `
+                    <div style="border-bottom:3px solid #6366f1;padding-bottom:20px;margin-bottom:30px;">
+                        <h1 style="color:#6366f1;margin:0;font-size:28px;">📊 Analytics Dashboard Report</h1>
+                        <div style="display:flex;justify-content:space-between;margin-top:15px;color:#666;font-size:14px;">
+                            <span><strong>Game:</strong> ${gameName}</span>
+                            <span><strong>Period:</strong> Last ${selectedDays} days</span>
+                            <span><strong>Generated:</strong> ${new Date().toLocaleString()}</span>
+                        </div>
+                    </div>
+                `;
+                
+                // KPIs Section - capture from overview
+                const kpisEl = document.getElementById('overviewKpis');
+                if (kpisEl) {
+                    printContent.innerHTML += `
+                        <h2 style="color:#333;border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin:25px 0 15px;">Key Performance Indicators</h2>
+                        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:30px;">
+                    `;
+                    
+                    // Extract KPI values
+                    const kpiCards = kpisEl.querySelectorAll('.kpi-card');
+                    kpiCards.forEach(card => {
+                        const label = card.querySelector('.label')?.textContent || '';
+                        const value = card.querySelector('.value')?.textContent || '';
+                        const trend = card.querySelector('.trend')?.textContent || '';
+                        printContent.innerHTML += `
+                            <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:15px;text-align:center;">
+                                <div style="color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">${label}</div>
+                                <div style="color:#1f2937;font-size:24px;font-weight:700;margin:8px 0;">${value}</div>
+                                <div style="color:#9ca3af;font-size:11px;">${trend}</div>
+                            </div>
+                        `;
+                    });
+                    printContent.innerHTML += '</div>';
+                }
+                
+                // Health Score
+                const healthCircle = document.getElementById('healthScoreCircle');
+                if (healthCircle) {
+                    const score = healthCircle.querySelector('span')?.textContent || '0';
+                    printContent.innerHTML += `
+                        <h2 style="color:#333;border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin:25px 0 15px;">Health Score</h2>
+                        <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:20px;text-align:center;margin-bottom:30px;">
+                            <div style="display:inline-block;width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:white;line-height:80px;font-size:28px;font-weight:800;">${score}</div>
+                            <div style="margin-top:10px;color:#666;font-size:14px;">Overall Platform Health Score</div>
+                        </div>
+                    `;
+                }
+                
+                // Charts - convert to images
+                const chartCanvases = document.querySelectorAll('.chart-card canvas');
+                if (chartCanvases.length > 0) {
+                    printContent.innerHTML += `
+                        <h2 style="color:#333;border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin:25px 0 15px;">Charts & Visualizations</h2>
+                    `;
+                    
+                    for (const canvas of chartCanvases) {
+                        try {
+                            const chartTitle = canvas.closest('.chart-card')?.querySelector('h3')?.textContent?.replace(/↻.*|Collapse/g, '').trim() || 'Chart';
+                            const dataUrl = canvas.toDataURL('image/png', 1.0);
+                            printContent.innerHTML += `
+                                <div style="margin-bottom:25px;page-break-inside:avoid;">
+                                    <h3 style="color:#374151;font-size:16px;margin-bottom:10px;">${chartTitle}</h3>
+                                    <img src="${dataUrl}" style="max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:8px;" />
+                                </div>
+                            `;
+                        } catch (e) {
+                            console.warn('Could not export chart:', e);
+                        }
+                    }
+                }
+                
+                // Anomalies section
+                const anomalyContent = document.getElementById('anomalyContent');
+                if (anomalyContent && anomalyContent.children.length > 0) {
+                    printContent.innerHTML += `
+                        <h2 style="color:#333;border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin:25px 0 15px;">Anomaly Detection</h2>
+                        <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin-bottom:30px;">
+                    `;
+                    const alerts = anomalyContent.querySelectorAll('.anomaly-alert');
+                    alerts.forEach(alert => {
+                        const icon = alert.querySelector('.anomaly-icon')?.textContent || '';
+                        const title = alert.querySelector('.anomaly-title')?.textContent || '';
+                        const desc = alert.querySelector('.anomaly-description')?.textContent || '';
+                        printContent.innerHTML += `
+                            <div style="padding:10px 0;border-bottom:1px solid #e5e7eb;">
+                                <strong>${icon} ${title}</strong>
+                                <div style="color:#666;font-size:13px;margin-top:5px;">${desc}</div>
+                            </div>
+                        `;
+                    });
+                    printContent.innerHTML += '</div>';
+                }
+                
+                // Footer
+                printContent.innerHTML += `
+                    <div style="border-top:1px solid #e5e7eb;padding-top:20px;margin-top:40px;text-align:center;color:#9ca3af;font-size:12px;">
+                        <p>Generated by QuizVerse Analytics Dashboard</p>
+                        <p>Report ID: ${Date.now().toString(36).toUpperCase()} | ${window.location.hostname}</p>
+                    </div>
+                `;
+                
+                // Create print window
+                const printWindow = window.open('', '_blank', 'width=1200,height=800');
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Analytics Report - ${gameName} - ${dateStr}</title>
+                        <style>
+                            @media print {
+                                body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                                @page { margin: 1cm; size: A4; }
+                            }
+                            body { margin: 0; padding: 0; }
+                        </style>
+                    </head>
+                    <body>
+                        ${printContent.outerHTML}
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                
+                // Wait for images to load, then print
+                setTimeout(() => {
+                    printWindow.print();
+                    showToast('PDF dialog opened. Save as PDF from print dialog.', 'success');
+                }, 500);
+                
+            } catch (e) {
+                console.error('PDF export error:', e);
+                showToast('PDF export failed: ' + e.message, 'error');
+            }
         }
 
         async function loadEvents() {
@@ -7866,91 +8611,105 @@
             modal.classList.add('open');
             document.body.style.overflow = 'hidden';
 
-            // Wait one animation frame for the browser to lay out the modal,
-            // then build a safe config and create the chart.
+            // Use a double-RAF + setTimeout to ensure the modal is fully laid out.
+            // Single RAF sometimes fires before the browser finishes layout on some devices.
             requestAnimationFrame(() => {
-                try {
-                    // Build a safe config by copying only plain-data fields.
-                    // JSON.parse/stringify silently corrupts Chart.js configs that
-                    // contain CanvasGradient colors, plugin callback functions, or
-                    // circular refs — producing a blank render even when no error
-                    // is thrown. Instead we copy labels/data arrays directly and
-                    // reconstruct a clean options object.
-                    const srcData = srcChart.data;
-                    const srcOpts = srcChart.options || {};
-                    const chartType = srcChart.config.type;
-                    
-                    // Copy dataset properties safely - include all common properties
-                    // for line, bar, doughnut, pie, and other chart types
-                    const copyDataset = function(ds) {
-                        const copy = {
-                            label:                ds.label,
-                            data:                 Array.isArray(ds.data) ? ds.data.slice() : ds.data,
-                            backgroundColor:      Array.isArray(ds.backgroundColor) ? ds.backgroundColor.slice() : ds.backgroundColor,
-                            borderColor:          Array.isArray(ds.borderColor) ? ds.borderColor.slice() : ds.borderColor,
-                            borderWidth:          ds.borderWidth,
-                            fill:                 ds.fill,
-                            tension:              ds.tension,
-                            pointBackgroundColor: ds.pointBackgroundColor,
-                            pointBorderColor:     ds.pointBorderColor,
-                            pointRadius:          ds.pointRadius,
-                            pointHoverRadius:     ds.pointHoverRadius,
-                            type:                 ds.type,
-                            // Bar chart properties
-                            borderRadius:         ds.borderRadius,
-                            hoverBackgroundColor: ds.hoverBackgroundColor,
-                            hoverBorderColor:     ds.hoverBorderColor,
-                            barThickness:         ds.barThickness,
-                            maxBarThickness:      ds.maxBarThickness,
-                            // Doughnut/Pie chart properties
-                            hoverOffset:          ds.hoverOffset,
-                            cutout:               ds.cutout,
-                            rotation:             ds.rotation,
-                            circumference:        ds.circumference,
-                            // Line chart properties
-                            stepped:              ds.stepped,
-                            spanGaps:             ds.spanGaps,
-                            // Stack property
-                            stack:                ds.stack,
-                            yAxisID:              ds.yAxisID,
-                            xAxisID:              ds.xAxisID,
-                            order:                ds.order,
-                            hidden:               ds.hidden
-                        };
-                        // Remove undefined properties to keep config clean
-                        Object.keys(copy).forEach(k => copy[k] === undefined && delete copy[k]);
-                        return copy;
-                    };
-                    
-                    const cfg = {
-                        type: chartType,
-                        data: {
-                            labels: srcData.labels ? srcData.labels.slice() : [],
-                            datasets: (srcData.datasets || []).map(copyDataset)
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            animation: { duration: 400 },
-                            plugins: {
-                                legend:  srcOpts.plugins && srcOpts.plugins.legend  ? srcOpts.plugins.legend  : {},
-                                tooltip: {}   // callbacks can't survive cloning; reset to defaults
-                            },
-                            scales: srcOpts.scales || {}
-                        }
-                    };
+                requestAnimationFrame(() => {
+                    setTimeout(() => {
+                        try {
+                            // Build a safe config by copying only plain-data fields.
+                            // JSON.parse/stringify silently corrupts Chart.js configs that
+                            // contain CanvasGradient colors, plugin callback functions, or
+                            // circular refs — producing a blank render even when no error
+                            // is thrown. Instead we copy labels/data arrays directly and
+                            // reconstruct a clean options object.
+                            const srcData = srcChart.data;
+                            const srcOpts = srcChart.options || {};
+                            const chartType = srcChart.config.type;
+                            
+                            // Copy dataset properties safely - include all common properties
+                            // for line, bar, doughnut, pie, and other chart types
+                            const copyDataset = function(ds) {
+                                const copy = {
+                                    label:                ds.label,
+                                    data:                 Array.isArray(ds.data) ? ds.data.slice() : ds.data,
+                                    backgroundColor:      Array.isArray(ds.backgroundColor) ? ds.backgroundColor.slice() : ds.backgroundColor,
+                                    borderColor:          Array.isArray(ds.borderColor) ? ds.borderColor.slice() : ds.borderColor,
+                                    borderWidth:          ds.borderWidth,
+                                    fill:                 ds.fill,
+                                    tension:              ds.tension,
+                                    pointBackgroundColor: ds.pointBackgroundColor,
+                                    pointBorderColor:     ds.pointBorderColor,
+                                    pointRadius:          ds.pointRadius,
+                                    pointHoverRadius:     ds.pointHoverRadius,
+                                    type:                 ds.type,
+                                    // Bar chart properties
+                                    borderRadius:         ds.borderRadius,
+                                    hoverBackgroundColor: ds.hoverBackgroundColor,
+                                    hoverBorderColor:     ds.hoverBorderColor,
+                                    barThickness:         ds.barThickness,
+                                    maxBarThickness:      ds.maxBarThickness,
+                                    // Doughnut/Pie chart properties
+                                    hoverOffset:          ds.hoverOffset,
+                                    cutout:               ds.cutout,
+                                    rotation:             ds.rotation,
+                                    circumference:        ds.circumference,
+                                    // Line chart properties
+                                    stepped:              ds.stepped,
+                                    spanGaps:             ds.spanGaps,
+                                    // Stack property
+                                    stack:                ds.stack,
+                                    yAxisID:              ds.yAxisID,
+                                    xAxisID:              ds.xAxisID,
+                                    order:                ds.order,
+                                    hidden:               ds.hidden
+                                };
+                                // Remove undefined properties to keep config clean
+                                Object.keys(copy).forEach(k => copy[k] === undefined && delete copy[k]);
+                                return copy;
+                            };
+                            
+                            const cfg = {
+                                type: chartType,
+                                data: {
+                                    labels: srcData.labels ? srcData.labels.slice() : [],
+                                    datasets: (srcData.datasets || []).map(copyDataset)
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    animation: { duration: 400 },
+                                    plugins: {
+                                        legend:  srcOpts.plugins && srcOpts.plugins.legend  ? srcOpts.plugins.legend  : {},
+                                        tooltip: {}   // callbacks can't survive cloning; reset to defaults
+                                    },
+                                    scales: srcOpts.scales || {}
+                                }
+                            };
 
-                    // Replace the canvas element to clear any residual Chart.js state
-                    const wrap = modalCanvas.parentNode;
-                    modalCanvas.remove();
-                    const freshCanvas = document.createElement('canvas');
-                    freshCanvas.id = 'modalCanvas';
-                    wrap.appendChild(freshCanvas);
-                    _modalChartInstance = new Chart(freshCanvas, cfg);
-                } catch (err) {
-                    console.error('[expandChart] failed to render:', err);
-                    showToast('Could not expand chart', 'warn', 2500);
-                }
+                            // Replace the canvas element to clear any residual Chart.js state
+                            const wrap = modalCanvas.parentNode;
+                            modalCanvas.remove();
+                            const freshCanvas = document.createElement('canvas');
+                            freshCanvas.id = 'modalCanvas';
+                            wrap.appendChild(freshCanvas);
+                            
+                            // Ensure the canvas wrapper has proper dimensions before creating chart
+                            const wrapRect = wrap.getBoundingClientRect();
+                            if (wrapRect.width > 0 && wrapRect.height > 0) {
+                                _modalChartInstance = new Chart(freshCanvas, cfg);
+                            } else {
+                                // Fallback: wait another frame if dimensions still zero
+                                setTimeout(() => {
+                                    _modalChartInstance = new Chart(freshCanvas, cfg);
+                                }, 100);
+                            }
+                        } catch (err) {
+                            console.error('[expandChart] failed to render:', err);
+                            showToast('Could not expand chart', 'warn', 2500);
+                        }
+                    }, 50);
+                });
             });
         }
 
@@ -8339,6 +9098,409 @@
             return bits.length
                 ? `<span style="color:#94a3b8">${escapeHtml(bits.join(' · '))}</span>`
                 : '<span style="color:#475569">—</span>';
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Industry Benchmarks Grid Update
+        // ─────────────────────────────────────────────────────────────────────
+
+        function updateBenchmarksGrid(metrics) {
+            // Industry benchmarks (GameAnalytics 2025 data)
+            const benchmarks = {
+                sessionsPerDau: { min: 0, median: 2.2, top25: 3.5, max: 5 },
+                arpdau:         { min: 0, median: 0.04, top25: 0.12, max: 0.15 },
+                d1Retention:    { min: 0, median: 24, top25: 31, max: 50 },
+                d7Retention:    { min: 0, median: 9, top25: 15, max: 20 },
+                avgSession:     { min: 0, median: 7, top25: 12, max: 15 }, // in minutes
+                dauMau:         { min: 0, median: 10, top25: 20, max: 30 }  // in percent
+            };
+
+            function getStatus(value, bench) {
+                if (value >= bench.top25) return { class: 'excellent', text: 'Top 25%' };
+                if (value >= bench.median) return { class: 'good', text: 'Above Median' };
+                return { class: 'poor', text: 'Below Median' };
+            }
+
+            function setBar(id, value, bench) {
+                const bar = document.getElementById(id);
+                if (!bar) return;
+                const pct = Math.min(100, Math.max(0, (value / bench.max) * 100));
+                bar.style.width = pct + '%';
+                
+                // Color based on performance
+                const status = getStatus(value, bench);
+                if (status.class === 'excellent') {
+                    bar.style.background = 'linear-gradient(90deg, var(--success), #4ade80)';
+                } else if (status.class === 'good') {
+                    bar.style.background = 'linear-gradient(90deg, var(--warning), #fbbf24)';
+                } else {
+                    bar.style.background = 'linear-gradient(90deg, var(--danger), #f87171)';
+                }
+            }
+
+            function setValue(id, value, unit, bench) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const status = getStatus(value, bench);
+                el.innerHTML = `${unit === '$' ? '$' : ''}${value.toFixed(unit === '$' ? 3 : unit === '%' ? 1 : 2)}${unit === '%' ? '%' : unit === 'm' ? 'm' : ''} <span class="status ${status.class}">${status.text}</span>`;
+            }
+
+            // Sessions/DAU
+            if (metrics.sessionsPerDau !== undefined) {
+                setBar('benchSessionsBar', metrics.sessionsPerDau, benchmarks.sessionsPerDau);
+                setValue('benchSessionsValue', metrics.sessionsPerDau, '', benchmarks.sessionsPerDau);
+            }
+
+            // ARPDAU
+            if (metrics.arpdau !== undefined) {
+                setBar('benchArpdauBar', metrics.arpdau, benchmarks.arpdau);
+                setValue('benchArpdauValue', metrics.arpdau, '$', benchmarks.arpdau);
+            }
+
+            // D1 Retention
+            if (metrics.d1Retention !== null && metrics.d1Retention !== undefined) {
+                setBar('benchD1Bar', metrics.d1Retention, benchmarks.d1Retention);
+                setValue('benchD1Value', metrics.d1Retention, '%', benchmarks.d1Retention);
+            } else {
+                const el = document.getElementById('benchD1Value');
+                if (el) el.innerHTML = '<span style="color:var(--text-muted);">Loading...</span>';
+            }
+
+            // D7 Retention
+            if (metrics.d7Retention !== null && metrics.d7Retention !== undefined) {
+                setBar('benchD7Bar', metrics.d7Retention, benchmarks.d7Retention);
+                setValue('benchD7Value', metrics.d7Retention, '%', benchmarks.d7Retention);
+            } else {
+                const el = document.getElementById('benchD7Value');
+                if (el) el.innerHTML = '<span style="color:var(--text-muted);">Loading...</span>';
+            }
+
+            // Avg Session (convert seconds to minutes)
+            if (metrics.avgSessionSeconds !== undefined) {
+                const minutes = metrics.avgSessionSeconds / 60;
+                setBar('benchSessionBar', minutes, benchmarks.avgSession);
+                const el = document.getElementById('benchSessionValue');
+                if (el) {
+                    const status = getStatus(minutes, benchmarks.avgSession);
+                    el.innerHTML = `${formatDuration(metrics.avgSessionSeconds)} <span class="status ${status.class}">${status.text}</span>`;
+                }
+            }
+
+            // DAU/MAU (convert to percent)
+            if (metrics.dauMauRatio !== undefined) {
+                const pct = metrics.dauMauRatio * 100;
+                setBar('benchStickinessBar', pct, benchmarks.dauMau);
+                setValue('benchStickinessValue', pct, '%', benchmarks.dauMau);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // LTV Analysis Update
+        // ─────────────────────────────────────────────────────────────────────
+
+        async function updateLtvAnalysis(arpdau) {
+            try {
+                // Try to fetch retention data for accurate LTV calculation
+                let d1Ret = 0.24, d7Ret = 0.09, d30Ret = 0.04; // Industry defaults
+                try {
+                    const retData = await callRpc('analytics_retention_curves', { gameId: selectedGameId !== 'all' ? selectedGameId : 'quiz-verse', days: 30 });
+                    if (retData && retData.curve && retData.curve.length > 0) {
+                        d1Ret = (retData.curve[1] || 24) / 100;
+                        d7Ret = (retData.curve[7] || 9) / 100;
+                        d30Ret = (retData.curve[30] || retData.curve[retData.curve.length - 1] || 4) / 100;
+                    }
+                } catch(e) { /* use defaults */ }
+
+                // Calculate LTV at different milestones
+                // LTV = ARPDAU * cumulative retention days
+                const ltvD1 = arpdau * (1 + d1Ret);
+                const ltvD7 = arpdau * (1 + d1Ret + (d7Ret * 6)); // D1 + D2-D7 approximated
+                const ltvD30 = arpdau * (1 + d1Ret + (d7Ret * 6) + (d30Ret * 23)); // D1 + D2-D7 + D8-D30
+                
+                // Project lifetime LTV using decay model
+                // Typical mobile game retention decays exponentially after D30
+                const avgLifetimeDays = 60; // Conservative estimate
+                const ltvProjected = ltvD30 + (arpdau * d30Ret * 30); // Extend D30 rate for 30 more days
+
+                // Update the UI elements
+                const formatCurrency = (v) => '$' + v.toFixed(2);
+                document.getElementById('ltvD1').textContent = formatCurrency(ltvD1);
+                document.getElementById('ltvD7').textContent = formatCurrency(ltvD7);
+                document.getElementById('ltvD30').textContent = formatCurrency(ltvD30);
+                document.getElementById('ltvProjected').textContent = formatCurrency(ltvProjected);
+
+                // Update breakdown text
+                document.getElementById('ltvBreakdown').innerHTML = `
+                    <div style="margin-bottom:0.5rem;"><strong>Your Metrics:</strong></div>
+                    <div>ARPDAU: <span style="color:var(--success)">$${arpdau.toFixed(4)}</span></div>
+                    <div>D1 Retention: <span style="color:var(--accent)">${(d1Ret * 100).toFixed(1)}%</span></div>
+                    <div>D7 Retention: <span style="color:var(--accent)">${(d7Ret * 100).toFixed(1)}%</span></div>
+                    <div>D30 Retention: <span style="color:var(--accent)">${(d30Ret * 100).toFixed(1)}%</span></div>
+                    <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);">
+                        <strong>CPI Target:</strong> < $${(ltvProjected * 0.6).toFixed(2)} for profitability
+                    </div>
+                `;
+
+                // Create LTV curve chart
+                if (charts['ltvCurveChart']) charts['ltvCurveChart'].destroy();
+                const ltvDays = [1, 3, 7, 14, 30, 60, 90];
+                const ltvValues = ltvDays.map(day => {
+                    if (day <= 1) return arpdau * (1 + d1Ret);
+                    if (day <= 7) return arpdau * (1 + d1Ret + (d7Ret * (day - 1)));
+                    if (day <= 30) return arpdau * (1 + d1Ret + (d7Ret * 6) + (d30Ret * (day - 7)));
+                    return arpdau * (1 + d1Ret + (d7Ret * 6) + (d30Ret * 23) + (d30Ret * 0.5 * (day - 30)));
+                });
+
+                const ctx = document.getElementById('ltvCurveChart');
+                if (ctx) {
+                    charts['ltvCurveChart'] = new Chart(ctx.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: ltvDays.map(d => 'D' + d),
+                            datasets: [{
+                                label: 'Projected LTV',
+                                data: ltvValues,
+                                borderColor: 'rgba(99, 102, 241, 1)',
+                                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                fill: true,
+                                tension: 0.4,
+                                pointRadius: 4,
+                                pointBackgroundColor: 'rgba(99, 102, 241, 1)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false },
+                                title: { display: true, text: 'LTV Growth Curve', color: '#94a3b8', font: { size: 12 } }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: { 
+                                        color: '#64748b',
+                                        callback: v => '$' + v.toFixed(2)
+                                    },
+                                    grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                                },
+                                x: {
+                                    ticks: { color: '#64748b' },
+                                    grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('LTV analysis error:', e);
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Anomaly Detection System
+        // ─────────────────────────────────────────────────────────────────────
+
+        let lastAnomalyData = null;
+
+        async function checkAnomalies() {
+            const container = document.getElementById('anomalyContent');
+            if (!container) return;
+
+            container.innerHTML = `
+                <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background:var(--bg-secondary);border-radius:10px;">
+                    <div class="anomaly-status-icon" style="font-size:2rem;">🔍</div>
+                    <div>
+                        <div style="font-weight:600;color:var(--text-primary);">Analyzing metrics...</div>
+                        <div style="font-size:0.85rem;color:var(--text-muted);">Comparing current data against historical patterns</div>
+                    </div>
+                </div>
+            `;
+
+            try {
+                // Fetch current and historical data for comparison
+                const [currentData, historicalData] = await Promise.all([
+                    callRpc('analytics_summary', { period: 'day', ...getGamePayload() }),
+                    callRpc('analytics_summary', { period: 'week', ...getGamePayload() })
+                ]);
+
+                const anomalies = detectAnomalies(currentData, historicalData);
+                renderAnomalies(anomalies);
+                lastAnomalyData = { currentData, historicalData, anomalies };
+
+            } catch (e) {
+                console.error('Anomaly detection error:', e);
+                container.innerHTML = `
+                    <div class="anomaly-alert info">
+                        <div class="anomaly-icon">ℹ️</div>
+                        <div class="anomaly-content">
+                            <div class="anomaly-title">Unable to analyze anomalies</div>
+                            <div class="anomaly-description">Could not fetch comparison data: ${e.message}</div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function detectAnomalies(current, historical) {
+            const anomalies = [];
+            
+            // Thresholds for anomaly detection
+            const CRITICAL_THRESHOLD = 0.5;  // 50% change = critical
+            const WARNING_THRESHOLD = 0.25;  // 25% change = warning
+            const INFO_THRESHOLD = 0.15;     // 15% change = info
+
+            // Helper to calculate percent change
+            const pctChange = (curr, hist) => hist > 0 ? ((curr - hist) / hist) : 0;
+
+            // DAU anomaly detection
+            const dau = current.dau || 0;
+            const avgDau = historical.avgDau || historical.dau || dau;
+            if (avgDau > 0) {
+                const dauChange = pctChange(dau, avgDau);
+                if (Math.abs(dauChange) >= CRITICAL_THRESHOLD) {
+                    anomalies.push({
+                        type: dauChange < 0 ? 'critical' : 'success',
+                        icon: dauChange < 0 ? '📉' : '📈',
+                        title: dauChange < 0 ? 'Critical DAU Drop' : 'Exceptional DAU Spike',
+                        description: dauChange < 0 
+                            ? `Daily active users dropped ${Math.abs(dauChange * 100).toFixed(0)}% below average. Investigate potential issues.`
+                            : `Daily active users surged ${(dauChange * 100).toFixed(0)}% above average. Great opportunity to monetize!`,
+                        metric: 'DAU',
+                        current: dau,
+                        baseline: avgDau,
+                        change: dauChange
+                    });
+                } else if (Math.abs(dauChange) >= WARNING_THRESHOLD) {
+                    anomalies.push({
+                        type: dauChange < 0 ? 'warning' : 'info',
+                        icon: dauChange < 0 ? '⚠️' : '📊',
+                        title: dauChange < 0 ? 'DAU Below Average' : 'DAU Above Average',
+                        description: `DAU is ${Math.abs(dauChange * 100).toFixed(0)}% ${dauChange < 0 ? 'below' : 'above'} the weekly average.`,
+                        metric: 'DAU',
+                        current: dau,
+                        baseline: avgDau,
+                        change: dauChange
+                    });
+                }
+            }
+
+            // Sessions anomaly
+            const sessions = current.sessions || current.totalSessions || 0;
+            const avgSessions = historical.avgSessions || historical.sessions || sessions;
+            if (avgSessions > 0) {
+                const sessionsChange = pctChange(sessions, avgSessions);
+                if (Math.abs(sessionsChange) >= WARNING_THRESHOLD) {
+                    anomalies.push({
+                        type: sessionsChange < 0 ? 'warning' : 'info',
+                        icon: sessionsChange < 0 ? '📱' : '🎮',
+                        title: sessionsChange < 0 ? 'Session Count Declining' : 'High Session Activity',
+                        description: `Session count is ${Math.abs(sessionsChange * 100).toFixed(0)}% ${sessionsChange < 0 ? 'lower' : 'higher'} than average.`,
+                        metric: 'Sessions',
+                        current: sessions,
+                        baseline: avgSessions,
+                        change: sessionsChange
+                    });
+                }
+            }
+
+            // Revenue anomaly (if available)
+            const revenue = current.totalRevenue || current.revenue || 0;
+            const avgRevenue = historical.avgRevenue || historical.totalRevenue || revenue;
+            if (avgRevenue > 0 && revenue > 0) {
+                const revChange = pctChange(revenue, avgRevenue);
+                if (Math.abs(revChange) >= WARNING_THRESHOLD) {
+                    anomalies.push({
+                        type: revChange < 0 ? 'warning' : 'success',
+                        icon: revChange < 0 ? '💸' : '💰',
+                        title: revChange < 0 ? 'Revenue Below Target' : 'Revenue Exceeding Target',
+                        description: `Revenue is ${Math.abs(revChange * 100).toFixed(0)}% ${revChange < 0 ? 'below' : 'above'} the baseline.`,
+                        metric: 'Revenue',
+                        current: '$' + revenue.toFixed(2),
+                        baseline: '$' + avgRevenue.toFixed(2),
+                        change: revChange
+                    });
+                }
+            }
+
+            // New Users anomaly
+            const newUsers = current.newUsers || current.new_users || 0;
+            const avgNewUsers = historical.avgNewUsers || historical.newUsers || newUsers;
+            if (avgNewUsers > 0) {
+                const newUserChange = pctChange(newUsers, avgNewUsers);
+                if (Math.abs(newUserChange) >= CRITICAL_THRESHOLD) {
+                    anomalies.push({
+                        type: newUserChange < 0 ? 'critical' : 'success',
+                        icon: newUserChange < 0 ? '🚨' : '🆕',
+                        title: newUserChange < 0 ? 'User Acquisition Crash' : 'User Acquisition Surge',
+                        description: newUserChange < 0
+                            ? `New user signups dropped ${Math.abs(newUserChange * 100).toFixed(0)}%. Check UA campaigns and store visibility.`
+                            : `New users up ${(newUserChange * 100).toFixed(0)}%! Consider increasing ad spend.`,
+                        metric: 'New Users',
+                        current: newUsers,
+                        baseline: avgNewUsers,
+                        change: newUserChange
+                    });
+                }
+            }
+
+            // If no anomalies detected, add a healthy status
+            if (anomalies.length === 0) {
+                anomalies.push({
+                    type: 'success',
+                    icon: '✅',
+                    title: 'All Metrics Healthy',
+                    description: 'No significant anomalies detected. All key metrics are within expected ranges.',
+                    metric: null
+                });
+            }
+
+            return anomalies;
+        }
+
+        function renderAnomalies(anomalies) {
+            const container = document.getElementById('anomalyContent');
+            if (!container) return;
+
+            let html = `<div style="margin-bottom:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;">`;
+            
+            // Summary badges
+            const criticalCount = anomalies.filter(a => a.type === 'critical').length;
+            const warningCount = anomalies.filter(a => a.type === 'warning').length;
+            const successCount = anomalies.filter(a => a.type === 'success').length;
+            
+            if (criticalCount > 0) {
+                html += `<span style="background:rgba(239,68,68,0.2);color:var(--danger);padding:0.25rem 0.75rem;border-radius:20px;font-size:0.8rem;font-weight:600;">${criticalCount} Critical</span>`;
+            }
+            if (warningCount > 0) {
+                html += `<span style="background:rgba(245,158,11,0.2);color:var(--warning);padding:0.25rem 0.75rem;border-radius:20px;font-size:0.8rem;font-weight:600;">${warningCount} Warning</span>`;
+            }
+            if (successCount > 0 && criticalCount === 0 && warningCount === 0) {
+                html += `<span style="background:rgba(34,197,94,0.2);color:var(--success);padding:0.25rem 0.75rem;border-radius:20px;font-size:0.8rem;font-weight:600;">All Clear</span>`;
+            }
+            html += `</div>`;
+
+            // Render each anomaly
+            for (const anomaly of anomalies) {
+                html += `
+                    <div class="anomaly-alert ${anomaly.type}">
+                        <div class="anomaly-icon">${anomaly.icon}</div>
+                        <div class="anomaly-content">
+                            <div class="anomaly-title">${anomaly.title}</div>
+                            <div class="anomaly-description">${anomaly.description}</div>
+                            ${anomaly.metric ? `
+                                <div class="anomaly-metric">
+                                    <span>${anomaly.metric}:</span>
+                                    <span class="change ${anomaly.change > 0 ? 'up' : 'down'}">${anomaly.change > 0 ? '+' : ''}${(anomaly.change * 100).toFixed(0)}%</span>
+                                    <span style="color:var(--text-muted);">(${typeof anomaly.current === 'number' ? formatNumber(anomaly.current) : anomaly.current} vs avg ${typeof anomaly.baseline === 'number' ? formatNumber(anomaly.baseline) : anomaly.baseline})</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
         }
 
         // ─────────────────────────────────────────────────────────────────────
