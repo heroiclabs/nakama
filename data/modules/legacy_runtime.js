@@ -3348,11 +3348,118 @@ function getWalletRegistry(ctx, logger, nk, payload) {
 // TUTORX AI COIN GATE - Daily Free Tier + Coin Gating for DeepTutor
 // ============================================================================
 
-var TUTORX_CONFIG = {
+var TUTORX_DEFAULT_CONFIG = {
     FREE_MESSAGES_PER_DAY: 3,
-    COST_PER_MESSAGE: 5,
+    COST_PER_MESSAGE: 25,
     COLLECTION: "tutorx_daily_usage"
 };
+
+/**
+ * Get TutorX config from system storage (allows ops to change without redeploy)
+ * Falls back to TUTORX_DEFAULT_CONFIG if not set
+ */
+function getTutorXConfig(nk, logger) {
+    try {
+        var records = nk.storageRead([{
+            collection: "config",
+            key: "tutorx_pricing",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            var cfg = records[0].value;
+            return {
+                FREE_MESSAGES_PER_DAY: cfg.free_daily !== undefined ? cfg.free_daily : TUTORX_DEFAULT_CONFIG.FREE_MESSAGES_PER_DAY,
+                COST_PER_MESSAGE: cfg.cost_per_message !== undefined ? cfg.cost_per_message : TUTORX_DEFAULT_CONFIG.COST_PER_MESSAGE,
+                COLLECTION: TUTORX_DEFAULT_CONFIG.COLLECTION
+            };
+        }
+    } catch (err) {
+        if (logger) logWarn(logger, "getTutorXConfig: " + err.message + " - using defaults");
+    }
+    return TUTORX_DEFAULT_CONFIG;
+}
+
+/**
+ * RPC: tutorx_set_config (admin only)
+ * Set TutorX pricing config: { "cost_per_message": 25, "free_daily": 3 }
+ */
+function rpcTutorXSetConfig(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC tutorx_set_config called");
+    
+    var parsed = safeJsonParse(payload || "{}");
+    var data = parsed.data || {};
+    
+    var newConfig = {};
+    if (data.cost_per_message !== undefined) {
+        newConfig.cost_per_message = parseInt(data.cost_per_message);
+        if (isNaN(newConfig.cost_per_message) || newConfig.cost_per_message < 0) {
+            return handleError(ctx, null, "cost_per_message must be a non-negative integer");
+        }
+    }
+    if (data.free_daily !== undefined) {
+        newConfig.free_daily = parseInt(data.free_daily);
+        if (isNaN(newConfig.free_daily) || newConfig.free_daily < 0) {
+            return handleError(ctx, null, "free_daily must be a non-negative integer");
+        }
+    }
+    
+    if (Object.keys(newConfig).length === 0) {
+        return handleError(ctx, null, "No valid config fields provided. Use: cost_per_message, free_daily");
+    }
+    
+    var existingConfig = {};
+    try {
+        var records = nk.storageRead([{
+            collection: "config",
+            key: "tutorx_pricing",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            existingConfig = records[0].value;
+        }
+    } catch (err) {}
+    
+    var mergedConfig = {
+        cost_per_message: newConfig.cost_per_message !== undefined ? newConfig.cost_per_message : (existingConfig.cost_per_message || TUTORX_DEFAULT_CONFIG.COST_PER_MESSAGE),
+        free_daily: newConfig.free_daily !== undefined ? newConfig.free_daily : (existingConfig.free_daily || TUTORX_DEFAULT_CONFIG.FREE_MESSAGES_PER_DAY),
+        updated_at: getCurrentTimestamp(),
+        updated_by: ctx.userId
+    };
+    
+    nk.storageWrite([{
+        collection: "config",
+        key: "tutorx_pricing",
+        userId: "00000000-0000-0000-0000-000000000000",
+        value: mergedConfig,
+        permissionRead: 2,
+        permissionWrite: 0
+    }]);
+    
+    logInfo(logger, "TutorX config updated: cost_per_message=" + mergedConfig.cost_per_message + ", free_daily=" + mergedConfig.free_daily);
+    
+    return JSON.stringify({
+        success: true,
+        config: mergedConfig,
+        timestamp: getCurrentTimestamp()
+    });
+}
+
+/**
+ * RPC: tutorx_get_config
+ * Get current TutorX pricing config
+ */
+function rpcTutorXGetConfig(ctx, logger, nk, payload) {
+    logInfo(logger, "RPC tutorx_get_config called");
+    var config = getTutorXConfig(nk, logger);
+    return JSON.stringify({
+        success: true,
+        config: {
+            cost_per_message: config.COST_PER_MESSAGE,
+            free_daily: config.FREE_MESSAGES_PER_DAY
+        },
+        timestamp: getCurrentTimestamp()
+    });
+}
 
 /**
  * RPC: tutorx_check_allowance
@@ -3365,6 +3472,8 @@ function rpcTutorXCheckAllowance(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
+    
+    var TUTORX_CONFIG = getTutorXConfig(nk, logger);
 
     var parsed = safeJsonParse(payload || "{}");
     var data = parsed.data || {};
@@ -3428,6 +3537,8 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
     if (!userId) {
         return handleError(ctx, null, "User not authenticated");
     }
+    
+    var TUTORX_CONFIG = getTutorXConfig(nk, logger);
 
     var parsed = safeJsonParse(payload || "{}");
     var data = parsed.data || {};
@@ -23873,7 +23984,11 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[TutorX] Registered RPC: tutorx_check_allowance');
         initializer.registerRpc('tutorx_record_usage', rpcTutorXRecordUsage);
         logger.info('[TutorX] Registered RPC: tutorx_record_usage');
-        logger.info('[TutorX] Successfully registered 2 TutorX AI Coin Gate RPCs');
+        initializer.registerRpc('tutorx_get_config', rpcTutorXGetConfig);
+        logger.info('[TutorX] Registered RPC: tutorx_get_config');
+        initializer.registerRpc('tutorx_set_config', rpcTutorXSetConfig);
+        logger.info('[TutorX] Registered RPC: tutorx_set_config (admin)');
+        logger.info('[TutorX] Successfully registered 4 TutorX AI Coin Gate RPCs');
     } catch (err) {
         logger.error('[TutorX] Failed to initialize: ' + err.message);
     }
