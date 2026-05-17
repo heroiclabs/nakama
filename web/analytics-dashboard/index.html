@@ -8628,25 +8628,41 @@
                             const chartType = srcChart.config.type;
                             
                             // Copy dataset properties safely - include all common properties
-                            // for line, bar, doughnut, pie, and other chart types
+                            // for line, bar, doughnut, pie, and other chart types.
+                            // Handle CanvasGradient objects by converting to fallback solid colors.
+                            const safeColor = function(color) {
+                                if (!color) return color;
+                                // CanvasGradient or CanvasPattern can't be cloned
+                                if (typeof CanvasGradient !== 'undefined' && color instanceof CanvasGradient) {
+                                    return 'rgba(99, 102, 241, 0.7)'; // Fallback purple
+                                }
+                                if (typeof CanvasPattern !== 'undefined' && color instanceof CanvasPattern) {
+                                    return 'rgba(99, 102, 241, 0.7)';
+                                }
+                                if (Array.isArray(color)) {
+                                    return color.map(safeColor);
+                                }
+                                return color;
+                            };
+                            
                             const copyDataset = function(ds) {
                                 const copy = {
                                     label:                ds.label,
                                     data:                 Array.isArray(ds.data) ? ds.data.slice() : ds.data,
-                                    backgroundColor:      Array.isArray(ds.backgroundColor) ? ds.backgroundColor.slice() : ds.backgroundColor,
-                                    borderColor:          Array.isArray(ds.borderColor) ? ds.borderColor.slice() : ds.borderColor,
+                                    backgroundColor:      safeColor(Array.isArray(ds.backgroundColor) ? ds.backgroundColor.slice() : ds.backgroundColor),
+                                    borderColor:          safeColor(Array.isArray(ds.borderColor) ? ds.borderColor.slice() : ds.borderColor),
                                     borderWidth:          ds.borderWidth,
                                     fill:                 ds.fill,
                                     tension:              ds.tension,
-                                    pointBackgroundColor: ds.pointBackgroundColor,
-                                    pointBorderColor:     ds.pointBorderColor,
+                                    pointBackgroundColor: safeColor(ds.pointBackgroundColor),
+                                    pointBorderColor:     safeColor(ds.pointBorderColor),
                                     pointRadius:          ds.pointRadius,
                                     pointHoverRadius:     ds.pointHoverRadius,
                                     type:                 ds.type,
                                     // Bar chart properties
                                     borderRadius:         ds.borderRadius,
-                                    hoverBackgroundColor: ds.hoverBackgroundColor,
-                                    hoverBorderColor:     ds.hoverBorderColor,
+                                    hoverBackgroundColor: safeColor(ds.hoverBackgroundColor),
+                                    hoverBorderColor:     safeColor(ds.hoverBorderColor),
                                     barThickness:         ds.barThickness,
                                     maxBarThickness:      ds.maxBarThickness,
                                     // Doughnut/Pie chart properties
@@ -8706,7 +8722,20 @@
                             }
                         } catch (err) {
                             console.error('[expandChart] failed to render:', err);
-                            showToast('Could not expand chart', 'warn', 2500);
+                            // Show helpful message in modal instead of just toast
+                            const wrap = document.querySelector('#fullscreenModal .modal-canvas-wrap');
+                            if (wrap) {
+                                let errorEl = wrap.querySelector('.modal-empty-state');
+                                if (!errorEl) {
+                                    errorEl = document.createElement('div');
+                                    errorEl.className = 'modal-empty-state';
+                                    errorEl.style.cssText = 'color:var(--text-muted);text-align:center;padding:3rem;font-size:1rem;';
+                                    wrap.appendChild(errorEl);
+                                }
+                                errorEl.innerHTML = `<div style="color:var(--warning);">⚠️ Chart expansion failed</div><div style="margin-top:0.5rem;font-size:0.85rem;">This chart type may not support fullscreen view.<br>Try viewing the data in the original card.</div>`;
+                                const mc = document.getElementById('modalCanvas');
+                                if (mc) mc.style.display = 'none';
+                            }
                         }
                     }, 50);
                 });
