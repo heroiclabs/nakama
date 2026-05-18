@@ -5323,6 +5323,36 @@ function rpcQuizSubmitResult(ctx, logger, nk, payload) {
 
         logInfo(logger, "Quiz result submitted: User " + userId + ", Mode: " + result.gameMode + ", Score: " + result.score);
 
+        // Fire-and-forget: sync quiz attempt to KB via n8n WF-46
+        // This feeds the user KB pipeline (user_attempts_sync) so TutorX
+        // can surface personalised weak-topic insights. Non-critical — any
+        // failure is logged but does NOT block the quiz submission response.
+        try {
+            var kbPayload = JSON.stringify({
+                userId: userId,
+                gameId: data.gameId,
+                gameMode: data.gameMode,
+                score: result.score,
+                correctAnswers: result.correctAnswers,
+                totalQuestions: result.totalQuestions,
+                accuracy: result.totalQuestions > 0 ? result.correctAnswers / result.totalQuestions : 0,
+                timeTakenSeconds: result.timeTakenSeconds,
+                missedConcepts: missedConcepts,
+                masteredConcepts: masteredConcepts,
+                questionDetails: questionDetails.slice(0, 20),
+                submittedAt: result.submittedAt
+            });
+            nk.httpRequest(
+                "https://n8n.intelli-verse-x.ai/webhook/qv-quiz-complete",
+                "post",
+                { "Content-Type": "application/json" },
+                kbPayload
+            );
+            logInfo(logger, "[KB] Quiz attempt synced to WF-46 for user " + userId);
+        } catch (kbErr) {
+            logWarning(logger, "[KB] WF-46 sync failed (non-critical): " + kbErr.message);
+        }
+
         return JSON.stringify({
             success: true,
             resultId: result.id,
