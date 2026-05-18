@@ -100,10 +100,6 @@ func NewSatoriClient(ctx context.Context, logger *zap.Logger, satoriUrl, apiKeyN
 		cacheEnabled:         cacheEnabled,
 		propertiesCacheMutex: sync.RWMutex{},
 		propertiesCache:      make(map[context.Context]*runtime.Properties),
-		flagsCache:           newSatoriContextCache[flagCacheEntry, struct{}](ctx, cacheEnabled),
-		flagsOverridesCache:  newSatoriContextCache[flagOverridesCacheEntry, struct{}](ctx, cacheEnabled),
-		liveEventsCache:      newSatoriContextCache[*runtime.LiveEvent, liveEventFilters](ctx, cacheEnabled),
-		experimentsCache:     newSatoriContextCache[*runtime.Experiment, struct{}](ctx, cacheEnabled),
 	}
 
 	switch cacheMode {
@@ -208,25 +204,9 @@ func (s *sessionTokenClaims) GetSubject() (string, error) {
 }
 
 func (s *SatoriClient) generateToken(ctx context.Context, id string) (string, error) {
-	// Ensure we only log warnings when context is expected to contain values.
-	//mode, ok := ctx.Value(runtime.RUNTIME_CTX_MODE).(string)
-	//contextExpected := ok && s.strictContextModes[mode]
-
-	//tid, ok := ctx.Value(ctxkeys.TokenIDKey{}).(string)
-	//if !ok && contextExpected {
-	//	s.logger.Warn("satori request token id was not found in ctx")
-	//}
 	var tid string
 	tIssuedAt, _ := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
-	//tIssuedAt, ok := ctx.Value(ctxkeys.TokenIssuedAtKey{}).(int64)
-	//if !ok && contextExpected {
-	//	s.logger.Warn("satori request token issued at was not found in ctx")
-	//}
 	tExpirySec, _ := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
-	//tExpirySec, ok := ctx.Value(ctxkeys.ExpiryKey{}).(int64)
-	//if !ok && contextExpected {
-	//	s.logger.Warn("satori request token expires at was not found in ctx")
-	//}
 
 	timestamp := time.Now().UTC()
 	if tIssuedAt == 0 && tExpirySec > s.nakamaTokenExpirySec {
@@ -556,13 +536,12 @@ func (s *SatoriClient) ExperimentsList(ctx context.Context, id string, names, la
 			newExperiments[exp.Name] = exp
 		}
 
-		if len(names) > 0 {
+		if len(names) > 0 || len(labels) > 0 {
 			s.experimentsCache.Add(ctx, id, names, labels, newExperiments)
 		} else {
 			s.experimentsCache.SetAll(ctx, id, newExperiments)
 		}
 
-		return experiments, nil
 	}
 
 	return &runtime.ExperimentList{Experiments: entry}, nil
@@ -645,7 +624,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names, labels [
 			entries[f.Name] = cacheEntry
 		}
 
-		if len(names) > 0 {
+		if len(names) > 0 || len(labels) > 0 {
 			s.flagsCache.Add(ctx, id, names, labels, entries)
 		} else {
 			s.flagsCache.SetAll(ctx, id, entries)
@@ -730,7 +709,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 			entries[f.FlagName] = cacheEntry
 		}
 
-		if len(names) > 0 {
+		if len(names) > 0 || len(labels) > 0 {
 			s.flagsOverridesCache.Add(ctx, id, names, labels, entries)
 		} else {
 			s.flagsOverridesCache.SetAll(ctx, id, entries)
@@ -740,16 +719,14 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 	flagOverridesList := make([]*runtime.FlagOverrides, 0, len(entry))
 	for _, flagEntry := range entry {
 		flagOverrides := make([]*runtime.FlagOverride, 0, len(flagEntry.values))
-		var flagName string
 		for _, flagOverride := range flagEntry.values {
-			flagName = flagOverride.Name
 			fo := flagOverride.FlagOverride
 			fo.Value = flagOverride.Value.Value()
 			flagOverrides = append(flagOverrides, fo)
 		}
 
 		flagOverridesList = append(flagOverridesList, &runtime.FlagOverrides{
-			FlagName:  flagName,
+			FlagName:  flagEntry.FlagName,
 			Labels:    flagEntry.Labels,
 			Overrides: flagOverrides,
 		})
@@ -1255,7 +1232,18 @@ func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, templateId 
 	}
 }
 
-func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken string, url string, method string, queryParams url.Values, payload []byte, ipAddress ...string) ([]byte, error) {
+func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken, url, method string, queryParams url.Values, payload []byte, ipAddress ...string) ([]byte, error) {
+	expBackoffDuration := func(attempt int) time.Duration {
+		const (
+			minBackoff   = 100
+			minBackoffMs = time.Duration(minBackoff) * time.Millisecond
+			maxBackoffMs = time.Duration(1000) * time.Millisecond
+		)
+		backoff := min((2<<attempt)*minBackoffMs, maxBackoffMs)
+		delay := backoff + time.Duration(rand.Int64N(minBackoff))*time.Millisecond
+		return delay
+	}
+
 	var retryErr error
 	for attempt := 0; attempt <= s.retryCount; attempt++ {
 		var reader io.Reader
@@ -1271,7 +1259,7 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 			req.Header.Set("Content-Type", "application/json")
 		}
 		if authToken != "" {
-			req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", authToken))
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
 		} else {
 			req.SetBasicAuth(s.apiKey, "")
 		}
@@ -1288,6 +1276,17 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 
 		res, err := s.httpc.Do(req)
 		if err != nil {
+			if s.retryCount > 0 {
+				retryErr = err
+				s.logger.With(zap.Error(err), zap.Int("retry_count", attempt)).Warn("retrying satori request")
+				delay := expBackoffDuration(attempt)
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				case <-time.After(delay):
+				}
+				continue
+			}
 			return nil, err
 		}
 
@@ -1307,21 +1306,20 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 		case http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			res.Body.Close()
 
-			var delay time.Duration
-			if res.StatusCode == http.StatusTooManyRequests {
-				v := res.Header.Get("Retry-After")
-				if i, err := strconv.Atoi(v); err == nil {
-					delay = time.Duration(i) * time.Second
+			delay := expBackoffDuration(attempt)
+			if res.StatusCode == http.StatusTooManyRequests || res.StatusCode == http.StatusServiceUnavailable {
+				if v := res.Header.Get("Retry-After"); v != "" {
+					if i, err := strconv.Atoi(v); err == nil {
+						delay = time.Duration(i) * time.Second
+					}
 				}
-			} else {
-				backoff := time.Duration(min((2<<attempt)*100, 1000)) * time.Millisecond
-				delay = backoff + time.Duration(rand.Int64N(100))*time.Millisecond
 			}
 
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(delay):
+			if s.retryCount == 0 {
+				if len(resBody) > 0 {
+					return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
+				}
+				return nil, fmt.Errorf("%d status code", res.StatusCode)
 			}
 
 			retryLogger := s.logger
@@ -1329,6 +1327,12 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 				retryLogger = retryLogger.With(zap.String("response_body", string(resBody)))
 			}
 			retryLogger.With(zap.Int("retry_count", attempt), zap.Int("status_code", res.StatusCode)).Warn("retrying satori request")
+
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
 
 			if len(resBody) > 0 {
 				retryErr = fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
@@ -1339,11 +1343,9 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken str
 		default:
 			res.Body.Close()
 			if len(resBody) > 0 {
-				err = fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
-			} else {
-				err = fmt.Errorf("%d status code", res.StatusCode)
+				return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(resBody))
 			}
-			return nil, err
+			return nil, fmt.Errorf("%d status code", res.StatusCode)
 		}
 	}
 
