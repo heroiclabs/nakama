@@ -1233,13 +1233,13 @@ func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, templateId 
 }
 
 func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken, url, method string, queryParams url.Values, payload []byte, ipAddress ...string) ([]byte, error) {
-	expBackoffDuration := func(attempt int) time.Duration {
+	backoffDuration := func(attempt int) time.Duration {
 		const (
-			minBackoff   = 100
-			minBackoffMs = time.Duration(minBackoff) * time.Millisecond
-			maxBackoffMs = time.Duration(1000) * time.Millisecond
+			minBackoff         = 100
+			minBackoffDuration = time.Duration(minBackoff) * time.Millisecond
+			maxBackoffDuration = time.Duration(1000) * time.Millisecond
 		)
-		backoff := min((2<<attempt)*minBackoffMs, maxBackoffMs)
+		backoff := min((2<<attempt)*minBackoffDuration, maxBackoffDuration)
 		delay := backoff + time.Duration(rand.Int64N(minBackoff))*time.Millisecond
 		return delay
 	}
@@ -1276,10 +1276,10 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken, ur
 
 		res, err := s.httpc.Do(req)
 		if err != nil {
-			if s.retryCount > 0 {
+			if attempt < s.retryCount {
 				retryErr = err
 				s.logger.With(zap.Error(err), zap.Int("retry_count", attempt)).Warn("retrying satori request")
-				delay := expBackoffDuration(attempt)
+				delay := backoffDuration(attempt)
 				select {
 				case <-ctx.Done():
 					return nil, ctx.Err()
@@ -1306,7 +1306,7 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken, ur
 		case http.StatusRequestTimeout, http.StatusTooManyRequests, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
 			res.Body.Close()
 
-			delay := expBackoffDuration(attempt)
+			delay := backoffDuration(attempt)
 			if res.StatusCode == http.StatusTooManyRequests || res.StatusCode == http.StatusServiceUnavailable {
 				if v := res.Header.Get("Retry-After"); v != "" {
 					if i, err := strconv.Atoi(v); err == nil {

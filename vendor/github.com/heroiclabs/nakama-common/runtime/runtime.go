@@ -1334,7 +1334,7 @@ type FleetManager interface {
 	// If a list of userIds is optionally provided, the new instance (on successful creation) will reserve slots
 	// for the respective clients to connect, and the callback will contain the required []*SessionInfo.
 	// Latencies is optional and its support depends on the Fleet Manager provider.
-	Create(ctx context.Context, maxPlayers int, userIds []string, latencies []FleetUserLatencies, metadata map[string]any, callback FmCreateCallbackFn) (err error)
+	Create(ctx context.Context, maxPlayers int, userIds []string, latencies []FleetUserLatencies, metadata map[string]any, callback FmCreateCallbackFn) (map[string]string, error)
 
 	// Join reserves a number of player slots in the target instance. These slots are reserved for a minute, after which,
 	// if clients do not connect to the instance to claim them, the returned SessionInfo will become invalid and the
