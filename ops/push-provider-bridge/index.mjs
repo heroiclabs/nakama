@@ -3,9 +3,9 @@ import { SNSClient, CreatePlatformEndpointCommand, PublishCommand, SetEndpointAt
 const sns = new SNSClient({});
 
 const appArns = {
-  android: process.env.SNS_PLATFORM_APP_ARN_ANDROID || process.env.SNS_PLATFORM_APPLICATION_ARN_ANDROID || "",
+  android: process.env.SNS_PLATFORM_APP_ARN_ANDROID || process.env.SNS_PLATFORM_APPLICATION_ARN_ANDROID || "arn:aws:sns:us-east-1:970547373533:app/GCM/IntelliVerseX-Android",
   web: process.env.SNS_PLATFORM_APP_ARN_WEB || "",
-  ios: process.env.SNS_PLATFORM_APP_ARN_IOS || process.env.SNS_PLATFORM_APPLICATION_ARN_IOS || "",
+  ios: process.env.SNS_PLATFORM_APP_ARN_IOS || process.env.SNS_PLATFORM_APPLICATION_ARN_IOS || "arn:aws:sns:us-east-1:970547373533:app/APNS/intelliverse-ios",
 };
 
 function json(statusCode, body) {
