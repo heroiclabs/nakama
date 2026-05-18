@@ -487,7 +487,9 @@ func (m *LocalMatchmaker) Process() {
 				// Check if there's a matchmaker matched runtime callback, call it, and see if it returns a match ID.
 				fn := m.runtime.MatchmakerMatched()
 				if fn != nil {
-					tokenOrMatchID, isMatchID, err = fn(context.Background(), entries)
+					fnCtx, fnCtxCancel := context.WithCancel(context.Background())
+					tokenOrMatchID, isMatchID, err = fn(fnCtx, entries)
+					fnCtxCancel()
 					if err != nil {
 						m.logger.Error("Error running Matchmaker Matched hook.", zap.Error(err))
 					}
