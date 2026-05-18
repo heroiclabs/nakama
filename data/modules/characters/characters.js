@@ -13,8 +13,8 @@
 // ─── CHARACTER DEFINITIONS ──────────────────────────────────────────────────
 
 var CHARACTER_DEFS = {
-    quizzy: {
-        id: 'quizzy',
+    Quizzy: {
+        id: 'Quizzy',
         name: 'Quizzy',
         description: 'Your first quiz companion!',
         rarity: 'common',
@@ -23,8 +23,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Quizzy/intro.mp4',
         xpRewardOnUnlock: 0
     },
-    autocurio: {
-        id: 'autocurio',
+    AUTOcurio: {
+        id: 'AUTOcurio',
         name: 'AUTOcurio',
         description: 'A charming, hyper-curious bot who awakens in the human world with an insatiable desire to understand everything.',
         rarity: 'common',
@@ -33,8 +33,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/AUTOcurio/intro.mp4',
         xpRewardOnUnlock: 0
     },
-    atlas: {
-        id: 'atlas',
+    Atlas: {
+        id: 'Atlas',
         name: 'Atlas',
         description: 'The world explorer who loves geography.',
         rarity: 'rare',
@@ -43,8 +43,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Atlas/intro.mp4',
         xpRewardOnUnlock: 100
     },
-    nova: {
-        id: 'nova',
+    Nova: {
+        id: 'Nova',
         name: 'Nova',
         description: 'A science genius from the stars.',
         rarity: 'rare',
@@ -53,8 +53,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Nova/intro.mp4',
         xpRewardOnUnlock: 100
     },
-    dog: {
-        id: 'dog',
+    Dog: {
+        id: 'Dog',
         name: 'Dog',
         description: 'A cute, loyal puppy character with floppy ears and a wagging tail.',
         rarity: 'rare',
@@ -63,8 +63,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Dog/intro.mp4',
         xpRewardOnUnlock: 100
     },
-    sparky: {
-        id: 'sparky',
+    Sparky: {
+        id: 'Sparky',
         name: 'Sparky',
         description: 'An energetic lightning-bolt character radiating electric energy.',
         rarity: 'rare',
@@ -73,8 +73,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Sparky/intro.mp4',
         xpRewardOnUnlock: 100
     },
-    echo: {
-        id: 'echo',
+    Echo: {
+        id: 'Echo',
         name: 'Echo',
         description: 'A musical character with oversized headphones and sound wave aura.',
         rarity: 'rare',
@@ -83,8 +83,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Echo/intro.mp4',
         xpRewardOnUnlock: 100
     },
-    professor: {
-        id: 'professor',
+    Professor: {
+        id: 'Professor',
         name: 'Professor',
         description: 'A wise owl professor with round glasses and a book.',
         rarity: 'rare',
@@ -93,8 +93,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Professor/intro.mp4',
         xpRewardOnUnlock: 100
     },
-    pixel: {
-        id: 'pixel',
+    Pixel: {
+        id: 'Pixel',
         name: 'Pixel',
         description: 'A retro pixel-art character made of visible square pixels.',
         rarity: 'rare',
@@ -103,8 +103,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Pixel/intro.mp4',
         xpRewardOnUnlock: 100
     },
-    chronos: {
-        id: 'chronos',
+    Chronos: {
+        id: 'Chronos',
         name: 'Chronos',
         description: 'The timekeeper who knows all history.',
         rarity: 'epic',
@@ -113,8 +113,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Chronos/intro.mp4',
         xpRewardOnUnlock: 250
     },
-    phoenix: {
-        id: 'phoenix',
+    Phoenix: {
+        id: 'Phoenix',
         name: 'Phoenix',
         description: 'Reborn from the ashes of defeat.',
         rarity: 'epic',
@@ -123,8 +123,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Phoenix/intro.mp4',
         xpRewardOnUnlock: 250
     },
-    bear: {
-        id: 'bear',
+    Bear: {
+        id: 'Bear',
         name: 'Bear',
         description: 'A strong, friendly bear character representing dedication.',
         rarity: 'epic',
@@ -133,8 +133,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Bear/intro.mp4',
         xpRewardOnUnlock: 250
     },
-    duck: {
-        id: 'duck',
+    Duck: {
+        id: 'Duck',
         name: 'Duck',
         description: 'A cute rubber duck character with a quirky personality.',
         rarity: 'epic',
@@ -143,8 +143,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Duck/intro.mp4',
         xpRewardOnUnlock: 250
     },
-    luna: {
-        id: 'luna',
+    Luna: {
+        id: 'Luna',
         name: 'Luna',
         description: 'A mystical crescent moon character with a starry aura.',
         rarity: 'epic',
@@ -153,8 +153,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Luna/intro.mp4',
         xpRewardOnUnlock: 250
     },
-    sage: {
-        id: 'sage',
+    Sage: {
+        id: 'Sage',
         name: 'Sage',
         description: 'The ultimate quiz master.',
         rarity: 'legendary',
@@ -163,8 +163,8 @@ var CHARACTER_DEFS = {
         introVideoPath: 'Characters/Sage/intro.mp4',
         xpRewardOnUnlock: 500
     },
-    ix: {
-        id: 'ix',
+    IX: {
+        id: 'IX',
         name: 'IX',
         description: 'IntelliVerse X ultimate character — futuristic AI entity.',
         rarity: 'legendary',
@@ -172,6 +172,16 @@ var CHARACTER_DEFS = {
         unlockCondition: 'ecosystem_points_2500',
         introVideoPath: 'Characters/IX/intro.mp4',
         xpRewardOnUnlock: 500
+    },
+    Gloop: {
+        id: 'Gloop',
+        name: 'Gloop',
+        description: 'A playful, bouncy slime character with a cheerful personality.',
+        rarity: 'rare',
+        xpBonus: 5,
+        unlockCondition: 'quiz_master_tier2',
+        introVideoPath: 'Characters/Gloop/intro.mp4',
+        xpRewardOnUnlock: 100
     }
 };
 
@@ -219,10 +229,10 @@ function writeCharacterData(nk, logger, userId, gameId, data) {
 function initCharacterData(userId) {
     var now = new Date().toISOString();
     return {
-        activeCharacter: 'quizzy',
+        activeCharacter: 'Quizzy',
         unlockedCharacters: {
-            quizzy: { unlockedAt: now },
-            autocurio: { unlockedAt: now }
+            Quizzy: { unlockedAt: now },
+            AUTOcurio: { unlockedAt: now }
         },
         totalXpFromUnlocks: 0,
         createdAt: now,
