@@ -16,7 +16,8 @@ var AD_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var AD_DASH_COLLECTION = "analytics_events";
 
 var AD_QUIZ_STARTED_NAMES = {
-    'quiz_started': 1, 'quiz_session_started': 1, 'quiz_session_start': 1
+    // Fix SR-11: include canonical "quiz_start" (alias of "quiz_started").
+    'quiz_start': 1, 'quiz_started': 1, 'quiz_session_started': 1, 'quiz_session_start': 1
 };
 var AD_QUIZ_COMPLETED_NAMES = {
     'quiz_completed': 1, 'quiz_complete': 1,

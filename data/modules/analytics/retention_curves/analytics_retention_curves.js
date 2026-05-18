@@ -61,6 +61,12 @@ function rcErr(msg, code) {
 }
 
 function rcEnv(ctx, key) {
+    // Fix SR-10: mirror analytics_hardening.js ahEnv — use hardcoded DASHBOARD_SECRET
+    // fallback so shared-secret admin auth works even when ctx.env is unpopulated
+    // (which is the designed production state per analytics_admin.js comment).
+    if (key === "DASHBOARD_SECRET" && typeof AA_FALLBACK_DASHBOARD_SECRET === "string") {
+        return AA_FALLBACK_DASHBOARD_SECRET;
+    }
     try { return (ctx && ctx.env && ctx.env[key]) || null; } catch (e) { return null; }
 }
 

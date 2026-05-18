@@ -425,26 +425,14 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  * Returns null on success, or a string error.
  */
 function persistNormalizedEvent(nk, logger, ev) {
-    // ── Unified player analytics store (game_player_analytics) ──
-    // All per-player event data goes to a single doc keyed {gameId}:{userId}.
-    try {
-        gpaUpsertEvent(nk, logger, ev);
-    } catch (e) {
-        if (logger && logger.warn) {
-            logger.warn("[analytics] gpaUpsertEvent failed: " + (e.message || e));
-        }
-        return "Failed to write player analytics";
-    }
-
     // ── In-house dashboard fan-out (analytics_events / dash_* keys) ──
-    // The legacy dashboard rollup scanners (analytics_rollup.js::arScanEventsForDate,
-    // admin_events_timeline, admin_top_events) all query the `analytics_events`
-    // collection with a key prefix of `dash_<gameId>_<YYYY-MM-DD>_*`. Without this
-    // write, the dashboard at /analytics.html shows zero events.
-    //
-    // Wrapped in try/catch so a transient storage error never breaks the player
-    // analytics store write above (which is the primary source of truth for the
-    // game_player_analytics doc and the per-user buffer).
+    // Runs FIRST so the dashboard always captures the event regardless of whether
+    // the per-player GPA write below succeeds. The legacy dashboard rollup scanners
+    // (analytics_rollup.js::arScanEventsForDate, admin_events_timeline,
+    // admin_top_events) all query the `analytics_events` collection with a key
+    // prefix of `dash_<gameId>_<YYYY-MM-DD>_*`. Without this write the dashboard
+    // at /analytics.html shows zero events.
+    var dashWriteErr = null;
     try {
         var dateStr = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
         var rand = Math.random().toString(36).slice(2, 8);
@@ -459,8 +447,22 @@ function persistNormalizedEvent(nk, logger, ev) {
             permissionWrite: 0
         }]);
     } catch (e) {
+        dashWriteErr = (e.message || e);
         if (logger && logger.warn) {
-            logger.warn("[analytics] dash_* fan-out failed (dashboard rollups will miss this event): " + (e.message || e));
+            logger.warn("[analytics] dash_* fan-out failed (dashboard rollups will miss this event): " + dashWriteErr);
+        }
+    }
+
+    // ── Unified player analytics store (game_player_analytics) ──
+    // Runs after the dashboard write so a GPA failure never blocks dashboard data.
+    // All per-player event data goes to a single doc keyed {gameId}:{userId}.
+    var gpaFailed = false;
+    try {
+        gpaUpsertEvent(nk, logger, ev);
+    } catch (e) {
+        gpaFailed = true;
+        if (logger && logger.warn) {
+            logger.warn("[analytics] gpaUpsertEvent failed: " + (e.message || e));
         }
     }
 
@@ -543,6 +545,16 @@ function persistNormalizedEvent(nk, logger, ev) {
         trackPlatform(nk, logger, ev.gameId, ev.platform);
     }
 
+    // Only surface an error when the dashboard write itself failed — that is the
+    // primary signal for operators (no data in analytics_events = nothing on the dashboard).
+    // Fix #6: GPA-only failures (dashboard write succeeded) are demoted to a warning.
+    // Previously returning an error here caused the event to be counted as "rejected"
+    // even though it was fully queryable in analytics_events and on the dashboard.
+    if (dashWriteErr) return "Failed to write dashboard event: " + dashWriteErr;
+    if (gpaFailed && logger && logger.warn) {
+        logger.warn("[analytics] GPA write failed for " + ev.eventName +
+            " (dashboard write succeeded — event is queryable)");
+    }
     return null;
 }
 
@@ -611,12 +623,15 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     // Best-effort counter tick (for analytics_metrics RPC). Ignored on failure
     // so it never blocks event ingestion.
     try {
+        // Fix #7: include satori_module_available so operators can see whether
+        // the Satori direct module is loaded (and fan-out is actually happening).
         bumpMetricsCounter(nk, {
-            accepted:         accepted,
-            rejected:         rejected,
-            alias_normalized: aliasNormalized,
-            schema_v2_events:   v2EventsCount,
-            schema_v2_warnings: v2WarningsCount
+            accepted:                accepted,
+            rejected:                rejected,
+            alias_normalized:        aliasNormalized,
+            schema_v2_events:        v2EventsCount,
+            schema_v2_warnings:      v2WarningsCount,
+            satori_module_available: (typeof sdEnqueueOrFlush === "function") ? 1 : 0
         });
     } catch (e) { /* swallow */ }
 
@@ -730,6 +745,10 @@ function bumpMetricsCounter(nk, delta) {
         // Phase 2: schema v2 counters.
         rec.schema_v2_events   = (rec.schema_v2_events   || 0) + (delta.schema_v2_events   || 0);
         rec.schema_v2_warnings = (rec.schema_v2_warnings || 0) + (delta.schema_v2_warnings || 0);
+        // Fix #7: track whether Satori direct module is loaded (0/1 flag written each call).
+        if (delta.satori_module_available !== undefined) {
+            rec.satori_module_available = delta.satori_module_available > 0;
+        }
         if (delta.log_calls !== false) rec.log_calls += 1;
         rec.updated_at = new Date().toISOString();
         return rec;
@@ -756,13 +775,21 @@ function trackPlatform(nk, logger, gameId, platform) {
  * isNewUser signals that trackFirstSeen just created the first-seen doc for
  * this (user,game) pair. We bump newUsers only once per user per day-per-key.
  */
+// Fix #4: cap the uniqueUsers array to prevent document bloat at high DAU.
+// Above DAU_MAX_TRACKED_USERS the array stays frozen; overflow_count tracks
+// additional increments so `count` stays accurate (with minor overcount risk
+// past the cap since dedup can no longer be applied).
+// Fix #8: include gameId in the platform-level key so per-game breakdown is
+// correct on multi-game Nakama instances.
+var DAU_MAX_TRACKED_USERS = 10000;
+
 function trackDAU(nk, logger, userId, gameId, isNewUser) {
     var today = utils.getStartOfDay();
     var collection = "analytics_dau";
 
     var keys = [
         "dau_" + gameId + "_" + today,
-        "dau_platform_" + today
+        "dau_platform_" + gameId + "_" + today   // Fix #8: added gameId
     ];
 
     for (var k = 0; k < keys.length; k++) {
@@ -774,9 +801,17 @@ function trackDAU(nk, logger, userId, gameId, isNewUser) {
                 if (!Array.isArray(dauData.uniqueUsers)) {
                     dauData.uniqueUsers = Array.isArray(dauData.users) ? dauData.users : [];
                 }
-                if (dauData.uniqueUsers.indexOf(userId) !== -1) return null; // no-op, already recorded
-                dauData.uniqueUsers.push(userId);
-                dauData.count = dauData.uniqueUsers.length;
+                // Fix #4: once the array hits the cap, fall back to an increment counter
+                // (overflow_count) so the document never exceeds the storage size limit.
+                if (dauData.uniqueUsers.length < DAU_MAX_TRACKED_USERS) {
+                    if (dauData.uniqueUsers.indexOf(userId) !== -1) return null; // already recorded
+                    dauData.uniqueUsers.push(userId);
+                    dauData.count = dauData.uniqueUsers.length + (dauData.overflow_count || 0);
+                } else {
+                    // Array is frozen at cap — increment approximate count only.
+                    dauData.overflow_count = (dauData.overflow_count || 0) + 1;
+                    dauData.count = DAU_MAX_TRACKED_USERS + dauData.overflow_count;
+                }
                 if (isNewUser) dauData.newUsers = (dauData.newUsers || 0) + 1;
                 return dauData;
             });

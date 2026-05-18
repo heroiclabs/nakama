@@ -319,7 +319,9 @@ function gpaUpsertEvent(nk, logger, ev) {
         }
         // ── Per-quiz ID counts (which specific quiz was taken how many times) ──
         var evName = ev.eventName || "";
-        if ((evName === "quiz_completed" || evName === "quiz_session_started" ||
+        // Fix #2/#5: use canonical event names (after EVENT_ALIASES normalisation in analytics.js).
+        // quiz_completed → quiz_complete; quiz_session_started is NOT aliased so kept as-is.
+        if ((evName === "quiz_complete" || evName === "quiz_session_started" ||
              evName === "daily_quiz_completed" || evName === "compatibility_quiz_completed") && ed.quiz_id) {
             if (!doc.quiz_id_counts) doc.quiz_id_counts = {};
             var qid = ("" + ed.quiz_id).substring(0, 80);
@@ -374,14 +376,16 @@ function gpaUpsertEvent(nk, logger, ev) {
         if (evName === "paywall_dismissed") {
             doc.money.paywall_dismissed_count = (doc.money.paywall_dismissed_count || 0) + 1;
         }
-        if (evName === "purchase_started" || evName === "iap_started") {
+        // Fix #2: use canonical names (purchase_started→iap_clicked, iap_started→iap_clicked,
+        //          purchase_failed→iap_failed, iap_completed/purchase_completed→iap_purchased).
+        if (evName === "iap_clicked") {
             doc.money.iap_started_count = (doc.money.iap_started_count || 0) + 1;
         }
-        if (evName === "purchase_failed" || evName === "iap_failed") {
+        if (evName === "iap_failed") {
             doc.money.iap_failed_count = (doc.money.iap_failed_count || 0) + 1;
         }
         // ── Monetization: IAP events ─────────────────────────────────
-        if (evName === "iap_completed" || evName === "purchase_completed") {
+        if (evName === "iap_purchased") {
             doc.money.iap_count = (doc.money.iap_count || 0) + 1;
             doc.money.last_iap_utc = ev.unixTimestamp || nowUtc;
             var priceVal = parseFloat(ed.price || ed.revenue_usd || 0);
@@ -437,8 +441,9 @@ function gpaUpsertEvent(nk, logger, ev) {
                 }
             }
         }
-        // ── Quiz accuracy: update on quiz_completed / daily_quiz_completed ──
-        if (evName === "quiz_completed" || evName === "daily_quiz_completed" ||
+        // ── Quiz accuracy: update on quiz_complete / daily_quiz_completed ──
+        // Fix #2: quiz_completed is normalised to quiz_complete by EVENT_ALIASES in analytics.js.
+        if (evName === "quiz_complete" || evName === "daily_quiz_completed" ||
             evName === "compatibility_quiz_completed") {
             if (!doc.eng) doc.eng = {};
             var correct = parseInt(ed.correct_count, 10) || 0;

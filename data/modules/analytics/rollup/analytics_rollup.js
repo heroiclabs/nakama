@@ -543,9 +543,11 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
             var prodId = data.product_id || data.productId;
             if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
         }
-        // Phase 4 — non-revenue IAP funnel signals.
-        if (eventName === "purchase_started" || eventName === "iap_started") iapStarted++;
-        if (eventName === "purchase_failed"  || eventName === "iap_failed")  iapFailed++;
+        // Fix SR-9: AR_EVENT_ALIASES already ran above so "purchase_started" and
+        // "iap_started" are now "iap_clicked" by the time we reach here.
+        // Using the pre-alias names caused iapStarted to always be 0 in the rollup.
+        if (eventName === "iap_clicked") iapStarted++;
+        if (eventName === "iap_failed")  iapFailed++;
         if (eventName === "paywall_shown")     paywallShown++;
         if (eventName === "paywall_converted") paywallConverted++;
         if (eventName === "paywall_dismissed") paywallDismissed++;

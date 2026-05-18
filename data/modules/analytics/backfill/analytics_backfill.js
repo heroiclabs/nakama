@@ -84,7 +84,10 @@ function abGetSatoriOrNull(nk, logger) {
  *   d: event data object (any)
  */
 function abExpandGpaEvent(doc, ev) {
-    var unixSec = Math.floor((ev.t || 0) / 1000);
+    // Fix #3: GPA stores t as unix SECONDS (not ms), so no division needed.
+    // Previously dividing by 1000 produced 1970-era timestamps, making all
+    // backfilled dash_* keys land outside the rollup scanner's date window.
+    var unixSec = ev.t || 0;
     return {
         eventName: String(ev.n || "unknown"),
         eventData: ev.d || {},
