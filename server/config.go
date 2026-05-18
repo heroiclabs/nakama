@@ -1527,8 +1527,8 @@ func (sc *SatoriConfig) Validate(logger *zap.Logger) {
 	if sc.CacheTTLSec < 1 {
 		logger.Fatal("Satori configuration invalid: cache_ttl_sec must be greater than 0")
 	}
-	if sc.RetryCount < 0 {
-		logger.Fatal("Satori configuration invalid: retry_count must be >= 0")
+	if sc.RetryCount < 0 || sc.RetryCount > 3 {
+		logger.Fatal("Satori configuration invalid: retry_count must be a value between 0 and 3")
 	}
 }
 
