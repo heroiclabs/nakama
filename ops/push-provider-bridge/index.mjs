@@ -35,7 +35,7 @@ function normalizePlatform(platform) {
   return value || "android";
 }
 
-function mobileMessage(platform, title, body, data) {
+function mobileMessage(platform, title, body, data, isGcmEndpoint = false) {
   const customData = data && typeof data === "object" ? data : {};
   const defaultPayload = JSON.stringify({
     notification: { title, body },
@@ -44,7 +44,9 @@ function mobileMessage(platform, title, body, data) {
     ),
   });
 
-  if (platform === "ios") {
+  // isGcmEndpoint: iOS devices using Firebase have a GCM SNS endpoint (ARN contains
+  // '/GCM/'). They receive FCM-format messages, which Firebase bridges to APNs.
+  if (platform === "ios" && !isGcmEndpoint) {
     return JSON.stringify({
       default: body || title,
       APNS: JSON.stringify({
@@ -72,11 +74,24 @@ function mobileMessage(platform, title, body, data) {
 
 async function registerEndpoint(body) {
   const platform = normalizePlatform(body.platform);
-  const appArn = appArns[platform];
   const token = body.deviceToken || body.token;
 
   if (!token) return json(400, { success: false, error: "device token required" });
-  if (!appArn) return json(400, { success: false, error: `SNS platform app ARN missing for ${platform}` });
+
+  // Firebase on iOS intercepts the native APNs token and gives the app an FCM
+  // registration token instead (contains ':' and non-hex characters like underscores
+  // and dashes). SNS APNS platform rejects these — they must go to the GCM platform.
+  let resolvedPlatform = platform;
+  if (platform === "ios") {
+    const isFcmToken = token.includes(":") || /[^0-9a-fA-F]/.test(token);
+    if (isFcmToken) {
+      console.log("[Register] iOS FCM token detected — routing to GCM platform");
+      resolvedPlatform = "android";
+    }
+  }
+
+  const appArn = appArns[resolvedPlatform];
+  if (!appArn) return json(400, { success: false, error: `SNS platform app ARN missing for ${resolvedPlatform}` });
 
   const attributes = {};
   if (body.userId || body.gameId) {
@@ -113,10 +128,13 @@ async function sendPush(body) {
   const platform = normalizePlatform(body.platform);
   const title = body.title || body.eventType || "QuizVerse";
   const messageBody = body.body || "";
+  // Detect whether the stored endpoint was created on the GCM platform (iOS Firebase
+  // devices). The ARN will contain '/GCM/' instead of '/APNS/'.
+  const isGcmEndpoint = body.endpointArn.includes("/GCM/");
   const result = await sns.send(new PublishCommand({
     TargetArn: body.endpointArn,
     MessageStructure: "json",
-    Message: mobileMessage(platform, title, messageBody, body.data || {}),
+    Message: mobileMessage(platform, title, messageBody, body.data || {}, isGcmEndpoint),
   }));
 
   return json(200, {
