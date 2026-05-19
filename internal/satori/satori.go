@@ -31,6 +31,7 @@ import (
 	"time"
 	"unique"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -269,7 +270,7 @@ func (s *SatoriClient) Authenticate(ctx context.Context, id string, defaultPrope
 		return nil, err
 	}
 
-	resBody, err := s.httpRequestWithRetries(ctx, "", url, http.MethodPost, nil, jsonBody, ipAddress...)
+	resBody, err := s.httpRequestWithRetries(ctx, s.apiKey, url, http.MethodPost, nil, jsonBody, ipAddress...)
 	if err != nil {
 		return nil, err
 	}
@@ -428,11 +429,11 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 	}
 
 	evts := make([]*event, 0, len(events))
-	for i, e := range events {
-		evts = append(evts, &event{
-			Event: e,
-		})
-		evts[i].setTimestamp()
+	for _, e := range events {
+		e.Id = uuid.Must(uuid.NewV4()).String()
+		evt := &event{Event: e}
+		evt.setTimestamp()
+		evts = append(evts, evt)
 	}
 
 	json, err := json.Marshal(&eventsBody{Events: evts})
@@ -462,11 +463,11 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 	url := s.url.JoinPath("/v1/server-event").String()
 
 	evts := make([]*event, 0, len(events))
-	for i, e := range events {
-		evts = append(evts, &event{
-			Event: e,
-		})
-		evts[i].setTimestamp()
+	for _, e := range events {
+		e.Id = uuid.Must(uuid.NewV4()).String()
+		evt := &event{Event: e}
+		evt.setTimestamp()
+		evts = append(evts, evt)
 	}
 
 	json, err := json.Marshal(&eventsBody{Events: evts})
@@ -474,7 +475,7 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 		return err
 	}
 
-	_, err = s.httpRequestWithRetries(ctx, "", url, http.MethodPost, nil, json, ipAddress...)
+	_, err = s.httpRequestWithRetries(ctx, s.apiKey, url, http.MethodPost, nil, json, ipAddress...)
 	if err != nil {
 		return err
 	}
@@ -989,14 +990,9 @@ func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *cons
 		return nil, runtime.ErrSatoriConfigurationInvalid
 	}
 
-	url := s.url.JoinPath("/v1/console/template").String()
+	urlPath := s.url.JoinPath("/v1/console/template").String()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(s.serverKey, "")
-	q := req.URL.Query()
+	q := url.Values{}
 	if in.GetPagination() != nil {
 		if in.Pagination.Limit > 0 {
 			q.Set("pagination.limit", strconv.Itoa(int(in.Pagination.Limit)))
@@ -1030,35 +1026,18 @@ func (s *SatoriClient) ConsoleMessageTemplatesList(ctx context.Context, in *cons
 			}
 		}
 	}
-	req.URL.RawQuery = q.Encode()
 
-	res, err := s.httpc.Do(req)
+	resBody, err := s.httpRequestWithRetries(ctx, s.serverKey, urlPath, http.MethodGet, q, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case http.StatusOK:
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		var out console.Template_ListResponse
-		if err = protojson.Unmarshal(resBody, &out); err != nil {
-			return nil, err
-		}
-
-		return &out, nil
-	default:
-		errBody, err := io.ReadAll(res.Body)
-		if err == nil && len(errBody) > 0 {
-			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
-		}
-		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	var out console.Template_ListResponse
+	if err = protojson.Unmarshal(resBody, &out); err != nil {
+		return nil, err
 	}
+
+	return &out, nil
 }
 
 func convertTemplateOverride(templateOverride *runtime.SatoriMessageTemplateOverride, seen map[*runtime.SatoriMessageTemplateOverride]struct{}) *console.SendDirectMessageRequest_TemplateOverride {
@@ -1197,42 +1176,20 @@ func (s *SatoriClient) ConsoleDirectMessageSend(ctx context.Context, templateId 
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(jsonBytes))
-	if err != nil {
-		return nil, err
-	}
-	req.SetBasicAuth(s.serverKey, "")
-
-	res, err := s.httpc.Do(req)
+	resBody, err := s.httpRequestWithRetries(ctx, s.serverKey, url, http.MethodPost, nil, jsonBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case http.StatusOK:
-		resBody, err := io.ReadAll(res.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		var out runtime.SatoriMessageSendResults
-		if err = json.Unmarshal(resBody, &out); err != nil {
-			return nil, err
-		}
-
-		return &out, nil
-	default:
-		errBody, err := io.ReadAll(res.Body)
-		if err == nil && len(errBody) > 0 {
-			return nil, fmt.Errorf("%d status code: %s", res.StatusCode, string(errBody))
-		}
-		return nil, fmt.Errorf("%d status code", res.StatusCode)
+	var out runtime.SatoriMessageSendResults
+	if err = json.Unmarshal(resBody, &out); err != nil {
+		return nil, err
 	}
+
+	return &out, nil
 }
 
-func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken, url, method string, queryParams url.Values, payload []byte, ipAddress ...string) ([]byte, error) {
+func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, auth, url, method string, queryParams url.Values, payload []byte, ipAddress ...string) ([]byte, error) {
 	backoffDuration := func(attempt int) time.Duration {
 		const (
 			minBackoff         = 100
@@ -1258,10 +1215,13 @@ func (s *SatoriClient) httpRequestWithRetries(ctx context.Context, authToken, ur
 		if payload != nil {
 			req.Header.Set("Content-Type", "application/json")
 		}
-		if authToken != "" {
-			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", authToken))
+
+		if _, err := uuid.FromString(auth); err == nil {
+			// Auth is uuid, set basic auth header.
+			req.SetBasicAuth(auth, "")
 		} else {
-			req.SetBasicAuth(s.apiKey, "")
+			// Auth is a token, set bearer auth header.
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", auth))
 		}
 		if len(ipAddress) > 0 && ipAddress[0] != "" {
 			if ipAddr := net.ParseIP(ipAddress[0]); ipAddr != nil {
