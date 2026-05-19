@@ -13805,6 +13805,56 @@ var LegacyPush;
             return "web";
         return p;
     }
+    // ARN path is the source of truth for what platform an endpoint actually
+    // reaches. Every SNS endpoint ARN looks like:
+    //   arn:aws:sns:<region>:<acct>:endpoint/<TYPE>/<app-name>/<endpoint-id>
+    // where <TYPE> ∈ { APNS, APNS_SANDBOX, GCM, FCM, ADM, MPNS, WNS, ... }.
+    // A previous bug let "platform=ios" get stored alongside a /GCM/ endpoint,
+    // which caused push_send_event to build APNs envelopes for Android targets,
+    // which SNS then forwarded to FCM as a `default` string with no notification
+    // block — accepted by SNS, silently dropped by FCM. We now correct platform
+    // from the ARN every time, both at register and at send.
+    function platformFromArn(arn) {
+        if (!arn || typeof arn !== "string")
+            return "";
+        var seg = arn.split(":endpoint/")[1];
+        if (!seg)
+            return "";
+        var type = (seg.split("/")[0] || "").toUpperCase();
+        if (type === "APNS" || type === "APNS_SANDBOX" || type === "APNS_VOIP" || type === "APNS_VOIP_SANDBOX")
+            return "ios";
+        if (type === "GCM" || type === "FCM")
+            return "android";
+        if (type === "ADM")
+            return "android";
+        if (type === "WNS" || type === "MPNS")
+            return "windows";
+        if (type === "BAIDU")
+            return "android";
+        return "";
+    }
+    // Strip token rows that have no SNS endpoint ARN. These are ghosts from
+    // earlier failed registrations (Lambda accepted the call but SNS
+    // CreatePlatformEndpoint rejected the token, e.g. when an Android FCM
+    // token was sent at an APNs Platform App). They make push_send_event
+    // produce noisy "endpointArn missing" rows in providerResults and skew
+    // the recipientCount math. Idempotent — safe to call on every send.
+    function pruneGhostTokens(tokensData) {
+        if (!tokensData || !tokensData.tokens)
+            return { kept: [], dropped: 0 };
+        var kept = [];
+        var dropped = 0;
+        for (var i = 0; i < tokensData.tokens.length; i++) {
+            var t = tokensData.tokens[i];
+            if (t && typeof t.endpointArn === "string" && t.endpointArn.length > 0) {
+                kept.push(t);
+            }
+            else {
+                dropped++;
+            }
+        }
+        return { kept: kept, dropped: dropped };
+    }
     function registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId) {
         var normalizedPlatform = normalizePlatform(platform);
         var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL") || PUSH_REGISTER_URL_DEFAULT;
@@ -13814,12 +13864,14 @@ var LegacyPush;
         }
         logger.info("[Push] Registering %s endpoint for userId=%s gameId=%s", normalizedPlatform, userId, gameId || "quizverse");
         try {
+            var platformType = normalizedPlatform === "ios" ? "APNS" : "FCM";
             var body = JSON.stringify({
                 userId: userId,
                 gameId: gameId || "quizverse",
                 deviceToken: token,
                 token: token,
-                platform: normalizedPlatform
+                platform: normalizedPlatform,
+                platformType: platformType
             });
             var resp = nk.httpRequest(registerUrl, "post", { "Content-Type": "application/json" }, body, 10000);
             var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
@@ -13827,12 +13879,25 @@ var LegacyPush;
             var code = resp && resp.code ? resp.code : 0;
             if (code >= 200 && code < 300 && responseBody && responseBody.success !== false) {
                 var arn = responseBody.endpointArn || responseBody.EndpointArn || "";
-                logger.info("[Push] %s endpoint registered successfully. endpointArn=%s", normalizedPlatform, arn);
+                // ARN is the truth. If the SDK said "ios" but SNS gave us a /GCM/ ARN
+                // (e.g. ops misconfigured SNS_PLATFORM_APP_ARN_IOS, or an enum got
+                // miscast at the client), the ARN tells us the real platform. We log
+                // a warning so this is visible in deploy logs, but we don't fail —
+                // the endpoint is real and reachable, just under a different platform.
+                var arnPlatform = platformFromArn(arn);
+                if (arn && arnPlatform && arnPlatform !== normalizedPlatform) {
+                    logger.warn("[Push] register: caller said platform=%s but ARN resolves to %s. " +
+                        "Trusting ARN. arn=%s | likely cause: SNS_PLATFORM_APP_ARN_%s misconfigured " +
+                        "OR client SDK sent the wrong platform string.", normalizedPlatform, arnPlatform, arn, normalizedPlatform.toUpperCase());
+                }
+                var resolvedPlatform = arnPlatform || normalizedPlatform;
+                logger.info("[Push] %s endpoint registered successfully. endpointArn=%s resolvedPlatform=%s", normalizedPlatform, arn, resolvedPlatform);
                 return {
                     configured: true,
                     success: true,
                     provider: "sns",
                     endpointArn: arn,
+                    platform: resolvedPlatform,
                     raw: responseBody
                 };
             }
@@ -13851,7 +13916,18 @@ var LegacyPush;
         }
     }
     function sendProviderPush(ctx, logger, nk, endpoint, payload) {
-        var normalizedPlatform = normalizePlatform(endpoint.platform);
+        // ARN beats stored platform. If the row says "ios" but its ARN is /GCM/
+        // (legacy mislabel pre-fix), we MUST send the FCM envelope, not the APNs
+        // envelope. Otherwise SNS falls back to `default` plain string and FCM
+        // delivers nothing to the device's system tray.
+        var arnPlatform = platformFromArn(endpoint && endpoint.endpointArn);
+        var normalizedPlatform = arnPlatform || normalizePlatform(endpoint && endpoint.platform);
+        if (arnPlatform && endpoint && endpoint.platform &&
+            normalizePlatform(endpoint.platform) !== arnPlatform) {
+            logger.warn("[Push] send: stored platform=%s disagrees with ARN platform=%s. " +
+                "Using ARN. arn=%s — this row was likely written by a buggy register call; " +
+                "it will be auto-corrected next time push_register_token runs.", endpoint.platform, arnPlatform, endpoint.endpointArn);
+        }
         var sendUrl = env(ctx, "PUSH_SEND_URL") || PUSH_SEND_URL_DEFAULT;
         if (!sendUrl) {
             logger.warn("[Push] sendProviderPush: no send URL configured for platform=%s", normalizedPlatform);
@@ -13911,9 +13987,23 @@ var LegacyPush;
             var tokensData = getPushTokens(nk, userId);
             var now = Math.floor(Date.now() / 1000);
             var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId);
+            // Resolved platform: ARN-derived when SNS handed us back an endpoint,
+            // else the caller's input. This is the value we persist & report — never
+            // the raw `data.platform` from the request, which can be wrong.
+            var resolvedPlatform = (provider && provider.platform) ||
+                (provider && provider.endpointArn ? platformFromArn(provider.endpointArn) : "") ||
+                normalizePlatform(platform);
+            // Ghost-row hygiene: drop any existing rows for this user that have no
+            // endpointArn (stale failed registrations). They're never deliverable
+            // and only confuse providerResults at send time. Idempotent.
+            var pruned = pruneGhostTokens(tokensData);
+            if (pruned.dropped > 0) {
+                logger.info("[Push] push_register_token: pruned %s ghost token row(s) (no endpointArn) for userId=%s", pruned.dropped, userId);
+            }
+            tokensData.tokens = pruned.kept;
             var existing = tokensData.tokens.find(function (t) { return t.token === token; });
             if (existing) {
-                existing.platform = platform;
+                existing.platform = resolvedPlatform;
                 existing.updatedAt = now;
                 if (provider.endpointArn)
                     existing.endpointArn = provider.endpointArn;
@@ -13926,39 +14016,50 @@ var LegacyPush;
                     existing.providerError = provider.error || "Provider registration failed";
                 }
             }
-            else {
+            else if (provider && provider.success && provider.endpointArn) {
+                // Only write a fresh row when we actually got an ARN back. Refusing
+                // to persist ARN-less rows is what prevents the "3 ghost ios rows"
+                // class of bug from ever recurring.
                 tokensData.tokens.push({
                     token: token,
-                    platform: platform,
+                    platform: resolvedPlatform,
                     updatedAt: now,
                     endpointArn: provider.endpointArn,
-                    provider: provider.success ? (provider.provider || "sns") : undefined,
-                    providerRegisteredAt: provider.success ? now : undefined,
-                    providerError: provider.configured && !provider.success ? (provider.error || "Provider registration failed") : undefined
+                    provider: provider.provider || "sns",
+                    providerRegisteredAt: now,
+                    providerError: undefined
                 });
+            }
+            else {
+                logger.warn("[Push] push_register_token: refusing to write ghost row — " +
+                    "Lambda did not return an endpointArn. userId=%s platform=%s providerError=%s", userId, resolvedPlatform, (provider && provider.error) || "none");
             }
             savePushTokens(nk, userId, tokensData);
             var finalArn = provider && provider.endpointArn ? provider.endpointArn : "";
             if (finalArn) {
-                logger.info("[Push] push_register_token SUCCESS: userId=%s platform=%s endpointArn=%s", userId, platform, finalArn);
+                logger.info("[Push] push_register_token SUCCESS: userId=%s requestedPlatform=%s resolvedPlatform=%s endpointArn=%s", userId, platform, resolvedPlatform, finalArn);
             }
             else {
-                logger.warn("[Push] push_register_token INCOMPLETE: token stored but no endpointArn. " +
-                    "userId=%s platform=%s providerError=%s | " +
+                logger.warn("[Push] push_register_token INCOMPLETE: no endpointArn returned by Lambda. " +
+                    "userId=%s requestedPlatform=%s providerError=%s | " +
                     "iOS fix: upload APNs Auth Key in Firebase Console → Project Settings → Cloud Messaging. " +
                     "Android fix: verify google-services.json is correct and Lambda has FCM server key.", userId, platform, (provider && provider.error) || "none");
             }
             // Flat response shape — matches Unity's PushRegisterResponse fields exactly so
             // JsonConvert.DeserializeObject reads endpointArn/platform/userId/gameId without
             // an extra .data unwrap step. Do NOT wrap in RpcHelpers.successResponse here.
+            // We surface BOTH the resolved platform (truth, used for routing) AND the
+            // requested platform (for client-side debugging when they disagree).
             return JSON.stringify({
-                success: true,
+                success: !!finalArn,
                 userId: userId,
                 gameId: gameId,
-                platform: platform,
+                platform: resolvedPlatform,
+                requestedPlatform: platform,
                 endpointArn: finalArn,
                 registeredAt: new Date().toISOString(),
-                provider: provider
+                provider: provider,
+                error: finalArn ? undefined : ((provider && provider.error) || "Provider registration failed")
             });
         }
         catch (e) {
@@ -13987,16 +14088,31 @@ var LegacyPush;
             var title = content.title || subject;
             var body = content.body || "";
             var tokensData = getPushTokens(nk, targetUserId);
-            logger.info("[Push] push_send_event: eventType=%s targetUserId=%s registeredTokens=%s", subject, targetUserId, tokensData.tokens ? tokensData.tokens.length : 0);
+            // Self-heal: drop ghost token rows (no endpointArn). These are stale
+            // failed registrations that pollute providerResults and confuse callers.
+            // Persist the cleanup once so future sends and push_get_endpoints stay
+            // clean too. Safe / idempotent.
+            var prunedAtSend = pruneGhostTokens(tokensData);
+            if (prunedAtSend.dropped > 0) {
+                logger.info("[Push] push_send_event: pruning %s ghost row(s) (no endpointArn) for targetUserId=%s — " +
+                    "these came from earlier failed registrations and were never deliverable.", prunedAtSend.dropped, targetUserId);
+                tokensData.tokens = prunedAtSend.kept;
+                try {
+                    savePushTokens(nk, targetUserId, tokensData);
+                }
+                catch (_) { }
+            }
+            logger.info("[Push] push_send_event: eventType=%s targetUserId=%s deliverableTokens=%s", subject, targetUserId, tokensData.tokens ? tokensData.tokens.length : 0);
             if (!tokensData.tokens || tokensData.tokens.length === 0) {
-                logger.warn("[Push] push_send_event: targetUserId=%s has NO registered push tokens. " +
+                logger.warn("[Push] push_send_event: targetUserId=%s has NO deliverable push endpoints. " +
                     "The user must launch the app on a real device at least once after granting notification permission " +
                     "so push_register_token can run and create an SNS endpoint.", targetUserId);
             }
             else {
                 var platforms = [];
                 for (var pi = 0; pi < tokensData.tokens.length; pi++) {
-                    platforms.push(tokensData.tokens[pi].platform + (tokensData.tokens[pi].endpointArn ? "(arn✓)" : "(no-arn)"));
+                    var arnPlat = platformFromArn(tokensData.tokens[pi].endpointArn || "");
+                    platforms.push((arnPlat || tokensData.tokens[pi].platform) + "(arn✓)");
                 }
                 logger.info("[Push] push_send_event: endpoints=[%s]", platforms.join(", "));
             }
@@ -14010,9 +14126,13 @@ var LegacyPush;
                     gameId: data.gameId || data.game_id || "quizverse",
                     eventType: data.eventType || subject
                 });
+                // Report ARN-derived platform in the response so callers don't see
+                // the legacy mislabel ("ios" for a /GCM/ endpoint). This is the
+                // platform the Lambda was actually told to build the envelope for.
+                var reportPlatform = platformFromArn(t.endpointArn || "") || t.platform;
                 if (providerResult.configured)
                     providerResults.push({
-                        platform: t.platform,
+                        platform: reportPlatform,
                         endpointArn: t.endpointArn,
                         success: providerResult.success === true,
                         messageId: providerResult.messageId,
@@ -14063,10 +14183,21 @@ var LegacyPush;
             var data = RpcHelpers.parseRpcPayload(payload);
             var targetUserId = data.userId || userId;
             var tokensData = getPushTokens(nk, targetUserId);
+            // Self-heal ghost rows here too — many callers hit get_endpoints to
+            // check device state without ever calling send_event, so we mustn't
+            // rely on send_event being the only place that prunes.
+            var prunedHere = pruneGhostTokens(tokensData);
+            if (prunedHere.dropped > 0) {
+                tokensData.tokens = prunedHere.kept;
+                try {
+                    savePushTokens(nk, targetUserId, tokensData);
+                }
+                catch (_) { }
+            }
             var endpoints = tokensData.tokens.map(function (t) {
                 return {
                     endpointArn: t.endpointArn,
-                    platform: t.platform,
+                    platform: platformFromArn(t.endpointArn || "") || t.platform,
                     enabled: !t.providerError,
                     createdAt: t.providerRegisteredAt ? new Date(t.providerRegisteredAt * 1000).toISOString() : "",
                     lastUpdated: t.updatedAt ? new Date(t.updatedAt * 1000).toISOString() : ""

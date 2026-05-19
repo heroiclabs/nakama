@@ -662,3 +662,23 @@ function rpcAiGroupHype(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: err.message });
     }
 }
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook)
+// ----------------------------------------------------------------------------
+// postbuild.js renames this `InitModule` to `__ModuleInit_N` and lifts every
+// literal initializer.registerRpc call inside it into the master InitModule.
+// Keep registrations as direct literal calls so Nakama's AST walker
+// (getRegisteredFnIdentifier in runtime_javascript_init.go) detects them.
+// ============================================================================
+
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc('ai_coach_advice',     rpcAiCoachAdvice);
+    initializer.registerRpc('ai_match_recap',      rpcAiMatchRecap);
+    initializer.registerRpc('ai_player_journey',   rpcAiPlayerJourney);
+    initializer.registerRpc('ai_rival_taunt',      rpcAiRivalTaunt);
+    initializer.registerRpc('ai_trivia_generate',  rpcAiTriviaGenerate);
+    initializer.registerRpc('ai_daily_briefing',   rpcAiDailyBriefing);
+    initializer.registerRpc('ai_group_hype',       rpcAiGroupHype);
+    logger.info('[AI] Module InitModule registered: 7 RPCs');
+}
