@@ -405,8 +405,12 @@ type eventsBody struct {
 	Events []*event `json:"events"`
 }
 
-func (e *event) setTimestamp() {
-	e.TimestampPb = time.Unix(e.Timestamp, 0).Format(time.RFC3339)
+func (e *event) setTimestamp(ts time.Time) {
+	if e.Timestamp == 0 {
+		e.TimestampPb = ts.Format(time.RFC3339)
+	} else {
+		e.TimestampPb = time.Unix(e.Timestamp, 0).Format(time.RFC3339)
+	}
 }
 
 // @group satori
@@ -428,13 +432,14 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 		return err
 	}
 
+	ts := time.Now()
 	evts := make([]*event, 0, len(events))
 	for _, e := range events {
 		if e.Id == "" {
 			e.Id = uuid.Must(uuid.NewV4()).String()
 		}
 		evt := &event{Event: e}
-		evt.setTimestamp()
+		evt.setTimestamp(ts)
 		evts = append(evts, evt)
 	}
 
@@ -464,13 +469,15 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 
 	url := s.url.JoinPath("/v1/server-event").String()
 
+	ts := time.Now()
 	evts := make([]*event, 0, len(events))
 	for _, e := range events {
 		if e.Id == "" {
 			e.Id = uuid.Must(uuid.NewV4()).String()
 		}
+
 		evt := &event{Event: e}
-		evt.setTimestamp()
+		evt.setTimestamp(ts)
 		evts = append(evts, evt)
 	}
 
