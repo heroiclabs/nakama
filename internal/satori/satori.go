@@ -475,7 +475,6 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 		if e.Id == "" {
 			e.Id = uuid.Must(uuid.NewV4()).String()
 		}
-
 		evt := &event{Event: e}
 		evt.setTimestamp(ts)
 		evts = append(evts, evt)
@@ -592,10 +591,10 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names, labels [
 	if !s.cacheEnabled || entry == nil || len(missingNames) > 0 || len(missingLabels) > 0 {
 		urlPath := s.url.JoinPath("/v1/flag").String()
 
-		var sessionToken string
+		auth := s.apiKey
 		if id != "" {
 			var err error
-			sessionToken, err = s.generateToken(ctx, id)
+			auth, err = s.generateToken(ctx, id)
 			if err != nil {
 				return nil, err
 			}
@@ -616,7 +615,7 @@ func (s *SatoriClient) FlagsList(ctx context.Context, id string, names, labels [
 			}
 		}
 
-		resBody, err := s.httpRequestWithRetries(ctx, sessionToken, urlPath, http.MethodGet, q, nil)
+		resBody, err := s.httpRequestWithRetries(ctx, auth, urlPath, http.MethodGet, q, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -671,10 +670,10 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 	if !s.cacheEnabled || entry == nil || len(missingNames) > 0 || len(missingLabels) > 0 {
 		urlPath := s.url.JoinPath("/v1/flag/override").String()
 
-		var sessionToken string
+		auth := s.apiKey
 		if id != "" {
 			var err error
-			sessionToken, err = s.generateToken(ctx, id)
+			auth, err = s.generateToken(ctx, id)
 			if err != nil {
 				return nil, err
 			}
@@ -695,7 +694,7 @@ func (s *SatoriClient) FlagsOverridesList(ctx context.Context, id string, names,
 			}
 		}
 
-		resBody, err := s.httpRequestWithRetries(ctx, sessionToken, urlPath, http.MethodGet, q, nil)
+		resBody, err := s.httpRequestWithRetries(ctx, auth, urlPath, http.MethodGet, q, nil)
 		if err != nil {
 			return nil, err
 		}
