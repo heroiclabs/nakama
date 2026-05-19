@@ -430,7 +430,9 @@ func (s *SatoriClient) EventsPublish(ctx context.Context, id string, events []*r
 
 	evts := make([]*event, 0, len(events))
 	for _, e := range events {
-		e.Id = uuid.Must(uuid.NewV4()).String()
+		if e.Id == "" {
+			e.Id = uuid.Must(uuid.NewV4()).String()
+		}
 		evt := &event{Event: e}
 		evt.setTimestamp()
 		evts = append(evts, evt)
@@ -464,7 +466,9 @@ func (s *SatoriClient) ServerEventsPublish(ctx context.Context, events []*runtim
 
 	evts := make([]*event, 0, len(events))
 	for _, e := range events {
-		e.Id = uuid.Must(uuid.NewV4()).String()
+		if e.Id == "" {
+			e.Id = uuid.Must(uuid.NewV4()).String()
+		}
 		evt := &event{Event: e}
 		evt.setTimestamp()
 		evts = append(evts, evt)
