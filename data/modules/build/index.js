@@ -13814,12 +13814,14 @@ var LegacyPush;
         }
         logger.info("[Push] Registering %s endpoint for userId=%s gameId=%s", normalizedPlatform, userId, gameId || "quizverse");
         try {
+            var platformType = normalizedPlatform === "ios" ? "APNS" : "FCM";
             var body = JSON.stringify({
                 userId: userId,
                 gameId: gameId || "quizverse",
                 deviceToken: token,
                 token: token,
-                platform: normalizedPlatform
+                platform: normalizedPlatform,
+                platformType: platformType
             });
             var resp = nk.httpRequest(registerUrl, "post", { "Content-Type": "application/json" }, body, 10000);
             var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
