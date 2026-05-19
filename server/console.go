@@ -134,20 +134,7 @@ func StartConsoleServer(logger *zap.Logger, startupLogger *zap.Logger, db *sql.D
 
 	var satoriClient *satori.SatoriClient
 	if config.GetSatori().ServerKey != "" {
-		satoriClient = satori.NewSatoriClient(
-			ctx,
-			logger,
-			config.GetSatori().Url,
-			config.GetSatori().ApiKeyName,
-			config.GetSatori().ApiKey,
-			config.GetSatori().ServerKey,
-			config.GetSatori().SigningKey,
-			config.GetSession().TokenExpirySec,
-			int64(config.GetSatori().HttpTimeoutMs),
-			false,
-			config.GetSatori().CacheMode,
-			int64(config.GetSatori().CacheTTLSec),
-		)
+		satoriClient = satori.NewSatoriClient(ctx, logger, config.GetSatori().Url, config.GetSatori().ApiKeyName, config.GetSatori().ApiKey, config.GetSatori().ServerKey, config.GetSatori().SigningKey, config.GetSession().TokenExpirySec, int64(config.GetSatori().HttpTimeoutMs), int64(config.GetSatori().CacheTTLSec), false, config.GetSatori().CacheMode, config.GetSatori().RetryCount)
 	}
 
 	s := &ConsoleServer{

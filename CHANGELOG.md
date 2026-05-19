@@ -6,6 +6,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Add new runtime function to update storage objects with retries.
+- Update Satori client to match latest API spec.
+- Add configurable retries to the Satori client.
 
 ### Fixed
 - Ignore negative custom runtime counter deltas to avoid panics during metrics collection.
