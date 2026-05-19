@@ -2,6 +2,23 @@ import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 
 const sns = new SNSClient({});
 
+// Derive the real platform from the SNS endpoint ARN. The ARN is the only
+// source of truth for which Platform Application a device actually lives in
+// (and therefore which envelope shape SNS will deliver). Callers sometimes
+// pass `platform: "ios"` for an Android endpoint (legacy bug), and if we
+// trusted them we'd build {default, APNS, APNS_SANDBOX}, SNS would forward
+// `default` plain text to FCM, and the Android device would render nothing.
+function platformFromArn(arn) {
+    if (!arn || typeof arn !== "string") return "";
+    const seg = arn.split(":endpoint/")[1];
+    if (!seg) return "";
+    const type = (seg.split("/")[0] || "").toUpperCase();
+    if (type === "APNS" || type === "APNS_SANDBOX" || type === "APNS_VOIP" || type === "APNS_VOIP_SANDBOX") return "ios";
+    if (type === "GCM" || type === "FCM" || type === "ADM" || type === "BAIDU") return "android";
+    if (type === "WNS" || type === "MPNS") return "windows";
+    return "";
+}
+
 export const handler = async (event) => {
     console.log("Send push request:", JSON.stringify(event, null, 2));
     
@@ -15,13 +32,24 @@ export const handler = async (event) => {
         });
     }
 
-    const { endpointArn, platform, title, body: messageBody, data, gameId, eventType } = body || {};
+    const { endpointArn, platform: requestedPlatform, title, body: messageBody, data, gameId, eventType } = body || {};
 
-    if (!endpointArn || !platform || !title || !messageBody) {
+    if (!endpointArn || !requestedPlatform || !title || !messageBody) {
         return response(400, {
             success: false,
             error: "Missing required fields: endpointArn, platform, title, body"
         });
+    }
+
+    // Trust the ARN over the caller's `platform` claim. If they disagree, log
+    // it loudly so the upstream registration bug stays visible until fixed.
+    const arnPlatform = platformFromArn(endpointArn);
+    const platform = arnPlatform || String(requestedPlatform || "").toLowerCase();
+    if (arnPlatform && arnPlatform !== String(requestedPlatform || "").toLowerCase()) {
+        console.warn(
+            `[send-push] caller said platform=${requestedPlatform} but ARN resolves to ${arnPlatform}. ` +
+            `Trusting ARN. arn=${endpointArn} — fix push_register_token to use the ARN-derived platform.`
+        );
     }
 
     try {
