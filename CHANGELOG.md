@@ -4,14 +4,20 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.39.0] - 2026-05-20
 ### Added
 - Add new runtime function to update storage objects with retries.
+
+### Changed
 - Update Satori client to match latest API spec.
 - Add configurable retries to the Satori client.
 
 ### Fixed
 - Ignore negative custom runtime counter deltas to avoid panics during metrics collection.
 - Set account empty fields to null appropriately on console account import.
+- Correctly cancel context after matchmaker matched function completes.
+- Fix X-Forwarded-For header handling regression.
 
 ## [3.38.0] - 2026-03-20
 ### Added
