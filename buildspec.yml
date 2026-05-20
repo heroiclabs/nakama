@@ -38,6 +38,9 @@ env:
     K8S_DEPLOYMENT: intelliverse-nakama
     K8S_CONTAINER: intelliverse-nakama
     ECR_REPOSITORY: intelliverse-nakama
+    LLM_PROVIDER: openai
+  parameter-store:
+    OPENAI_API_KEY: /nakama/OPENAI_API_KEY
 
 phases:
   install:
@@ -166,6 +169,22 @@ phases:
         deployment/"$K8S_DEPLOYMENT"
         "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
         -n "$K8S_NAMESPACE"
+      # ─── Inject LLM + runtime secrets from Parameter Store into pod env ──
+      # These env vars reach the Nakama JS runtime via the entrypoint's
+      # --runtime.env forwarding loop (docker-compose.yml:43-60 pattern,
+      # mirrored in the EKS deployment entrypoint). Without this step the
+      # keys sit in Parameter Store but never reach ctx.env in callLLM().
+      - echo "=== Injecting runtime secrets into deployment env ==="
+      - |
+        for KEY in OPENAI_API_KEY ANTHROPIC_API_KEY XAI_API_KEY LLM_PROVIDER; do
+          VAL="${!KEY:-}"
+          if [ -n "$VAL" ]; then
+            kubectl set env deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" "$KEY=$VAL"
+            echo "  ✓ $KEY injected (len=${#VAL})"
+          else
+            echo "  ⚠ $KEY not set in CodeBuild env — skipping"
+          fi
+        done
       # ─── Post-rollout deploy gate (EKS-3) ─────────────────────────────
       # Block on rollout AND assert the JS runtime is healthy in the new
       # pod before we declare the build successful. This is what catches
