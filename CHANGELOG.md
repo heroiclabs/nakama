@@ -16,6 +16,8 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Fixed
 - Ignore negative custom runtime counter deltas to avoid panics during metrics collection.
 - Set account empty fields to null appropriately on console account import.
+- Correctly cancel context after matchmaker matched function completes.
+- Fix X-Forwarded-For header handling regression.
 
 ## [3.38.0] - 2026-03-20
 ### Added
