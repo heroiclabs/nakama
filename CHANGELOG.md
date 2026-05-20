@@ -4,8 +4,12 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+
+## [3.39.0] - 2026-05-20
 ### Added
 - Add new runtime function to update storage objects with retries.
+
+### Changed
 - Update Satori client to match latest API spec.
 - Add configurable retries to the Satori client.
 

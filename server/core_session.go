@@ -48,6 +48,7 @@ func SessionRefresh(ctx context.Context, logger *zap.Logger, db *sql.DB, config 
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Account not found and creation is never allowed for this type.
+			logger.With(zap.String("user_id", userID.String())).Warn("Refresh token user does not exist", zap.Error(err))
 			return uuid.Nil, "", nil, "", 0, status.Error(codes.NotFound, "User account not found.")
 		}
 		logger.Error("Error looking up user by ID.", zap.Error(err), zap.String("id", userID.String()))
