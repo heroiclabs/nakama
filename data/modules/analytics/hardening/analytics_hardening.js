@@ -204,12 +204,28 @@ function rpcAnalyticsFreshnessCheck(ctx, logger, nk, payload) {
     } catch (e) { /* */ }
     stages.event_ingest = ahFreshnessStatus("event_ingest", lastEventSec);
 
+    // ── 1b. Live counters (analytics_live_daily for today) ─────────────
+    // A missing or stale live_counters stage means liveCountersUpdate() in
+    // analytics.js is failing or events aren't flowing yet today.
+    var todayLiveKey = "live_" + (gameId === "all" ? "all" : gameId) + "_" + new Date().toISOString().slice(0, 10);
+    var liveCounterDoc = ahReadOne(nk, "analytics_live_daily", todayLiveKey, AH_SYSTEM_USER);
+    var lastLiveSec = liveCounterDoc ? (liveCounterDoc.last_event_at || null) : null;
+    stages.live_counters = {
+        status:         liveCounterDoc ? "fresh" : "missing",
+        total_events:   liveCounterDoc ? (liveCounterDoc.total || 0) : 0,
+        last_event_at:  lastLiveSec ? new Date(lastLiveSec * 1000).toISOString() : null,
+        age_human:      lastLiveSec ? ahAge(ahNowSec() - lastLiveSec) : null,
+        note:           liveCounterDoc
+            ? "Live counters flowing (" + (liveCounterDoc.total || 0) + " events today)"
+            : "No live counter doc yet today — fire any event to populate"
+    };
+
     // ── 2. Daily rollup ─────────────────────────────────────────────────
     var rollupMeta = ahReadOne(nk, AH_ROLLUP_META_COLLECTION, "last_success", AH_SYSTEM_USER);
     var lastRollupSec = rollupMeta ? ahIsoToSec(rollupMeta.timestamp) : null;
     stages.daily_rollup = ahFreshnessStatus("daily_rollup", lastRollupSec);
     if (rollupMeta) {
-        stages.daily_rollup.last_date     = rollupMeta.date     || null;
+        stages.daily_rollup.last_date      = rollupMeta.date          || null;
         stages.daily_rollup.events_scanned = rollupMeta.eventsScanned || null;
     }
 

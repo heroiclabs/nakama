@@ -411,17 +411,21 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
     var wireEvents = [];
     var dropped = 0;
     var filteredOut = 0;
+    // Track whether each wire event has a known Satori taxonomy mapping.
+    // Events that map to a core Satori name (SD_EVENT_MAP hit) go in a
+    // single batch — those names are guaranteed registered.
+    // Events whose name passes through unchanged (no SD_EVENT_MAP entry)
+    // are sent individually so a 400 on one unknown name never kills the
+    // entire batch. (Satori rejects the whole batch on any unregistered name.)
+    var wireIsMapped = [];
     for (var i = 0; i < events.length; i++) {
         var e = events[i] || {};
         var ts = (typeof e.timestamp === "number") ? Math.floor(e.timestamp) : Math.floor(Date.now() / 1000);
         var rawName = e.name || "";
 
-        // Phase 3.1 (Q3=B) — Satori allowlist filter. Non-canonical events
-        // are silently dropped here so they never burn Satori event quota
-        // (~250 of our ~290 events are dashboard-only and don't need to
-        // appear in segments / live-ops). Any event the operator NEEDS in
-        // Satori must be added to SD_EVENT_ALLOWLIST.
-        if (!sdIsAllowlisted(rawName)) { filteredOut++; continue; }
+        // All events are forwarded to Satori — allowlist removed so every
+        // QuizVerse event reaches Satori segments, flags, and live-ops.
+        // Synthetic events (_sessionStart etc.) are still stripped below.
 
         var name = sdNormalizeEventName(rawName);
         if (!name) { dropped++; continue; }  // synthetic events stripped
@@ -468,6 +472,9 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
         if (e.session_expires_at) wire.session_expires_at = String(Math.floor(Number(e.session_expires_at) || 0));
 
         if (Object.keys(meta).length > 0) wire.metadata = meta;
+        // Track whether this event has a known Satori core taxonomy mapping.
+        // name !== rawName means SD_EVENT_MAP resolved it → guaranteed registered.
+        wireIsMapped.push(name !== rawName);
         wireEvents.push(wire);
     }
 
@@ -485,40 +492,78 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
         return null;
     }
 
-    var resp = sdHttp(ctx, nk, logger, "POST", "/v1/server-event",
-        { "Authorization": sdBasicAuthHeader(ctx, nk) },
-        { events: wireEvents }
-    );
-
-    if (!resp.ok) {
-        try {
-            if (typeof bumpMetricsCounter === "function") {
-                bumpMetricsCounter(nk, {
-                    satori_publish_failure: wireEvents.length,
-                    satori_publish_filtered: filteredOut,
-                    satori_publish_dropped: dropped,
-                    log_calls: false
-                });
-            }
-        } catch (eCountFail) { /* metrics must never block Satori fan-out */ }
-        if (logger && logger.info) {
-            logger.info("[satori_direct] eventsPublish " + resp.code +
-                " (sent=" + wireEvents.length + " skipped=" + dropped +
-                " filtered=" + filteredOut + "): " + resp.body.slice(0, 200));
-        }
-        return resp;
+    // Split into two groups:
+    //   mapped   — event name has a SD_EVENT_MAP entry → core Satori taxonomy,
+    //              safe to batch (all names are registered).
+    //   unmapped — event name passed through unchanged → may be unregistered
+    //              in this Satori project; send individually so a 400 on one
+    //              unknown name never kills the entire mapped batch.
+    var mappedBatch   = [];
+    var unmappedBatch = [];
+    for (var si = 0; si < wireEvents.length; si++) {
+        if (wireIsMapped[si]) mappedBatch.push(wireEvents[si]);
+        else                  unmappedBatch.push(wireEvents[si]);
     }
+
+    var lastFailResp = null;
+    var totalSuccess = 0;
+    var totalFail    = 0;
+
+    // ── Send mapped events as one batch ──────────────────────────────────
+    if (mappedBatch.length > 0) {
+        var mResp = sdHttp(ctx, nk, logger, "POST", "/v1/server-event",
+            { "Authorization": sdBasicAuthHeader(ctx, nk) },
+            { events: mappedBatch }
+        );
+        if (mResp.ok) {
+            totalSuccess += mappedBatch.length;
+        } else {
+            totalFail += mappedBatch.length;
+            lastFailResp = mResp;
+            if (logger && logger.info) {
+                logger.info("[satori_direct] mapped batch " + mResp.code +
+                    " (n=" + mappedBatch.length + "): " + mResp.body.slice(0, 200));
+            }
+        }
+    }
+
+    // ── Send unmapped events one-at-a-time ───────────────────────────────
+    // A 400 on an unregistered name only loses that single event.
+    // Operators can register the name in Satori Settings → Taxonomy → Events
+    // and subsequent sends will succeed without any code change.
+    for (var ui = 0; ui < unmappedBatch.length; ui++) {
+        var uResp = sdHttp(ctx, nk, logger, "POST", "/v1/server-event",
+            { "Authorization": sdBasicAuthHeader(ctx, nk) },
+            { events: [unmappedBatch[ui]] }
+        );
+        if (uResp.ok) {
+            totalSuccess++;
+        } else {
+            totalFail++;
+            lastFailResp = uResp;
+            if (logger && logger.info) {
+                logger.info("[satori_direct] unmapped single " + uResp.code +
+                    " name=" + (unmappedBatch[ui].name || "?") +
+                    ": " + uResp.body.slice(0, 120));
+            }
+        }
+    }
+
     try {
         if (typeof bumpMetricsCounter === "function") {
             bumpMetricsCounter(nk, {
-                satori_publish_success: wireEvents.length,
+                satori_publish_success:  totalSuccess,
+                satori_publish_failure:  totalFail,
                 satori_publish_filtered: filteredOut,
-                satori_publish_dropped: dropped,
+                satori_publish_dropped:  dropped,
                 log_calls: false
             });
         }
-    } catch (eCountOk) { /* metrics must never block Satori fan-out */ }
-    return null;
+    } catch (eCountFinal) { /* metrics must never block Satori fan-out */ }
+
+    return totalFail > 0
+        ? (lastFailResp || { ok: false, code: 0, body: "partial failure" })
+        : null;
 }
 
 // ─── Phase 3.2: per-identity batch buffer ──────────────────────────────
@@ -545,16 +590,9 @@ function sdEnqueueOrFlush(ctx, nk, logger, identifier, events) {
     // latency win.
     if (!iid) return sdEventsPublish(ctx, nk, logger, identifier, events);
 
-    // Allowlist + slim happen up-front so a buffered batch's flush does
-    // ZERO transformation work — keeps the eventual flush latency the
-    // same regardless of buffer size.
-    var keep = [];
-    for (var i = 0; i < events.length; i++) {
-        var e = events[i] || {};
-        if (!sdIsAllowlisted(e.name)) continue;
-        keep.push(e);
-    }
-    if (keep.length === 0) return null;  // nothing to do
+    // All events are forwarded — no allowlist filtering.
+    // slim (sdSlimMetadata) still happens inside sdEventsPublish.
+    var keep = events;
 
     var now = Date.now();
     var entry = SD_BATCH_BUFFER[iid];

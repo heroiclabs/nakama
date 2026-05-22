@@ -421,6 +421,91 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
 }
 
 /**
+ * Increment the live event counter for today in analytics_live_daily.
+ * Key: live_{gameId}_{YYYY-MM-DD}  (stored under SYSTEM_USER)
+ * Shape: { total, by_name: {eventName: count}, last_event_at }
+ *
+ * Uses a read-modify-write with OCC (version check). Retries once on
+ * version conflict. On failure it is silently swallowed — the nightly
+ * rollup is the durable source; this is a fast-read overlay only.
+ */
+/**
+ * OCC-safe upsert of a live_daily counter doc.
+ * Shared by both the per-game key and the "all" aggregate key.
+ */
+function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs) {
+    for (var attempt = 0; attempt < 2; attempt++) {
+        var existing = null;
+        var version  = null;
+        try {
+            var recs = nk.storageRead([{ collection: col, key: key, userId: SYSTEM_USER }]);
+            if (recs && recs.length > 0) {
+                existing = recs[0].value || {};
+                version  = recs[0].version;
+            }
+        } catch (_) { /* treat as empty */ }
+
+        var doc = existing || { total: 0, by_name: {}, by_platform: {}, by_country: {}, last_event_at: 0 };
+        doc.total = (doc.total || 0) + 1;
+        if (!doc.by_name)     doc.by_name     = {};
+        if (!doc.by_platform) doc.by_platform = {};
+        if (!doc.by_country)  doc.by_country  = {};
+
+        doc.by_name[en] = (doc.by_name[en] || 0) + 1;
+        if (platform) { doc.by_platform[platform] = (doc.by_platform[platform] || 0) + 1; }
+        if (country)  { doc.by_country[country]   = (doc.by_country[country]   || 0) + 1; }
+        doc.last_event_at = Math.max(doc.last_event_at || 0, unixTs || 0);
+
+        var writeObj = {
+            collection: col, key: key, userId: SYSTEM_USER,
+            value: doc, permissionRead: 0, permissionWrite: 0
+        };
+        if (version) writeObj.version = version;
+
+        try {
+            nk.storageWrite([writeObj]);
+            return;
+        } catch (_w) {
+            if (attempt === 0) continue;
+            // Second OCC conflict: silently drop — rollup covers it at midnight.
+        }
+    }
+}
+
+function liveCountersUpdate(nk, ev) {
+    var dateStr = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
+    var col = "analytics_live_daily";
+
+    var en       = ev.eventName || "unknown";
+    var platform = ((ev.eventData && (ev.eventData.platform || ev.eventData.Platform)) || ev.platform || "").toLowerCase() || null;
+    var country  = ((ev.eventData && ev.eventData.country) || ev.country || "").toUpperCase().slice(0, 2) || null;
+
+    // Per-game doc — keyed by canonical UUID (slug was resolved in normalizeInboundEvent).
+    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp);
+
+    // "All games" aggregate doc — lets the dashboard "All Games" selector show
+    // today's live data without waiting for the nightly rollup.
+    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp);
+}
+
+/**
+ * Read today's live counter doc for a given gameId.
+ * Returns the doc value or null. Never throws.
+ */
+function liveCountersRead(nk, gameId) {
+    try {
+        var dateStr = new Date().toISOString().slice(0, 10);
+        var key = "live_" + (gameId || "all") + "_" + dateStr;
+        var recs = nk.storageRead([{
+            collection: "analytics_live_daily",
+            key: key,
+            userId: SYSTEM_USER
+        }]);
+        return (recs && recs.length > 0) ? (recs[0].value || null) : null;
+    } catch (_) { return null; }
+}
+
+/**
  * Persist a single normalized event + fan-out to DAU + session aggregator.
  * Returns null on success, or a string error.
  */
@@ -453,6 +538,17 @@ function persistNormalizedEvent(nk, logger, ev) {
         }
     }
 
+    // ── Live counters (real-time dashboard, no rollup needed for today) ──
+    // Increments analytics_live_daily/live_{gameId}_{date} on every accepted
+    // event so the dashboard can show today's data immediately without waiting
+    // for the nightly analytics_rollup cron. The rollup still runs at midnight
+    // for historical accuracy — this is an additive fast-read layer only.
+    try {
+        liveCountersUpdate(nk, ev);
+    } catch (eLive) {
+        // Non-fatal — dashboard falls back to rollup data if this fails.
+    }
+
     // ── Unified player analytics store (game_player_analytics) ──
     // Runs after the dashboard write so a GPA failure never blocks dashboard data.
     // All per-player event data goes to a single doc keyed {gameId}:{userId}.
@@ -468,22 +564,19 @@ function persistNormalizedEvent(nk, logger, ev) {
 
     // ── Heroic Labs Satori cloud fan-out (direct HTTP, hardcoded creds) ──
     //
-    // Phase 3 (2026-05) overhaul:
-    //   • Allowlist filter — sdEnqueueOrFlush early-returns for any event
-    //     not in SD_EVENT_ALLOWLIST (~30 canonical events). The other ~250
-    //     dashboard-only events stay in-house and never touch Satori.
-    //   • Per-identity batch buffer — events accumulate in process memory
-    //     and flush at 50 events OR 5 s idle. Drops Satori HTTP from
-    //     ~1-per-event to ~1-per-50-events for active users.
-    //   • Identity hybrid (Q6=C) — on session_start we push the full
-    //     identity property bag to /v1/properties exactly once per
-    //     process per identity; per-event metadata is slimmed down to
-    //     platform/country/app_version + event-essentials inside
-    //     sdSlimMetadata.
+    // ALL events are forwarded to Satori — no allowlist filter.
+    //   • Mapped events (in SD_EVENT_MAP) → sent as one batch with core
+    //     Satori taxonomy names (guaranteed registered → no 400).
+    //   • Unmapped events → sent individually so a 400 on one unknown
+    //     name never kills the mapped batch.
+    //   • Per-identity batch buffer — accumulates in process memory and
+    //     flushes at 50 events OR 5 s idle.
+    //   • Identity hybrid (Q6=C) — on session_start the full identity
+    //     property bag is pushed to /v1/properties once per process per
+    //     identity; per-event metadata is slimmed to essentials.
     //
     // Fan-out failures NEVER abort the main RPC — the in-house dash_*
-    // write above is the durable source of truth and the dashboard
-    // doesn't depend on Satori at all.
+    // write above is the durable source of truth.
     try {
         var sEv = {
             name: ev.eventName,
@@ -1100,6 +1193,10 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
             dau_7d_change_pct: dau7dChangePct
         },
         top_games: topGames,
+        // Live counter doc for today — enables dashboard tabs to show today's
+        // event counts, platform and country breakdowns without waiting for
+        // the nightly rollup. Written by liveCountersUpdate on every ingest.
+        live_today: liveCountersRead(nk, resolveGameIdAlias(gameId)),
         _meta: {
             read_path: useRollups ? "rollup-preferred" : "live-only",
             rollup_hits: rollupHits,
@@ -1120,7 +1217,9 @@ function rpcAnalyticsDashboardSummary(ctx, logger, nk, payload) {
     var parsed = {};
     try { parsed = JSON.parse(payload || '{}'); } catch (e) { /* ignore */ }
 
-    var gameId = parsed.game_id || parsed.gameId || "all";
+    var SYSTEM_USER_LOCAL = "00000000-0000-0000-0000-000000000000";
+    var gameId  = parsed.game_id || parsed.gameId || "all";
+    var todayStr = new Date().toISOString().slice(0, 10);
     var dateStr = parsed.date;
     if (!dateStr) {
         var y = new Date();
@@ -1128,7 +1227,58 @@ function rpcAnalyticsDashboardSummary(ctx, logger, nk, payload) {
         dateStr = y.toISOString().slice(0, 10);
     }
 
-    var doc = readRollupDaily(nk, gameId, dateStr);
+    // If the caller is asking for today, serve the live counter doc first.
+    // This makes event counts visible on the dashboard within seconds of the
+    // event being received — no rollup run needed for the current day.
+    if (dateStr === todayStr) {
+        var liveKey = "live_" + resolveGameIdAlias(gameId) + "_" + todayStr;
+        var liveDoc = null;
+        try {
+            var lRecs = nk.storageRead([{
+                collection: "analytics_live_daily",
+                key: liveKey,
+                userId: SYSTEM_USER_LOCAL
+            }]);
+            if (lRecs && lRecs.length > 0) liveDoc = lRecs[0].value;
+        } catch (_) { /* fall through to rollup */ }
+
+        if (liveDoc) {
+            // Merge today's live event counts with DAU from analytics_dau so the
+            // dashboard gets both the "how many events" and "how many users" numbers.
+            var dauKey = gameId === "all"
+                ? "dau_platform_" + todayStr
+                : "dau_" + resolveGameIdAlias(gameId) + "_" + todayStr;
+            var dauDoc = null;
+            try {
+                var dRecs = nk.storageRead([{
+                    collection: "analytics_dau",
+                    key: dauKey,
+                    userId: SYSTEM_USER_LOCAL
+                }]);
+                if (dRecs && dRecs.length > 0) dauDoc = dRecs[0].value;
+            } catch (_) { /* no DAU yet today */ }
+
+            var dauCount = 0;
+            if (dauDoc) {
+                dauCount = parseInt(dauDoc.count, 10) ||
+                    (Array.isArray(dauDoc.users) ? dauDoc.users.length : 0) ||
+                    (Array.isArray(dauDoc.uniqueUsers) ? dauDoc.uniqueUsers.length : 0) || 0;
+            }
+
+            return JSON.stringify({
+                success: true,
+                source: "live",
+                gameId: gameId,
+                date: todayStr,
+                total_events: liveDoc.total || 0,
+                event_counts: liveDoc.by_name || {},
+                last_event_at: liveDoc.last_event_at || 0,
+                dau: dauCount
+            });
+        }
+    }
+
+    var doc = readRollupDaily(nk, resolveGameIdAlias(gameId), dateStr);
     if (!doc) {
         return JSON.stringify({
             success: false,

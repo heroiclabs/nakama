@@ -254,7 +254,7 @@ function arScanEventsForDate(nk, logger, dateStr) {
     var scanned = 0;
     var truncated = false;
     var cursor = null;
-    var maxPages = 50;          // safety cap: 50 pages × 200 = 10k events / day
+    var maxPages = 500;         // cap: 500 pages × 200 = 100k events / day
     var pageSize = 200;
     var dayStart = Math.floor(new Date(dateStr + "T00:00:00.000Z").getTime() / 1000);
     var dayEnd = dayStart + 86400;
