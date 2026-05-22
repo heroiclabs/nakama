@@ -167,6 +167,10 @@ export const handler = async (event) => {
 
         return response(200, {
             success: true,
+            // Return both field names: `endpointArn` (canonical, used by
+            // Nakama's wrapper and the bridge lambda) and `snsEndpointArn`
+            // (legacy, kept for back-compat with older callers/SDK builds).
+            endpointArn: endpointArn,
             snsEndpointArn: endpointArn,
             userId: userId,
             gameId: gameId,
