@@ -19,14 +19,27 @@ const pinpoint = new PinpointClient({});
 // Single source of truth. Lambda works even when SNS_PLATFORM_APP_ARN_*
 // env vars are missing. Env vars still take precedence so ops can rotate
 // ARNs without redeploying. Update these if SNS apps are recreated.
-const SNS_ARN_IOS_DEFAULT     = "arn:aws:sns:us-east-1:970547373533:app/APNS/intelliverse-ios";
-const SNS_ARN_ANDROID_DEFAULT = "arn:aws:sns:us-east-1:970547373533:app/GCM/IntelliVerseX-Android";
+const SNS_ARN_IOS_DEFAULT         = "arn:aws:sns:us-east-1:970547373533:app/APNS/intelliverse-ios";
+const SNS_ARN_IOS_SANDBOX_DEFAULT = "arn:aws:sns:us-east-1:970547373533:app/APNS_SANDBOX/intelliverse-ios-sandbox";
+const SNS_ARN_ANDROID_DEFAULT     = "arn:aws:sns:us-east-1:970547373533:app/GCM/IntelliVerseX-Android";
 
-const SNS_PLATFORM_APPLICATION_ARN_IOS     = process.env.SNS_PLATFORM_APP_ARN_IOS     || SNS_ARN_IOS_DEFAULT;
-const SNS_PLATFORM_APPLICATION_ARN_ANDROID = process.env.SNS_PLATFORM_APP_ARN_ANDROID || SNS_ARN_ANDROID_DEFAULT;
-const SNS_PLATFORM_APPLICATION_ARN_WEB     = process.env.SNS_PLATFORM_APP_ARN_WEB;     // optional
-const SNS_PLATFORM_APPLICATION_ARN_WINDOWS = process.env.SNS_PLATFORM_APP_ARN_WINDOWS; // optional
-const PINPOINT_APPLICATION_ID              = process.env.PINPOINT_APPLICATION_ID;
+const SNS_PLATFORM_APPLICATION_ARN_IOS         = process.env.SNS_PLATFORM_APP_ARN_IOS         || SNS_ARN_IOS_DEFAULT;
+const SNS_PLATFORM_APPLICATION_ARN_IOS_SANDBOX = process.env.SNS_PLATFORM_APP_ARN_IOS_SANDBOX || SNS_ARN_IOS_SANDBOX_DEFAULT;
+const SNS_PLATFORM_APPLICATION_ARN_ANDROID     = process.env.SNS_PLATFORM_APP_ARN_ANDROID     || SNS_ARN_ANDROID_DEFAULT;
+const SNS_PLATFORM_APPLICATION_ARN_WEB         = process.env.SNS_PLATFORM_APP_ARN_WEB;     // optional
+const SNS_PLATFORM_APPLICATION_ARN_WINDOWS     = process.env.SNS_PLATFORM_APP_ARN_WINDOWS; // optional
+const PINPOINT_APPLICATION_ID                  = process.env.PINPOINT_APPLICATION_ID;
+
+// Native APNs device tokens are hex-encoded 32 bytes (64 chars) or, for
+// newer devices, hex-encoded 80 bytes (160 chars). FCM/Firebase tokens
+// are base64url-ish strings, usually 140+ chars, often containing ":".
+// We trust the token shape over what the SDK *claims* the platform is.
+const HEX_TOKEN_RE = /^[0-9a-fA-F]+$/;
+function detectTokenFormat(token) {
+    const t = (token || "").trim();
+    if (HEX_TOKEN_RE.test(t) && (t.length === 64 || t.length === 160)) return "APNS";
+    return "FCM";
+}
 
 export const handler = async (event) => {
     console.log('Register endpoint request:', JSON.stringify(event, null, 2));
@@ -38,7 +51,7 @@ export const handler = async (event) => {
         return response(400, { success: false, error: 'Invalid JSON in request body' });
     }
 
-    const { userId, gameId, platform, platformType, deviceToken } = body;
+    const { userId, gameId, platform, platformType, deviceToken, isSandbox } = body;
 
     if (!userId || !gameId || !platform || !platformType || !deviceToken) {
         return response(400, {
@@ -47,21 +60,41 @@ export const handler = async (event) => {
         });
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // ROUTING: trust the token shape, not the SDK-declared platformType.
+    // Unity on iOS often registers via Firebase Messaging (which yields an
+    // FCM token, not a raw APNs token). Sending an FCM-shaped token to the
+    // APNs Platform App produces a useless endpoint that silently never
+    // delivers. Detecting the actual format and routing to the matching
+    // Platform App fixes this for free without any SDK change.
+    // ─────────────────────────────────────────────────────────────────────
+    const detectedFormat = detectTokenFormat(deviceToken);
+    const declaredFormat = platformType;
+    const effectiveFormat = detectedFormat;
+    const wantSandbox = isSandbox === true || isSandbox === "true";
+
     let platformApplicationArn;
-    switch (platformType) {
-        case 'APNS':
-            platformApplicationArn = SNS_PLATFORM_APPLICATION_ARN_IOS;
-            break;
-        case 'FCM':
-            platformApplicationArn = platform === 'web'
-                ? SNS_PLATFORM_APPLICATION_ARN_WEB
-                : SNS_PLATFORM_APPLICATION_ARN_ANDROID;
-            break;
-        case 'WNS':
-            platformApplicationArn = SNS_PLATFORM_APPLICATION_ARN_WINDOWS;
-            break;
-        default:
-            return response(400, { success: false, error: `Unsupported platform type: ${platformType}` });
+    if (effectiveFormat === 'APNS') {
+        // Hex-shaped → native APNs. Sandbox vs prod by explicit flag.
+        platformApplicationArn = wantSandbox
+            ? SNS_PLATFORM_APPLICATION_ARN_IOS_SANDBOX
+            : SNS_PLATFORM_APPLICATION_ARN_IOS;
+    } else if (effectiveFormat === 'FCM') {
+        // Firebase token (Android, iOS-via-Firebase, Web). Route by hint
+        // platform — only Web has its own Platform App; everything else
+        // goes through the GCM Platform App (Firebase forwards iOS tokens
+        // to APNs internally, using the .p8 uploaded to Firebase Console).
+        platformApplicationArn = platform === 'web' && SNS_PLATFORM_APPLICATION_ARN_WEB
+            ? SNS_PLATFORM_APPLICATION_ARN_WEB
+            : SNS_PLATFORM_APPLICATION_ARN_ANDROID;
+    } else if (platformType === 'WNS') {
+        platformApplicationArn = SNS_PLATFORM_APPLICATION_ARN_WINDOWS;
+    } else {
+        return response(400, { success: false, error: `Unsupported platform type: ${platformType}` });
+    }
+
+    if (declaredFormat !== effectiveFormat) {
+        console.warn(`Token routing override: SDK declared ${declaredFormat} but token shape is ${effectiveFormat}. Routing to ${platformApplicationArn}.`);
     }
 
     if (!platformApplicationArn) {
@@ -75,7 +108,7 @@ export const handler = async (event) => {
         const createEndpointParams = {
             PlatformApplicationArn: platformApplicationArn,
             Token: deviceToken,
-            CustomUserData: JSON.stringify({ userId, gameId, platform }),
+            CustomUserData: JSON.stringify({ userId, gameId, platform, declaredFormat, effectiveFormat, isSandbox: !!wantSandbox }),
             Attributes: { Enabled: 'true' }
         };
 
@@ -97,7 +130,7 @@ export const handler = async (event) => {
                         Attributes: {
                             Token: deviceToken,
                             Enabled: 'true',
-                            CustomUserData: JSON.stringify({ userId, gameId, platform })
+                            CustomUserData: JSON.stringify({ userId, gameId, platform, declaredFormat, effectiveFormat, isSandbox: !!wantSandbox })
                         }
                     }));
                 } else {
@@ -138,7 +171,10 @@ export const handler = async (event) => {
             userId: userId,
             gameId: gameId,
             platform: platform,
-            platformType: platformType
+            platformType: platformType,
+            effectiveFormat,
+            isSandbox: !!wantSandbox,
+            routedTo: platformApplicationArn.split(':app/')[1] || platformApplicationArn
         });
 
     } catch (error) {

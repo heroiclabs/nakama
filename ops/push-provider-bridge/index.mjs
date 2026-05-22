@@ -6,7 +6,19 @@ const appArns = {
   android: process.env.SNS_PLATFORM_APP_ARN_ANDROID || process.env.SNS_PLATFORM_APPLICATION_ARN_ANDROID || "arn:aws:sns:us-east-1:970547373533:app/GCM/IntelliVerseX-Android",
   web: process.env.SNS_PLATFORM_APP_ARN_WEB || "",
   ios: process.env.SNS_PLATFORM_APP_ARN_IOS || process.env.SNS_PLATFORM_APPLICATION_ARN_IOS || "arn:aws:sns:us-east-1:970547373533:app/APNS/intelliverse-ios",
+  ios_sandbox: process.env.SNS_PLATFORM_APP_ARN_IOS_SANDBOX || "arn:aws:sns:us-east-1:970547373533:app/APNS_SANDBOX/intelliverse-ios-sandbox",
 };
+
+// Native APNs tokens are hex-encoded (64 or 160 chars). Anything else is
+// almost certainly an FCM/Firebase token. We trust this shape over the
+// caller-declared platform — Unity on iOS often registers via Firebase
+// Messaging and ships an FCM token even when platform="ios".
+const HEX_TOKEN_RE = /^[0-9a-fA-F]+$/;
+function detectTokenFormat(token) {
+  const t = String(token || "").trim();
+  if (HEX_TOKEN_RE.test(t) && (t.length === 64 || t.length === 160)) return "APNS";
+  return "FCM";
+}
 
 function json(statusCode, body) {
   return {
@@ -95,38 +107,57 @@ function mobileMessage(platform, title, body, data) {
 }
 
 async function registerEndpoint(body) {
-  const platform = normalizePlatform(body.platform);
-  const appArn = appArns[platform];
+  const declaredPlatform = normalizePlatform(body.platform);
   const token = body.deviceToken || body.token;
 
   if (!token) return json(400, { success: false, error: "device token required" });
-  if (!appArn) return json(400, { success: false, error: `SNS platform app ARN missing for ${platform}` });
 
-  const attributes = {};
-  if (body.userId || body.gameId) {
-    attributes.CustomUserData = JSON.stringify({
-      userId: body.userId || "",
-      gameId: body.gameId || "",
-    });
+  // Trust the token shape over the caller's `platform`. An FCM-shaped
+  // token MUST go to the GCM Platform App regardless of platform=ios,
+  // otherwise SNS produces an endpoint that will never deliver.
+  const detectedFormat = detectTokenFormat(token);
+  const wantSandbox = body.isSandbox === true || body.isSandbox === "true";
+
+  let appArn;
+  let resolvedPlatform;
+  if (detectedFormat === "APNS") {
+    appArn = wantSandbox ? appArns.ios_sandbox : appArns.ios;
+    resolvedPlatform = wantSandbox ? "ios_sandbox" : "ios";
+  } else {
+    appArn = declaredPlatform === "web" && appArns.web ? appArns.web : appArns.android;
+    resolvedPlatform = declaredPlatform === "web" && appArns.web ? "web" : "android";
   }
+
+  if (!appArn) return json(400, { success: false, error: `SNS platform app ARN missing for ${resolvedPlatform}` });
+
+  const customUserData = JSON.stringify({
+    userId: body.userId || "",
+    gameId: body.gameId || "",
+    declaredPlatform,
+    detectedFormat,
+    isSandbox: !!wantSandbox,
+  });
 
   const result = await sns.send(new CreatePlatformEndpointCommand({
     PlatformApplicationArn: appArn,
     Token: token,
-    CustomUserData: attributes.CustomUserData,
+    CustomUserData: customUserData,
   }));
 
   if (result.EndpointArn) {
     await sns.send(new SetEndpointAttributesCommand({
       EndpointArn: result.EndpointArn,
-      Attributes: { Enabled: "true" },
+      Attributes: { Enabled: "true", Token: token, CustomUserData: customUserData },
     }));
   }
 
   return json(200, {
     success: true,
     provider: "sns",
-    platform,
+    platform: resolvedPlatform,
+    declaredPlatform,
+    detectedFormat,
+    isSandbox: !!wantSandbox,
     endpointArn: result.EndpointArn,
   });
 }

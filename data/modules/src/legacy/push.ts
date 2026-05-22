@@ -101,7 +101,20 @@ namespace LegacyPush {
     return { kept: kept, dropped: dropped };
   }
 
-  function registerProviderEndpoint(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, token: string, platform: string, gameId: string): any {
+  // Native APNs tokens are hex-encoded (64 or 160 chars). Anything else —
+  // notably the `<id>:APA91b...`-shaped strings that Firebase Messaging
+  // returns even on iOS — is an FCM token and MUST be routed to the GCM
+  // Platform App, otherwise SNS will create a useless endpoint that never
+  // delivers. The lambda makes the same call defensively, but doing it
+  // here too keeps the platformType hint accurate in the wire payload.
+  function detectTokenFormat(token: string): string {
+    var t = String(token || "").trim();
+    var hex = /^[0-9a-fA-F]+$/;
+    if (hex.test(t) && (t.length === 64 || t.length === 160)) return "APNS";
+    return "FCM";
+  }
+
+  function registerProviderEndpoint(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, token: string, platform: string, gameId: string, isSandbox: boolean): any {
     var normalizedPlatform = normalizePlatform(platform);
     var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL") || PUSH_REGISTER_URL_DEFAULT;
     if (!registerUrl) {
@@ -109,17 +122,27 @@ namespace LegacyPush {
       return { configured: false };
     }
 
-    logger.info("[Push] Registering %s endpoint for userId=%s gameId=%s", normalizedPlatform, userId, gameId || "quizverse");
+    logger.info("[Push] Registering %s endpoint for userId=%s gameId=%s isSandbox=%s", normalizedPlatform, userId, gameId || "quizverse", String(!!isSandbox));
 
     try {
-      var platformType = normalizedPlatform === "ios" ? "APNS" : "FCM";
+      var detectedFormat = detectTokenFormat(token);
+      // Use the detected format as the canonical hint — this is what the
+      // lambda will route on. The declared platform stays in the payload
+      // for human-debug and Pinpoint user attribution only.
+      var platformType = detectedFormat;
+      if (detectedFormat === "APNS" && normalizedPlatform !== "ios") {
+        logger.warn("[Push] Token shape says APNs but caller said platform=%s. Routing as APNs.", normalizedPlatform);
+      } else if (detectedFormat === "FCM" && normalizedPlatform === "ios") {
+        logger.info("[Push] iOS device shipped a Firebase token. Routing through GCM Platform App; iOS delivery will be handled by Firebase → APNs (.p8 must be uploaded to Firebase Console).");
+      }
       var body = JSON.stringify({
         userId: userId,
         gameId: gameId || "quizverse",
         deviceToken: token,
         token: token,
         platform: normalizedPlatform,
-        platformType: platformType
+        platformType: platformType,
+        isSandbox: !!isSandbox
       });
       var resp: any = nk.httpRequest(registerUrl, "post", { "Content-Type": "application/json" }, body, 10000);
       var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
@@ -237,15 +260,21 @@ namespace LegacyPush {
       var token = data.token;
       var platform = data.platform || "unknown";
       var gameId = data.gameId || data.game_id || "quizverse";
-      logger.info("[Push] push_register_token: userId=%s platform=%s gameId=%s tokenPrefix=%s",
-        userId, platform, gameId, token ? token.substring(0, 10) + "..." : "MISSING");
+      // isSandbox flag — set true from Unity for development/debug iOS
+      // builds. Routes the registration to the APNS_SANDBOX Platform App
+      // so that pushes generated against a development provisioning
+      // profile actually deliver. Production iOS (TestFlight + App Store)
+      // builds must NOT set this flag — they need the APNS prod app.
+      var isSandbox = data.isSandbox === true || data.isSandbox === "true" || data.is_sandbox === true || data.is_sandbox === "true";
+      logger.info("[Push] push_register_token: userId=%s platform=%s gameId=%s tokenPrefix=%s isSandbox=%s",
+        userId, platform, gameId, token ? token.substring(0, 10) + "..." : "MISSING", String(isSandbox));
       if (!token) {
         logger.warn("[Push] push_register_token rejected: no token provided. userId=%s platform=%s", userId, platform);
         return RpcHelpers.errorResponse("token required");
       }
       var tokensData = getPushTokens(nk, userId);
       var now = Math.floor(Date.now() / 1000);
-      var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId);
+      var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId, isSandbox);
       // Resolved platform: ARN-derived when SNS handed us back an endpoint,
       // else the caller's input. This is the value we persist & report — never
       // the raw `data.platform` from the request, which can be wrong.
