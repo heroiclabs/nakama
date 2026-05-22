@@ -317,7 +317,9 @@ function serveStatic(req, res, url) {
   res.writeHead(200, {
     "Content-Type": mimeTypes[ext] ?? "application/octet-stream",
     "Cache-Control": ext === ".html" ? "no-cache, must-revalidate" : "public, max-age=31536000, immutable",
-    "X-Frame-Options": "SAMEORIGIN",
+    // Allow embedding from the IntelliVerse admin hub and local dev.
+    // CSP frame-ancestors supersedes X-Frame-Options; we clear the old header.
+    "Content-Security-Policy": "frame-ancestors 'self' https://admin.intelli-verse-x.ai http://localhost:3000",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
   });
