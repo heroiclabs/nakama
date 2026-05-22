@@ -98,6 +98,20 @@ phases:
           echo "WARN: secret/nakama-secret key 'http_key' not found or empty — falling back to 'defaultkey' (prod login will fail until the secret is set)"
           RUNTIME_HTTP_KEY="defaultkey"
         fi
+      # ─── Read DASHBOARD_SECRET from nakama-secret (analytics + rollup cron) ──
+      # Falls back to the same hardcoded constant baked into analytics_admin.js
+      # (AA_FALLBACK_DASHBOARD_SECRET) so rollup calls always work even before
+      # the k8s Secret is patched.
+      - echo "=== Reading DASHBOARD_SECRET from nakama-secret ==="
+      - >
+        RUNTIME_DASHBOARD_SECRET=$(kubectl get secret nakama-secret -n "$K8S_NAMESPACE"
+        -o jsonpath='{.data.dashboard_secret}' 2>/dev/null | base64 -d 2>/dev/null || true)
+      - |
+        if [ -z "$RUNTIME_DASHBOARD_SECRET" ]; then
+          echo "WARN: nakama-secret/dashboard_secret not found — using hardcoded fallback (matches AA_FALLBACK_DASHBOARD_SECRET)"
+          RUNTIME_DASHBOARD_SECRET="2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8"
+        fi
+        echo "DASHBOARD_SECRET fingerprint: $(printf '%s' "$RUNTIME_DASHBOARD_SECRET" | cut -c1-8)…"
       - HTTP_KEY_FP="$(printf '%s' "$RUNTIME_HTTP_KEY" | head -c 4)…(len=$(printf '%s' "$RUNTIME_HTTP_KEY" | wc -c))"
       - echo "http_key fingerprint=$HTTP_KEY_FP"
       - echo "=== Patching web/analytics-dashboard/index.html serverKey ==="
@@ -181,10 +195,54 @@ phases:
         if [ -n "$ANTHROPIC_API_KEY" ]; then INJECT_ARGS="$INJECT_ARGS ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"; echo "  ✓ ANTHROPIC_API_KEY injected"; else echo "  ⚠ ANTHROPIC_API_KEY not set — skipping"; fi
         if [ -n "$XAI_API_KEY" ];       then INJECT_ARGS="$INJECT_ARGS XAI_API_KEY=$XAI_API_KEY";           echo "  ✓ XAI_API_KEY injected";       else echo "  ⚠ XAI_API_KEY not set — skipping"; fi
         if [ -n "$LLM_PROVIDER" ];      then INJECT_ARGS="$INJECT_ARGS LLM_PROVIDER=$LLM_PROVIDER";         echo "  ✓ LLM_PROVIDER injected";      else echo "  ⚠ LLM_PROVIDER not set — skipping"; fi
+        # Analytics env vars — always injected so the JS runtime sees them
+        # regardless of what the base Deployment YAML contains. These drive
+        # the dashboard auth (DASHBOARD_SECRET), rollup pipeline
+        # (ROLLUP_ENABLED), and dashboard read path (DASHBOARD_PREFER_ROLLUPS).
+        INJECT_ARGS="$INJECT_ARGS DASHBOARD_SECRET=$RUNTIME_DASHBOARD_SECRET"
+        INJECT_ARGS="$INJECT_ARGS ROLLUP_ENABLED=true"
+        INJECT_ARGS="$INJECT_ARGS DASHBOARD_PREFER_ROLLUPS=true"
+        echo "  ✓ DASHBOARD_SECRET injected (fingerprint: $(printf '%s' "$RUNTIME_DASHBOARD_SECRET" | cut -c1-8)…)"
+        echo "  ✓ ROLLUP_ENABLED=true injected"
+        echo "  ✓ DASHBOARD_PREFER_ROLLUPS=true injected"
         if [ -n "$INJECT_ARGS" ]; then
           kubectl set env deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" $INJECT_ARGS
           echo "  ✓ kubectl set env completed"
         fi
+      # ─── Apply analytics CronJobs (rollup + external pollers) ─────────────
+      # deploy/analytics-cron.yaml contains two CronJobs: daily rollup at
+      # 01:15 UTC and external pollers every 6 hours. `apply` is idempotent —
+      # re-running this on every deploy keeps the CronJob spec in sync with
+      # whatever's in the repo without requiring manual kubectl steps.
+      - echo "=== Applying analytics CronJobs ==="
+      - kubectl apply -f deploy/analytics-cron.yaml -n "$K8S_NAMESPACE" || echo "WARN: CronJob apply failed — check deploy/analytics-cron.yaml"
+      - kubectl get cronjobs -n "$K8S_NAMESPACE" -l component=analytics-cron 2>/dev/null || true
+      # ─── Post-deploy bootstrap backfill ───────────────────────────────────
+      # Populate analytics_rollup_daily docs for the last 30 days so every
+      # dashboard tab has historical data immediately after a fresh deploy.
+      # analytics_rollup_backfill is idempotent (overwrites existing docs),
+      # so re-running on every deploy is safe — it just refreshes the numbers.
+      # We hit the external URL here (CodeBuild runs outside the cluster).
+      - echo "=== Running analytics bootstrap backfill (last 30 days) ==="
+      - |
+        set +e
+        NAKAMA_EXTERNAL_URL="https://nakama-rest.intelli-verse-x.ai"
+        BACKFILL_FROM=$(date -u -d "30 days ago" +%Y-%m-%d 2>/dev/null || date -u -v-30d +%Y-%m-%d 2>/dev/null || echo "")
+        BACKFILL_TO=$(date -u -d "yesterday" +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d 2>/dev/null || echo "")
+        if [ -n "$BACKFILL_FROM" ] && [ -n "$BACKFILL_TO" ]; then
+          echo "  Backfilling $BACKFILL_FROM → $BACKFILL_TO"
+          BF_STATUS=$(curl -sf -o /tmp/backfill.json -w "%{http_code}" \
+            -X POST "${NAKAMA_EXTERNAL_URL}/v2/rpc/analytics_rollup_backfill?http_key=${RUNTIME_HTTP_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"${BACKFILL_FROM}\",\"to\":\"${BACKFILL_TO}\",\"dashboard_secret\":\"${RUNTIME_DASHBOARD_SECRET}\"}" \
+            --max-time 300 || echo "000")
+          echo "  Backfill status=${BF_STATUS}"
+          head -c 300 /tmp/backfill.json 2>/dev/null; echo ""
+          [ "$BF_STATUS" = "200" ] && echo "  ✓ Backfill complete" || echo "  ⚠ Backfill status ${BF_STATUS} — dashboard will populate after the first nightly cron run"
+        else
+          echo "  ⚠ Could not compute date range — skipping backfill"
+        fi
+        set -e
       # ─── Post-rollout deploy gate (EKS-3) ─────────────────────────────
       # Block on rollout AND assert the JS runtime is healthy in the new
       # pod before we declare the build successful. This is what catches
