@@ -1,6 +1,37 @@
 // chat_moderation.js - Chat Moderation Pipeline
 // Storage collection: chat_reports, chat_filter_config
-// RPCs: chat_report_message, chat_moderation_review, chat_moderation_stats
+// RPCs: chat_filter_message (public), chat_report_message (public),
+//       chat_moderation_review (admin-gated), chat_moderation_stats (admin-gated)
+//
+// Helpers checkProfanity / filterMessage are also reused by chatbox.js via
+// the postbuild global hoist.
+//
+// SECURITY NOTE (audit 2026-05-19, P0-2 + P0-3):
+//   Prior to this module having an InitModule the admin RPCs were dead code,
+//   which masked the fact that they had NO auth check. Now that we register
+//   them, requireAdmin() bounces non-admins. Admin identities are sourced
+//   from the env-supplied ADMIN_USER_IDS (comma-separated UUID list, set in
+//   docker-compose / EKS secrets / .env via --runtime.env).
+
+// ============================================================================
+// ADMIN AUTH GATE
+// ============================================================================
+
+function modIsAdmin(ctx) {
+    if (!ctx || !ctx.userId) return false;
+    var raw = (ctx.env && ctx.env.ADMIN_USER_IDS) || "";
+    if (!raw) return false;
+    var ids = raw.split(",");
+    for (var i = 0; i < ids.length; i++) {
+        if ((ids[i] || "").trim() === ctx.userId) return true;
+    }
+    return false;
+}
+
+function modRequireAdmin(ctx) {
+    if (modIsAdmin(ctx)) return null;
+    return JSON.stringify({ success: false, error: "admin_required" });
+}
 
 var PROFANITY_WORDS = [
     "fuck", "shit", "ass", "bitch", "dick", "cunt", "damn", "bastard",
@@ -237,7 +268,7 @@ function rpcChatReportMessage(ctx, logger, nk, payload) {
     } catch (err) {
         logger.error('[Moderation] chat_report_message error: ' + err.message);
         logRpcError(nk, logger, 'chat_report_message', err.message, ctx.userId, null);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, error: "internal_error" });
     }
 }
 
@@ -247,6 +278,11 @@ function rpcChatReportMessage(ctx, logger, nk, payload) {
  */
 function rpcChatModerationReview(ctx, logger, nk, payload) {
     logger.info('[Moderation] chat_moderation_review called');
+
+    // P0-3: admin gate. Without this, any authenticated user could list
+    // reports and ban other users.
+    var denial = modRequireAdmin(ctx);
+    if (denial) return denial;
 
     try {
         var data = JSON.parse(payload || '{}');
@@ -339,7 +375,7 @@ function rpcChatModerationReview(ctx, logger, nk, payload) {
     } catch (err) {
         logger.error('[Moderation] chat_moderation_review error: ' + err.message);
         logRpcError(nk, logger, 'chat_moderation_review', err.message, ctx.userId, null);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, error: "internal_error" });
     }
 }
 
@@ -349,6 +385,11 @@ function rpcChatModerationReview(ctx, logger, nk, payload) {
  */
 function rpcChatModerationStats(ctx, logger, nk, payload) {
     logger.info('[Moderation] chat_moderation_stats called');
+
+    // P0-3: admin gate. Stats reveal counts and top-reported users —
+    // useful intel for an attacker mapping which users to escalate against.
+    var denial = modRequireAdmin(ctx);
+    if (denial) return denial;
 
     try {
         var records = nk.storageList('00000000-0000-0000-0000-000000000000', 'chat_reports', 100, '');
@@ -409,7 +450,7 @@ function rpcChatModerationStats(ctx, logger, nk, payload) {
     } catch (err) {
         logger.error('[Moderation] chat_moderation_stats error: ' + err.message);
         logRpcError(nk, logger, 'chat_moderation_stats', err.message, ctx.userId, null);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, error: "internal_error" });
     }
 }
 
@@ -447,6 +488,26 @@ function rpcChatFilterMessage(ctx, logger, nk, payload) {
 
     } catch (err) {
         logger.error('[Moderation] chat_filter_message error: ' + err.message);
-        return JSON.stringify({ success: false, error: err.message });
+        return JSON.stringify({ success: false, error: "internal_error" });
     }
+}
+
+// ============================================================================
+// MODULE INIT (postbuild AST hook) — P0-2 fix
+// ----------------------------------------------------------------------------
+// postbuild.js renames this `InitModule` to `__ModuleInit_N` and lifts every
+// literal initializer.registerRpc call inside it into the master InitModule.
+// Keep registrations as direct literal calls (no helpers, no loops) or the
+// AST walker in runtime_javascript_init.go will not see them.
+//
+// Admin RPCs ARE registered here but are protected by modRequireAdmin().
+// Without ADMIN_USER_IDS in the runtime env, they all return admin_required.
+// ============================================================================
+
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("chat_filter_message",     rpcChatFilterMessage);     // public
+    initializer.registerRpc("chat_report_message",     rpcChatReportMessage);     // public (creates a report)
+    initializer.registerRpc("chat_moderation_review",  rpcChatModerationReview);  // admin-gated
+    initializer.registerRpc("chat_moderation_stats",   rpcChatModerationStats);   // admin-gated
+    logger.info("[Moderation] Module InitModule registered: 4 RPCs (2 public, 2 admin-gated)");
 }

@@ -4,42 +4,97 @@
 //       ai_trivia_generate, ai_daily_briefing, ai_group_hype
 
 // ============================================================================
+// ⚠️  HARDCODED LLM KEYS — TEMPORARY, REMOVE BEFORE OPEN-SOURCING
+// ============================================================================
+// Why these exist:
+//   The EKS deployment in `aicart/intelliverse-nakama` had no `OPENAI_API_KEY`
+//   set in its env, so every chat RPC was returning canned replies on iOS
+//   builds. Until we wire the K8s Secret properly, these constants act as a
+//   last-resort fallback — `getActiveProvider()` first checks `ctx.env` and
+//   only uses the hardcoded value if the env var is missing or empty.
+//
+// How to enable / disable:
+//   • Paste your OpenAI key into `HARDCODED_OPENAI_KEY` below. Same for the
+//     other two providers if you have keys.
+//   • Leave a constant as the empty string '' to disable that provider's
+//     hardcoded fallback (env var is still consulted first either way).
+//
+// SECURITY (read before committing):
+//   • These strings end up in the Docker image and in this repo's git history.
+//   • Anyone with read access to this repo or to the ECR image can extract
+//     them. That includes every developer, CI runner, and anything that ever
+//     pulls the image.
+//   • This is acceptable as a temporary unblock for iOS playtest — NOT for a
+//     public production server. Rotate the key the moment a proper K8s
+//     Secret is wired up, and delete these constants.
+// ============================================================================
+
+var HARDCODED_OPENAI_KEY    = ''; // ← paste sk-proj-... here
+var HARDCODED_ANTHROPIC_KEY = ''; // ← paste sk-ant-...  here (optional)
+var HARDCODED_XAI_KEY       = ''; // ← paste xai-...     here (optional)
+
+// ============================================================================
 // LLM CLIENT INFRASTRUCTURE
 // ============================================================================
 
 var LLM_PROVIDERS = {
-    claude: {
-        url: 'https://api.anthropic.com/v1/messages',
-        model: 'claude-sonnet-4-20250514',
-        envKey: 'ANTHROPIC_API_KEY'
-    },
     openai: {
         url: 'https://api.openai.com/v1/chat/completions',
         model: 'gpt-4o-mini',
-        envKey: 'OPENAI_API_KEY'
+        envKey: 'OPENAI_API_KEY',
+        hardcoded: function () { return HARDCODED_OPENAI_KEY; }
+    },
+    claude: {
+        url: 'https://api.anthropic.com/v1/messages',
+        model: 'claude-sonnet-4-20250514',
+        envKey: 'ANTHROPIC_API_KEY',
+        hardcoded: function () { return HARDCODED_ANTHROPIC_KEY; }
     },
     xai: {
         url: 'https://api.x.ai/v1/chat/completions',
         model: 'grok-3-mini',
-        envKey: 'XAI_API_KEY'
+        envKey: 'XAI_API_KEY',
+        hardcoded: function () { return HARDCODED_XAI_KEY; }
     }
 };
 
-function getActiveProvider(ctx) {
-    var preferred = (ctx.env && ctx.env['LLM_PROVIDER']) || 'claude';
-    var provider = LLM_PROVIDERS[preferred];
-    if (!provider) provider = LLM_PROVIDERS.claude;
+// Explicit fallback order so behaviour does not depend on object-iteration
+// order. If the preferred provider has neither env-var nor hardcoded key, we
+// walk this list and pick the first provider that does.
+var LLM_PROVIDER_FALLBACK_ORDER = ['openai', 'claude', 'xai'];
 
-    var apiKey = ctx.env ? ctx.env[provider.envKey] : null;
-    if (!apiKey) {
-        for (var name in LLM_PROVIDERS) {
-            var p = LLM_PROVIDERS[name];
-            var k = ctx.env ? ctx.env[p.envKey] : null;
-            if (k) return { name: name, config: p, apiKey: k };
-        }
-        return null;
+// Resolves a provider's key from ctx.env first, then the hardcoded constant.
+// Returns null if both are missing/empty.
+function resolveProviderKey(ctx, provider) {
+    var envKey = ctx && ctx.env ? ctx.env[provider.envKey] : null;
+    if (envKey) return envKey;
+    var hard = provider.hardcoded ? provider.hardcoded() : '';
+    if (hard) return hard;
+    return null;
+}
+
+function getActiveProvider(ctx) {
+    var preferred = (ctx.env && ctx.env['LLM_PROVIDER']) || 'openai';
+    var provider = LLM_PROVIDERS[preferred];
+    if (!provider) {
+        preferred = 'openai';
+        provider = LLM_PROVIDERS.openai;
     }
-    return { name: preferred, config: provider, apiKey: apiKey };
+
+    var apiKey = resolveProviderKey(ctx, provider);
+    if (apiKey) {
+        return { name: preferred, config: provider, apiKey: apiKey };
+    }
+
+    // Preferred provider has no key — walk the explicit fallback order.
+    for (var i = 0; i < LLM_PROVIDER_FALLBACK_ORDER.length; i++) {
+        var name = LLM_PROVIDER_FALLBACK_ORDER[i];
+        if (name === preferred) continue; // already checked above
+        var p = LLM_PROVIDERS[name];
+        var k = resolveProviderKey(ctx, p);
+        if (k) return { name: name, config: p, apiKey: k };
+    }
+    return null;
 }
 
 function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
@@ -474,11 +529,15 @@ function rpcAiTriviaGenerate(ctx, logger, nk, payload) {
             }
             questions = JSON.parse(text);
         } catch (parseErr) {
-            logger.warn('[AI] Failed to parse trivia JSON: ' + parseErr.message);
+            // P1-15: do NOT return raw_response — it leaks the LLM's
+            // internal output (which can contain system-prompt fragments,
+            // policy text, or other users' patterns when caching is in
+            // play). The raw text is logged server-side for debugging.
+            logger.warn('[AI] Failed to parse trivia JSON: ' + parseErr.message +
+                        ' | raw_preview=' + String(result.text || '').substring(0, 200));
             return JSON.stringify({
                 success: false,
-                error: 'Failed to parse generated questions',
-                raw_response: result.text
+                error: 'Failed to parse generated questions'
             });
         }
 

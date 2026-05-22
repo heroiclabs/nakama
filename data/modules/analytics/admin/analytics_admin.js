@@ -503,7 +503,7 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
     var collected = [];
     var cursor = data.cursor || null;
     var scanned = 0;
-    var maxScan = userIdFilter ? 10000 : 2000; // larger window when needle-searching one user
+    var maxScan = userIdFilter ? 50000 : 50000; // scan enough to reach today's events in large collections
 
     try {
         while (collected.length < limit && scanned < maxScan) {

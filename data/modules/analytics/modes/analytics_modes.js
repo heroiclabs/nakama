@@ -206,114 +206,170 @@ function rpcAnalyticsModesBreakdown(ctx, logger, nk, payload) {
         var data = amSafeJson(payload);
         var days = parseInt(data.days, 10) || 30;
         if (days < 1) days = 1; if (days > 90) days = 90;
-        var gameId = amResolveGameId(data.game_id || data.gameId || null);
+        var gameId = amResolveGameId(data.game_id || data.gameId || null) || "all";
 
-        var events = amScanEvents(nk, logger, days, function(ev) {
-            var n = (ev.eventName || '').toLowerCase();
-            return AM_QUIZ_STARTED_NAMES[n] || AM_QUIZ_COMPLETED_NAMES[n] || AM_QUIZ_ABANDONED_NAMES[n];
-        }, gameId);
+        var SYSUSER = "00000000-0000-0000-0000-000000000000";
+        var todayStr = new Date().toISOString().slice(0, 10);
 
-        // mode → aggregate accumulator
+        // ── Phase-4: rollup-first for historical days ─────────────────────────
+        // Read pre-computed analytics_modes_daily docs for every day OLDER than
+        // today. These are written by analytics_rollup_run (nightly) and cover
+        // up to 100k events/day — far more than the live extScanEvents (2000).
+        // Today is excluded from the rollup path (rollup hasn't run yet for today)
+        // and handled below via a live scan.
         var byMode = {};
-        var sessionFlags = {}; // sessionId → {started?, completed?, abandoned?}
-        var totalStarts = 0, totalCompletions = 0;
-        var allUniqueUsers = {};
+        var rollupDays = 0;
+        var now = new Date();
 
-        function getMode(key) {
+        function getModeAcc(key) {
             if (!byMode[key]) {
                 byMode[key] = {
                     mode: key,
-                    play_category: null,
                     starts: 0, completions: 0, abandonments: 0,
-                    durations: [], scores: [], accuracies: [], questions: [],
-                    unique_users: {}
+                    total_duration_secs: 0, ended_count: 0,
+                    total_correct: 0, total_questions: 0,
+                    unique_users_approx: 0, revenue_usd: 0, ad_impressions: 0
                 };
             }
             return byMode[key];
         }
 
-        for (var i = 0; i < events.length; i++) {
-            var ev = events[i];
-            var n = (ev.eventName || '').toLowerCase();
-            var mode = amExtractMode(ev);
-            var cat = amExtractCategory(ev);
-            var u = amExtractUser(ev);
-            var sid = amExtractSessionId(ev);
-            var bucket = getMode(mode);
-            if (cat && !bucket.play_category) bucket.play_category = cat;
-
-            if (AM_QUIZ_STARTED_NAMES[n]) {
-                bucket.starts++; totalStarts++;
-                if (u) { bucket.unique_users[u] = 1; allUniqueUsers[u] = 1; }
-                if (sid) (sessionFlags[sid] = sessionFlags[sid] || {}).started = true;
-            } else if (AM_QUIZ_COMPLETED_NAMES[n]) {
-                bucket.completions++; totalCompletions++;
-                if (u) { bucket.unique_users[u] = 1; allUniqueUsers[u] = 1; }
-                if (sid) (sessionFlags[sid] = sessionFlags[sid] || {}).completed = true;
-                var outcome = amExtractOutcome(ev);
-                if (outcome === 'abandoned' || outcome === 'interrupted' || outcome === 'disconnected') {
-                    bucket.abandonments++;
-                    bucket.completions--; totalCompletions--;
-                } else {
-                    var dur = amExtractDuration(ev);
-                    if (dur > 0) bucket.durations.push(dur);
-                    var sc = amExtractScore(ev);
-                    if (sc > 0) bucket.scores.push(sc);
-                    var c = amExtractCorrect(ev), tq = amExtractTotalQ(ev);
-                    if (tq > 0 && c >= 0) {
-                        bucket.accuracies.push((c / tq) * 100);
-                        bucket.questions.push(tq);
-                    }
-                }
-            } else if (AM_QUIZ_ABANDONED_NAMES[n]) {
-                bucket.abandonments++;
-                if (sid) (sessionFlags[sid] = sessionFlags[sid] || {}).abandoned = true;
+        for (var d = 1; d < days; d++) {
+            var dt = new Date(now.getTime() - d * 86400000);
+            var ds = dt.toISOString().slice(0, 10);
+            var rollupKey = "modes_" + gameId + "_" + ds;
+            var rollupDoc = null;
+            try {
+                var rr = nk.storageRead([{
+                    collection: "analytics_modes_daily",
+                    key: rollupKey,
+                    userId: SYSUSER
+                }]);
+                if (rr && rr.length > 0) rollupDoc = rr[0].value;
+            } catch (_) { /* no doc */ }
+            if (!rollupDoc || !rollupDoc.modes) continue;
+            rollupDays++;
+            for (var ri = 0; ri < rollupDoc.modes.length; ri++) {
+                var rm = rollupDoc.modes[ri];
+                if (!rm || !rm.mode) continue;
+                var ra = getModeAcc(rm.mode);
+                ra.starts       += rm.sessions_started  || 0;
+                ra.completions  += rm.sessions_completed || 0;
+                ra.abandonments += rm.sessions_abandoned || 0;
+                ra.total_questions  += rm.total_questions || 0;
+                ra.total_correct    += rm.total_correct   || 0;
+                ra.revenue_usd      += rm.revenue_usd     || 0;
+                ra.ad_impressions   += rm.ad_impressions  || 0;
+                ra.unique_users_approx += rm.unique_users || 0;
+                // avg_session_seconds × ended_count → total_duration_secs
+                var ec = (rm.sessions_completed || 0) + (rm.sessions_abandoned || 0);
+                ra.ended_count      += ec;
+                ra.total_duration_secs += (rm.avg_session_seconds || 0) * ec;
             }
         }
 
+        // ── Live scan for TODAY only ──────────────────────────────────────────
+        // Cap live scan to today's events only (filter by date string in key prefix
+        // "dash_{gameId}_{todayStr}") so it's O(today's traffic), not O(30 days).
+        var liveEvents = amScanEvents(nk, logger, 1, function(ev) {
+            var n = (ev.eventName || '').toLowerCase();
+            return AM_QUIZ_STARTED_NAMES[n] || AM_QUIZ_COMPLETED_NAMES[n] || AM_QUIZ_ABANDONED_NAMES[n];
+        }, gameId);
+
+        var totalStarts = 0, totalCompletions = 0;
+        var allUniqueUsersToday = {};
+        for (var li = 0; li < liveEvents.length; li++) {
+            var ev = liveEvents[li];
+            var n2 = (ev.eventName || '').toLowerCase();
+            var mode2 = amExtractMode(ev);
+            var u = amExtractUser(ev);
+            var la = getModeAcc(mode2);
+
+            if (AM_QUIZ_STARTED_NAMES[n2]) {
+                la.starts++; totalStarts++;
+                if (u) { la.unique_users_approx++; allUniqueUsersToday[u] = 1; }
+            } else if (AM_QUIZ_COMPLETED_NAMES[n2]) {
+                var outcome2 = amExtractOutcome(ev);
+                if (outcome2 === 'abandoned' || outcome2 === 'interrupted' || outcome2 === 'disconnected') {
+                    la.abandonments++;
+                    la.ended_count++;
+                    var aDur2 = amExtractDuration(ev);
+                    if (aDur2 > 0) la.total_duration_secs += aDur2;
+                } else {
+                    la.completions++; totalCompletions++;
+                    if (u) { la.unique_users_approx++; allUniqueUsersToday[u] = 1; }
+                    la.ended_count++;
+                    var dur2 = amExtractDuration(ev);
+                    if (dur2 > 0) la.total_duration_secs += dur2;
+                    var sc2 = amExtractScore(ev);
+                    var c2 = amExtractCorrect(ev), tq2 = amExtractTotalQ(ev);
+                    if (tq2 > 0 && c2 >= 0) { la.total_correct += c2; la.total_questions += tq2; }
+                }
+            } else if (AM_QUIZ_ABANDONED_NAMES[n2]) {
+                la.abandonments++;
+                la.ended_count++;
+                var aDur3 = amExtractDuration(ev);
+                if (aDur3 > 0) la.total_duration_secs += aDur3;
+            }
+        }
+
+        // ── Build output rows ─────────────────────────────────────────────────
         var rows = [];
+        var sumStarts = 0, sumCompletions = 0;
         for (var k in byMode) {
             if (!Object.prototype.hasOwnProperty.call(byMode, k)) continue;
             var b = byMode[k];
-            var totalSess = b.starts || 1;
-            var avgDur = b.durations.length ? Math.round(b.durations.reduce(function(a,c){return a+c;},0) / b.durations.length) : 0;
-            var medDur = b.durations.length ? Math.round(amMedian(b.durations)) : 0;
-            var avgScore = b.scores.length ? Math.round(b.scores.reduce(function(a,c){return a+c;},0) / b.scores.length) : 0;
-            var avgAcc = b.accuracies.length ? Math.round(b.accuracies.reduce(function(a,c){return a+c;},0) / b.accuracies.length) : 0;
-            var avgQ = b.questions.length ? Math.round((b.questions.reduce(function(a,c){return a+c;},0) / b.questions.length) * 10) / 10 : 0;
-            var uniq = Object.keys(b.unique_users).length;
-
+            sumStarts       += b.starts;
+            sumCompletions  += b.completions;
+        }
+        for (var k2 in byMode) {
+            if (!Object.prototype.hasOwnProperty.call(byMode, k2)) continue;
+            var bv = byMode[k2];
+            var totalSess = bv.starts || 1;
+            var avgDur = bv.ended_count > 0 ? Math.round(bv.total_duration_secs / bv.ended_count) : 0;
+            var accPct = bv.total_questions > 0
+                ? Math.round((bv.total_correct / bv.total_questions) * 1000) / 10
+                : 0;
             rows.push({
-                mode: b.mode,
-                play_category: b.play_category,
-                starts: b.starts,
-                completions: b.completions,
-                abandonments: b.abandonments,
-                completion_rate_pct: amClampPct((b.completions / totalSess) * 100),
-                abandonment_rate_pct: amClampPct((b.abandonments / totalSess) * 100),
-                unique_players: uniq,
+                mode: bv.mode,
+                starts: bv.starts,
+                completions: bv.completions,
+                abandonments: bv.abandonments,
+                sessions_started: bv.starts,
+                sessions_completed: bv.completions,
+                sessions_abandoned: bv.abandonments,
+                completion_rate_pct: amClampPct((bv.completions / totalSess) * 100),
+                abandonment_rate_pct: amClampPct((bv.abandonments / totalSess) * 100),
+                unique_players: bv.unique_users_approx,
                 avg_duration_seconds: avgDur,
-                median_duration_seconds: medDur,
-                avg_score: avgScore,
-                avg_accuracy_pct: amClampPct(avgAcc),
-                avg_questions_per_session: avgQ,
+                avg_session_seconds: avgDur,
+                avg_accuracy_pct: accPct,
+                accuracy_pct: accPct,
+                total_questions: bv.total_questions,
+                revenue_usd: Math.round(bv.revenue_usd * 100) / 100,
+                ad_impressions: bv.ad_impressions,
                 shares_pct: {
-                    starts: totalStarts ? Math.round((b.starts / totalStarts) * 100) : 0,
-                    completions: totalCompletions ? Math.round((b.completions / totalCompletions) * 100) : 0
+                    starts: sumStarts ? Math.round((bv.starts / sumStarts) * 100) : 0,
+                    completions: sumCompletions ? Math.round((bv.completions / sumCompletions) * 100) : 0
                 }
             });
         }
         rows.sort(function(a, b) { return b.starts - a.starts; });
 
         return JSON.stringify({
-            game_id: gameId || 'all',
+            game_id: gameId,
             days: days,
             modes: rows,
             totals: {
-                starts: totalStarts,
-                completions: totalCompletions,
-                unique_players: Object.keys(allUniqueUsers).length,
+                starts: sumStarts,
+                completions: sumCompletions,
+                unique_players: Object.keys(allUniqueUsersToday).length,
                 modes_seen: rows.length
+            },
+            _meta: {
+                rollup_days: rollupDays,
+                live_today: liveEvents.length > 0,
+                source: rollupDays > 0 ? "rollup+" + rollupDays + "d+live_today" : "live_scan_only"
             }
         });
     } catch (e) {

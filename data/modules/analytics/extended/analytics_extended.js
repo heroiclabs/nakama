@@ -298,10 +298,10 @@ function extScanEvents(nk, logger, collection, days, filter, gameId) {
         try {
             var cursor = null;
             var iterations = 0;
-            var maxIterations = 20;
+            var maxIterations = 250;  // 250 × 200 = 50k events (was 20 × 100 = 2k)
 
             do {
-                var result = nk.storageList(SYSTEM_USER_ID, currentCollection, 100, cursor);
+                var result = nk.storageList(SYSTEM_USER_ID, currentCollection, 200, cursor);
                 if (!result || !result.objects) break;
 
                 for (var i = 0; i < result.objects.length; i++) {
@@ -879,6 +879,29 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
             }
         }
 
+        // Today's live patch — analytics_live_daily is written on every ingest,
+        // so it contains today's event counts before the nightly cron runs.
+        // Only applies to the today bucket (d=0); historical days are served
+        // by quiz_stats_* rollup docs above.
+        try {
+            var todayStr = extDaysAgo(0);
+            var liveDailyKey = "live_" + (gameId || "all") + "_" + todayStr;
+            var liveRecs = nk.storageRead([{ collection: "analytics_live_daily", key: liveDailyKey, userId: SYSTEM_USER_ID }]);
+            if (liveRecs && liveRecs.length > 0 && liveRecs[0].value) {
+                var ld = liveRecs[0].value;
+                var bn = ld.by_name || {};
+                // Map canonical event names → quiz metric buckets
+                var STARTED_LIVE   = ['quiz_started','quiz_session_started','quiz_session_start','quiz_start'];
+                var COMPLETED_LIVE = ['quiz_completed','quiz_complete','quiz_session_completed','quiz_session_complete','quiz_session_ended'];
+                var ABANDONED_LIVE = ['quiz_abandoned','quiz_session_abandoned'];
+                for (var li = 0; li < STARTED_LIVE.length; li++)   quizStarted   += bn[STARTED_LIVE[li]]   || 0;
+                for (var li = 0; li < COMPLETED_LIVE.length; li++) quizCompleted += bn[COMPLETED_LIVE[li]] || 0;
+                for (var li = 0; li < ABANDONED_LIVE.length; li++) quizAbandoned += bn[ABANDONED_LIVE[li]] || 0;
+                hintsUsed += (bn['hint_used'] || bn['hintused'] || 0);
+                dailyCompleted += (bn['daily_quiz_completed'] || bn['dailyquizcompleted'] || 0);
+            }
+        } catch (_ld_err) { /* live_daily read failure must not break the RPC */ }
+
         // Fallback: scan events collection (with gameId filter)
         if (quizStarted === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
@@ -1051,9 +1074,30 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
             }
         }
 
+        // Today's live patch — fill in today's step counts from analytics_live_daily
+        // before falling back to the expensive extScanEvents path. The rollup
+        // doc for today doesn't exist until the nightly cron runs, so this
+        // bridge covers the current day for all funnel types.
+        try {
+            var fTodayStr = extDaysAgo(0);
+            var fLiveDailyKey = "live_" + (gameId || "all") + "_" + fTodayStr;
+            var fLiveRecs = nk.storageRead([{ collection: "analytics_live_daily", key: fLiveDailyKey, userId: SYSTEM_USER_ID }]);
+            if (fLiveRecs && fLiveRecs.length > 0 && fLiveRecs[0].value) {
+                var fbn = fLiveRecs[0].value.by_name || {};
+                for (var fsi = 0; fsi < stepOrder.length; fsi++) {
+                    var fStep = stepOrder[fsi];
+                    // Try exact name match and common camelCase/snake_case aliases
+                    var fCount = (fbn[fStep] || 0) +
+                                 (fbn[fStep.replace(/_/g, '')] || 0) +  // snake→camel strip
+                                 (fbn[fStep.replace(/_([a-z])/g, function(m, c) { return c.toUpperCase(); })] || 0); // snake→camelCase
+                    stepCounts[fStep] = (stepCounts[fStep] || 0) + fCount;
+                }
+            }
+        } catch (_fl_err) { /* live_daily read failure must not break the RPC */ }
+
         // Fallback: scan events (with gameId filter). Cold-start path —
         // only triggers when both the rollup and the legacy per-type
-        // funnel collection were empty.
+        // funnel collection were empty AND live_daily has no data yet.
         if (stepCounts[stepOrder[0]] === 0) {
             var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
 
@@ -1758,6 +1802,22 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
                 deviceCounts[evData.deviceModel] = (deviceCounts[evData.deviceModel] || 0) + 1;
             }
         }
+
+        // Today's live patch — analytics_live_daily.by_platform is updated on every
+        // event ingest, giving us real-time platform counts without waiting for
+        // the nightly rollup or relying on the scan reaching today's events.
+        try {
+            var pTodayStr = extDaysAgo(0);
+            var pLiveDailyKey = "live_" + (gameId || "all") + "_" + pTodayStr;
+            var pLiveRecs = nk.storageRead([{ collection: "analytics_live_daily", key: pLiveDailyKey, userId: SYSTEM_USER_ID }]);
+            if (pLiveRecs && pLiveRecs.length > 0 && pLiveRecs[0].value) {
+                var pbpMap = pLiveRecs[0].value.by_platform || {};
+                for (var pbpk in pbpMap) {
+                    if (!pbpMap.hasOwnProperty(pbpk)) continue;
+                    platformCounts[pbpk] = (platformCounts[pbpk] || 0) + pbpMap[pbpk];
+                }
+            }
+        } catch (_pp_err) { /* live_daily read failure must not break the RPC */ }
 
         // Augment with the per-platform daily counter that ingestion writes
         // via trackPlatform() in analytics.js. The previous implementation
@@ -2607,6 +2667,32 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
                 return arr.slice(0, topN);
             }
 
+            // Patch today's data from analytics_live_daily — the rollup only
+            // covers yesterday and earlier; today has no rollup doc yet.
+            try {
+                var aTodayStr = extDaysAgo(0);
+                var aLiveDailyKey = "live_" + (gameId || "all") + "_" + aTodayStr;
+                var aLiveRecs = nk.storageRead([{ collection: "analytics_live_daily", key: aLiveDailyKey, userId: SYSTEM_USER_ID }]);
+                if (aLiveRecs && aLiveRecs.length > 0 && aLiveRecs[0].value) {
+                    var ald = aLiveRecs[0].value;
+                    totalEvents += ald.total || 0;
+                    // Inject platform dimension from live_daily.by_platform
+                    var bpMap = ald.by_platform || {};
+                    for (var bpk in bpMap) {
+                        if (!bpMap.hasOwnProperty(bpk)) continue;
+                        if (!agg.platform[bpk]) agg.platform[bpk] = { events: 0, unique_users: 0 };
+                        agg.platform[bpk].events += bpMap[bpk];
+                    }
+                    // Inject country dimension from live_daily.by_country
+                    var bcMap = ald.by_country || {};
+                    for (var bck in bcMap) {
+                        if (!bcMap.hasOwnProperty(bck)) continue;
+                        if (!agg.country[bck]) agg.country[bck] = { events: 0, unique_users: 0 };
+                        agg.country[bck].events += bcMap[bck];
+                    }
+                }
+            } catch (_al_err) { /* live_daily read failure must not break the RPC */ }
+
             return JSON.stringify({
                 game_id:        gameId || 'all',
                 days:           days,
@@ -2622,7 +2708,7 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
                 app_version:    materializeAgg('app_version', 25),
                 platform:       materializeAgg('platform', 10),
                 _meta: {
-                    read_path: "rollup-preferred",
+                    read_path: "rollup-preferred+live-today",
                     rollup_hits: rollupHits,
                     generated_at: new Date().toISOString()
                 }

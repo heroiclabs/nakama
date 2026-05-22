@@ -38,6 +38,9 @@ env:
     K8S_DEPLOYMENT: intelliverse-nakama
     K8S_CONTAINER: intelliverse-nakama
     ECR_REPOSITORY: intelliverse-nakama
+    LLM_PROVIDER: openai
+  parameter-store:
+    OPENAI_API_KEY: /nakama/OPENAI_API_KEY
 
 phases:
   install:
@@ -166,6 +169,22 @@ phases:
         deployment/"$K8S_DEPLOYMENT"
         "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
         -n "$K8S_NAMESPACE"
+      # ─── Inject LLM + runtime secrets from Parameter Store into pod env ──
+      # These env vars reach the Nakama JS runtime via the entrypoint's
+      # --runtime.env forwarding loop (docker-compose.yml:43-60 pattern,
+      # mirrored in the EKS deployment entrypoint). Without this step the
+      # keys sit in Parameter Store but never reach ctx.env in callLLM().
+      - echo "=== Injecting runtime secrets into deployment env ==="
+      - |
+        INJECT_ARGS=""
+        if [ -n "$OPENAI_API_KEY" ];    then INJECT_ARGS="$INJECT_ARGS OPENAI_API_KEY=$OPENAI_API_KEY";    echo "  ✓ OPENAI_API_KEY injected";    else echo "  ⚠ OPENAI_API_KEY not set — skipping"; fi
+        if [ -n "$ANTHROPIC_API_KEY" ]; then INJECT_ARGS="$INJECT_ARGS ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"; echo "  ✓ ANTHROPIC_API_KEY injected"; else echo "  ⚠ ANTHROPIC_API_KEY not set — skipping"; fi
+        if [ -n "$XAI_API_KEY" ];       then INJECT_ARGS="$INJECT_ARGS XAI_API_KEY=$XAI_API_KEY";           echo "  ✓ XAI_API_KEY injected";       else echo "  ⚠ XAI_API_KEY not set — skipping"; fi
+        if [ -n "$LLM_PROVIDER" ];      then INJECT_ARGS="$INJECT_ARGS LLM_PROVIDER=$LLM_PROVIDER";         echo "  ✓ LLM_PROVIDER injected";      else echo "  ⚠ LLM_PROVIDER not set — skipping"; fi
+        if [ -n "$INJECT_ARGS" ]; then
+          kubectl set env deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" $INJECT_ARGS
+          echo "  ✓ kubectl set env completed"
+        fi
       # ─── Post-rollout deploy gate (EKS-3) ─────────────────────────────
       # Block on rollout AND assert the JS runtime is healthy in the new
       # pod before we declare the build successful. This is what catches
