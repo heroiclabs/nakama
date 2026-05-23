@@ -16524,6 +16524,98 @@ var N8nPackStatePlugin;
         }
         return true;
     }
+    function postDiscord(ctx, nk, logger, channel, embed) {
+        var envKey = channel === "ops"
+            ? "DISCORD_QV_OPS_WEBHOOK_URL"
+            : "DISCORD_QV_MONETIZATION_WEBHOOK_URL";
+        var url = (ctx.env && ctx.env[envKey]) || "";
+        if (!url) {
+            logger.warn("[n8n_pack_state] discord skipped: " + envKey + " not set");
+            return;
+        }
+        try {
+            var body = JSON.stringify({ embeds: [embed] });
+            var resp = nk.httpRequest(url, "post", { "Content-Type": "application/json" }, body, 5000);
+            var code = resp && resp.code ? resp.code : 0;
+            if (code < 200 || code >= 300) {
+                logger.warn("[n8n_pack_state] discord post non-2xx code=" + String(code) +
+                    " body=" + (resp && resp.body ? String(resp.body).slice(0, 200) : ""));
+            }
+        }
+        catch (e) {
+            logger.warn("[n8n_pack_state] discord post failed: " + (e && e.message ? e.message : String(e)));
+        }
+    }
+    function notifyAgentFailed(ctx, nk, logger, examTag, agent, error) {
+        postDiscord(ctx, nk, logger, "ops", {
+            title: "⚠️ Library agent FAILED",
+            description: "Pack content generation hit a hard error.",
+            color: 0xe74c3c,
+            timestamp: new Date().toISOString(),
+            fields: [
+                { name: "Exam", value: "`" + examTag + "`", inline: true },
+                { name: "Agent", value: "`" + agent + "`", inline: true },
+                { name: "Error", value: (error || "(no message)").slice(0, 1000), inline: false },
+                {
+                    name: "Next steps",
+                    value: "Inspect the n8n execution for this agent, fix the upstream issue, then `n8n_pack_state_reset` if you need to re-run.",
+                    inline: false,
+                },
+            ],
+            footer: { text: "n8n_pack_state · agent failure" },
+        });
+    }
+    function notifyGateOpened(ctx, nk, logger, state) {
+        var audio = (state.agents["audio_synth"] || {}).artifactId || "(missing)";
+        var video = (state.agents["video_shorts"] || {}).artifactId || "(missing)";
+        var sim = (state.agents["sim_ingest"] || {}).artifactId || "(missing)";
+        postDiscord(ctx, nk, logger, "monetization", {
+            title: "🟢 Pack gate OPENED — bundler triggered",
+            description: "All gating agents succeeded; n8n agent #25 is now assembling the SKU bundle.",
+            color: 0x2ecc71,
+            timestamp: new Date().toISOString(),
+            fields: [
+                { name: "Exam", value: "`" + state.examTag + "`", inline: false },
+                { name: "🎧 Audio pack", value: "`" + audio + "`", inline: true },
+                { name: "📹 Video pack", value: "`" + video + "`", inline: true },
+                { name: "🎮 Sim pack", value: "`" + sim + "`", inline: true },
+            ],
+            footer: { text: "n8n_pack_state · gate opened" },
+        });
+    }
+    function notifyBundlePublished(ctx, nk, logger, state) {
+        var skus = state.bundleSkus || {};
+        postDiscord(ctx, nk, logger, "monetization", {
+            title: "💰 Pack PUBLISHED — 3 SKUs live",
+            description: "Agent #25 finished bundling; the new content pack is purchasable on the Top Learners Library page.",
+            color: 0x9b59b6,
+            timestamp: new Date().toISOString(),
+            fields: [
+                { name: "Exam", value: "`" + state.examTag + "`", inline: false },
+                { name: "Single", value: skus.single ? "`" + skus.single + "` (~₹999)" : "—", inline: true },
+                { name: "Triple", value: skus.triple ? "`" + skus.triple + "` (~₹2499)" : "—", inline: true },
+                { name: "Year", value: skus.year ? "`" + skus.year + "` (~₹4999)" : "—", inline: true },
+            ],
+            footer: { text: "n8n_pack_state · bundle published" },
+        });
+    }
+    function notifyWebhookFailed(ctx, nk, logger, state) {
+        postDiscord(ctx, nk, logger, "ops", {
+            title: "❌ Pack bundler webhook FAILED",
+            description: "Gate opened but the HTTP POST to n8n bundler failed; list_ready will surface this pack for manual recovery.",
+            color: 0xe74c3c,
+            timestamp: new Date().toISOString(),
+            fields: [
+                { name: "Exam", value: "`" + state.examTag + "`", inline: false },
+                {
+                    name: "Recovery",
+                    value: "Check `N8N_PACK_BUNDLER_WEBHOOK` reachability and n8n agent #25 activation, then re-emit any gating agent to retry.",
+                    inline: false,
+                },
+            ],
+            footer: { text: "n8n_pack_state · webhook failed" },
+        });
+    }
     function fireBundlerWebhook(ctx, nk, logger, state) {
         // Webhook URL is exposed to JS via the per-call `ctx.env` table —
         // populated from Nakama config (runtime.env in local.yml or the
@@ -16593,6 +16685,13 @@ var N8nPackStatePlugin;
         };
         state.agents[agentId] = entry;
         state.updatedAt = now;
+        // Track first-time transitions so we know which Discord pings to fire
+        // AFTER the storage write succeeds — the order matters because we
+        // don't want to spam the channel on retries / stale emits.
+        var wasBundleCompleted = !!state.bundleCompletedAt;
+        var wasAgentFailedBefore = !!(existing.state &&
+            existing.state.agents[agentId] &&
+            existing.state.agents[agentId].status === "failed");
         // Special handling for the bundler itself reporting completion.
         if (agentId === "pack_bundler" && status === "success") {
             state.bundleCompletedAt = now;
@@ -16601,6 +16700,15 @@ var N8nPackStatePlugin;
             }
         }
         var version = writeState(nk, state, existing.version);
+        // Discord notification: agent failed (first-time only — don't re-ping
+        // if the same agent re-emits a still-failed status).
+        if (status === "failed" && !wasAgentFailedBefore) {
+            notifyAgentFailed(ctx, nk, logger, examTag, agentId, entry.error);
+        }
+        // Discord notification: pack_bundler reported success → SKUs live.
+        if (agentId === "pack_bundler" && status === "success" && !wasBundleCompleted) {
+            notifyBundlePublished(ctx, nk, logger, state);
+        }
         // Gate check: fire bundler webhook once if all gating agents are green
         // and we haven't signaled yet (or we have but a reset cleared it).
         //
@@ -16625,7 +16733,10 @@ var N8nPackStatePlugin;
             }
             if (signalClaimed) {
                 fired = fireBundlerWebhook(ctx, nk, logger, state);
-                if (!fired) {
+                if (fired) {
+                    notifyGateOpened(ctx, nk, logger, state);
+                }
+                else {
                     // Webhook missing or failed — roll back the signal claim so the
                     // bundler can pick this exam up via list_ready or a follow-up
                     // emit can retry. We use the post-claim version to avoid
@@ -16637,6 +16748,7 @@ var N8nPackStatePlugin;
                     catch (rollbackErr) {
                         logger.warn("[n8n_pack_state] rollback after failed webhook lost CAS for examTag=" + examTag + " — state will surface via list_ready");
                     }
+                    notifyWebhookFailed(ctx, nk, logger, state);
                 }
             }
         }
