@@ -51,7 +51,7 @@ export const handler = async (event) => {
         return response(400, { success: false, error: 'Invalid JSON in request body' });
     }
 
-    const { userId, gameId, platform, platformType, deviceToken, isSandbox } = body;
+    const { userId, gameId, platform, platformType, deviceToken, isSandbox, fcmProjectId } = body;
 
     if (!userId || !gameId || !platform || !platformType || !deviceToken) {
         return response(400, {
@@ -105,10 +105,24 @@ export const handler = async (event) => {
     }
 
     try {
+        // CustomUserData carries the metadata the send-push Lambda needs at
+        // delivery time — most importantly `fcmProjectId`, which tells us
+        // which Firebase service-account JSON to use for FCM HTTP v1 sends.
+        // Without this, FCM rejects every delivery with a SenderId mismatch
+        // when the device's project ≠ SNS GCM Platform App's auth project.
+        const customUserData = JSON.stringify({
+            userId,
+            gameId,
+            platform,
+            declaredFormat,
+            effectiveFormat,
+            isSandbox: !!wantSandbox,
+            fcmProjectId: effectiveFormat === 'FCM' ? (fcmProjectId || '') : ''
+        });
         const createEndpointParams = {
             PlatformApplicationArn: platformApplicationArn,
             Token: deviceToken,
-            CustomUserData: JSON.stringify({ userId, gameId, platform, declaredFormat, effectiveFormat, isSandbox: !!wantSandbox }),
+            CustomUserData: customUserData,
             Attributes: { Enabled: 'true' }
         };
 
@@ -130,7 +144,7 @@ export const handler = async (event) => {
                         Attributes: {
                             Token: deviceToken,
                             Enabled: 'true',
-                            CustomUserData: JSON.stringify({ userId, gameId, platform, declaredFormat, effectiveFormat, isSandbox: !!wantSandbox })
+                            CustomUserData: customUserData
                         }
                     }));
                 } else {
@@ -178,6 +192,7 @@ export const handler = async (event) => {
             platformType: platformType,
             effectiveFormat,
             isSandbox: !!wantSandbox,
+            fcmProjectId: effectiveFormat === 'FCM' ? (fcmProjectId || '') : '',
             routedTo: platformApplicationArn.split(':app/')[1] || platformApplicationArn
         });
 

@@ -114,7 +114,7 @@ namespace LegacyPush {
     return "FCM";
   }
 
-  function registerProviderEndpoint(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, token: string, platform: string, gameId: string, isSandbox: boolean): any {
+  function registerProviderEndpoint(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, token: string, platform: string, gameId: string, isSandbox: boolean, fcmProjectId: string): any {
     var normalizedPlatform = normalizePlatform(platform);
     var registerUrl = env(ctx, "PUSH_REGISTER_URL") || env(ctx, "PUSH_LAMBDA_URL") || PUSH_REGISTER_URL_DEFAULT;
     if (!registerUrl) {
@@ -135,6 +135,17 @@ namespace LegacyPush {
       } else if (detectedFormat === "FCM" && normalizedPlatform === "ios") {
         logger.info("[Push] iOS device shipped a Firebase token. Routing through GCM Platform App; iOS delivery will be handled by Firebase → APNs (.p8 must be uploaded to Firebase Console).");
       }
+      // fcmProjectId is REQUIRED for FCM tokens going forward — it tells the
+      // send-push Lambda which Firebase service-account JSON to authenticate
+      // with when calling FCM v1. Without it the lambda falls back to the
+      // DEFAULT_FCM_PROJECT_ID env var; if that's also unset, sends fail
+      // with FCM_PROJECT_ID_MISSING.
+      var resolvedFcmProjectId = fcmProjectId || env(ctx, "DEFAULT_FCM_PROJECT_ID") || "";
+      if (detectedFormat === "FCM" && !resolvedFcmProjectId) {
+        logger.warn("[Push] FCM token registered with no fcmProjectId and no DEFAULT_FCM_PROJECT_ID env var. " +
+          "Sends to this endpoint will fail. Fix: have the client pass `fcmProjectId` from its " +
+          "Firebase config (GoogleService-Info.plist PROJECT_ID / google-services.json project_id).");
+      }
       var body = JSON.stringify({
         userId: userId,
         gameId: gameId || "quizverse",
@@ -142,7 +153,8 @@ namespace LegacyPush {
         token: token,
         platform: normalizedPlatform,
         platformType: platformType,
-        isSandbox: !!isSandbox
+        isSandbox: !!isSandbox,
+        fcmProjectId: resolvedFcmProjectId
       });
       var resp: any = nk.httpRequest(registerUrl, "post", { "Content-Type": "application/json" }, body, 10000);
       var parsed = parseJsonSafe(resp && resp.body ? resp.body : "");
@@ -266,15 +278,20 @@ namespace LegacyPush {
       // profile actually deliver. Production iOS (TestFlight + App Store)
       // builds must NOT set this flag — they need the APNS prod app.
       var isSandbox = data.isSandbox === true || data.isSandbox === "true" || data.is_sandbox === true || data.is_sandbox === "true";
-      logger.info("[Push] push_register_token: userId=%s platform=%s gameId=%s tokenPrefix=%s isSandbox=%s",
-        userId, platform, gameId, token ? token.substring(0, 10) + "..." : "MISSING", String(isSandbox));
+      // Client passes its Firebase project ID (from GoogleService-Info.plist
+      // PROJECT_ID on iOS, google-services.json project_id on Android, or
+      // firebaseConfig.projectId on web). Required for FCM v1 auth at send
+      // time so we know which service-account JSON to load.
+      var fcmProjectId = data.fcmProjectId || data.fcm_project_id || data.firebaseProjectId || "";
+      logger.info("[Push] push_register_token: userId=%s platform=%s gameId=%s tokenPrefix=%s isSandbox=%s fcmProjectId=%s",
+        userId, platform, gameId, token ? token.substring(0, 10) + "..." : "MISSING", String(isSandbox), fcmProjectId || "(none)");
       if (!token) {
         logger.warn("[Push] push_register_token rejected: no token provided. userId=%s platform=%s", userId, platform);
         return RpcHelpers.errorResponse("token required");
       }
       var tokensData = getPushTokens(nk, userId);
       var now = Math.floor(Date.now() / 1000);
-      var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId, isSandbox);
+      var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId, isSandbox, fcmProjectId);
       // Resolved platform: ARN-derived when SNS handed us back an endpoint,
       // else the caller's input. This is the value we persist & report — never
       // the raw `data.platform` from the request, which can be wrong.
