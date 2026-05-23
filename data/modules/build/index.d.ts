@@ -1032,6 +1032,88 @@ declare namespace LegacyWallet {
     function rpcUpdateGameRewardConfig(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
+/**
+ * library-countdown.ts — Top Learners Library exam-countdown subscriptions.
+ *
+ * Spec lives in the Quizverse-web-frontend repo at QUIZVERSE_LIBRARY_10X_PLAN.md §4.7.
+ * Mirrors the runtime contract in `web/lib/library/exam-countdown.ts`.
+ *
+ * NOTE on file format:
+ *   The repo policy (see .gitignore L745-L746) explicitly blocks
+ *   `data/modules/*.lua` files from being committed — the TS source at
+ *   `data/modules/src/**` is the only source of truth, and the runtime
+ *   loads `data/modules/build/index.js` produced by the TS build.
+ *   This file is the canonical home for the 4 RPCs. A reference Lua
+ *   transliteration exists at `data/modules/library_countdown.lua` for
+ *   ops scripts but is intentionally gitignored.
+ *
+ * RPCs registered:
+ *   library.countdown.subscribe     — { exam_id, exam_date, custom?, channels?[], milestones?[] }
+ *   library.countdown.unsubscribe   — { exam_id, exam_date }
+ *   library.countdown.list_mine     — returns caller's subscriptions with days_remaining
+ *   library.countdown.emit_due      — system-only sweep; emits notifications for
+ *                                     milestones whose offset matches today's days-to-exam.
+ *
+ * Storage: collection "library_countdown_subs", key "<exam_id>:<exam_date>".
+ * Owner-read + system-read (perm 2), owner-only write (perm 1).
+ *
+ * Wiring: add `LibraryCountdownPlugin.register(initializer, nk, logger)` to
+ * `src/main.ts` next to QuizVersePlugin.register(...). Not done in this commit
+ * to keep the bundle rebuild atomic with the rest of the Library mount.
+ */
+declare namespace LibraryCountdownPlugin {
+    function register(initializer: nkruntime.Initializer, _nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+}
+/**
+ * n8n-pack-state.ts — pack_complete gate for the v2.4.0 library format-agents.
+ *
+ * Spec lives in Quizverse-web-frontend `QUIZVERSE_LIBRARY_10X_PLAN.md` §19.6 and
+ * the companion `intelli-verse-kube-infra` repo PR (n8n workflows #20-25).
+ *
+ * Purpose
+ * -------
+ * Six n8n agents (#20 audio synth, #21 video shorts, #22 live scheduler,
+ * #23 sim ingest, #24 widget refresh, #25 pack bundler) produce content
+ * for a single exam in parallel. Agent #25 (the bundler) is the GATE —
+ * it should only compose the 3 one-time IAP SKUs once #20 + #21 + #23
+ * have all completed successfully for that exam.
+ *
+ * This module tracks per-exam agent completion state and emits an HTTP
+ * webhook to agent #25's trigger URL when the gate condition flips true.
+ *
+ * RPCs registered
+ * ---------------
+ *   n8n_pack_state_emit       — called by agents #20-24 with { examTag, agent, status }
+ *   n8n_pack_state_query      — returns full state for an examTag
+ *   n8n_pack_state_list_ready — admin/system — lists exams ready for bundling
+ *   n8n_pack_state_reset      — admin — resets state for an examTag
+ *                               (used to re-trigger bundling after content edits)
+ *
+ * Storage
+ * -------
+ * Collection "n8n_pack_state", key = examTag. System-write, owner=system,
+ * readPermission=2 so n8n service-account can poll.
+ *
+ * Gate transition behaviour
+ * -------------------------
+ * On every emit, if status === "success" we mark the agent as green.
+ * When the green set ⊇ { audio_synth, video_shorts, sim_ingest } and the
+ * exam has not previously been bundled, we:
+ *   1. Set bundleSignaledAt to now (locks against double-fire)
+ *   2. POST to {{N8N_PACK_BUNDLER_WEBHOOK}} with { examTag, audioPackId,
+ *      videoShortsPackId, interactiveSimPackId, liveSessionPackId? }
+ *
+ * Re-bundling is opt-in via `n8n_pack_state_reset`.
+ *
+ * Wiring
+ * ------
+ * Uses the same single-arg `register(initializer)` signature as
+ * BracketTournaments so the postbuild auto-invokes the module at IIFE
+ * scope and populates the __rpc_* globals in pooled Goja VMs.
+ */
+declare namespace N8nPackStatePlugin {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace MpKernelAgent {
     var Op: {
         AGENT_JOINED: number;

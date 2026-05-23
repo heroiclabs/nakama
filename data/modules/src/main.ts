@@ -395,6 +395,23 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[Admin] Failed to register Admin Console: " + (err.message || String(err)));
   }
 
+  // ---- QuizVerse Library v2.4.0 ----
+  // Top Learners Library exam-countdown subscriptions + the n8n format-agent
+  // pack-complete gate. Both modules ship the storage/RPC surface that the
+  // intelli-verse-kube-infra n8n workflows (#20–25) consume; without them
+  // the format-agents have no place to record completion and the pack
+  // bundler never fires. See data/modules/src/library/*.ts headers for the
+  // RPC contracts and the companion QUIZVERSE_LIBRARY_10X_PLAN.md spec.
+  try {
+    logger.info("[LibraryCountdown] Registering exam-countdown subscription RPCs...");
+    LibraryCountdownPlugin.register(initializer, nk, logger);
+    logger.info("[N8nPackState] Registering n8n_pack_state_* RPCs (pack bundler gate)...");
+    N8nPackStatePlugin.register(initializer);
+    logger.info("[Library] v2.4.0 RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[Library] Failed to register library v2.4.0 RPCs: " + (err.message || String(err)));
+  }
+
   // ---- Event Bus Handlers ----
   try {
     HiroAchievements.registerEventHandlers();
