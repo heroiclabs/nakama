@@ -44,6 +44,8 @@ import (
 
 const LTSentinel = lua.LValueType(-1)
 
+type ctxLuaRuntimeKey struct{}
+
 type LSentinelType struct {
 	lua.LNilType
 }
@@ -1377,6 +1379,7 @@ func (rp *RuntimeProviderLua) Rpc(ctx context.Context, id string, headers, query
 	// Set context value used for logging
 	vmCtx := context.WithValue(ctx, ctxLoggerFields{}, map[string]string{"rpc_id": id})
 	vmCtx = NewRuntimeGoContext(vmCtx, r.node, r.version, r.env, RuntimeExecutionModeRPC, headers, queryParams, traceID, expiry, userID, username, vars, sessionID, clientIP, clientPort, lang)
+	vmCtx = context.WithValue(vmCtx, ctxLuaRuntimeKey{}, r)
 	r.vm.SetContext(vmCtx)
 	result, fnErr, code, isCustomErr := r.InvokeFunction(RuntimeExecutionModeRPC, lf, headers, queryParams, traceID, userID, username, vars, expiry, sessionID, clientIP, clientPort, lang, payload)
 	r.vm.SetContext(context.Background())
@@ -2129,22 +2132,25 @@ func (rp *RuntimeProviderLua) SubscriptionNotificationGoogle(ctx context.Context
 }
 
 func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName string, write *StorageOpWrite) (bool, error) {
-	r, err := rp.Get(ctx)
-	if err != nil {
-		return false, err
+	var r *RuntimeLua
+	var err error
+	if ctxVm := ctx.Value(ctxLuaRuntimeKey{}); ctxVm != nil {
+		// Reuse previously checked out runtime if executed in the context of an RPC
+		r = ctxVm.(*RuntimeLua)
+	} else {
+		r, err = rp.Get(ctx)
+		if err != nil {
+			return false, err
+		}
+		defer rp.Put(r)
 	}
+
 	lf := r.GetCallback(RuntimeExecutionModeStorageIndexFilter, indexName)
 	if lf == nil {
-		rp.Put(r)
 		return false, fmt.Errorf("Runtime Storage Index function not found for index: %q.", indexName)
 	}
 
 	luaCtx := NewRuntimeLuaContext(r.vm, r.node, r.version, r.luaEnv, RuntimeExecutionModeStorageIndexFilter, nil, nil, "", 0, "", "", nil, "", "", "", "")
-
-	//table, err := storageOpWritesToTable(r.vm, storageWrites)
-	if err != nil {
-		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
-	}
 
 	writeTable := r.vm.CreateTable(0, 7)
 	writeTable.RawSetString("key", lua.LString(write.Object.Key))
@@ -2172,7 +2178,6 @@ func (rp *RuntimeProviderLua) StorageIndexFilter(ctx context.Context, indexName 
 	r.vm.SetContext(vmCtx)
 	retValue, err, _, _ := r.invokeFunction(r.vm, lf, luaCtx, writeTable)
 	r.vm.SetContext(context.Background())
-	rp.Put(r)
 	if err != nil {
 		return false, fmt.Errorf("Error running runtime Storage Index Filter hook for %q index: %v", indexName, err.Error())
 	}
