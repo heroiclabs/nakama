@@ -2691,6 +2691,9 @@ declare namespace MpVoiceLiveKit {
     function urlFor(cfg: IConfig, region: string): string;
     function makeMinter(cfg: IConfig, b64url: (s: string) => string, hmacSha256: (key: string, msg: string) => string): MpKernelVoice.ITokenMinter;
 }
+declare namespace QvAgent {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace AnalyticsAlerts {
     interface RpcSample {
         ts: number;

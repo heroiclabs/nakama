@@ -305,6 +305,18 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[Wow] failed to register WowMoments: " + (err && err.message ? err.message : String(err)));
     }
 
+    // ── QuizVerse Agent runtime (Phase A — Conversational AI omnichannel) ──
+    // Tool surface for the Intelliverse-X-AI gateway, called via http_key +
+    // service_token. See data/modules/src/qv-agent/qv_agent.ts for the full
+    // RPC contract and tracking issue intelli-verse-x/Quizverse-web-frontend#81.
+    logger.info("[QvAgent] Registering QuizVerse Agent RPCs (memory, rank, performance, trivia, leaderboard)...");
+    try {
+      QvAgent.register(initializer);
+      logger.info("[QvAgent] qv_agent_ping, _memory_write, _memory_read, _get_my_rank, _global_leaderboard_top10, _analyze_quiz_performance, _generate_trivia registered");
+    } catch (err: any) {
+      logger.error("[QvAgent] failed to register QvAgent: " + (err && err.message ? err.message : String(err)));
+    }
+
     logger.info("[KbEnrichment] Registering KB enrichment cron RPCs (continuous derived-attribute refresh)...");
     try {
       KbEnrichment.register(initializer);
