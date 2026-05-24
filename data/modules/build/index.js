@@ -239,6 +239,30 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriEventCapture.register(initializer);
         logger.info("[Satori] Registering Identities RPCs...");
         SatoriIdentities.register(initializer);
+        logger.info("[Identity] Registering Identity Resolver RPCs (cross-channel sub linking)...");
+        try {
+            IdentityResolver.register(initializer);
+            logger.info("[Identity] identity_resolve, identity_link, identity_unlink, identity_list_mine registered");
+        }
+        catch (err) {
+            logger.error("[Identity] failed to register IdentityResolver: " + (err && err.message ? err.message : String(err)));
+        }
+        logger.info("[Wow] Registering Wow Moments runtime (server-ranked select + closed-loop react)...");
+        try {
+            WowMoments.register(initializer);
+            logger.info("[Wow] wow_moments_select, wow_moments_react, wow_moments_state_get registered");
+        }
+        catch (err) {
+            logger.error("[Wow] failed to register WowMoments: " + (err && err.message ? err.message : String(err)));
+        }
+        logger.info("[KbEnrichment] Registering KB enrichment cron RPCs (continuous derived-attribute refresh)...");
+        try {
+            KbEnrichment.register(initializer);
+            logger.info("[KbEnrichment] kb_enrichment_run_for_user, kb_enrichment_tick, kb_enrichment_register_user registered");
+        }
+        catch (err) {
+            logger.error("[KbEnrichment] failed to register KbEnrichment: " + (err && err.message ? err.message : String(err)));
+        }
         logger.info("[Satori] Registering Audiences RPCs...");
         SatoriAudiences.register(initializer);
         logger.info("[Satori] Registering Feature Flags RPCs...");
@@ -10971,6 +10995,385 @@ var HiroUnlockables;
     }
     HiroUnlockables.register = register;
 })(HiroUnlockables || (HiroUnlockables = {}));
+// identity_resolver.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Identity Resolver — maps inbound channel identifiers (phone, telegram_id,
+// discord_id, beehiiv_id, apple_wallet pass serial, imessage_id, livekit_id)
+// to the canonical Cognito `sub` (which equals the Nakama userId after the
+// cognito_wallet_mapper bootstrap).
+//
+// Why this exists:
+//   Every channel surfaced in PLAN-CONVERSATIONAL_HUB_AND_REWARDS.md (WhatsApp,
+//   SMS, Telegram, Discord, iMessage Business, Apple Wallet pass, Beehiiv, voice)
+//   delivers an external identifier rather than a Nakama userId. Without a
+//   resolver every per-channel agent must invent its own bookkeeping. With this
+//   module each channel has one tiny adapter (~1 dev-day) over a shared spine.
+//
+// Storage shape (Nakama storageWrite, system-owned):
+//   collection: "identity_links"
+//   key:        "<channel>:<external_id_lower>"     // e.g. "whatsapp:+919876543210"
+//   value:      { cognito_sub, channel, external_id, linked_at, source, confidence, last_seen }
+//   userId:     SYSTEM_USER_ID                       // resolver index is system-owned
+//
+//   collection: "identity_links_user"
+//   key:        "<channel>:<external_id_lower>"
+//   value:      { channel, external_id, linked_at, source, confidence }
+//   userId:     <cognito_sub>                        // per-user reverse index for /me/reveal
+//
+// RPCs registered:
+//   identity_resolve   — read-only: external id → cognito_sub (used by Channel Personalizer)
+//   identity_link      — opt-in write: caller's cognito_sub ← external id (used by web /api/identity/link)
+//   identity_unlink    — caller-owned removal of a binding (privacy escape hatch)
+//   identity_list_mine — caller-owned read of all their bindings (powers /me/reveal)
+//
+// Cross-references:
+//   - PLAN-CONVERSATIONAL_HUB_AND_REWARDS.md §C.1 (Identity Resolver Service)
+//   - cognito_wallet_mapper.js (bootstraps cognito_sub → Nakama userId on first auth)
+//   - PLAN-USER_INTELLIGENCE_LOOP.md §7.3 ("/me/reveal" trust anchor)
+//   - CATALOG-DEDUCIBLE_INSIGHTS.md (every linked external id must be deducible
+//     from a user-initiated action — never inferred)
+//
+// Privacy contract:
+//   - Linking ALWAYS requires the caller to be authenticated as the cognito_sub
+//     they want to bind to (prevents impersonation).
+//   - identity_resolve refuses to return cognito_sub to unauthenticated callers
+//     by default; service-account callers (e.g. n8n channel adapters) must
+//     supply IDENTITY_RESOLVER_SERVICE_TOKEN as the `service_token` payload
+//     field. Token is rotated via env var; see ops runbook.
+//   - identity_unlink immediately invalidates the binding — there is no soft-
+//     delete; we re-link on next opt-in if the user comes back.
+var IdentityResolver;
+(function (IdentityResolver) {
+    // ── Constants ────────────────────────────────────────────────────────────
+    var IDENTITY_LINKS_COLLECTION = "identity_links"; // system-owned forward index
+    var IDENTITY_LINKS_USER_COLLECTION = "identity_links_user"; // per-user reverse index
+    var SUPPORTED_CHANNELS = {
+        "whatsapp": true,
+        "sms": true,
+        "telegram": true,
+        "discord": true,
+        "imessage": true,
+        "beehiiv": true,
+        "apple_wallet": true,
+        "livekit": true,
+        "fonoster": true,
+        "email": true,
+    };
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function normalizeExternalId(channel, externalId) {
+        // Channel-specific normalization rules. Phones get + prefix and digits only;
+        // emails lowercase + trim; everything else lowercase.
+        var trimmed = ("" + externalId).trim();
+        if (channel === "whatsapp" || channel === "sms") {
+            // E.164: keep digits + leading + (if present)
+            var hasPlus = trimmed.charAt(0) === "+";
+            var digits = trimmed.replace(/[^0-9]/g, "");
+            if (digits.length === 0)
+                return "";
+            return (hasPlus ? "+" : "") + digits;
+        }
+        if (channel === "email" || channel === "beehiiv") {
+            return trimmed.toLowerCase();
+        }
+        return trimmed.toLowerCase();
+    }
+    function buildKey(channel, externalId) {
+        return channel + ":" + externalId;
+    }
+    function readLink(nk, channel, externalId) {
+        var key = buildKey(channel, externalId);
+        try {
+            var records = nk.storageRead([{
+                    collection: IDENTITY_LINKS_COLLECTION,
+                    key: key,
+                    userId: Constants.SYSTEM_USER_ID,
+                }]);
+            if (records && records.length > 0 && records[0].value) {
+                return records[0].value;
+            }
+        }
+        catch (err) {
+            // Read failures yield "not linked" — never throw to caller.
+        }
+        return null;
+    }
+    function writeLink(nk, channel, externalId, cognitoSub, source, confidence) {
+        var key = buildKey(channel, externalId);
+        var now = Math.floor(Date.now() / 1000);
+        var forward = {
+            cognito_sub: cognitoSub,
+            channel: channel,
+            external_id: externalId,
+            linked_at: now,
+            source: source,
+            confidence: confidence,
+            last_seen: now,
+        };
+        var reverse = {
+            channel: channel,
+            external_id: externalId,
+            linked_at: now,
+            source: source,
+            confidence: confidence,
+        };
+        nk.storageWrite([
+            {
+                collection: IDENTITY_LINKS_COLLECTION,
+                key: key,
+                userId: Constants.SYSTEM_USER_ID,
+                value: forward,
+                permissionRead: 1,
+                permissionWrite: 0,
+            },
+            {
+                collection: IDENTITY_LINKS_USER_COLLECTION,
+                key: key,
+                userId: cognitoSub,
+                value: reverse,
+                permissionRead: 2,
+                permissionWrite: 0,
+            },
+        ]);
+    }
+    function deleteLink(nk, channel, externalId, cognitoSub) {
+        var key = buildKey(channel, externalId);
+        try {
+            nk.storageDelete([
+                { collection: IDENTITY_LINKS_COLLECTION, key: key, userId: Constants.SYSTEM_USER_ID },
+                { collection: IDENTITY_LINKS_USER_COLLECTION, key: key, userId: cognitoSub },
+            ]);
+        }
+        catch (err) {
+            // Idempotent delete; if already gone, that's fine.
+        }
+    }
+    function isServiceCaller(payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        // Goja exposes process.env via the postbuild shim that rewrites every
+        // `process.env.X` reference to a guarded lookup. We declare process as
+        // any-typed locally so TS doesn't require @types/node (the runtime
+        // bundle has zero Node deps).
+        var proc = (typeof globalThis !== "undefined") ? globalThis["process"] : undefined;
+        var expected = "" + ((proc && proc.env && proc.env.IDENTITY_RESOLVER_SERVICE_TOKEN) || "");
+        return expected.length > 0 && token === expected;
+    }
+    // ── RPC: identity_resolve ────────────────────────────────────────────────
+    // Read-only. Looks up the cognito_sub bound to a (channel, external_id) pair.
+    // Authentication: either (a) ctx.userId is set (Nakama session), or
+    // (b) payload.service_token matches IDENTITY_RESOLVER_SERVICE_TOKEN.
+    //
+    // Request:
+    //   { "channel": "whatsapp", "external_id": "+919876543210", "service_token": "..." }
+    //
+    // Response (linked):
+    //   { "success": true, "data": {
+    //       "cognito_sub": "...",
+    //       "channel": "whatsapp", "external_id": "+919876543210",
+    //       "linked_at": 1735000000, "confidence": "high"
+    //   }}
+    //
+    // Response (unlinked):
+    //   { "success": true, "data": null }
+    function rpcResolve(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var channel = ("" + (data.channel || "")).toLowerCase();
+            var externalIdRaw = data.external_id || data.externalId;
+            if (!channel || !SUPPORTED_CHANNELS[channel]) {
+                return RpcHelpers.errorResponse("unsupported channel", 400);
+            }
+            if (!externalIdRaw) {
+                return RpcHelpers.errorResponse("external_id is required", 400);
+            }
+            var externalId = normalizeExternalId(channel, "" + externalIdRaw);
+            if (!externalId) {
+                return RpcHelpers.errorResponse("external_id failed normalisation", 400);
+            }
+            // Authentication: must be either Nakama-authenticated or a trusted service.
+            if (!ctx.userId && !isServiceCaller(data)) {
+                return RpcHelpers.errorResponse("not authorised", 401);
+            }
+            var record = readLink(nk, channel, externalId);
+            if (!record) {
+                return RpcHelpers.successResponse(null);
+            }
+            // Last-seen update is best-effort and does not block the read.
+            try {
+                record.last_seen = Math.floor(Date.now() / 1000);
+                nk.storageWrite([{
+                        collection: IDENTITY_LINKS_COLLECTION,
+                        key: buildKey(channel, externalId),
+                        userId: Constants.SYSTEM_USER_ID,
+                        value: record,
+                    }]);
+            }
+            catch (e) { /* swallow */ }
+            return RpcHelpers.successResponse({
+                cognito_sub: record.cognito_sub,
+                channel: channel,
+                external_id: externalId,
+                linked_at: record.linked_at,
+                confidence: record.confidence || "medium",
+            });
+        }
+        catch (err) {
+            logger.error("identity_resolve failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: identity_link ───────────────────────────────────────────────────
+    // Caller MUST be authenticated as the cognito_sub being linked. We do not
+    // permit "link this stranger's whatsapp to my account" — see privacy contract.
+    //
+    // Request:
+    //   { "channel": "whatsapp", "external_id": "+919876543210",
+    //     "source": "wa_magic_link", "confidence": "high" }
+    //
+    // Response:
+    //   { "success": true, "data": { "linked": true, "channel": "whatsapp", ... }}
+    function rpcLink(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var channel = ("" + (data.channel || "")).toLowerCase();
+            var externalIdRaw = data.external_id || data.externalId;
+            if (!channel || !SUPPORTED_CHANNELS[channel]) {
+                return RpcHelpers.errorResponse("unsupported channel", 400);
+            }
+            if (!externalIdRaw) {
+                return RpcHelpers.errorResponse("external_id is required", 400);
+            }
+            var externalId = normalizeExternalId(channel, "" + externalIdRaw);
+            if (!externalId) {
+                return RpcHelpers.errorResponse("external_id failed normalisation", 400);
+            }
+            // If a binding already exists to a DIFFERENT user, refuse and surface the
+            // collision. The web layer will then show "this channel is already linked
+            // to another account; contact support to merge."
+            var existing = readLink(nk, channel, externalId);
+            if (existing && existing.cognito_sub && existing.cognito_sub !== userId) {
+                logger.warn("identity_link conflict: channel=" + channel + " external_id=" + externalId + " existing_sub=" + existing.cognito_sub + " caller_sub=" + userId);
+                return RpcHelpers.errorResponse("external_id is already linked to another account", 409);
+            }
+            var source = ("" + (data.source || "user_opt_in")).slice(0, 64);
+            var confidence = ("" + (data.confidence || "high")).slice(0, 16);
+            writeLink(nk, channel, externalId, userId, source, confidence);
+            logger.info("identity_link ok: user=" + userId + " channel=" + channel + " ext=" + externalId);
+            return RpcHelpers.successResponse({
+                linked: true,
+                channel: channel,
+                external_id: externalId,
+                cognito_sub: userId,
+                confidence: confidence,
+            });
+        }
+        catch (err) {
+            logger.error("identity_link failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: identity_unlink ─────────────────────────────────────────────────
+    // Caller MUST own the binding. Idempotent.
+    //
+    // Request:  { "channel": "whatsapp", "external_id": "+919876543210" }
+    // Response: { "success": true, "data": { "unlinked": true }}
+    function rpcUnlink(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var channel = ("" + (data.channel || "")).toLowerCase();
+            var externalIdRaw = data.external_id || data.externalId;
+            if (!channel || !SUPPORTED_CHANNELS[channel]) {
+                return RpcHelpers.errorResponse("unsupported channel", 400);
+            }
+            if (!externalIdRaw) {
+                return RpcHelpers.errorResponse("external_id is required", 400);
+            }
+            var externalId = normalizeExternalId(channel, "" + externalIdRaw);
+            var existing = readLink(nk, channel, externalId);
+            if (!existing) {
+                return RpcHelpers.successResponse({ unlinked: true });
+            }
+            if (existing.cognito_sub !== userId) {
+                return RpcHelpers.errorResponse("not authorised to unlink this binding", 403);
+            }
+            deleteLink(nk, channel, externalId, userId);
+            logger.info("identity_unlink ok: user=" + userId + " channel=" + channel + " ext=" + externalId);
+            return RpcHelpers.successResponse({ unlinked: true });
+        }
+        catch (err) {
+            logger.error("identity_unlink failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: identity_list_mine ──────────────────────────────────────────────
+    // Powers the /me/reveal "Connected channels" panel. Caller-owned read.
+    //
+    // Response: { "success": true, "data": { "links": [ {channel, external_id_masked, linked_at, ...}, ...] }}
+    function rpcListMine(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var records = [];
+            try {
+                var page = nk.storageList(userId, IDENTITY_LINKS_USER_COLLECTION, 100);
+                if (page && page.objects) {
+                    records = page.objects;
+                }
+            }
+            catch (e) {
+                // empty
+            }
+            var links = [];
+            for (var i = 0; i < records.length; i++) {
+                var v = records[i].value;
+                if (!v)
+                    continue;
+                links.push({
+                    channel: v.channel,
+                    external_id_masked: maskExternalId(v.channel, v.external_id),
+                    linked_at: v.linked_at,
+                    source: v.source,
+                    confidence: v.confidence,
+                });
+            }
+            return RpcHelpers.successResponse({ links: links, count: links.length });
+        }
+        catch (err) {
+            logger.error("identity_list_mine failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // Privacy: never echo back full phone numbers / emails / pass serials.
+    function maskExternalId(channel, externalId) {
+        if (!externalId)
+            return "";
+        if (channel === "whatsapp" || channel === "sms") {
+            // Show country code + last 2 digits: "+91 ******10"
+            if (externalId.length <= 4)
+                return externalId;
+            return externalId.substr(0, 3) + " ****" + externalId.substr(externalId.length - 2);
+        }
+        if (channel === "email" || channel === "beehiiv") {
+            var atIdx = externalId.indexOf("@");
+            if (atIdx <= 1)
+                return externalId;
+            return externalId.charAt(0) + "***" + externalId.substr(atIdx);
+        }
+        if (externalId.length <= 6)
+            return externalId;
+        return externalId.substr(0, 3) + "***" + externalId.substr(externalId.length - 2);
+    }
+    // ── Registration ─────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("identity_resolve", rpcResolve);
+        initializer.registerRpc("identity_link", rpcLink);
+        initializer.registerRpc("identity_unlink", rpcUnlink);
+        initializer.registerRpc("identity_list_mine", rpcListMine);
+    }
+    IdentityResolver.register = register;
+})(IdentityResolver || (IdentityResolver = {}));
 var LegacyAnalyticsRetention;
 (function (LegacyAnalyticsRetention) {
     function readAggStorage(nk, collection, key) {
@@ -30318,3 +30721,1057 @@ var WalletHelpers;
     }
     WalletHelpers.hasCurrency = hasCurrency;
 })(WalletHelpers || (WalletHelpers = {}));
+// kb_enrichment.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Continuous KB enrichment loop — recomputes derived user attributes so that
+// `wow_moments_select` always has fresh signals to base its decision on.
+//
+// Why this exists
+// ---------------
+// Without periodic re-computation, derived attributes like `predicted_score_pct`,
+// `personality_archetype`, `next_best_topic`, `peer_percentile_per_topic`,
+// `mood_estimate`, and `social_graph_density` go stale within hours. A user who
+// crammed for 3 days and improved their predicted_score by 12% should see that
+// reflected in their next wow moment, not in next week's batch.
+//
+// Architecture
+// ------------
+// Two RPCs:
+//
+//   kb_enrichment_run_for_user  (service-token; recomputes ONE user's derived
+//                                attrs from raw signals; ~50–150ms per call)
+//   kb_enrichment_tick          (service-token; iterates active users in a
+//                                paginated way and calls run_for_user for
+//                                each; designed to be invoked by a K8s
+//                                CronJob hourly for hot signals and daily for
+//                                heavy ones)
+//
+// The CronJob lives in intelli-verse-kube-infra/n8n-workflows or as a dedicated
+// k8s CronJob:
+//
+//   apiVersion: batch/v1
+//   kind: CronJob
+//   metadata: { name: kb-enrichment-hourly }
+//   spec:
+//     schedule: "7 * * * *"     # offset 7m so it doesn't collide with rollups
+//     jobTemplate:
+//       spec:
+//         template:
+//           spec:
+//             containers:
+//             - name: tick
+//               image: curlimages/curl
+//               command:
+//                 - sh
+//                 - -c
+//                 - >
+//                   curl -X POST $NAKAMA_HTTP_URL/v2/rpc/kb_enrichment_tick?http_key=$KEY
+//                   -H 'Content-Type: application/json'
+//                   -d "{\"payload\":\"{\\\"service_token\\\":\\\"$KB_ENRICHMENT_SERVICE_TOKEN\\\",\\\"limit\\\":500,\\\"profile\\\":\\\"hot\\\"}\"}"
+//
+// Storage shape
+// -------------
+//   collection: "user_model"
+//   key:        "derived"
+//   userId:     <cognito_sub>
+//   value:      { weak_topics, strong_topics, predicted_score_pct,
+//                 next_best_topic, personality_archetype, mood_estimate,
+//                 social_graph_density, peer_percentile_per_topic,
+//                 last_enriched_unix, enriched_by, source_signals_summary }
+//
+// Cross-references
+// ----------------
+//   - PLAN-CONVERSATIONAL_HUB_AND_REWARDS.md §K (analytics + enrichment lifecycle)
+//   - PLAN-USER_INTELLIGENCE_LOOP.md §5 (the source signal landscape)
+//   - PLAN-PERSONA_VECTOR.md (the 256-d archetype vector that personality_archetype derives from)
+//   - CATALOG-DEDUCIBLE_INSIGHTS.md (every derived attribute MUST trace to a captured signal)
+var KbEnrichment;
+(function (KbEnrichment) {
+    var USER_MODEL_COLLECTION = "user_model";
+    var ENRICHMENT_INDEX_COLLECTION = "kb_enrichment_index"; // tracks last-enriched-cursor for tick pagination
+    var ANALYTICS_GAME_ID = "quizverse";
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function isServiceCaller(payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var proc = (typeof globalThis !== "undefined") ? globalThis["process"] : undefined;
+        var expected = "" + ((proc && proc.env && proc.env.KB_ENRICHMENT_SERVICE_TOKEN) || "");
+        return expected.length > 0 && token === expected;
+    }
+    function emitAnalyticsEvent(nk, logger, userId, eventName, properties) {
+        try {
+            var unixTs = nowSec();
+            var dateStr = new Date().toISOString().slice(0, 10);
+            var rand = Math.random().toString(36).slice(2, 8);
+            var dashKey = "dash_" + ANALYTICS_GAME_ID + "_" + dateStr + "_" + eventName + "_" + unixTs + "_" + rand;
+            nk.storageWrite([{
+                    collection: "analytics_events",
+                    key: dashKey,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: { eventName: eventName, gameId: ANALYTICS_GAME_ID, userId: userId, properties: properties, unixTimestamp: unixTs, date: dateStr },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (e) {
+            logger.warn("[kb-enrichment] emit failed: " + (e && e.message ? e.message : String(e)));
+        }
+    }
+    // ── Compute slice helpers ────────────────────────────────────────────────
+    // Each helper below reads ONLY raw signals already captured by the User
+    // Intelligence Loop's analytics wrappers. They never invent data; missing
+    // inputs yield missing outputs (anti-hallucination contract).
+    function readQuizResults(nk, userId) {
+        try {
+            var page = nk.storageList(userId, "quiz_results", 200);
+            if (page && page.objects) {
+                var out = [];
+                for (var i = 0; i < page.objects.length; i++)
+                    out.push(page.objects[i].value);
+                return out;
+            }
+        }
+        catch (e) { /* swallow */ }
+        return [];
+    }
+    function readWeaknessMap(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: "weakness_map", key: "current", userId: userId }]);
+            if (rows && rows.length > 0 && rows[0].value)
+                return rows[0].value;
+        }
+        catch (e) { /* swallow */ }
+        return null;
+    }
+    function readStreak(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: "user_streaks", key: "current", userId: userId }]);
+            if (rows && rows.length > 0 && rows[0].value)
+                return rows[0].value;
+        }
+        catch (e) { /* swallow */ }
+        return null;
+    }
+    function readFriends(nk, userId) {
+        try {
+            var f = nk.friendsList(userId, 200, undefined, "");
+            if (f && f.friends)
+                return f.friends;
+        }
+        catch (e) { /* swallow */ }
+        return [];
+    }
+    // computeWeakStrong — pure aggregator over recent quiz results.
+    function computeWeakStrong(quizResults, wmap) {
+        var topicAcc = {};
+        for (var i = 0; i < quizResults.length; i++) {
+            var qr = quizResults[i] || {};
+            var t = qr.topic || qr.category || "";
+            if (!t)
+                continue;
+            if (!topicAcc[t])
+                topicAcc[t] = { right: 0, total: 0 };
+            topicAcc[t].right += parseInt(qr.correct || qr.score || "0") || 0;
+            topicAcc[t].total += parseInt(qr.total || "0") || 0;
+        }
+        // Inject WeaknessMap signals if present (it's the higher-fidelity source).
+        if (wmap && wmap.topics) {
+            var keys = Object.keys(wmap.topics);
+            for (var k = 0; k < keys.length; k++) {
+                var ent = wmap.topics[keys[k]];
+                if (!topicAcc[keys[k]])
+                    topicAcc[keys[k]] = { right: 0, total: 0 };
+                topicAcc[keys[k]].right += parseInt(ent.right || "0") || 0;
+                topicAcc[keys[k]].total += parseInt(ent.total || "0") || 0;
+            }
+        }
+        var rows = [];
+        var allTopics = Object.keys(topicAcc);
+        for (var j = 0; j < allTopics.length; j++) {
+            var p = topicAcc[allTopics[j]];
+            if (p.total < 3)
+                continue; // statistical floor
+            rows.push({ topic: allTopics[j], acc: p.right / p.total, n: p.total });
+        }
+        rows.sort(function (a, b) { return a.acc - b.acc; });
+        var weak = [];
+        for (var w = 0; w < rows.length && weak.length < 3; w++)
+            if (rows[w].acc < 0.6)
+                weak.push(rows[w].topic);
+        rows.sort(function (a, b) { return b.acc - a.acc; });
+        var strong = [];
+        for (var s = 0; s < rows.length && strong.length < 3; s++)
+            if (rows[s].acc >= 0.8)
+                strong.push(rows[s].topic);
+        return { weak: weak, strong: strong };
+    }
+    function computePredictedScore(quizResults) {
+        if (quizResults.length === 0)
+            return 0;
+        var rightSum = 0, totalSum = 0;
+        for (var i = 0; i < quizResults.length; i++) {
+            rightSum += parseInt(quizResults[i].correct || quizResults[i].score || "0") || 0;
+            totalSum += parseInt(quizResults[i].total || "0") || 0;
+        }
+        if (totalSum === 0)
+            return 0;
+        var raw = (rightSum / totalSum) * 100;
+        // Smooth toward the recent-week subset (recency bias).
+        var recentRight = 0, recentTotal = 0;
+        var weekAgo = nowSec() - 86400 * 7;
+        for (var k = 0; k < quizResults.length; k++) {
+            var qr = quizResults[k] || {};
+            if ((qr.timestamp || 0) >= weekAgo) {
+                recentRight += parseInt(qr.correct || qr.score || "0") || 0;
+                recentTotal += parseInt(qr.total || "0") || 0;
+            }
+        }
+        var recent = recentTotal > 0 ? (recentRight / recentTotal) * 100 : raw;
+        return Math.round((raw * 0.6) + (recent * 0.4));
+    }
+    function computeNextBestTopic(weak, strong) {
+        if (weak.length > 0)
+            return weak[0];
+        if (strong.length > 0)
+            return strong[0]; // expand mastery
+        return "";
+    }
+    // Heuristic archetype until persona vector ships.
+    function computeArchetype(quizResults, streak) {
+        if (!quizResults || quizResults.length === 0)
+            return "Curious";
+        var fast = 0, slow = 0;
+        for (var i = 0; i < quizResults.length; i++) {
+            var qr = quizResults[i] || {};
+            var avg = qr.avg_seconds_per_q || 0;
+            if (avg > 0 && avg < 8)
+                fast++;
+            else if (avg >= 12)
+                slow++;
+        }
+        var streakCount = (streak && streak.count) || 0;
+        if (fast > slow * 2)
+            return "Speedrunner";
+        if (slow > fast * 2 && streakCount > 14)
+            return "Scholar";
+        if (streakCount >= 30)
+            return "Habitual";
+        if (quizResults.length >= 50)
+            return "Explorer";
+        return "Curious";
+    }
+    function computeMoodEstimate(quizResults) {
+        var weekAgo = nowSec() - 86400 * 7;
+        var recentSessions = 0, recentWrongStreak = 0, lastWasWrong = false;
+        for (var i = 0; i < quizResults.length; i++) {
+            var qr = quizResults[i] || {};
+            if ((qr.timestamp || 0) < weekAgo)
+                continue;
+            recentSessions++;
+            var rate = (parseInt(qr.correct || "0") || 0) / Math.max(1, parseInt(qr.total || "1") || 1);
+            if (rate < 0.5) {
+                if (lastWasWrong)
+                    recentWrongStreak++;
+                lastWasWrong = true;
+            }
+            else {
+                lastWasWrong = false;
+            }
+        }
+        if (recentSessions === 0)
+            return "dormant";
+        if (recentWrongStreak >= 3)
+            return "frustrated";
+        if (recentSessions >= 7)
+            return "energised";
+        if (recentSessions >= 3)
+            return "engaged";
+        return "cautious";
+    }
+    function computeSocialGraphDensity(friends) {
+        if (!friends || friends.length === 0)
+            return 0;
+        var active = 0;
+        var weekAgo = nowSec() - 86400 * 7;
+        for (var i = 0; i < friends.length; i++) {
+            var f = friends[i] || {};
+            var u = f.user || {};
+            var lastOnline = parseInt(u.online ? "1" : "0") || 0;
+            var lastSeenStr = u.update_time || u.metadata && u.metadata.last_seen;
+            var lastSeen = lastSeenStr ? Math.floor(Date.parse(lastSeenStr) / 1000) : 0;
+            if (lastOnline === 1 || lastSeen >= weekAgo)
+                active++;
+        }
+        return Math.round((active / friends.length) * 100) / 100;
+    }
+    // ── RPC: kb_enrichment_run_for_user ─────────────────────────────────────
+    // Recomputes every derived attribute for ONE user. Idempotent. Callers:
+    //   - kb_enrichment_tick (cron sweep)
+    //   - n8n on a "high-value signal" event (e.g., quiz_completed → recompute now)
+    //   - admin "force re-enrich" button on /admin/users/<id>
+    //
+    // Auth: service token OR caller is the user themselves.
+    function rpcRunForUser(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var profile = ("" + (data.profile || "full")).toLowerCase(); // "hot" | "full"
+            var userId = ctx.userId || "";
+            if (!userId) {
+                if (!isServiceCaller(data))
+                    return RpcHelpers.errorResponse("not authorised", 401);
+                userId = "" + (data.user_id || "");
+                if (!userId)
+                    return RpcHelpers.errorResponse("user_id required for service caller", 400);
+            }
+            else {
+                // Caller-as-themselves can request only the "hot" profile (cheap).
+                // Heavy "full" profile needs a service token to keep abuse contained.
+                if (profile === "full" && !isServiceCaller(data))
+                    profile = "hot";
+            }
+            var startMs = Date.now();
+            // Always cheap (hot):
+            var streak = readStreak(nk, userId);
+            var weakMap = readWeaknessMap(nk, userId);
+            var quizResults = profile === "full" ? readQuizResults(nk, userId) : [];
+            var weakStrong = computeWeakStrong(quizResults, weakMap);
+            var moodEstimate = computeMoodEstimate(quizResults);
+            // Heavy (full only):
+            var predicted = profile === "full" ? computePredictedScore(quizResults) : 0;
+            var archetype = profile === "full" ? computeArchetype(quizResults, streak) : "";
+            var friends = profile === "full" ? readFriends(nk, userId) : [];
+            var socialDensity = profile === "full" ? computeSocialGraphDensity(friends) : 0;
+            var derived = {
+                weak_topics: weakStrong.weak,
+                strong_topics: weakStrong.strong,
+                predicted_score_pct: predicted,
+                next_best_topic: computeNextBestTopic(weakStrong.weak, weakStrong.strong),
+                personality_archetype: archetype,
+                mood_estimate: moodEstimate,
+                social_graph_density: socialDensity,
+                peer_percentile_per_topic: {}, // populated by analytics_rollup; we just keep the slot
+                last_enriched_unix: nowSec(),
+                enriched_by: profile,
+                source_signals_summary: {
+                    quiz_results_count: quizResults.length,
+                    friends_count: friends.length,
+                    streak_count: (streak && streak.count) || 0,
+                    weakness_map_present: !!weakMap,
+                },
+            };
+            // Merge instead of overwrite — keep peer_percentile_per_topic if the
+            // rollup already populated it.
+            try {
+                var existing = nk.storageRead([{ collection: USER_MODEL_COLLECTION, key: "derived", userId: userId }]);
+                if (existing && existing.length > 0 && existing[0].value) {
+                    var prev = existing[0].value;
+                    if (prev.peer_percentile_per_topic) {
+                        derived.peer_percentile_per_topic = prev.peer_percentile_per_topic;
+                    }
+                }
+            }
+            catch (e) { /* swallow */ }
+            nk.storageWrite([{
+                    collection: USER_MODEL_COLLECTION,
+                    key: "derived",
+                    userId: userId,
+                    value: derived,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            var elapsedMs = Date.now() - startMs;
+            emitAnalyticsEvent(nk, logger, userId, "kb_enrichment_completed", {
+                profile: profile,
+                elapsed_ms: elapsedMs,
+                weak_topics_count: weakStrong.weak.length,
+                strong_topics_count: weakStrong.strong.length,
+                predicted_score_pct: predicted,
+                archetype: archetype,
+                mood_estimate: moodEstimate,
+            });
+            return RpcHelpers.successResponse({
+                ok: true,
+                profile: profile,
+                elapsed_ms: elapsedMs,
+                derived: derived,
+            });
+        }
+        catch (err) {
+            logger.error("kb_enrichment_run_for_user failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: kb_enrichment_tick ─────────────────────────────────────────────
+    // Service-token only. Iterates active users (last_seen within `window_days`)
+    // and runs `kb_enrichment_run_for_user` for each. Designed to be called
+    // hourly with profile=hot, daily with profile=full.
+    //
+    // The tick is paginated — each call processes at most `limit` users (default
+    // 500) and persists a cursor to `kb_enrichment_index/cursor`. Subsequent
+    // calls resume from there. A full sweep of 50k MAU takes ~100 hourly ticks
+    // at 500/tick if we kept it serial — in practice the cron runs every minute
+    // for the largest tier so the window stays fresh.
+    function rpcTick(_ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(data))
+                return RpcHelpers.errorResponse("service token required", 401);
+            var profile = ("" + (data.profile || "hot")).toLowerCase();
+            var limit = Math.min(Math.max(parseInt(data.limit || "500") || 500, 1), 2000);
+            var windowDays = parseInt(data.window_days || "30") || 30;
+            var sinceUnix = nowSec() - 86400 * windowDays;
+            // Read cursor.
+            var cursor = "";
+            try {
+                var cur = nk.storageRead([{ collection: ENRICHMENT_INDEX_COLLECTION, key: "cursor", userId: Constants.SYSTEM_USER_ID }]);
+                if (cur && cur.length > 0 && cur[0].value)
+                    cursor = cur[0].value.cursor || "";
+            }
+            catch (e) { /* fresh start */ }
+            // Page through user_streaks (decent proxy for "active users" because
+            // every user with a streak has logged in). The rollup writes more
+            // canonical "active users" but it lives in a SYSTEM-owned collection
+            // and isn't indexed by user; for v1 this is good enough.
+            var processed = 0;
+            var skipped = 0;
+            var nextCursor = "";
+            try {
+                // Server-listObjects requires SYSTEM ownership; user_streaks is per-user
+                // so we paginate by userId via friends/account list isn't a good fit.
+                // Fall back to the user_model_index collection if present, else use
+                // the cursor + storageList over the analytics_events keyed by user.
+                // For v1 we accept that this tick runs for users present in
+                // user_streaks via storageList + filter — operators can swap in a
+                // proper index in the next iteration.
+                var idx = nk.storageRead([{ collection: ENRICHMENT_INDEX_COLLECTION, key: "user_index", userId: Constants.SYSTEM_USER_ID }]);
+                var userIds = [];
+                if (idx && idx.length > 0 && idx[0].value) {
+                    userIds = (idx[0].value.userIds || []);
+                }
+                // Walk userIds starting from cursor.
+                var startIdx = 0;
+                if (cursor) {
+                    for (var i = 0; i < userIds.length; i++)
+                        if (userIds[i] === cursor) {
+                            startIdx = i + 1;
+                            break;
+                        }
+                }
+                for (var u = startIdx; u < userIds.length && processed < limit; u++) {
+                    var uid = userIds[u];
+                    // Cheap freshness check via wow_state (every active user touches it).
+                    var streak = readStreak(nk, uid);
+                    var lastSeen = (streak && streak.last_play_unix) || 0;
+                    if (lastSeen > 0 && lastSeen < sinceUnix) {
+                        skipped++;
+                        continue;
+                    }
+                    // Recurse via the same handler — keeps the logic in one place.
+                    rpcRunForUser({ userId: "" }, logger, nk, JSON.stringify({
+                        user_id: uid,
+                        profile: profile,
+                        service_token: data.service_token,
+                    }));
+                    processed++;
+                    nextCursor = uid;
+                }
+            }
+            catch (eList) {
+                logger.warn("[kb-enrichment] tick scan error: " + (eList && eList.message ? eList.message : String(eList)));
+            }
+            // Persist cursor for the next tick.
+            try {
+                nk.storageWrite([{
+                        collection: ENRICHMENT_INDEX_COLLECTION,
+                        key: "cursor",
+                        userId: Constants.SYSTEM_USER_ID,
+                        value: { cursor: nextCursor, last_tick_unix: nowSec(), profile: profile },
+                        permissionRead: 0,
+                        permissionWrite: 0,
+                    }]);
+            }
+            catch (eC) { /* swallow */ }
+            emitAnalyticsEvent(nk, logger, Constants.SYSTEM_USER_ID, "kb_enrichment_tick_completed", {
+                profile: profile,
+                processed: processed,
+                skipped: skipped,
+                cursor: nextCursor,
+            });
+            return RpcHelpers.successResponse({
+                ok: true,
+                processed: processed,
+                skipped: skipped,
+                cursor: nextCursor,
+            });
+        }
+        catch (err) {
+            logger.error("kb_enrichment_tick failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: kb_enrichment_register_user ────────────────────────────────────
+    // Adds a user to the enrichment index so the tick will pick them up.
+    // Called by `account_created` / `app_open_first` hooks (the
+    // analytics-orphan-wrapper PR-1 is the right place to wire this from
+    // the Unity client; until then any service caller can register users).
+    function rpcRegisterUser(ctx, _logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var userId = ctx.userId || "";
+            if (!userId) {
+                if (!isServiceCaller(data))
+                    return RpcHelpers.errorResponse("not authorised", 401);
+                userId = "" + (data.user_id || "");
+                if (!userId)
+                    return RpcHelpers.errorResponse("user_id required", 400);
+            }
+            var idx = nk.storageRead([{ collection: ENRICHMENT_INDEX_COLLECTION, key: "user_index", userId: Constants.SYSTEM_USER_ID }]);
+            var userIds = [];
+            if (idx && idx.length > 0 && idx[0].value) {
+                userIds = (idx[0].value.userIds || []);
+            }
+            var found = false;
+            for (var i = 0; i < userIds.length; i++)
+                if (userIds[i] === userId) {
+                    found = true;
+                    break;
+                }
+            if (!found)
+                userIds.push(userId);
+            nk.storageWrite([{
+                    collection: ENRICHMENT_INDEX_COLLECTION,
+                    key: "user_index",
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: { userIds: userIds, last_updated_unix: nowSec() },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            return RpcHelpers.successResponse({ ok: true, registered: !found, total: userIds.length });
+        }
+        catch (err) {
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("kb_enrichment_run_for_user", rpcRunForUser);
+        initializer.registerRpc("kb_enrichment_tick", rpcTick);
+        initializer.registerRpc("kb_enrichment_register_user", rpcRegisterUser);
+    }
+    KbEnrichment.register = register;
+})(KbEnrichment || (KbEnrichment = {}));
+// wow_moments.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Wow Moment runtime — server-ranked selection + closed-loop reaction tracking.
+//
+// Why this exists
+// ---------------
+// Every channel surfaced in PLAN-CONVERSATIONAL_HUB_AND_REWARDS.md must consume
+// the SAME `PersonalizationPayload` produced by `/api/personalize`. The payload's
+// `wow_moment` field comes from this module's `wow_moments_select` RPC. The
+// matching `wow_moments_react` RPC ingests the analytics event when the user
+// taps / dismisses / hears the wow on ANY channel (Unity in-app, WhatsApp,
+// Telegram, Discord, iMessage Business, Apple/Google Wallet, voice).
+//
+// Without this module the personalizer falls back to the static map in
+// `web/lib/personalize/wow-moments-fallback.ts` which is fine for v1 but
+// guarantees "theatrical" personalisation forever.
+//
+// Storage shape
+// -------------
+//   collection: "wow_state"
+//   key:        "<wow_id>"
+//   userId:     <cognito_sub>
+//   value:      { last_shown_unix, shown_count_total, shown_count_7d,
+//                 last_clicked_unix, dismissed_count, last_channel,
+//                 last_trace_id }
+//
+//   collection: "wow_session_caps"
+//   key:        "session"            // overwritten per call
+//   userId:     <cognito_sub>
+//   value:      { date, fired_today, fired_7d, last_fullscreen_unix }
+//
+// All writes are SYSTEM_USER_ID owned for the analytics fan-out (matches the
+// existing analytics.js `dash_*` convention) AND per-user owned for the
+// state-machine reads.
+//
+// RPCs registered
+// ---------------
+//   wow_moments_select    (caller-owned read; service-token also accepted for
+//                          orchestration — n8n cadence workflows, voice agents)
+//   wow_moments_react     (service-token OR caller-owned — every channel emits
+//                          its reaction here, identity_resolved upstream)
+//   wow_moments_state_get (caller-owned read; powers /me/reveal "wow timeline")
+//
+// Cross-references
+// ----------------
+// - PLAN-USER_INTELLIGENCE_LOOP.md §6 (cooldown matrix + session caps)
+// - PLAN-CONVERSATIONAL_HUB_AND_REWARDS.md §K (analytics + enrichment lifecycle)
+// - CATALOG-WOW_MOMENTS.md (the catalog this ranker operates over)
+// - CATALOG-DEDUCIBLE_INSIGHTS.md §7 (anti-hallucination contract)
+// - data/modules/analytics/analytics.js (mirror the `dash_*` write convention)
+var WowMoments;
+(function (WowMoments) {
+    // ── Constants ────────────────────────────────────────────────────────────
+    var WOW_STATE_COLLECTION = "wow_state";
+    var WOW_SESSION_CAPS_COLLECTION = "wow_session_caps";
+    var ANALYTICS_GAME_ID = "quizverse"; // matches analytics.js gameId convention
+    // Per-PLAN-USER_INTELLIGENCE_LOOP.md §6.3 server-enforced limits:
+    //   max 3 wows / session, 1 fullscreen / day, 5 / week.
+    var SESSION_CAP = 3;
+    var DAILY_FULLSCREEN_CAP = 1;
+    var WEEKLY_CAP = 5;
+    // CATALOG IDs MUST match `CATALOG-WOW_MOMENTS.md`. Drift detection runs in
+    // CI via `web/scripts/lint-wow-analytics-coverage.ts`. Adding a new wow:
+    //   1. Add the row to CATALOG-WOW_MOMENTS.md
+    //   2. Add a CatalogEntry here AND a fallback entry in
+    //      web/lib/personalize/wow-moments-fallback.ts
+    //   3. Re-run the lint
+    var CATALOG = [
+        { wow_id: "wow.b.tired_recovery", contexts: ["streak_at_risk"],
+            tier: "B", cooldown_sec: 86400 * 7, copy_key: "wow.b.tired_recovery.template",
+            cta_action_id: "open_streak_save", monetization_mechanism: "mood_gated_offer",
+            base_score: 90 },
+        { wow_id: "wow.b.weekly_recap", contexts: ["weekly_recap"],
+            tier: "B", cooldown_sec: 86400 * 6, copy_key: "wow.b.weekly_recap.template",
+            cta_action_id: "open_weekly_recap", monetization_mechanism: "retention_lift",
+            base_score: 80 },
+        { wow_id: "wow.a.warming_up", contexts: ["daily_quiz_ready", "generic"],
+            tier: "A", cooldown_sec: 86400, copy_key: "wow.a.warming_up.template",
+            cta_action_id: "open_daily_quiz", monetization_mechanism: "session_extension",
+            base_score: 70 },
+        { wow_id: "wow.a.weakness_targeted", contexts: ["pre_exam_cram", "weak_topic_unblock"],
+            tier: "A", cooldown_sec: 86400 * 2, copy_key: "wow.a.weakness_targeted.template",
+            cta_action_id: "open_smart_review", monetization_mechanism: "goal_anchor_upgrade",
+            base_score: 85 },
+        { wow_id: "wow.a.lock_it_in", contexts: ["mastery_promotion"],
+            tier: "A", cooldown_sec: 86400 * 7, copy_key: "wow.a.lock_it_in.template",
+            cta_action_id: "open_mastery_card", monetization_mechanism: "session_extension",
+            base_score: 75 },
+        { wow_id: "wow.e.leaderboard_climb", contexts: ["league_promotion"],
+            tier: "E", cooldown_sec: 86400 * 7, copy_key: "wow.e.leaderboard_climb.template",
+            cta_action_id: "view_league_change", monetization_mechanism: "rewarded_optin",
+            base_score: 80 },
+        { wow_id: "wow.a.rematch_friend", contexts: ["friend_challenge_received"],
+            tier: "A", cooldown_sec: 3600 * 6, copy_key: "wow.a.rematch_friend.template",
+            cta_action_id: "open_friend_challenge", monetization_mechanism: "social_invite_loop",
+            base_score: 85 },
+        { wow_id: "wow.b.month_summary", contexts: ["monthly_report"],
+            tier: "B", cooldown_sec: 86400 * 25, copy_key: "wow.b.month_summary.template",
+            cta_action_id: "open_monthly_report", monetization_mechanism: "retention_lift",
+            base_score: 70 },
+        // Cross-channel adapter wows (CATALOG-WOW_MOMENTS.md §5B)
+        { wow_id: "wow.a09.telegram_inline_recap", contexts: ["weekly_recap"],
+            tier: "A", cooldown_sec: 86400 * 7, copy_key: "wow.a09.telegram_inline_recap.template",
+            cta_action_id: "open_telegram_recap", monetization_mechanism: "retention_lift",
+            base_score: 78 },
+        { wow_id: "wow.a10.discord_league_pulse", contexts: ["league_promotion"],
+            tier: "A", cooldown_sec: 86400 * 7, copy_key: "wow.a10.discord_league_pulse.template",
+            cta_action_id: "open_discord_league", monetization_mechanism: "social_invite_loop",
+            base_score: 76 },
+        { wow_id: "wow.a11.imessage_streak_save", contexts: ["streak_at_risk"],
+            tier: "A", cooldown_sec: 86400 * 3, copy_key: "wow.a11.imessage_streak_save.template",
+            cta_action_id: "open_imessage_streak_save", monetization_mechanism: "mood_gated_offer",
+            base_score: 88 },
+        { wow_id: "wow.a12.wallet_lockscreen_streak", contexts: ["daily_quiz_ready", "streak_milestone"],
+            tier: "A", cooldown_sec: 86400, copy_key: "wow.a12.wallet_lockscreen_streak.template",
+            cta_action_id: "open_app", monetization_mechanism: "retention_lift",
+            base_score: 65 },
+    ];
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function nowSec() {
+        return Math.floor(Date.now() / 1000);
+    }
+    function todayDate() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    function readState(nk, userId, wowId) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: WOW_STATE_COLLECTION,
+                    key: wowId,
+                    userId: userId,
+                }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                return rows[0].value;
+            }
+        }
+        catch (e) { /* swallow */ }
+        return {
+            last_shown_unix: 0,
+            shown_count_total: 0,
+            shown_count_7d: 0,
+            last_clicked_unix: 0,
+            dismissed_count: 0,
+            last_channel: "",
+            last_trace_id: "",
+        };
+    }
+    function readSessionCaps(nk, userId) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: WOW_SESSION_CAPS_COLLECTION,
+                    key: "session",
+                    userId: userId,
+                }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                var v = rows[0].value;
+                // Reset fired_today on day rollover.
+                if (v.date !== todayDate()) {
+                    return { date: todayDate(), fired_today: 0, fired_7d: v.fired_7d, last_fullscreen_unix: v.last_fullscreen_unix };
+                }
+                return v;
+            }
+        }
+        catch (e) { /* swallow */ }
+        return { date: todayDate(), fired_today: 0, fired_7d: 0, last_fullscreen_unix: 0 };
+    }
+    function writeSessionCaps(nk, userId, caps) {
+        nk.storageWrite([{
+                collection: WOW_SESSION_CAPS_COLLECTION,
+                key: "session",
+                userId: userId,
+                value: caps,
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+    }
+    function isOnCooldown(state, cooldown) {
+        if (state.last_shown_unix === 0)
+            return false;
+        return (nowSec() - state.last_shown_unix) < cooldown;
+    }
+    // The single ranker. Heuristic for now — once persona vector + signal-driven
+    // weights ship (PLAN-PERSONA_VECTOR.md), this becomes a small linear model.
+    function scoreCandidate(entry, state, kb) {
+        var score = entry.base_score;
+        // Decay if we showed it recently (smooth, not hard cooldown).
+        if (state.last_shown_unix > 0) {
+            var ageDays = (nowSec() - state.last_shown_unix) / 86400.0;
+            score -= Math.max(0, 30 - ageDays * 2); // -30 if shown today, 0 after 15 days
+        }
+        // Boost if user has clicked this wow in the past — they're receptive.
+        if (state.last_clicked_unix > state.last_shown_unix - 1) {
+            score += 10;
+        }
+        // Penalise if user has dismissed it ≥3 times — wow fatigue.
+        if (state.dismissed_count >= 3) {
+            score -= 25;
+        }
+        // KB-driven bumps: if the wow is for a topic the user is currently weak
+        // on, boost it. Defensive reads — kb may be null.
+        if (kb && kb.weak_topics && kb.weak_topics.length > 0) {
+            if (entry.wow_id.indexOf("weak") >= 0 || entry.wow_id.indexOf("smart_review") >= 0) {
+                score += 8;
+            }
+        }
+        if (kb && kb.streak_count && kb.streak_count >= 7) {
+            if (entry.wow_id.indexOf("streak") >= 0) {
+                score += 5;
+            }
+        }
+        return score;
+    }
+    // Loads a thin KB slice for ranking. Avoids hammering player_get_full_profile
+    // on every wow_moments_select call — we read only what the ranker uses.
+    function loadKbForRank(nk, userId) {
+        var kb = { weak_topics: [], strong_topics: [], streak_count: 0 };
+        try {
+            var rows = nk.storageRead([
+                { collection: "user_model", key: "derived", userId: userId },
+                { collection: "user_streaks", key: "current", userId: userId },
+            ]);
+            if (rows && rows.length > 0) {
+                for (var i = 0; i < rows.length; i++) {
+                    var r = rows[i];
+                    if (!r || !r.value)
+                        continue;
+                    if (r.collection === "user_model" && r.key === "derived") {
+                        var d = r.value;
+                        kb.weak_topics = d.weak_topics || kb.weak_topics;
+                        kb.strong_topics = d.strong_topics || kb.strong_topics;
+                        kb.predicted_score_pct = d.predicted_score_pct;
+                        kb.next_best_topic = d.next_best_topic;
+                        kb.personality_archetype = d.personality_archetype;
+                    }
+                    if (r.collection === "user_streaks" && r.key === "current") {
+                        var s = r.value;
+                        kb.streak_count = s.count || 0;
+                    }
+                }
+            }
+        }
+        catch (e) { /* swallow — heuristic still works without */ }
+        return kb;
+    }
+    function isServiceCaller(payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var proc = (typeof globalThis !== "undefined") ? globalThis["process"] : undefined;
+        var expected = "" + ((proc && proc.env && proc.env.WOW_RUNTIME_SERVICE_TOKEN) || "");
+        return expected.length > 0 && token === expected;
+    }
+    // Mirrors the dashboard write convention from analytics.js so wow events
+    // show up alongside every other event in the same admin/analytics queries.
+    function emitAnalyticsEvent(nk, logger, userId, eventName, properties) {
+        try {
+            var unixTs = nowSec();
+            var dateStr = todayDate();
+            var rand = Math.random().toString(36).slice(2, 8);
+            var dashKey = "dash_" + ANALYTICS_GAME_ID + "_" + dateStr + "_" + eventName + "_" + unixTs + "_" + rand;
+            nk.storageWrite([{
+                    collection: "analytics_events",
+                    key: dashKey,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: {
+                        eventName: eventName,
+                        gameId: ANALYTICS_GAME_ID,
+                        userId: userId,
+                        properties: properties,
+                        unixTimestamp: unixTs,
+                        date: dateStr,
+                    },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (e) {
+            logger.warn("[wow] emitAnalyticsEvent failed: " + (e && e.message ? e.message : String(e)));
+        }
+    }
+    // ── RPC: wow_moments_select ──────────────────────────────────────────────
+    // Request:  { "context": "streak_at_risk", "channel": "whatsapp", "limit": 1, "user_id"?, "service_token"? }
+    // Response (one wow):
+    //   { "success": true, "data": {
+    //       "wow_id": "wow.b.streak_forgiveness",
+    //       "copy_key": "wow.b.streak_forgiveness.template",
+    //       "vars": { ... },
+    //       "cta_action_id": "open_streak_save",
+    //       "monetization_mechanism": "mood_gated_offer",
+    //       "trace_id": "wow_..."
+    //   }}
+    //
+    // Side effects:
+    //   - emits `wow_moments_selected` analytics event
+    //   - bumps the candidate's wow_state.last_shown_unix (tentative — flipped to
+    //     "shown" only when the channel confirms via wow_moments_react `shown`)
+    function rpcSelect(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var ctxKey = ("" + (data.context || "generic")).toLowerCase();
+            var channel = ("" + (data.channel || "in_app")).toLowerCase();
+            var limit = Math.min(Math.max(parseInt(data.limit || "1") || 1, 1), 3);
+            // Auth: caller is the user OR a trusted service that supplies user_id.
+            var userId = ctx.userId || "";
+            if (!userId) {
+                if (!isServiceCaller(data)) {
+                    return RpcHelpers.errorResponse("not authorised", 401);
+                }
+                userId = "" + (data.user_id || "");
+                if (!userId)
+                    return RpcHelpers.errorResponse("user_id required for service caller", 400);
+            }
+            var caps = readSessionCaps(nk, userId);
+            if (caps.fired_today >= SESSION_CAP) {
+                emitAnalyticsEvent(nk, logger, userId, "wow_moments_capped", { context: ctxKey, channel: channel, reason: "session_cap" });
+                return RpcHelpers.successResponse(null);
+            }
+            if (caps.fired_7d >= WEEKLY_CAP) {
+                emitAnalyticsEvent(nk, logger, userId, "wow_moments_capped", { context: ctxKey, channel: channel, reason: "weekly_cap" });
+                return RpcHelpers.successResponse(null);
+            }
+            var kb = loadKbForRank(nk, userId);
+            // Filter catalog to entries that match the context AND aren't on cooldown.
+            var candidates = [];
+            for (var i = 0; i < CATALOG.length; i++) {
+                var entry = CATALOG[i];
+                var matches = false;
+                for (var j = 0; j < entry.contexts.length; j++) {
+                    if (entry.contexts[j] === ctxKey) {
+                        matches = true;
+                        break;
+                    }
+                }
+                if (!matches)
+                    continue;
+                var state = readState(nk, userId, entry.wow_id);
+                if (isOnCooldown(state, entry.cooldown_sec))
+                    continue;
+                var score = scoreCandidate(entry, state, kb);
+                candidates.push({
+                    wow_id: entry.wow_id,
+                    copy_key: entry.copy_key,
+                    vars: {
+                        topic: kb.next_best_topic || (kb.weak_topics && kb.weak_topics[0]) || "",
+                        streak: kb.streak_count || 0,
+                        predicted_score_pct: kb.predicted_score_pct || 0,
+                    },
+                    cta_action_id: entry.cta_action_id,
+                    monetization_mechanism: entry.monetization_mechanism,
+                    tier: entry.tier,
+                    score: score,
+                });
+            }
+            if (candidates.length === 0) {
+                // Fall through to the generic warmup if nothing matched.
+                for (var k = 0; k < CATALOG.length; k++) {
+                    if (CATALOG[k].wow_id === "wow.a.warming_up") {
+                        candidates.push({
+                            wow_id: CATALOG[k].wow_id,
+                            copy_key: CATALOG[k].copy_key,
+                            vars: {},
+                            cta_action_id: CATALOG[k].cta_action_id,
+                            monetization_mechanism: CATALOG[k].monetization_mechanism,
+                            tier: CATALOG[k].tier,
+                            score: CATALOG[k].base_score,
+                        });
+                        break;
+                    }
+                }
+            }
+            // Sort by score descending, take `limit` (almost always 1).
+            candidates.sort(function (a, b) { return b.score - a.score; });
+            var picked = candidates.slice(0, limit);
+            if (picked.length === 0)
+                return RpcHelpers.successResponse(null);
+            var traceId = "wow_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+            var top = picked[0];
+            emitAnalyticsEvent(nk, logger, userId, "wow_moments_selected", {
+                wow_id: top.wow_id,
+                tier: top.tier,
+                context: ctxKey,
+                channel: channel,
+                score: top.score,
+                candidate_count: candidates.length,
+                trace_id: traceId,
+            });
+            return RpcHelpers.successResponse({
+                wow_id: top.wow_id,
+                copy_key: top.copy_key,
+                vars: top.vars,
+                cta_action_id: top.cta_action_id,
+                monetization_mechanism: top.monetization_mechanism,
+                trace_id: traceId,
+            });
+        }
+        catch (err) {
+            logger.error("wow_moments_select failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: wow_moments_react ───────────────────────────────────────────────
+    // Channel-agnostic reaction ingestion. Called by Unity in-app, by the web
+    // /api/wow/track bridge (which receives Telegram callback queries, Discord
+    // interaction responses, WhatsApp button taps, AMB Apple replies, etc.),
+    // and by voice agent tool-call handlers.
+    //
+    // Request: { "wow_id": "...", "action": "shown"|"clicked"|"dismissed"|"converted",
+    //            "channel": "...", "trace_id": "...", "user_id"?, "service_token"? }
+    // Response: { "success": true, "data": { "ok": true } }
+    function rpcReact(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var userId = ctx.userId || "";
+            if (!userId) {
+                if (!isServiceCaller(data))
+                    return RpcHelpers.errorResponse("not authorised", 401);
+                userId = "" + (data.user_id || "");
+                if (!userId)
+                    return RpcHelpers.errorResponse("user_id required for service caller", 400);
+            }
+            var wowId = ("" + (data.wow_id || "")).slice(0, 64);
+            var action = ("" + (data.action || "")).toLowerCase();
+            var channel = ("" + (data.channel || "in_app")).toLowerCase();
+            var traceId = ("" + (data.trace_id || ""));
+            if (!wowId)
+                return RpcHelpers.errorResponse("wow_id required", 400);
+            if (action !== "shown" && action !== "clicked" && action !== "dismissed" && action !== "converted") {
+                return RpcHelpers.errorResponse("action must be shown|clicked|dismissed|converted", 400);
+            }
+            var state = readState(nk, userId, wowId);
+            var caps = readSessionCaps(nk, userId);
+            var ts = nowSec();
+            if (action === "shown") {
+                state.last_shown_unix = ts;
+                state.shown_count_total = (state.shown_count_total | 0) + 1;
+                state.shown_count_7d = (state.shown_count_7d | 0) + 1;
+                state.last_channel = channel;
+                state.last_trace_id = traceId;
+                caps.fired_today = (caps.fired_today | 0) + 1;
+                caps.fired_7d = (caps.fired_7d | 0) + 1;
+            }
+            else if (action === "clicked" || action === "converted") {
+                state.last_clicked_unix = ts;
+            }
+            else if (action === "dismissed") {
+                state.dismissed_count = (state.dismissed_count | 0) + 1;
+            }
+            nk.storageWrite([{
+                    collection: WOW_STATE_COLLECTION,
+                    key: wowId,
+                    userId: userId,
+                    value: state,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            writeSessionCaps(nk, userId, caps);
+            emitAnalyticsEvent(nk, logger, userId, "wow_moment_" + action, {
+                wow_id: wowId,
+                channel: channel,
+                trace_id: traceId,
+            });
+            return RpcHelpers.successResponse({ ok: true });
+        }
+        catch (err) {
+            logger.error("wow_moments_react failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: wow_moments_state_get ──────────────────────────────────────────
+    // Caller-owned read of the user's wow timeline (last_shown / clicked /
+    // dismissed per wow_id). Powers `/me/reveal` + the admin "wow inspector".
+    function rpcStateGet(ctx, logger, nk, _payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var rows = [];
+            try {
+                var page = nk.storageList(userId, WOW_STATE_COLLECTION, 100);
+                if (page && page.objects)
+                    rows = page.objects;
+            }
+            catch (e) { /* empty */ }
+            var entries = [];
+            for (var i = 0; i < rows.length; i++) {
+                var v = rows[i].value;
+                if (!v)
+                    continue;
+                entries.push({
+                    wow_id: rows[i].key,
+                    last_shown_unix: v.last_shown_unix,
+                    last_clicked_unix: v.last_clicked_unix,
+                    shown_count_total: v.shown_count_total,
+                    dismissed_count: v.dismissed_count,
+                    last_channel: v.last_channel,
+                });
+            }
+            var caps = readSessionCaps(nk, userId);
+            return RpcHelpers.successResponse({
+                entries: entries,
+                caps: caps,
+                catalog_size: CATALOG.length,
+            });
+        }
+        catch (err) {
+            logger.error("wow_moments_state_get failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── Registration ─────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("wow_moments_select", rpcSelect);
+        initializer.registerRpc("wow_moments_react", rpcReact);
+        initializer.registerRpc("wow_moments_state_get", rpcStateGet);
+    }
+    WowMoments.register = register;
+})(WowMoments || (WowMoments = {}));

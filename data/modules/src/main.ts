@@ -289,6 +289,30 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Satori] Registering Identities RPCs...");
     SatoriIdentities.register(initializer);
 
+    logger.info("[Identity] Registering Identity Resolver RPCs (cross-channel sub linking)...");
+    try {
+      IdentityResolver.register(initializer);
+      logger.info("[Identity] identity_resolve, identity_link, identity_unlink, identity_list_mine registered");
+    } catch (err: any) {
+      logger.error("[Identity] failed to register IdentityResolver: " + (err && err.message ? err.message : String(err)));
+    }
+
+    logger.info("[Wow] Registering Wow Moments runtime (server-ranked select + closed-loop react)...");
+    try {
+      WowMoments.register(initializer);
+      logger.info("[Wow] wow_moments_select, wow_moments_react, wow_moments_state_get registered");
+    } catch (err: any) {
+      logger.error("[Wow] failed to register WowMoments: " + (err && err.message ? err.message : String(err)));
+    }
+
+    logger.info("[KbEnrichment] Registering KB enrichment cron RPCs (continuous derived-attribute refresh)...");
+    try {
+      KbEnrichment.register(initializer);
+      logger.info("[KbEnrichment] kb_enrichment_run_for_user, kb_enrichment_tick, kb_enrichment_register_user registered");
+    } catch (err: any) {
+      logger.error("[KbEnrichment] failed to register KbEnrichment: " + (err && err.message ? err.message : String(err)));
+    }
+
     logger.info("[Satori] Registering Audiences RPCs...");
     SatoriAudiences.register(initializer);
 

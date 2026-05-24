@@ -876,6 +876,9 @@ declare namespace HiroUnlockables {
     function getConfig(nk: nkruntime.Nakama): Hiro.UnlockablesConfig;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace IdentityResolver {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace LegacyAnalyticsRetention {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3656,4 +3659,10 @@ declare namespace Satori {
             [id: string]: MetricDefinition;
         };
     }
+}
+declare namespace KbEnrichment {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace WowMoments {
+    function register(initializer: nkruntime.Initializer): void;
 }
