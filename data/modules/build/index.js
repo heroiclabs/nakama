@@ -7351,9 +7351,32 @@ var QuizVerseMigration;
         initializer.registerRpc("asset_catalog_get", rpcAssetCatalogGet);
         initializer.registerRpc("quizverse_analytics_fanout", rpcAnalyticsFanout);
         initializer.registerRpc("quizverse_livekit_token_mint", rpcLivekitTokenMint);
-        logger.info("[QuizVerseMigration] registered 22 RPCs (P0-P8 live)");
+        if (logger && logger.info) {
+            logger.info("[QuizVerseMigration] registered 22 RPCs (P0-P8 live)");
+        }
     }
     QuizVerseMigration.register = register;
+    // ─────────────────────────────────────────────────────────────────────
+    // CRITICAL: self-invoke register() at module-load (IIFE) time with a
+    // no-op stub so the postbuild rewrite populates the top-level
+    // __rpc_<id> vars BEFORE the postbuild auto-wrapper's try-catch
+    // registration blocks fire from InitModule. Without this, those
+    // blocks register `undefined` against each RPC id and the Nakama
+    // JS runtime reports "JavaScript runtime function invalid." at
+    // invocation time. See QvCrossSell / QvCrashHandler for the
+    // proven pattern (they call register at the end of their IIFE).
+    // Main.ts still calls register with the real (initializer, nk,
+    // logger) — the second call is idempotent (re-assigns the same
+    // handlers) and emits the success log line for operators.
+    // Note: this comment intentionally avoids the postbuild's RPC-id
+    // scanner regex — it scans on the literal call shape, not text.
+    // ─────────────────────────────────────────────────────────────────────
+    var _NOOP_INITIALIZER = { registerRpc: function () { } };
+    var _NOOP_LOGGER = {
+        info: function () { }, warn: function () { },
+        error: function () { }, debug: function () { }
+    };
+    register(_NOOP_INITIALIZER, null, _NOOP_LOGGER);
 })(QuizVerseMigration || (QuizVerseMigration = {}));
 // QuizVerse pack store — Nakama storage wrapper for question packs.
 //
