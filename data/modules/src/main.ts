@@ -62,6 +62,20 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QuizVerse] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- QuizVerse Nakama-Only Migration plugin ----
+  // Registers the 22 v2 / Nakama-only RPCs (P0/P1/P2 live, P3-P8
+  // scaffolded) that the Unity client adopts as each network surface
+  // moves behind Nakama. See games/quiz-verse/Docs/plans/PLAN-NAKAMA_ONLY_MIGRATION.md
+  // in the Unity repo for the rollout plan. Mounted after QuizVersePlugin
+  // so P1's request_questions router can delegate to quizverse_quiz_generate
+  // (registered as a top-level legacy module) and P2's submit_result_v2
+  // can delegate to quiz_submit_result.
+  try {
+    QuizVerseMigration.register(initializer, nk, logger);
+  } catch (err: any) {
+    logger.error("[QuizVerseMigration] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");
