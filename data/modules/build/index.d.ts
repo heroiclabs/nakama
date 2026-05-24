@@ -643,6 +643,31 @@ declare namespace QuizVersePlugin {
     var RPC_LIST_PACKS: string;
     function register(initializer: nkruntime.Initializer, nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
 }
+declare namespace QuizVerseMigration {
+    var RPC_GET_PLAYER_CONTEXT: string;
+    var RPC_REQUEST_QUESTIONS: string;
+    var RPC_SUBMIT_RESULT_V2: string;
+    var RPC_AI_GENERATE: string;
+    var RPC_AI_GRADE_SUBJECTIVE: string;
+    var RPC_AI_NOTES_CREATE: string;
+    var RPC_AI_STT: string;
+    var RPC_FETCH_EXTERNAL_QUIZ: string;
+    var RPC_MP_REQUEST_PACK: string;
+    var RPC_AUTH_SIGNUP: string;
+    var RPC_AUTH_LOGIN: string;
+    var RPC_AUTH_SOCIAL_LOGIN: string;
+    var RPC_AUTH_REFRESH: string;
+    var RPC_AUTH_USERINFO: string;
+    var RPC_GEO_LOOKUP: string;
+    var RPC_TTS_SYNTHESIZE: string;
+    var RPC_LICHESS_PUZZLE: string;
+    var RPC_XPROMO_GET_APPS: string;
+    var RPC_WEBVIEW_TOKEN_ISSUE: string;
+    var RPC_ASSET_CATALOG_GET: string;
+    var RPC_ANALYTICS_FANOUT: string;
+    var RPC_LIVEKIT_TOKEN_MINT: string;
+    function register(initializer: nkruntime.Initializer, _nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+}
 declare namespace QuizVersePackStore {
     var COLLECTION: string;
     function readPack(nk: nkruntime.Nakama, packId: string): QuizVerseGame.IPack;

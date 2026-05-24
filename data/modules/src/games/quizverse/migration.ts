@@ -590,7 +590,7 @@ namespace QuizVerseMigration {
 
   interface ExternalProvider {
     name:    string;
-    method:  string;   // "get" | "post"
+    method:  nkruntime.RequestMethod;
     url:     string;   // can include {token} placeholders
     cacheTtlMs: number;
   }
@@ -828,7 +828,7 @@ namespace QuizVerseMigration {
     logger: nkruntime.Logger,
     nk: nkruntime.Nakama,
     rpcId: string,
-    method: string,
+    method: nkruntime.RequestMethod,
     path: string,
     body: any
   ): string {
