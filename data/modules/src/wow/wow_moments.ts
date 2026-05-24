@@ -296,11 +296,12 @@ namespace WowMoments {
     return kb;
   }
 
-  function isServiceCaller(payload: any): boolean {
+  function isServiceCaller(ctx: nkruntime.Context, payload: any): boolean {
     var token = payload && payload.service_token;
     if (!token) return false;
-    var proc: any = (typeof (globalThis as any) !== "undefined") ? (globalThis as any)["process"] : undefined;
-    var expected = "" + ((proc && proc.env && proc.env.WOW_RUNTIME_SERVICE_TOKEN) || "");
+    // Nakama Goja runtime exposes runtime.env via ctx.env (config.yaml
+    // runtime.env block); container env vars are NOT visible inside Goja.
+    var expected = "" + ((ctx.env && ctx.env["WOW_RUNTIME_SERVICE_TOKEN"]) || "");
     return expected.length > 0 && token === expected;
   }
 
@@ -358,7 +359,7 @@ namespace WowMoments {
       // Auth: caller is the user OR a trusted service that supplies user_id.
       var userId: string = ctx.userId || "";
       if (!userId) {
-        if (!isServiceCaller(data)) {
+        if (!isServiceCaller(ctx, data)) {
           return RpcHelpers.errorResponse("not authorised", 401);
         }
         userId = "" + (data.user_id || "");
@@ -469,7 +470,7 @@ namespace WowMoments {
 
       var userId: string = ctx.userId || "";
       if (!userId) {
-        if (!isServiceCaller(data)) return RpcHelpers.errorResponse("not authorised", 401);
+        if (!isServiceCaller(ctx, data)) return RpcHelpers.errorResponse("not authorised", 401);
         userId = "" + (data.user_id || "");
         if (!userId) return RpcHelpers.errorResponse("user_id required for service caller", 400);
       }

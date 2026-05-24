@@ -155,15 +155,14 @@ namespace IdentityResolver {
     }
   }
 
-  function isServiceCaller(payload: any): boolean {
+  function isServiceCaller(ctx: nkruntime.Context, payload: any): boolean {
     var token = payload && payload.service_token;
     if (!token) return false;
-    // Goja exposes process.env via the postbuild shim that rewrites every
-    // `process.env.X` reference to a guarded lookup. We declare process as
-    // any-typed locally so TS doesn't require @types/node (the runtime
-    // bundle has zero Node deps).
-    var proc: any = (typeof (globalThis as any) !== "undefined") ? (globalThis as any)["process"] : undefined;
-    var expected = "" + ((proc && proc.env && proc.env.IDENTITY_RESOLVER_SERVICE_TOKEN) || "");
+    // Nakama's Goja runtime exposes runtime.env (set in nakama config.yaml
+    // under runtime.env) via ctx.env. Container-level env vars are NOT
+    // visible inside Goja — see data/modules/src/legacy/daily-rewards.ts
+    // and library/n8n-pack-state.ts for the canonical pattern.
+    var expected = "" + ((ctx.env && ctx.env["IDENTITY_RESOLVER_SERVICE_TOKEN"]) || "");
     return expected.length > 0 && token === expected;
   }
 
@@ -202,7 +201,7 @@ namespace IdentityResolver {
       }
 
       // Authentication: must be either Nakama-authenticated or a trusted service.
-      if (!ctx.userId && !isServiceCaller(data)) {
+      if (!ctx.userId && !isServiceCaller(ctx, data)) {
         return RpcHelpers.errorResponse("not authorised", 401);
       }
 

@@ -85,11 +85,12 @@ namespace KbEnrichment {
 
   function nowSec(): number { return Math.floor(Date.now() / 1000); }
 
-  function isServiceCaller(payload: any): boolean {
+  function isServiceCaller(ctx: nkruntime.Context, payload: any): boolean {
     var token = payload && payload.service_token;
     if (!token) return false;
-    var proc: any = (typeof (globalThis as any) !== "undefined") ? (globalThis as any)["process"] : undefined;
-    var expected = "" + ((proc && proc.env && proc.env.KB_ENRICHMENT_SERVICE_TOKEN) || "");
+    // Nakama Goja runtime exposes runtime.env via ctx.env (config.yaml
+    // runtime.env block); container env vars are NOT visible inside Goja.
+    var expected = "" + ((ctx.env && ctx.env["KB_ENRICHMENT_SERVICE_TOKEN"]) || "");
     return expected.length > 0 && token === expected;
   }
 
@@ -288,13 +289,13 @@ namespace KbEnrichment {
 
       var userId: string = ctx.userId || "";
       if (!userId) {
-        if (!isServiceCaller(data)) return RpcHelpers.errorResponse("not authorised", 401);
+        if (!isServiceCaller(ctx, data)) return RpcHelpers.errorResponse("not authorised", 401);
         userId = "" + (data.user_id || "");
         if (!userId) return RpcHelpers.errorResponse("user_id required for service caller", 400);
       } else {
         // Caller-as-themselves can request only the "hot" profile (cheap).
         // Heavy "full" profile needs a service token to keep abuse contained.
-        if (profile === "full" && !isServiceCaller(data)) profile = "hot";
+        if (profile === "full" && !isServiceCaller(ctx, data)) profile = "hot";
       }
 
       var startMs = Date.now();
@@ -386,10 +387,10 @@ namespace KbEnrichment {
   // calls resume from there. A full sweep of 50k MAU takes ~100 hourly ticks
   // at 500/tick if we kept it serial — in practice the cron runs every minute
   // for the largest tier so the window stays fresh.
-  function rpcTick(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  function rpcTick(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     try {
       var data = RpcHelpers.parseRpcPayload(payload);
-      if (!isServiceCaller(data)) return RpcHelpers.errorResponse("service token required", 401);
+      if (!isServiceCaller(ctx, data)) return RpcHelpers.errorResponse("service token required", 401);
 
       var profile = ("" + (data.profile || "hot")).toLowerCase();
       var limit = Math.min(Math.max(parseInt(data.limit || "500") || 500, 1), 2000);
@@ -437,7 +438,9 @@ namespace KbEnrichment {
           if (lastSeen > 0 && lastSeen < sinceUnix) { skipped++; continue; }
 
           // Recurse via the same handler — keeps the logic in one place.
-          rpcRunForUser({ userId: "" } as nkruntime.Context, logger, nk, JSON.stringify({
+          // The synthetic context MUST forward ctx.env so the inner
+          // service-token check has access to KB_ENRICHMENT_SERVICE_TOKEN.
+          rpcRunForUser({ userId: "", env: ctx.env } as nkruntime.Context, logger, nk, JSON.stringify({
             user_id: uid,
             profile: profile,
             service_token: data.service_token,
@@ -490,7 +493,7 @@ namespace KbEnrichment {
       var data = RpcHelpers.parseRpcPayload(payload);
       var userId: string = ctx.userId || "";
       if (!userId) {
-        if (!isServiceCaller(data)) return RpcHelpers.errorResponse("not authorised", 401);
+        if (!isServiceCaller(ctx, data)) return RpcHelpers.errorResponse("not authorised", 401);
         userId = "" + (data.user_id || "");
         if (!userId) return RpcHelpers.errorResponse("user_id required", 400);
       }
