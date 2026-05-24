@@ -1297,35 +1297,40 @@ namespace QuizVerseMigration {
     _nk: nkruntime.Nakama,
     logger: nkruntime.Logger
   ): void {
-    initializer.registerRpc(RPC_GET_PLAYER_CONTEXT,  rpcGetPlayerContext);
-    initializer.registerRpc(RPC_REQUEST_QUESTIONS,   rpcRequestQuestions);
-    initializer.registerRpc(RPC_SUBMIT_RESULT_V2,    rpcSubmitResultV2);
+    // IMPORTANT: postbuild.js only auto-hoists handlers when the RPC id is a
+    // **string literal** in the registerRpc call. Without the literal it can't
+    // generate the `__rpc_<id> = handler` top-level assignment that lets the
+    // Nakama JS runtime resolve the function key. Keep these as literals or
+    // the plugin will silently fail-to-mount in prod (see PR #69 follow-up).
+    initializer.registerRpc("quizverse_get_player_context",  rpcGetPlayerContext);
+    initializer.registerRpc("quizverse_request_questions",   rpcRequestQuestions);
+    initializer.registerRpc("quiz_submit_result_v2",         rpcSubmitResultV2);
 
-    initializer.registerRpc(RPC_AI_GENERATE,         rpcAiGenerate);
-    initializer.registerRpc(RPC_AI_GRADE_SUBJECTIVE, rpcAiGradeSubjective);
-    initializer.registerRpc(RPC_AI_NOTES_CREATE,     rpcAiNotesCreate);
-    initializer.registerRpc(RPC_AI_STT,              rpcAiStt);
+    initializer.registerRpc("quizverse_ai_generate_questions", rpcAiGenerate);
+    initializer.registerRpc("quizverse_ai_grade_subjective",  rpcAiGradeSubjective);
+    initializer.registerRpc("quizverse_ai_notes_create",      rpcAiNotesCreate);
+    initializer.registerRpc("quizverse_ai_stt_transcribe",    rpcAiStt);
 
-    initializer.registerRpc(RPC_FETCH_EXTERNAL_QUIZ, rpcFetchExternalQuiz);
+    initializer.registerRpc("quizverse_fetch_external_quiz",  rpcFetchExternalQuiz);
 
-    initializer.registerRpc(RPC_MP_REQUEST_PACK,     rpcMpRequestPack);
+    initializer.registerRpc("quizverse_mp_request_pack",      rpcMpRequestPack);
 
-    initializer.registerRpc(RPC_AUTH_SIGNUP,         rpcAuthSignup);
-    initializer.registerRpc(RPC_AUTH_LOGIN,          rpcAuthLogin);
-    initializer.registerRpc(RPC_AUTH_SOCIAL_LOGIN,   rpcAuthSocialLogin);
-    initializer.registerRpc(RPC_AUTH_REFRESH,        rpcAuthRefresh);
-    initializer.registerRpc(RPC_AUTH_USERINFO,       rpcAuthUserinfo);
+    initializer.registerRpc("auth_signup",                    rpcAuthSignup);
+    initializer.registerRpc("auth_login",                     rpcAuthLogin);
+    initializer.registerRpc("auth_social_login",              rpcAuthSocialLogin);
+    initializer.registerRpc("auth_refresh",                   rpcAuthRefresh);
+    initializer.registerRpc("auth_userinfo",                  rpcAuthUserinfo);
 
-    initializer.registerRpc(RPC_GEO_LOOKUP,          rpcGeoLookup);
-    initializer.registerRpc(RPC_TTS_SYNTHESIZE,      rpcTtsSynthesize);
-    initializer.registerRpc(RPC_LICHESS_PUZZLE,      rpcLichessPuzzle);
-    initializer.registerRpc(RPC_XPROMO_GET_APPS,     rpcXpromoGetApps);
-    initializer.registerRpc(RPC_WEBVIEW_TOKEN_ISSUE, rpcWebviewTokenIssue);
-    initializer.registerRpc(RPC_ASSET_CATALOG_GET,   rpcAssetCatalogGet);
+    initializer.registerRpc("quizverse_geo_lookup",           rpcGeoLookup);
+    initializer.registerRpc("quizverse_tts_synthesize",       rpcTtsSynthesize);
+    initializer.registerRpc("quizverse_fetch_lichess_puzzle", rpcLichessPuzzle);
+    initializer.registerRpc("xpromo_get_apps",                rpcXpromoGetApps);
+    initializer.registerRpc("webview_token_issue",            rpcWebviewTokenIssue);
+    initializer.registerRpc("asset_catalog_get",              rpcAssetCatalogGet);
 
-    initializer.registerRpc(RPC_ANALYTICS_FANOUT,    rpcAnalyticsFanout);
-    initializer.registerRpc(RPC_LIVEKIT_TOKEN_MINT,  rpcLivekitTokenMint);
+    initializer.registerRpc("quizverse_analytics_fanout",     rpcAnalyticsFanout);
+    initializer.registerRpc("quizverse_livekit_token_mint",   rpcLivekitTokenMint);
 
-    logger.info("[QuizVerseMigration] registered 22 RPCs (P0/P1/P2 live; P3-P8 scaffolded)");
+    logger.info("[QuizVerseMigration] registered 22 RPCs (P0-P8 live)");
   }
 }

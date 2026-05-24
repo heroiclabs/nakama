@@ -7324,29 +7324,34 @@ var QuizVerseMigration;
     // Registration
     // ─────────────────────────────────────────────────────────────────────
     function register(initializer, _nk, logger) {
-        initializer.registerRpc(QuizVerseMigration.RPC_GET_PLAYER_CONTEXT, rpcGetPlayerContext);
-        initializer.registerRpc(QuizVerseMigration.RPC_REQUEST_QUESTIONS, rpcRequestQuestions);
-        initializer.registerRpc(QuizVerseMigration.RPC_SUBMIT_RESULT_V2, rpcSubmitResultV2);
-        initializer.registerRpc(QuizVerseMigration.RPC_AI_GENERATE, rpcAiGenerate);
-        initializer.registerRpc(QuizVerseMigration.RPC_AI_GRADE_SUBJECTIVE, rpcAiGradeSubjective);
-        initializer.registerRpc(QuizVerseMigration.RPC_AI_NOTES_CREATE, rpcAiNotesCreate);
-        initializer.registerRpc(QuizVerseMigration.RPC_AI_STT, rpcAiStt);
-        initializer.registerRpc(QuizVerseMigration.RPC_FETCH_EXTERNAL_QUIZ, rpcFetchExternalQuiz);
-        initializer.registerRpc(QuizVerseMigration.RPC_MP_REQUEST_PACK, rpcMpRequestPack);
-        initializer.registerRpc(QuizVerseMigration.RPC_AUTH_SIGNUP, rpcAuthSignup);
-        initializer.registerRpc(QuizVerseMigration.RPC_AUTH_LOGIN, rpcAuthLogin);
-        initializer.registerRpc(QuizVerseMigration.RPC_AUTH_SOCIAL_LOGIN, rpcAuthSocialLogin);
-        initializer.registerRpc(QuizVerseMigration.RPC_AUTH_REFRESH, rpcAuthRefresh);
-        initializer.registerRpc(QuizVerseMigration.RPC_AUTH_USERINFO, rpcAuthUserinfo);
-        initializer.registerRpc(QuizVerseMigration.RPC_GEO_LOOKUP, rpcGeoLookup);
-        initializer.registerRpc(QuizVerseMigration.RPC_TTS_SYNTHESIZE, rpcTtsSynthesize);
-        initializer.registerRpc(QuizVerseMigration.RPC_LICHESS_PUZZLE, rpcLichessPuzzle);
-        initializer.registerRpc(QuizVerseMigration.RPC_XPROMO_GET_APPS, rpcXpromoGetApps);
-        initializer.registerRpc(QuizVerseMigration.RPC_WEBVIEW_TOKEN_ISSUE, rpcWebviewTokenIssue);
-        initializer.registerRpc(QuizVerseMigration.RPC_ASSET_CATALOG_GET, rpcAssetCatalogGet);
-        initializer.registerRpc(QuizVerseMigration.RPC_ANALYTICS_FANOUT, rpcAnalyticsFanout);
-        initializer.registerRpc(QuizVerseMigration.RPC_LIVEKIT_TOKEN_MINT, rpcLivekitTokenMint);
-        logger.info("[QuizVerseMigration] registered 22 RPCs (P0/P1/P2 live; P3-P8 scaffolded)");
+        // IMPORTANT: postbuild.js only auto-hoists handlers when the RPC id is a
+        // **string literal** in the registerRpc call. Without the literal it can't
+        // generate the `__rpc_<id> = handler` top-level assignment that lets the
+        // Nakama JS runtime resolve the function key. Keep these as literals or
+        // the plugin will silently fail-to-mount in prod (see PR #69 follow-up).
+        initializer.registerRpc("quizverse_get_player_context", rpcGetPlayerContext);
+        initializer.registerRpc("quizverse_request_questions", rpcRequestQuestions);
+        initializer.registerRpc("quiz_submit_result_v2", rpcSubmitResultV2);
+        initializer.registerRpc("quizverse_ai_generate_questions", rpcAiGenerate);
+        initializer.registerRpc("quizverse_ai_grade_subjective", rpcAiGradeSubjective);
+        initializer.registerRpc("quizverse_ai_notes_create", rpcAiNotesCreate);
+        initializer.registerRpc("quizverse_ai_stt_transcribe", rpcAiStt);
+        initializer.registerRpc("quizverse_fetch_external_quiz", rpcFetchExternalQuiz);
+        initializer.registerRpc("quizverse_mp_request_pack", rpcMpRequestPack);
+        initializer.registerRpc("auth_signup", rpcAuthSignup);
+        initializer.registerRpc("auth_login", rpcAuthLogin);
+        initializer.registerRpc("auth_social_login", rpcAuthSocialLogin);
+        initializer.registerRpc("auth_refresh", rpcAuthRefresh);
+        initializer.registerRpc("auth_userinfo", rpcAuthUserinfo);
+        initializer.registerRpc("quizverse_geo_lookup", rpcGeoLookup);
+        initializer.registerRpc("quizverse_tts_synthesize", rpcTtsSynthesize);
+        initializer.registerRpc("quizverse_fetch_lichess_puzzle", rpcLichessPuzzle);
+        initializer.registerRpc("xpromo_get_apps", rpcXpromoGetApps);
+        initializer.registerRpc("webview_token_issue", rpcWebviewTokenIssue);
+        initializer.registerRpc("asset_catalog_get", rpcAssetCatalogGet);
+        initializer.registerRpc("quizverse_analytics_fanout", rpcAnalyticsFanout);
+        initializer.registerRpc("quizverse_livekit_token_mint", rpcLivekitTokenMint);
+        logger.info("[QuizVerseMigration] registered 22 RPCs (P0-P8 live)");
     }
     QuizVerseMigration.register = register;
 })(QuizVerseMigration || (QuizVerseMigration = {}));
