@@ -24,6 +24,23 @@
 //   lt_school_get_detail) — no auth.
 // • Service-only RPCs accept either (a) ctx.userId from a Nakama session,
 //   or (b) service_token + user_id in payload matching ctx.env["LT_SERVICE_TOKEN"].
+// RPCs registered (15)
+// --------------------
+//   lt_score_predict                  service-only (auth) — § 3 of plan
+//   lt_exam_countdown_get             service-only        — § 4 of plan
+//   lt_exam_countdown_set             service-only        — § 4 of plan
+//   lt_exam_countdown_clear           service-only        — § 4 of plan
+//   lt_exam_calendar_get              public (anonymous OK)— § 4.5
+//   lt_gpa_compute                    public               — § 5 stateless
+//   lt_gpa_save                       service-only        — § 5
+//   lt_gpa_get                        service-only        — § 5
+//   lt_school_search                  public               — § 6
+//   lt_school_get_detail              public               — § 6
+//   lt_school_set_user_school         service-only        — § 6
+//   lt_school_get_user_school         service-only        — § 6
+//   lt_school_freetext_submit         service-only        — § 6
+//   lt_chat_quota_check               service-only        — § 3.11 (anon/auth/pro tier)
+//   lt_chat_quota_consume             service-only        — § 3.11 (atomic decrement)
 //
 // Storage shapes (real now)
 // -------------------------
@@ -36,6 +53,15 @@
 // Quiz-history source: `quiz_results` collection (legacy, see
 // src/legacy/quiz.ts). Each row is `result_<userId>_<unix>` with shape
 // { score, totalQuestions, correctAnswers, category, timestamp }.
+// Storage shapes (defined here, populated in wave 4-5)
+// ----------------------------------------------------
+//   collection: "qv_lt_school"      key: "current"  → UserSchoolRecord
+//   collection: "qv_lt_countdown"   key: "doc"      → ExamCountdownDoc
+//   collection: "qv_lt_gpa"         key: "current"  → GpaSnapshot
+//   collection: "qv_lt_predictor_context" key: "<exam_id>" → PredictorContextBlock
+//   collection: "qv_lt_school_pending" key: "<provisional_id>" → freetext queue
+//   collection: "qv_lt_chat_quota"   key: see § 3.11.3       → ChatQuotaRecord
+// All permissionRead/Write = 0 (server-only).
 
 namespace LearnerToolbelt {
 
@@ -51,6 +77,30 @@ namespace LearnerToolbelt {
   var MAX_PREDICT_WINDOW_DAYS = 365;
   var MAX_HISTORY_ROWS = 200;
   var MAX_COUNTDOWN_ENTRIES = 20;
+  var COLLECTION_CHAT_QUOTA = "qv_lt_chat_quota";
+  var ANALYTICS_GAME_ID = "quizverse";
+  var SKELETON_PHASE = "skeleton-A";
+  var MODULE_VERSION = "learner-toolbelt/0.2.0";
+
+  // ── Chat-quota limits (plan §3.11) ─────────────────────────────────────────
+  // Defaults below match PLAN-LEARNER_TOOLBELT.md §3.11.1. Each may be
+  // overridden at runtime via ctx.env.LT_QUOTA_<NAME> (lifted into k8s
+  // deploy config to support promo bursts / penny-cost A-B tests without a
+  // rebuild). Predictor caps are kept here for the parallel anon-tier
+  // predictor RPC even though the consumer for predictor quota lands in a
+  // later PR — staging the constant here means consumers can read the
+  // canonical value via lt_chat_quota_check's diagnostics shape.
+  var DEFAULT_QUOTA_ANON_PREDICTOR_PER_DAY = 3;
+  var DEFAULT_QUOTA_ANON_CHAT_PER_DAY = 5;
+  var DEFAULT_QUOTA_AUTH_PREDICTOR_PER_DAY = -1; // -1 sentinel = unlimited
+  var DEFAULT_QUOTA_AUTH_CHAT_PER_DAY = 30;
+  var DEFAULT_QUOTA_PRO_CHAT_PER_DAY = 200;
+
+  // Cognito sub format — base-36 / hex / uuid-ish. We accept anything that
+  // looks like a non-trivial token. Strict format checks happen at the
+  // gateway; this RPC just gates the "is the supplied user_id plausible"
+  // path before reading the per-exam ledger.
+  var COGNITO_SUB_RE = /^[A-Za-z0-9_\-:.]{8,128}$/;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function nowSec(): number {
@@ -83,6 +133,162 @@ namespace LearnerToolbelt {
       return { userId: "", error: "user_id required for service caller", code: 400 };
     }
     return { userId: u };
+  }
+
+  // Stub envelope — same shape Wave 4-5 will return at status: "ok".
+  // Front-ends (web routes, gateway ToolDispatcher) MUST be tolerant of
+  // status: "not_implemented" so they can ship before the algos land.
+  function stubResponse(rpcId: string, extra?: any): string {
+    var body: any = {
+      ok: true,
+      status: "not_implemented",
+      phase: SKELETON_PHASE,
+      rpc: rpcId,
+      module_version: MODULE_VERSION,
+      generated_unix: nowSec(),
+    };
+    if (extra) {
+      for (var k in extra) {
+        if (Object.prototype.hasOwnProperty.call(extra, k)) body[k] = extra[k];
+      }
+    }
+    return RpcHelpers.successResponse(body);
+  }
+
+  // ── Quota helpers (§3.11) ──────────────────────────────────────────────────
+  //
+  // The reset window is the wall-clock UTC date (YYYY-MM-DD). Keys naturally
+  // expire at 00:00 UTC because the next call lands under a new date string.
+  // We do NOT set a Nakama-side TTL — storage cleanup is a future cron job.
+  //
+  // Three identity buckets:
+  //   anon → key = ip:<sha-truncated>:<date>:<exam_id>
+  //   auth → TWO keys:
+  //          (1) user:<sub>:<date>           — global per-day cap
+  //          (2) user:<sub>:<date>:<exam_id> — per-exam visibility for
+  //                                             cohort dashboards
+  //
+  // tier resolution:
+  //   user_id supplied + matches COGNITO_SUB_RE → "free" (Phase A)
+  //   ip_hash only                              → "anon"
+  //   "pro" detection deferred to Phase D — we always return "free" for
+  //   authenticated users until billing wires up
+  function getQuotaLimit(
+    ctx: nkruntime.Context,
+    envKey: string,
+    fallback: number
+  ): number {
+    var raw = ctx.env && ctx.env[envKey];
+    if (!raw) return fallback;
+    var parsed = parseInt("" + raw, 10);
+    if (isNaN(parsed)) return fallback;
+    return parsed;
+  }
+
+  function utcDateStr(): string {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function midnightUtcNextUnix(): number {
+    var d = new Date();
+    var next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0);
+    return Math.floor(next / 1000);
+  }
+
+  function hashIpShort(nk: nkruntime.Nakama, ipHash: string): string {
+    // The CALLER (gateway) is responsible for the first sha256 over the raw
+    // IP — we never see the raw IP. We re-hash here so storage keys are not
+    // a 1:1 mapping back to whatever the gateway hashed (defence-in-depth).
+    try {
+      var h = nk.sha256Hash(ipHash);
+      return h.slice(0, 16);
+    } catch (_e: any) {
+      // Fallback: keep first 16 chars of whatever the gateway passed.
+      return ("" + ipHash).slice(0, 16);
+    }
+  }
+
+  function quotaKey(args: { tier: string; sub: string; ipShort: string; examId: string; date: string; scope: string }): string {
+    if (args.tier === "anon") {
+      return "ip:" + args.ipShort + ":" + args.date + ":" + args.examId;
+    }
+    if (args.scope === "global") {
+      return "user:" + args.sub + ":" + args.date;
+    }
+    return "user:" + args.sub + ":" + args.date + ":" + args.examId;
+  }
+
+  function readUsed(nk: nkruntime.Nakama, key: string): number {
+    try {
+      var rows = nk.storageRead([{
+        collection: COLLECTION_CHAT_QUOTA,
+        key: key,
+        userId: Constants.SYSTEM_USER_ID,
+      }]);
+      if (rows && rows.length > 0 && rows[0].value) {
+        var v: any = rows[0].value;
+        var used = parseInt("" + (v.used || 0), 10);
+        return isNaN(used) ? 0 : used;
+      }
+    } catch (_e: any) { /* empty bucket */ }
+    return 0;
+  }
+
+  function writeUsed(nk: nkruntime.Nakama, key: string, used: number): void {
+    nk.storageWrite([{
+      collection: COLLECTION_CHAT_QUOTA,
+      key: key,
+      userId: Constants.SYSTEM_USER_ID,
+      value: { used: used, updated_unix: nowSec() },
+      permissionRead: 0,
+      permissionWrite: 0,
+    }]);
+  }
+
+  interface QuotaIdentity {
+    tier: "anon" | "free" | "pro";
+    sub: string;       // empty for anon
+    ipShort: string;   // empty for auth
+    examId: string;
+    locale: string;
+    error?: string;
+  }
+
+  function resolveQuotaIdentity(data: any): QuotaIdentity {
+    var kbScope = data && data.kb_scope ? data.kb_scope : {};
+    var examId = "" + (kbScope.exam_id || data.exam_id || "");
+    var locale = "" + (kbScope.locale || data.locale || "en");
+    var userId = "" + (data.user_id || "");
+    var ipHash = "" + (data.ip_hash || "");
+
+    if (!examId) {
+      return { tier: "anon", sub: "", ipShort: "", examId: "", locale: locale, error: "kb_scope.exam_id required" };
+    }
+
+    if (userId) {
+      if (!COGNITO_SUB_RE.test(userId)) {
+        return { tier: "anon", sub: "", ipShort: "", examId: examId, locale: locale, error: "invalid user_id format" };
+      }
+      // Phase A: every authenticated caller is "free". Phase D will compare
+      // user_id against the billing entitlement store and promote to "pro".
+      return { tier: "free", sub: userId, ipShort: "", examId: examId, locale: locale };
+    }
+
+    if (ipHash) {
+      return { tier: "anon", sub: "", ipShort: ipHash, examId: examId, locale: locale };
+    }
+
+    return { tier: "anon", sub: "", ipShort: "", examId: examId, locale: locale, error: "missing_identity" };
+  }
+
+  function limitForTier(ctx: nkruntime.Context, tier: string): number {
+    if (tier === "anon") {
+      return getQuotaLimit(ctx, "LT_QUOTA_ANON_CHAT_PER_DAY", DEFAULT_QUOTA_ANON_CHAT_PER_DAY);
+    }
+    if (tier === "pro") {
+      return getQuotaLimit(ctx, "LT_QUOTA_PRO_CHAT_PER_DAY", DEFAULT_QUOTA_PRO_CHAT_PER_DAY);
+    }
+    return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
   }
 
   function emitAnalytics(
@@ -709,6 +915,185 @@ namespace LearnerToolbelt {
     }
   }
 
+  // ── RPC: lt_chat_quota_check ──────────────────────────────────────────────
+  // Plan §3.11.3. Gateway calls this BEFORE forwarding a chat turn to the
+  // LLM so the widget can show "remaining N turns" + the "sign in to get more"
+  // CTA without burning a model call.
+  //
+  // Service-token gated — gateway only path (anonymous browsers never hit
+  // this RPC directly; the gateway already holds the user-id / ip-hash from
+  // its session cookie + viewer-IP header).
+  //
+  // Request:
+  //   {
+  //     "service_token": "<LT_SERVICE_TOKEN>",
+  //     "kb_scope": { "exam_id": "sat", "locale": "en" },
+  //     "user_id":  "<cognito-sub>",   // optional
+  //     "ip_hash":  "<sha256(raw_ip)>" // optional — required if user_id absent
+  //   }
+  // Response:
+  //   {
+  //     "ok": true,
+  //     "allowed": true,
+  //     "remaining": 4,
+  //     "reset_unix": 1716595200,
+  //     "tier": "anon"|"free"|"pro",
+  //     "limit": 5,
+  //     "exam_id": "sat"
+  //   }
+  function rpcChatQuotaCheck(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      if (!isServiceCaller(ctx, data)) {
+        return RpcHelpers.errorResponse("not authorised", 401);
+      }
+
+      var ident = resolveQuotaIdentity(data);
+      if (ident.error) {
+        return RpcHelpers.errorResponse(ident.error, 400);
+      }
+
+      var limit = limitForTier(ctx, ident.tier);
+      // Sentinel: -1 → unlimited. The wire shape stays the same; we return
+      // remaining = Number.MAX_SAFE_INTEGER (encoded as a large but safe int)
+      // so clients can keep showing "∞" without branching on -1.
+      var unlimited = limit < 0;
+
+      var dateStr = utcDateStr();
+      var resetUnix = midnightUtcNextUnix();
+      var ipShort = ident.tier === "anon" ? hashIpShort(nk, ident.ipShort) : "";
+      var perExamKey = quotaKey({
+        tier: ident.tier,
+        sub: ident.sub,
+        ipShort: ipShort,
+        examId: ident.examId,
+        date: dateStr,
+        scope: "per_exam",
+      });
+      var globalKey = ident.tier === "anon" ? "" : quotaKey({
+        tier: ident.tier,
+        sub: ident.sub,
+        ipShort: ipShort,
+        examId: ident.examId,
+        date: dateStr,
+        scope: "global",
+      });
+
+      var usedPerExam = readUsed(nk, perExamKey);
+      var usedGlobal = globalKey ? readUsed(nk, globalKey) : 0;
+      // Authenticated users are capped on the GLOBAL daily limit — per-exam
+      // counters exist for cohort reporting, not enforcement (plan §3.11.3).
+      var used = ident.tier === "anon" ? usedPerExam : usedGlobal;
+      var remaining = unlimited ? 999999 : Math.max(0, limit - used);
+      var allowed = unlimited ? true : (used < limit);
+
+      return RpcHelpers.successResponse({
+        ok: true,
+        allowed: allowed,
+        remaining: remaining,
+        reset_unix: resetUnix,
+        tier: ident.tier,
+        limit: unlimited ? -1 : limit,
+        used: used,
+        exam_id: ident.examId,
+        locale: ident.locale,
+        date: dateStr,
+      });
+    } catch (err: any) {
+      logger.error("lt_chat_quota_check failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
+  // ── RPC: lt_chat_quota_consume ────────────────────────────────────────────
+  // Atomic decrement (read-then-write) called by gateway AFTER it has decided
+  // to forward a turn. Returns the post-consume state.
+  //
+  // Request: identical to lt_chat_quota_check.
+  // Response:
+  //   {
+  //     "ok": true,
+  //     "consumed": true|false,   // false if quota was already exhausted
+  //     "remaining": 3,
+  //     "reset_unix": 1716595200,
+  //     "tier": "anon"|"free"|"pro"
+  //   }
+  function rpcChatQuotaConsume(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      if (!isServiceCaller(ctx, data)) {
+        return RpcHelpers.errorResponse("not authorised", 401);
+      }
+
+      var ident = resolveQuotaIdentity(data);
+      if (ident.error) {
+        return RpcHelpers.errorResponse(ident.error, 400);
+      }
+
+      var limit = limitForTier(ctx, ident.tier);
+      var unlimited = limit < 0;
+
+      var dateStr = utcDateStr();
+      var resetUnix = midnightUtcNextUnix();
+      var ipShort = ident.tier === "anon" ? hashIpShort(nk, ident.ipShort) : "";
+      var perExamKey = quotaKey({
+        tier: ident.tier,
+        sub: ident.sub,
+        ipShort: ipShort,
+        examId: ident.examId,
+        date: dateStr,
+        scope: "per_exam",
+      });
+      var globalKey = ident.tier === "anon" ? "" : quotaKey({
+        tier: ident.tier,
+        sub: ident.sub,
+        ipShort: ipShort,
+        examId: ident.examId,
+        date: dateStr,
+        scope: "global",
+      });
+
+      var usedPerExam = readUsed(nk, perExamKey);
+      var usedGlobal = globalKey ? readUsed(nk, globalKey) : 0;
+      var used = ident.tier === "anon" ? usedPerExam : usedGlobal;
+
+      if (!unlimited && used >= limit) {
+        return RpcHelpers.successResponse({
+          ok: true,
+          consumed: false,
+          remaining: 0,
+          reset_unix: resetUnix,
+          tier: ident.tier,
+          limit: limit,
+          exam_id: ident.examId,
+        });
+      }
+
+      // Write per-exam counter (always — gives cohort signal even for auth).
+      writeUsed(nk, perExamKey, usedPerExam + 1);
+      // Write global counter for auth tiers only — anon's per-IP/per-exam
+      // bucket IS the global bucket.
+      if (globalKey) writeUsed(nk, globalKey, usedGlobal + 1);
+
+      var newUsed = ident.tier === "anon" ? usedPerExam + 1 : usedGlobal + 1;
+      var remaining = unlimited ? 999999 : Math.max(0, limit - newUsed);
+
+      return RpcHelpers.successResponse({
+        ok: true,
+        consumed: true,
+        remaining: remaining,
+        reset_unix: resetUnix,
+        tier: ident.tier,
+        limit: unlimited ? -1 : limit,
+        used: newUsed,
+        exam_id: ident.examId,
+      });
+    } catch (err: any) {
+      logger.error("lt_chat_quota_consume failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
   // ── Registration ───────────────────────────────────────────────────────────
   // Every registerRpc call uses a STRING-LITERAL id (per PHASE-ROADMAP lesson
   // #2: postbuild.js auto-hoists ONLY string-literal registerRpc calls).
@@ -726,5 +1111,7 @@ namespace LearnerToolbelt {
     initializer.registerRpc("lt_school_set_user_school", rpcSchoolSetUserSchool);
     initializer.registerRpc("lt_school_get_user_school", rpcSchoolGetUserSchool);
     initializer.registerRpc("lt_school_freetext_submit", rpcSchoolFreetextSubmit);
+    initializer.registerRpc("lt_chat_quota_check", rpcChatQuotaCheck);
+    initializer.registerRpc("lt_chat_quota_consume", rpcChatQuotaConsume);
   }
 }

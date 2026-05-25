@@ -12629,6 +12629,23 @@ var IdentityResolver;
 //   lt_school_get_detail) — no auth.
 // • Service-only RPCs accept either (a) ctx.userId from a Nakama session,
 //   or (b) service_token + user_id in payload matching ctx.env["LT_SERVICE_TOKEN"].
+// RPCs registered (15)
+// --------------------
+//   lt_score_predict                  service-only (auth) — § 3 of plan
+//   lt_exam_countdown_get             service-only        — § 4 of plan
+//   lt_exam_countdown_set             service-only        — § 4 of plan
+//   lt_exam_countdown_clear           service-only        — § 4 of plan
+//   lt_exam_calendar_get              public (anonymous OK)— § 4.5
+//   lt_gpa_compute                    public               — § 5 stateless
+//   lt_gpa_save                       service-only        — § 5
+//   lt_gpa_get                        service-only        — § 5
+//   lt_school_search                  public               — § 6
+//   lt_school_get_detail              public               — § 6
+//   lt_school_set_user_school         service-only        — § 6
+//   lt_school_get_user_school         service-only        — § 6
+//   lt_school_freetext_submit         service-only        — § 6
+//   lt_chat_quota_check               service-only        — § 3.11 (anon/auth/pro tier)
+//   lt_chat_quota_consume             service-only        — § 3.11 (atomic decrement)
 //
 // Storage shapes (real now)
 // -------------------------
@@ -12641,6 +12658,15 @@ var IdentityResolver;
 // Quiz-history source: `quiz_results` collection (legacy, see
 // src/legacy/quiz.ts). Each row is `result_<userId>_<unix>` with shape
 // { score, totalQuestions, correctAnswers, category, timestamp }.
+// Storage shapes (defined here, populated in wave 4-5)
+// ----------------------------------------------------
+//   collection: "qv_lt_school"      key: "current"  → UserSchoolRecord
+//   collection: "qv_lt_countdown"   key: "doc"      → ExamCountdownDoc
+//   collection: "qv_lt_gpa"         key: "current"  → GpaSnapshot
+//   collection: "qv_lt_predictor_context" key: "<exam_id>" → PredictorContextBlock
+//   collection: "qv_lt_school_pending" key: "<provisional_id>" → freetext queue
+//   collection: "qv_lt_chat_quota"   key: see § 3.11.3       → ChatQuotaRecord
+// All permissionRead/Write = 0 (server-only).
 var LearnerToolbelt;
 (function (LearnerToolbelt) {
     // ── Constants ──────────────────────────────────────────────────────────────
@@ -12655,6 +12681,28 @@ var LearnerToolbelt;
     var MAX_PREDICT_WINDOW_DAYS = 365;
     var MAX_HISTORY_ROWS = 200;
     var MAX_COUNTDOWN_ENTRIES = 20;
+    var COLLECTION_CHAT_QUOTA = "qv_lt_chat_quota";
+    var ANALYTICS_GAME_ID = "quizverse";
+    var SKELETON_PHASE = "skeleton-A";
+    var MODULE_VERSION = "learner-toolbelt/0.2.0";
+    // ── Chat-quota limits (plan §3.11) ─────────────────────────────────────────
+    // Defaults below match PLAN-LEARNER_TOOLBELT.md §3.11.1. Each may be
+    // overridden at runtime via ctx.env.LT_QUOTA_<NAME> (lifted into k8s
+    // deploy config to support promo bursts / penny-cost A-B tests without a
+    // rebuild). Predictor caps are kept here for the parallel anon-tier
+    // predictor RPC even though the consumer for predictor quota lands in a
+    // later PR — staging the constant here means consumers can read the
+    // canonical value via lt_chat_quota_check's diagnostics shape.
+    var DEFAULT_QUOTA_ANON_PREDICTOR_PER_DAY = 3;
+    var DEFAULT_QUOTA_ANON_CHAT_PER_DAY = 5;
+    var DEFAULT_QUOTA_AUTH_PREDICTOR_PER_DAY = -1; // -1 sentinel = unlimited
+    var DEFAULT_QUOTA_AUTH_CHAT_PER_DAY = 30;
+    var DEFAULT_QUOTA_PRO_CHAT_PER_DAY = 200;
+    // Cognito sub format — base-36 / hex / uuid-ish. We accept anything that
+    // looks like a non-trivial token. Strict format checks happen at the
+    // gateway; this RPC just gates the "is the supplied user_id plausible"
+    // path before reading the per-exam ledger.
+    var COGNITO_SUB_RE = /^[A-Za-z0-9_\-:.]{8,128}$/;
     // ── Helpers ────────────────────────────────────────────────────────────────
     function nowSec() {
         return Math.floor(Date.now() / 1000);
@@ -12681,6 +12729,140 @@ var LearnerToolbelt;
             return { userId: "", error: "user_id required for service caller", code: 400 };
         }
         return { userId: u };
+    }
+    // Stub envelope — same shape Wave 4-5 will return at status: "ok".
+    // Front-ends (web routes, gateway ToolDispatcher) MUST be tolerant of
+    // status: "not_implemented" so they can ship before the algos land.
+    function stubResponse(rpcId, extra) {
+        var body = {
+            ok: true,
+            status: "not_implemented",
+            phase: SKELETON_PHASE,
+            rpc: rpcId,
+            module_version: LearnerToolbelt.MODULE_VERSION,
+            generated_unix: nowSec(),
+        };
+        if (extra) {
+            for (var k in extra) {
+                if (Object.prototype.hasOwnProperty.call(extra, k))
+                    body[k] = extra[k];
+            }
+        }
+        return RpcHelpers.successResponse(body);
+    }
+    // ── Quota helpers (§3.11) ──────────────────────────────────────────────────
+    //
+    // The reset window is the wall-clock UTC date (YYYY-MM-DD). Keys naturally
+    // expire at 00:00 UTC because the next call lands under a new date string.
+    // We do NOT set a Nakama-side TTL — storage cleanup is a future cron job.
+    //
+    // Three identity buckets:
+    //   anon → key = ip:<sha-truncated>:<date>:<exam_id>
+    //   auth → TWO keys:
+    //          (1) user:<sub>:<date>           — global per-day cap
+    //          (2) user:<sub>:<date>:<exam_id> — per-exam visibility for
+    //                                             cohort dashboards
+    //
+    // tier resolution:
+    //   user_id supplied + matches COGNITO_SUB_RE → "free" (Phase A)
+    //   ip_hash only                              → "anon"
+    //   "pro" detection deferred to Phase D — we always return "free" for
+    //   authenticated users until billing wires up
+    function getQuotaLimit(ctx, envKey, fallback) {
+        var raw = ctx.env && ctx.env[envKey];
+        if (!raw)
+            return fallback;
+        var parsed = parseInt("" + raw, 10);
+        if (isNaN(parsed))
+            return fallback;
+        return parsed;
+    }
+    function utcDateStr() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    function midnightUtcNextUnix() {
+        var d = new Date();
+        var next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0);
+        return Math.floor(next / 1000);
+    }
+    function hashIpShort(nk, ipHash) {
+        // The CALLER (gateway) is responsible for the first sha256 over the raw
+        // IP — we never see the raw IP. We re-hash here so storage keys are not
+        // a 1:1 mapping back to whatever the gateway hashed (defence-in-depth).
+        try {
+            var h = nk.sha256Hash(ipHash);
+            return h.slice(0, 16);
+        }
+        catch (_e) {
+            // Fallback: keep first 16 chars of whatever the gateway passed.
+            return ("" + ipHash).slice(0, 16);
+        }
+    }
+    function quotaKey(args) {
+        if (args.tier === "anon") {
+            return "ip:" + args.ipShort + ":" + args.date + ":" + args.examId;
+        }
+        if (args.scope === "global") {
+            return "user:" + args.sub + ":" + args.date;
+        }
+        return "user:" + args.sub + ":" + args.date + ":" + args.examId;
+    }
+    function readUsed(nk, key) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: COLLECTION_CHAT_QUOTA,
+                    key: key,
+                    userId: Constants.SYSTEM_USER_ID,
+                }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                var v = rows[0].value;
+                var used = parseInt("" + (v.used || 0), 10);
+                return isNaN(used) ? 0 : used;
+            }
+        }
+        catch (_e) { /* empty bucket */ }
+        return 0;
+    }
+    function writeUsed(nk, key, used) {
+        nk.storageWrite([{
+                collection: COLLECTION_CHAT_QUOTA,
+                key: key,
+                userId: Constants.SYSTEM_USER_ID,
+                value: { used: used, updated_unix: nowSec() },
+                permissionRead: 0,
+                permissionWrite: 0,
+            }]);
+    }
+    function resolveQuotaIdentity(data) {
+        var kbScope = data && data.kb_scope ? data.kb_scope : {};
+        var examId = "" + (kbScope.exam_id || data.exam_id || "");
+        var locale = "" + (kbScope.locale || data.locale || "en");
+        var userId = "" + (data.user_id || "");
+        var ipHash = "" + (data.ip_hash || "");
+        if (!examId) {
+            return { tier: "anon", sub: "", ipShort: "", examId: "", locale: locale, error: "kb_scope.exam_id required" };
+        }
+        if (userId) {
+            if (!COGNITO_SUB_RE.test(userId)) {
+                return { tier: "anon", sub: "", ipShort: "", examId: examId, locale: locale, error: "invalid user_id format" };
+            }
+            // Phase A: every authenticated caller is "free". Phase D will compare
+            // user_id against the billing entitlement store and promote to "pro".
+            return { tier: "free", sub: userId, ipShort: "", examId: examId, locale: locale };
+        }
+        if (ipHash) {
+            return { tier: "anon", sub: "", ipShort: ipHash, examId: examId, locale: locale };
+        }
+        return { tier: "anon", sub: "", ipShort: "", examId: examId, locale: locale, error: "missing_identity" };
+    }
+    function limitForTier(ctx, tier) {
+        if (tier === "anon") {
+            return getQuotaLimit(ctx, "LT_QUOTA_ANON_CHAT_PER_DAY", DEFAULT_QUOTA_ANON_CHAT_PER_DAY);
+        }
+        if (tier === "pro") {
+            return getQuotaLimit(ctx, "LT_QUOTA_PRO_CHAT_PER_DAY", DEFAULT_QUOTA_PRO_CHAT_PER_DAY);
+        }
+        return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
     }
     function emitAnalytics(nk, logger, userId, eventName, properties) {
         try {
@@ -13257,6 +13439,173 @@ var LearnerToolbelt;
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
+    // ── RPC: lt_chat_quota_check ──────────────────────────────────────────────
+    // Plan §3.11.3. Gateway calls this BEFORE forwarding a chat turn to the
+    // LLM so the widget can show "remaining N turns" + the "sign in to get more"
+    // CTA without burning a model call.
+    //
+    // Service-token gated — gateway only path (anonymous browsers never hit
+    // this RPC directly; the gateway already holds the user-id / ip-hash from
+    // its session cookie + viewer-IP header).
+    //
+    // Request:
+    //   {
+    //     "service_token": "<LT_SERVICE_TOKEN>",
+    //     "kb_scope": { "exam_id": "sat", "locale": "en" },
+    //     "user_id":  "<cognito-sub>",   // optional
+    //     "ip_hash":  "<sha256(raw_ip)>" // optional — required if user_id absent
+    //   }
+    // Response:
+    //   {
+    //     "ok": true,
+    //     "allowed": true,
+    //     "remaining": 4,
+    //     "reset_unix": 1716595200,
+    //     "tier": "anon"|"free"|"pro",
+    //     "limit": 5,
+    //     "exam_id": "sat"
+    //   }
+    function rpcChatQuotaCheck(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised", 401);
+            }
+            var ident = resolveQuotaIdentity(data);
+            if (ident.error) {
+                return RpcHelpers.errorResponse(ident.error, 400);
+            }
+            var limit = limitForTier(ctx, ident.tier);
+            // Sentinel: -1 → unlimited. The wire shape stays the same; we return
+            // remaining = Number.MAX_SAFE_INTEGER (encoded as a large but safe int)
+            // so clients can keep showing "∞" without branching on -1.
+            var unlimited = limit < 0;
+            var dateStr = utcDateStr();
+            var resetUnix = midnightUtcNextUnix();
+            var ipShort = ident.tier === "anon" ? hashIpShort(nk, ident.ipShort) : "";
+            var perExamKey = quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "per_exam",
+            });
+            var globalKey = ident.tier === "anon" ? "" : quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "global",
+            });
+            var usedPerExam = readUsed(nk, perExamKey);
+            var usedGlobal = globalKey ? readUsed(nk, globalKey) : 0;
+            // Authenticated users are capped on the GLOBAL daily limit — per-exam
+            // counters exist for cohort reporting, not enforcement (plan §3.11.3).
+            var used = ident.tier === "anon" ? usedPerExam : usedGlobal;
+            var remaining = unlimited ? 999999 : Math.max(0, limit - used);
+            var allowed = unlimited ? true : (used < limit);
+            return RpcHelpers.successResponse({
+                ok: true,
+                allowed: allowed,
+                remaining: remaining,
+                reset_unix: resetUnix,
+                tier: ident.tier,
+                limit: unlimited ? -1 : limit,
+                used: used,
+                exam_id: ident.examId,
+                locale: ident.locale,
+                date: dateStr,
+            });
+        }
+        catch (err) {
+            logger.error("lt_chat_quota_check failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: lt_chat_quota_consume ────────────────────────────────────────────
+    // Atomic decrement (read-then-write) called by gateway AFTER it has decided
+    // to forward a turn. Returns the post-consume state.
+    //
+    // Request: identical to lt_chat_quota_check.
+    // Response:
+    //   {
+    //     "ok": true,
+    //     "consumed": true|false,   // false if quota was already exhausted
+    //     "remaining": 3,
+    //     "reset_unix": 1716595200,
+    //     "tier": "anon"|"free"|"pro"
+    //   }
+    function rpcChatQuotaConsume(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised", 401);
+            }
+            var ident = resolveQuotaIdentity(data);
+            if (ident.error) {
+                return RpcHelpers.errorResponse(ident.error, 400);
+            }
+            var limit = limitForTier(ctx, ident.tier);
+            var unlimited = limit < 0;
+            var dateStr = utcDateStr();
+            var resetUnix = midnightUtcNextUnix();
+            var ipShort = ident.tier === "anon" ? hashIpShort(nk, ident.ipShort) : "";
+            var perExamKey = quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "per_exam",
+            });
+            var globalKey = ident.tier === "anon" ? "" : quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "global",
+            });
+            var usedPerExam = readUsed(nk, perExamKey);
+            var usedGlobal = globalKey ? readUsed(nk, globalKey) : 0;
+            var used = ident.tier === "anon" ? usedPerExam : usedGlobal;
+            if (!unlimited && used >= limit) {
+                return RpcHelpers.successResponse({
+                    ok: true,
+                    consumed: false,
+                    remaining: 0,
+                    reset_unix: resetUnix,
+                    tier: ident.tier,
+                    limit: limit,
+                    exam_id: ident.examId,
+                });
+            }
+            // Write per-exam counter (always — gives cohort signal even for auth).
+            writeUsed(nk, perExamKey, usedPerExam + 1);
+            // Write global counter for auth tiers only — anon's per-IP/per-exam
+            // bucket IS the global bucket.
+            if (globalKey)
+                writeUsed(nk, globalKey, usedGlobal + 1);
+            var newUsed = ident.tier === "anon" ? usedPerExam + 1 : usedGlobal + 1;
+            var remaining = unlimited ? 999999 : Math.max(0, limit - newUsed);
+            return RpcHelpers.successResponse({
+                ok: true,
+                consumed: true,
+                remaining: remaining,
+                reset_unix: resetUnix,
+                tier: ident.tier,
+                limit: unlimited ? -1 : limit,
+                used: newUsed,
+                exam_id: ident.examId,
+            });
+        }
+        catch (err) {
+            logger.error("lt_chat_quota_consume failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
     // ── Registration ───────────────────────────────────────────────────────────
     // Every registerRpc call uses a STRING-LITERAL id (per PHASE-ROADMAP lesson
     // #2: postbuild.js auto-hoists ONLY string-literal registerRpc calls).
@@ -13274,6 +13623,8 @@ var LearnerToolbelt;
         initializer.registerRpc("lt_school_set_user_school", rpcSchoolSetUserSchool);
         initializer.registerRpc("lt_school_get_user_school", rpcSchoolGetUserSchool);
         initializer.registerRpc("lt_school_freetext_submit", rpcSchoolFreetextSubmit);
+        initializer.registerRpc("lt_chat_quota_check", rpcChatQuotaCheck);
+        initializer.registerRpc("lt_chat_quota_consume", rpcChatQuotaConsume);
     }
     LearnerToolbelt.register = register;
 })(LearnerToolbelt || (LearnerToolbelt = {}));
@@ -14617,6 +14968,418 @@ var LearnerToolbelt;
     }
     LearnerToolbelt.getSchoolById = getSchoolById;
 })(LearnerToolbelt || (LearnerToolbelt = {}));
+// per-exam-config.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// QuizVerse Learner Toolbelt — per-exam predictor configuration table.
+//
+// This table is the dispatcher metadata consumed by lt_score_predict so that
+// every USA + India high-volume exam returns the right { method, phase,
+// score_range } envelope BEFORE the wave-4/5 algorithm work lands. Web routes
+// (Wave-3) and the gateway ToolDispatcher (Wave-6) wire against this contract
+// and never need to change again once individual algorithms ship.
+//
+// Plan source of truth:
+//   intelliverse-x-games-platform-2/games/quiz-verse/Docs/plans/
+//     PLAN-LEARNER_TOOLBELT.md  §3.10 (per-exam coverage matrix)
+//                               §12   (Firecrawl-verified citations)
+//
+// Coverage (21 exams)
+// -------------------
+//   USA (10):  sat · act · ap_exams · psat · gre · gmat · mcat · lsat ·
+//              amc · bar_exam
+//   IN  (11):  jee_main · jee_advanced · neet · cat · gate · upsc_cse ·
+//              clat · cuet · nda · ssc_cgl · rbi_grade_b
+//
+// Phase labelling (per PLAN-LEARNER_TOOLBELT §3.10):
+//   A — Week-4 launch    (SAT, AP Bio/Calc, JEE Main, JEE Advanced, NEET)
+//   B — Weeks 5-8        (ACT, PSAT, GRE, GMAT, +remaining AP × 36, CAT,
+//                         GATE, UPSC, CLAT, CUET)
+//   C — Q4 2026          (MCAT, LSAT, AMC, Bar, NDA, SSC CGL, RBI Grade-B)
+//
+// Long-tail exams not in this table fall through to the Bayes fallback
+// predictor (method: 'bayes-fallback') — so the predictor is NEVER silent.
+//
+// Use TypeScript namespaces here (NOT ES modules) because the modules/
+// tsconfig outputs a single concatenated bundle (outFile mode). Every public
+// symbol must live under a namespace to participate in the global scope the
+// Nakama Goja runtime sees at boot.
+var PerExamConfig;
+(function (PerExamConfig) {
+    // ── 21 supported exams (USA × 10 + India × 11) ───────────────────────────
+    PerExamConfig.CONFIG = {
+        // ============================================================== USA (10)
+        sat: {
+            method: 'irt-2pl',
+            phase: 'A',
+            countryDefault: 'US',
+            scoreRange: [400, 1600],
+            sections: [
+                { id: 'math', max: 800 },
+                { id: 'reading_writing', max: 800 },
+            ],
+            citations: [
+                'https://satsuite.collegeboard.org/scores/what-scores-mean/how-scores-calculated',
+                'https://mathchops.substack.com/p/item-response-theory-and-the-digital-sat',
+                'https://mindfish.com/blog/what-is-item-response-theory/',
+            ],
+            goalTiers: ['ivy', 't20', 't50', 'state-flagship', 'community-college'],
+        },
+        act: {
+            method: 'concordance',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [1, 36],
+            sections: [
+                { id: 'english', max: 36 },
+                { id: 'math', max: 36 },
+                { id: 'reading', max: 36 },
+                { id: 'science', max: 36 },
+            ],
+            citations: [
+                'https://www.act.org/content/act/en/products-and-services/the-act/scores/act-sat-concordance.html',
+                'https://www.albert.io/blog/act-score-calculator/',
+                'https://test-ninjas.com/act-score-calculator',
+            ],
+            goalTiers: ['ivy', 't20', 't50', 'state-flagship', 'community-college'],
+        },
+        ap_exams: {
+            method: 'ap-composite',
+            phase: 'A',
+            countryDefault: 'US',
+            scoreRange: [1, 5],
+            // AP papers vary by subject but every paper has MCQ + FRQ. Per-subject
+            // section weights are looked up at runtime from the wave-5 ap-curves S3
+            // blob; the sections list here is the generic skeleton.
+            sections: [
+                { id: 'mcq', max: 100, weight: 0.5 },
+                { id: 'frq', max: 100, weight: 0.5 },
+            ],
+            citations: [
+                'https://test-ninjas.com/ap-score-calculators',
+                'https://www.albert.io/blog/ap-calculus-bc-score-calculator/',
+                'https://knowt.com/exams/AP/score-calculator',
+            ],
+            goalTiers: ['5', '4', '3', '2', '1'],
+        },
+        psat: {
+            method: 'irt-2pl',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [320, 1520],
+            sections: [
+                { id: 'math', max: 760 },
+                { id: 'reading_writing', max: 760 },
+            ],
+            citations: [
+                'https://satsuite.collegeboard.org/scores/what-scores-mean/how-scores-calculated',
+                'https://mindfish.com/blog/what-is-item-response-theory/',
+            ],
+            goalTiers: ['national-merit', 'commended', 'state-recognized', 'practice'],
+        },
+        gre: {
+            method: 'irt-section-adaptive',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [130, 170],
+            sections: [
+                { id: 'verbal', max: 170 },
+                { id: 'quant', max: 170 },
+                { id: 'awa', max: 6 },
+            ],
+            citations: [
+                'https://magoosh.com/gre/score-calculator-how-to-predict-your-gre-score/',
+                'https://www.kaptest.com/study/gre/gre-score-predictor-whats-your-gre-score/',
+                'https://www.prepscholar.com/gre/blog/gre-score-range/',
+            ],
+            goalTiers: ['t10-grad', 't25-grad', 't50-grad', 'regional-grad'],
+        },
+        gmat: {
+            method: 'irt-focus-edition',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [205, 805],
+            sections: [
+                { id: 'quant', max: 90 },
+                { id: 'verbal', max: 90 },
+                { id: 'data_insights', max: 90 },
+            ],
+            citations: [
+                'https://test-ninjas.com/gmat-focus-edition-score-calculator',
+                'https://www.gmac.com/gmat-other-assessments/about-the-gmat-focus-edition/exam-scores',
+                'https://gmat.targettestprep.com/gmat_focus_score_chart_and_calculator',
+            ],
+            goalTiers: ['m7', 't10-mba', 't25-mba', 't50-mba', 'regional-mba'],
+        },
+        mcat: {
+            method: 'percentile-4section',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [472, 528],
+            sections: [
+                { id: 'cpbs', max: 132 }, // Chem/Phys Bio Systems
+                { id: 'cars', max: 132 }, // Critical Analysis/Reasoning
+                { id: 'bbls', max: 132 }, // Bio/Biochem Living Systems
+                { id: 'psbb', max: 132 }, // Psych/Soc Behaviour
+            ],
+            citations: [
+                'https://bootcamp.com/mcat/mcat-score-calculator',
+                'https://www.kaptest.com/study/mcat/whats-a-good-mcat-score/',
+                'https://www.reddit.com/r/Mcat/comments/uwmkow/comprehensive_mcat_score_prediction_tool/',
+            ],
+            goalTiers: ['t10-med', 't25-med', 't50-med', 'do-school', 'caribbean'],
+        },
+        lsat: {
+            method: 'raw-to-scaled-120-180',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [120, 180],
+            sections: [
+                { id: 'logical_reasoning', max: 25 },
+                { id: 'reading_comprehension', max: 27 },
+                { id: 'analytical_reasoning', max: 23 },
+            ],
+            citations: [
+                'https://7sage.com/lsat-resources/lsat-score-calculator',
+                'https://magoosh.com/lsat/lsat-score-conversion-table/',
+            ],
+            goalTiers: ['t14-law', 't50-law', 't100-law', 'regional-law'],
+        },
+        amc: {
+            method: 'cutoff-band',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [0, 150],
+            sections: [
+                { id: 'amc_10_12', max: 150 },
+                { id: 'aime', max: 15 },
+            ],
+            citations: [
+                'https://maa.org/news/2025-26-aime-thresholds-are-now-available/',
+                'https://artofproblemsolving.com/wiki/index.php/AMC_historical_results',
+            ],
+            goalTiers: ['usamo', 'usajmo', 'aime-qual', 'amc-distinguished', 'participant'],
+        },
+        bar_exam: {
+            method: 'mbe-mee-mpt-composite',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [200, 400],
+            sections: [
+                { id: 'mbe', max: 200, weight: 0.5 },
+                { id: 'mee', max: 200, weight: 0.3 },
+                { id: 'mpt', max: 200, weight: 0.2 },
+            ],
+            citations: [
+                'https://www.ncbex.org/exams/ube/ube-minimum-scores',
+                'https://jdadvising.com/what-mbe-raw-score-is-passing/',
+            ],
+            goalTiers: ['pass-strict-280', 'pass-typical-266-275', 'pass-low-260', 'fail'],
+        },
+        // ============================================================== IN  (11)
+        jee_main: {
+            method: 'nta-percentile-to-air',
+            phase: 'A',
+            countryDefault: 'IN',
+            scoreRange: [0, 300],
+            sections: [
+                { id: 'physics', max: 100 },
+                { id: 'chemistry', max: 100 },
+                { id: 'mathematics', max: 100 },
+            ],
+            citations: [
+                'https://www.vedantu.com/jee-main/rank-predictor',
+                'https://allen.in/jee-main/percentile-predictor',
+                'https://cracku.in/jee-advanced-score-calculator',
+            ],
+            goalTiers: ['iit-eligible', 'nit-top10', 'nit', 'iiit', 'gfti', 'private'],
+        },
+        jee_advanced: {
+            method: 'marks-vs-rank-curve',
+            phase: 'A',
+            countryDefault: 'IN',
+            scoreRange: [0, 360],
+            sections: [
+                { id: 'paper1_physics', max: 60 },
+                { id: 'paper1_chemistry', max: 60 },
+                { id: 'paper1_mathematics', max: 60 },
+                { id: 'paper2_physics', max: 60 },
+                { id: 'paper2_chemistry', max: 60 },
+                { id: 'paper2_mathematics', max: 60 },
+            ],
+            citations: [
+                'https://my.newtonschool.co/jee-college-predictor-by-iit-roorkee-alumni-and-nst-students/jee-college-predictor',
+                'https://cracku.in/jee-advanced-score-calculator',
+            ],
+            goalTiers: ['iit-bombay-cs', 'iit-top5', 'iit-newer', 'iiser'],
+        },
+        neet: {
+            method: 'nta-percentile-to-air',
+            phase: 'A',
+            countryDefault: 'IN',
+            scoreRange: [0, 720],
+            sections: [
+                { id: 'physics', max: 180 },
+                { id: 'chemistry', max: 180 },
+                { id: 'biology', max: 360 }, // Botany + Zoology combined
+            ],
+            citations: [
+                'https://www.vedantu.com/jee-main/rank-predictor',
+                'https://allen.in/jee-main/percentile-predictor',
+            ],
+            goalTiers: ['aiims-delhi', 'aiims-other', 'jipmer', 'state-govt-mbbs', 'private-mbbs', 'bds'],
+        },
+        cat: {
+            method: 'section-percentile-to-oa',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 198],
+            sections: [
+                { id: 'varc', max: 66 },
+                { id: 'dilr', max: 66 },
+                { id: 'qa', max: 66 },
+            ],
+            citations: [
+                'https://cracku.in/iim-call-predictor',
+                'https://www.toprankers.com/cat-cut-off-for-iim',
+            ],
+            goalTiers: ['iim-abc', 'iim-blackjack', 'new-iim', 'tier1-private', 'tier2-private'],
+        },
+        gate: {
+            method: 'gate-score-formula',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 1000],
+            sections: [
+                { id: 'general_aptitude', max: 15 },
+                { id: 'engineering_math', max: 13 },
+                { id: 'subject', max: 72 },
+            ],
+            citations: [
+                'https://margdarshanprep.com/Collegepredictor/collegepredictor.html',
+                'https://testbook.com/gate/minimum-gate-score-for-iit',
+            ],
+            goalTiers: ['iit-mtech', 'iisc', 'nit-mtech', 'psu-recruitment', 'phd-eligible'],
+        },
+        upsc_cse: {
+            method: 'prelims-cutoff-band',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 200],
+            sections: [
+                { id: 'gs_paper_1', max: 200 },
+                { id: 'csat_paper_2', max: 200 }, // qualifying (33%)
+            ],
+            citations: [
+                'https://www.pw.live/upsc/exams/upsc-prelims-expected-cut-off-2026',
+                'https://www.nextias.com/prelims-cut-off-predictor',
+            ],
+            goalTiers: ['ias', 'ips', 'ifs', 'irs', 'group-b'],
+        },
+        clat: {
+            method: 'marks-to-nlu-rank',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 150],
+            sections: [
+                { id: 'english', max: 30 },
+                { id: 'gk_current_affairs', max: 38 },
+                { id: 'legal_reasoning', max: 38 },
+                { id: 'logical_reasoning', max: 28 },
+                { id: 'quantitative_techniques', max: 16 },
+            ],
+            citations: [
+                'https://law.careers360.com/clat-college-predictor',
+                'https://www.clatnlti.com/blog-details/397/clat-2026-marks-cut-off-expected-cut-off-for-top-nlus',
+            ],
+            goalTiers: ['nlsiu-bangalore', 'nalsar-nujs', 'top5-nlu', 'top10-nlu', 'other-nlu', 'private-law'],
+        },
+        cuet: {
+            method: 'nta-percentile-multisubject',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 800],
+            sections: [
+                { id: 'language', max: 200 },
+                { id: 'domain_1', max: 200 },
+                { id: 'domain_2', max: 200 },
+                { id: 'general_test', max: 200 },
+            ],
+            citations: [
+                'https://collegedunia.com/articles/e-1361-cuet-2026-rank-predictor',
+                'https://university.careers360.com/articles/cuet-cut-off',
+            ],
+            goalTiers: ['du', 'jnu', 'bhu', 'central-univ', 'state-univ'],
+        },
+        nda: {
+            method: 'written-cutoff-only',
+            phase: 'C',
+            countryDefault: 'IN',
+            scoreRange: [0, 900],
+            sections: [
+                { id: 'mathematics', max: 300 },
+                { id: 'gat_general_ability', max: 600 },
+            ],
+            citations: [
+                'https://ncaacademy.com/cds-cut-off-marks-2026-entry-wise-expected-cutoff/',
+            ],
+            goalTiers: ['ssb-qualifying', 'army', 'navy', 'air-force'],
+        },
+        ssc_cgl: {
+            method: 'tier-1-2-composite',
+            phase: 'C',
+            countryDefault: 'IN',
+            scoreRange: [0, 800],
+            sections: [
+                { id: 'tier_1', max: 200 },
+                { id: 'tier_2_paper_1', max: 450 }, // Quant + Reasoning + English
+                { id: 'tier_2_paper_2', max: 150 }, // Statistics (optional post-group)
+            ],
+            citations: [
+                'https://testbook.com/ssc-cgl-exam/rank-predictor',
+                'https://prepgrind.com/blog/ssc-cgl-expected-cutoff',
+            ],
+            goalTiers: ['group-a-inspector', 'group-b-assistant', 'group-c-auditor', 'lower-division'],
+        },
+        rbi_grade_b: {
+            method: 'phase-1-2-cutoff',
+            phase: 'C',
+            countryDefault: 'IN',
+            scoreRange: [0, 300],
+            sections: [
+                { id: 'phase_1', max: 200 },
+                { id: 'phase_2_paper_1', max: 100 }, // Economic & Social Issues
+                { id: 'phase_2_paper_2', max: 100 }, // English Writing
+                { id: 'phase_2_paper_3', max: 100 }, // Finance & Management
+            ],
+            citations: [
+                'https://www.oliveboard.in/rbi-grade-b-cut-off/',
+            ],
+            goalTiers: ['officer-general', 'depr', 'dsim'],
+        },
+    };
+    /** Returns the supported exam_id list (alphabetical) — used by /tools/score-predictor for the dropdown. */
+    function listSupportedExamIds() {
+        var ids = [];
+        for (var k in PerExamConfig.CONFIG) {
+            if (Object.prototype.hasOwnProperty.call(PerExamConfig.CONFIG, k))
+                ids.push(k);
+        }
+        ids.sort();
+        return ids;
+    }
+    PerExamConfig.listSupportedExamIds = listSupportedExamIds;
+    /** Returns the config for a given exam_id, or null if not in the supported set
+     *  (in which case the caller MUST fall through to the Bayes fallback). */
+    function lookup(examId) {
+        if (!examId)
+            return null;
+        if (Object.prototype.hasOwnProperty.call(PerExamConfig.CONFIG, examId)) {
+            return PerExamConfig.CONFIG[examId];
+        }
+        return null;
+    }
+    PerExamConfig.lookup = lookup;
+})(PerExamConfig || (PerExamConfig = {}));
 var LegacyAnalyticsRetention;
 (function (LegacyAnalyticsRetention) {
     function readAggStorage(nk, collection, key) {

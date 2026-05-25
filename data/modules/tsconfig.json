@@ -19,6 +19,7 @@
   ],
   "exclude": [
     "node_modules",
-    "build"
+    "build",
+    "src/**/__tests__/**"
   ]
 }
