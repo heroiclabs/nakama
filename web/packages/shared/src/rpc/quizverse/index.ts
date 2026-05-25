@@ -35,7 +35,7 @@ export interface CreatorEvent {
   created_at?: string;
   updated_at?: string;
 
-  source?: "quizverse_creator" | "satori";
+  source?: "quizverse_creator" | "satori_creator_events" | "live_events" | "satori";
   creator_id?: string;
   game_id?: string;
   game_mode?: "best_guess" | "speed_quiz" | "elimination";
@@ -111,7 +111,7 @@ export function listCreatorEvents(
   status?: "active" | "upcoming" | "ended" | "all",
 ): Promise<{ events: CreatorEvent[]; game_id: string }> {
   return callRpc(
-    "admin_satori_live_events_list",
+    "admin_creator_events_list",
     { game_id: gameId, status },
     opts,
   ).then((value) => unwrapData<{ events: CreatorEvent[]; game_id: string }>(value));

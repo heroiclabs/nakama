@@ -9654,6 +9654,194 @@ var AdminConsole;
             event: __assign(__assign({}, event), { storage_user_id: record.userId, storage_version: record.version, storage_create_time: isoFromSec(record.createTime), storage_update_time: isoFromSec(record.updateTime) })
         });
     }
+    /**
+     * Admin RPC: List ALL creator live events across the platform.
+     *
+     * Merges events from TWO collections:
+     * 1. `satori_creator_events` (system-scoped) — events created via `creator_event_create` RPC
+     * 2. `live_events` (SYSTEM_USER_ID owned) — events published via SPA/creator portal
+     *
+     * Supports filtering by:
+     * - `status`: draft | funded | published | live | ended | cancelled | distributed
+     * - `region`: global | india | usa | etc.
+     * - `creator_id`: filter by creator userId
+     * - `game_id`: filter by game (default: QuizVerse)
+     * - `limit`: max events to return (default: 100)
+     *
+     * Returns: { events: [...], total_count, sources: { satori_creator_events, live_events } }
+     */
+    function rpcAdminCreatorEventsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var filterStatus = data.status || null;
+        var filterRegion = data.region || null;
+        var filterCreatorId = data.creator_id || data.creatorId || null;
+        var filterGameId = data.game_id || data.gameId || null;
+        var limit = Math.min(data.limit || 100, 500);
+        var events = [];
+        var sourceCounts = { satori_creator_events: 0, live_events: 0 };
+        var seenIds = {};
+        var nowSec = Math.floor(Date.now() / 1000);
+        function computeEffectiveStatus(ev) {
+            if (ev.status === "cancelled" || ev.status === "distributed")
+                return ev.status;
+            if (ev.status === "draft" || ev.status === "funded")
+                return ev.status;
+            var startSec = ev.scheduledAt || ev.createdAt || 0;
+            var endSec = startSec + (ev.duration || 30) * 60;
+            if (nowSec < startSec)
+                return "published";
+            if (nowSec > endSec)
+                return "ended";
+            return "live";
+        }
+        function formatEvent(ev, source) {
+            var startSec = ev.scheduledAt || ev.createdAt || 0;
+            var endSec = startSec + (ev.duration || 30) * 60;
+            var effectiveStatus = computeEffectiveStatus(ev);
+            var rewardsJson = undefined;
+            if (ev.giftCardPrizes && ev.giftCardPrizes.tiers) {
+                rewardsJson = JSON.stringify(ev.giftCardPrizes.tiers.map(function (t) {
+                    return { type: t.brand || "prize", rank: t.rank, amount: t.value, currency: t.currency, label: t.prize };
+                }));
+            }
+            else if (ev.prizes && ev.prizes.length > 0) {
+                rewardsJson = JSON.stringify(ev.prizes);
+            }
+            else if (ev.prizePool > 0) {
+                rewardsJson = JSON.stringify([{ type: "xut", amount: ev.prizePool, currency: "XUT" }]);
+            }
+            return {
+                id: ev.id,
+                title: ev.title || "Untitled Event",
+                description: ev.description || "",
+                category: ev.category || "",
+                custom_topic: ev.customTopic || "",
+                game_mode: ev.gameMode || "best_guess",
+                difficulty: ev.difficulty || "challenge",
+                scheduled_at: startSec,
+                end_at: endSec,
+                duration_minutes: ev.duration || 30,
+                region: ev.region || "global",
+                timezone: ev.timezone || "UTC",
+                entry_fee: ev.entryFee || 0,
+                prize_pool: ev.prizePool || 0,
+                gift_card_prizes: ev.giftCardPrizes || null,
+                prize_funding: ev.prizeFunding || null,
+                rewards_json: rewardsJson,
+                creator_id: ev.creatorId || "",
+                creator_email: ev.creatorEmail || "",
+                game_id: ev.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+                status: effectiveStatus,
+                raw_status: ev.status,
+                participant_count: ev.participantCount || 0,
+                question_count: ev.questions ? ev.questions.length : 0,
+                clue_count: ev.clues ? ev.clues.length : 0,
+                promo_video_url: ev.promoVideoUrl || "",
+                recap_video_url: ev.recapVideoUrl || "",
+                deep_link_url: ev.deepLinkUrl || "",
+                visibility: ev.visibility || "public",
+                created_at: isoFromSec(ev.createdAt),
+                published_at: isoFromSec(ev.publishedAt),
+                ended_at: isoFromSec(ev.endedAt),
+                source: source
+            };
+        }
+        function matchesFilters(ev) {
+            var effectiveStatus = computeEffectiveStatus(ev);
+            if (filterStatus && effectiveStatus !== filterStatus)
+                return false;
+            if (filterRegion && (ev.region || "global") !== filterRegion)
+                return false;
+            if (filterCreatorId && ev.creatorId !== filterCreatorId)
+                return false;
+            if (filterGameId && ev.gameId && ev.gameId !== filterGameId)
+                return false;
+            return true;
+        }
+        // 1. Fetch from satori_creator_events (system-scoped via events_index)
+        try {
+            var indexRecords = nk.storageRead([{
+                    collection: "satori_creator_events",
+                    key: "events_index",
+                    userId: Constants.SYSTEM_USER_ID
+                }]);
+            if (indexRecords && indexRecords.length > 0 && indexRecords[0].value) {
+                var index = indexRecords[0].value;
+                var eventIds = index.eventIds || [];
+                for (var i = 0; i < eventIds.length && events.length < limit; i++) {
+                    var eventId = eventIds[i];
+                    if (seenIds[eventId])
+                        continue;
+                    try {
+                        var evRecords = nk.storageRead([{
+                                collection: "satori_creator_events",
+                                key: eventId,
+                                userId: Constants.SYSTEM_USER_ID
+                            }]);
+                        if (evRecords && evRecords.length > 0 && evRecords[0].value) {
+                            var ev = evRecords[0].value;
+                            if (matchesFilters(ev)) {
+                                events.push(formatEvent(ev, "satori_creator_events"));
+                                seenIds[eventId] = true;
+                                sourceCounts.satori_creator_events++;
+                            }
+                        }
+                    }
+                    catch (readErr) {
+                        logger.warn("[rpcAdminCreatorEventsList] Failed to read event %s: %s", eventId, readErr.message || String(readErr));
+                    }
+                }
+            }
+        }
+        catch (indexErr) {
+            logger.warn("[rpcAdminCreatorEventsList] Failed to read satori_creator_events index: %s", indexErr.message || String(indexErr));
+        }
+        // 2. Fetch from live_events (SYSTEM_USER_ID owned) — creator portal events
+        try {
+            var cursor = "";
+            for (var page = 0; page < 10 && events.length < limit; page++) {
+                var result = nk.storageList(Constants.SYSTEM_USER_ID, "live_events", 100, cursor);
+                var objects = result.objects || [];
+                for (var j = 0; j < objects.length && events.length < limit; j++) {
+                    var obj = objects[j];
+                    if (!obj.value)
+                        continue;
+                    var ev2 = obj.value;
+                    var evId = ev2.id || obj.key;
+                    if (seenIds[evId])
+                        continue;
+                    if (matchesFilters(ev2)) {
+                        events.push(formatEvent(ev2, "live_events"));
+                        seenIds[evId] = true;
+                        sourceCounts.live_events++;
+                    }
+                }
+                cursor = result.cursor || "";
+                if (!cursor)
+                    break;
+            }
+        }
+        catch (listErr) {
+            logger.warn("[rpcAdminCreatorEventsList] Failed to list live_events: %s", listErr.message || String(listErr));
+        }
+        // Sort by scheduled_at descending (most recent first)
+        events.sort(function (a, b) {
+            return (b.scheduled_at || 0) - (a.scheduled_at || 0);
+        });
+        return RpcHelpers.successResponse({
+            events: events,
+            total_count: events.length,
+            sources: sourceCounts,
+            filters_applied: {
+                status: filterStatus,
+                region: filterRegion,
+                creator_id: filterCreatorId,
+                game_id: filterGameId,
+                limit: limit
+            }
+        });
+    }
     function rpcAdminMessagesList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         SatoriMessages.processScheduledMessages(nk, logger);
@@ -10163,6 +10351,7 @@ var AdminConsole;
         initializer.registerRpc("admin_creator_event_get", rpcAdminCreatorEventGet);
         initializer.registerRpc("admin_creator_event_stats", rpcAdminCreatorEventStats);
         initializer.registerRpc("admin_creator_event_end", rpcAdminCreatorEventEnd);
+        initializer.registerRpc("admin_creator_events_list", rpcAdminCreatorEventsList);
         initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
         initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
         initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
