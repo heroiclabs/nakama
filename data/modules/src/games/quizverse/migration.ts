@@ -1854,9 +1854,11 @@ namespace QuizVerseMigration {
 
     // Leaderboard: per-(exam,utc_day). Reset cron 00:00 UTC matches the
     // daily puzzle reset, so each leaderboard is a single calendar day.
+    // SortOrder/Operator are nakama-common const-enums — must pass the
+    // enum *value* string ("descending" / "best"), not a free-form alias.
     try {
       var lbId = "qv_duel_" + exam + "_" + day;
-      nk.leaderboardCreate(lbId, false, "desc", "best", "0 0 * * *");
+      nk.leaderboardCreate(lbId, false, nkruntime.SortOrder.DESCENDING, nkruntime.Operator.BEST, "0 0 * * *");
       nk.leaderboardRecordWrite(lbId, userId, "", score, 0, { exam: exam, utc_day: day });
     } catch (e: any) {
       logger.warn("[Duel] leaderboard write failed: " +
@@ -1896,7 +1898,7 @@ namespace QuizVerseMigration {
     var entries: any[] = [];
     try {
       // Idempotent — leaderboardCreate returns existing if it already exists.
-      nk.leaderboardCreate(lbId, false, "desc", "best", "0 0 * * *");
+      nk.leaderboardCreate(lbId, false, nkruntime.SortOrder.DESCENDING, nkruntime.Operator.BEST, "0 0 * * *");
       var records = nk.leaderboardRecordsList(lbId, [], limit);
       if (records && records.records) {
         for (var i = 0; i < records.records.length; i++) {
