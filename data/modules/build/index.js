@@ -305,6 +305,40 @@ function InitModule(ctx, logger, nk, initializer) {
         catch (err) {
             logger.error("[KbEnrichment] failed to register KbEnrichment: " + (err && err.message ? err.message : String(err)));
         }
+        // Conversation → User KB ingestion (PLAN-CONVERSATIONAL_HUB.md §E.5).
+        // 3 RPCs: conv_message_capture (service-only inbound funnel),
+        // conv_my_list (user-side, powers /me/reveal), conv_user_purge
+        // (DPDP Article 17 / GDPR right-to-erasure).
+        logger.info("[ConvCapture] Registering Conversation Hub capture RPCs...");
+        try {
+            ConvCapture.register(initializer);
+            logger.info("[ConvCapture] conv_message_capture, conv_my_list, conv_user_purge registered");
+        }
+        catch (err) {
+            logger.error("[ConvCapture] failed to register: " + (err && err.message ? err.message : String(err)));
+        }
+        // User Model (PLAN-USER_INTELLIGENCE_LOOP.md PR-5). Read derived
+        // attributes + ingest the 25-event behavioural signal taxonomy +
+        // per-channel consent toggles.
+        logger.info("[UserModel] Registering User Model RPCs (derived + signals + consent)...");
+        try {
+            UserModel.register(initializer);
+            logger.info("[UserModel] user_model_get, user_model_signal_ingest, user_model_consent_set registered");
+        }
+        catch (err) {
+            logger.error("[UserModel] failed to register: " + (err && err.message ? err.message : String(err)));
+        }
+        // Brain Coins economy (PLAN-CONVERSATIONAL_HUB.md §G). Soft currency
+        // ledger; earn rules enforced server-side; Tremendous redemption
+        // settled via service-token callback from /api/p2e/tremendous/mint.
+        logger.info("[BrainCoins] Registering Brain Coins P2E RPCs...");
+        try {
+            BrainCoins.register(initializer);
+            logger.info("[BrainCoins] brain_coins_get, brain_coins_earn, brain_coins_redeem_request, brain_coins_redemption_settle registered");
+        }
+        catch (err) {
+            logger.error("[BrainCoins] failed to register: " + (err && err.message ? err.message : String(err)));
+        }
         logger.info("[Satori] Registering Audiences RPCs...");
         SatoriAudiences.register(initializer);
         logger.info("[Satori] Registering Feature Flags RPCs...");
@@ -2529,6 +2563,274 @@ var QvProductChangelog;
     }
     QvProductChangelog.register = register;
 })(QvProductChangelog || (QvProductChangelog = {}));
+// =============================================================================
+// Conversation → User KB capture
+//
+// Implements PLAN-CONVERSATIONAL_HUB.md §E.5 — every channel adapter that
+// receives inbound text / voice / image / interactive content from a user
+// (WhatsApp, Telegram, Discord, iMessage, SMS reply, Beehiiv reply, Web chat)
+// funnels the payload here so the per-user Knowledge Base stays current and
+// the personalizer/voice agent can ground responses in real chat history.
+//
+// All writes are scoped to the resolved Cognito sub → Nakama userId. Public
+// reads are limited to the user's own collection (qv_user_conv); cross-user
+// reads happen via service-token-only RPCs from the dashboard / cron.
+// =============================================================================
+var ConvCapture;
+(function (ConvCapture) {
+    // ── Storage layout ──────────────────────────────────────────────────────
+    // Per-user message log. One storage object per inbound message.
+    // key = `${unix_ts}_${random6}` so listings are time-ordered ascending.
+    var COLLECTION_CONV = "qv_user_conv";
+    // Per-user mood / sentiment summary (rolled up by kb-enrichment cron).
+    // We only ingest the raw signal here; derivation happens in
+    // src/satori/identities/kb_enrichment.ts on the */15 schedule.
+    var COLLECTION_MOOD = "qv_user_mood";
+    // Hard caps — both anti-abuse and DPDP Article 17 hygiene.
+    var MAX_TEXT_CHARS = 8192; // ~6KB JSON-encoded inbound message
+    var MAX_LIST_LIMIT = 200; // conv_my_list page size cap
+    var MAX_LIST_DAYS = 90; // conv_my_list lookback cap
+    var PURGE_BATCH_SIZE = 200; // conv_user_purge inner storageList page
+    // Allowed enums — keep these tight; the lint at
+    // tools/lint-channel-conv-capture.ts in the web repo enforces that every
+    // adapter passes one of these.
+    var ALLOWED_CHANNELS = {
+        whatsapp: true, telegram: true, discord: true, imessage: true,
+        sms: true, email: true, beehiiv: true, livekit: true, pstn: true,
+        web_chat: true, in_app: true,
+    };
+    var ALLOWED_KINDS = {
+        text: true, voice: true, image: true, interactive: true,
+    };
+    var ALLOWED_DIRECTIONS = {
+        inbound: true, outbound: true,
+    };
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function todayDate() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    // Mirrors WowMoments.isServiceCaller — uses ctx.env (the Goja runtime
+    // environment block), not process.env. The deploy operator must set
+    // CONV_CAPTURE_SERVICE_TOKEN in nakama config.yaml runtime.env (or
+    // injected via the eks helmchart values).
+    function isServiceCaller(ctx, payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["CONV_CAPTURE_SERVICE_TOKEN"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    function emitAnalytics(nk, userId, eventName, properties) {
+        try {
+            var unixTs = nowSec();
+            var dateStr = todayDate();
+            var rand = Math.random().toString(36).slice(2, 8);
+            var dashKey = "dash_quizverse_" + dateStr + "_" + eventName + "_" + unixTs + "_" + rand;
+            nk.storageWrite([{
+                    collection: Constants.ANALYTICS_COLLECTION,
+                    key: dashKey,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: {
+                        eventName: eventName,
+                        gameId: "quizverse",
+                        userId: userId,
+                        properties: properties,
+                        unixTimestamp: unixTs,
+                        date: dateStr,
+                    },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (_) { /* swallow */ }
+    }
+    // ── RPC: conv_message_capture ──────────────────────────────────────────
+    // Service-only. The web frontend's /api/conv/capture proxies inbound
+    // channel webhooks here after resolving external_id → cognito_sub →
+    // nakama userId via identity_resolve.
+    //
+    // Request: see CaptureRequest interface above.
+    // Response: { success, data: { stored_at, key } }
+    function rpcMessageCapture(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            // 1. Auth — must be a service caller. We never let an end-user JWT
+            //    write into someone else's qv_user_conv.
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised — conv_message_capture is service-only", 401);
+            }
+            // 2. Resolve target user.
+            var userId = "" + (data.user_id || "");
+            if (!userId) {
+                return RpcHelpers.errorResponse("user_id required", 400);
+            }
+            // 3. Validate enums.
+            var channel = ("" + (data.channel || "")).toLowerCase();
+            if (!ALLOWED_CHANNELS[channel]) {
+                return RpcHelpers.errorResponse("unsupported channel: " + channel, 400);
+            }
+            var kind = ("" + (data.kind || "")).toLowerCase();
+            if (!ALLOWED_KINDS[kind]) {
+                return RpcHelpers.errorResponse("unsupported kind: " + kind, 400);
+            }
+            var direction = ("" + (data.direction || "inbound")).toLowerCase();
+            if (!ALLOWED_DIRECTIONS[direction]) {
+                return RpcHelpers.errorResponse("unsupported direction: " + direction, 400);
+            }
+            // 4. Body sanity.
+            var text = "" + (data.text || "");
+            if (text.length > MAX_TEXT_CHARS)
+                text = text.slice(0, MAX_TEXT_CHARS);
+            if ((kind === "text" || kind === "interactive") && text.length === 0 && !data.interaction_id) {
+                return RpcHelpers.errorResponse("text or interaction_id required for text/interactive", 400);
+            }
+            if ((kind === "voice" || kind === "image") && !data.media_ref) {
+                return RpcHelpers.errorResponse("media_ref required for voice/image", 400);
+            }
+            // 5. Build the storage object.
+            var unixTs = data.received_at && typeof data.received_at === "number"
+                ? Math.floor(data.received_at)
+                : nowSec();
+            var rand = Math.random().toString(36).slice(2, 8);
+            var key = unixTs + "_" + rand;
+            var record = {
+                channel: channel,
+                kind: kind,
+                direction: direction,
+                text: text,
+                media_ref: data.media_ref || null,
+                interaction_id: data.interaction_id || null,
+                trace_id: data.trace_id || null,
+                wow_id: data.wow_id || null,
+                locale: ("" + (data.locale || "")).toLowerCase() || null,
+                received_at: unixTs,
+                date: new Date(unixTs * 1000).toISOString().slice(0, 10),
+            };
+            nk.storageWrite([{
+                    collection: COLLECTION_CONV,
+                    key: key,
+                    userId: userId,
+                    value: record,
+                    // Permission 1/0 — owner can read, nobody but server can write.
+                    // The /me/reveal page reads via Nakama session; the kb-enrichment
+                    // cron reads via service-token RPC, never via direct storage list
+                    // across users.
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            // 6. Mirror to analytics event so the Wow Moment loop can join
+            //    inbound messages with their parent moment via trace_id.
+            emitAnalytics(nk, userId, "conv_message_captured", {
+                channel: channel,
+                kind: kind,
+                direction: direction,
+                has_text: text.length > 0,
+                has_trace_id: !!data.trace_id,
+                wow_id: data.wow_id || null,
+                text_len: text.length,
+            });
+            return RpcHelpers.successResponse({ key: key, stored_at: unixTs });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[ConvCapture] capture failed: " + msg);
+            RpcHelpers.logRpcError(nk, logger, "conv_message_capture", msg);
+            return RpcHelpers.errorResponse("capture failed: " + msg, 500);
+        }
+    }
+    // ── RPC: conv_my_list ──────────────────────────────────────────────────
+    // User-side. Powers the /me/reveal trust-anchor page — returns the most
+    // recent N messages for the authenticated caller. NEVER accepts user_id
+    // from the payload (that would let a JWT enumerate other users' chat).
+    function rpcMyConvList(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var limit = Math.min(Math.max(parseInt("" + (data.limit || "50")) || 50, 1), MAX_LIST_LIMIT);
+            var cursor = "" + (data.cursor || "");
+            var page = nk.storageList(userId, COLLECTION_CONV, limit, cursor);
+            var items = [];
+            if (page && page.objects) {
+                for (var i = 0; i < page.objects.length; i++) {
+                    var o = page.objects[i];
+                    items.push({
+                        key: o.key,
+                        channel: o.value.channel,
+                        kind: o.value.kind,
+                        direction: o.value.direction,
+                        text: o.value.text,
+                        received_at: o.value.received_at,
+                        trace_id: o.value.trace_id,
+                        wow_id: o.value.wow_id,
+                    });
+                }
+            }
+            return RpcHelpers.successResponse({
+                items: items,
+                cursor: (page && page.cursor) || "",
+            });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[ConvCapture] list failed: " + msg);
+            return RpcHelpers.errorResponse("list failed: " + msg, 500);
+        }
+    }
+    // ── RPC: conv_user_purge ───────────────────────────────────────────────
+    // DPDP Article 17 / GDPR Right-to-erasure. The /me/reveal page calls this
+    // when the user clicks "Delete my conversation history". Idempotent.
+    // Returns count of deleted objects so the page can show a confirmation.
+    function rpcUserPurge(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var totalDeleted = 0;
+            var cursor = "";
+            var safety = 0;
+            // Page through every object; cap iterations so a runaway dataset
+            // can't lock the runtime.
+            while (safety < 50) {
+                safety++;
+                var page = nk.storageList(userId, COLLECTION_CONV, PURGE_BATCH_SIZE, cursor);
+                if (!page || !page.objects || page.objects.length === 0)
+                    break;
+                var deletes = [];
+                for (var i = 0; i < page.objects.length; i++) {
+                    deletes.push({
+                        collection: COLLECTION_CONV,
+                        key: page.objects[i].key,
+                        userId: userId,
+                    });
+                }
+                if (deletes.length > 0) {
+                    nk.storageDelete(deletes);
+                    totalDeleted += deletes.length;
+                }
+                if (!page.cursor)
+                    break;
+                cursor = page.cursor;
+            }
+            // Also delete the mood roll-up — it's derived from conv data so it
+            // would be PII to retain after the source is gone.
+            try {
+                nk.storageDelete([{ collection: COLLECTION_MOOD, key: "current", userId: userId }]);
+            }
+            catch (_) { /* it may not exist; that's fine */ }
+            emitAnalytics(nk, userId, "conv_user_purged", { count: totalDeleted });
+            return RpcHelpers.successResponse({ deleted: totalDeleted });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[ConvCapture] purge failed: " + msg);
+            return RpcHelpers.errorResponse("purge failed: " + msg, 500);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("conv_message_capture", rpcMessageCapture);
+        initializer.registerRpc("conv_my_list", rpcMyConvList);
+        initializer.registerRpc("conv_user_purge", rpcUserPurge);
+    }
+    ConvCapture.register = register;
+})(ConvCapture || (ConvCapture = {}));
 /**
  * Cricket Auction — Nakama server module
  *
@@ -12994,6 +13296,418 @@ var LearnerToolbelt;
     }
     LearnerToolbelt.register = register;
 })(LearnerToolbelt || (LearnerToolbelt = {}));
+// per-exam-config.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// QuizVerse Learner Toolbelt — per-exam predictor configuration table.
+//
+// This table is the dispatcher metadata consumed by lt_score_predict so that
+// every USA + India high-volume exam returns the right { method, phase,
+// score_range } envelope BEFORE the wave-4/5 algorithm work lands. Web routes
+// (Wave-3) and the gateway ToolDispatcher (Wave-6) wire against this contract
+// and never need to change again once individual algorithms ship.
+//
+// Plan source of truth:
+//   intelliverse-x-games-platform-2/games/quiz-verse/Docs/plans/
+//     PLAN-LEARNER_TOOLBELT.md  §3.10 (per-exam coverage matrix)
+//                               §12   (Firecrawl-verified citations)
+//
+// Coverage (21 exams)
+// -------------------
+//   USA (10):  sat · act · ap_exams · psat · gre · gmat · mcat · lsat ·
+//              amc · bar_exam
+//   IN  (11):  jee_main · jee_advanced · neet · cat · gate · upsc_cse ·
+//              clat · cuet · nda · ssc_cgl · rbi_grade_b
+//
+// Phase labelling (per PLAN-LEARNER_TOOLBELT §3.10):
+//   A — Week-4 launch    (SAT, AP Bio/Calc, JEE Main, JEE Advanced, NEET)
+//   B — Weeks 5-8        (ACT, PSAT, GRE, GMAT, +remaining AP × 36, CAT,
+//                         GATE, UPSC, CLAT, CUET)
+//   C — Q4 2026          (MCAT, LSAT, AMC, Bar, NDA, SSC CGL, RBI Grade-B)
+//
+// Long-tail exams not in this table fall through to the Bayes fallback
+// predictor (method: 'bayes-fallback') — so the predictor is NEVER silent.
+//
+// Use TypeScript namespaces here (NOT ES modules) because the modules/
+// tsconfig outputs a single concatenated bundle (outFile mode). Every public
+// symbol must live under a namespace to participate in the global scope the
+// Nakama Goja runtime sees at boot.
+var PerExamConfig;
+(function (PerExamConfig) {
+    // ── 21 supported exams (USA × 10 + India × 11) ───────────────────────────
+    PerExamConfig.CONFIG = {
+        // ============================================================== USA (10)
+        sat: {
+            method: 'irt-2pl',
+            phase: 'A',
+            countryDefault: 'US',
+            scoreRange: [400, 1600],
+            sections: [
+                { id: 'math', max: 800 },
+                { id: 'reading_writing', max: 800 },
+            ],
+            citations: [
+                'https://satsuite.collegeboard.org/scores/what-scores-mean/how-scores-calculated',
+                'https://mathchops.substack.com/p/item-response-theory-and-the-digital-sat',
+                'https://mindfish.com/blog/what-is-item-response-theory/',
+            ],
+            goalTiers: ['ivy', 't20', 't50', 'state-flagship', 'community-college'],
+        },
+        act: {
+            method: 'concordance',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [1, 36],
+            sections: [
+                { id: 'english', max: 36 },
+                { id: 'math', max: 36 },
+                { id: 'reading', max: 36 },
+                { id: 'science', max: 36 },
+            ],
+            citations: [
+                'https://www.act.org/content/act/en/products-and-services/the-act/scores/act-sat-concordance.html',
+                'https://www.albert.io/blog/act-score-calculator/',
+                'https://test-ninjas.com/act-score-calculator',
+            ],
+            goalTiers: ['ivy', 't20', 't50', 'state-flagship', 'community-college'],
+        },
+        ap_exams: {
+            method: 'ap-composite',
+            phase: 'A',
+            countryDefault: 'US',
+            scoreRange: [1, 5],
+            // AP papers vary by subject but every paper has MCQ + FRQ. Per-subject
+            // section weights are looked up at runtime from the wave-5 ap-curves S3
+            // blob; the sections list here is the generic skeleton.
+            sections: [
+                { id: 'mcq', max: 100, weight: 0.5 },
+                { id: 'frq', max: 100, weight: 0.5 },
+            ],
+            citations: [
+                'https://test-ninjas.com/ap-score-calculators',
+                'https://www.albert.io/blog/ap-calculus-bc-score-calculator/',
+                'https://knowt.com/exams/AP/score-calculator',
+            ],
+            goalTiers: ['5', '4', '3', '2', '1'],
+        },
+        psat: {
+            method: 'irt-2pl',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [320, 1520],
+            sections: [
+                { id: 'math', max: 760 },
+                { id: 'reading_writing', max: 760 },
+            ],
+            citations: [
+                'https://satsuite.collegeboard.org/scores/what-scores-mean/how-scores-calculated',
+                'https://mindfish.com/blog/what-is-item-response-theory/',
+            ],
+            goalTiers: ['national-merit', 'commended', 'state-recognized', 'practice'],
+        },
+        gre: {
+            method: 'irt-section-adaptive',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [130, 170],
+            sections: [
+                { id: 'verbal', max: 170 },
+                { id: 'quant', max: 170 },
+                { id: 'awa', max: 6 },
+            ],
+            citations: [
+                'https://magoosh.com/gre/score-calculator-how-to-predict-your-gre-score/',
+                'https://www.kaptest.com/study/gre/gre-score-predictor-whats-your-gre-score/',
+                'https://www.prepscholar.com/gre/blog/gre-score-range/',
+            ],
+            goalTiers: ['t10-grad', 't25-grad', 't50-grad', 'regional-grad'],
+        },
+        gmat: {
+            method: 'irt-focus-edition',
+            phase: 'B',
+            countryDefault: 'US',
+            scoreRange: [205, 805],
+            sections: [
+                { id: 'quant', max: 90 },
+                { id: 'verbal', max: 90 },
+                { id: 'data_insights', max: 90 },
+            ],
+            citations: [
+                'https://test-ninjas.com/gmat-focus-edition-score-calculator',
+                'https://www.gmac.com/gmat-other-assessments/about-the-gmat-focus-edition/exam-scores',
+                'https://gmat.targettestprep.com/gmat_focus_score_chart_and_calculator',
+            ],
+            goalTiers: ['m7', 't10-mba', 't25-mba', 't50-mba', 'regional-mba'],
+        },
+        mcat: {
+            method: 'percentile-4section',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [472, 528],
+            sections: [
+                { id: 'cpbs', max: 132 }, // Chem/Phys Bio Systems
+                { id: 'cars', max: 132 }, // Critical Analysis/Reasoning
+                { id: 'bbls', max: 132 }, // Bio/Biochem Living Systems
+                { id: 'psbb', max: 132 }, // Psych/Soc Behaviour
+            ],
+            citations: [
+                'https://bootcamp.com/mcat/mcat-score-calculator',
+                'https://www.kaptest.com/study/mcat/whats-a-good-mcat-score/',
+                'https://www.reddit.com/r/Mcat/comments/uwmkow/comprehensive_mcat_score_prediction_tool/',
+            ],
+            goalTiers: ['t10-med', 't25-med', 't50-med', 'do-school', 'caribbean'],
+        },
+        lsat: {
+            method: 'raw-to-scaled-120-180',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [120, 180],
+            sections: [
+                { id: 'logical_reasoning', max: 25 },
+                { id: 'reading_comprehension', max: 27 },
+                { id: 'analytical_reasoning', max: 23 },
+            ],
+            citations: [
+                'https://7sage.com/lsat-resources/lsat-score-calculator',
+                'https://magoosh.com/lsat/lsat-score-conversion-table/',
+            ],
+            goalTiers: ['t14-law', 't50-law', 't100-law', 'regional-law'],
+        },
+        amc: {
+            method: 'cutoff-band',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [0, 150],
+            sections: [
+                { id: 'amc_10_12', max: 150 },
+                { id: 'aime', max: 15 },
+            ],
+            citations: [
+                'https://maa.org/news/2025-26-aime-thresholds-are-now-available/',
+                'https://artofproblemsolving.com/wiki/index.php/AMC_historical_results',
+            ],
+            goalTiers: ['usamo', 'usajmo', 'aime-qual', 'amc-distinguished', 'participant'],
+        },
+        bar_exam: {
+            method: 'mbe-mee-mpt-composite',
+            phase: 'C',
+            countryDefault: 'US',
+            scoreRange: [200, 400],
+            sections: [
+                { id: 'mbe', max: 200, weight: 0.5 },
+                { id: 'mee', max: 200, weight: 0.3 },
+                { id: 'mpt', max: 200, weight: 0.2 },
+            ],
+            citations: [
+                'https://www.ncbex.org/exams/ube/ube-minimum-scores',
+                'https://jdadvising.com/what-mbe-raw-score-is-passing/',
+            ],
+            goalTiers: ['pass-strict-280', 'pass-typical-266-275', 'pass-low-260', 'fail'],
+        },
+        // ============================================================== IN  (11)
+        jee_main: {
+            method: 'nta-percentile-to-air',
+            phase: 'A',
+            countryDefault: 'IN',
+            scoreRange: [0, 300],
+            sections: [
+                { id: 'physics', max: 100 },
+                { id: 'chemistry', max: 100 },
+                { id: 'mathematics', max: 100 },
+            ],
+            citations: [
+                'https://www.vedantu.com/jee-main/rank-predictor',
+                'https://allen.in/jee-main/percentile-predictor',
+                'https://cracku.in/jee-advanced-score-calculator',
+            ],
+            goalTiers: ['iit-eligible', 'nit-top10', 'nit', 'iiit', 'gfti', 'private'],
+        },
+        jee_advanced: {
+            method: 'marks-vs-rank-curve',
+            phase: 'A',
+            countryDefault: 'IN',
+            scoreRange: [0, 360],
+            sections: [
+                { id: 'paper1_physics', max: 60 },
+                { id: 'paper1_chemistry', max: 60 },
+                { id: 'paper1_mathematics', max: 60 },
+                { id: 'paper2_physics', max: 60 },
+                { id: 'paper2_chemistry', max: 60 },
+                { id: 'paper2_mathematics', max: 60 },
+            ],
+            citations: [
+                'https://my.newtonschool.co/jee-college-predictor-by-iit-roorkee-alumni-and-nst-students/jee-college-predictor',
+                'https://cracku.in/jee-advanced-score-calculator',
+            ],
+            goalTiers: ['iit-bombay-cs', 'iit-top5', 'iit-newer', 'iiser'],
+        },
+        neet: {
+            method: 'nta-percentile-to-air',
+            phase: 'A',
+            countryDefault: 'IN',
+            scoreRange: [0, 720],
+            sections: [
+                { id: 'physics', max: 180 },
+                { id: 'chemistry', max: 180 },
+                { id: 'biology', max: 360 }, // Botany + Zoology combined
+            ],
+            citations: [
+                'https://www.vedantu.com/jee-main/rank-predictor',
+                'https://allen.in/jee-main/percentile-predictor',
+            ],
+            goalTiers: ['aiims-delhi', 'aiims-other', 'jipmer', 'state-govt-mbbs', 'private-mbbs', 'bds'],
+        },
+        cat: {
+            method: 'section-percentile-to-oa',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 198],
+            sections: [
+                { id: 'varc', max: 66 },
+                { id: 'dilr', max: 66 },
+                { id: 'qa', max: 66 },
+            ],
+            citations: [
+                'https://cracku.in/iim-call-predictor',
+                'https://www.toprankers.com/cat-cut-off-for-iim',
+            ],
+            goalTiers: ['iim-abc', 'iim-blackjack', 'new-iim', 'tier1-private', 'tier2-private'],
+        },
+        gate: {
+            method: 'gate-score-formula',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 1000],
+            sections: [
+                { id: 'general_aptitude', max: 15 },
+                { id: 'engineering_math', max: 13 },
+                { id: 'subject', max: 72 },
+            ],
+            citations: [
+                'https://margdarshanprep.com/Collegepredictor/collegepredictor.html',
+                'https://testbook.com/gate/minimum-gate-score-for-iit',
+            ],
+            goalTiers: ['iit-mtech', 'iisc', 'nit-mtech', 'psu-recruitment', 'phd-eligible'],
+        },
+        upsc_cse: {
+            method: 'prelims-cutoff-band',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 200],
+            sections: [
+                { id: 'gs_paper_1', max: 200 },
+                { id: 'csat_paper_2', max: 200 }, // qualifying (33%)
+            ],
+            citations: [
+                'https://www.pw.live/upsc/exams/upsc-prelims-expected-cut-off-2026',
+                'https://www.nextias.com/prelims-cut-off-predictor',
+            ],
+            goalTiers: ['ias', 'ips', 'ifs', 'irs', 'group-b'],
+        },
+        clat: {
+            method: 'marks-to-nlu-rank',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 150],
+            sections: [
+                { id: 'english', max: 30 },
+                { id: 'gk_current_affairs', max: 38 },
+                { id: 'legal_reasoning', max: 38 },
+                { id: 'logical_reasoning', max: 28 },
+                { id: 'quantitative_techniques', max: 16 },
+            ],
+            citations: [
+                'https://law.careers360.com/clat-college-predictor',
+                'https://www.clatnlti.com/blog-details/397/clat-2026-marks-cut-off-expected-cut-off-for-top-nlus',
+            ],
+            goalTiers: ['nlsiu-bangalore', 'nalsar-nujs', 'top5-nlu', 'top10-nlu', 'other-nlu', 'private-law'],
+        },
+        cuet: {
+            method: 'nta-percentile-multisubject',
+            phase: 'B',
+            countryDefault: 'IN',
+            scoreRange: [0, 800],
+            sections: [
+                { id: 'language', max: 200 },
+                { id: 'domain_1', max: 200 },
+                { id: 'domain_2', max: 200 },
+                { id: 'general_test', max: 200 },
+            ],
+            citations: [
+                'https://collegedunia.com/articles/e-1361-cuet-2026-rank-predictor',
+                'https://university.careers360.com/articles/cuet-cut-off',
+            ],
+            goalTiers: ['du', 'jnu', 'bhu', 'central-univ', 'state-univ'],
+        },
+        nda: {
+            method: 'written-cutoff-only',
+            phase: 'C',
+            countryDefault: 'IN',
+            scoreRange: [0, 900],
+            sections: [
+                { id: 'mathematics', max: 300 },
+                { id: 'gat_general_ability', max: 600 },
+            ],
+            citations: [
+                'https://ncaacademy.com/cds-cut-off-marks-2026-entry-wise-expected-cutoff/',
+            ],
+            goalTiers: ['ssb-qualifying', 'army', 'navy', 'air-force'],
+        },
+        ssc_cgl: {
+            method: 'tier-1-2-composite',
+            phase: 'C',
+            countryDefault: 'IN',
+            scoreRange: [0, 800],
+            sections: [
+                { id: 'tier_1', max: 200 },
+                { id: 'tier_2_paper_1', max: 450 }, // Quant + Reasoning + English
+                { id: 'tier_2_paper_2', max: 150 }, // Statistics (optional post-group)
+            ],
+            citations: [
+                'https://testbook.com/ssc-cgl-exam/rank-predictor',
+                'https://prepgrind.com/blog/ssc-cgl-expected-cutoff',
+            ],
+            goalTiers: ['group-a-inspector', 'group-b-assistant', 'group-c-auditor', 'lower-division'],
+        },
+        rbi_grade_b: {
+            method: 'phase-1-2-cutoff',
+            phase: 'C',
+            countryDefault: 'IN',
+            scoreRange: [0, 300],
+            sections: [
+                { id: 'phase_1', max: 200 },
+                { id: 'phase_2_paper_1', max: 100 }, // Economic & Social Issues
+                { id: 'phase_2_paper_2', max: 100 }, // English Writing
+                { id: 'phase_2_paper_3', max: 100 }, // Finance & Management
+            ],
+            citations: [
+                'https://www.oliveboard.in/rbi-grade-b-cut-off/',
+            ],
+            goalTiers: ['officer-general', 'depr', 'dsim'],
+        },
+    };
+    /** Returns the supported exam_id list (alphabetical) — used by /tools/score-predictor for the dropdown. */
+    function listSupportedExamIds() {
+        var ids = [];
+        for (var k in PerExamConfig.CONFIG) {
+            if (Object.prototype.hasOwnProperty.call(PerExamConfig.CONFIG, k))
+                ids.push(k);
+        }
+        ids.sort();
+        return ids;
+    }
+    PerExamConfig.listSupportedExamIds = listSupportedExamIds;
+    /** Returns the config for a given exam_id, or null if not in the supported set
+     *  (in which case the caller MUST fall through to the Bayes fallback). */
+    function lookup(examId) {
+        if (!examId)
+            return null;
+        if (Object.prototype.hasOwnProperty.call(PerExamConfig.CONFIG, examId)) {
+            return PerExamConfig.CONFIG[examId];
+        }
+        return null;
+    }
+    PerExamConfig.lookup = lookup;
+})(PerExamConfig || (PerExamConfig = {}));
 var LegacyAnalyticsRetention;
 (function (LegacyAnalyticsRetention) {
     function readAggStorage(nk, collection, key) {
@@ -26355,6 +27069,372 @@ var MpVoiceLiveKit;
     }
     MpVoiceLiveKit.makeMinter = makeMinter;
 })(MpVoiceLiveKit || (MpVoiceLiveKit = {}));
+// =============================================================================
+// Brain Coins — soft-currency play-to-earn ledger
+//
+// Implements PLAN-CONVERSATIONAL_HUB.md §G — the ledger users see, plus a
+// service-only `redemption_settle` endpoint that the Tremendous mint API
+// (web/app/api/p2e/tremendous/mint) calls back into once the gift card is
+// minted. All earn rules are enforced server-side; the client cannot
+// inflate the balance.
+//
+// Storage layout
+//   brain_coins / wallet                  per-user balance + lifetime earn
+//   brain_coins / earn_log_<unix>_<rand>  per-user immutable earn log
+//   brain_coins / redemption_<id>         per-user redemption request +
+//                                          state machine (pending → minted
+//                                          | failed | refunded)
+//
+// Earn caps (per-day, server-enforced)
+//   quiz_attempt:           10 attempts × 5 BC      = 50 BC/day
+//   wow_moment_engaged:      6 engagements × 10 BC  = 60 BC/day
+//   referral_friend_signup:  20 BC, no day cap (lifetime cap = 5)
+//   streak_milestone:        25 BC at d=7, 50 at d=14, 100 at d=30
+//
+// Payout catalog (USD value at mint time)
+//   tremendous_amazon_5_usd  = 1500 BC
+//   tremendous_paypal_5_usd  = 1500 BC
+//   tremendous_visa_10_usd   = 3200 BC
+// =============================================================================
+var BrainCoins;
+(function (BrainCoins) {
+    var COLLECTION = "brain_coins";
+    var KEY_WALLET = "wallet";
+    var EARN_LOG_PREFIX = "earn_log_";
+    var REDEMPTION_PREFIX = "redemption_";
+    var EARN_RULES = {
+        "quiz_attempt": { coinsPerEvent: 5, dailyCap: 10 },
+        "wow_moment_engaged": { coinsPerEvent: 10, dailyCap: 6 },
+        "referral_friend_signup": { coinsPerEvent: 20, lifetimeCap: 5 },
+        "streak_milestone_d7": { coinsPerEvent: 25, lifetimeCap: 1 },
+        "streak_milestone_d14": { coinsPerEvent: 50, lifetimeCap: 1 },
+        "streak_milestone_d30": { coinsPerEvent: 100, lifetimeCap: 1 },
+    };
+    var PAYOUT_CATALOG = {
+        "tremendous_amazon_5_usd": { cost: 1500, usdValueCents: 500, label: "$5 Amazon gift card" },
+        "tremendous_paypal_5_usd": { cost: 1500, usdValueCents: 500, label: "$5 PayPal payout" },
+        "tremendous_visa_10_usd": { cost: 3200, usdValueCents: 1000, label: "$10 Visa eGift" },
+    };
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function todayUtc() { return new Date().toISOString().slice(0, 10); }
+    function isServiceCaller(ctx, payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    function readWallet(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION, key: KEY_WALLET, userId: userId }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return { balance: 0, lifetime_earned: 0, lifetime_redeemed: 0, updated_at: 0 };
+    }
+    function writeWallet(nk, userId, wallet) {
+        wallet.updated_at = nowSec();
+        nk.storageWrite([{
+                collection: COLLECTION,
+                key: KEY_WALLET,
+                userId: userId,
+                value: wallet,
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+    }
+    function countEventsForCap(nk, userId, code, sinceUnix) {
+        // Walk the earn log paged. Cheap: at most ~100 entries/day per user
+        // and we only care about ones tagged with `code` since `sinceUnix`.
+        var count = 0;
+        var cursor = "";
+        var safety = 0;
+        while (safety < 10) {
+            safety++;
+            var page = nk.storageList(userId, COLLECTION, 100, cursor);
+            if (!page || !page.objects)
+                break;
+            for (var i = 0; i < page.objects.length; i++) {
+                var o = page.objects[i];
+                if (o.key.indexOf(EARN_LOG_PREFIX) !== 0)
+                    continue;
+                var v = o.value;
+                if (!v)
+                    continue;
+                if (v.code !== code)
+                    continue;
+                if (v.unix_ts < sinceUnix)
+                    continue;
+                count++;
+            }
+            if (!page.cursor)
+                break;
+            cursor = page.cursor;
+        }
+        return count;
+    }
+    function startOfTodayUnix() {
+        var d = new Date();
+        d.setUTCHours(0, 0, 0, 0);
+        return Math.floor(d.getTime() / 1000);
+    }
+    // ── RPC: brain_coins_get ───────────────────────────────────────────────
+    // User-side. Returns wallet + payout catalog + per-rule earn-cap status
+    // for today (so the UI can show "you've earned 4/10 attempts today").
+    function rpcGet(ctx, _logger, nk, _payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var wallet = readWallet(nk, userId);
+        // Compute per-rule daily-cap status.
+        var startOfDay = startOfTodayUnix();
+        var earnStatus = {};
+        for (var code in EARN_RULES) {
+            if (!EARN_RULES.hasOwnProperty(code))
+                continue;
+            var rule = EARN_RULES[code];
+            if (rule.dailyCap) {
+                var done = countEventsForCap(nk, userId, code, startOfDay);
+                earnStatus[code] = {
+                    coinsPerEvent: rule.coinsPerEvent,
+                    dailyCap: rule.dailyCap,
+                    doneToday: done,
+                    remaining: Math.max(0, rule.dailyCap - done),
+                };
+            }
+            else if (rule.lifetimeCap) {
+                var doneEver = countEventsForCap(nk, userId, code, 0);
+                earnStatus[code] = {
+                    coinsPerEvent: rule.coinsPerEvent,
+                    lifetimeCap: rule.lifetimeCap,
+                    doneLifetime: doneEver,
+                    remaining: Math.max(0, rule.lifetimeCap - doneEver),
+                };
+            }
+            else {
+                earnStatus[code] = { coinsPerEvent: rule.coinsPerEvent };
+            }
+        }
+        return RpcHelpers.successResponse({
+            wallet: wallet,
+            earn_rules: earnStatus,
+            payout_catalog: PAYOUT_CATALOG,
+            served_at: nowSec(),
+        });
+    }
+    // ── RPC: brain_coins_earn ──────────────────────────────────────────────
+    // Service-only. The Unity client posts a quiz_attempt event to the
+    // analytics pipeline; the analytics rollup cron forwards it here with a
+    // BRAIN_COINS_SERVICE_TOKEN — that's what enforces "client can't fake
+    // their own earn". Idempotency key prevents double-credit on retries.
+    function rpcEarn(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised — earn is service-only", 401);
+            }
+            var userId = "" + (data.user_id || "");
+            var code = "" + (data.code || "");
+            var idempotencyKey = "" + (data.idempotency_key || "");
+            if (!userId || !code) {
+                return RpcHelpers.errorResponse("user_id + code required", 400);
+            }
+            if (!EARN_RULES.hasOwnProperty(code)) {
+                return RpcHelpers.errorResponse("unknown earn code: " + code, 400);
+            }
+            var rule = EARN_RULES[code];
+            // Idempotency check — log key embeds the idempotency_key when supplied.
+            if (idempotencyKey) {
+                var probeKey = EARN_LOG_PREFIX + "idem_" + idempotencyKey;
+                try {
+                    var existing = nk.storageRead([{ collection: COLLECTION, key: probeKey, userId: userId }]);
+                    if (existing && existing.length > 0) {
+                        return RpcHelpers.successResponse({
+                            wallet: readWallet(nk, userId),
+                            credited: 0,
+                            skipped: "idempotent",
+                        });
+                    }
+                }
+                catch (_) { }
+            }
+            // Cap enforcement.
+            if (rule.dailyCap) {
+                var doneToday = countEventsForCap(nk, userId, code, startOfTodayUnix());
+                if (doneToday >= rule.dailyCap) {
+                    return RpcHelpers.successResponse({
+                        wallet: readWallet(nk, userId),
+                        credited: 0,
+                        skipped: "daily_cap",
+                    });
+                }
+            }
+            if (rule.lifetimeCap) {
+                var doneEver = countEventsForCap(nk, userId, code, 0);
+                if (doneEver >= rule.lifetimeCap) {
+                    return RpcHelpers.successResponse({
+                        wallet: readWallet(nk, userId),
+                        credited: 0,
+                        skipped: "lifetime_cap",
+                    });
+                }
+            }
+            // Credit.
+            var wallet = readWallet(nk, userId);
+            wallet.balance = (wallet.balance | 0) + rule.coinsPerEvent;
+            wallet.lifetime_earned = (wallet.lifetime_earned | 0) + rule.coinsPerEvent;
+            writeWallet(nk, userId, wallet);
+            // Append immutable earn log row.
+            var logKey = idempotencyKey
+                ? EARN_LOG_PREFIX + "idem_" + idempotencyKey
+                : EARN_LOG_PREFIX + nowSec() + "_" + Math.random().toString(36).slice(2, 8);
+            nk.storageWrite([{
+                    collection: COLLECTION,
+                    key: logKey,
+                    userId: userId,
+                    value: {
+                        code: code,
+                        coins: rule.coinsPerEvent,
+                        unix_ts: nowSec(),
+                        date: todayUtc(),
+                        source: "" + (data.source || "system"),
+                        trace_id: data.trace_id || null,
+                        idempotency_key: idempotencyKey || null,
+                    },
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            return RpcHelpers.successResponse({
+                wallet: wallet,
+                credited: rule.coinsPerEvent,
+            });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[BrainCoins] earn failed: " + msg);
+            RpcHelpers.logRpcError(nk, logger, "brain_coins_earn", msg);
+            return RpcHelpers.errorResponse("earn failed: " + msg, 500);
+        }
+    }
+    // ── RPC: brain_coins_redeem_request ────────────────────────────────────
+    // User-side. Locks the cost out of balance, returns a redemption_id the
+    // /api/p2e/tremendous/mint route uses to call the Tremendous API. The
+    // settle RPC below confirms or refunds based on Tremendous response.
+    function rpcRedeemRequest(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var sku = "" + (data.sku || "");
+            if (!PAYOUT_CATALOG.hasOwnProperty(sku)) {
+                return RpcHelpers.errorResponse("unknown sku: " + sku, 400);
+            }
+            var entry = PAYOUT_CATALOG[sku];
+            var wallet = readWallet(nk, userId);
+            if ((wallet.balance | 0) < entry.cost) {
+                return RpcHelpers.errorResponse("insufficient balance", 402);
+            }
+            // Lock the funds.
+            wallet.balance = (wallet.balance | 0) - entry.cost;
+            writeWallet(nk, userId, wallet);
+            var redemptionId = "rdmp_" + nowSec() + "_" + Math.random().toString(36).slice(2, 10);
+            nk.storageWrite([{
+                    collection: COLLECTION,
+                    key: REDEMPTION_PREFIX + redemptionId,
+                    userId: userId,
+                    value: {
+                        redemption_id: redemptionId,
+                        sku: sku,
+                        cost: entry.cost,
+                        usd_value_cents: entry.usdValueCents,
+                        state: "pending",
+                        requested_at: nowSec(),
+                        email: "" + (data.email || ""),
+                    },
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            return RpcHelpers.successResponse({
+                redemption_id: redemptionId,
+                sku: sku,
+                cost: entry.cost,
+                wallet: wallet,
+            });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[BrainCoins] redeem_request failed: " + msg);
+            return RpcHelpers.errorResponse("redeem_request failed: " + msg, 500);
+        }
+    }
+    // ── RPC: brain_coins_redemption_settle ─────────────────────────────────
+    // Service-only. Tremendous mint endpoint POSTs back here with state
+    // ∈ {minted, failed}. On `failed` we refund the balance; on `minted` we
+    // record the gift card delivery proof and bump lifetime_redeemed.
+    function rpcRedemptionSettle(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised — settle is service-only", 401);
+            }
+            var userId = "" + (data.user_id || "");
+            var redemptionId = "" + (data.redemption_id || "");
+            var newState = "" + (data.state || "");
+            if (!userId || !redemptionId || !newState) {
+                return RpcHelpers.errorResponse("user_id + redemption_id + state required", 400);
+            }
+            if (newState !== "minted" && newState !== "failed") {
+                return RpcHelpers.errorResponse("state must be 'minted' or 'failed'", 400);
+            }
+            var key = REDEMPTION_PREFIX + redemptionId;
+            var rows = nk.storageRead([{ collection: COLLECTION, key: key, userId: userId }]);
+            if (!rows || rows.length === 0) {
+                return RpcHelpers.errorResponse("redemption not found", 404);
+            }
+            var record = rows[0].value;
+            if (record.state !== "pending") {
+                // Already settled — return the same response idempotently.
+                return RpcHelpers.successResponse({ redemption: record, idempotent: true });
+            }
+            var wallet = readWallet(nk, userId);
+            if (newState === "failed") {
+                wallet.balance = (wallet.balance | 0) + (record.cost | 0);
+                writeWallet(nk, userId, wallet);
+                record.state = "failed";
+                record.error = "" + (data.error || "tremendous_failed");
+                record.settled_at = nowSec();
+            }
+            else {
+                wallet.lifetime_redeemed = (wallet.lifetime_redeemed | 0) + (record.cost | 0);
+                writeWallet(nk, userId, wallet);
+                record.state = "minted";
+                record.tremendous_order_id = "" + (data.tremendous_order_id || "");
+                record.delivery_url = "" + (data.delivery_url || "");
+                record.settled_at = nowSec();
+            }
+            nk.storageWrite([{
+                    collection: COLLECTION,
+                    key: key,
+                    userId: userId,
+                    value: record,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            return RpcHelpers.successResponse({ redemption: record, wallet: wallet });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[BrainCoins] redemption_settle failed: " + msg);
+            RpcHelpers.logRpcError(nk, logger, "brain_coins_redemption_settle", msg);
+            return RpcHelpers.errorResponse("redemption_settle failed: " + msg, 500);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("brain_coins_get", rpcGet);
+        initializer.registerRpc("brain_coins_earn", rpcEarn);
+        initializer.registerRpc("brain_coins_redeem_request", rpcRedeemRequest);
+        initializer.registerRpc("brain_coins_redemption_settle", rpcRedemptionSettle);
+    }
+    BrainCoins.register = register;
+})(BrainCoins || (BrainCoins = {}));
 // qv_agent.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // QuizVerse Agent runtime — Phase A tool surface for the omnichannel
@@ -32917,6 +33997,278 @@ var WalletHelpers;
     }
     WalletHelpers.hasCurrency = hasCurrency;
 })(WalletHelpers || (WalletHelpers = {}));
+// =============================================================================
+// User Model RPCs — read-side + signal ingest + consent
+//
+// Implements PLAN-USER_INTELLIGENCE_LOOP.md PR-5. Three RPCs:
+//
+//   user_model_get             — read derived attrs + raw signal counts +
+//                                consent flags. Read by /me/reveal,
+//                                Channel Personalizer, voice agent prompt
+//                                builder, n8n cadence workflows.
+//   user_model_signal_ingest   — bulk-ingest the 25-event behavioural
+//                                taxonomy from Unity / web. Closes the
+//                                "13 wrappers waiting for inputs" gap.
+//   user_model_consent_set     — per-channel opt-in / opt-out, writable
+//                                by the user themselves (no service token
+//                                needed). Read on every outbound send.
+//
+// Storage layout
+//   user_model / derived       (per-user, owner-readable) — written by
+//                              kb-enrichment cron with derived attributes:
+//                              predicted_score_pct, personality_archetype,
+//                              next_best_topic, peer_percentile_per_topic,
+//                              mood_estimate, social_graph_density.
+//   user_model / consent       (per-user, owner-readable) — channel→bool
+//                              map: { whatsapp, sms, email, push,
+//                              telegram, discord, imessage, voice }.
+//   qv_u_<sub>_signals / <eventName>
+//                              (per-user, system-only) — counter row:
+//                              { count, first_at, last_at }.
+// =============================================================================
+var UserModel;
+(function (UserModel) {
+    var COLLECTION_USER_MODEL = "user_model";
+    var KEY_DERIVED = "derived";
+    var KEY_CONSENT = "consent";
+    var COLLECTION_SIGNALS_PREFIX = "qv_u_";
+    var COLLECTION_SIGNALS_SUFFIX = "_signals";
+    // The 25-event behavioural taxonomy (PLAN-USER_INTELLIGENCE_LOOP.md §6).
+    // Anything not in this set is silently dropped — keeps the signal store
+    // from being a free-form bucket for any client to dump arbitrary props.
+    var ALLOWED_SIGNALS = {
+        // WHEN bucket
+        "session_start": true, "session_end": true, "morning_session": true,
+        "evening_session": true, "weekend_session": true,
+        // WHAT bucket
+        "topic_attempted": true, "topic_completed": true, "topic_skipped": true,
+        "subject_pivoted": true, "diagnostic_taken": true,
+        // FEEL bucket
+        "frustration_signal": true, "celebration_signal": true,
+        "boredom_signal": true, "flow_signal": true, "mood_self_report": true,
+        // WHO bucket
+        "friend_added": true, "friend_challenge_sent": true,
+        "leaderboard_viewed": true, "social_share": true, "invite_sent": true,
+        // RESPOND bucket
+        "wow_moment_shown": true, "wow_moment_engaged": true,
+        "wow_moment_dismissed": true, "deep_link_followed": true, "channel_replied": true,
+    };
+    var ALLOWED_CHANNELS = {
+        whatsapp: true, sms: true, email: true, push: true,
+        telegram: true, discord: true, imessage: true, voice: true,
+        beehiiv: true,
+    };
+    var MAX_SIGNALS_PER_INGEST = 50;
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    // Service caller pattern matches WowMoments / ConvCapture. Used by
+    // /api/personalize and the kb-enrichment cron when they need to fetch
+    // the model on behalf of an arbitrary user_id.
+    function isServiceCaller(ctx, payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["USER_MODEL_SERVICE_TOKEN"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    function readObject(nk, userId, collection, key) {
+        try {
+            var rows = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    function defaultConsent() {
+        // Default to OPT-IN for in-app push (user installed the app),
+        // OPT-OUT for everything that requires explicit channel linking.
+        return {
+            whatsapp: false, sms: false, email: false,
+            push: true, telegram: false, discord: false, imessage: false,
+            voice: false, beehiiv: false,
+        };
+    }
+    function defaultDerived() {
+        return {
+            predicted_score_pct: null,
+            personality_archetype: null,
+            next_best_topic: null,
+            peer_percentile_per_topic: null,
+            mood_estimate: null,
+            social_graph_density: null,
+            computed_at: null,
+        };
+    }
+    // ── RPC: user_model_get ────────────────────────────────────────────────
+    // Self-call (ctx.userId) OR service-call (service_token + user_id).
+    // Returns derived attributes, consent flags, and a *summary* of raw
+    // signals (event name → { count, last_at }), not the full event log.
+    function rpcGet(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var userId = ctx.userId || "";
+            if (!userId) {
+                if (!isServiceCaller(ctx, data)) {
+                    return RpcHelpers.errorResponse("not authorised", 401);
+                }
+                userId = "" + (data.user_id || "");
+                if (!userId)
+                    return RpcHelpers.errorResponse("user_id required", 400);
+            }
+            var derived = readObject(nk, userId, COLLECTION_USER_MODEL, KEY_DERIVED) || defaultDerived();
+            var consent = readObject(nk, userId, COLLECTION_USER_MODEL, KEY_CONSENT) || defaultConsent();
+            // Summarise raw signals from the per-user collection — keeps the
+            // /me/reveal payload small while still letting the user verify
+            // every signal type that's been captured.
+            var signalCol = COLLECTION_SIGNALS_PREFIX + userId + COLLECTION_SIGNALS_SUFFIX;
+            var signalsByName = {};
+            try {
+                var page = nk.storageList(userId, signalCol, 100, "");
+                if (page && page.objects) {
+                    for (var i = 0; i < page.objects.length; i++) {
+                        signalsByName[page.objects[i].key] = page.objects[i].value;
+                    }
+                }
+            }
+            catch (_) { /* user may have zero signals; that's fine */ }
+            return RpcHelpers.successResponse({
+                user_id: userId,
+                derived: derived,
+                consent: consent,
+                signals: signalsByName,
+                served_at: nowSec(),
+            });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[UserModel] get failed: " + msg);
+            return RpcHelpers.errorResponse("get failed: " + msg, 500);
+        }
+    }
+    // ── RPC: user_model_signal_ingest ──────────────────────────────────────
+    // The Unity client and the web frontend bulk-POST batches of allowed
+    // events here. Each event bumps a per-event counter row in
+    // qv_u_<userId>_signals. The kb-enrichment cron reads these counters
+    // (plus quiz_results) to recompute derived attributes.
+    //
+    // Self-call only — we never let services impersonate users when
+    // claiming behavioural signals (would let a bad actor inflate
+    // "celebration_signal" to game the personality archetype).
+    function rpcSignalIngest(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var events = data && data.events;
+            if (!events || !Array.isArray(events)) {
+                return RpcHelpers.errorResponse("events array required", 400);
+            }
+            if (events.length === 0) {
+                return RpcHelpers.successResponse({ accepted: 0, dropped: 0 });
+            }
+            if (events.length > MAX_SIGNALS_PER_INGEST) {
+                return RpcHelpers.errorResponse("too many events (max " + MAX_SIGNALS_PER_INGEST + " per call)", 400);
+            }
+            var signalCol = COLLECTION_SIGNALS_PREFIX + userId + COLLECTION_SIGNALS_SUFFIX;
+            var accepted = 0;
+            var dropped = 0;
+            var writes = [];
+            var ts = nowSec();
+            for (var i = 0; i < events.length; i++) {
+                var ev = events[i];
+                if (!ev || typeof ev.name !== "string") {
+                    dropped++;
+                    continue;
+                }
+                if (!ALLOWED_SIGNALS[ev.name]) {
+                    dropped++;
+                    continue;
+                }
+                var existing = readObject(nk, userId, signalCol, ev.name) || {
+                    count: 0, first_at: ts, last_at: ts,
+                };
+                existing.count = (existing.count | 0) + 1;
+                existing.last_at = ts;
+                if (!existing.first_at)
+                    existing.first_at = ts;
+                // Capture the latest props envelope (small; bounded) for ad-hoc
+                // dashboarding — derivation jobs read counters, not props.
+                existing.last_props = ev.props || null;
+                writes.push({
+                    collection: signalCol,
+                    key: ev.name,
+                    userId: userId,
+                    value: existing,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                });
+                accepted++;
+            }
+            if (writes.length > 0) {
+                nk.storageWrite(writes);
+            }
+            return RpcHelpers.successResponse({ accepted: accepted, dropped: dropped });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[UserModel] signal_ingest failed: " + msg);
+            RpcHelpers.logRpcError(nk, logger, "user_model_signal_ingest", msg);
+            return RpcHelpers.errorResponse("signal_ingest failed: " + msg, 500);
+        }
+    }
+    // ── RPC: user_model_consent_set ────────────────────────────────────────
+    // User-side toggle for any of the channel consents. Called from
+    // /me/reveal and the in-app settings screen. Writes a full snapshot
+    // (server-side merge with previous) so partial updates work.
+    function rpcConsentSet(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var updates = data && data.consent;
+            if (!updates || typeof updates !== "object") {
+                return RpcHelpers.errorResponse("consent object required", 400);
+            }
+            var existing = readObject(nk, userId, COLLECTION_USER_MODEL, KEY_CONSENT) || defaultConsent();
+            var merged = {};
+            var defaults = defaultConsent();
+            // Start from defaults, then overlay existing, then overlay updates.
+            // This way new channels added later default to false even on old rows.
+            for (var k in defaults)
+                if (defaults.hasOwnProperty(k))
+                    merged[k] = defaults[k];
+            for (var k2 in existing)
+                if (existing.hasOwnProperty(k2))
+                    merged[k2] = existing[k2];
+            for (var k3 in updates) {
+                if (!updates.hasOwnProperty(k3))
+                    continue;
+                if (!ALLOWED_CHANNELS[k3])
+                    continue; // ignore unknown channels
+                merged[k3] = !!updates[k3];
+            }
+            merged.updated_at = nowSec();
+            nk.storageWrite([{
+                    collection: COLLECTION_USER_MODEL,
+                    key: KEY_CONSENT,
+                    userId: userId,
+                    value: merged,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            return RpcHelpers.successResponse({ consent: merged });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[UserModel] consent_set failed: " + msg);
+            return RpcHelpers.errorResponse("consent_set failed: " + msg, 500);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("user_model_get", rpcGet);
+        initializer.registerRpc("user_model_signal_ingest", rpcSignalIngest);
+        initializer.registerRpc("user_model_consent_set", rpcConsentSet);
+    }
+    UserModel.register = register;
+})(UserModel || (UserModel = {}));
 // kb_enrichment.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // Continuous KB enrichment loop — recomputes derived user attributes so that

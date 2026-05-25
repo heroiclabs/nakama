@@ -181,6 +181,9 @@ declare namespace QvProductChangelog {
     var ALLOWED_KINDS: string[];
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace ConvCapture {
+    function register(initializer: nkruntime.Initializer): void;
+}
 /**
  * Cricket Auction — Nakama server module
  *
@@ -906,6 +909,43 @@ declare namespace IdentityResolver {
 }
 declare namespace LearnerToolbelt {
     function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace PerExamConfig {
+    type PredictorMethod = 'irt-2pl' | 'concordance' | 'ap-composite' | 'irt-section-adaptive' | 'irt-focus-edition' | 'percentile-4section' | 'raw-to-scaled-120-180' | 'cutoff-band' | 'mbe-mee-mpt-composite' | 'nta-percentile-to-air' | 'marks-vs-rank-curve' | 'section-percentile-to-oa' | 'gate-score-formula' | 'prelims-cutoff-band' | 'marks-to-nlu-rank' | 'nta-percentile-multisubject' | 'written-cutoff-only' | 'tier-1-2-composite' | 'phase-1-2-cutoff' | 'bayes-fallback' | 'uk-boundary';
+    type PredictorPhase = 'A' | 'B' | 'C';
+    interface ExamSection {
+        id: string;
+        max: number;
+        weight?: number;
+    }
+    interface ExamPredictorConfig {
+        method: PredictorMethod;
+        phase: PredictorPhase;
+        /** ISO-3166 alpha-2 default country (for diaspora users we still honour
+         *  per-call locale + country query params; this is just the *exam* origin). */
+        countryDefault: string;
+        /** [min, max] inclusive of the published scale. */
+        scoreRange: [number, number];
+        /** Sections this exam has (e.g. SAT = math+verbal, JEE Main = phy+chem+math).
+         *  Empty array is acceptable for composite-only exams. */
+        sections: ExamSection[];
+        /** Public source URLs cited in plan §3.10 / §12. */
+        citations: string[];
+        /** ISO date of the last calibration data refresh (optional — populated when
+         *  the per-exam algorithm lands in wave 4-5). */
+        lastCalibration?: string;
+        /** Goal-rank tiers used by the §3.5 context block — e.g. for JEE we surface
+         *  ['IIT', 'NIT', 'IIIT', 'private']. */
+        goalTiers?: string[];
+    }
+    var CONFIG: {
+        [examId: string]: ExamPredictorConfig;
+    };
+    /** Returns the supported exam_id list (alphabetical) — used by /tools/score-predictor for the dropdown. */
+    function listSupportedExamIds(): string[];
+    /** Returns the config for a given exam_id, or null if not in the supported set
+     *  (in which case the caller MUST fall through to the Bayes fallback). */
+    function lookup(examId: string): ExamPredictorConfig | null;
 }
 declare namespace LegacyAnalyticsRetention {
     function register(initializer: nkruntime.Initializer): void;
@@ -2719,6 +2759,9 @@ declare namespace MpVoiceLiveKit {
     function urlFor(cfg: IConfig, region: string): string;
     function makeMinter(cfg: IConfig, b64url: (s: string) => string, hmacSha256: (key: string, msg: string) => string): MpKernelVoice.ITokenMinter;
 }
+declare namespace BrainCoins {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3690,6 +3733,9 @@ declare namespace Satori {
             [id: string]: MetricDefinition;
         };
     }
+}
+declare namespace UserModel {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace KbEnrichment {
     function register(initializer: nkruntime.Initializer): void;
