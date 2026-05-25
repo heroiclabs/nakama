@@ -1,0 +1,129 @@
+version: 0.2
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AWS CodeBuild template — Docker → ECR → EKS rolling deploy
+#
+# This is the canonical buildspec pattern for intelli-verse-x services.
+# Copy this file to <service-repo>/buildspec.yml and fill in the env vars
+# below. The pattern was extracted from intelliverse-nakama's buildspec
+# (the only one of six audited that was both fail-fast AND digest-pinned)
+# and additionally hardened with `set -euo pipefail` after the silent
+# deployment failures discovered in intelli-verse-x-MCP and content-factory
+# in April 2026.
+#
+# ── What this template guarantees ────────────────────────────────────────
+# 1. Fail-fast: any non-zero exit anywhere in the deploy block aborts the
+#    build. CodeBuild will report FAILED. No more "build SUCCEEDED, prod
+#    is stale".
+# 2. Immutable image tags: every build produces
+#       <APP_VERSION>-<git-sha7>-build<codebuild-build-number>
+#    so every artifact in ECR is forever uniquely addressable.
+# 3. Digest-pinned rollouts: after pushing the tag, the immutable
+#    sha256 digest is resolved from ECR and `kubectl set image` uses
+#    repo@sha256:... — never a tag. Rollbacks via tag mutation are
+#    impossible by construction.
+# 4. Post-deploy verification: image and pod status are printed; an
+#    image-manifest.json artifact is published for audit/rollback.
+#
+# ── Required CodeBuild env vars (set in the project, NOT in this file) ──
+#   AWS_DEFAULT_REGION   e.g. us-east-1
+#   AWS_ACCOUNT_ID       e.g. 970547373533
+#   EKS_CLUSTER_NAME     e.g. ai-cart-auto-cluster      (NOT "aicart-cluster")
+#   K8S_NAMESPACE        e.g. aicart
+#   K8S_DEPLOYMENT       e.g. intelliverse-foo
+#   K8S_CONTAINER        e.g. intelliverse-foo
+#   ECR_REPOSITORY       e.g. intelliverse-foo
+#   APP_VERSION          e.g. 1.0.0  (semver of the application)
+#   DOCKERFILE           e.g. Dockerfile.production
+#
+# ── Required CodeBuild service-role permissions ─────────────────────────
+#   • ECR push (AmazonEC2ContainerRegistryPowerUser or scoped equivalent)
+#   • eks:DescribeCluster on the target cluster ARN
+#   • EKS Access Entry on the cluster, associated with AmazonEKSEditPolicy
+#     scoped to K8S_NAMESPACE (or AmazonEKSClusterAdminPolicy if rolling
+#     cluster-wide)
+# ─────────────────────────────────────────────────────────────────────────────
+
+env:
+  variables:
+    # NOTE: Defaults shown — override per-project in the CodeBuild console
+    # so this template stays generic.
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_ACCOUNT_ID: "970547373533"
+    EKS_CLUSTER_NAME: ai-cart-auto-cluster
+    K8S_NAMESPACE: aicart
+    K8S_DEPLOYMENT: REPLACE_ME
+    K8S_CONTAINER: REPLACE_ME
+    ECR_REPOSITORY: REPLACE_ME
+    APP_VERSION: "1.0.0"
+    DOCKERFILE: Dockerfile
+
+phases:
+  install:
+    commands:
+      - set -euo pipefail
+      - echo "=== Installing kubectl v1.30 ==="
+      - curl -sLO "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl"
+      - chmod +x kubectl && mv kubectl /usr/local/bin/kubectl
+      - kubectl version --client=true --output=yaml
+
+  pre_build:
+    commands:
+      - set -euo pipefail
+      - echo "=== Computing image tags ==="
+      - COMMIT_HASH=$(echo "$CODEBUILD_RESOLVED_SOURCE_VERSION" | cut -c 1-7)
+      - if [ -z "$COMMIT_HASH" ]; then COMMIT_HASH="nogit"; fi
+      - IMAGE_VERSION="${APP_VERSION}-${COMMIT_HASH}-build${CODEBUILD_BUILD_NUMBER}"
+      - REPOSITORY_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${ECR_REPOSITORY}"
+      - echo "IMAGE_VERSION=$IMAGE_VERSION"
+      - echo "REPOSITORY_URI=$REPOSITORY_URI"
+      - echo "=== Logging into ECR ==="
+      - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+      - echo "=== Configuring kubectl for EKS ==="
+      - aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER_NAME"
+      - echo "=== Current live image (for diffing in build log) ==="
+      - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+
+  build:
+    commands:
+      - set -euo pipefail
+      - echo "=== Building image ${REPOSITORY_URI}:${IMAGE_VERSION} ==="
+      - >
+        docker build
+        -f "$DOCKERFILE"
+        --build-arg IMAGE_VERSION="$IMAGE_VERSION"
+        --build-arg GIT_SHA="$CODEBUILD_RESOLVED_SOURCE_VERSION"
+        -t "${REPOSITORY_URI}:${IMAGE_VERSION}"
+        -t "${REPOSITORY_URI}:latest"
+        .
+
+  post_build:
+    commands:
+      - set -euo pipefail
+      - echo "=== Pushing immutable tag ${IMAGE_VERSION} ==="
+      - docker push "${REPOSITORY_URI}:${IMAGE_VERSION}"
+      - echo "=== Pushing :latest (compat only — rollouts use immutable digest) ==="
+      - docker push "${REPOSITORY_URI}:latest"
+      - echo "=== Resolving immutable digest from ECR ==="
+      - >
+        IMAGE_DIGEST=$(aws ecr describe-images
+        --repository-name "$ECR_REPOSITORY"
+        --image-ids imageTag="$IMAGE_VERSION"
+        --query 'imageDetails[0].imageDigest' --output text)
+      - echo "IMAGE_DIGEST=$IMAGE_DIGEST"
+      - echo "=== Rolling deployment to ${IMAGE_VERSION} (digest pinned) ==="
+      - >
+        kubectl set image
+        deployment/"$K8S_DEPLOYMENT"
+        "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
+        -n "$K8S_NAMESPACE"
+      - kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=10m
+      - echo "=== Verifying live image after rollout ==="
+      - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+      - kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
+      - echo "{\"image\":\"${REPOSITORY_URI}@${IMAGE_DIGEST}\",\"tag\":\"${IMAGE_VERSION}\",\"git\":\"${CODEBUILD_RESOLVED_SOURCE_VERSION}\"}" > image-manifest.json
+
+artifacts:
+  files:
+    - image-manifest.json
+  name: ${ECR_REPOSITORY}-build-${CODEBUILD_BUILD_NUMBER}
