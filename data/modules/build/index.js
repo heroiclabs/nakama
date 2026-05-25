@@ -8054,11 +8054,17 @@ var QuizVerseMigration;
             detail.push({ idx: i, word: q.word, picked: ans, correct: ok, correct_idx: q.correct_idx });
         }
         // Pair attempt — read pair row, dequeue any waiting non-self user.
+        // The pair row is a "system" storage row, not owned by any user. Nakama
+        // requires a valid UUID for `userId`, so we use the canonical system
+        // sentinel (00000000-0000-0000-0000-000000000000) which is reserved
+        // for plugin-owned global rows. Empty string here yields:
+        //   "TypeError: expects 'userId' value to be a valid id"
+        var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
         var opponent = null;
         var pair = { waiting: [], matches: [] };
         try {
             var pairList = nk.storageRead([{
-                    collection: COL_DUEL_PAIR, key: pairKey, userId: "" // global owner-less row
+                    collection: COL_DUEL_PAIR, key: pairKey, userId: SYSTEM_USER_ID
                 }]);
             if (pairList && pairList.length > 0 && pairList[0].value) {
                 pair = pairList[0].value;
@@ -8134,10 +8140,12 @@ var QuizVerseMigration;
                 permissionWrite: 0
             }]);
         // Persist pair row (PUBLIC_READ so the global queue is visible to ops).
+        // SYSTEM_USER_ID owns the row — see comment at the top of this RPC for
+        // why empty-string is invalid.
         nk.storageWrite([{
                 collection: COL_DUEL_PAIR,
                 key: pairKey,
-                userId: "", // Goja runtime maps "" → null owner = system row.
+                userId: SYSTEM_USER_ID,
                 value: pair,
                 permissionRead: 2, // PUBLIC_READ
                 permissionWrite: 0
@@ -8181,9 +8189,11 @@ var QuizVerseMigration;
         }
         // Leaderboard: per-(exam,utc_day). Reset cron 00:00 UTC matches the
         // daily puzzle reset, so each leaderboard is a single calendar day.
+        // SortOrder/Operator are nakama-common const-enums — must pass the
+        // enum *value* string ("descending" / "best"), not a free-form alias.
         try {
             var lbId = "qv_duel_" + exam + "_" + day;
-            nk.leaderboardCreate(lbId, false, "desc", "best", "0 0 * * *");
+            nk.leaderboardCreate(lbId, false, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */, "0 0 * * *");
             nk.leaderboardRecordWrite(lbId, userId, "", score, 0, { exam: exam, utc_day: day });
         }
         catch (e) {
@@ -8219,7 +8229,7 @@ var QuizVerseMigration;
         var entries = [];
         try {
             // Idempotent — leaderboardCreate returns existing if it already exists.
-            nk.leaderboardCreate(lbId, false, "desc", "best", "0 0 * * *");
+            nk.leaderboardCreate(lbId, false, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */, "0 0 * * *");
             var records = nk.leaderboardRecordsList(lbId, [], limit);
             if (records && records.records) {
                 for (var i = 0; i < records.records.length; i++) {
