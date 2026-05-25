@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "locale": "pt-BR",
+    "owner": "ai-content",
+    "source_of_truth": "data/modules/src/learner-toolbelt/lt_i18n.ts (I18N_PT_BR)",
+    "note": "Seed translation — wave 7 QA per PLAN § 10.6 Firecrawl loop."
+  },
+  "predictor.sat.high":  "Você está mirando {predicted} no SAT (IC 90% {ci_low}–{ci_high}). Reading & Writing está consistente; mantenha Math com 3 sets cronometrados por semana.",
+  "predictor.sat.mid":   "Projeção SAT: {predicted} (IC 90% {ci_low}–{ci_high}). O ganho mais barato está em Math — 6 h/semana de drill direcionado deve levar a 1350+.",
+  "predictor.sat.low":   "Trajetória atual: {predicted} no SAT (IC 90% {ci_low}–{ci_high}). Fundamentos primeiro — alterne um set de R&W e um de Math por dia; +120 em 6 semanas.",
+  "predictor.jee.high":  "JEE Main: tendência {predicted}. Top 1% está ao alcance — proteja precisão em Chemistry e faça mocks completos semanais.",
+  "predictor.jee.mid":   "Projeção JEE Main: {predicted}. Mechanics + Inorganic Chemistry são seus maiores resíduos — 90 min/dia em PYQs.",
+  "predictor.jee.low":   "Projeção JEE Main: {predicted}. Pare de pular entre matérias; blocos de 14 dias por matéria: conceito → exemplos → PYQ.",
+  "predictor.ap.high":   "AP projetado: {predicted}. Banda 5 confortável — passe a drills somente de FRQ.",
+  "predictor.ap.mid":    "AP projetado: {predicted}. MCQ está bom; o limite para 5 é ritmo em FRQ — 2 FRQs cronometradas por semana.",
+  "predictor.ap.low":    "AP projetado: {predicted}. Foque nas 4–5 unidades de maior peso do College Board para sua matéria.",
+  "predictor.neet.high": "NEET projetado: {predicted} / 720. Banda AIIMS realista — proteja precisão em Biologia.",
+  "predictor.neet.mid":  "NEET projetado: {predicted} / 720. Física é seu resíduo; 60 min/dia NCERT + 30 min PYQ devem somar 40-60 marks em um mês.",
+  "predictor.neet.low":  "NEET projetado: {predicted} / 720. Pivot para NCERT de Biologia linha-por-linha por 21 dias.",
+  "predictor.generic.high": "Você está no {predicted} dos usuários QuizVerse para este exame. Mantenha volume e adicione mocks completos cronometrados semanalmente.",
+  "predictor.generic.mid":  "Você está no {predicted} dos usuários QuizVerse. Dois tópicos fracos puxam sua média — passe para sets de 10 perguntas por tópico.",
+  "predictor.generic.low":  "Você está no {predicted} dos usuários QuizVerse. Fundamentos primeiro: 5 perguntas/dia de warmup, sem mocks por 2 semanas.",
+  "predictor.sat.insufficient_data":  "Jogue ao menos 8 quizzes tagueados como SAT e mostraremos uma banda. Não vamos inventar número.",
+  "predictor.jee.insufficient_data":  "Jogue ao menos 8 quizzes tagueados como JEE e mostraremos uma banda de percentil.",
+  "predictor.ap.insufficient_data":   "Jogue ao menos 8 quizzes tagueados como AP (na sua matéria) e mostraremos uma banda.",
+  "predictor.neet.insufficient_data": "Jogue ao menos 8 quizzes tagueados como NEET e mostraremos uma banda.",
+  "predictor.generic.insufficient_data": "Jogue ao menos 8 quizzes tagueados a este exame e mostraremos uma banda de confiança.",
+  "calendar.no_results": "Não há entradas de calendário de exames conhecidas para o país e ano solicitados.",
+  "school.no_results":   "Nenhuma escola compatível — use o modo de texto livre para adicionar a sua."
+}

@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "locale": "en",
+    "owner": "ai-content",
+    "source_of_truth": "data/modules/src/learner-toolbelt/lt_i18n.ts (I18N_EN)",
+    "note": "Edit this file AND the inline TS dict; QA bot fails CI if they drift."
+  },
+  "predictor.sat.high":  "You're trending toward {predicted} on the SAT (90% CI {ci_low}–{ci_high}). Solid Reading & Writing; keep Math sharp with 3 timed sets per week to hold the band.",
+  "predictor.sat.mid":   "You're projecting around {predicted} on the SAT (90% CI {ci_low}–{ci_high}). Math is the cheapest lift: 6 hrs/wk of targeted drill should push you to 1350+.",
+  "predictor.sat.low":   "Current trajectory: {predicted} on the SAT (90% CI {ci_low}–{ci_high}). Fundamentals first — alternate one R&W set and one Math set daily; expect +120 in 6 weeks.",
+  "predictor.jee.high":  "You're trending toward {predicted} on JEE Main. Top 1% is in reach — protect Chemistry accuracy and time the JEE Advanced full mocks weekly.",
+  "predictor.jee.mid":   "JEE Main projection: {predicted}. Mechanics + Inorganic Chem are your biggest residuals — 90 min/day on PYQs should compound fast.",
+  "predictor.jee.low":   "JEE Main projection: {predicted}. Drop subject-jumping; commit to 14-day blocks per subject and rebuild from concept → solved-examples → PYQ.",
+  "predictor.ap.high":   "Projected AP score: {predicted}. You're comfortably in the 5 band — switch to FRQ-only drills to lock the rubric edges.",
+  "predictor.ap.mid":    "Projected AP score: {predicted}. Multiple-choice is fine; the boundary to 5 is FRQ pacing — 2 timed FRQs per week from official released exams.",
+  "predictor.ap.low":    "Projected AP score: {predicted}. Focus on the 4–5 units College Board weights heaviest in your subject; ignore the long tail until you're consistently above 60% MCQ accuracy.",
+  "predictor.neet.high": "NEET projection: {predicted} / 720. AIIMS-tier is realistic — protect Biology accuracy (single-mark errors cost ~80 ranks each).",
+  "predictor.neet.mid":  "NEET projection: {predicted} / 720. Physics is your residual; 60 min/day on NCERT + 30 min on PYQ should add 40-60 marks in a month.",
+  "predictor.neet.low":  "NEET projection: {predicted} / 720. Pivot to Biology NCERT line-by-line for the next 21 days — single highest ROI on the syllabus.",
+  "predictor.generic.high": "You're in the {predicted} of QuizVerse users for this exam track. Maintain volume and add timed full-length mocks weekly.",
+  "predictor.generic.mid":  "You're at the {predicted} of QuizVerse users for this exam. Two weak topics drag your average — switch to topic-focused 10-question sets.",
+  "predictor.generic.low":  "You're at the {predicted} of QuizVerse users on this track. Foundation-first: 5-question warmups daily, no full-length mocks for 2 weeks.",
+  "predictor.sat.insufficient_data":  "Play at least 8 SAT-tagged quizzes (5 minutes each) and we'll surface a band. Until then we won't fake a number.",
+  "predictor.jee.insufficient_data":  "Play at least 8 JEE-tagged quizzes and we'll surface a percentile band. Until then we won't fake a number.",
+  "predictor.ap.insufficient_data":   "Play at least 8 AP-tagged quizzes (in your subject) and we'll surface a score band.",
+  "predictor.neet.insufficient_data": "Play at least 8 NEET-tagged quizzes and we'll surface a score band.",
+  "predictor.generic.insufficient_data": "Play at least 8 quizzes tagged to this exam and we'll surface a confidence band.",
+  "calendar.no_results": "No exam-calendar entries known for the requested country and year yet.",
+  "school.no_results":   "No matching schools — try the free-text path so we can add yours."
+}

@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "locale": "hi",
+    "owner": "ai-content",
+    "source_of_truth": "data/modules/src/learner-toolbelt/lt_i18n.ts (I18N_HI)",
+    "note": "Seed translation — wave 7 QA per PLAN § 10.6 Firecrawl loop."
+  },
+  "predictor.sat.high":  "आप SAT में लगभग {predicted} की ओर बढ़ रहे हैं (90% CI {ci_low}–{ci_high}). Reading & Writing ठीक है; Math को साधने के लिए हफ्ते में 3 timed sets करें.",
+  "predictor.sat.mid":   "SAT में अनुमानित स्कोर {predicted} (90% CI {ci_low}–{ci_high}). सबसे आसान सुधार Math में है — हफ्ते में 6 घंटे drill से 1350+ संभव है.",
+  "predictor.sat.low":   "वर्तमान दिशा: SAT में {predicted} (90% CI {ci_low}–{ci_high}). पहले बुनियाद — रोज़ एक R&W और एक Math set, 6 हफ्तों में +120 अंक.",
+  "predictor.jee.high":  "JEE Main में आपका रुख {predicted} की ओर है. शीर्ष 1% पहुँच में है — Chemistry की सटीकता बनाए रखें और JEE Advanced के पूर्ण mocks साप्ताहिक करें.",
+  "predictor.jee.mid":   "JEE Main अनुमान: {predicted}. Mechanics और Inorganic Chemistry सबसे बड़े अंतर हैं — रोज़ 90 मिनट PYQ पर लगाएँ.",
+  "predictor.jee.low":   "JEE Main अनुमान: {predicted}. विषय बदलना बंद करें; 14-दिन के ब्लॉक में एक विषय पूरा करें: concept → हल किए उदाहरण → PYQ.",
+  "predictor.ap.high":   "अनुमानित AP स्कोर: {predicted}. आप आराम से 5-band में हैं — अब केवल FRQ drills पर ध्यान दें ताकि rubric के किनारे पक्के हो जाएँ.",
+  "predictor.ap.mid":    "अनुमानित AP स्कोर: {predicted}. MCQ ठीक है; 5 तक पहुँचने की दीवार FRQ pacing है — आधिकारिक released exams से हफ्ते में 2 timed FRQ.",
+  "predictor.ap.low":    "अनुमानित AP स्कोर: {predicted}. आपके विषय में College Board सबसे ज़्यादा भार जिन 4–5 units पर देता है, उन पर ध्यान दें.",
+  "predictor.neet.high": "NEET अनुमान: {predicted} / 720. AIIMS-स्तर पहुँच में है — Biology की सटीकता बनाए रखें (हर एक-नंबर की गलती ~80 रैंक महँगी पड़ती है).",
+  "predictor.neet.mid":  "NEET अनुमान: {predicted} / 720. Physics सबसे बड़ा अंतर है; रोज़ 60 मिनट NCERT और 30 मिनट PYQ से एक महीने में 40-60 अंक संभव हैं.",
+  "predictor.neet.low":  "NEET अनुमान: {predicted} / 720. अगले 21 दिन Biology NCERT लाइन-दर-लाइन पढ़ें — पूरे सिलेबस में सबसे अच्छा ROI.",
+  "predictor.generic.high": "इस परीक्षा के ट्रैक पर आप QuizVerse उपयोगकर्ताओं के {predicted} में हैं. मात्रा बनाए रखें और हफ्ते में timed full-length mocks जोड़ें.",
+  "predictor.generic.mid":  "इस परीक्षा पर आप QuizVerse उपयोगकर्ताओं के {predicted} में हैं. दो कमज़ोर विषय आपका औसत खींच रहे हैं — topic-focused 10-question sets पर बदलें.",
+  "predictor.generic.low":  "इस ट्रैक पर आप QuizVerse उपयोगकर्ताओं के {predicted} में हैं. पहले बुनियाद: रोज़ 5-question warmups, 2 हफ्तों तक full-length mocks नहीं.",
+  "predictor.sat.insufficient_data":  "कम से कम 8 SAT-tagged quizzes (हर एक 5 मिनट) खेलें, तब हम band दिखाएँगे. नकली नंबर नहीं देंगे.",
+  "predictor.jee.insufficient_data":  "कम से कम 8 JEE-tagged quizzes खेलें, तब percentile band दिखेगा. नकली नंबर नहीं देंगे.",
+  "predictor.ap.insufficient_data":   "कम से कम 8 AP-tagged quizzes (अपने subject में) खेलें, तब score band दिखाएँगे.",
+  "predictor.neet.insufficient_data": "कम से कम 8 NEET-tagged quizzes खेलें, तब score band दिखाएँगे.",
+  "predictor.generic.insufficient_data": "इस परीक्षा से tagged कम से कम 8 quizzes खेलें, तब confidence band दिखाएँगे.",
+  "calendar.no_results": "अनुरोधित देश और वर्ष के लिए कोई exam-calendar entry अभी उपलब्ध नहीं है.",
+  "school.no_results":   "कोई मेल खाता स्कूल नहीं मिला — free-text path आज़माएँ ताकि हम आपका जोड़ सकें."
+}

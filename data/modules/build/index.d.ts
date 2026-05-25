@@ -905,7 +905,142 @@ declare namespace IdentityResolver {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LearnerToolbelt {
+    var MODULE_VERSION: string;
     function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace LearnerToolbelt {
+    var EXAM_CALENDAR_VERSION: string;
+    interface ExamCalendarEntry {
+        exam_id: string;
+        exam_label: string;
+        country: string;
+        year: number;
+        date_iso: string | null;
+        date_window_label: string;
+        registration_open_iso: string | null;
+        registration_close_iso: string | null;
+        source_url: string;
+    }
+    function getCalendarEntries(country: string, year: number): ExamCalendarEntry[];
+    function lookupExamUpcoming(examId: string, nowUnix: number): ExamCalendarEntry | null;
+}
+declare namespace LearnerToolbelt {
+    interface GpaCourseInput {
+        name?: string;
+        grade?: string | number;
+        credits?: number;
+        is_ap?: boolean;
+        is_honors?: boolean;
+    }
+    interface GpaCourseBreakdown {
+        name: string;
+        grade_input: string;
+        grade_native: number;
+        grade_us4: number;
+        credits: number;
+        weighted_bonus: number;
+        quality_points_native: number;
+        quality_points_us4: number;
+    }
+    interface GpaComputeResult {
+        ok: boolean;
+        system: string;
+        system_label: string;
+        native_gpa: number;
+        native_max: number;
+        wes_4_0: number;
+        percentile_band: string;
+        breakdown: GpaCourseBreakdown[];
+        courses_used: number;
+        courses_skipped: number;
+        warnings: string[];
+    }
+    function computeGpa(systemId: string, courses: GpaCourseInput[]): GpaComputeResult;
+}
+declare namespace LearnerToolbelt {
+    function i18nRecommendation(locale: string, examId: string, band: string): string;
+    function i18nString(locale: string, key: string): string;
+}
+declare namespace LearnerToolbelt {
+    interface ScorePredictRequest {
+        exam_id: string;
+        locale: string;
+        recent_quiz_window_days: number;
+    }
+    interface ScorePredictBucket {
+        scaled_score: number | null;
+        percentile: number | null;
+        rank: number | null;
+        grade: string | null;
+        ci_low: number;
+        ci_high: number;
+    }
+    interface ScorePredictResult {
+        ok: boolean;
+        status: string;
+        exam_id: string;
+        predictor_tier: string;
+        model_version: string;
+        quizzes_used: number;
+        quizzes_total_in_window: number;
+        min_quizzes_for_high_confidence: number;
+        accuracy_observed: number;
+        posterior_mean: number;
+        predicted: ScorePredictBucket;
+        recommendation_text: string;
+        confidence_pct: number;
+        generated_unix: number;
+        ttl_seconds: number;
+    }
+    interface QuizHistoryEntry {
+        timestamp: number;
+        correctAnswers: number;
+        totalQuestions: number;
+        category: string;
+    }
+    function betaPosteriorBounds(correct: number, total: number): {
+        mean: number;
+        lo90: number;
+        hi90: number;
+    };
+    function filterHistoryForExam(rows: QuizHistoryEntry[], examId: string, windowDays: number, nowUnix: number): {
+        matched: QuizHistoryEntry[];
+        total: number;
+    };
+    function accuracyBand(accuracy: number): string;
+    function predictFromHistory(req: ScorePredictRequest, history: QuizHistoryEntry[], nowUnix: number): ScorePredictResult;
+    function expectedUpliftPerQuiz(examId: string): {
+        unit: string;
+        value: number;
+    };
+}
+declare namespace LearnerToolbelt {
+    interface SchoolRecord {
+        school_id: string;
+        source: string;
+        display_name: string;
+        city: string;
+        state_region: string;
+        country_code: string;
+        board: string | null;
+        grade_band: string;
+        lat: number | null;
+        lng: number | null;
+        language_of_instruction: string | null;
+    }
+    var SCHOOL_FIXTURE: SchoolRecord[];
+    interface SchoolSearchHit {
+        school_id: string;
+        display_name: string;
+        city: string;
+        state_region: string;
+        country_code: string;
+        board: string | null;
+        source: string;
+        score: number;
+    }
+    function searchSchools(query: string, countryCode: string, limit: number): SchoolSearchHit[];
+    function getSchoolById(schoolId: string): SchoolRecord | null;
 }
 declare namespace LegacyAnalyticsRetention {
     function register(initializer: nkruntime.Initializer): void;

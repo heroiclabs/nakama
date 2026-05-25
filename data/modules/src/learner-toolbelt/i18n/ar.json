@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "locale": "ar",
+    "owner": "ai-content",
+    "source_of_truth": "data/modules/src/learner-toolbelt/lt_i18n.ts (I18N_AR)",
+    "note": "Seed translation — wave 7 QA per PLAN § 10.6 Firecrawl loop."
+  },
+  "predictor.sat.high":  "تتجه نحو {predicted} في الـ SAT (مجال ثقة 90% {ci_low}–{ci_high}). القراءة والكتابة جيدتان؛ احتفظ بالرياضيات بثلاث مجموعات موقوتة أسبوعياً.",
+  "predictor.sat.mid":   "توقع SAT: {predicted} (مجال ثقة 90% {ci_low}–{ci_high}). أرخص رفع في الرياضيات — 6 ساعات/أسبوع تمارين موجهة ترفعك إلى 1350+.",
+  "predictor.sat.low":   "المسار الحالي: {predicted} في الـ SAT (مجال ثقة 90% {ci_low}–{ci_high}). الأساسيات أولاً — يومياً مجموعة قراءة ومجموعة رياضيات؛ +120 خلال 6 أسابيع.",
+  "predictor.jee.high":  "JEE Main: التوجه نحو {predicted}. الـ 1% الأعلى في المتناول — حافظ على دقة الكيمياء وامتحانات تجريبية كاملة أسبوعياً.",
+  "predictor.jee.mid":   "توقع JEE Main: {predicted}. الميكانيكا والكيمياء غير العضوية أكبر الفجوات — 90 دقيقة/يوم على PYQs.",
+  "predictor.jee.low":   "توقع JEE Main: {predicted}. لا تقفز بين المواد؛ كتل 14 يوماً لكل مادة: مفهوم → أمثلة → PYQ.",
+  "predictor.ap.high":   "AP المتوقع: {predicted}. ضمن نطاق 5 بأريحية — انتقل إلى تمارين FRQ فقط لإحكام المعايير.",
+  "predictor.ap.mid":    "AP المتوقع: {predicted}. الاختيار من متعدد جيد؛ الحد الفاصل للوصول إلى 5 هو إيقاع FRQ — اثنان موقتان أسبوعياً.",
+  "predictor.ap.low":    "AP المتوقع: {predicted}. ركّز على 4–5 وحدات يعطيها College Board أكبر وزن في مادتك.",
+  "predictor.neet.high": "NEET المتوقع: {predicted} / 720. AIIMS واقعي — احم دقة الأحياء.",
+  "predictor.neet.mid":  "NEET المتوقع: {predicted} / 720. الفيزياء هي الفجوة؛ 60 دقيقة/يوم NCERT + 30 دقيقة PYQ تضيف 40-60 درجة شهرياً.",
+  "predictor.neet.low":  "NEET المتوقع: {predicted} / 720. ركّز على NCERT للأحياء سطراً بسطر لمدة 21 يوماً.",
+  "predictor.generic.high": "أنت في الـ {predicted} من مستخدمي QuizVerse لهذا الامتحان. حافظ على الحجم وأضف امتحانات تجريبية كاملة أسبوعياً.",
+  "predictor.generic.mid":  "أنت في الـ {predicted} من مستخدمي QuizVerse. موضوعان ضعيفان يسحبان معدلك — انتقل إلى مجموعات 10 أسئلة لكل موضوع.",
+  "predictor.generic.low":  "أنت في الـ {predicted} من مستخدمي QuizVerse. الأساسيات أولاً: 5 أسئلة تمهيدية يومياً، بدون امتحانات كاملة لأسبوعين.",
+  "predictor.sat.insufficient_data":  "العب 8 اختبارات SAT على الأقل لنعرض لك نطاقاً. لن نخترع رقماً.",
+  "predictor.jee.insufficient_data":  "العب 8 اختبارات JEE على الأقل لنعرض لك نطاق نسبة مئوية.",
+  "predictor.ap.insufficient_data":   "العب 8 اختبارات AP على الأقل (في مادتك) لنعرض لك نطاقاً.",
+  "predictor.neet.insufficient_data": "العب 8 اختبارات NEET على الأقل لنعرض لك نطاقاً.",
+  "predictor.generic.insufficient_data": "العب 8 اختبارات على الأقل موسومة بهذا الامتحان لنعرض لك نطاق ثقة.",
+  "calendar.no_results": "لا توجد إدخالات تقويم امتحانات معروفة للبلد والسنة المطلوبين بعد.",
+  "school.no_results":   "لم نجد مدارس مطابقة — جرب وضع النص الحر لإضافة مدرستك."
+}

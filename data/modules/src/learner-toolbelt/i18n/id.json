@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "locale": "id",
+    "owner": "ai-content",
+    "source_of_truth": "data/modules/src/learner-toolbelt/lt_i18n.ts (I18N_ID)",
+    "note": "Seed translation — wave 7 QA per PLAN § 10.6 Firecrawl loop."
+  },
+  "predictor.sat.high":  "Kamu mengarah ke {predicted} di SAT (CI 90% {ci_low}–{ci_high}). Reading & Writing solid; jaga Math dengan 3 set berwaktu per minggu.",
+  "predictor.sat.mid":   "Proyeksi SAT: {predicted} (CI 90% {ci_low}–{ci_high}). Peningkatan termurah di Math — 6 jam/minggu drill terarah harus membawamu ke 1350+.",
+  "predictor.sat.low":   "Lintasan saat ini: {predicted} di SAT (CI 90% {ci_low}–{ci_high}). Fundamental dulu — selang-seling satu set R&W dan satu Math per hari; +120 dalam 6 minggu.",
+  "predictor.jee.high":  "JEE Main: tren {predicted}. Top 1% terjangkau — jaga akurasi Chemistry dan mock penuh mingguan.",
+  "predictor.jee.mid":   "Proyeksi JEE Main: {predicted}. Mechanics + Inorganic Chemistry adalah residu terbesar — 90 menit/hari PYQ.",
+  "predictor.jee.low":   "Proyeksi JEE Main: {predicted}. Berhenti lompat-lompat mata pelajaran; blok 14 hari per mata pelajaran: konsep → contoh → PYQ.",
+  "predictor.ap.high":   "AP proyeksi: {predicted}. Band 5 nyaman — beralih ke drill FRQ saja.",
+  "predictor.ap.mid":    "AP proyeksi: {predicted}. MCQ aman; batas ke 5 adalah ritme FRQ — 2 FRQ berwaktu per minggu.",
+  "predictor.ap.low":    "AP proyeksi: {predicted}. Fokus pada 4–5 unit yang paling diberi bobot College Board untuk mata pelajaranmu.",
+  "predictor.neet.high": "NEET proyeksi: {predicted} / 720. Tier AIIMS realistis — jaga akurasi Biologi.",
+  "predictor.neet.mid":  "NEET proyeksi: {predicted} / 720. Fisika adalah residumu; 60 menit/hari NCERT + 30 menit PYQ menambah 40-60 nilai sebulan.",
+  "predictor.neet.low":  "NEET proyeksi: {predicted} / 720. Pivot ke NCERT Biologi baris demi baris selama 21 hari.",
+  "predictor.generic.high": "Kamu berada di {predicted} pengguna QuizVerse untuk ujian ini. Jaga volume dan tambahkan mock penuh berwaktu mingguan.",
+  "predictor.generic.mid":  "Kamu berada di {predicted} pengguna QuizVerse. Dua topik lemah menarik rata-ratamu — beralih ke set 10 pertanyaan per topik.",
+  "predictor.generic.low":  "Kamu berada di {predicted} pengguna QuizVerse. Fundamental dulu: 5 pertanyaan warmup harian, tanpa mock penuh selama 2 minggu.",
+  "predictor.sat.insufficient_data":  "Mainkan setidaknya 8 quiz bertag SAT lalu kami akan menampilkan band. Kami tidak akan mengarang angka.",
+  "predictor.jee.insufficient_data":  "Mainkan setidaknya 8 quiz bertag JEE lalu kami akan menampilkan band persentil.",
+  "predictor.ap.insufficient_data":   "Mainkan setidaknya 8 quiz bertag AP (di mata pelajaranmu) lalu kami akan menampilkan band.",
+  "predictor.neet.insufficient_data": "Mainkan setidaknya 8 quiz bertag NEET lalu kami akan menampilkan band.",
+  "predictor.generic.insufficient_data": "Mainkan setidaknya 8 quiz bertag ujian ini lalu kami akan menampilkan band kepercayaan.",
+  "calendar.no_results": "Belum ada entri kalender ujian yang diketahui untuk negara dan tahun yang diminta.",
+  "school.no_results":   "Tidak ada sekolah yang cocok — gunakan jalur teks bebas agar kami menambahkan sekolahmu."
+}
