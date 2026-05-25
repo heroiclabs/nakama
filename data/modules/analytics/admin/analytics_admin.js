@@ -503,16 +503,56 @@ function rpcDashboardEventsTimeline(ctx, logger, nk, payload) {
     var collected = [];
     var cursor = data.cursor || null;
     var scanned = 0;
-    var maxScan = userIdFilter ? 50000 : 50000; // scan enough to reach today's events in large collections
+    // Raised from 50k → 500k so recent events (lexicographically at the END of
+    // the collection because dash_<gameId>_<YYYY-MM-DD>_* sorts newest-last) are
+    // reachable even when the collection contains months of history.
+    var maxScan = userIdFilter ? 500000 : 500000;
+
+    // Compute the ISO date string of the cutoff day so we can skip entire pages
+    // whose keys are provably before the window (keys start with dash_<gameId>_<date>).
+    var cutoffDateStr = new Date(cutoffSec * 1000).toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // Build the expected key prefix for the gameId filter so we can skip foreign-game pages.
+    var keyPrefixFilter = null;
+    if (gameIdFilter) {
+        keyPrefixFilter = "dash_" + gameIdFilter + "_";
+    }
 
     try {
         while (collected.length < limit && scanned < maxScan) {
             var page = nk.storageList(AA_SYSTEM_USER, "analytics_events", 200, cursor);
             if (!page || !page.objects || page.objects.length === 0) break;
 
+            // Fast-skip: if every key on this page is provably before the cutoff date,
+            // skip the whole page without inspecting individual event payloads.
+            // Keys are lexicographically sorted so if the LAST key on the page has a
+            // date-component < cutoffDateStr, none of this page's events are in range.
+            var lastObj = page.objects[page.objects.length - 1];
+            if (lastObj && lastObj.key) {
+                // dash_<gameId>_<YYYY-MM-DD>_... → extract date portion
+                var kParts = lastObj.key.split("_");
+                // key format: dash, <uuid-part1>, <uuid-parts…>, <date>, …
+                // The date is always the segment that matches YYYY-MM-DD pattern.
+                var lastKeyDate = null;
+                for (var ki = 0; ki < kParts.length; ki++) {
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(kParts[ki])) { lastKeyDate = kParts[ki]; break; }
+                }
+                if (lastKeyDate && lastKeyDate < cutoffDateStr) {
+                    // Entire page is before our window — skip without inspecting payloads.
+                    scanned += page.objects.length;
+                    if (!page.cursor) break;
+                    cursor = page.cursor;
+                    continue;
+                }
+            }
+
             for (var i = 0; i < page.objects.length; i++) {
                 scanned++;
                 var obj = page.objects[i];
+
+                // Skip wrong-game keys cheaply via key prefix before parsing value.
+                if (keyPrefixFilter && obj.key && obj.key.indexOf(keyPrefixFilter) !== 0) continue;
+
                 var ev = obj.value || {};
 
                 var evUnix = ev.unixTimestamp;

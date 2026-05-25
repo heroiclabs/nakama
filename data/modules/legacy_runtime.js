@@ -6581,6 +6581,13 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     }
 
     var gameId = data.gameId;
+    // Accept slug aliases alongside UUIDs.
+    var SLUG_ALIASES = {
+        "quizverse": "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+        "quiz-verse": "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+        "QuizVerse": "126bf539-dae2-4bcf-964d-316c0fa1f92b"
+    };
+    if (SLUG_ALIASES[gameId]) gameId = SLUG_ALIASES[gameId];
     if (!isValidUUID(gameId)) {
         return handleError(ctx, null, "Invalid gameId UUID format");
     }
@@ -6592,29 +6599,46 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
 
     var eventName = data.eventName;
     var eventData = data.eventData || {};
+    if (data.platform && !eventData.platform) eventData.platform = data.platform;
+    if (data.app_version && !eventData.app_version) eventData.app_version = data.app_version;
+    if (data.session_id && !eventData.session_id) eventData.session_id = data.session_id;
 
-    // Create event record
+    var nowSec = getUnixTimestamp();
+    var dateStr = new Date(nowSec * 1000).toISOString().slice(0, 10);
+    var rand = Math.random().toString(36).slice(2, 8);
+
     var event = {
-        userId: userId,
-        gameId: gameId,
-        eventName: eventName,
-        eventData: eventData,
-        timestamp: getCurrentTimestamp(),
-        unixTimestamp: getUnixTimestamp()
+        userId:      userId,
+        gameId:      gameId,
+        eventName:   eventName,
+        eventData:   eventData,
+        timestamp:   new Date(nowSec * 1000).toISOString(),
+        unixTimestamp: nowSec
     };
 
-    // Store event
+    // Store under SYSTEM_USER with dash_ key so dashboard_events_timeline can read it.
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
     var collection = "analytics_events";
-    var key = "event_" + userId + "_" + gameId + "_" + getUnixTimestamp();
+    var dashKey = "dash_" + gameId + "_" + dateStr + "_" + eventName + "_" + nowSec + "_" + rand;
 
-    if (!writeStorage(nk, logger, collection, key, userId, event)) {
+    try {
+        nk.storageWrite([{
+            collection: collection,
+            key: dashKey,
+            userId: SYSTEM_USER_ID,
+            value: event,
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        logger.error("[analytics] storageWrite failed: " + e.message);
         return handleError(ctx, null, "Failed to log event");
     }
 
-    // Track DAU (Daily Active Users)
+    // Track DAU
     trackDAU(nk, logger, userId, gameId);
 
-    // Track session if session event
+    // Track session lifecycle
     if (eventName === "session_start" || eventName === "session_end") {
         trackSession(nk, logger, userId, gameId, eventName, eventData);
     }
@@ -6623,6 +6647,7 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
 
     return JSON.stringify({
         success: true,
+        accepted: 1,
         userId: userId,
         gameId: gameId,
         eventName: eventName,
