@@ -3405,6 +3405,7 @@
             const username = document.getElementById('adminUsername').value.trim();
             const password = document.getElementById('adminPassword').value;
             const errEl = document.getElementById('loginError');
+            const btn = document.querySelector('.login-box button');
 
             if (!username || !password) {
                 errEl.textContent = 'Enter username and password.';
@@ -3412,7 +3413,11 @@
                 return;
             }
 
+            // Show loading state so the user knows the click registered
+            btn.disabled = true;
+            btn.textContent = 'Signing in…';
             errEl.classList.remove('show');
+
             try {
                 // admin_login is called anonymously using the public server key
                 // (same "Basic defaultkey:" header Nakama uses for unauth'd endpoints).
@@ -3425,10 +3430,14 @@
                 if (!resp.ok) {
                     const text = await resp.text().catch(() => '');
                     errEl.textContent = resp.status === 401
-                        ? 'Invalid credentials.'
-                        : `Login failed (${resp.status}). ${text.substring(0, 120)}`;
+                        ? 'Invalid credentials. Check username/password.'
+                        : resp.status === 403
+                        ? `HTTP key rejected (403) — server may still be deploying. Try again in 30s.`
+                        : `Login failed (${resp.status}). ${text.substring(0, 200)}`;
                     errEl.classList.add('show');
                     document.getElementById('adminPassword').value = '';
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
                     return;
                 }
 
@@ -3436,9 +3445,11 @@
                 const data = wrapped && wrapped.payload ? JSON.parse(wrapped.payload) : wrapped;
 
                 if (!data || !data.success || !data.token) {
-                    errEl.textContent = data && data.error ? data.error : 'Login failed.';
+                    errEl.textContent = data && data.error ? data.error : 'Login failed — server returned no token.';
                     errEl.classList.add('show');
                     document.getElementById('adminPassword').value = '';
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
                     return;
                 }
 
@@ -3485,8 +3496,10 @@
                 }, 90000);
             } catch (e) {
                 console.error('attemptLogin error', e);
-                errEl.textContent = 'Network error: ' + (e.message || e);
+                errEl.textContent = 'Network error: ' + (e.message || e) + ' — check if the server is reachable.';
                 errEl.classList.add('show');
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
             }
         }
 
