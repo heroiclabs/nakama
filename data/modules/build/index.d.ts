@@ -906,6 +906,32 @@ declare namespace IdentityResolver {
 }
 declare namespace LearnerToolbelt {
     var MODULE_VERSION: string;
+    interface LearnerStateInputs {
+        declared_intent: string | null;
+        has_exam_declared: boolean;
+        has_school_declared: boolean;
+        quiz_count_last_30d: number;
+    }
+    interface LearnerStateDerived {
+        mode: string;
+        has_history: boolean;
+        copy_namespace: string;
+        recommended_tool: string;
+        display_name_for_user: string;
+    }
+    function deriveLearnerMode(inputs: LearnerStateInputs): LearnerStateDerived;
+    function shouldShowSoftExamCta(metrics: {
+        quizzes_played_last_2w: number;
+        daysActive_last_2w: number;
+    }, lastNudgeUnix: number | null): boolean;
+    function buildLearnerInsightsResponse(args: {
+        state: string;
+        mode: string;
+        locale: string;
+    }): any;
+    function rpcLearnerStateGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcLearnerInsightsGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcLearnerSoftCtaCheck(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LearnerToolbelt {

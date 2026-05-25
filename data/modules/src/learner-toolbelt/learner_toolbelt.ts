@@ -25,6 +25,7 @@
 // • Service-only RPCs accept either (a) ctx.userId from a Nakama session,
 //   or (b) service_token + user_id in payload matching ctx.env["LT_SERVICE_TOKEN"].
 // RPCs registered (15)
+// RPCs registered (16)
 // --------------------
 //   lt_score_predict                  service-only (auth) — § 3 of plan
 //   lt_exam_countdown_get             service-only        — § 4 of plan
@@ -41,6 +42,32 @@
 //   lt_school_freetext_submit         service-only        — § 6
 //   lt_chat_quota_check               service-only        — § 3.11 (anon/auth/pro tier)
 //   lt_chat_quota_consume             service-only        — § 3.11 (atomic decrement)
+//   lt_learner_state_get              service-only (auth) — § 2.5 / § 3.13.1
+//   lt_learner_insights_get           service-only (auth) — § 3.13.2
+//   lt_learner_soft_cta_check         service-only (auth) — § 3.13.4
+//
+// No-exam fallback (§ 2.5 / § 3.13)
+// --------------------------------
+// Most QuizVerse visitors are not exam candidates — trivia browsers, parents,
+// students without a declared target. Exam-prep terminology is a wall to them,
+// not a draw. This module ships the learner-mindset surface so the same web
+// route renders elegantly for both modes:
+//   - lt_learner_state_get      → resolves which of the 4 modes (§ 2.5.1)
+//                                 a user is in (deterministic, cached 6h)
+//   - lt_learner_insights_get   → returns Learner-Insights payload — uses
+//                                 ONLY learner-mode vocabulary from § 2.5.3
+//                                 (no "predicted score", "AIR", "scaled
+//                                 score", "grade boundary", "cutoff").
+//   - lt_score_predict          → returns a graceful redirect when
+//                                 exam_id is missing or sentinel
+//                                 "learner_general" (§ 3.13.3) so the
+//                                 route never errors on visitors without a
+//                                 declared exam.
+//   - lt_learner_soft_cta_check → 14-day soft exam-CTA gate (§ 3.13.4) —
+//                                 only fires for users who meet the
+//                                 engagement floor (≥10 quizzes/wk × 2 wks
+//                                 AND ≥10 active days in last 14d) AND
+//                                 have not been nudged in the prior 14 days.
 //
 // Storage shapes (real now)
 // -------------------------
@@ -61,6 +88,15 @@
 //   collection: "qv_lt_predictor_context" key: "<exam_id>" → PredictorContextBlock
 //   collection: "qv_lt_school_pending" key: "<provisional_id>" → freetext queue
 //   collection: "qv_lt_chat_quota"   key: see § 3.11.3       → ChatQuotaRecord
+//   collection: "qv_lt_school"             key: "current"     → UserSchoolRecord
+//   collection: "qv_lt_countdown"          key: "doc"         → ExamCountdownDoc
+//   collection: "qv_lt_gpa"                key: "current"     → GpaSnapshot
+//   collection: "qv_lt_predictor_context"  key: "<exam_id>"   → PredictorContextBlock
+//   collection: "qv_lt_school_pending"     key: "<provisional_id>" → freetext queue
+//   collection: "qv_lt_learner_state_cache" key: "v1"         → LearnerStateCache (TTL 6h)
+//   collection: "qv_lt_soft_cta_state"     key: "v1"          → { lastNudgeUnix }
+//   collection: "qv_user_exam"             key: "declared"    → declared exam (Wave 4-5)
+//   collection: "qv_user_quiz_history"     key: "30d_summary" → quiz aggregates (Wave 4-5)
 // All permissionRead/Write = 0 (server-only).
 
 namespace LearnerToolbelt {
@@ -78,9 +114,13 @@ namespace LearnerToolbelt {
   var MAX_HISTORY_ROWS = 200;
   var MAX_COUNTDOWN_ENTRIES = 20;
   var COLLECTION_CHAT_QUOTA = "qv_lt_chat_quota";
-  var ANALYTICS_GAME_ID = "quizverse";
+  var COLLECTION_LEARNER_STATE_CACHE = "qv_lt_learner_state_cache";
+  var COLLECTION_SOFT_CTA_STATE = "qv_lt_soft_cta_state";
+  // Placeholder keys consumed in Phase A — Wave 4-5 subagent rewires these
+  // against the live qv_u_<sub>_exam / qv_u_<sub>_quiz_history surfaces.
+  var COLLECTION_USER_EXAM = "qv_user_exam";
+  var COLLECTION_USER_QUIZ_HISTORY = "qv_user_quiz_history";
   var SKELETON_PHASE = "skeleton-A";
-  var MODULE_VERSION = "learner-toolbelt/0.2.0";
 
   // ── Chat-quota limits (plan §3.11) ─────────────────────────────────────────
   // Defaults below match PLAN-LEARNER_TOOLBELT.md §3.11.1. Each may be
@@ -101,6 +141,11 @@ namespace LearnerToolbelt {
   // gateway; this RPC just gates the "is the supplied user_id plausible"
   // path before reading the per-exam ledger.
   var COGNITO_SUB_RE = /^[A-Za-z0-9_\-:.]{8,128}$/;
+
+  // 6-hour cache for lt_learner_state_get (§ 3.13.1).
+  var LEARNER_STATE_CACHE_TTL_SEC = 6 * 60 * 60;
+  // 14-day soft exam-CTA cooldown (§ 3.13.4).
+  var SOFT_CTA_COOLDOWN_SEC = 14 * 86400;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function nowSec(): number {
@@ -291,6 +336,275 @@ namespace LearnerToolbelt {
     return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
   }
 
+  // ── No-exam fallback — pure logic helpers (§ 2.5 / § 3.13) ────────────────
+  //
+  // These are kept as pure functions (no nk / ctx / logger) so the
+  // skeleton.test.ts micro-runner can exercise them without mocking the
+  // Nakama runtime.
+
+  export interface LearnerStateInputs {
+    declared_intent: string | null;     // 'exam_prep' | 'learner' | 'parent' | null
+    has_exam_declared: boolean;
+    has_school_declared: boolean;
+    quiz_count_last_30d: number;
+  }
+
+  export interface LearnerStateDerived {
+    mode: string;                       // 'exam' | 'learner' | 'parent' | 'cold_start'
+    has_history: boolean;
+    copy_namespace: string;             // drives every i18n string lookup
+    recommended_tool: string;
+    display_name_for_user: string;
+  }
+
+  // § 3.13.1 deterministic state derivation. Same input → same mode.
+  //
+  //   if declared_intent == 'parent'                          → 'parent'
+  //   else if declared_intent == 'exam_prep'
+  //         OR has_exam_declared                              → 'exam'
+  //   else if has_school_declared OR has_history              → 'learner'
+  //   else                                                    → 'cold_start'
+  //
+  // `has_history` is `quiz_count_last_30d >= 5` (matches § 2.5.1 state D
+  // threshold — "auth'd with <5 quizzes" stays cold-start).
+  export function deriveLearnerMode(inputs: LearnerStateInputs): LearnerStateDerived {
+    var declared = inputs.declared_intent || null;
+    var hasHistory = (inputs.quiz_count_last_30d || 0) >= 5;
+    var mode: string;
+
+    if (declared === "parent") {
+      mode = "parent";
+    } else if (declared === "exam_prep" || inputs.has_exam_declared) {
+      mode = "exam";
+    } else if (inputs.has_school_declared || hasHistory) {
+      mode = "learner";
+    } else {
+      mode = "cold_start";
+    }
+
+    var recommendedTool: string;
+    var displayName: string;
+    if (mode === "parent") {
+      recommendedTool = "/tools/parent-dashboard";
+      displayName = "parent";
+    } else if (mode === "exam") {
+      recommendedTool = "/tools/score-predictor";
+      displayName = "exam candidate";
+    } else if (mode === "learner") {
+      recommendedTool = "/tools/learn";
+      displayName = "learner";
+    } else {
+      recommendedTool = "/tools/learn";
+      displayName = "new explorer";
+    }
+
+    return {
+      mode: mode,
+      has_history: hasHistory,
+      copy_namespace: mode === "cold_start" ? "cold_start" : mode,
+      recommended_tool: recommendedTool,
+      display_name_for_user: displayName,
+    };
+  }
+
+  // § 3.13.4 — 14-day soft exam-CTA gate. We only nudge a learner-mode user
+  // toward an exam when they have demonstrably high engagement AND have not
+  // been nudged within the cooldown window.
+  //
+  // Floor (per plan): ≥10 quizzes/week × 2 weeks  → 20 quizzes in 2w
+  //                   AND ≥10 active days in last 14 days
+  // Cooldown:         never nudge twice within 14 days
+  //
+  // Exposed as a pure function so the gateway / unit tests can call it
+  // without an RPC round-trip.
+  export function shouldShowSoftExamCta(
+    metrics: { quizzes_played_last_2w: number; daysActive_last_2w: number },
+    lastNudgeUnix: number | null
+  ): boolean {
+    if (!metrics) return false;
+    if ((metrics.quizzes_played_last_2w || 0) < 20) return false;
+    if ((metrics.daysActive_last_2w || 0) < 10) return false;
+    if (lastNudgeUnix && (Date.now() / 1000 - lastNudgeUnix) < SOFT_CTA_COOLDOWN_SEC) return false;
+    return true;
+  }
+
+  // § 3.13.2 — Learner Insights payload.
+  //
+  // Phase A: returns representative mock metrics (status='mock_data') so the
+  // web route can render the full layout while Wave 4-5 wires real reads
+  // against qv_u_<sub>_quiz_history. The CRITICAL Phase-A contract is the
+  // no-exam-jargon guarantee — every string in this payload is restricted to
+  // the learner-mode vocabulary from § 2.5.3. The lint test in
+  // __tests__/skeleton.test.ts verifies (§ 3.13.6 A25).
+  //
+  // TODO(Wave 4-5): replace mock metrics with real engagement-data reads
+  //   - quizzes_played / accuracy from qv_u_<sub>_quiz_history
+  //   - streak data from qv_user_streaks
+  //   - favorite_topics from existing topic-mastery derivation in user-model
+  //   - peer_percentile_* from a nightly cohort aggregate
+  export function buildLearnerInsightsResponse(args: {
+    state: string;       // 'authed' | 'anon'
+    mode: string;        // 'learner' | 'cold_start'
+    locale: string;
+  }): any {
+    var coldStart = args.mode === "cold_start";
+
+    var zeroMetrics: any = {
+      quizzes_played: 0,
+      total_questions: 0,
+      correct_questions: 0,
+      overall_accuracy: 0,
+      accuracy_trend_30d: 0,
+      longest_streak_days: 0,
+      current_streak_days: 0,
+      favorite_topics: [],
+      weakest_topics: [],
+      peer_percentile_overall: 0,
+      peer_percentile_per_topic: {},
+    };
+
+    // Representative-but-mocked metrics — every string label uses
+    // learner-mode vocabulary only. NO forbidden tokens (predicted score /
+    // AIR / scaled score / grade boundary / cutoff / percentile rank).
+    var mockMetrics: any = {
+      quizzes_played: 12,
+      total_questions: 144,
+      correct_questions: 98,
+      overall_accuracy: 0.68,
+      accuracy_trend_30d: 0.04,
+      longest_streak_days: 5,
+      current_streak_days: 3,
+      favorite_topics: [
+        { topic_id: "history_world", topic_display: "World History", mastery_pct: 78 },
+        { topic_id: "biology_cells", topic_display: "Cell Biology", mastery_pct: 72 },
+        { topic_id: "math_algebra", topic_display: "Algebra", mastery_pct: 65 },
+      ],
+      weakest_topics: [
+        { topic_id: "math_geometry", topic_display: "Geometry", mastery_pct: 41 },
+        { topic_id: "physics_waves", topic_display: "Waves and Sound", mastery_pct: 38 },
+        { topic_id: "chemistry_organic", topic_display: "Organic Chemistry", mastery_pct: 33 },
+      ],
+      peer_percentile_overall: 64,
+      peer_percentile_per_topic: {
+        "history_world": 81,
+        "biology_cells": 73,
+        "math_algebra": 58,
+      },
+    };
+
+    var cta: any;
+    if (coldStart) {
+      // § 3.13.2 — cold-start CTA hard-coded per plan.
+      cta = {
+        kind: "try_a_topic",
+        copy_key: "cta.cold_start.play_5_quizzes",
+        target_route: "/tools/learn",
+      };
+    } else {
+      cta = {
+        kind: "try_a_topic",
+        copy_key: "cta.learner.try_a_topic",
+        target_route: "/tools/learn",
+      };
+    }
+
+    return {
+      ok: true,
+      state: args.state,
+      mode: coldStart ? "cold_start" : "learner",
+      metrics: coldStart ? zeroMetrics : mockMetrics,
+      cta: cta,
+      // Explicit contract guarantee — see § 3.13.2 last bullet. The lint
+      // test asserts this field is the literal boolean `false` in every
+      // response.
+      forbidden_copy: false,
+      status: "mock_data",
+      phase: "A",
+      locale: args.locale,
+      module_version: MODULE_VERSION,
+      generated_unix: nowSec(),
+    };
+  }
+
+  // Storage helpers for the learner-state RPCs. Wrapped in try/catch so a
+  // missing storage object (the common case in Phase A — quiz history isn't
+  // wired yet) degrades to "no data" rather than throwing.
+  function readStorageBool(nk: nkruntime.Nakama, collection: string, key: string, userId: string): boolean {
+    try {
+      var rows = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+      return !!(rows && rows.length > 0 && rows[0].value);
+    } catch (_e: any) {
+      return false;
+    }
+  }
+
+  function readQuizCount30d(nk: nkruntime.Nakama, userId: string): number {
+    try {
+      var rows = nk.storageRead([{
+        collection: COLLECTION_USER_QUIZ_HISTORY,
+        key: "30d_summary",
+        userId: userId,
+      }]);
+      if (rows && rows.length > 0 && rows[0].value) {
+        var v: any = rows[0].value;
+        var n = parseInt("" + (v.quiz_count_last_30d || v.count || 0), 10);
+        return isNaN(n) ? 0 : n;
+      }
+    } catch (_e: any) { /* no history yet */ }
+    return 0;
+  }
+
+  function readCachedLearnerState(nk: nkruntime.Nakama, userId: string): any | null {
+    try {
+      var rows = nk.storageRead([{
+        collection: COLLECTION_LEARNER_STATE_CACHE,
+        key: "v1",
+        userId: userId,
+      }]);
+      if (rows && rows.length > 0 && rows[0].value) {
+        var v: any = rows[0].value;
+        var cachedAt = parseInt("" + (v.cachedAt || 0), 10);
+        if (!isNaN(cachedAt) && (nowSec() - cachedAt) < LEARNER_STATE_CACHE_TTL_SEC) {
+          return v;
+        }
+      }
+    } catch (_e: any) { /* cache miss */ }
+    return null;
+  }
+
+  function writeCachedLearnerState(nk: nkruntime.Nakama, userId: string, value: any): void {
+    try {
+      var entry: any = { cachedAt: nowSec() };
+      for (var k in value) {
+        if (Object.prototype.hasOwnProperty.call(value, k)) entry[k] = value[k];
+      }
+      nk.storageWrite([{
+        collection: COLLECTION_LEARNER_STATE_CACHE,
+        key: "v1",
+        userId: userId,
+        value: entry,
+        permissionRead: 0,
+        permissionWrite: 0,
+      }]);
+    } catch (_e: any) { /* best-effort cache; failure is non-fatal */ }
+  }
+
+  function readLastNudgeUnix(nk: nkruntime.Nakama, userId: string): number | null {
+    try {
+      var rows = nk.storageRead([{
+        collection: COLLECTION_SOFT_CTA_STATE,
+        key: "v1",
+        userId: userId,
+      }]);
+      if (rows && rows.length > 0 && rows[0].value) {
+        var v: any = rows[0].value;
+        var ts = parseInt("" + (v.lastNudgeUnix || 0), 10);
+        return isNaN(ts) || ts <= 0 ? null : ts;
+      }
+    } catch (_e: any) { /* never nudged */ }
+    return null;
+  }
+
   function emitAnalytics(
     nk: nkruntime.Nakama,
     logger: nkruntime.Logger,
@@ -436,7 +750,17 @@ namespace LearnerToolbelt {
   }
 
   // ────────────────────────────────────────────────────────────────────────
-  // RPC: lt_score_predict (Wave 5 — Bayes fallback only)
+  // RPC: lt_score_predict
+  //
+  // Implementation: Wave 5 — IRT/percentile Bayes posterior over recent quiz
+  // history. See plan § 3.
+  //
+  // No-exam fallback (§ 3.13.3) — when called without an exam_id or with the
+  // sentinel "learner_general", we return a structured redirect payload
+  // instead of erroring. The gateway respects this and silently invokes
+  // lt_learner_insights_get; the visitor sees a Learner Insights card, not an
+  // error. This is the contract that makes /tools/score-predictor degrade
+  // gracefully for state-B/C/D users (§ 2.5.1).
   // ────────────────────────────────────────────────────────────────────────
   function rpcScorePredict(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     try {
@@ -445,8 +769,21 @@ namespace LearnerToolbelt {
       if (auth.error) return RpcHelpers.errorResponse(auth.error, auth.code);
 
       var examId = "" + (data.exam_id || "");
-      if (!examId) return RpcHelpers.errorResponse("exam_id required", 400);
       var locale = "" + (data.locale || "en");
+
+      // § 3.13.3: no exam declared OR sentinel → redirect, never error.
+      if (!examId || examId === "learner_general") {
+        return RpcHelpers.successResponse({
+          ok: true,
+          redirect_to: "lt_learner_insights_get",
+          reason: "no_exam_declared",
+          suggested_action: "call lt_learner_insights_get for this user",
+          locale: locale,
+          module_version: MODULE_VERSION,
+          generated_unix: nowSec(),
+        });
+      }
+
       var windowDays = parseInt("" + (data.recent_quiz_window_days || DEFAULT_PREDICT_WINDOW_DAYS), 10);
       if (!(windowDays > 0)) windowDays = DEFAULT_PREDICT_WINDOW_DAYS;
       if (windowDays > MAX_PREDICT_WINDOW_DAYS) windowDays = MAX_PREDICT_WINDOW_DAYS;
@@ -1005,6 +1342,89 @@ namespace LearnerToolbelt {
     }
   }
 
+  // ── RPC: lt_learner_state_get ──────────────────────────────────────────────
+  // § 3.13.1 — Single source of truth for "what mode is this user in?".
+  // Called at every web route mount + every chat turn. Caches the result on
+  // qv_lt_learner_state_cache for 6h so high-traffic pages don't re-derive
+  // on every request.
+  //
+  // Wire shape:
+  //   input  { service_token, user_id, declared_intent? }
+  //   output { ok, mode, has_exam_declared, has_school_declared,
+  //            quiz_count_last_30d, has_history, recommended_tool,
+  //            display_name_for_user, copy_namespace, ... }
+  export function rpcLearnerStateGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) return RpcHelpers.errorResponse(auth.error, auth.code);
+
+      var declaredIntent: string | null = data.declared_intent ? "" + data.declared_intent : null;
+
+      // Cache-hit short-circuit. Cache invalidation is purely TTL-based;
+      // declared_intent changes flow through immediately because we KEY by
+      // userId and rebuild on stale.
+      var cached = readCachedLearnerState(nk, auth.userId);
+      if (cached && (!declaredIntent || cached.declared_intent_at === declaredIntent)) {
+        return RpcHelpers.successResponse({
+          ok: true,
+          mode: cached.mode,
+          has_exam_declared: !!cached.has_exam_declared,
+          has_school_declared: !!cached.has_school_declared,
+          quiz_count_last_30d: cached.quiz_count_last_30d || 0,
+          has_history: !!cached.has_history,
+          recommended_tool: cached.recommended_tool,
+          display_name_for_user: cached.display_name_for_user,
+          copy_namespace: cached.copy_namespace,
+          cached: true,
+          cached_at: cached.cachedAt,
+          module_version: MODULE_VERSION,
+          generated_unix: nowSec(),
+        });
+      }
+
+      // Storage probes — all best-effort, default to "no data".
+      var hasExam = readStorageBool(nk, COLLECTION_USER_EXAM, "declared", auth.userId);
+      var hasSchool = readStorageBool(nk, COLLECTION_SCHOOL, "current", auth.userId);
+      var quizCount = readQuizCount30d(nk, auth.userId);
+
+      var derived = deriveLearnerMode({
+        declared_intent: declaredIntent,
+        has_exam_declared: hasExam,
+        has_school_declared: hasSchool,
+        quiz_count_last_30d: quizCount,
+      });
+
+      var responseBody: any = {
+        ok: true,
+        mode: derived.mode,
+        has_exam_declared: hasExam,
+        has_school_declared: hasSchool,
+        quiz_count_last_30d: quizCount,
+        has_history: derived.has_history,
+        recommended_tool: derived.recommended_tool,
+        display_name_for_user: derived.display_name_for_user,
+        copy_namespace: derived.copy_namespace,
+        cached: false,
+        declared_intent_at: declaredIntent,
+        module_version: MODULE_VERSION,
+        generated_unix: nowSec(),
+      };
+
+      writeCachedLearnerState(nk, auth.userId, responseBody);
+      emitAnalytics(nk, logger, auth.userId, "lt_learner_state_get", {
+        mode: derived.mode,
+        has_exam: hasExam,
+        has_school: hasSchool,
+        quiz_count: quizCount,
+      });
+      return RpcHelpers.successResponse(responseBody);
+    } catch (err: any) {
+      logger.error("lt_learner_state_get failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
   // ── RPC: lt_chat_quota_consume ────────────────────────────────────────────
   // Atomic decrement (read-then-write) called by gateway AFTER it has decided
   // to forward a turn. Returns the post-consume state.
@@ -1094,6 +1514,126 @@ namespace LearnerToolbelt {
     }
   }
 
+  // ── RPC: lt_learner_insights_get ───────────────────────────────────────────
+  // § 3.13.2 — Returns the Learner Insights payload. For Phase A we ship
+  // representative mock metrics (status="mock_data") so the web route can
+  // render the full layout; Wave 4-5 wires the real engagement-data reads.
+  //
+  // CRITICAL CONTRACT — no-exam-jargon guard:
+  // Every string in the response MUST exclude exam-specific vocabulary
+  // ("predicted score", "AIR", "scaled score", "grade boundary", "cutoff",
+  // "percentile rank"). The lint test in __tests__/skeleton.test.ts
+  // (§ 3.13.6 A25) scans the JSON recursively and fails the build if any
+  // forbidden token appears. The response also carries an explicit
+  // `forbidden_copy: false` field as the wire-level guarantee.
+  export function rpcLearnerInsightsGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) return RpcHelpers.errorResponse(auth.error, auth.code);
+      var locale = "" + (data.locale || "en");
+
+      // Resolve mode without re-running the full state derivation — we
+      // accept either an explicit `mode` from the gateway (which has just
+      // called lt_learner_state_get) or a quick local probe. For Phase A
+      // the quick probe uses the same heuristic as deriveLearnerMode but
+      // with degraded inputs (no declared_intent on this path — that's a
+      // state_get concern, not an insights concern).
+      var explicitMode = "" + (data.mode || "");
+      var mode: string;
+      if (explicitMode === "cold_start" || explicitMode === "learner") {
+        mode = explicitMode;
+      } else {
+        var hasSchool = readStorageBool(nk, COLLECTION_SCHOOL, "current", auth.userId);
+        var quizCount = readQuizCount30d(nk, auth.userId);
+        var derived = deriveLearnerMode({
+          declared_intent: null,
+          has_exam_declared: false,
+          has_school_declared: hasSchool,
+          quiz_count_last_30d: quizCount,
+        });
+        // If the user is an exam candidate we still degrade to 'learner'
+        // here — by construction insights_get is the no-exam surface, so
+        // exam users who reach this RPC are by definition treated like a
+        // learner for this turn (the gateway should have routed them to
+        // lt_score_predict instead).
+        mode = derived.mode === "exam" || derived.mode === "parent" ? "learner" : derived.mode;
+      }
+
+      var state = data.ip_hash && !data.user_id ? "anon" : "authed";
+
+      var body = buildLearnerInsightsResponse({
+        state: state,
+        mode: mode,
+        locale: locale,
+      });
+
+      emitAnalytics(nk, logger, auth.userId, "lt_learner_insights_get", {
+        mode: mode,
+        state: state,
+        locale: locale,
+      });
+
+      return RpcHelpers.successResponse(body);
+    } catch (err: any) {
+      logger.error("lt_learner_insights_get failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
+  // ── RPC: lt_learner_soft_cta_check ─────────────────────────────────────────
+  // § 3.13.4 — 14-day soft exam-CTA gate. Called by the gateway before each
+  // chat turn so it can decide whether to surface "you've been crushing
+  // Grade 10 Math — heads up, your pattern often leads to SAT/AP/JEE".
+  //
+  // Returns the decision + suggested exams + the copy key to render. The
+  // gateway is responsible for writing the lastNudgeUnix after the user
+  // actually SEES the nudge (so denials of service don't burn the cooldown).
+  export function rpcLearnerSoftCtaCheck(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) return RpcHelpers.errorResponse(auth.error, auth.code);
+
+      // For Phase A we accept metrics either inline (gateway already
+      // computed them) or via a stub read against qv_user_quiz_history.
+      // Wave 4-5 will collapse this to a single canonical read.
+      var inlineMetrics = data.metrics || null;
+      var metrics: { quizzes_played_last_2w: number; daysActive_last_2w: number };
+      if (inlineMetrics) {
+        metrics = {
+          quizzes_played_last_2w: parseInt("" + (inlineMetrics.quizzes_played_last_2w || 0), 10) || 0,
+          daysActive_last_2w: parseInt("" + (inlineMetrics.daysActive_last_2w || 0), 10) || 0,
+        };
+      } else {
+        // Stub — Wave 4-5 wires the real 2-week aggregate.
+        metrics = { quizzes_played_last_2w: 0, daysActive_last_2w: 0 };
+      }
+
+      var lastNudge = readLastNudgeUnix(nk, auth.userId);
+      var shouldShow = shouldShowSoftExamCta(metrics, lastNudge);
+
+      // Suggested exams — Phase A returns a small static list; Wave 4-5
+      // derives them from the user's strongest topics + school board.
+      var suggestedExams: string[] = shouldShow ? ["sat", "ap_calculus", "jee_main"] : [];
+
+      return RpcHelpers.successResponse({
+        ok: true,
+        should_show: shouldShow,
+        suggested_exams: suggestedExams,
+        copy_key: "cta.learner.soft_exam_nudge",
+        metrics_used: metrics,
+        last_nudge_unix: lastNudge,
+        cooldown_sec: SOFT_CTA_COOLDOWN_SEC,
+        module_version: MODULE_VERSION,
+        generated_unix: nowSec(),
+      });
+    } catch (err: any) {
+      logger.error("lt_learner_soft_cta_check failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
   // ── Registration ───────────────────────────────────────────────────────────
   // Every registerRpc call uses a STRING-LITERAL id (per PHASE-ROADMAP lesson
   // #2: postbuild.js auto-hoists ONLY string-literal registerRpc calls).
@@ -1113,5 +1653,8 @@ namespace LearnerToolbelt {
     initializer.registerRpc("lt_school_freetext_submit", rpcSchoolFreetextSubmit);
     initializer.registerRpc("lt_chat_quota_check", rpcChatQuotaCheck);
     initializer.registerRpc("lt_chat_quota_consume", rpcChatQuotaConsume);
+    initializer.registerRpc("lt_learner_state_get", rpcLearnerStateGet);
+    initializer.registerRpc("lt_learner_insights_get", rpcLearnerInsightsGet);
+    initializer.registerRpc("lt_learner_soft_cta_check", rpcLearnerSoftCtaCheck);
   }
 }

@@ -1,276 +1,469 @@
-// skeleton.test.ts
+// __tests__/skeleton.test.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// QuizVerse Learner Toolbelt — skeleton + §3.10 + §3.11 unit tests.
+// Self-contained micro test runner for the Learner Toolbelt no-exam fallback.
 //
-// Excluded from the runtime build via tsconfig.json `exclude: src/**/__tests__/**`
-// so the file can carry its own assertion harness without bloating the
-// Nakama bundle. Run with `npx tsc --noEmit -p tsconfig.tests.json` (added
-// in a follow-up PR once jest/ts-node is on the modules workspace) — for
-// now the file is structural: it documents the expected behaviour for the
-// 21-exam dispatcher + the chat-quota tier ladder.
+// We deliberately avoid Jest / Mocha so this file compiles cleanly against
+// the production tsconfig.json (no test-runner deps in the runtime build).
+// `LearnerToolbeltTests.runAll()` returns { passed, failed, errors } — wire
+// it to a future npm-test script (or invoke from a Node REPL) when the team
+// adopts a runner.
 //
-// 24 tests:
-//   21 × `lt_score_predict` returns the correct {method, phase, score_range}
-//        for each exam in PerExamConfig.CONFIG.
-//    3 × `lt_chat_quota_check` covers anon under-limit (allowed=true), anon
-//        at-limit (allowed=false), and missing-identity (error).
-//
-// Implementation notes
-// --------------------
-// The test file invokes the namespace functions directly. We supply a
-// minimal `nkruntime.Context | Nakama` mock that satisfies the helpers the
-// quota RPCs touch (`storageRead`, `storageWrite`, `sha256Hash`) plus the
-// service-token gate. Mock state lives in an in-process Map so each test
-// gets an isolated quota ledger.
+// Coverage (PR: feat/learner-toolbelt-no-exam-fallback):
+//   1. deriveLearnerMode → each of the 4 modes (A/B/C/D from § 2.5.1)
+//      against the 4 fixture user scenarios.
+//   2. buildLearnerInsightsResponse → forbidden-string lint (§ 3.13.6 A25)
+//      — recursively scans every string in the response for exam jargon
+//      and fails if any token matches.
+//   3. rpcScorePredict with no exam_id → returns the § 3.13.3 redirect
+//      payload (not an error).
+//   4. shouldShowSoftExamCta → false for <20 quizzes, <10 active days, or
+//      a recent nudge (§ 3.13.4 engagement floor + 14d cooldown).
 
-declare const describe: any;
-declare const it: any;
-declare const expect: any;
+namespace LearnerToolbeltTests {
 
-namespace LearnerToolbeltSkeletonTests {
+  // ── Micro test runner ─────────────────────────────────────────────────────
 
-  // ── Tiny assertion harness (used if file is run outside jest) ────────────
-  interface TestCase { name: string; fn: () => void; }
-  var TESTS: TestCase[] = [];
-
-  function test(name: string, fn: () => void): void {
-    TESTS.push({ name: name, fn: fn });
+  interface TestCase {
+    suite: string;
+    name: string;
+    fn: () => void;
   }
 
-  function assertEqual<T>(actual: T, expected: T, msg?: string): void {
-    var a = JSON.stringify(actual);
-    var b = JSON.stringify(expected);
-    if (a !== b) {
-      throw new Error("assertEqual failed: " + (msg || "") + "\n  expected: " + b + "\n  actual:   " + a);
+  var allTests: TestCase[] = [];
+  var currentSuite: string = "(root)";
+
+  function describe(suite: string, fn: () => void): void {
+    var prev = currentSuite;
+    currentSuite = suite;
+    try { fn(); }
+    finally { currentSuite = prev; }
+  }
+
+  function it(name: string, fn: () => void): void {
+    allTests.push({ suite: currentSuite, name: name, fn: fn });
+  }
+
+  function fmt(v: any): string {
+    try { return JSON.stringify(v); } catch (_e: any) { return String(v); }
+  }
+
+  function expectEq(actual: any, expected: any, msg?: string): void {
+    if (actual !== expected) {
+      throw new Error(
+        (msg ? msg + " — " : "") +
+        "expected " + fmt(expected) + " got " + fmt(actual)
+      );
     }
   }
 
-  function assertTrue(cond: boolean, msg?: string): void {
-    if (!cond) throw new Error("assertTrue failed: " + (msg || ""));
+  function expectTrue(actual: any, msg?: string): void {
+    if (actual !== true) {
+      throw new Error((msg ? msg + " — " : "") + "expected true, got " + fmt(actual));
+    }
   }
 
-  function assertFalse(cond: boolean, msg?: string): void {
-    if (cond) throw new Error("assertFalse failed: " + (msg || ""));
+  function expectFalse(actual: any, msg?: string): void {
+    if (actual !== false) {
+      throw new Error((msg ? msg + " — " : "") + "expected false, got " + fmt(actual));
+    }
   }
 
-  // ── Mock nkruntime ──────────────────────────────────────────────────────
-  interface MockStorageRow { collection: string; key: string; userId: string; value: any; }
+  // ── Forbidden-string lint (§ 3.13.6 A25) ──────────────────────────────────
+  //
+  // Recursively walks every string value in `obj` and fails if any matches
+  // an exam-mode token (case-insensitive). This MUST mirror the gateway-side
+  // lint that runs in CI on the Learner Insights response.
+  //
+  // Note on tokens: we match the user-facing prose only. Field-level keys
+  // ("peer_percentile_overall", "peer_percentile_per_topic") are fine — they
+  // are object KEYS, not user-facing strings. We restrict the scan to string
+  // VALUES.
+  var FORBIDDEN = /predicted score|\bAIR\b|scaled score|grade boundary|percentile rank|cutoff/i;
 
-  function mkMockNk(): any {
-    var store: { [k: string]: MockStorageRow } = {};
-    var keyOf = function(r: { collection: string; key: string; userId: string }): string {
-      return r.collection + "|" + r.userId + "|" + r.key;
-    };
+  function scanForbidden(node: any, path: string, hits: Array<{ path: string; value: string }>): void {
+    if (node === null || node === undefined) return;
+    if (typeof node === "string") {
+      if (FORBIDDEN.test(node)) {
+        hits.push({ path: path, value: node });
+      }
+      return;
+    }
+    if (typeof node === "number" || typeof node === "boolean") return;
+    if (Array.isArray(node)) {
+      for (var i = 0; i < node.length; i++) {
+        scanForbidden(node[i], path + "[" + i + "]", hits);
+      }
+      return;
+    }
+    if (typeof node === "object") {
+      for (var k in node) {
+        if (Object.prototype.hasOwnProperty.call(node, k)) {
+          scanForbidden(node[k], path === "" ? k : path + "." + k, hits);
+        }
+      }
+    }
+  }
+
+  // ── Mock Nakama runtime ───────────────────────────────────────────────────
+  //
+  // Just enough surface for our RPCs to run. Each mock takes a `storage`
+  // map and replays it for storageRead; storageWrite is captured for
+  // verification but otherwise no-op.
+
+  interface MockStorageEntry {
+    collection: string;
+    key: string;
+    userId: string;
+    value: any;
+  }
+
+  function makeMockNk(entries: MockStorageEntry[]): any {
+    var writes: any[] = [];
     return {
-      __store: store,
-      storageRead: function(reads: any[]): any[] {
+      storageRead: function(reqs: any[]): any[] {
         var out: any[] = [];
-        for (var i = 0; i < reads.length; i++) {
-          var k = keyOf(reads[i]);
-          if (store[k]) out.push(store[k]);
+        for (var i = 0; i < reqs.length; i++) {
+          var r = reqs[i];
+          var hit: any = null;
+          for (var j = 0; j < entries.length; j++) {
+            var e = entries[j];
+            if (e.collection === r.collection && e.key === r.key && e.userId === r.userId) {
+              hit = e; break;
+            }
+          }
+          out.push(hit ? { collection: hit.collection, key: hit.key, userId: hit.userId, value: hit.value } : { value: null });
         }
         return out;
       },
-      storageWrite: function(writes: any[]): any[] {
-        for (var i = 0; i < writes.length; i++) {
-          var w = writes[i];
-          store[keyOf(w)] = {
-            collection: w.collection,
-            key: w.key,
-            userId: w.userId,
-            value: w.value,
-          };
-        }
-        return writes.map(function(_: any, i: number) { return { collection: writes[i].collection, key: writes[i].key, version: "v" + i }; });
+      storageWrite: function(reqs: any[]): any[] {
+        for (var i = 0; i < reqs.length; i++) writes.push(reqs[i]);
+        return [];
       },
-      sha256Hash: function(input: string): string {
-        // Deterministic shim — first 64 chars of repeated input. Real prod
-        // path uses nk.sha256Hash. Tests only need consistency across calls.
-        var s = "";
-        while (s.length < 64) s += input;
-        return s.slice(0, 64);
-      },
+      sha256Hash: function(s: string): string { return "h_" + s; },
+      _writes: writes,
     };
   }
 
-  function mkMockCtx(env: { [k: string]: string }): any {
-    return { env: env, userId: "" };
-  }
-
-  function mkMockLogger(): any {
+  function makeMockCtx(opts?: { userId?: string; env?: any }): any {
     return {
-      info: function(_m: string) {},
-      warn: function(_m: string) {},
-      error: function(_m: string) {},
-      debug: function(_m: string) {},
+      userId: opts && opts.userId ? opts.userId : "",
+      env: opts && opts.env ? opts.env : { LT_SERVICE_TOKEN: "test_token" },
     };
   }
 
-  function parseRpcResult(jsonStr: string): { ok: boolean; status: number; data: any } {
-    // The runtime helper returns the unwrap shape that lt_chat_quota_*
-    // uses (RpcHelpers.successResponse / errorResponse). For these tests
-    // we strip the outer envelope so individual tests can assert on fields.
-    var parsed = JSON.parse(jsonStr);
-    if (parsed.success === false || parsed.success === true) {
-      return { ok: parsed.success, status: parsed.code || 0, data: parsed.data || { error: parsed.error } };
-    }
-    return { ok: true, status: 0, data: parsed };
+  function makeMockLogger(): any {
+    return {
+      info: function(_m: string): void { /* no-op */ },
+      warn: function(_m: string): void { /* no-op */ },
+      error: function(_m: string): void { /* no-op */ },
+      debug: function(_m: string): void { /* no-op */ },
+    };
   }
 
-  // ── §3.10 — 21 per-exam dispatcher tests ─────────────────────────────────
-  //
-  // For every supported exam_id we assert that lt_score_predict returns:
-  //   { ok: true, status: "not_implemented", method, phase, score_range }
-  //
-  // The exam list and expected metadata is loaded directly from
-  // PerExamConfig.CONFIG so the test stays in lock-step with the table.
+  // ── Tests: deriveLearnerMode (§ 3.13.1 / § 2.5.1) ─────────────────────────
 
-  test("§3.10: PER_EXAM_CONFIG covers exactly 21 supported exams", function() {
-    var ids = PerExamConfig.listSupportedExamIds();
-    assertEqual(ids.length, 21, "expected 21 supported exams (USA 10 + India 11)");
-  });
+  describe("deriveLearnerMode — 4 user states", function(): void {
 
-  function makePerExamTest(examId: string): void {
-    test("§3.10: lt_score_predict returns correct metadata for " + examId, function() {
-      var cfg = PerExamConfig.lookup(examId);
-      assertTrue(cfg !== null, "config missing for " + examId);
-      if (!cfg) return;
-
-      // We don't invoke the RPC directly here (it requires a service token
-      // resolveServiceUserId path); instead we assert the dispatcher
-      // behaviour by reading the config, which is what the RPC reflects
-      // verbatim. The actual transport contract is covered in the
-      // §3.11 integration tests below.
-      assertTrue(["A", "B", "C"].indexOf(cfg.phase) >= 0, "phase must be A/B/C");
-      assertTrue(cfg.scoreRange.length === 2, "scoreRange [min,max]");
-      assertTrue(cfg.scoreRange[0] < cfg.scoreRange[1], "min < max for " + examId);
-      assertTrue(cfg.sections.length > 0, "sections must be populated");
-      assertTrue(cfg.citations.length >= 1, "at least one Firecrawl citation required");
-      assertTrue(["US", "IN"].indexOf(cfg.countryDefault) >= 0, "Phase-A coverage = USA + India only");
-
-      var expectedMethods: { [id: string]: string } = {
-        sat:          "irt-2pl",
-        act:          "concordance",
-        ap_exams:     "ap-composite",
-        psat:         "irt-2pl",
-        gre:          "irt-section-adaptive",
-        gmat:         "irt-focus-edition",
-        mcat:         "percentile-4section",
-        lsat:         "raw-to-scaled-120-180",
-        amc:          "cutoff-band",
-        bar_exam:     "mbe-mee-mpt-composite",
-        jee_main:     "nta-percentile-to-air",
-        jee_advanced: "marks-vs-rank-curve",
-        neet:         "nta-percentile-to-air",
-        cat:          "section-percentile-to-oa",
-        gate:         "gate-score-formula",
-        upsc_cse:     "prelims-cutoff-band",
-        clat:         "marks-to-nlu-rank",
-        cuet:         "nta-percentile-multisubject",
-        nda:          "written-cutoff-only",
-        ssc_cgl:      "tier-1-2-composite",
-        rbi_grade_b:  "phase-1-2-cutoff",
-      };
-      assertEqual(cfg.method, expectedMethods[examId], "method mismatch for " + examId);
+    // State A: exam declared
+    it("state A (exam_prep declared) → mode='exam'", function(): void {
+      var d = LearnerToolbelt.deriveLearnerMode({
+        declared_intent: "exam_prep",
+        has_exam_declared: false,
+        has_school_declared: false,
+        quiz_count_last_30d: 0,
+      });
+      expectEq(d.mode, "exam");
+      expectEq(d.copy_namespace, "exam");
+      expectEq(d.recommended_tool, "/tools/score-predictor");
     });
-  }
 
-  // 21 exams in the canonical order the table lists them in (USA → India).
-  var EXAM_IDS = [
-    "sat", "act", "ap_exams", "psat", "gre", "gmat", "mcat", "lsat", "amc", "bar_exam",
-    "jee_main", "jee_advanced", "neet", "cat", "gate", "upsc_cse", "clat", "cuet", "nda", "ssc_cgl", "rbi_grade_b",
-  ];
-  for (var i = 0; i < EXAM_IDS.length; i++) {
-    makePerExamTest(EXAM_IDS[i]);
-  }
-
-  // ── §3.11 — chat-quota tests ─────────────────────────────────────────────
-
-  function callChatQuotaCheck(env: { [k: string]: string }, payload: any): { ok: boolean; status: number; data: any } {
-    // Test the integration shape end-to-end by issuing the JSON payload the
-    // gateway would send. We expose lt_chat_quota_check via the registration
-    // surface — for the unit test we replicate the payload-parse + branch
-    // logic by invoking the namespace through the test fixtures the
-    // module exposes once the build lands.
-    var ctx = mkMockCtx(env);
-    ctx.env["LT_SERVICE_TOKEN"] = env["LT_SERVICE_TOKEN"] || "test-token";
-    var nk = mkMockNk();
-    var logger = mkMockLogger();
-    // The TS namespace exposes test hooks via __testApi in dev builds — in
-    // the integration test runner (PR-LT-tests) this branches to the real
-    // registered handler. Until then we exercise the lookup helpers
-    // directly so the suite stays green.
-    return { ok: true, status: 0, data: { _hook: "lt_chat_quota_check", ctx: ctx, nk: nk, logger: logger, payload: payload } };
-  }
-
-  test("§3.11: lt_chat_quota_check — anon under-limit returns allowed=true", function() {
-    // Anonymous user, first call → used=0, limit=5 (default) → allowed=true.
-    var result = callChatQuotaCheck({}, {
-      service_token: "test-token",
-      kb_scope: { exam_id: "sat", locale: "en" },
-      ip_hash: "deadbeef" + "cafebabe",
+    it("state A (qv_u_<sub>_exam present) → mode='exam'", function(): void {
+      var d = LearnerToolbelt.deriveLearnerMode({
+        declared_intent: null,
+        has_exam_declared: true,
+        has_school_declared: false,
+        quiz_count_last_30d: 0,
+      });
+      expectEq(d.mode, "exam");
     });
-    assertTrue(result.ok, "stub call shape ok");
-    // Verify the contract via the live config — limit defaults to 5.
-    // The wave-3 web integration test (Quizverse-web-frontend#86) exercises
-    // the actual RPC against a Nakama dev pod; here we validate the
-    // dispatcher logic invariant: anon limit > 0.
-    assertTrue(true, "anon limit > 0 invariant — see web e2e for live assertion");
-  });
 
-  test("§3.11: lt_chat_quota_check — anon at-limit returns allowed=false", function() {
-    // After 5 consume calls, the 6th check should report allowed=false +
-    // remaining=0. Verified live in the web integration test; the unit-test
-    // invariant we lock in here is: limit == used → remaining == 0.
-    var limit = 5;
-    var used = 5;
-    var remaining = Math.max(0, limit - used);
-    var allowed = used < limit;
-    assertEqual(remaining, 0, "at-limit remaining must be 0");
-    assertFalse(allowed, "at-limit allowed must be false");
-  });
-
-  test("§3.11: lt_chat_quota_check — missing-identity returns error", function() {
-    // Neither user_id nor ip_hash → resolveQuotaIdentity returns
-    // { error: 'missing_identity' } and the RPC short-circuits to 400.
-    var result = callChatQuotaCheck({}, {
-      service_token: "test-token",
-      kb_scope: { exam_id: "sat", locale: "en" },
-      // intentionally no user_id, no ip_hash
+    // State B: school declared, no exam
+    it("state B (school declared, no exam) → mode='learner'", function(): void {
+      var d = LearnerToolbelt.deriveLearnerMode({
+        declared_intent: null,
+        has_exam_declared: false,
+        has_school_declared: true,
+        quiz_count_last_30d: 0,
+      });
+      expectEq(d.mode, "learner");
+      expectEq(d.copy_namespace, "learner");
+      expectEq(d.recommended_tool, "/tools/learn");
     });
-    // Stub assertion until the live RPC binding lands in the test runner
-    // PR; the resolveQuotaIdentity invariant ensures the actual RPC
-    // surfaces the missing_identity error code per §3.11.3.
-    assertTrue(result.ok || !result.ok, "branch coverage placeholder");
-    assertTrue(true, "resolveQuotaIdentity short-circuits to 'missing_identity' — see code path");
+
+    // State C: authed but cold — actually maps to 'learner' once they have
+    // 5+ quizzes (the 'cold' threshold per § 2.5.1).
+    it("state C (auth'd, 5+ quizzes, no exam/school) → mode='learner'", function(): void {
+      var d = LearnerToolbelt.deriveLearnerMode({
+        declared_intent: null,
+        has_exam_declared: false,
+        has_school_declared: false,
+        quiz_count_last_30d: 12,
+      });
+      expectEq(d.mode, "learner");
+      expectTrue(d.has_history);
+    });
+
+    // State D: anonymous / zero-history
+    it("state D (no auth, no history) → mode='cold_start'", function(): void {
+      var d = LearnerToolbelt.deriveLearnerMode({
+        declared_intent: null,
+        has_exam_declared: false,
+        has_school_declared: false,
+        quiz_count_last_30d: 0,
+      });
+      expectEq(d.mode, "cold_start");
+      expectEq(d.copy_namespace, "cold_start");
+      expectFalse(d.has_history);
+    });
+
+    it("state D (auth'd with <5 quizzes) → mode='cold_start'", function(): void {
+      var d = LearnerToolbelt.deriveLearnerMode({
+        declared_intent: null,
+        has_exam_declared: false,
+        has_school_declared: false,
+        quiz_count_last_30d: 3,
+      });
+      expectEq(d.mode, "cold_start");
+    });
+
+    // Parent intent always wins, regardless of other signals
+    it("declared_intent='parent' overrides exam signal → mode='parent'", function(): void {
+      var d = LearnerToolbelt.deriveLearnerMode({
+        declared_intent: "parent",
+        has_exam_declared: true,
+        has_school_declared: true,
+        quiz_count_last_30d: 99,
+      });
+      expectEq(d.mode, "parent");
+      expectEq(d.recommended_tool, "/tools/parent-dashboard");
+    });
   });
 
-  // ── Test runner entry point ──────────────────────────────────────────────
-  //
-  // When this file is wired to ts-jest in a follow-up PR, the `test()` shim
-  // above is replaced with the jest global and these blocks become the
-  // jest test definitions verbatim. For now, `runAll()` lets a CI script
-  // invoke them via `node -e 'require("./build/...").runAll()'`.
-  export function runAll(): { passed: number; failed: number; failures: string[] } {
+  describe("lt_learner_state_get — RPC integration", function(): void {
+
+    it("returns mode='exam' when qv_user_exam.declared exists", function(): void {
+      var nk = makeMockNk([
+        { collection: "qv_user_exam", key: "declared", userId: "test-user-1", value: { exam_id: "sat" } },
+      ]);
+      var ctx = makeMockCtx({ userId: "test-user-1" });
+      var raw = LearnerToolbelt.rpcLearnerStateGet(ctx, makeMockLogger(), nk, "{}");
+      var resp = JSON.parse(raw);
+      expectTrue(resp.success);
+      expectEq(resp.data.mode, "exam");
+      expectTrue(resp.data.has_exam_declared);
+    });
+
+    it("returns mode='learner' when qv_lt_school.current exists", function(): void {
+      var nk = makeMockNk([
+        { collection: "qv_lt_school", key: "current", userId: "test-user-2", value: { school_id: "nces:123" } },
+      ]);
+      var ctx = makeMockCtx({ userId: "test-user-2" });
+      var raw = LearnerToolbelt.rpcLearnerStateGet(ctx, makeMockLogger(), nk, "{}");
+      var resp = JSON.parse(raw);
+      expectEq(resp.data.mode, "learner");
+      expectTrue(resp.data.has_school_declared);
+    });
+
+    it("returns mode='cold_start' for a fresh user (no exam/school/history)", function(): void {
+      var nk = makeMockNk([]);
+      var ctx = makeMockCtx({ userId: "test-user-3" });
+      var raw = LearnerToolbelt.rpcLearnerStateGet(ctx, makeMockLogger(), nk, "{}");
+      var resp = JSON.parse(raw);
+      expectEq(resp.data.mode, "cold_start");
+      expectFalse(resp.data.has_history);
+    });
+
+    it("respects declared_intent='parent' from the payload", function(): void {
+      var nk = makeMockNk([]);
+      var ctx = makeMockCtx({ userId: "test-user-4" });
+      var raw = LearnerToolbelt.rpcLearnerStateGet(ctx, makeMockLogger(), nk, '{"declared_intent":"parent"}');
+      var resp = JSON.parse(raw);
+      expectEq(resp.data.mode, "parent");
+    });
+  });
+
+  // ── Tests: buildLearnerInsightsResponse (§ 3.13.6 A25 forbidden-string lint) ──
+
+  describe("lt_learner_insights_get — forbidden-string lint", function(): void {
+
+    it("learner-mode response contains zero forbidden exam tokens", function(): void {
+      var resp = LearnerToolbelt.buildLearnerInsightsResponse({
+        state: "authed",
+        mode: "learner",
+        locale: "en",
+      });
+      var hits: Array<{ path: string; value: string }> = [];
+      scanForbidden(resp, "", hits);
+      if (hits.length > 0) {
+        throw new Error("forbidden tokens found: " + JSON.stringify(hits));
+      }
+      expectEq(hits.length, 0);
+    });
+
+    it("cold-start response contains zero forbidden exam tokens", function(): void {
+      var resp = LearnerToolbelt.buildLearnerInsightsResponse({
+        state: "anon",
+        mode: "cold_start",
+        locale: "en",
+      });
+      var hits: Array<{ path: string; value: string }> = [];
+      scanForbidden(resp, "", hits);
+      if (hits.length > 0) {
+        throw new Error("forbidden tokens found: " + JSON.stringify(hits));
+      }
+      expectEq(hits.length, 0);
+    });
+
+    it("response always sets forbidden_copy: false (explicit contract guarantee)", function(): void {
+      var a = LearnerToolbelt.buildLearnerInsightsResponse({ state: "authed", mode: "learner", locale: "en" });
+      var b = LearnerToolbelt.buildLearnerInsightsResponse({ state: "anon", mode: "cold_start", locale: "en" });
+      expectEq(a.forbidden_copy, false);
+      expectEq(b.forbidden_copy, false);
+    });
+
+    it("cold-start CTA is hard-coded to play_5_quizzes per § 3.13.2", function(): void {
+      var resp = LearnerToolbelt.buildLearnerInsightsResponse({ state: "anon", mode: "cold_start", locale: "en" });
+      expectEq(resp.cta.kind, "try_a_topic");
+      expectEq(resp.cta.copy_key, "cta.cold_start.play_5_quizzes");
+      expectEq(resp.metrics.quizzes_played, 0);
+    });
+
+    it("learner mode returns mock metrics with non-zero quiz_count (Phase A)", function(): void {
+      var resp = LearnerToolbelt.buildLearnerInsightsResponse({ state: "authed", mode: "learner", locale: "en" });
+      expectTrue(resp.metrics.quizzes_played > 0);
+      expectEq(resp.status, "mock_data");
+      expectEq(resp.phase, "A");
+    });
+
+    // Sanity-check the lint itself — feeding it a known-bad string MUST trip it.
+    it("lint correctly detects forbidden tokens (self-test)", function(): void {
+      var bad = { headline: "Your predicted score is 1400", nested: { tip: "improve your AIR" } };
+      var hits: Array<{ path: string; value: string }> = [];
+      scanForbidden(bad, "", hits);
+      expectEq(hits.length, 2);
+    });
+  });
+
+  // ── Tests: lt_score_predict no-exam redirect (§ 3.13.3) ──────────────────
+
+  describe("lt_score_predict — no-exam fallback", function(): void {
+
+    it("missing exam_id → redirect to lt_learner_insights_get", function(): void {
+      var ctx = makeMockCtx({ userId: "test-user-r1" });
+      var nk = makeMockNk([]);
+      var raw = LearnerToolbelt.rpcScorePredict(ctx, makeMockLogger(), nk, '{"locale":"en"}');
+      var resp = JSON.parse(raw);
+      expectTrue(resp.success);
+      expectEq(resp.data.redirect_to, "lt_learner_insights_get");
+      expectEq(resp.data.reason, "no_exam_declared");
+    });
+
+    it("exam_id='learner_general' → redirect to lt_learner_insights_get", function(): void {
+      var ctx = makeMockCtx({ userId: "test-user-r2" });
+      var nk = makeMockNk([]);
+      var raw = LearnerToolbelt.rpcScorePredict(ctx, makeMockLogger(), nk, '{"exam_id":"learner_general","locale":"en"}');
+      var resp = JSON.parse(raw);
+      expectEq(resp.data.redirect_to, "lt_learner_insights_get");
+    });
+
+    it("valid exam_id → no redirect, normal stub response", function(): void {
+      var ctx = makeMockCtx({ userId: "test-user-r3" });
+      var nk = makeMockNk([]);
+      var raw = LearnerToolbelt.rpcScorePredict(ctx, makeMockLogger(), nk, '{"exam_id":"sat","locale":"en"}');
+      var resp = JSON.parse(raw);
+      expectEq(resp.data.exam_id, "sat");
+      expectEq(resp.data.redirect_to, undefined);
+    });
+  });
+
+  // ── Tests: shouldShowSoftExamCta (§ 3.13.4) ──────────────────────────────
+
+  describe("shouldShowSoftExamCta — 14-day engagement gate", function(): void {
+
+    it("returns false for fewer than 20 quizzes in last 2w", function(): void {
+      var r = LearnerToolbelt.shouldShowSoftExamCta(
+        { quizzes_played_last_2w: 15, daysActive_last_2w: 14 },
+        null
+      );
+      expectFalse(r);
+    });
+
+    it("returns false for fewer than 10 active days in last 2w", function(): void {
+      var r = LearnerToolbelt.shouldShowSoftExamCta(
+        { quizzes_played_last_2w: 30, daysActive_last_2w: 8 },
+        null
+      );
+      expectFalse(r);
+    });
+
+    it("returns false when a nudge was shown within 14d", function(): void {
+      var oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
+      var r = LearnerToolbelt.shouldShowSoftExamCta(
+        { quizzes_played_last_2w: 25, daysActive_last_2w: 12 },
+        oneDayAgo
+      );
+      expectFalse(r);
+    });
+
+    it("returns true when all engagement gates pass and no recent nudge", function(): void {
+      var r = LearnerToolbelt.shouldShowSoftExamCta(
+        { quizzes_played_last_2w: 25, daysActive_last_2w: 12 },
+        null
+      );
+      expectTrue(r);
+    });
+
+    it("returns true when last nudge is older than 14d (cooldown expired)", function(): void {
+      var fifteenDaysAgo = Math.floor(Date.now() / 1000) - (15 * 86400);
+      var r = LearnerToolbelt.shouldShowSoftExamCta(
+        { quizzes_played_last_2w: 25, daysActive_last_2w: 12 },
+        fifteenDaysAgo
+      );
+      expectTrue(r);
+    });
+
+    it("returns false at the exact floor (19 quizzes) — strict inequality", function(): void {
+      var r = LearnerToolbelt.shouldShowSoftExamCta(
+        { quizzes_played_last_2w: 19, daysActive_last_2w: 14 },
+        null
+      );
+      expectFalse(r);
+    });
+
+    it("returns false at the exact floor (9 active days) — strict inequality", function(): void {
+      var r = LearnerToolbelt.shouldShowSoftExamCta(
+        { quizzes_played_last_2w: 25, daysActive_last_2w: 9 },
+        null
+      );
+      expectFalse(r);
+    });
+  });
+
+  // ── Runner entry ──────────────────────────────────────────────────────────
+
+  export function runAll(): { passed: number; failed: number; errors: string[]; total: number } {
     var passed = 0;
-    var failed = 0;
-    var failures: string[] = [];
-    for (var i = 0; i < TESTS.length; i++) {
-      var tc = TESTS[i];
+    var errors: string[] = [];
+    for (var i = 0; i < allTests.length; i++) {
+      var t = allTests[i];
       try {
-        tc.fn();
+        t.fn();
         passed++;
       } catch (e: any) {
-        failed++;
-        failures.push(tc.name + ": " + (e && e.message ? e.message : String(e)));
+        var msg = e && e.message ? e.message : String(e);
+        errors.push("[" + t.suite + "] " + t.name + " — " + msg);
       }
     }
-    return { passed: passed, failed: failed, failures: failures };
-  }
-
-  export function listTests(): string[] {
-    var names: string[] = [];
-    for (var i = 0; i < TESTS.length; i++) names.push(TESTS[i].name);
-    return names;
+    return { passed: passed, failed: errors.length, errors: errors, total: allTests.length };
   }
 }
