@@ -331,6 +331,22 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[QvAgent] failed to register QvAgent: " + (err && err.message ? err.message : String(err)));
     }
 
+    // ── QuizVerse Learner Toolbelt (Phase A — Score Predictor / Exam Countdown /
+    //   GPA Calculator / School Info Gathering) ────────────────────────────
+    // Skeleton PR: every RPC returns { ok: true, status: "not_implemented",
+    // phase: "skeleton-A" }. Algorithms land in waves 4-5. Auth + wire format
+    // are real so the gateway can register all tool dispatchers in parallel.
+    // See data/modules/src/learner-toolbelt/learner_toolbelt.ts and the plan
+    // doc at docs/strategy/PLAN-LEARNER_TOOLBELT.md (mirrored from the Unity
+    // quiz-verse repo).
+    logger.info("[LearnerToolbelt] Registering Learner Toolbelt RPCs (13 RPCs: predict, countdown, GPA, school)...");
+    try {
+      LearnerToolbelt.register(initializer);
+      logger.info("[LearnerToolbelt] lt_score_predict, lt_exam_countdown_{get,set,clear}, lt_exam_calendar_get, lt_gpa_{compute,save,get}, lt_school_{search,get_detail,set_user_school,get_user_school,freetext_submit} registered");
+    } catch (err: any) {
+      logger.error("[LearnerToolbelt] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     logger.info("[KbEnrichment] Registering KB enrichment cron RPCs (continuous derived-attribute refresh)...");
     try {
       KbEnrichment.register(initializer);

@@ -904,6 +904,9 @@ declare namespace HiroUnlockables {
 declare namespace IdentityResolver {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace LearnerToolbelt {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace LegacyAnalyticsRetention {
     function register(initializer: nkruntime.Initializer): void;
 }
