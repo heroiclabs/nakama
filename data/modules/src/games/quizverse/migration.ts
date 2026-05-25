@@ -51,6 +51,8 @@ namespace QuizVerseMigration {
   // Storage collections used by this plugin.
   var COL_PLAYER_CONTEXT = "qv_player_context";  // P0 server-side context cache
   var COL_QUESTION_PACK  = "qv_question_pack";   // P1 issued pack ledger for v2 scoring
+  var COL_WORDS_DAILY    = "qv_words_daily";     // PWords daily-puzzle dedupe ledger
+                                                  // (one row per user × mode × skin × utc_day)
 
   function nakamaError(msg: string, code: number): nkruntime.Error {
     return { message: msg, code: code };
@@ -1290,6 +1292,164 @@ namespace QuizVerseMigration {
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // PHASE Words — Daily-puzzle seed + dedupe ledger
+  // ─────────────────────────────────────────────────────────────────────
+  // quizverse_words_daily_seed = the server-decided seed for words.quizverse.world
+  // (Wordle/Connections/Spelling Bee/Imposter daily puzzles). The web client
+  // (`web/app/api/words/daily/route.ts`) calls this to obtain a tamper-proof
+  // seed for the day's puzzle and to record an attempt in the dedupe ledger.
+  //
+  // Wire format (request):
+  //   { mode: "daily" | "groups" | "spell", skin: "general" | "gre-easy",
+  //     locale?: "en", record?: boolean }
+  //
+  // Wire format (response):
+  //   { ok: true, day_index, utc_day, mode, skin, seed,
+  //     server_decided: true, recorded: boolean, attempt_count: number }
+  //
+  // The seed is a stable hash of `${mode}:${skin}:${utc_day}` so all clients
+  // converge on the same puzzle for a given UTC day. The dedupe ledger stores
+  // one record per user × mode × skin × utc_day — the same key the legacy
+  // `daily-quiz` ledger uses, so anti-cheat / streak logic share a primary key.
+
+  // Words epoch: 2026-05-25 UTC = day 0. Same constant the web client uses
+  // (web/app/api/words/daily/route.ts) so client and server agree on
+  // day_index even before the server-decided flag flips to true. Bump only
+  // if we ever rebuild the puzzle catalogue from scratch.
+  var WORDS_EPOCH_UTC_MS = Date.UTC(2026, 4, 25);  // month is 0-indexed → May
+  var WORDS_VALID_MODES: { [k: string]: boolean } = {
+    "daily": true, "groups": true, "spell": true, "imposter": true, "crossword": true
+  };
+  var WORDS_VALID_SKINS: { [k: string]: boolean } = {
+    "general": true, "gre-easy": true
+  };
+
+  function wordsDayIndex(nowMs: number): number {
+    // Floor((now - epoch) / 86400000). UTC.
+    var ms = nowMs - WORDS_EPOCH_UTC_MS;
+    if (ms < 0) return 0;
+    return Math.floor(ms / 86400000);
+  }
+
+  function wordsUtcDay(nowMs: number): string {
+    // YYYY-MM-DD in UTC. Avoid Date.toISOString().slice(0,10) — the Goja
+    // runtime supports both, but the explicit construction is faster and
+    // surfaces malformed input as a number error rather than a string slice.
+    var d = new Date(nowMs);
+    var y = d.getUTCFullYear();
+    var m = d.getUTCMonth() + 1;
+    var day = d.getUTCDate();
+    var mm = m < 10 ? "0" + m : "" + m;
+    var dd = day < 10 ? "0" + day : "" + day;
+    return y + "-" + mm + "-" + dd;
+  }
+
+  function wordsSeedHash(s: string): number {
+    // 32-bit FNV-1a — same algorithm the web client uses (lib/words/seed.ts
+    // in PR #92). Keep the algorithm in sync; if you change one side you
+    // must change the other or every client will desync from the server.
+    var h = 2166136261; // 0x811c9dc5
+    for (var i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      // Multiply by FNV prime 0x01000193 = 16777619, mask to 32-bit.
+      h = (h + ((h << 1) >>> 0) + ((h << 4) >>> 0) + ((h << 7) >>> 0) +
+           ((h << 8) >>> 0) + ((h << 24) >>> 0)) >>> 0;
+    }
+    return h >>> 0;
+  }
+
+  function rpcWordsDailySeed(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    payload: string
+  ): string {
+    // Auth optional: anonymous browsers can fetch the seed (it's the same
+    // for everyone), but `record=true` requires a logged-in user so the
+    // dedupe ledger has a stable subject. The web client passes a session
+    // token if available and falls back to anon for the seed lookup.
+    var userId = ctx.userId || "";
+    var req = parseJson(payload);
+    var mode = String(req.mode || "daily").toLowerCase();
+    var skin = String(req.skin || "general").toLowerCase();
+    var record = !!req.record;
+
+    if (!WORDS_VALID_MODES[mode]) {
+      throw nakamaError("invalid mode: " + mode, nkruntime.Codes.INVALID_ARGUMENT);
+    }
+    if (!WORDS_VALID_SKINS[skin]) {
+      throw nakamaError("invalid skin: " + skin, nkruntime.Codes.INVALID_ARGUMENT);
+    }
+
+    var now = nowMs();
+    var di = wordsDayIndex(now);
+    var day = wordsUtcDay(now);
+    var seed = wordsSeedHash(mode + ":" + skin + ":" + day);
+
+    var recorded = false;
+    var attemptCount = 0;
+    var firstAttemptMs = 0;
+
+    if (record && userId) {
+      // Dedupe ledger key: one row per (user, mode, skin, utc_day). Reads
+      // the existing row, increments attempt_count, writes back. The
+      // collection's PERMISSION_NO_WRITE on owner makes it tamper-proof
+      // from the client; only the server runtime can mutate it.
+      var ledgerKey = mode + ":" + skin + ":" + day;
+      try {
+        var existing = nk.storageRead([{
+          collection: COL_WORDS_DAILY, key: ledgerKey, userId: userId
+        }]);
+        if (existing && existing.length > 0 && existing[0].value) {
+          var v: any = existing[0].value;
+          attemptCount = (typeof v.attempt_count === "number") ? v.attempt_count : 0;
+          firstAttemptMs = (typeof v.first_attempt_ms === "number") ? v.first_attempt_ms : 0;
+        }
+        attemptCount += 1;
+        if (firstAttemptMs === 0) firstAttemptMs = now;
+        nk.storageWrite([{
+          collection:      COL_WORDS_DAILY,
+          key:             ledgerKey,
+          userId:          userId,
+          value: {
+            mode:             mode,
+            skin:             skin,
+            utc_day:          day,
+            day_index:        di,
+            seed:             seed,
+            attempt_count:    attemptCount,
+            first_attempt_ms: firstAttemptMs,
+            last_attempt_ms:  now
+          },
+          // Owner read so streak UI can read its own ledger; nobody can
+          // write client-side, so the server is sole truth.
+          permissionRead:  1,  // OWNER_READ
+          permissionWrite: 0   // NO_WRITE
+        }]);
+        recorded = true;
+      } catch (err: any) {
+        logger.warn("[Words] daily ledger write failed: " +
+          (err && err.message ? err.message : String(err)));
+        // Non-fatal — the seed itself is still valid; the client can retry
+        // record=true on its next request without affecting gameplay.
+      }
+    }
+
+    return JSON.stringify({
+      ok:               true,
+      day_index:        di,
+      utc_day:          day,
+      mode:             mode,
+      skin:             skin,
+      seed:             seed,
+      server_decided:   true,
+      recorded:         recorded,
+      attempt_count:    attemptCount,
+      first_attempt_ms: firstAttemptMs
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Registration
   // ─────────────────────────────────────────────────────────────────────
   export function register(
@@ -1331,8 +1491,14 @@ namespace QuizVerseMigration {
     initializer.registerRpc("quizverse_analytics_fanout",     rpcAnalyticsFanout);
     initializer.registerRpc("quizverse_livekit_token_mint",   rpcLivekitTokenMint);
 
+    // PWords — daily-puzzle seed RPC for words.quizverse.world. The web
+    // client (web/app/api/words/daily/route.ts) calls this to obtain the
+    // server-decided seed and bump the dedupe ledger. See the handler
+    // body for the wire-format contract.
+    initializer.registerRpc("quizverse_words_daily_seed",     rpcWordsDailySeed);
+
     if (logger && logger.info) {
-      logger.info("[QuizVerseMigration] registered 22 RPCs (P0-P8 live)");
+      logger.info("[QuizVerseMigration] registered 23 RPCs (P0-P8 live + PWords daily seed)");
     }
   }
 

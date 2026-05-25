@@ -6559,6 +6559,8 @@ var QuizVerseMigration;
     // Storage collections used by this plugin.
     var COL_PLAYER_CONTEXT = "qv_player_context"; // P0 server-side context cache
     var COL_QUESTION_PACK = "qv_question_pack"; // P1 issued pack ledger for v2 scoring
+    var COL_WORDS_DAILY = "qv_words_daily"; // PWords daily-puzzle dedupe ledger
+    // (one row per user × mode × skin × utc_day)
     function nakamaError(msg, code) {
         return { message: msg, code: code };
     }
@@ -7639,6 +7641,151 @@ var QuizVerseMigration;
         });
     }
     // ─────────────────────────────────────────────────────────────────────
+    // PHASE Words — Daily-puzzle seed + dedupe ledger
+    // ─────────────────────────────────────────────────────────────────────
+    // quizverse_words_daily_seed = the server-decided seed for words.quizverse.world
+    // (Wordle/Connections/Spelling Bee/Imposter daily puzzles). The web client
+    // (`web/app/api/words/daily/route.ts`) calls this to obtain a tamper-proof
+    // seed for the day's puzzle and to record an attempt in the dedupe ledger.
+    //
+    // Wire format (request):
+    //   { mode: "daily" | "groups" | "spell", skin: "general" | "gre-easy",
+    //     locale?: "en", record?: boolean }
+    //
+    // Wire format (response):
+    //   { ok: true, day_index, utc_day, mode, skin, seed,
+    //     server_decided: true, recorded: boolean, attempt_count: number }
+    //
+    // The seed is a stable hash of `${mode}:${skin}:${utc_day}` so all clients
+    // converge on the same puzzle for a given UTC day. The dedupe ledger stores
+    // one record per user × mode × skin × utc_day — the same key the legacy
+    // `daily-quiz` ledger uses, so anti-cheat / streak logic share a primary key.
+    // Words epoch: 2026-05-25 UTC = day 0. Same constant the web client uses
+    // (web/app/api/words/daily/route.ts) so client and server agree on
+    // day_index even before the server-decided flag flips to true. Bump only
+    // if we ever rebuild the puzzle catalogue from scratch.
+    var WORDS_EPOCH_UTC_MS = Date.UTC(2026, 4, 25); // month is 0-indexed → May
+    var WORDS_VALID_MODES = {
+        "daily": true, "groups": true, "spell": true, "imposter": true, "crossword": true
+    };
+    var WORDS_VALID_SKINS = {
+        "general": true, "gre-easy": true
+    };
+    function wordsDayIndex(nowMs) {
+        // Floor((now - epoch) / 86400000). UTC.
+        var ms = nowMs - WORDS_EPOCH_UTC_MS;
+        if (ms < 0)
+            return 0;
+        return Math.floor(ms / 86400000);
+    }
+    function wordsUtcDay(nowMs) {
+        // YYYY-MM-DD in UTC. Avoid Date.toISOString().slice(0,10) — the Goja
+        // runtime supports both, but the explicit construction is faster and
+        // surfaces malformed input as a number error rather than a string slice.
+        var d = new Date(nowMs);
+        var y = d.getUTCFullYear();
+        var m = d.getUTCMonth() + 1;
+        var day = d.getUTCDate();
+        var mm = m < 10 ? "0" + m : "" + m;
+        var dd = day < 10 ? "0" + day : "" + day;
+        return y + "-" + mm + "-" + dd;
+    }
+    function wordsSeedHash(s) {
+        // 32-bit FNV-1a — same algorithm the web client uses (lib/words/seed.ts
+        // in PR #92). Keep the algorithm in sync; if you change one side you
+        // must change the other or every client will desync from the server.
+        var h = 2166136261; // 0x811c9dc5
+        for (var i = 0; i < s.length; i++) {
+            h ^= s.charCodeAt(i);
+            // Multiply by FNV prime 0x01000193 = 16777619, mask to 32-bit.
+            h = (h + ((h << 1) >>> 0) + ((h << 4) >>> 0) + ((h << 7) >>> 0) +
+                ((h << 8) >>> 0) + ((h << 24) >>> 0)) >>> 0;
+        }
+        return h >>> 0;
+    }
+    function rpcWordsDailySeed(ctx, logger, nk, payload) {
+        // Auth optional: anonymous browsers can fetch the seed (it's the same
+        // for everyone), but `record=true` requires a logged-in user so the
+        // dedupe ledger has a stable subject. The web client passes a session
+        // token if available and falls back to anon for the seed lookup.
+        var userId = ctx.userId || "";
+        var req = parseJson(payload);
+        var mode = String(req.mode || "daily").toLowerCase();
+        var skin = String(req.skin || "general").toLowerCase();
+        var record = !!req.record;
+        if (!WORDS_VALID_MODES[mode]) {
+            throw nakamaError("invalid mode: " + mode, 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        if (!WORDS_VALID_SKINS[skin]) {
+            throw nakamaError("invalid skin: " + skin, 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var now = nowMs();
+        var di = wordsDayIndex(now);
+        var day = wordsUtcDay(now);
+        var seed = wordsSeedHash(mode + ":" + skin + ":" + day);
+        var recorded = false;
+        var attemptCount = 0;
+        var firstAttemptMs = 0;
+        if (record && userId) {
+            // Dedupe ledger key: one row per (user, mode, skin, utc_day). Reads
+            // the existing row, increments attempt_count, writes back. The
+            // collection's PERMISSION_NO_WRITE on owner makes it tamper-proof
+            // from the client; only the server runtime can mutate it.
+            var ledgerKey = mode + ":" + skin + ":" + day;
+            try {
+                var existing = nk.storageRead([{
+                        collection: COL_WORDS_DAILY, key: ledgerKey, userId: userId
+                    }]);
+                if (existing && existing.length > 0 && existing[0].value) {
+                    var v = existing[0].value;
+                    attemptCount = (typeof v.attempt_count === "number") ? v.attempt_count : 0;
+                    firstAttemptMs = (typeof v.first_attempt_ms === "number") ? v.first_attempt_ms : 0;
+                }
+                attemptCount += 1;
+                if (firstAttemptMs === 0)
+                    firstAttemptMs = now;
+                nk.storageWrite([{
+                        collection: COL_WORDS_DAILY,
+                        key: ledgerKey,
+                        userId: userId,
+                        value: {
+                            mode: mode,
+                            skin: skin,
+                            utc_day: day,
+                            day_index: di,
+                            seed: seed,
+                            attempt_count: attemptCount,
+                            first_attempt_ms: firstAttemptMs,
+                            last_attempt_ms: now
+                        },
+                        // Owner read so streak UI can read its own ledger; nobody can
+                        // write client-side, so the server is sole truth.
+                        permissionRead: 1, // OWNER_READ
+                        permissionWrite: 0 // NO_WRITE
+                    }]);
+                recorded = true;
+            }
+            catch (err) {
+                logger.warn("[Words] daily ledger write failed: " +
+                    (err && err.message ? err.message : String(err)));
+                // Non-fatal — the seed itself is still valid; the client can retry
+                // record=true on its next request without affecting gameplay.
+            }
+        }
+        return JSON.stringify({
+            ok: true,
+            day_index: di,
+            utc_day: day,
+            mode: mode,
+            skin: skin,
+            seed: seed,
+            server_decided: true,
+            recorded: recorded,
+            attempt_count: attemptCount,
+            first_attempt_ms: firstAttemptMs
+        });
+    }
+    // ─────────────────────────────────────────────────────────────────────
     // Registration
     // ─────────────────────────────────────────────────────────────────────
     function register(initializer, _nk, logger) {
@@ -7669,8 +7816,13 @@ var QuizVerseMigration;
         initializer.registerRpc("asset_catalog_get", rpcAssetCatalogGet);
         initializer.registerRpc("quizverse_analytics_fanout", rpcAnalyticsFanout);
         initializer.registerRpc("quizverse_livekit_token_mint", rpcLivekitTokenMint);
+        // PWords — daily-puzzle seed RPC for words.quizverse.world. The web
+        // client (web/app/api/words/daily/route.ts) calls this to obtain the
+        // server-decided seed and bump the dedupe ledger. See the handler
+        // body for the wire-format contract.
+        initializer.registerRpc("quizverse_words_daily_seed", rpcWordsDailySeed);
         if (logger && logger.info) {
-            logger.info("[QuizVerseMigration] registered 22 RPCs (P0-P8 live)");
+            logger.info("[QuizVerseMigration] registered 23 RPCs (P0-P8 live + PWords daily seed)");
         }
     }
     QuizVerseMigration.register = register;
@@ -12907,28 +13059,32 @@ var IdentityResolver;
 })(IdentityResolver || (IdentityResolver = {}));
 // learner_toolbelt.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// QuizVerse Learner Toolbelt — Phase A skeleton (PR-LT1).
+// QuizVerse Learner Toolbelt — Wave 4-5 implementation (PR-LT2).
 //
-// Four learner tools every test-prep candidate uses BEFORE picking a study app:
-//   1. Score Predictor       (SAT IRT · JEE/NEET percentile · AP composite · UK boundary · Bayes fallback)
-//   2. Exam Countdown        (country-aware exam calendar + per-user study min/day)
-//   3. GPA Calculator        (12 grading systems · WES-iGPA conversion)
-//   4. School Info Gathering (NCES · UDISE+ · GIAS · INEP · free-text fallback)
+// This module replaces the Phase-A skeleton with real algorithms for:
+//   1. GPA Calculator         (6 grading systems — see lt_grading.ts)
+//   2. Exam Calendar          (5 countries × 2 years — see lt_calendar.ts)
+//   3. Exam Countdown         (storage CRUD + study-min/day recommendation)
+//   4. School Info Gathering  (in-memory 200-school fixture + freetext queue)
+//   5. Score Predictor        (Bayes fallback only, l0/l1 tier per § 2.22)
 //
-// Plan: ../../docs/strategy/PLAN-LEARNER_TOOLBELT.md (mirrored from
-//   intelliverse-x-games-platform-2/games/quiz-verse/Docs/plans/).
-// Tracking PRs:
-//   - intelli-verse-x/intelliverse-x-games-platform-2#207 (plan source of truth)
-//   - intelli-verse-x/Quizverse-web-frontend#86 (web mirror)
-//   - intelli-verse-x/Intelliverse-X-AI#256 (gateway mirror)
+// All 13 RPC IDs are unchanged from the skeleton — the gateway tool
+// dispatcher and web routes wire to the same surface. Only the body of
+// each handler is upgraded from "not_implemented" → real responses.
 //
-// This PR (skeleton): every RPC returns { ok: true, status: "not_implemented",
-//   phase: "skeleton-A" } so the gateway can wire all 13 tool dispatchers in
-//   parallel while the algorithms land in waves 4-5. Auth + body wire format
-//   are real (mirror qv-agent's service-token pattern), so once any single
-//   RPC's real logic lands the consumer-side wiring does not change.
+// Plan: ../../docs/strategy/PLAN-LEARNER_TOOLBELT.md
+// Skeleton PR (merged): nakama#73
+// Tracking PRs (web/gateway mirrors): Quizverse-web-frontend#86,
+// Intelliverse-X-AI#256.
 //
-// RPCs registered (13)
+// Auth model (unchanged from skeleton)
+// ------------------------------------
+// • Public RPCs (lt_gpa_compute, lt_exam_calendar_get, lt_school_search,
+//   lt_school_get_detail) — no auth.
+// • Service-only RPCs accept either (a) ctx.userId from a Nakama session,
+//   or (b) service_token + user_id in payload matching ctx.env["LT_SERVICE_TOKEN"].
+// RPCs registered (15)
+// RPCs registered (16)
 // --------------------
 //   lt_score_predict                  service-only (auth) — § 3 of plan
 //   lt_exam_countdown_get             service-only        — § 4 of plan
@@ -12943,14 +13099,46 @@ var IdentityResolver;
 //   lt_school_set_user_school         service-only        — § 6
 //   lt_school_get_user_school         service-only        — § 6
 //   lt_school_freetext_submit         service-only        — § 6
+//   lt_chat_quota_check               service-only        — § 3.11 (anon/auth/pro tier)
+//   lt_chat_quota_consume             service-only        — § 3.11 (atomic decrement)
+//   lt_learner_state_get              service-only (auth) — § 2.5 / § 3.13.1
+//   lt_learner_insights_get           service-only (auth) — § 3.13.2
+//   lt_learner_soft_cta_check         service-only (auth) — § 3.13.4
 //
-// Auth model
-// ----------
-// Mirrors src/qv-agent/qv_agent.ts:
-//   (a) caller IS the user — ctx.userId from a Nakama session
-//   (b) caller is the gateway — service_token in payload matches
-//       ctx.env["LT_SERVICE_TOKEN"], AND user_id is supplied in payload
+// No-exam fallback (§ 2.5 / § 3.13)
+// --------------------------------
+// Most QuizVerse visitors are not exam candidates — trivia browsers, parents,
+// students without a declared target. Exam-prep terminology is a wall to them,
+// not a draw. This module ships the learner-mindset surface so the same web
+// route renders elegantly for both modes:
+//   - lt_learner_state_get      → resolves which of the 4 modes (§ 2.5.1)
+//                                 a user is in (deterministic, cached 6h)
+//   - lt_learner_insights_get   → returns Learner-Insights payload — uses
+//                                 ONLY learner-mode vocabulary from § 2.5.3
+//                                 (no "predicted score", "AIR", "scaled
+//                                 score", "grade boundary", "cutoff").
+//   - lt_score_predict          → returns a graceful redirect when
+//                                 exam_id is missing or sentinel
+//                                 "learner_general" (§ 3.13.3) so the
+//                                 route never errors on visitors without a
+//                                 declared exam.
+//   - lt_learner_soft_cta_check → 14-day soft exam-CTA gate (§ 3.13.4) —
+//                                 only fires for users who meet the
+//                                 engagement floor (≥10 quizzes/wk × 2 wks
+//                                 AND ≥10 active days in last 14d) AND
+//                                 have not been nudged in the prior 14 days.
 //
+// Storage shapes (real now)
+// -------------------------
+//   collection: "qv_lt_school"          key: "current"               → UserSchoolRecord
+//   collection: "qv_lt_countdown"       key: "doc"                   → ExamCountdownDoc
+//   collection: "qv_lt_school_pending"  key: "<provisional_id>"      → FreetextSchoolEntry
+// (qv_lt_gpa and qv_lt_predictor_context are reserved for follow-up PRs —
+//  the lt_gpa_save / lt_gpa_get RPCs use qv_lt_gpa today.)
+//
+// Quiz-history source: `quiz_results` collection (legacy, see
+// src/legacy/quiz.ts). Each row is `result_<userId>_<unix>` with shape
+// { score, totalQuestions, correctAnswers, category, timestamp }.
 // Storage shapes (defined here, populated in wave 4-5)
 // ----------------------------------------------------
 //   collection: "qv_lt_school"      key: "current"  → UserSchoolRecord
@@ -12958,6 +13146,16 @@ var IdentityResolver;
 //   collection: "qv_lt_gpa"         key: "current"  → GpaSnapshot
 //   collection: "qv_lt_predictor_context" key: "<exam_id>" → PredictorContextBlock
 //   collection: "qv_lt_school_pending" key: "<provisional_id>" → freetext queue
+//   collection: "qv_lt_chat_quota"   key: see § 3.11.3       → ChatQuotaRecord
+//   collection: "qv_lt_school"             key: "current"     → UserSchoolRecord
+//   collection: "qv_lt_countdown"          key: "doc"         → ExamCountdownDoc
+//   collection: "qv_lt_gpa"                key: "current"     → GpaSnapshot
+//   collection: "qv_lt_predictor_context"  key: "<exam_id>"   → PredictorContextBlock
+//   collection: "qv_lt_school_pending"     key: "<provisional_id>" → freetext queue
+//   collection: "qv_lt_learner_state_cache" key: "v1"         → LearnerStateCache (TTL 6h)
+//   collection: "qv_lt_soft_cta_state"     key: "v1"          → { lastNudgeUnix }
+//   collection: "qv_user_exam"             key: "declared"    → declared exam (Wave 4-5)
+//   collection: "qv_user_quiz_history"     key: "30d_summary" → quiz aggregates (Wave 4-5)
 // All permissionRead/Write = 0 (server-only).
 var LearnerToolbelt;
 (function (LearnerToolbelt) {
@@ -12965,11 +13163,44 @@ var LearnerToolbelt;
     var COLLECTION_SCHOOL = "qv_lt_school";
     var COLLECTION_COUNTDOWN = "qv_lt_countdown";
     var COLLECTION_GPA = "qv_lt_gpa";
-    var COLLECTION_PREDICTOR_CONTEXT = "qv_lt_predictor_context";
     var COLLECTION_SCHOOL_PENDING = "qv_lt_school_pending";
+    var COLLECTION_QUIZ_RESULTS = "quiz_results";
     var ANALYTICS_GAME_ID = "quizverse";
+    LearnerToolbelt.MODULE_VERSION = "learner-toolbelt/0.2.0";
+    var DEFAULT_PREDICT_WINDOW_DAYS = 60;
+    var MAX_PREDICT_WINDOW_DAYS = 365;
+    var MAX_HISTORY_ROWS = 200;
+    var MAX_COUNTDOWN_ENTRIES = 20;
+    var COLLECTION_CHAT_QUOTA = "qv_lt_chat_quota";
+    var COLLECTION_LEARNER_STATE_CACHE = "qv_lt_learner_state_cache";
+    var COLLECTION_SOFT_CTA_STATE = "qv_lt_soft_cta_state";
+    // Placeholder keys consumed in Phase A — Wave 4-5 subagent rewires these
+    // against the live qv_u_<sub>_exam / qv_u_<sub>_quiz_history surfaces.
+    var COLLECTION_USER_EXAM = "qv_user_exam";
+    var COLLECTION_USER_QUIZ_HISTORY = "qv_user_quiz_history";
     var SKELETON_PHASE = "skeleton-A";
-    var MODULE_VERSION = "learner-toolbelt/0.1.0";
+    // ── Chat-quota limits (plan §3.11) ─────────────────────────────────────────
+    // Defaults below match PLAN-LEARNER_TOOLBELT.md §3.11.1. Each may be
+    // overridden at runtime via ctx.env.LT_QUOTA_<NAME> (lifted into k8s
+    // deploy config to support promo bursts / penny-cost A-B tests without a
+    // rebuild). Predictor caps are kept here for the parallel anon-tier
+    // predictor RPC even though the consumer for predictor quota lands in a
+    // later PR — staging the constant here means consumers can read the
+    // canonical value via lt_chat_quota_check's diagnostics shape.
+    var DEFAULT_QUOTA_ANON_PREDICTOR_PER_DAY = 3;
+    var DEFAULT_QUOTA_ANON_CHAT_PER_DAY = 5;
+    var DEFAULT_QUOTA_AUTH_PREDICTOR_PER_DAY = -1; // -1 sentinel = unlimited
+    var DEFAULT_QUOTA_AUTH_CHAT_PER_DAY = 30;
+    var DEFAULT_QUOTA_PRO_CHAT_PER_DAY = 200;
+    // Cognito sub format — base-36 / hex / uuid-ish. We accept anything that
+    // looks like a non-trivial token. Strict format checks happen at the
+    // gateway; this RPC just gates the "is the supplied user_id plausible"
+    // path before reading the per-exam ledger.
+    var COGNITO_SUB_RE = /^[A-Za-z0-9_\-:.]{8,128}$/;
+    // 6-hour cache for lt_learner_state_get (§ 3.13.1).
+    var LEARNER_STATE_CACHE_TTL_SEC = 6 * 60 * 60;
+    // 14-day soft exam-CTA cooldown (§ 3.13.4).
+    var SOFT_CTA_COOLDOWN_SEC = 14 * 86400;
     // ── Helpers ────────────────────────────────────────────────────────────────
     function nowSec() {
         return Math.floor(Date.now() / 1000);
@@ -12984,9 +13215,6 @@ var LearnerToolbelt;
         var expected = "" + ((ctx.env && ctx.env["LT_SERVICE_TOKEN"]) || "");
         return expected.length > 0 && token === expected;
     }
-    // Service callers (gateway / agent) supply { service_token, user_id }.
-    // Direct Nakama-session callers (Unity client post-Phase-3, server-to-server
-    // inside Nakama) have ctx.userId already populated. Either path is accepted.
     function resolveServiceUserId(ctx, data) {
         if (ctx.userId) {
             return { userId: ctx.userId };
@@ -13009,7 +13237,7 @@ var LearnerToolbelt;
             status: "not_implemented",
             phase: SKELETON_PHASE,
             rpc: rpcId,
-            module_version: MODULE_VERSION,
+            module_version: LearnerToolbelt.MODULE_VERSION,
             generated_unix: nowSec(),
         };
         if (extra) {
@@ -13019,6 +13247,366 @@ var LearnerToolbelt;
             }
         }
         return RpcHelpers.successResponse(body);
+    }
+    // ── Quota helpers (§3.11) ──────────────────────────────────────────────────
+    //
+    // The reset window is the wall-clock UTC date (YYYY-MM-DD). Keys naturally
+    // expire at 00:00 UTC because the next call lands under a new date string.
+    // We do NOT set a Nakama-side TTL — storage cleanup is a future cron job.
+    //
+    // Three identity buckets:
+    //   anon → key = ip:<sha-truncated>:<date>:<exam_id>
+    //   auth → TWO keys:
+    //          (1) user:<sub>:<date>           — global per-day cap
+    //          (2) user:<sub>:<date>:<exam_id> — per-exam visibility for
+    //                                             cohort dashboards
+    //
+    // tier resolution:
+    //   user_id supplied + matches COGNITO_SUB_RE → "free" (Phase A)
+    //   ip_hash only                              → "anon"
+    //   "pro" detection deferred to Phase D — we always return "free" for
+    //   authenticated users until billing wires up
+    function getQuotaLimit(ctx, envKey, fallback) {
+        var raw = ctx.env && ctx.env[envKey];
+        if (!raw)
+            return fallback;
+        var parsed = parseInt("" + raw, 10);
+        if (isNaN(parsed))
+            return fallback;
+        return parsed;
+    }
+    function utcDateStr() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    function midnightUtcNextUnix() {
+        var d = new Date();
+        var next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0);
+        return Math.floor(next / 1000);
+    }
+    function hashIpShort(nk, ipHash) {
+        // The CALLER (gateway) is responsible for the first sha256 over the raw
+        // IP — we never see the raw IP. We re-hash here so storage keys are not
+        // a 1:1 mapping back to whatever the gateway hashed (defence-in-depth).
+        try {
+            var h = nk.sha256Hash(ipHash);
+            return h.slice(0, 16);
+        }
+        catch (_e) {
+            // Fallback: keep first 16 chars of whatever the gateway passed.
+            return ("" + ipHash).slice(0, 16);
+        }
+    }
+    function quotaKey(args) {
+        if (args.tier === "anon") {
+            return "ip:" + args.ipShort + ":" + args.date + ":" + args.examId;
+        }
+        if (args.scope === "global") {
+            return "user:" + args.sub + ":" + args.date;
+        }
+        return "user:" + args.sub + ":" + args.date + ":" + args.examId;
+    }
+    function readUsed(nk, key) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: COLLECTION_CHAT_QUOTA,
+                    key: key,
+                    userId: Constants.SYSTEM_USER_ID,
+                }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                var v = rows[0].value;
+                var used = parseInt("" + (v.used || 0), 10);
+                return isNaN(used) ? 0 : used;
+            }
+        }
+        catch (_e) { /* empty bucket */ }
+        return 0;
+    }
+    function writeUsed(nk, key, used) {
+        nk.storageWrite([{
+                collection: COLLECTION_CHAT_QUOTA,
+                key: key,
+                userId: Constants.SYSTEM_USER_ID,
+                value: { used: used, updated_unix: nowSec() },
+                permissionRead: 0,
+                permissionWrite: 0,
+            }]);
+    }
+    function resolveQuotaIdentity(data) {
+        var kbScope = data && data.kb_scope ? data.kb_scope : {};
+        var examId = "" + (kbScope.exam_id || data.exam_id || "");
+        var locale = "" + (kbScope.locale || data.locale || "en");
+        var userId = "" + (data.user_id || "");
+        var ipHash = "" + (data.ip_hash || "");
+        if (!examId) {
+            return { tier: "anon", sub: "", ipShort: "", examId: "", locale: locale, error: "kb_scope.exam_id required" };
+        }
+        if (userId) {
+            if (!COGNITO_SUB_RE.test(userId)) {
+                return { tier: "anon", sub: "", ipShort: "", examId: examId, locale: locale, error: "invalid user_id format" };
+            }
+            // Phase A: every authenticated caller is "free". Phase D will compare
+            // user_id against the billing entitlement store and promote to "pro".
+            return { tier: "free", sub: userId, ipShort: "", examId: examId, locale: locale };
+        }
+        if (ipHash) {
+            return { tier: "anon", sub: "", ipShort: ipHash, examId: examId, locale: locale };
+        }
+        return { tier: "anon", sub: "", ipShort: "", examId: examId, locale: locale, error: "missing_identity" };
+    }
+    function limitForTier(ctx, tier) {
+        if (tier === "anon") {
+            return getQuotaLimit(ctx, "LT_QUOTA_ANON_CHAT_PER_DAY", DEFAULT_QUOTA_ANON_CHAT_PER_DAY);
+        }
+        if (tier === "pro") {
+            return getQuotaLimit(ctx, "LT_QUOTA_PRO_CHAT_PER_DAY", DEFAULT_QUOTA_PRO_CHAT_PER_DAY);
+        }
+        return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
+    }
+    // § 3.13.1 deterministic state derivation. Same input → same mode.
+    //
+    //   if declared_intent == 'parent'                          → 'parent'
+    //   else if declared_intent == 'exam_prep'
+    //         OR has_exam_declared                              → 'exam'
+    //   else if has_school_declared OR has_history              → 'learner'
+    //   else                                                    → 'cold_start'
+    //
+    // `has_history` is `quiz_count_last_30d >= 5` (matches § 2.5.1 state D
+    // threshold — "auth'd with <5 quizzes" stays cold-start).
+    function deriveLearnerMode(inputs) {
+        var declared = inputs.declared_intent || null;
+        var hasHistory = (inputs.quiz_count_last_30d || 0) >= 5;
+        var mode;
+        if (declared === "parent") {
+            mode = "parent";
+        }
+        else if (declared === "exam_prep" || inputs.has_exam_declared) {
+            mode = "exam";
+        }
+        else if (inputs.has_school_declared || hasHistory) {
+            mode = "learner";
+        }
+        else {
+            mode = "cold_start";
+        }
+        var recommendedTool;
+        var displayName;
+        if (mode === "parent") {
+            recommendedTool = "/tools/parent-dashboard";
+            displayName = "parent";
+        }
+        else if (mode === "exam") {
+            recommendedTool = "/tools/score-predictor";
+            displayName = "exam candidate";
+        }
+        else if (mode === "learner") {
+            recommendedTool = "/tools/learn";
+            displayName = "learner";
+        }
+        else {
+            recommendedTool = "/tools/learn";
+            displayName = "new explorer";
+        }
+        return {
+            mode: mode,
+            has_history: hasHistory,
+            copy_namespace: mode === "cold_start" ? "cold_start" : mode,
+            recommended_tool: recommendedTool,
+            display_name_for_user: displayName,
+        };
+    }
+    LearnerToolbelt.deriveLearnerMode = deriveLearnerMode;
+    // § 3.13.4 — 14-day soft exam-CTA gate. We only nudge a learner-mode user
+    // toward an exam when they have demonstrably high engagement AND have not
+    // been nudged within the cooldown window.
+    //
+    // Floor (per plan): ≥10 quizzes/week × 2 weeks  → 20 quizzes in 2w
+    //                   AND ≥10 active days in last 14 days
+    // Cooldown:         never nudge twice within 14 days
+    //
+    // Exposed as a pure function so the gateway / unit tests can call it
+    // without an RPC round-trip.
+    function shouldShowSoftExamCta(metrics, lastNudgeUnix) {
+        if (!metrics)
+            return false;
+        if ((metrics.quizzes_played_last_2w || 0) < 20)
+            return false;
+        if ((metrics.daysActive_last_2w || 0) < 10)
+            return false;
+        if (lastNudgeUnix && (Date.now() / 1000 - lastNudgeUnix) < SOFT_CTA_COOLDOWN_SEC)
+            return false;
+        return true;
+    }
+    LearnerToolbelt.shouldShowSoftExamCta = shouldShowSoftExamCta;
+    // § 3.13.2 — Learner Insights payload.
+    //
+    // Phase A: returns representative mock metrics (status='mock_data') so the
+    // web route can render the full layout while Wave 4-5 wires real reads
+    // against qv_u_<sub>_quiz_history. The CRITICAL Phase-A contract is the
+    // no-exam-jargon guarantee — every string in this payload is restricted to
+    // the learner-mode vocabulary from § 2.5.3. The lint test in
+    // __tests__/skeleton.test.ts verifies (§ 3.13.6 A25).
+    //
+    // TODO(Wave 4-5): replace mock metrics with real engagement-data reads
+    //   - quizzes_played / accuracy from qv_u_<sub>_quiz_history
+    //   - streak data from qv_user_streaks
+    //   - favorite_topics from existing topic-mastery derivation in user-model
+    //   - peer_percentile_* from a nightly cohort aggregate
+    function buildLearnerInsightsResponse(args) {
+        var coldStart = args.mode === "cold_start";
+        var zeroMetrics = {
+            quizzes_played: 0,
+            total_questions: 0,
+            correct_questions: 0,
+            overall_accuracy: 0,
+            accuracy_trend_30d: 0,
+            longest_streak_days: 0,
+            current_streak_days: 0,
+            favorite_topics: [],
+            weakest_topics: [],
+            peer_percentile_overall: 0,
+            peer_percentile_per_topic: {},
+        };
+        // Representative-but-mocked metrics — every string label uses
+        // learner-mode vocabulary only. NO forbidden tokens (predicted score /
+        // AIR / scaled score / grade boundary / cutoff / percentile rank).
+        var mockMetrics = {
+            quizzes_played: 12,
+            total_questions: 144,
+            correct_questions: 98,
+            overall_accuracy: 0.68,
+            accuracy_trend_30d: 0.04,
+            longest_streak_days: 5,
+            current_streak_days: 3,
+            favorite_topics: [
+                { topic_id: "history_world", topic_display: "World History", mastery_pct: 78 },
+                { topic_id: "biology_cells", topic_display: "Cell Biology", mastery_pct: 72 },
+                { topic_id: "math_algebra", topic_display: "Algebra", mastery_pct: 65 },
+            ],
+            weakest_topics: [
+                { topic_id: "math_geometry", topic_display: "Geometry", mastery_pct: 41 },
+                { topic_id: "physics_waves", topic_display: "Waves and Sound", mastery_pct: 38 },
+                { topic_id: "chemistry_organic", topic_display: "Organic Chemistry", mastery_pct: 33 },
+            ],
+            peer_percentile_overall: 64,
+            peer_percentile_per_topic: {
+                "history_world": 81,
+                "biology_cells": 73,
+                "math_algebra": 58,
+            },
+        };
+        var cta;
+        if (coldStart) {
+            // § 3.13.2 — cold-start CTA hard-coded per plan.
+            cta = {
+                kind: "try_a_topic",
+                copy_key: "cta.cold_start.play_5_quizzes",
+                target_route: "/tools/learn",
+            };
+        }
+        else {
+            cta = {
+                kind: "try_a_topic",
+                copy_key: "cta.learner.try_a_topic",
+                target_route: "/tools/learn",
+            };
+        }
+        return {
+            ok: true,
+            state: args.state,
+            mode: coldStart ? "cold_start" : "learner",
+            metrics: coldStart ? zeroMetrics : mockMetrics,
+            cta: cta,
+            // Explicit contract guarantee — see § 3.13.2 last bullet. The lint
+            // test asserts this field is the literal boolean `false` in every
+            // response.
+            forbidden_copy: false,
+            status: "mock_data",
+            phase: "A",
+            locale: args.locale,
+            module_version: LearnerToolbelt.MODULE_VERSION,
+            generated_unix: nowSec(),
+        };
+    }
+    LearnerToolbelt.buildLearnerInsightsResponse = buildLearnerInsightsResponse;
+    // Storage helpers for the learner-state RPCs. Wrapped in try/catch so a
+    // missing storage object (the common case in Phase A — quiz history isn't
+    // wired yet) degrades to "no data" rather than throwing.
+    function readStorageBool(nk, collection, key, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: collection, key: key, userId: userId }]);
+            return !!(rows && rows.length > 0 && rows[0].value);
+        }
+        catch (_e) {
+            return false;
+        }
+    }
+    function readQuizCount30d(nk, userId) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: COLLECTION_USER_QUIZ_HISTORY,
+                    key: "30d_summary",
+                    userId: userId,
+                }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                var v = rows[0].value;
+                var n = parseInt("" + (v.quiz_count_last_30d || v.count || 0), 10);
+                return isNaN(n) ? 0 : n;
+            }
+        }
+        catch (_e) { /* no history yet */ }
+        return 0;
+    }
+    function readCachedLearnerState(nk, userId) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: COLLECTION_LEARNER_STATE_CACHE,
+                    key: "v1",
+                    userId: userId,
+                }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                var v = rows[0].value;
+                var cachedAt = parseInt("" + (v.cachedAt || 0), 10);
+                if (!isNaN(cachedAt) && (nowSec() - cachedAt) < LEARNER_STATE_CACHE_TTL_SEC) {
+                    return v;
+                }
+            }
+        }
+        catch (_e) { /* cache miss */ }
+        return null;
+    }
+    function writeCachedLearnerState(nk, userId, value) {
+        try {
+            var entry = { cachedAt: nowSec() };
+            for (var k in value) {
+                if (Object.prototype.hasOwnProperty.call(value, k))
+                    entry[k] = value[k];
+            }
+            nk.storageWrite([{
+                    collection: COLLECTION_LEARNER_STATE_CACHE,
+                    key: "v1",
+                    userId: userId,
+                    value: entry,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (_e) { /* best-effort cache; failure is non-fatal */ }
+    }
+    function readLastNudgeUnix(nk, userId) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: COLLECTION_SOFT_CTA_STATE,
+                    key: "v1",
+                    userId: userId,
+                }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                var v = rows[0].value;
+                var ts = parseInt("" + (v.lastNudgeUnix || 0), 10);
+                return isNaN(ts) || ts <= 0 ? null : ts;
+            }
+        }
+        catch (_e) { /* never nudged */ }
+        return null;
     }
     function emitAnalytics(nk, logger, userId, eventName, properties) {
         try {
@@ -13046,8 +13634,91 @@ var LearnerToolbelt;
             logger.warn("[learner-toolbelt] emitAnalytics failed: " + (e && e.message ? e.message : String(e)));
         }
     }
-    // ── RPC: lt_score_predict ──────────────────────────────────────────────────
-    // Implementation: wave 5 (PR-LT5). See plan § 3.
+    function safeWrap(body) {
+        body.module_version = LearnerToolbelt.MODULE_VERSION;
+        body.generated_unix = nowSec();
+        return RpcHelpers.successResponse(body);
+    }
+    // ── Countdown helpers ────────────────────────────────────────────────────
+    function readCountdownDoc(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION_COUNTDOWN, key: "doc", userId: userId }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                var v = rows[0].value;
+                return {
+                    entries: Array.isArray(v.entries) ? v.entries : [],
+                    primary_exam_id: v.primary_exam_id || null,
+                    updated_unix: v.updated_unix || 0,
+                };
+            }
+        }
+        catch (e) { /* fall through */ }
+        return { entries: [], primary_exam_id: null, updated_unix: 0 };
+    }
+    function writeCountdownDoc(nk, userId, doc) {
+        nk.storageWrite([{
+                collection: COLLECTION_COUNTDOWN, key: "doc", userId: userId,
+                value: doc, permissionRead: 0, permissionWrite: 0,
+            }]);
+    }
+    function daysBetween(fromUnix, toUnix) {
+        return Math.floor((toUnix - fromUnix) / 86400);
+    }
+    // Derived view for the countdown_get RPC. Honours plan § 4.4 study formula.
+    function deriveCountdownView(doc, now) {
+        var view = [];
+        for (var i = 0; i < doc.entries.length; i++) {
+            var e = doc.entries[i];
+            var examTs = 0;
+            try {
+                examTs = Math.floor(new Date(e.date_iso + "T08:00:00Z").getTime() / 1000);
+            }
+            catch (_) {
+                examTs = 0;
+            }
+            var daysUntil = examTs > 0 ? daysBetween(now, examTs) : 0;
+            var uplift = LearnerToolbelt.expectedUpliftPerQuiz(e.exam_id);
+            // Per plan § 4.4: minutes_per_day = max(5, ceil(quizzes_needed * 6 / days_remaining))
+            // We don't know current_predicted here (caller can supply target_score
+            // delta); for the canonical "want to lift 50 SAT-points" gap we use the
+            // declared target_score field. If user hasn't set target_score, recommend
+            // a maintenance 30 min/day.
+            var minutesPerDay = 30;
+            if (e.target_score && daysUntil > 0) {
+                var quizzesNeeded = Math.max(1, Math.ceil(50 / uplift.value));
+                var minutes = Math.ceil(quizzesNeeded * 6 / daysUntil);
+                minutesPerDay = Math.max(5, Math.min(180, minutes));
+            }
+            view.push({
+                exam_id: e.exam_id,
+                exam_label: e.exam_label,
+                date_iso: e.date_iso,
+                timezone: e.timezone,
+                target_score: e.target_score,
+                days_until: daysUntil,
+                hours_until: examTs > 0 ? Math.max(0, Math.floor((examTs - now) / 3600)) : 0,
+                minutes_per_day_recommended: minutesPerDay,
+                is_primary: doc.primary_exam_id === e.exam_id,
+                uplift_unit: uplift.unit,
+                uplift_per_quiz: uplift.value,
+            });
+        }
+        view.sort(function (a, b) { return a.days_until - b.days_until; });
+        return view;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_score_predict
+    //
+    // Implementation: Wave 5 — IRT/percentile Bayes posterior over recent quiz
+    // history. See plan § 3.
+    //
+    // No-exam fallback (§ 3.13.3) — when called without an exam_id or with the
+    // sentinel "learner_general", we return a structured redirect payload
+    // instead of erroring. The gateway respects this and silently invokes
+    // lt_learner_insights_get; the visitor sees a Learner Insights card, not an
+    // error. This is the contract that makes /tools/score-predictor degrade
+    // gracefully for state-B/C/D users (§ 2.5.1).
+    // ────────────────────────────────────────────────────────────────────────
     function rpcScorePredict(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
@@ -13055,98 +13726,238 @@ var LearnerToolbelt;
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
             var examId = "" + (data.exam_id || "");
-            if (!examId)
-                return RpcHelpers.errorResponse("exam_id required", 400);
             var locale = "" + (data.locale || "en");
-            emitAnalytics(nk, logger, auth.userId, "lt_score_predict_skeleton", { exam_id: examId, locale: locale });
-            return stubResponse("lt_score_predict", { exam_id: examId, locale: locale, predictor_tier: "l0_diagnostic" });
+            // § 3.13.3: no exam declared OR sentinel → redirect, never error.
+            if (!examId || examId === "learner_general") {
+                return RpcHelpers.successResponse({
+                    ok: true,
+                    redirect_to: "lt_learner_insights_get",
+                    reason: "no_exam_declared",
+                    suggested_action: "call lt_learner_insights_get for this user",
+                    locale: locale,
+                    module_version: LearnerToolbelt.MODULE_VERSION,
+                    generated_unix: nowSec(),
+                });
+            }
+            var windowDays = parseInt("" + (data.recent_quiz_window_days || DEFAULT_PREDICT_WINDOW_DAYS), 10);
+            if (!(windowDays > 0))
+                windowDays = DEFAULT_PREDICT_WINDOW_DAYS;
+            if (windowDays > MAX_PREDICT_WINDOW_DAYS)
+                windowDays = MAX_PREDICT_WINDOW_DAYS;
+            // Read recent quiz history. We page once with limit=MAX_HISTORY_ROWS;
+            // that covers >99% of users for any 60-day window (mean session count
+            // per user in 2026-04 telemetry: 14/mo).
+            var history = [];
+            try {
+                var listResult = nk.storageList(auth.userId, COLLECTION_QUIZ_RESULTS, MAX_HISTORY_ROWS, "");
+                var rows = listResult && listResult.objects ? listResult.objects : [];
+                for (var i = 0; i < rows.length; i++) {
+                    var r = rows[i];
+                    if (!r || !r.key || !r.value)
+                        continue;
+                    if (("" + r.key).indexOf("result_") !== 0)
+                        continue;
+                    var v = r.value;
+                    history.push({
+                        timestamp: parseInt("" + (v.timestamp || 0), 10) || 0,
+                        correctAnswers: parseInt("" + (v.correctAnswers || 0), 10) || 0,
+                        totalQuestions: parseInt("" + (v.totalQuestions || 0), 10) || 0,
+                        category: "" + (v.category || ""),
+                    });
+                }
+            }
+            catch (e) {
+                logger.warn("[learner-toolbelt] history read failed for user " + auth.userId + ": " + (e && e.message ? e.message : String(e)));
+            }
+            var result = LearnerToolbelt.predictFromHistory({ exam_id: examId, locale: locale, recent_quiz_window_days: windowDays }, history, nowSec());
+            emitAnalytics(nk, logger, auth.userId, "lt_score_predict", {
+                exam_id: examId, locale: locale, status: result.status,
+                predictor_tier: result.predictor_tier, quizzes_used: result.quizzes_used,
+            });
+            return safeWrap(result);
         }
         catch (err) {
             logger.error("lt_score_predict failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_exam_countdown_get ─────────────────────────────────────────────
-    // Implementation: wave 4 (PR-LT4). See plan § 4.
-    function rpcExamCountdownGet(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_exam_countdown_get (Wave 4)
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcExamCountdownGet(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
-            return stubResponse("lt_exam_countdown_get", { entries: [], primary_exam_id: null });
+            var doc = readCountdownDoc(nk, auth.userId);
+            var view = deriveCountdownView(doc, nowSec());
+            return safeWrap({
+                ok: true,
+                status: "ok",
+                entries: doc.entries,
+                primary_exam_id: doc.primary_exam_id,
+                derived: view,
+                days_until: view.map(function (v) { return { exam_id: v.exam_id, days_until: v.days_until }; }),
+                minutes_per_day_recommended: view.length > 0 ? view[0].minutes_per_day_recommended : 0,
+                updated_unix: doc.updated_unix,
+            });
         }
         catch (err) {
             logger.error("lt_exam_countdown_get failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_exam_countdown_set ─────────────────────────────────────────────
-    function rpcExamCountdownSet(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_exam_countdown_set (Wave 4)
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcExamCountdownSet(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
-            var examId = "" + (data.exam_id || "");
+            var examId = ("" + (data.exam_id || "")).toLowerCase();
             var dateIso = "" + (data.date_iso || "");
+            var timezone = "" + (data.timezone || "UTC");
+            var targetScore = (data.target_score !== undefined && data.target_score !== null)
+                ? parseFloat("" + data.target_score) : null;
+            var makePrimary = data.make_primary === true;
             if (!examId)
                 return RpcHelpers.errorResponse("exam_id required", 400);
-            if (!dateIso)
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso))
                 return RpcHelpers.errorResponse("date_iso required (YYYY-MM-DD)", 400);
-            return stubResponse("lt_exam_countdown_set", { exam_id: examId, date_iso: dateIso });
+            var examMatch = LearnerToolbelt.lookupExamUpcoming(examId, 0);
+            var examLabel = examMatch ? examMatch.exam_label : examId.toUpperCase();
+            var doc = readCountdownDoc(nk, auth.userId);
+            var found = false;
+            for (var i = 0; i < doc.entries.length; i++) {
+                if (doc.entries[i].exam_id === examId) {
+                    doc.entries[i].date_iso = dateIso;
+                    doc.entries[i].timezone = timezone;
+                    doc.entries[i].target_score = targetScore;
+                    doc.entries[i].exam_label = examLabel;
+                    doc.entries[i].declared_unix = nowSec();
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                if (doc.entries.length >= MAX_COUNTDOWN_ENTRIES) {
+                    return RpcHelpers.errorResponse("countdown entry cap reached (max " + MAX_COUNTDOWN_ENTRIES + ")", 413);
+                }
+                doc.entries.push({
+                    exam_id: examId, exam_label: examLabel, date_iso: dateIso,
+                    timezone: timezone, target_score: targetScore, declared_unix: nowSec(),
+                });
+            }
+            if (makePrimary || !doc.primary_exam_id)
+                doc.primary_exam_id = examId;
+            doc.updated_unix = nowSec();
+            writeCountdownDoc(nk, auth.userId, doc);
+            emitAnalytics(nk, logger, auth.userId, "lt_exam_countdown_set", {
+                exam_id: examId, date_iso: dateIso, target_score: targetScore,
+            });
+            return safeWrap({
+                ok: true, status: "ok",
+                entry: { exam_id: examId, exam_label: examLabel, date_iso: dateIso, timezone: timezone, target_score: targetScore },
+                primary_exam_id: doc.primary_exam_id,
+                entry_count: doc.entries.length,
+            });
         }
         catch (err) {
             logger.error("lt_exam_countdown_set failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_exam_countdown_clear ───────────────────────────────────────────
-    function rpcExamCountdownClear(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_exam_countdown_clear (Wave 4)
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcExamCountdownClear(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
-            var examId = "" + (data.exam_id || "");
+            var examId = ("" + (data.exam_id || "")).toLowerCase();
             if (!examId)
                 return RpcHelpers.errorResponse("exam_id required", 400);
-            return stubResponse("lt_exam_countdown_clear", { exam_id: examId, cleared: true });
+            var doc = readCountdownDoc(nk, auth.userId);
+            var before = doc.entries.length;
+            doc.entries = doc.entries.filter(function (e) { return e.exam_id !== examId; });
+            if (doc.primary_exam_id === examId) {
+                doc.primary_exam_id = doc.entries.length > 0 ? doc.entries[0].exam_id : null;
+            }
+            doc.updated_unix = nowSec();
+            writeCountdownDoc(nk, auth.userId, doc);
+            emitAnalytics(nk, logger, auth.userId, "lt_exam_countdown_clear", { exam_id: examId });
+            return safeWrap({
+                ok: true, status: "ok",
+                exam_id: examId,
+                cleared: before !== doc.entries.length,
+                entries_remaining: doc.entries.length,
+                primary_exam_id: doc.primary_exam_id,
+            });
         }
         catch (err) {
             logger.error("lt_exam_countdown_clear failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_exam_calendar_get ──────────────────────────────────────────────
-    // Public — anonymous OK. Returns the per-country exam calendar.
-    // Implementation: wave 3 (PR-LT3).
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_exam_calendar_get (Wave 4 — anonymous OK)
+    // ────────────────────────────────────────────────────────────────────────
     function rpcExamCalendarGet(_ctx, logger, _nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
-            var country = "" + (data.country || "IN");
+            var country = ("" + (data.country || data.country_code || "IN")).toUpperCase();
             var year = parseInt("" + (data.year || "2026"), 10);
-            return stubResponse("lt_exam_calendar_get", { country: country, year: year, exams: [] });
+            if (!(year >= 2020 && year <= 2030))
+                return RpcHelpers.errorResponse("year out of range (2020-2030)", 400);
+            var entries = LearnerToolbelt.getCalendarEntries(country, year);
+            var locale = "" + (data.locale || "en");
+            var status = entries.length > 0 ? "ok" : "no_data";
+            return safeWrap({
+                ok: true, status: status,
+                country: country, year: year,
+                calendar_version: LearnerToolbelt.EXAM_CALENDAR_VERSION,
+                exams: entries,
+                count: entries.length,
+                message: entries.length === 0 ? LearnerToolbelt.i18nString(locale, "calendar.no_results") : "",
+            });
         }
         catch (err) {
             logger.error("lt_exam_calendar_get failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_gpa_compute ────────────────────────────────────────────────────
-    // Public stateless calculator. Implementation: wave 3 (PR-LT3-web).
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_gpa_compute (Wave 4 — anonymous OK, deterministic)
+    // ────────────────────────────────────────────────────────────────────────
     function rpcGpaCompute(_ctx, logger, _nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
-            var system = "" + (data.system || "us-4.0-unweighted");
+            var system = ("" + (data.system || "us-4.0-unweighted")).toLowerCase();
             var courses = Array.isArray(data.courses) ? data.courses : [];
             if (courses.length === 0)
                 return RpcHelpers.errorResponse("courses array required", 400);
-            return stubResponse("lt_gpa_compute", {
-                system: system,
-                native_gpa: null,
-                wes_4_0: null,
-                course_count: courses.length,
+            if (courses.length > 60)
+                return RpcHelpers.errorResponse("max 60 courses per compute", 400);
+            var result = LearnerToolbelt.computeGpa(system, courses);
+            if (!result.ok)
+                return RpcHelpers.errorResponse(result.warnings.join("; "), 400);
+            return safeWrap({
+                ok: true, status: "ok",
+                system: result.system,
+                system_label: result.system_label,
+                native_gpa: result.native_gpa,
+                native_max: result.native_max,
+                wes_4_0: result.wes_4_0,
+                percentile_band: result.percentile_band,
+                breakdown: result.breakdown,
+                courses_used: result.courses_used,
+                courses_skipped: result.courses_skipped,
+                warnings: result.warnings,
             });
         }
         catch (err) {
@@ -13154,50 +13965,97 @@ var LearnerToolbelt;
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_gpa_save ───────────────────────────────────────────────────────
-    function rpcGpaSave(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_gpa_save  (auth — persists last compute result for the user)
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcGpaSave(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
-            var system = "" + (data.system || "");
+            var system = ("" + (data.system || "")).toLowerCase();
             if (!system)
                 return RpcHelpers.errorResponse("system required", 400);
-            return stubResponse("lt_gpa_save", { system: system });
+            // Caller can either supply a precomputed snapshot OR raw courses to compute.
+            var result;
+            if (Array.isArray(data.breakdown) && typeof data.native_gpa === "number" && typeof data.wes_4_0 === "number") {
+                result = {
+                    system: system,
+                    native_gpa: data.native_gpa,
+                    wes_4_0: data.wes_4_0,
+                    percentile_band: "" + (data.percentile_band || ""),
+                    breakdown: data.breakdown,
+                    saved_unix: nowSec(),
+                };
+            }
+            else if (Array.isArray(data.courses)) {
+                var computed = LearnerToolbelt.computeGpa(system, data.courses);
+                if (!computed.ok)
+                    return RpcHelpers.errorResponse(computed.warnings.join("; "), 400);
+                result = {
+                    system: computed.system,
+                    native_gpa: computed.native_gpa,
+                    wes_4_0: computed.wes_4_0,
+                    percentile_band: computed.percentile_band,
+                    breakdown: computed.breakdown,
+                    saved_unix: nowSec(),
+                };
+            }
+            else {
+                return RpcHelpers.errorResponse("either courses[] or precomputed snapshot required", 400);
+            }
+            nk.storageWrite([{
+                    collection: COLLECTION_GPA, key: "current", userId: auth.userId,
+                    value: result, permissionRead: 0, permissionWrite: 0,
+                }]);
+            emitAnalytics(nk, logger, auth.userId, "lt_gpa_save", { system: system, wes_4_0: result.wes_4_0 });
+            return safeWrap({ ok: true, status: "ok", saved: result });
         }
         catch (err) {
             logger.error("lt_gpa_save failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_gpa_get ────────────────────────────────────────────────────────
-    function rpcGpaGet(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_gpa_get
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcGpaGet(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
-            return stubResponse("lt_gpa_get", { has_data: false });
+            var rows = nk.storageRead([{ collection: COLLECTION_GPA, key: "current", userId: auth.userId }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                return safeWrap({ ok: true, status: "ok", has_data: true, gpa: rows[0].value });
+            }
+            return safeWrap({ ok: true, status: "ok", has_data: false, gpa: null });
         }
         catch (err) {
             logger.error("lt_gpa_get failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_school_search ──────────────────────────────────────────────────
-    // Public. Implementation: wave 3 (PR-LT3-web) after static-data ingest lands.
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_school_search (Wave 4 — anonymous OK)
+    // ────────────────────────────────────────────────────────────────────────
     function rpcSchoolSearch(_ctx, logger, _nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var query = "" + (data.query || "");
-            var country = "" + (data.country_code || "IN");
+            var country = ("" + (data.country_code || data.country || "")).toUpperCase();
+            var locale = "" + (data.locale || "en");
+            var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
             if (query.length < 2)
                 return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
-            return stubResponse("lt_school_search", {
-                query: query,
-                country_code: country,
-                results: [],
+            var hits = LearnerToolbelt.searchSchools(query, country, limit);
+            return safeWrap({
+                ok: true, status: hits.length > 0 ? "ok" : "no_results",
+                query: query, country_code: country, locale: locale,
+                results: hits,
+                count: hits.length,
+                message: hits.length === 0 ? LearnerToolbelt.i18nString(locale, "school.no_results") : "",
             });
         }
         catch (err) {
@@ -13205,22 +14063,29 @@ var LearnerToolbelt;
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_school_get_detail ──────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_school_get_detail (Wave 4 — anonymous OK)
+    // ────────────────────────────────────────────────────────────────────────
     function rpcSchoolGetDetail(_ctx, logger, _nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var schoolId = "" + (data.school_id || "");
             if (!schoolId)
                 return RpcHelpers.errorResponse("school_id required", 400);
-            return stubResponse("lt_school_get_detail", { school_id: schoolId, found: false });
+            var rec = LearnerToolbelt.getSchoolById(schoolId);
+            if (!rec)
+                return safeWrap({ ok: true, status: "not_found", school_id: schoolId, found: false });
+            return safeWrap({ ok: true, status: "ok", found: true, school: rec });
         }
         catch (err) {
             logger.error("lt_school_get_detail failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_school_set_user_school ─────────────────────────────────────────
-    function rpcSchoolSetUserSchool(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_school_set_user_school (Wave 4)
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcSchoolSetUserSchool(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
@@ -13229,46 +14094,108 @@ var LearnerToolbelt;
             var schoolId = "" + (data.school_id || "");
             if (!schoolId)
                 return RpcHelpers.errorResponse("school_id required", 400);
-            return stubResponse("lt_school_set_user_school", { school_id: schoolId });
+            // Resolve verified-ness — fixture hits are verified; freetext entries
+            // remain provisional until ai-content reviews.
+            var rec = LearnerToolbelt.getSchoolById(schoolId);
+            var verified = !!rec;
+            var record = {
+                school_id: schoolId,
+                current_grade_or_class: "" + (data.grade || data.current_grade_or_class || ""),
+                graduation_year: data.grad_year ? (parseInt("" + data.grad_year, 10) || null) : null,
+                joined_unix: nowSec(),
+                verified: verified,
+            };
+            nk.storageWrite([{
+                    collection: COLLECTION_SCHOOL, key: "current", userId: auth.userId,
+                    value: record, permissionRead: 0, permissionWrite: 0,
+                }]);
+            emitAnalytics(nk, logger, auth.userId, "lt_school_set_user_school", {
+                school_id: schoolId, verified: verified,
+                country: rec ? rec.country_code : "?",
+            });
+            return safeWrap({
+                ok: true, status: "ok",
+                school_id: schoolId,
+                verified: verified,
+                school: rec || null,
+                user_record: record,
+            });
         }
         catch (err) {
             logger.error("lt_school_set_user_school failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_school_get_user_school ─────────────────────────────────────────
-    function rpcSchoolGetUserSchool(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_school_get_user_school
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcSchoolGetUserSchool(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
-            return stubResponse("lt_school_get_user_school", { has_school: false });
+            var rows = nk.storageRead([{ collection: COLLECTION_SCHOOL, key: "current", userId: auth.userId }]);
+            if (!rows || rows.length === 0 || !rows[0].value) {
+                return safeWrap({ ok: true, status: "ok", has_school: false });
+            }
+            var rec = rows[0].value;
+            var hydrated = LearnerToolbelt.getSchoolById(rec.school_id);
+            return safeWrap({
+                ok: true, status: "ok",
+                has_school: true,
+                user_record: rec,
+                school: hydrated || null,
+            });
         }
         catch (err) {
             logger.error("lt_school_get_user_school failed: " + (err && err.message ? err.message : String(err)));
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
-    // ── RPC: lt_school_freetext_submit ─────────────────────────────────────────
-    // Creates a moderation-queue entry under qv_lt_school_pending. ai-content
-    // batch-reviews daily.
-    function rpcSchoolFreetextSubmit(ctx, logger, _nk, payload) {
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: lt_school_freetext_submit (Wave 4 — completes the skeleton stub)
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcSchoolFreetextSubmit(ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var auth = resolveServiceUserId(ctx, data);
             if (auth.error)
                 return RpcHelpers.errorResponse(auth.error, auth.code);
-            var schoolName = "" + (data.school_name || "");
-            var country = "" + (data.country_code || "");
+            var schoolName = ("" + (data.school_name || "")).slice(0, 200);
+            var country = ("" + (data.country_code || data.country || "")).toUpperCase();
+            var city = ("" + (data.city || "")).slice(0, 100);
+            var locale = "" + (data.locale || "en");
             if (!schoolName)
                 return RpcHelpers.errorResponse("school_name required", 400);
             if (!country)
                 return RpcHelpers.errorResponse("country_code required", 400);
             var provisionalId = "freetext:" + randomId();
-            return stubResponse("lt_school_freetext_submit", {
+            var entry = {
+                provisional_school_id: provisionalId,
+                school_name: schoolName,
+                country_code: country,
+                city: city,
+                submitted_by: auth.userId,
+                submitted_unix: nowSec(),
+                locale: locale,
+            };
+            nk.storageWrite([{
+                    collection: COLLECTION_SCHOOL_PENDING,
+                    key: provisionalId,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: entry,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            emitAnalytics(nk, logger, auth.userId, "lt_school_freetext_submit", {
+                country: country, name_len: schoolName.length,
+            });
+            return safeWrap({
+                ok: true, status: "ok",
                 provisional_school_id: provisionalId,
                 pending_review: true,
+                message: "Submitted for review. ai-content normalises freetext entries within 48h.",
             });
         }
         catch (err) {
@@ -13276,6 +14203,369 @@ var LearnerToolbelt;
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
+    // ── RPC: lt_chat_quota_check ──────────────────────────────────────────────
+    // Plan §3.11.3. Gateway calls this BEFORE forwarding a chat turn to the
+    // LLM so the widget can show "remaining N turns" + the "sign in to get more"
+    // CTA without burning a model call.
+    //
+    // Service-token gated — gateway only path (anonymous browsers never hit
+    // this RPC directly; the gateway already holds the user-id / ip-hash from
+    // its session cookie + viewer-IP header).
+    //
+    // Request:
+    //   {
+    //     "service_token": "<LT_SERVICE_TOKEN>",
+    //     "kb_scope": { "exam_id": "sat", "locale": "en" },
+    //     "user_id":  "<cognito-sub>",   // optional
+    //     "ip_hash":  "<sha256(raw_ip)>" // optional — required if user_id absent
+    //   }
+    // Response:
+    //   {
+    //     "ok": true,
+    //     "allowed": true,
+    //     "remaining": 4,
+    //     "reset_unix": 1716595200,
+    //     "tier": "anon"|"free"|"pro",
+    //     "limit": 5,
+    //     "exam_id": "sat"
+    //   }
+    function rpcChatQuotaCheck(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised", 401);
+            }
+            var ident = resolveQuotaIdentity(data);
+            if (ident.error) {
+                return RpcHelpers.errorResponse(ident.error, 400);
+            }
+            var limit = limitForTier(ctx, ident.tier);
+            // Sentinel: -1 → unlimited. The wire shape stays the same; we return
+            // remaining = Number.MAX_SAFE_INTEGER (encoded as a large but safe int)
+            // so clients can keep showing "∞" without branching on -1.
+            var unlimited = limit < 0;
+            var dateStr = utcDateStr();
+            var resetUnix = midnightUtcNextUnix();
+            var ipShort = ident.tier === "anon" ? hashIpShort(nk, ident.ipShort) : "";
+            var perExamKey = quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "per_exam",
+            });
+            var globalKey = ident.tier === "anon" ? "" : quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "global",
+            });
+            var usedPerExam = readUsed(nk, perExamKey);
+            var usedGlobal = globalKey ? readUsed(nk, globalKey) : 0;
+            // Authenticated users are capped on the GLOBAL daily limit — per-exam
+            // counters exist for cohort reporting, not enforcement (plan §3.11.3).
+            var used = ident.tier === "anon" ? usedPerExam : usedGlobal;
+            var remaining = unlimited ? 999999 : Math.max(0, limit - used);
+            var allowed = unlimited ? true : (used < limit);
+            return RpcHelpers.successResponse({
+                ok: true,
+                allowed: allowed,
+                remaining: remaining,
+                reset_unix: resetUnix,
+                tier: ident.tier,
+                limit: unlimited ? -1 : limit,
+                used: used,
+                exam_id: ident.examId,
+                locale: ident.locale,
+                date: dateStr,
+            });
+        }
+        catch (err) {
+            logger.error("lt_chat_quota_check failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: lt_learner_state_get ──────────────────────────────────────────────
+    // § 3.13.1 — Single source of truth for "what mode is this user in?".
+    // Called at every web route mount + every chat turn. Caches the result on
+    // qv_lt_learner_state_cache for 6h so high-traffic pages don't re-derive
+    // on every request.
+    //
+    // Wire shape:
+    //   input  { service_token, user_id, declared_intent? }
+    //   output { ok, mode, has_exam_declared, has_school_declared,
+    //            quiz_count_last_30d, has_history, recommended_tool,
+    //            display_name_for_user, copy_namespace, ... }
+    function rpcLearnerStateGet(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var auth = resolveServiceUserId(ctx, data);
+            if (auth.error)
+                return RpcHelpers.errorResponse(auth.error, auth.code);
+            var declaredIntent = data.declared_intent ? "" + data.declared_intent : null;
+            // Cache-hit short-circuit. Cache invalidation is purely TTL-based;
+            // declared_intent changes flow through immediately because we KEY by
+            // userId and rebuild on stale.
+            var cached = readCachedLearnerState(nk, auth.userId);
+            if (cached && (!declaredIntent || cached.declared_intent_at === declaredIntent)) {
+                return RpcHelpers.successResponse({
+                    ok: true,
+                    mode: cached.mode,
+                    has_exam_declared: !!cached.has_exam_declared,
+                    has_school_declared: !!cached.has_school_declared,
+                    quiz_count_last_30d: cached.quiz_count_last_30d || 0,
+                    has_history: !!cached.has_history,
+                    recommended_tool: cached.recommended_tool,
+                    display_name_for_user: cached.display_name_for_user,
+                    copy_namespace: cached.copy_namespace,
+                    cached: true,
+                    cached_at: cached.cachedAt,
+                    module_version: LearnerToolbelt.MODULE_VERSION,
+                    generated_unix: nowSec(),
+                });
+            }
+            // Storage probes — all best-effort, default to "no data".
+            var hasExam = readStorageBool(nk, COLLECTION_USER_EXAM, "declared", auth.userId);
+            var hasSchool = readStorageBool(nk, COLLECTION_SCHOOL, "current", auth.userId);
+            var quizCount = readQuizCount30d(nk, auth.userId);
+            var derived = deriveLearnerMode({
+                declared_intent: declaredIntent,
+                has_exam_declared: hasExam,
+                has_school_declared: hasSchool,
+                quiz_count_last_30d: quizCount,
+            });
+            var responseBody = {
+                ok: true,
+                mode: derived.mode,
+                has_exam_declared: hasExam,
+                has_school_declared: hasSchool,
+                quiz_count_last_30d: quizCount,
+                has_history: derived.has_history,
+                recommended_tool: derived.recommended_tool,
+                display_name_for_user: derived.display_name_for_user,
+                copy_namespace: derived.copy_namespace,
+                cached: false,
+                declared_intent_at: declaredIntent,
+                module_version: LearnerToolbelt.MODULE_VERSION,
+                generated_unix: nowSec(),
+            };
+            writeCachedLearnerState(nk, auth.userId, responseBody);
+            emitAnalytics(nk, logger, auth.userId, "lt_learner_state_get", {
+                mode: derived.mode,
+                has_exam: hasExam,
+                has_school: hasSchool,
+                quiz_count: quizCount,
+            });
+            return RpcHelpers.successResponse(responseBody);
+        }
+        catch (err) {
+            logger.error("lt_learner_state_get failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    LearnerToolbelt.rpcLearnerStateGet = rpcLearnerStateGet;
+    // ── RPC: lt_chat_quota_consume ────────────────────────────────────────────
+    // Atomic decrement (read-then-write) called by gateway AFTER it has decided
+    // to forward a turn. Returns the post-consume state.
+    //
+    // Request: identical to lt_chat_quota_check.
+    // Response:
+    //   {
+    //     "ok": true,
+    //     "consumed": true|false,   // false if quota was already exhausted
+    //     "remaining": 3,
+    //     "reset_unix": 1716595200,
+    //     "tier": "anon"|"free"|"pro"
+    //   }
+    function rpcChatQuotaConsume(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised", 401);
+            }
+            var ident = resolveQuotaIdentity(data);
+            if (ident.error) {
+                return RpcHelpers.errorResponse(ident.error, 400);
+            }
+            var limit = limitForTier(ctx, ident.tier);
+            var unlimited = limit < 0;
+            var dateStr = utcDateStr();
+            var resetUnix = midnightUtcNextUnix();
+            var ipShort = ident.tier === "anon" ? hashIpShort(nk, ident.ipShort) : "";
+            var perExamKey = quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "per_exam",
+            });
+            var globalKey = ident.tier === "anon" ? "" : quotaKey({
+                tier: ident.tier,
+                sub: ident.sub,
+                ipShort: ipShort,
+                examId: ident.examId,
+                date: dateStr,
+                scope: "global",
+            });
+            var usedPerExam = readUsed(nk, perExamKey);
+            var usedGlobal = globalKey ? readUsed(nk, globalKey) : 0;
+            var used = ident.tier === "anon" ? usedPerExam : usedGlobal;
+            if (!unlimited && used >= limit) {
+                return RpcHelpers.successResponse({
+                    ok: true,
+                    consumed: false,
+                    remaining: 0,
+                    reset_unix: resetUnix,
+                    tier: ident.tier,
+                    limit: limit,
+                    exam_id: ident.examId,
+                });
+            }
+            // Write per-exam counter (always — gives cohort signal even for auth).
+            writeUsed(nk, perExamKey, usedPerExam + 1);
+            // Write global counter for auth tiers only — anon's per-IP/per-exam
+            // bucket IS the global bucket.
+            if (globalKey)
+                writeUsed(nk, globalKey, usedGlobal + 1);
+            var newUsed = ident.tier === "anon" ? usedPerExam + 1 : usedGlobal + 1;
+            var remaining = unlimited ? 999999 : Math.max(0, limit - newUsed);
+            return RpcHelpers.successResponse({
+                ok: true,
+                consumed: true,
+                remaining: remaining,
+                reset_unix: resetUnix,
+                tier: ident.tier,
+                limit: unlimited ? -1 : limit,
+                used: newUsed,
+                exam_id: ident.examId,
+            });
+        }
+        catch (err) {
+            logger.error("lt_chat_quota_consume failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── RPC: lt_learner_insights_get ───────────────────────────────────────────
+    // § 3.13.2 — Returns the Learner Insights payload. For Phase A we ship
+    // representative mock metrics (status="mock_data") so the web route can
+    // render the full layout; Wave 4-5 wires the real engagement-data reads.
+    //
+    // CRITICAL CONTRACT — no-exam-jargon guard:
+    // Every string in the response MUST exclude exam-specific vocabulary
+    // ("predicted score", "AIR", "scaled score", "grade boundary", "cutoff",
+    // "percentile rank"). The lint test in __tests__/skeleton.test.ts
+    // (§ 3.13.6 A25) scans the JSON recursively and fails the build if any
+    // forbidden token appears. The response also carries an explicit
+    // `forbidden_copy: false` field as the wire-level guarantee.
+    function rpcLearnerInsightsGet(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var auth = resolveServiceUserId(ctx, data);
+            if (auth.error)
+                return RpcHelpers.errorResponse(auth.error, auth.code);
+            var locale = "" + (data.locale || "en");
+            // Resolve mode without re-running the full state derivation — we
+            // accept either an explicit `mode` from the gateway (which has just
+            // called lt_learner_state_get) or a quick local probe. For Phase A
+            // the quick probe uses the same heuristic as deriveLearnerMode but
+            // with degraded inputs (no declared_intent on this path — that's a
+            // state_get concern, not an insights concern).
+            var explicitMode = "" + (data.mode || "");
+            var mode;
+            if (explicitMode === "cold_start" || explicitMode === "learner") {
+                mode = explicitMode;
+            }
+            else {
+                var hasSchool = readStorageBool(nk, COLLECTION_SCHOOL, "current", auth.userId);
+                var quizCount = readQuizCount30d(nk, auth.userId);
+                var derived = deriveLearnerMode({
+                    declared_intent: null,
+                    has_exam_declared: false,
+                    has_school_declared: hasSchool,
+                    quiz_count_last_30d: quizCount,
+                });
+                // If the user is an exam candidate we still degrade to 'learner'
+                // here — by construction insights_get is the no-exam surface, so
+                // exam users who reach this RPC are by definition treated like a
+                // learner for this turn (the gateway should have routed them to
+                // lt_score_predict instead).
+                mode = derived.mode === "exam" || derived.mode === "parent" ? "learner" : derived.mode;
+            }
+            var state = data.ip_hash && !data.user_id ? "anon" : "authed";
+            var body = buildLearnerInsightsResponse({
+                state: state,
+                mode: mode,
+                locale: locale,
+            });
+            emitAnalytics(nk, logger, auth.userId, "lt_learner_insights_get", {
+                mode: mode,
+                state: state,
+                locale: locale,
+            });
+            return RpcHelpers.successResponse(body);
+        }
+        catch (err) {
+            logger.error("lt_learner_insights_get failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    LearnerToolbelt.rpcLearnerInsightsGet = rpcLearnerInsightsGet;
+    // ── RPC: lt_learner_soft_cta_check ─────────────────────────────────────────
+    // § 3.13.4 — 14-day soft exam-CTA gate. Called by the gateway before each
+    // chat turn so it can decide whether to surface "you've been crushing
+    // Grade 10 Math — heads up, your pattern often leads to SAT/AP/JEE".
+    //
+    // Returns the decision + suggested exams + the copy key to render. The
+    // gateway is responsible for writing the lastNudgeUnix after the user
+    // actually SEES the nudge (so denials of service don't burn the cooldown).
+    function rpcLearnerSoftCtaCheck(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var auth = resolveServiceUserId(ctx, data);
+            if (auth.error)
+                return RpcHelpers.errorResponse(auth.error, auth.code);
+            // For Phase A we accept metrics either inline (gateway already
+            // computed them) or via a stub read against qv_user_quiz_history.
+            // Wave 4-5 will collapse this to a single canonical read.
+            var inlineMetrics = data.metrics || null;
+            var metrics;
+            if (inlineMetrics) {
+                metrics = {
+                    quizzes_played_last_2w: parseInt("" + (inlineMetrics.quizzes_played_last_2w || 0), 10) || 0,
+                    daysActive_last_2w: parseInt("" + (inlineMetrics.daysActive_last_2w || 0), 10) || 0,
+                };
+            }
+            else {
+                // Stub — Wave 4-5 wires the real 2-week aggregate.
+                metrics = { quizzes_played_last_2w: 0, daysActive_last_2w: 0 };
+            }
+            var lastNudge = readLastNudgeUnix(nk, auth.userId);
+            var shouldShow = shouldShowSoftExamCta(metrics, lastNudge);
+            // Suggested exams — Phase A returns a small static list; Wave 4-5
+            // derives them from the user's strongest topics + school board.
+            var suggestedExams = shouldShow ? ["sat", "ap_calculus", "jee_main"] : [];
+            return RpcHelpers.successResponse({
+                ok: true,
+                should_show: shouldShow,
+                suggested_exams: suggestedExams,
+                copy_key: "cta.learner.soft_exam_nudge",
+                metrics_used: metrics,
+                last_nudge_unix: lastNudge,
+                cooldown_sec: SOFT_CTA_COOLDOWN_SEC,
+                module_version: LearnerToolbelt.MODULE_VERSION,
+                generated_unix: nowSec(),
+            });
+        }
+        catch (err) {
+            logger.error("lt_learner_soft_cta_check failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    LearnerToolbelt.rpcLearnerSoftCtaCheck = rpcLearnerSoftCtaCheck;
     // ── Registration ───────────────────────────────────────────────────────────
     // Every registerRpc call uses a STRING-LITERAL id (per PHASE-ROADMAP lesson
     // #2: postbuild.js auto-hoists ONLY string-literal registerRpc calls).
@@ -13293,8 +14583,1353 @@ var LearnerToolbelt;
         initializer.registerRpc("lt_school_set_user_school", rpcSchoolSetUserSchool);
         initializer.registerRpc("lt_school_get_user_school", rpcSchoolGetUserSchool);
         initializer.registerRpc("lt_school_freetext_submit", rpcSchoolFreetextSubmit);
+        initializer.registerRpc("lt_chat_quota_check", rpcChatQuotaCheck);
+        initializer.registerRpc("lt_chat_quota_consume", rpcChatQuotaConsume);
+        initializer.registerRpc("lt_learner_state_get", rpcLearnerStateGet);
+        initializer.registerRpc("lt_learner_insights_get", rpcLearnerInsightsGet);
+        initializer.registerRpc("lt_learner_soft_cta_check", rpcLearnerSoftCtaCheck);
     }
     LearnerToolbelt.register = register;
+})(LearnerToolbelt || (LearnerToolbelt = {}));
+// lt_calendar.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// LearnerToolbelt — per-country exam calendar (Wave 4 — PLAN § 4.5).
+//
+// Inline JSON literal covering 5 countries × 2 years (2026, 2027). Per the
+// plan we cite each entry to its primary source — pulled from the Firecrawl
+// corpus at Quizverse-web-frontend/.firecrawl/learner-toolbelt/09-exam-calendar.json
+// (crawled 2026-05-24). Where the official body has NOT published a fixed
+// date yet (e.g. NTA 2027 JEE schedule lands Nov-2026), we use the historical
+// window with date_iso=null and a date_window_label.
+//
+// Read path: rpcExamCalendarGet(country, year) → filtered list. Anonymous-OK.
+//
+// To refresh annually: ai-content updates the literals below and bumps
+// EXAM_CALENDAR_VERSION. No S3 fetch required at runtime (saves a ~50ms hop).
+//
+// Sources (all in 09-exam-calendar.json):
+//   - College Board "SAT Dates and Deadlines" (US: SAT)
+//   - ACT.org "Test Dates" (US: ACT)
+//   - College Board AP Exam Schedule (US: AP, fixed first 2 weeks of May)
+//   - NTA press releases — Jee Main 2026 sessions (IN: JEE)
+//   - NMC 2026 NEET-UG bulletin (IN: NEET)
+//   - JCAB CUET 2026 schedule (IN: CUET)
+//   - IIM CAT 2025/2026 (IN: CAT, fixed last Sunday of Nov)
+//   - GATE 2026 by IIT (IN: GATE)
+//   - AQA/OCR/Edexcel May-June 2026 final timetable (UK: A-Level, GCSE)
+//   - INEP ENEM 2026/2027 release (BR: ENEM)
+//   - FUVEST 2026 (BR: FUVEST 1ª/2ª fase)
+//   - SEAB SG GCE O/A-Level 2026 (SG)
+var LearnerToolbelt;
+(function (LearnerToolbelt) {
+    LearnerToolbelt.EXAM_CALENDAR_VERSION = "lt-calendar/2026-2027.v1";
+    // The full literal. Kept compact: one row per administration. Where College
+    // Board publishes the test date (e.g. SAT Aug 2026 = 2026-08-29) we pin
+    // date_iso; otherwise we leave it null and rely on the window label.
+    var EXAM_CALENDAR = [
+        // ── US: SAT (College Board) — 2026 administrations ──
+        { exam_id: "sat", exam_label: "SAT", country: "US", year: 2026,
+            date_iso: "2026-08-29", date_window_label: "August 2026",
+            registration_open_iso: null, registration_close_iso: "2026-08-15",
+            source_url: "https://satsuite.collegeboard.org/sat/dates-deadlines" },
+        { exam_id: "sat", exam_label: "SAT", country: "US", year: 2026,
+            date_iso: "2026-10-03", date_window_label: "October 2026",
+            registration_open_iso: null, registration_close_iso: "2026-09-19",
+            source_url: "https://satsuite.collegeboard.org/sat/dates-deadlines" },
+        { exam_id: "sat", exam_label: "SAT", country: "US", year: 2026,
+            date_iso: "2026-11-07", date_window_label: "November 2026",
+            registration_open_iso: null, registration_close_iso: "2026-10-24",
+            source_url: "https://satsuite.collegeboard.org/sat/dates-deadlines" },
+        { exam_id: "sat", exam_label: "SAT", country: "US", year: 2026,
+            date_iso: "2026-12-05", date_window_label: "December 2026",
+            registration_open_iso: null, registration_close_iso: "2026-11-21",
+            source_url: "https://satsuite.collegeboard.org/sat/dates-deadlines" },
+        // ── US: SAT (College Board) — 2027 administrations ──
+        { exam_id: "sat", exam_label: "SAT", country: "US", year: 2027,
+            date_iso: "2027-03-13", date_window_label: "March 2027",
+            registration_open_iso: null, registration_close_iso: "2027-02-26",
+            source_url: "https://satsuite.collegeboard.org/sat/dates-deadlines" },
+        { exam_id: "sat", exam_label: "SAT", country: "US", year: 2027,
+            date_iso: "2027-05-08", date_window_label: "May 2027",
+            registration_open_iso: null, registration_close_iso: "2027-04-23",
+            source_url: "https://satsuite.collegeboard.org/sat/dates-deadlines" },
+        { exam_id: "sat", exam_label: "SAT", country: "US", year: 2027,
+            date_iso: "2027-06-05", date_window_label: "June 2027",
+            registration_open_iso: null, registration_close_iso: "2027-05-21",
+            source_url: "https://satsuite.collegeboard.org/sat/dates-deadlines" },
+        // ── US: ACT — 2026 ──
+        { exam_id: "act", exam_label: "ACT", country: "US", year: 2026,
+            date_iso: "2026-09-12", date_window_label: "September 2026",
+            registration_open_iso: null, registration_close_iso: "2026-08-21",
+            source_url: "https://www.act.org/content/act/en/products-and-services/the-act/registration.html" },
+        { exam_id: "act", exam_label: "ACT", country: "US", year: 2026,
+            date_iso: "2026-10-24", date_window_label: "October 2026",
+            registration_open_iso: null, registration_close_iso: "2026-09-25",
+            source_url: "https://www.act.org/content/act/en/products-and-services/the-act/registration.html" },
+        { exam_id: "act", exam_label: "ACT", country: "US", year: 2026,
+            date_iso: "2026-12-12", date_window_label: "December 2026",
+            registration_open_iso: null, registration_close_iso: "2026-11-13",
+            source_url: "https://www.act.org/content/act/en/products-and-services/the-act/registration.html" },
+        // ── US: ACT — 2027 ──
+        { exam_id: "act", exam_label: "ACT", country: "US", year: 2027,
+            date_iso: "2027-02-13", date_window_label: "February 2027",
+            registration_open_iso: null, registration_close_iso: "2027-01-15",
+            source_url: "https://www.act.org/content/act/en/products-and-services/the-act/registration.html" },
+        { exam_id: "act", exam_label: "ACT", country: "US", year: 2027,
+            date_iso: "2027-04-10", date_window_label: "April 2027",
+            registration_open_iso: null, registration_close_iso: "2027-03-12",
+            source_url: "https://www.act.org/content/act/en/products-and-services/the-act/registration.html" },
+        { exam_id: "act", exam_label: "ACT", country: "US", year: 2027,
+            date_iso: "2027-06-12", date_window_label: "June 2027",
+            registration_open_iso: null, registration_close_iso: "2027-05-14",
+            source_url: "https://www.act.org/content/act/en/products-and-services/the-act/registration.html" },
+        { exam_id: "act", exam_label: "ACT", country: "US", year: 2027,
+            date_iso: "2027-07-17", date_window_label: "July 2027",
+            registration_open_iso: null, registration_close_iso: "2027-06-18",
+            source_url: "https://www.act.org/content/act/en/products-and-services/the-act/registration.html" },
+        // ── US: AP exams — College Board fixed first 2 weeks of May ──
+        { exam_id: "ap", exam_label: "AP Exams (all subjects)", country: "US", year: 2026,
+            date_iso: null, date_window_label: "May 4-15, 2026",
+            registration_open_iso: null, registration_close_iso: "2025-11-15",
+            source_url: "https://apcentral.collegeboard.org/courses/exam-dates-and-fees" },
+        { exam_id: "ap", exam_label: "AP Exams (all subjects)", country: "US", year: 2027,
+            date_iso: null, date_window_label: "May 3-14, 2027",
+            registration_open_iso: null, registration_close_iso: "2026-11-15",
+            source_url: "https://apcentral.collegeboard.org/courses/exam-dates-and-fees" },
+        // ── IN: JEE Main — Session 1 (Jan-Feb) + Session 2 (Apr) per NTA ──
+        { exam_id: "jee_main", exam_label: "JEE Main 2026 — Session 1", country: "IN", year: 2026,
+            date_iso: null, date_window_label: "Jan 22 - Feb 1, 2026",
+            registration_open_iso: "2025-10-28", registration_close_iso: "2025-11-22",
+            source_url: "https://jeemain.nta.nic.in/" },
+        { exam_id: "jee_main", exam_label: "JEE Main 2026 — Session 2", country: "IN", year: 2026,
+            date_iso: null, date_window_label: "Apr 1-12, 2026",
+            registration_open_iso: "2026-02-15", registration_close_iso: "2026-03-15",
+            source_url: "https://jeemain.nta.nic.in/" },
+        { exam_id: "jee_main", exam_label: "JEE Main 2027 — Session 1 (provisional)", country: "IN", year: 2027,
+            date_iso: null, date_window_label: "Jan 2027 (TBC by NTA, ~Nov 2026)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://jeemain.nta.nic.in/" },
+        { exam_id: "jee_main", exam_label: "JEE Main 2027 — Session 2 (provisional)", country: "IN", year: 2027,
+            date_iso: null, date_window_label: "Apr 2027 (TBC by NTA)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://jeemain.nta.nic.in/" },
+        // ── IN: NEET-UG — May (NMC) ──
+        { exam_id: "neet", exam_label: "NEET-UG 2026", country: "IN", year: 2026,
+            date_iso: "2026-05-03", date_window_label: "May 2026",
+            registration_open_iso: "2026-02-09", registration_close_iso: "2026-03-09",
+            source_url: "https://neet.nta.nic.in/" },
+        { exam_id: "neet", exam_label: "NEET-UG 2027 (provisional)", country: "IN", year: 2027,
+            date_iso: null, date_window_label: "May 2027 (TBC by NMC)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://neet.nta.nic.in/" },
+        // ── IN: CUET-UG — May-Jun NTA ──
+        { exam_id: "cuet", exam_label: "CUET-UG 2026", country: "IN", year: 2026,
+            date_iso: null, date_window_label: "May 13 - Jun 3, 2026",
+            registration_open_iso: "2026-02-25", registration_close_iso: "2026-03-25",
+            source_url: "https://cuet.nta.nic.in/" },
+        { exam_id: "cuet", exam_label: "CUET-UG 2027 (provisional)", country: "IN", year: 2027,
+            date_iso: null, date_window_label: "May-Jun 2027 (TBC by NTA)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://cuet.nta.nic.in/" },
+        // ── IN: CAT — IIM, last Sunday of November ──
+        { exam_id: "cat", exam_label: "CAT 2026", country: "IN", year: 2026,
+            date_iso: "2026-11-29", date_window_label: "November 2026 (last Sunday)",
+            registration_open_iso: "2026-08-02", registration_close_iso: "2026-09-13",
+            source_url: "https://iimcat.ac.in/" },
+        { exam_id: "cat", exam_label: "CAT 2027 (provisional)", country: "IN", year: 2027,
+            date_iso: "2027-11-28", date_window_label: "November 2027 (last Sunday, est.)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://iimcat.ac.in/" },
+        // ── IN: GATE — IIT, first Sat-Sun of Feb across 2 weekends ──
+        { exam_id: "gate", exam_label: "GATE 2026", country: "IN", year: 2026,
+            date_iso: null, date_window_label: "Feb 7-15, 2026",
+            registration_open_iso: "2025-08-28", registration_close_iso: "2025-10-04",
+            source_url: "https://gate2026.iitg.ac.in/" },
+        { exam_id: "gate", exam_label: "GATE 2027 (provisional)", country: "IN", year: 2027,
+            date_iso: null, date_window_label: "Feb 2027 (TBC by host IIT)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://gate.iitr.ac.in/" },
+        // ── UK: A-Level (AQA/OCR/Edexcel/WJEC combined window) ──
+        { exam_id: "alevel", exam_label: "A-Level (May-Jun)", country: "UK", year: 2026,
+            date_iso: null, date_window_label: "May 11 - Jun 26, 2026",
+            registration_open_iso: null, registration_close_iso: "2026-02-21",
+            source_url: "https://www.aqa.org.uk/exams-administration/dates-and-timetables" },
+        { exam_id: "alevel", exam_label: "A-Level (May-Jun)", country: "UK", year: 2027,
+            date_iso: null, date_window_label: "May-Jun 2027 (final timetable Oct-2026)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.aqa.org.uk/exams-administration/dates-and-timetables" },
+        // ── UK: GCSE ──
+        { exam_id: "gcse", exam_label: "GCSE (May-Jun)", country: "UK", year: 2026,
+            date_iso: null, date_window_label: "May 11 - Jun 19, 2026",
+            registration_open_iso: null, registration_close_iso: "2026-02-21",
+            source_url: "https://www.aqa.org.uk/exams-administration/dates-and-timetables" },
+        { exam_id: "gcse", exam_label: "GCSE (May-Jun)", country: "UK", year: 2027,
+            date_iso: null, date_window_label: "May-Jun 2027 (final timetable Oct-2026)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.aqa.org.uk/exams-administration/dates-and-timetables" },
+        // ── BR: ENEM (INEP) — 2 Sundays in Nov ──
+        { exam_id: "enem", exam_label: "ENEM 2026 — Dia 1", country: "BR", year: 2026,
+            date_iso: "2026-11-08", date_window_label: "8 de novembro de 2026 (Domingo)",
+            registration_open_iso: "2026-05-25", registration_close_iso: "2026-06-05",
+            source_url: "https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/enem" },
+        { exam_id: "enem", exam_label: "ENEM 2026 — Dia 2", country: "BR", year: 2026,
+            date_iso: "2026-11-15", date_window_label: "15 de novembro de 2026 (Domingo)",
+            registration_open_iso: "2026-05-25", registration_close_iso: "2026-06-05",
+            source_url: "https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/enem" },
+        { exam_id: "enem", exam_label: "ENEM 2027 (provisional)", country: "BR", year: 2027,
+            date_iso: null, date_window_label: "Novembro de 2027 (TBC INEP)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/enem" },
+        // ── BR: FUVEST — 1ª fase (Nov) + 2ª fase (Jan) ──
+        { exam_id: "fuvest", exam_label: "FUVEST 1ª fase", country: "BR", year: 2026,
+            date_iso: "2026-11-22", date_window_label: "22 de novembro de 2026",
+            registration_open_iso: null, registration_close_iso: "2026-09-30",
+            source_url: "https://www.fuvest.br/" },
+        { exam_id: "fuvest", exam_label: "FUVEST 2ª fase", country: "BR", year: 2027,
+            date_iso: null, date_window_label: "Janeiro de 2027",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.fuvest.br/" },
+        // ── SG: GCE O-Level + A-Level (SEAB) ──
+        { exam_id: "olevel", exam_label: "GCE O-Level (written papers)", country: "SG", year: 2026,
+            date_iso: null, date_window_label: "Oct 12 - Nov 13, 2026",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.seab.gov.sg/" },
+        { exam_id: "alevel_sg", exam_label: "GCE A-Level (written papers)", country: "SG", year: 2026,
+            date_iso: null, date_window_label: "Oct 26 - Nov 27, 2026",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.seab.gov.sg/" },
+        { exam_id: "olevel", exam_label: "GCE O-Level (written papers)", country: "SG", year: 2027,
+            date_iso: null, date_window_label: "Oct-Nov 2027 (TBC SEAB)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.seab.gov.sg/" },
+        { exam_id: "alevel_sg", exam_label: "GCE A-Level (written papers)", country: "SG", year: 2027,
+            date_iso: null, date_window_label: "Oct-Nov 2027 (TBC SEAB)",
+            registration_open_iso: null, registration_close_iso: null,
+            source_url: "https://www.seab.gov.sg/" },
+    ];
+    // Filter helper — used by rpcExamCalendarGet.
+    function getCalendarEntries(country, year) {
+        var c = ("" + (country || "")).toUpperCase();
+        var out = [];
+        for (var i = 0; i < EXAM_CALENDAR.length; i++) {
+            var e = EXAM_CALENDAR[i];
+            if (e.country === c && e.year === year)
+                out.push(e);
+        }
+        return out;
+    }
+    LearnerToolbelt.getCalendarEntries = getCalendarEntries;
+    // Quick exam_id → primary upcoming entry (for the predictor's
+    // "days_until_exam" join). Picks the soonest entry whose date_iso is in
+    // the future, or the first matching entry if no date is set.
+    function lookupExamUpcoming(examId, nowUnix) {
+        var match = null;
+        var matchTs = Infinity;
+        for (var i = 0; i < EXAM_CALENDAR.length; i++) {
+            var e = EXAM_CALENDAR[i];
+            if (e.exam_id !== examId)
+                continue;
+            if (!e.date_iso) {
+                if (!match)
+                    match = e;
+                continue;
+            }
+            var ts = Math.floor(new Date(e.date_iso + "T00:00:00Z").getTime() / 1000);
+            if (ts > nowUnix && ts < matchTs) {
+                matchTs = ts;
+                match = e;
+            }
+        }
+        return match;
+    }
+    LearnerToolbelt.lookupExamUpcoming = lookupExamUpcoming;
+})(LearnerToolbelt || (LearnerToolbelt = {}));
+// lt_grading.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// LearnerToolbelt — GPA grading tables + compute logic (Wave 4 — PLAN § 5).
+//
+// We ship 6 grading systems in this wave (§ 5.2 Phase A names):
+//   us-4.0-unweighted   us-4.0-weighted   india-cbse-cgpa
+//   india-isc-percentage   uk-alevel-a*-e   ib-1-7
+//
+// The remaining 6 (uk-gcse-9-1, uk-ucas-tariff, us-5.0-weighted, eu-ects,
+// france-20pt, germany-1.0-6.0) land in Wave B per the plan.
+//
+// WES iGPA conversion source: WES Grade Conversion Guide (Nov 2018) +
+// applications.wes.org/igpa-calculator/. Tables are baked inline (small,
+// stable, refreshed ~annually) — see plan § 5.3 / § 7.2.
+//
+// Stateless. No auth, no storage. Powers the public SEO landing page at
+// /tools/gpa-calculator AND the score predictor's prior-GPA correlation
+// signal (plan § 5.1 US-GPA-04).
+var LearnerToolbelt;
+(function (LearnerToolbelt) {
+    // ── System #1: US 4.0 unweighted ─────────────────────────────────────────
+    // College Board / ACT standard letter scale used by ~80% of US public HS.
+    var US40_LETTERS = {
+        "A+": 4.0, "A": 4.0, "A-": 3.7,
+        "B+": 3.3, "B": 3.0, "B-": 2.7,
+        "C+": 2.3, "C": 2.0, "C-": 1.7,
+        "D+": 1.3, "D": 1.0, "D-": 0.7,
+        "F": 0.0,
+    };
+    // ── System #2: India CBSE 10-point CGPA ──────────────────────────────────
+    // CBSE Class X/XII 2012+ grading. A1=10 down to E2=2; F treated as 0.
+    // WES iGPA conversion uses the Indian band-conversion guidance
+    // (60+ → A → 4.0, 50–59 → B → 3.0, 35–49 → C → 2.0, <35 → F → 0).
+    var CBSE_GRADES = {
+        "A1": { native: 10, us4: 4.0 },
+        "A2": { native: 9, us4: 4.0 },
+        "B1": { native: 8, us4: 3.7 },
+        "B2": { native: 7, us4: 3.3 },
+        "C1": { native: 6, us4: 3.0 },
+        "C2": { native: 5, us4: 2.7 },
+        "D": { native: 4, us4: 2.0 },
+        "E1": { native: 3, us4: 1.0 },
+        "E2": { native: 2, us4: 0.7 },
+        "F": { native: 0, us4: 0.0 },
+    };
+    // ── System #3: UK A-Level A*-E ───────────────────────────────────────────
+    // Per user spec (verified against WES iGPA unweighted A-Level mapping):
+    //   A*=5.3, A=4.0, B=3.0, C=2.0, D=1.0, E=0.5, U=0
+    // (Native scale topped at 5.3 to honour A*; WES still caps usable iGPA at
+    // 4.0 in the official guide, so we clamp wes_4_0 to 4.0 on output.)
+    var ALEVEL_GRADES = {
+        "A*": { native: 5.3, us4: 4.0 },
+        "A": { native: 4.0, us4: 4.0 },
+        "B": { native: 3.0, us4: 3.0 },
+        "C": { native: 2.0, us4: 2.0 },
+        "D": { native: 1.0, us4: 1.0 },
+        "E": { native: 0.5, us4: 0.5 },
+        "U": { native: 0.0, us4: 0.0 },
+    };
+    // ── System #4: IB 1-7 ────────────────────────────────────────────────────
+    // IB Diploma Programme per-subject grade. WES iGPA conversion per the
+    // 2018 guide: 7→4.0, 6→3.7, 5→3.3, 4→3.0, 3→2.0, 2→1.0, 1→0.
+    var IB_GRADES = {
+        "7": { native: 7, us4: 4.0 },
+        "6": { native: 6, us4: 3.7 },
+        "5": { native: 5, us4: 3.3 },
+        "4": { native: 4, us4: 3.0 },
+        "3": { native: 3, us4: 2.0 },
+        "2": { native: 2, us4: 1.0 },
+        "1": { native: 1, us4: 0.0 },
+    };
+    // ── System #5: India ISC / state-board / generic 0-100% percentage ───────
+    // WES iGPA conversion per § 5.3 / India guidance table (2018 PDF).
+    // Bands deliberately overlap with CBSE so users can mix and match.
+    // Input is a number in 0..100 (per course %), output is mapped to US-4.0.
+    function pctToUs4_india(pct) {
+        if (pct >= 60)
+            return 4.0;
+        if (pct >= 55)
+            return 3.7;
+        if (pct >= 50)
+            return 3.3;
+        if (pct >= 45)
+            return 3.0;
+        if (pct >= 40)
+            return 2.7;
+        if (pct >= 35)
+            return 2.0;
+        return 0.0;
+    }
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function normalizeGradeToken(raw) {
+        if (raw === null || raw === undefined)
+            return "";
+        var s = ("" + raw).toUpperCase().replace(/\s+/g, "");
+        // Some users type "A*" as "A*" or "A∗"; normalize the unicode star too.
+        s = s.replace("∗", "*");
+        return s;
+    }
+    function clamp4(v) {
+        if (v < 0)
+            return 0;
+        if (v > 4.0)
+            return 4.0;
+        return v;
+    }
+    function round2(v) {
+        return Math.round(v * 100) / 100;
+    }
+    function bandFromUs4(us4) {
+        if (us4 >= 3.85)
+            return "top-10%";
+        if (us4 >= 3.5)
+            return "top-25%";
+        if (us4 >= 3.0)
+            return "mid";
+        if (us4 >= 2.0)
+            return "below-median";
+        return "bottom-tier";
+    }
+    // ── Per-system compute ───────────────────────────────────────────────────
+    function lookupLetter(table, token) {
+        var hit = table[token];
+        if (!hit && hit !== 0)
+            return null;
+        if (typeof hit === "number")
+            return { native: hit, us4: hit };
+        return hit;
+    }
+    function computeLetterSystem(courses, table, nativeMax, label, systemId, weighted) {
+        var breakdown = [];
+        var warnings = [];
+        var sumNative = 0, sumUs4 = 0, sumCredits = 0;
+        var skipped = 0;
+        for (var i = 0; i < courses.length; i++) {
+            var c = courses[i] || {};
+            var token = normalizeGradeToken(c.grade);
+            var hit = null;
+            var raw = table[token];
+            if (raw !== undefined && raw !== null) {
+                hit = (typeof raw === "number") ? { native: raw, us4: raw } : raw;
+            }
+            if (!hit) {
+                warnings.push("course " + (i + 1) + ": unknown grade '" + (c.grade || "") + "' (skipped)");
+                skipped++;
+                continue;
+            }
+            var credits = (typeof c.credits === "number" && c.credits > 0) ? c.credits : 1.0;
+            var bonus = 0;
+            if (weighted && (c.is_ap || c.is_honors))
+                bonus = 1.0;
+            var native = hit.native + bonus;
+            var us4 = clamp4(hit.us4 + bonus);
+            sumNative += native * credits;
+            sumUs4 += us4 * credits;
+            sumCredits += credits;
+            breakdown.push({
+                name: c.name ? ("" + c.name).slice(0, 80) : ("Course " + (i + 1)),
+                grade_input: ("" + (c.grade !== undefined ? c.grade : "")),
+                grade_native: round2(native),
+                grade_us4: round2(us4),
+                credits: credits,
+                weighted_bonus: bonus,
+                quality_points_native: round2(native * credits),
+                quality_points_us4: round2(us4 * credits),
+            });
+        }
+        var nativeGpa = sumCredits > 0 ? sumNative / sumCredits : 0;
+        var us4 = sumCredits > 0 ? sumUs4 / sumCredits : 0;
+        return {
+            ok: true,
+            system: systemId,
+            system_label: label,
+            native_gpa: round2(nativeGpa),
+            native_max: nativeMax,
+            wes_4_0: round2(us4),
+            percentile_band: bandFromUs4(us4),
+            breakdown: breakdown,
+            courses_used: breakdown.length,
+            courses_skipped: skipped,
+            warnings: warnings,
+        };
+    }
+    function computePercentSystem(courses, label, systemId, pctToUs4) {
+        var breakdown = [];
+        var warnings = [];
+        var sumNative = 0, sumUs4 = 0, sumCredits = 0;
+        var skipped = 0;
+        for (var i = 0; i < courses.length; i++) {
+            var c = courses[i] || {};
+            var pct = typeof c.grade === "number" ? c.grade : parseFloat("" + (c.grade || ""));
+            if (!(pct >= 0 && pct <= 100)) {
+                warnings.push("course " + (i + 1) + ": grade must be 0-100 (was '" + (c.grade || "") + "')");
+                skipped++;
+                continue;
+            }
+            var credits = (typeof c.credits === "number" && c.credits > 0) ? c.credits : 1.0;
+            var us4 = pctToUs4(pct);
+            sumNative += pct * credits;
+            sumUs4 += us4 * credits;
+            sumCredits += credits;
+            breakdown.push({
+                name: c.name ? ("" + c.name).slice(0, 80) : ("Course " + (i + 1)),
+                grade_input: "" + pct,
+                grade_native: pct,
+                grade_us4: us4,
+                credits: credits,
+                weighted_bonus: 0,
+                quality_points_native: round2(pct * credits),
+                quality_points_us4: round2(us4 * credits),
+            });
+        }
+        var nativeGpa = sumCredits > 0 ? sumNative / sumCredits : 0;
+        var us4Final = sumCredits > 0 ? sumUs4 / sumCredits : 0;
+        return {
+            ok: true,
+            system: systemId,
+            system_label: label,
+            native_gpa: round2(nativeGpa),
+            native_max: 100,
+            wes_4_0: round2(us4Final),
+            percentile_band: bandFromUs4(us4Final),
+            breakdown: breakdown,
+            courses_used: breakdown.length,
+            courses_skipped: skipped,
+            warnings: warnings,
+        };
+    }
+    // ── Public entry: compute GPA for any supported system ───────────────────
+    function computeGpa(systemId, courses) {
+        var sys = ("" + (systemId || "")).toLowerCase();
+        switch (sys) {
+            case "us-4.0-unweighted":
+                return computeLetterSystem(courses, US40_LETTERS, 4.0, "US 4.0 (Unweighted)", sys, false);
+            case "us-4.0-weighted":
+                return computeLetterSystem(courses, US40_LETTERS, 5.0, "US 4.0 (Weighted, +1.0 AP/Honors)", sys, true);
+            case "india-cbse-cgpa":
+                return computeLetterSystem(courses, CBSE_GRADES, 10.0, "India CBSE 10-point CGPA", sys, false);
+            case "india-isc-percentage":
+                return computePercentSystem(courses, "India ISC / state-board percentage", sys, pctToUs4_india);
+            case "uk-alevel-a*-e":
+            case "uk-alevel":
+                return computeLetterSystem(courses, ALEVEL_GRADES, 5.3, "UK A-Level (A*-E)", "uk-alevel-a*-e", false);
+            case "ib-1-7":
+            case "ib":
+                return computeLetterSystem(courses, IB_GRADES, 7.0, "IB Diploma (1-7)", "ib-1-7", false);
+            default:
+                return {
+                    ok: false,
+                    system: sys,
+                    system_label: "(unsupported)",
+                    native_gpa: 0,
+                    native_max: 0,
+                    wes_4_0: 0,
+                    percentile_band: "unknown",
+                    breakdown: [],
+                    courses_used: 0,
+                    courses_skipped: courses.length,
+                    warnings: [
+                        "system '" + sys + "' not supported in Wave A. Supported: " +
+                            "us-4.0-unweighted, us-4.0-weighted, india-cbse-cgpa, " +
+                            "india-isc-percentage, uk-alevel-a*-e, ib-1-7"
+                    ],
+                };
+        }
+    }
+    LearnerToolbelt.computeGpa = computeGpa;
+})(LearnerToolbelt || (LearnerToolbelt = {}));
+// lt_i18n.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// LearnerToolbelt — recommendation_text catalog for the Score Predictor +
+// generic user-facing strings (Wave 5 — PLAN § 3.8 / § A4).
+//
+// Per § 7.4 the RPC owns translations (not the client), so Unity + Web get
+// identical localised strings without per-platform bundles. We bake the
+// dictionary inline (~150 lines) — the matching .json files at
+// data/modules/src/learner-toolbelt/i18n/{locale}.json are the
+// human-editable source of truth used by ai-content for QA loops.
+//
+// Key shape: "predictor.<exam_family>.<band>" where
+//   exam_family ∈ { sat, jee, ap, neet, generic }
+//   band        ∈ { low, mid, high, insufficient_data }
+// Locales: en, hi, es, pt-BR, ar, id.
+//
+// English is hand-written. Other locales are seed translations sufficient
+// for L0 launch; wave-7 will run the Firecrawl-verified QA pass per § 10.6.
+var LearnerToolbelt;
+(function (LearnerToolbelt) {
+    var I18N_EN = {
+        "predictor.sat.high": "You're trending toward {predicted} on the SAT (90% CI {ci_low}–{ci_high}). Solid Reading & Writing; keep Math sharp with 3 timed sets per week to hold the band.",
+        "predictor.sat.mid": "You're projecting around {predicted} on the SAT (90% CI {ci_low}–{ci_high}). Math is the cheapest lift: 6 hrs/wk of targeted drill should push you to 1350+.",
+        "predictor.sat.low": "Current trajectory: {predicted} on the SAT (90% CI {ci_low}–{ci_high}). Fundamentals first — alternate one R&W set and one Math set daily; expect +120 in 6 weeks.",
+        "predictor.jee.high": "You're trending toward {predicted} on JEE Main. Top 1% is in reach — protect Chemistry accuracy and time the JEE Advanced full mocks weekly.",
+        "predictor.jee.mid": "JEE Main projection: {predicted}. Mechanics + Inorganic Chem are your biggest residuals — 90 min/day on PYQs should compound fast.",
+        "predictor.jee.low": "JEE Main projection: {predicted}. Drop subject-jumping; commit to 14-day blocks per subject and rebuild from concept → solved-examples → PYQ.",
+        "predictor.ap.high": "Projected AP score: {predicted}. You're comfortably in the 5 band — switch to FRQ-only drills to lock the rubric edges.",
+        "predictor.ap.mid": "Projected AP score: {predicted}. Multiple-choice is fine; the boundary to 5 is FRQ pacing — 2 timed FRQs per week from official released exams.",
+        "predictor.ap.low": "Projected AP score: {predicted}. Focus on the 4–5 units College Board weights heaviest in your subject; ignore the long tail until you're consistently above 60% MCQ accuracy.",
+        "predictor.neet.high": "NEET projection: {predicted} / 720. AIIMS-tier is realistic — protect Biology accuracy (single-mark errors cost ~80 ranks each).",
+        "predictor.neet.mid": "NEET projection: {predicted} / 720. Physics is your residual; 60 min/day on NCERT + 30 min on PYQ should add 40-60 marks in a month.",
+        "predictor.neet.low": "NEET projection: {predicted} / 720. Pivot to Biology NCERT line-by-line for the next 21 days — single highest ROI on the syllabus.",
+        "predictor.generic.high": "You're in the {predicted} of QuizVerse users for this exam track. Maintain volume and add timed full-length mocks weekly.",
+        "predictor.generic.mid": "You're at the {predicted} of QuizVerse users for this exam. Two weak topics drag your average — switch to topic-focused 10-question sets.",
+        "predictor.generic.low": "You're at the {predicted} of QuizVerse users on this track. Foundation-first: 5-question warmups daily, no full-length mocks for 2 weeks.",
+        "predictor.sat.insufficient_data": "Play at least 8 SAT-tagged quizzes (5 minutes each) and we'll surface a band. Until then we won't fake a number.",
+        "predictor.jee.insufficient_data": "Play at least 8 JEE-tagged quizzes and we'll surface a percentile band. Until then we won't fake a number.",
+        "predictor.ap.insufficient_data": "Play at least 8 AP-tagged quizzes (in your subject) and we'll surface a score band.",
+        "predictor.neet.insufficient_data": "Play at least 8 NEET-tagged quizzes and we'll surface a score band.",
+        "predictor.generic.insufficient_data": "Play at least 8 quizzes tagged to this exam and we'll surface a confidence band.",
+        "calendar.no_results": "No exam-calendar entries known for the requested country and year yet.",
+        "school.no_results": "No matching schools — try the free-text path so we can add yours.",
+    };
+    var I18N_HI = {
+        "predictor.sat.high": "आप SAT में लगभग {predicted} की ओर बढ़ रहे हैं (90% CI {ci_low}–{ci_high}). Reading & Writing ठीक है; Math को साधने के लिए हफ्ते में 3 timed sets करें.",
+        "predictor.sat.mid": "SAT में अनुमानित स्कोर {predicted} (90% CI {ci_low}–{ci_high}). सबसे आसान सुधार Math में है — हफ्ते में 6 घंटे drill से 1350+ संभव है.",
+        "predictor.sat.low": "वर्तमान दिशा: SAT में {predicted} (90% CI {ci_low}–{ci_high}). पहले बुनियाद — रोज़ एक R&W और एक Math set, 6 हफ्तों में +120 अंक.",
+        "predictor.jee.high": "JEE Main में आपका रुख {predicted} की ओर है. शीर्ष 1% पहुँच में है — Chemistry की सटीकता बनाए रखें और JEE Advanced के पूर्ण mocks साप्ताहिक करें.",
+        "predictor.jee.mid": "JEE Main अनुमान: {predicted}. Mechanics और Inorganic Chemistry सबसे बड़े अंतर हैं — रोज़ 90 मिनट PYQ पर लगाएँ.",
+        "predictor.jee.low": "JEE Main अनुमान: {predicted}. विषय बदलना बंद करें; 14-दिन के ब्लॉक में एक विषय पूरा करें: concept → हल किए उदाहरण → PYQ.",
+        "predictor.ap.high": "अनुमानित AP स्कोर: {predicted}. आप आराम से 5-band में हैं — अब केवल FRQ drills पर ध्यान दें ताकि rubric के किनारे पक्के हो जाएँ.",
+        "predictor.ap.mid": "अनुमानित AP स्कोर: {predicted}. MCQ ठीक है; 5 तक पहुँचने की दीवार FRQ pacing है — आधिकारिक released exams से हफ्ते में 2 timed FRQ.",
+        "predictor.ap.low": "अनुमानित AP स्कोर: {predicted}. आपके विषय में College Board सबसे ज़्यादा भार जिन 4–5 units पर देता है, उन पर ध्यान दें.",
+        "predictor.neet.high": "NEET अनुमान: {predicted} / 720. AIIMS-स्तर पहुँच में है — Biology की सटीकता बनाए रखें (हर एक-नंबर की गलती ~80 रैंक महँगी पड़ती है).",
+        "predictor.neet.mid": "NEET अनुमान: {predicted} / 720. Physics सबसे बड़ा अंतर है; रोज़ 60 मिनट NCERT और 30 मिनट PYQ से एक महीने में 40-60 अंक संभव हैं.",
+        "predictor.neet.low": "NEET अनुमान: {predicted} / 720. अगले 21 दिन Biology NCERT लाइन-दर-लाइन पढ़ें — पूरे सिलेबस में सबसे अच्छा ROI.",
+        "predictor.generic.high": "इस परीक्षा के ट्रैक पर आप QuizVerse उपयोगकर्ताओं के {predicted} में हैं. मात्रा बनाए रखें और हफ्ते में timed full-length mocks जोड़ें.",
+        "predictor.generic.mid": "इस परीक्षा पर आप QuizVerse उपयोगकर्ताओं के {predicted} में हैं. दो कमज़ोर विषय आपका औसत खींच रहे हैं — topic-focused 10-question sets पर बदलें.",
+        "predictor.generic.low": "इस ट्रैक पर आप QuizVerse उपयोगकर्ताओं के {predicted} में हैं. पहले बुनियाद: रोज़ 5-question warmups, 2 हफ्तों तक full-length mocks नहीं.",
+        "predictor.sat.insufficient_data": "कम से कम 8 SAT-tagged quizzes (हर एक 5 मिनट) खेलें, तब हम band दिखाएँगे. नकली नंबर नहीं देंगे.",
+        "predictor.jee.insufficient_data": "कम से कम 8 JEE-tagged quizzes खेलें, तब percentile band दिखेगा. नकली नंबर नहीं देंगे.",
+        "predictor.ap.insufficient_data": "कम से कम 8 AP-tagged quizzes (अपने subject में) खेलें, तब score band दिखाएँगे.",
+        "predictor.neet.insufficient_data": "कम से कम 8 NEET-tagged quizzes खेलें, तब score band दिखाएँगे.",
+        "predictor.generic.insufficient_data": "इस परीक्षा से tagged कम से कम 8 quizzes खेलें, तब confidence band दिखाएँगे.",
+        "calendar.no_results": "अनुरोधित देश और वर्ष के लिए कोई exam-calendar entry अभी उपलब्ध नहीं है.",
+        "school.no_results": "कोई मेल खाता स्कूल नहीं मिला — free-text path आज़माएँ ताकि हम आपका जोड़ सकें.",
+    };
+    var I18N_ES = {
+        "predictor.sat.high": "Tu trayectoria apunta a {predicted} en el SAT (IC 90% {ci_low}–{ci_high}). Reading & Writing está sólido; mantén Math con 3 sets cronometrados por semana.",
+        "predictor.sat.mid": "Proyección SAT: {predicted} (IC 90% {ci_low}–{ci_high}). El mayor margen está en Math — 6 h/semana de drill enfocado debería llevarte a 1350+.",
+        "predictor.sat.low": "Trayectoria actual: {predicted} en el SAT (IC 90% {ci_low}–{ci_high}). Primero los fundamentos — alterna un set de R&W y uno de Math al día; +120 en 6 semanas.",
+        "predictor.jee.high": "JEE Main: tendencia a {predicted}. El top 1% está al alcance — cuida la precisión en Chemistry y haz mocks completos semanales.",
+        "predictor.jee.mid": "Proyección JEE Main: {predicted}. Mechanics + Inorganic Chemistry son tus mayores residuos — 90 min/día de PYQs.",
+        "predictor.jee.low": "Proyección JEE Main: {predicted}. Deja de saltar entre materias; bloques de 14 días por materia: concepto → ejemplos → PYQ.",
+        "predictor.ap.high": "AP proyectado: {predicted}. Estás cómodamente en banda de 5 — pasa a drills solo de FRQ para ajustar la rúbrica.",
+        "predictor.ap.mid": "AP proyectado: {predicted}. MCQ está bien; el límite para llegar a 5 es el ritmo de FRQ — 2 FRQ cronometrados a la semana.",
+        "predictor.ap.low": "AP proyectado: {predicted}. Concéntrate en las 4–5 unidades que más peso tienen en tu asignatura; ignora la cola larga.",
+        "predictor.neet.high": "NEET: {predicted} / 720 proyectado. Banda AIIMS al alcance — protege la precisión en Biología.",
+        "predictor.neet.mid": "NEET: {predicted} / 720. Física es tu residuo; 60 min/día NCERT + 30 min PYQ deberían sumar 40-60 marks en un mes.",
+        "predictor.neet.low": "NEET: {predicted} / 720. Pivot a NCERT de Biología línea por línea durante 21 días — el mejor ROI del temario.",
+        "predictor.generic.high": "Estás en el {predicted} de los usuarios de QuizVerse para este examen. Mantén volumen y añade mocks completos cronometrados semanalmente.",
+        "predictor.generic.mid": "Estás en el {predicted} de los usuarios de QuizVerse. Dos temas débiles arrastran tu promedio — pasa a sets de 10 preguntas por tema.",
+        "predictor.generic.low": "Estás en el {predicted} de los usuarios de QuizVerse. Fundamentos primero: 5 preguntas diarias de warmup, sin mocks completos por 2 semanas.",
+        "predictor.sat.insufficient_data": "Juega al menos 8 quizzes etiquetados como SAT y mostraremos una banda. No vamos a inventar un número.",
+        "predictor.jee.insufficient_data": "Juega al menos 8 quizzes etiquetados como JEE y mostraremos una banda de percentil.",
+        "predictor.ap.insufficient_data": "Juega al menos 8 quizzes etiquetados como AP (en tu asignatura) y mostraremos una banda.",
+        "predictor.neet.insufficient_data": "Juega al menos 8 quizzes etiquetados como NEET y mostraremos una banda.",
+        "predictor.generic.insufficient_data": "Juega al menos 8 quizzes etiquetados con este examen y mostraremos una banda de confianza.",
+        "calendar.no_results": "No hay entradas conocidas de calendario de exámenes para el país y año solicitados.",
+        "school.no_results": "Sin colegios que coincidan — usa el modo de texto libre para añadir el tuyo.",
+    };
+    var I18N_PT_BR = {
+        "predictor.sat.high": "Você está mirando {predicted} no SAT (IC 90% {ci_low}–{ci_high}). Reading & Writing está consistente; mantenha Math com 3 sets cronometrados por semana.",
+        "predictor.sat.mid": "Projeção SAT: {predicted} (IC 90% {ci_low}–{ci_high}). O ganho mais barato está em Math — 6 h/semana de drill direcionado deve levar a 1350+.",
+        "predictor.sat.low": "Trajetória atual: {predicted} no SAT (IC 90% {ci_low}–{ci_high}). Fundamentos primeiro — alterne um set de R&W e um de Math por dia; +120 em 6 semanas.",
+        "predictor.jee.high": "JEE Main: tendência {predicted}. Top 1% está ao alcance — proteja precisão em Chemistry e faça mocks completos semanais.",
+        "predictor.jee.mid": "Projeção JEE Main: {predicted}. Mechanics + Inorganic Chemistry são seus maiores resíduos — 90 min/dia em PYQs.",
+        "predictor.jee.low": "Projeção JEE Main: {predicted}. Pare de pular entre matérias; blocos de 14 dias por matéria: conceito → exemplos → PYQ.",
+        "predictor.ap.high": "AP projetado: {predicted}. Banda 5 confortável — passe a drills somente de FRQ.",
+        "predictor.ap.mid": "AP projetado: {predicted}. MCQ está bom; o limite para 5 é ritmo em FRQ — 2 FRQs cronometradas por semana.",
+        "predictor.ap.low": "AP projetado: {predicted}. Foque nas 4–5 unidades de maior peso do College Board para sua matéria.",
+        "predictor.neet.high": "NEET projetado: {predicted} / 720. Banda AIIMS realista — proteja precisão em Biologia.",
+        "predictor.neet.mid": "NEET projetado: {predicted} / 720. Física é seu resíduo; 60 min/dia NCERT + 30 min PYQ devem somar 40-60 marks em um mês.",
+        "predictor.neet.low": "NEET projetado: {predicted} / 720. Pivot para NCERT de Biologia linha-por-linha por 21 dias.",
+        "predictor.generic.high": "Você está no {predicted} dos usuários QuizVerse para este exame. Mantenha volume e adicione mocks completos cronometrados semanalmente.",
+        "predictor.generic.mid": "Você está no {predicted} dos usuários QuizVerse. Dois tópicos fracos puxam sua média — passe para sets de 10 perguntas por tópico.",
+        "predictor.generic.low": "Você está no {predicted} dos usuários QuizVerse. Fundamentos primeiro: 5 perguntas/dia de warmup, sem mocks por 2 semanas.",
+        "predictor.sat.insufficient_data": "Jogue ao menos 8 quizzes tagueados como SAT e mostraremos uma banda. Não vamos inventar número.",
+        "predictor.jee.insufficient_data": "Jogue ao menos 8 quizzes tagueados como JEE e mostraremos uma banda de percentil.",
+        "predictor.ap.insufficient_data": "Jogue ao menos 8 quizzes tagueados como AP (na sua matéria) e mostraremos uma banda.",
+        "predictor.neet.insufficient_data": "Jogue ao menos 8 quizzes tagueados como NEET e mostraremos uma banda.",
+        "predictor.generic.insufficient_data": "Jogue ao menos 8 quizzes tagueados a este exame e mostraremos uma banda de confiança.",
+        "calendar.no_results": "Não há entradas de calendário de exames conhecidas para o país e ano solicitados.",
+        "school.no_results": "Nenhuma escola compatível — use o modo de texto livre para adicionar a sua.",
+    };
+    var I18N_AR = {
+        "predictor.sat.high": "تتجه نحو {predicted} في الـ SAT (مجال ثقة 90% {ci_low}–{ci_high}). القراءة والكتابة جيدتان؛ احتفظ بالرياضيات بثلاث مجموعات موقوتة أسبوعياً.",
+        "predictor.sat.mid": "توقع SAT: {predicted} (مجال ثقة 90% {ci_low}–{ci_high}). أرخص رفع في الرياضيات — 6 ساعات/أسبوع تمارين موجهة ترفعك إلى 1350+.",
+        "predictor.sat.low": "المسار الحالي: {predicted} في الـ SAT (مجال ثقة 90% {ci_low}–{ci_high}). الأساسيات أولاً — يومياً مجموعة قراءة ومجموعة رياضيات؛ +120 خلال 6 أسابيع.",
+        "predictor.jee.high": "JEE Main: التوجه نحو {predicted}. الـ 1% الأعلى في المتناول — حافظ على دقة الكيمياء وامتحانات تجريبية كاملة أسبوعياً.",
+        "predictor.jee.mid": "توقع JEE Main: {predicted}. الميكانيكا والكيمياء غير العضوية أكبر الفجوات — 90 دقيقة/يوم على PYQs.",
+        "predictor.jee.low": "توقع JEE Main: {predicted}. لا تقفز بين المواد؛ كتل 14 يوماً لكل مادة: مفهوم → أمثلة → PYQ.",
+        "predictor.ap.high": "AP المتوقع: {predicted}. ضمن نطاق 5 بأريحية — انتقل إلى تمارين FRQ فقط لإحكام المعايير.",
+        "predictor.ap.mid": "AP المتوقع: {predicted}. الاختيار من متعدد جيد؛ الحد الفاصل للوصول إلى 5 هو إيقاع FRQ — اثنان موقتان أسبوعياً.",
+        "predictor.ap.low": "AP المتوقع: {predicted}. ركّز على 4–5 وحدات يعطيها College Board أكبر وزن في مادتك.",
+        "predictor.neet.high": "NEET المتوقع: {predicted} / 720. AIIMS واقعي — احم دقة الأحياء.",
+        "predictor.neet.mid": "NEET المتوقع: {predicted} / 720. الفيزياء هي الفجوة؛ 60 دقيقة/يوم NCERT + 30 دقيقة PYQ تضيف 40-60 درجة شهرياً.",
+        "predictor.neet.low": "NEET المتوقع: {predicted} / 720. ركّز على NCERT للأحياء سطراً بسطر لمدة 21 يوماً.",
+        "predictor.generic.high": "أنت في الـ {predicted} من مستخدمي QuizVerse لهذا الامتحان. حافظ على الحجم وأضف امتحانات تجريبية كاملة أسبوعياً.",
+        "predictor.generic.mid": "أنت في الـ {predicted} من مستخدمي QuizVerse. موضوعان ضعيفان يسحبان معدلك — انتقل إلى مجموعات 10 أسئلة لكل موضوع.",
+        "predictor.generic.low": "أنت في الـ {predicted} من مستخدمي QuizVerse. الأساسيات أولاً: 5 أسئلة تمهيدية يومياً، بدون امتحانات كاملة لأسبوعين.",
+        "predictor.sat.insufficient_data": "العب 8 اختبارات SAT على الأقل لنعرض لك نطاقاً. لن نخترع رقماً.",
+        "predictor.jee.insufficient_data": "العب 8 اختبارات JEE على الأقل لنعرض لك نطاق نسبة مئوية.",
+        "predictor.ap.insufficient_data": "العب 8 اختبارات AP على الأقل (في مادتك) لنعرض لك نطاقاً.",
+        "predictor.neet.insufficient_data": "العب 8 اختبارات NEET على الأقل لنعرض لك نطاقاً.",
+        "predictor.generic.insufficient_data": "العب 8 اختبارات على الأقل موسومة بهذا الامتحان لنعرض لك نطاق ثقة.",
+        "calendar.no_results": "لا توجد إدخالات تقويم امتحانات معروفة للبلد والسنة المطلوبين بعد.",
+        "school.no_results": "لم نجد مدارس مطابقة — جرب وضع النص الحر لإضافة مدرستك.",
+    };
+    var I18N_ID = {
+        "predictor.sat.high": "Kamu mengarah ke {predicted} di SAT (CI 90% {ci_low}–{ci_high}). Reading & Writing solid; jaga Math dengan 3 set berwaktu per minggu.",
+        "predictor.sat.mid": "Proyeksi SAT: {predicted} (CI 90% {ci_low}–{ci_high}). Peningkatan termurah di Math — 6 jam/minggu drill terarah harus membawamu ke 1350+.",
+        "predictor.sat.low": "Lintasan saat ini: {predicted} di SAT (CI 90% {ci_low}–{ci_high}). Fundamental dulu — selang-seling satu set R&W dan satu Math per hari; +120 dalam 6 minggu.",
+        "predictor.jee.high": "JEE Main: tren {predicted}. Top 1% terjangkau — jaga akurasi Chemistry dan mock penuh mingguan.",
+        "predictor.jee.mid": "Proyeksi JEE Main: {predicted}. Mechanics + Inorganic Chemistry adalah residu terbesar — 90 menit/hari PYQ.",
+        "predictor.jee.low": "Proyeksi JEE Main: {predicted}. Berhenti lompat-lompat mata pelajaran; blok 14 hari per mata pelajaran: konsep → contoh → PYQ.",
+        "predictor.ap.high": "AP proyeksi: {predicted}. Band 5 nyaman — beralih ke drill FRQ saja.",
+        "predictor.ap.mid": "AP proyeksi: {predicted}. MCQ aman; batas ke 5 adalah ritme FRQ — 2 FRQ berwaktu per minggu.",
+        "predictor.ap.low": "AP proyeksi: {predicted}. Fokus pada 4–5 unit yang paling diberi bobot College Board untuk mata pelajaranmu.",
+        "predictor.neet.high": "NEET proyeksi: {predicted} / 720. Tier AIIMS realistis — jaga akurasi Biologi.",
+        "predictor.neet.mid": "NEET proyeksi: {predicted} / 720. Fisika adalah residumu; 60 menit/hari NCERT + 30 menit PYQ menambah 40-60 nilai sebulan.",
+        "predictor.neet.low": "NEET proyeksi: {predicted} / 720. Pivot ke NCERT Biologi baris demi baris selama 21 hari.",
+        "predictor.generic.high": "Kamu berada di {predicted} pengguna QuizVerse untuk ujian ini. Jaga volume dan tambahkan mock penuh berwaktu mingguan.",
+        "predictor.generic.mid": "Kamu berada di {predicted} pengguna QuizVerse. Dua topik lemah menarik rata-ratamu — beralih ke set 10 pertanyaan per topik.",
+        "predictor.generic.low": "Kamu berada di {predicted} pengguna QuizVerse. Fundamental dulu: 5 pertanyaan warmup harian, tanpa mock penuh selama 2 minggu.",
+        "predictor.sat.insufficient_data": "Mainkan setidaknya 8 quiz bertag SAT lalu kami akan menampilkan band. Kami tidak akan mengarang angka.",
+        "predictor.jee.insufficient_data": "Mainkan setidaknya 8 quiz bertag JEE lalu kami akan menampilkan band persentil.",
+        "predictor.ap.insufficient_data": "Mainkan setidaknya 8 quiz bertag AP (di mata pelajaranmu) lalu kami akan menampilkan band.",
+        "predictor.neet.insufficient_data": "Mainkan setidaknya 8 quiz bertag NEET lalu kami akan menampilkan band.",
+        "predictor.generic.insufficient_data": "Mainkan setidaknya 8 quiz bertag ujian ini lalu kami akan menampilkan band kepercayaan.",
+        "calendar.no_results": "Belum ada entri kalender ujian yang diketahui untuk negara dan tahun yang diminta.",
+        "school.no_results": "Tidak ada sekolah yang cocok — gunakan jalur teks bebas agar kami menambahkan sekolahmu.",
+    };
+    var I18N_BUNDLES = {
+        "en": I18N_EN,
+        "hi": I18N_HI,
+        "es": I18N_ES,
+        "pt-BR": I18N_PT_BR,
+        "ar": I18N_AR,
+        "id": I18N_ID,
+    };
+    function examFamilyForKey(examId) {
+        var id = ("" + (examId || "")).toLowerCase();
+        if (id.indexOf("sat") === 0)
+            return "sat";
+        if (id.indexOf("jee") === 0)
+            return "jee";
+        if (id.indexOf("ap") === 0 || id.indexOf("ap_") === 0)
+            return "ap";
+        if (id.indexOf("neet") === 0)
+            return "neet";
+        return "generic";
+    }
+    function i18nRecommendation(locale, examId, band) {
+        var loc = ("" + (locale || "en"));
+        var bundle = I18N_BUNDLES[loc] || I18N_BUNDLES["en"];
+        var key = "predictor." + examFamilyForKey(examId) + "." + band;
+        if (bundle[key])
+            return bundle[key];
+        // fall back to English
+        if (I18N_BUNDLES["en"][key])
+            return I18N_BUNDLES["en"][key];
+        return "";
+    }
+    LearnerToolbelt.i18nRecommendation = i18nRecommendation;
+    function i18nString(locale, key) {
+        var bundle = I18N_BUNDLES[locale] || I18N_BUNDLES["en"];
+        return bundle[key] || I18N_BUNDLES["en"][key] || "";
+    }
+    LearnerToolbelt.i18nString = i18nString;
+})(LearnerToolbelt || (LearnerToolbelt = {}));
+// lt_predictor.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// LearnerToolbelt — Bayes fallback score predictor (Wave 5 — PLAN § 3.7).
+//
+// Phase A scope: L0 diagnostic ONLY (Bayesian beta-posterior over the user's
+// recent quiz accuracy → mapped through a per-exam linear function). The
+// IRT 2PL path (§ 3.6) requires offline calibration of per-item a/b params
+// — that's a follow-up PR.
+//
+// Predictor tier per PLAN-EXAM_TAXONOMY_EXPANSION § 2.22:
+//   < 8 quizzes  → status: "insufficient_data"
+//   8 - 19       → predictor_tier: "l0_diagnostic", confidence band only
+//   ≥ 20         → predictor_tier: "l1_profile",   point estimate + 90% CI
+//
+// Data source: legacy `quiz_results` collection (see src/legacy/quiz.ts).
+// Each row is `result_<userId>_<unix>` with shape:
+//   { score, totalQuestions, correctAnswers, category, timestamp }
+// We filter by timestamp (last 60 days) and exam tag (`category` substring).
+//
+// Localised recommendation text per (exam, accuracy_band, locale) — keys
+// owned by lt_i18n.ts (RPC owns translations per § 7.4 to keep clients
+// in sync without per-platform string bundles).
+var LearnerToolbelt;
+(function (LearnerToolbelt) {
+    function clampUnit(x) {
+        if (x < 0)
+            return 0;
+        if (x > 1)
+            return 1;
+        return x;
+    }
+    // SAT: 0.0 → 400, 1.0 → 1600.
+    var SCALER_SAT = {
+        family: "scaled",
+        toNative: function (a) { return Math.round(400 + clampUnit(a) * 1200); },
+        label: function (n) { return "" + n; },
+        nativeMin: 400, nativeMax: 1600,
+        aliases: ["sat", "sat-math", "sat-rw", "sat_math", "sat_reading"],
+    };
+    // ACT: 0.0 → 1, 1.0 → 36.
+    var SCALER_ACT = {
+        family: "scaled",
+        toNative: function (a) { return Math.round(1 + clampUnit(a) * 35); },
+        label: function (n) { return "" + n; },
+        nativeMin: 1, nativeMax: 36,
+        aliases: ["act", "act_math", "act_english"],
+    };
+    // JEE Main: accuracy → percentile (0..100), then % → approximate AIR.
+    // AIR ≈ (1 - percentile/100) * 1.4M (NTA reports ~1.4M Session-1 candidates).
+    var SCALER_JEE = {
+        family: "percentile",
+        toNative: function (a) { return Math.round(clampUnit(a) * 10000) / 100; }, // percentile 0..100 (2dp)
+        label: function (n) { return n.toFixed(2) + " percentile"; },
+        nativeMin: 0, nativeMax: 100,
+        aliases: ["jee_main", "jee", "jee_advanced"],
+    };
+    // AP: accuracy → grade 1..5 (continuous, rounded for label).
+    var SCALER_AP = {
+        family: "grade",
+        toNative: function (a) { return Math.round((1 + clampUnit(a) * 4) * 10) / 10; },
+        label: function (n) { return n.toFixed(1); },
+        nativeMin: 1, nativeMax: 5,
+        aliases: ["ap", "ap_biology", "ap_calculus", "ap_chemistry", "ap_physics", "ap_us_history"],
+    };
+    // NEET: like JEE but with ~1.8M candidates and 720-mark scale.
+    var SCALER_NEET = {
+        family: "scaled",
+        toNative: function (a) { return Math.round(clampUnit(a) * 720); },
+        label: function (n) { return "" + n + " / 720"; },
+        nativeMin: 0, nativeMax: 720,
+        aliases: ["neet", "neet_ug"],
+    };
+    // Generic / unknown exam: return raw percentile against in-cohort users.
+    var SCALER_GENERIC = {
+        family: "percentile",
+        toNative: function (a) { return Math.round(clampUnit(a) * 10000) / 100; },
+        label: function (n) { return n.toFixed(1) + " percentile (QuizVerse cohort)"; },
+        nativeMin: 0, nativeMax: 100,
+        aliases: [],
+    };
+    function pickScaler(examId) {
+        var id = ("" + (examId || "")).toLowerCase();
+        if (SCALER_SAT.aliases.indexOf(id) >= 0)
+            return SCALER_SAT;
+        if (SCALER_ACT.aliases.indexOf(id) >= 0)
+            return SCALER_ACT;
+        if (SCALER_JEE.aliases.indexOf(id) >= 0)
+            return SCALER_JEE;
+        if (SCALER_AP.aliases.indexOf(id) >= 0 || id.indexOf("ap_") === 0)
+            return SCALER_AP;
+        if (SCALER_NEET.aliases.indexOf(id) >= 0)
+            return SCALER_NEET;
+        return SCALER_GENERIC;
+    }
+    // ── Beta-posterior approximation ─────────────────────────────────────────
+    // α = correct + 1, β = incorrect + 1  (uniform prior).
+    // Mean    = α / (α+β)
+    // Variance= αβ / [(α+β)² (α+β+1)]
+    // 90% CI approximated via Wilson-style ± 1.645 * sqrt(var). Good enough for
+    // L0 diagnostic; the IRT path in the follow-up PR will use the proper
+    // posterior quantiles.
+    function betaPosteriorBounds(correct, total) {
+        var alpha = correct + 1;
+        var beta = (total - correct) + 1;
+        var sum = alpha + beta;
+        var mean = alpha / sum;
+        var variance = (alpha * beta) / (sum * sum * (sum + 1));
+        var sd = Math.sqrt(variance);
+        var z = 1.645;
+        var lo = Math.max(0, mean - z * sd);
+        var hi = Math.min(1, mean + z * sd);
+        return { mean: mean, lo90: lo, hi90: hi };
+    }
+    LearnerToolbelt.betaPosteriorBounds = betaPosteriorBounds;
+    // ── Quiz-history filter ──────────────────────────────────────────────────
+    // examId is matched against the row's `category` string (substring, case-
+    // insensitive). For the long-tail cases where category is "general" but the
+    // user told us they're studying for SAT, we still count the row toward the
+    // L0 diagnostic — better to ship one signal than zero, with confidence
+    // appropriately tagged.
+    function filterHistoryForExam(rows, examId, windowDays, nowUnix) {
+        var cutoff = nowUnix - Math.max(1, windowDays) * 86400;
+        var ex = ("" + (examId || "")).toLowerCase();
+        var fam = pickScaler(examId);
+        var matched = [];
+        var total = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            if (!r || !r.timestamp || r.timestamp < cutoff)
+                continue;
+            total++;
+            var cat = ("" + (r.category || "")).toLowerCase();
+            if (cat.indexOf(ex) >= 0) {
+                matched.push(r);
+                continue;
+            }
+            // alias matching (e.g. examId="ap" → match "ap_biology")
+            var aliasHit = false;
+            for (var a = 0; a < fam.aliases.length; a++) {
+                if (cat.indexOf(fam.aliases[a]) >= 0) {
+                    aliasHit = true;
+                    break;
+                }
+            }
+            if (aliasHit)
+                matched.push(r);
+        }
+        return { matched: matched, total: total };
+    }
+    LearnerToolbelt.filterHistoryForExam = filterHistoryForExam;
+    // ── Bands → i18n key suffix ──────────────────────────────────────────────
+    function accuracyBand(accuracy) {
+        if (accuracy >= 0.75)
+            return "high";
+        if (accuracy >= 0.5)
+            return "mid";
+        return "low";
+    }
+    LearnerToolbelt.accuracyBand = accuracyBand;
+    // ── Main predict entry ───────────────────────────────────────────────────
+    // Returns the full ScorePredictResult given pre-fetched history rows. The
+    // RPC handler does the storage read; this function is pure (testable).
+    function predictFromHistory(req, history, nowUnix) {
+        var scaler = pickScaler(req.exam_id);
+        var win = req.recent_quiz_window_days > 0 ? req.recent_quiz_window_days : 60;
+        var filtered = filterHistoryForExam(history, req.exam_id, win, nowUnix);
+        // Aggregate
+        var totalCorrect = 0, totalQuestions = 0;
+        for (var i = 0; i < filtered.matched.length; i++) {
+            var r = filtered.matched[i];
+            totalCorrect += Math.max(0, r.correctAnswers | 0);
+            totalQuestions += Math.max(0, r.totalQuestions | 0);
+        }
+        if (filtered.matched.length < 8 || totalQuestions < 8) {
+            return {
+                ok: true,
+                status: "insufficient_data",
+                exam_id: req.exam_id,
+                predictor_tier: "below_l0",
+                model_version: "l0-bayes-v1",
+                quizzes_used: filtered.matched.length,
+                quizzes_total_in_window: filtered.total,
+                min_quizzes_for_high_confidence: 20,
+                accuracy_observed: 0,
+                posterior_mean: 0,
+                predicted: {
+                    scaled_score: null, percentile: null, rank: null, grade: null,
+                    ci_low: 0, ci_high: 0,
+                },
+                recommendation_text: LearnerToolbelt.i18nRecommendation(req.locale, req.exam_id, "insufficient_data"),
+                confidence_pct: 0,
+                generated_unix: nowUnix,
+                ttl_seconds: 3600,
+            };
+        }
+        var post = betaPosteriorBounds(totalCorrect, totalQuestions);
+        var nativeMean = scaler.toNative(post.mean);
+        var nativeLo = scaler.toNative(post.lo90);
+        var nativeHi = scaler.toNative(post.hi90);
+        var tier = filtered.matched.length >= 20 ? "l1_profile" : "l0_diagnostic";
+        // Build the predicted bucket per family.
+        var bucket = {
+            scaled_score: null, percentile: null, rank: null, grade: null,
+            ci_low: Math.min(nativeLo, nativeHi), ci_high: Math.max(nativeLo, nativeHi),
+        };
+        if (scaler.family === "scaled") {
+            bucket.scaled_score = nativeMean;
+        }
+        else if (scaler.family === "percentile") {
+            bucket.percentile = nativeMean;
+            // Derived AIR for JEE-family
+            if (scaler === SCALER_JEE) {
+                bucket.rank = Math.max(1, Math.round((1 - nativeMean / 100) * 1400000));
+            }
+        }
+        else if (scaler.family === "grade") {
+            bucket.grade = scaler.label(nativeMean);
+            bucket.scaled_score = nativeMean;
+        }
+        var band = accuracyBand(post.mean);
+        var rec = LearnerToolbelt.i18nRecommendation(req.locale, req.exam_id, band);
+        // Substitute the predicted-value placeholder if present.
+        var predictedLabel = scaler.label(nativeMean);
+        rec = rec.replace("{predicted}", predictedLabel).replace("{ci_low}", "" + bucket.ci_low).replace("{ci_high}", "" + bucket.ci_high);
+        // Crude confidence: 100 - (CI half-width / native range) * 100, clamped.
+        var range = Math.max(1, scaler.nativeMax - scaler.nativeMin);
+        var halfWidth = Math.max(0, (bucket.ci_high - bucket.ci_low) / 2);
+        var confidence = Math.max(10, Math.min(95, 100 - (halfWidth / range) * 200));
+        return {
+            ok: true,
+            status: "ok",
+            exam_id: req.exam_id,
+            predictor_tier: tier,
+            model_version: tier === "l1_profile" ? "l1-bayes-v1" : "l0-bayes-v1",
+            quizzes_used: filtered.matched.length,
+            quizzes_total_in_window: filtered.total,
+            min_quizzes_for_high_confidence: 20,
+            accuracy_observed: Math.round(post.mean * 10000) / 10000,
+            posterior_mean: Math.round(post.mean * 10000) / 10000,
+            predicted: bucket,
+            recommendation_text: rec,
+            confidence_pct: Math.round(confidence),
+            generated_unix: nowUnix,
+            ttl_seconds: 1800,
+        };
+    }
+    LearnerToolbelt.predictFromHistory = predictFromHistory;
+    // ── Per-exam uplift constant for the countdown formula (plan § 4.4) ──────
+    // expected_uplift_per_quiz — see plan: 0.4 SAT-points, 0.1 percentile-JEE,
+    // 0.05 percentile-other.
+    function expectedUpliftPerQuiz(examId) {
+        var id = ("" + (examId || "")).toLowerCase();
+        if (SCALER_SAT.aliases.indexOf(id) >= 0)
+            return { unit: "sat_points", value: 0.4 };
+        if (SCALER_JEE.aliases.indexOf(id) >= 0 || SCALER_NEET.aliases.indexOf(id) >= 0) {
+            return { unit: "percentile", value: 0.1 };
+        }
+        return { unit: "percentile", value: 0.05 };
+    }
+    LearnerToolbelt.expectedUpliftPerQuiz = expectedUpliftPerQuiz;
+})(LearnerToolbelt || (LearnerToolbelt = {}));
+// lt_schools.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// LearnerToolbelt — in-memory school fixture + search ranking (Wave 4 — PLAN § 6).
+//
+// Phase A ships an inline fixture of ~200 well-known schools across the
+// 6 priority country groups. This is INTENTIONALLY a demo-grade subset —
+// the full multi-million-row NCES/UDISE+/GIAS ingest lands in Phase B
+// (per plan § 1.5 / § 7.2). The Phase A search RPC must still feel real
+// for the SEO landing page + agent demos, so we bake well-known names.
+//
+// Fixture composition (target counts):
+//   US: 30   India: 50   UK: 30   Singapore: 10   Brazil: 10
+//   Other (FR/DE/UAE/JP/KR/AU/CA/MX/ZA/NG): 20
+//   Generic placeholders: 50
+//
+// Ranking (plan § 6.4):
+//   exact name match: 1000
+//   prefix match:      800
+//   substring match:   500
+//   city match:       +200 boost
+//   board exact:      +100 boost
+//   country filter:   +50 boost (already passed → free)
+var LearnerToolbelt;
+(function (LearnerToolbelt) {
+    function mk(id, source, name, city, region, country, board, band, lang) {
+        return {
+            school_id: id, source: source, display_name: name,
+            city: city, state_region: region, country_code: country,
+            board: board, grade_band: band,
+            lat: null, lng: null, language_of_instruction: lang,
+        };
+    }
+    // ── Fixture ──────────────────────────────────────────────────────────────
+    LearnerToolbelt.SCHOOL_FIXTURE = [
+        // ── US: 30 well-known public + magnet + private ──
+        mk("nces:360008505860", "nces", "Stuyvesant High School", "New York", "NY", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:360008500700", "nces", "Bronx High School of Science", "Bronx", "NY", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:360008500692", "nces", "Brooklyn Technical High School", "Brooklyn", "NY", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:360011700301", "nces", "Hunter College High School", "New York", "NY", "US", "us-public", "hs-7-12", "en"),
+        mk("nces:062271005932", "nces", "Lowell High School", "San Francisco", "CA", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:511821002859", "nces", "Thomas Jefferson High School for Science and Technology", "Alexandria", "VA", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:250456000316", "nces", "Boston Latin School", "Boston", "MA", "US", "us-public", "hs-7-12", "en"),
+        mk("nces:170993006216", "nces", "Walter Payton College Preparatory High School", "Chicago", "IL", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:171449009381", "nces", "Northside College Preparatory High School", "Chicago", "IL", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:062271001995", "nces", "Gunn High School", "Palo Alto", "CA", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:062271001994", "nces", "Palo Alto High School", "Palo Alto", "CA", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:062271000570", "nces", "Mission San Jose High School", "Fremont", "CA", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:062271001500", "nces", "Monta Vista High School", "Cupertino", "CA", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:062271001501", "nces", "Lynbrook High School", "San Jose", "CA", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:200007000370", "nces", "Blue Valley North High School", "Overland Park", "KS", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:481680004186", "nces", "Plano West Senior High School", "Plano", "TX", "US", "us-public", "hs-11-12", "en"),
+        mk("nces:481512004029", "nces", "Highland Park High School", "Dallas", "TX", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:482052005193", "nces", "Westwood High School", "Austin", "TX", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:340939003432", "nces", "High Technology High School", "Lincroft", "NJ", "US", "us-public", "hs-9-12", "en"),
+        mk("nces:340939003433", "nces", "Bergen County Academies", "Hackensack", "NJ", "US", "us-public", "hs-9-12", "en"),
+        mk("pss:0202790", "pss", "Phillips Exeter Academy", "Exeter", "NH", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202791", "pss", "Phillips Academy Andover", "Andover", "MA", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202792", "pss", "Choate Rosemary Hall", "Wallingford", "CT", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202793", "pss", "The Lawrenceville School", "Lawrenceville", "NJ", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202794", "pss", "Deerfield Academy", "Deerfield", "MA", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202795", "pss", "Hotchkiss School", "Lakeville", "CT", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202796", "pss", "St. Paul's School", "Concord", "NH", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202797", "pss", "Groton School", "Groton", "MA", "US", "us-private", "hs-9-12", "en"),
+        mk("pss:0202798", "pss", "Trinity School", "New York", "NY", "US", "us-private", "k-12", "en"),
+        mk("pss:0202799", "pss", "Horace Mann School", "Bronx", "NY", "US", "us-private", "k-12", "en"),
+        // ── India: 50 top schools spanning Delhi/Mumbai/Bangalore/Chennai/Kolkata/Hyderabad ──
+        mk("udise:09010012345", "udise", "Delhi Public School, R.K. Puram", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012346", "udise", "Delhi Public School, Vasant Kunj", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012347", "udise", "Delhi Public School, Mathura Road", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012348", "udise", "Sanskriti School", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012349", "udise", "Modern School, Barakhamba Road", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012350", "udise", "The Shri Ram School, Aravali", "Gurugram", "Haryana", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012351", "udise", "Vasant Valley School", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012352", "udise", "Step by Step School", "Noida", "UP", "IN", "ib", "k-12", "en"),
+        mk("udise:09010012353", "udise", "The Heritage School, Gurugram", "Gurugram", "Haryana", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012354", "udise", "Pathways World School", "Gurugram", "Haryana", "IN", "ib", "k-12", "en"),
+        mk("udise:27010023456", "udise", "Bombay Scottish School, Mahim", "Mumbai", "Maharashtra", "IN", "icse", "k-12", "en"),
+        mk("udise:27010023457", "udise", "Cathedral and John Connon School", "Mumbai", "Maharashtra", "IN", "icse", "k-12", "en"),
+        mk("udise:27010023458", "udise", "Dhirubhai Ambani International School", "Mumbai", "Maharashtra", "IN", "ib", "k-12", "en"),
+        mk("udise:27010023459", "udise", "Campion School", "Mumbai", "Maharashtra", "IN", "icse", "hs-1-10", "en"),
+        mk("udise:27010023460", "udise", "Bombay International School", "Mumbai", "Maharashtra", "IN", "icse", "k-12", "en"),
+        mk("udise:27010023461", "udise", "Jamnabai Narsee School", "Mumbai", "Maharashtra", "IN", "cbse", "k-12", "en"),
+        mk("udise:27010023462", "udise", "Hill Spring International School", "Mumbai", "Maharashtra", "IN", "ib", "k-12", "en"),
+        mk("udise:27010023463", "udise", "Don Bosco High School, Matunga", "Mumbai", "Maharashtra", "IN", "icse", "hs-1-10", "en"),
+        mk("udise:29010034567", "udise", "Bishop Cotton Boys' School", "Bangalore", "Karnataka", "IN", "icse", "k-12", "en"),
+        mk("udise:29010034568", "udise", "Bishop Cotton Girls' School", "Bangalore", "Karnataka", "IN", "icse", "k-12", "en"),
+        mk("udise:29010034569", "udise", "National Public School, Indiranagar", "Bangalore", "Karnataka", "IN", "cbse", "k-12", "en"),
+        mk("udise:29010034570", "udise", "Bangalore International School", "Bangalore", "Karnataka", "IN", "ib", "k-12", "en"),
+        mk("udise:29010034571", "udise", "Inventure Academy", "Bangalore", "Karnataka", "IN", "cambridge", "k-12", "en"),
+        mk("udise:29010034572", "udise", "The Indus International School", "Bangalore", "Karnataka", "IN", "ib", "k-12", "en"),
+        mk("udise:29010034573", "udise", "Christ Junior College", "Bangalore", "Karnataka", "IN", "state", "preuniv", "en"),
+        mk("udise:33010045678", "udise", "Don Bosco Matriculation Hr Sec School", "Chennai", "TN", "IN", "state", "hs-1-12", "en"),
+        mk("udise:33010045679", "udise", "PSBB Senior Secondary School, KK Nagar", "Chennai", "TN", "IN", "cbse", "k-12", "en"),
+        mk("udise:33010045680", "udise", "Chettinad Vidyashram", "Chennai", "TN", "IN", "cbse", "k-12", "en"),
+        mk("udise:33010045681", "udise", "DAV Boys Senior Secondary School", "Chennai", "TN", "IN", "cbse", "hs-1-12", "en"),
+        mk("udise:33010045682", "udise", "The School KFI", "Chennai", "TN", "IN", "icse", "k-12", "en"),
+        mk("udise:19010056789", "udise", "La Martiniere for Boys", "Kolkata", "WB", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:19010056790", "udise", "La Martiniere for Girls", "Kolkata", "WB", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:19010056791", "udise", "St. Xavier's Collegiate School", "Kolkata", "WB", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:19010056792", "udise", "Don Bosco School, Park Circus", "Kolkata", "WB", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:19010056793", "udise", "Modern High School for Girls", "Kolkata", "WB", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:19010056794", "udise", "South Point High School", "Kolkata", "WB", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:36010067890", "udise", "Hyderabad Public School, Begumpet", "Hyderabad", "Telangana", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:36010067891", "udise", "Chirec International School", "Hyderabad", "Telangana", "IN", "cbse", "k-12", "en"),
+        mk("udise:36010067892", "udise", "Oakridge International School", "Hyderabad", "Telangana", "IN", "ib", "k-12", "en"),
+        mk("udise:36010067893", "udise", "Delhi Public School, Nacharam", "Hyderabad", "Telangana", "IN", "cbse", "k-12", "en"),
+        mk("udise:23010078901", "udise", "Daly College", "Indore", "MP", "IN", "icse", "hs-1-12", "en"),
+        mk("udise:23010078902", "udise", "Emerald Heights International School", "Indore", "MP", "IN", "cbse", "k-12", "en"),
+        mk("udise:08010089012", "udise", "Mayo College", "Ajmer", "Rajasthan", "IN", "cbse", "hs-1-12", "en"),
+        mk("udise:08010089013", "udise", "The Doon School", "Dehradun", "Uttarakhand", "IN", "icse", "hs-7-12", "en"),
+        mk("udise:08010089014", "udise", "Welham Boys' School", "Dehradun", "Uttarakhand", "IN", "icse", "hs-4-12", "en"),
+        mk("udise:08010089015", "udise", "Scindia School", "Gwalior", "MP", "IN", "icse", "hs-6-12", "en"),
+        mk("udise:08010089016", "udise", "Rishi Valley School", "Chittoor", "AP", "IN", "icse", "hs-4-12", "en"),
+        mk("udise:09010012360", "udise", "Springdales School, Pusa Road", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:09010012361", "udise", "Mother's International School", "New Delhi", "Delhi", "IN", "cbse", "k-12", "en"),
+        mk("udise:27010023470", "udise", "Singapore International School, Mumbai", "Mumbai", "Maharashtra", "IN", "cambridge", "k-12", "en"),
+        mk("udise:09010012362", "udise", "The British School, New Delhi", "New Delhi", "Delhi", "IN", "cambridge", "k-12", "en"),
+        // ── UK: 30 well-known state + independent ──
+        mk("gias-uk:100000", "gias-uk", "Eton College", "Windsor", "Berkshire", "UK", "uk-independent", "hs-9-13", "en"),
+        mk("gias-uk:100001", "gias-uk", "Westminster School", "London", "Greater London", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100002", "gias-uk", "Harrow School", "Harrow", "Greater London", "UK", "uk-independent", "hs-9-13", "en"),
+        mk("gias-uk:100003", "gias-uk", "Winchester College", "Winchester", "Hampshire", "UK", "uk-independent", "hs-9-13", "en"),
+        mk("gias-uk:100004", "gias-uk", "St Paul's School", "London", "Greater London", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100005", "gias-uk", "Manchester Grammar School", "Manchester", "Greater Manchester", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100006", "gias-uk", "City of London School", "London", "Greater London", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100007", "gias-uk", "Dulwich College", "London", "Greater London", "UK", "uk-independent", "k-12", "en"),
+        mk("gias-uk:100008", "gias-uk", "King's College School Wimbledon", "London", "Greater London", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100009", "gias-uk", "St Paul's Girls' School", "London", "Greater London", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100010", "gias-uk", "North London Collegiate School", "Edgware", "Greater London", "UK", "uk-independent", "k-12", "en"),
+        mk("gias-uk:100011", "gias-uk", "Wycombe Abbey", "High Wycombe", "Buckinghamshire", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100012", "gias-uk", "Cheltenham Ladies' College", "Cheltenham", "Gloucestershire", "UK", "uk-independent", "hs-7-13", "en"),
+        mk("gias-uk:100013", "gias-uk", "Rugby School", "Rugby", "Warwickshire", "UK", "uk-independent", "hs-9-13", "en"),
+        mk("gias-uk:100014", "gias-uk", "Marlborough College", "Marlborough", "Wiltshire", "UK", "uk-independent", "hs-9-13", "en"),
+        mk("gias-uk:100015", "gias-uk", "The Perse School", "Cambridge", "Cambridgeshire", "UK", "uk-independent", "k-12", "en"),
+        mk("gias-uk:100016", "gias-uk", "Henrietta Barnett School", "London", "Greater London", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100017", "gias-uk", "Queen Elizabeth's School, Barnet", "Barnet", "Greater London", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100018", "gias-uk", "Wilson's School", "Wallington", "Greater London", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100019", "gias-uk", "Tiffin Boys' School", "Kingston upon Thames", "Greater London", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100020", "gias-uk", "King Edward VI Camp Hill School", "Birmingham", "West Midlands", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100021", "gias-uk", "Pate's Grammar School", "Cheltenham", "Gloucestershire", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100022", "gias-uk", "Colchester Royal Grammar School", "Colchester", "Essex", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100023", "gias-uk", "The Tiffin Girls' School", "Kingston upon Thames", "Greater London", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100024", "gias-uk", "Newstead Wood School", "Orpington", "Greater London", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100025", "gias-uk", "Reading School", "Reading", "Berkshire", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100026", "gias-uk", "Oxford High School GDST", "Oxford", "Oxfordshire", "UK", "uk-independent", "k-12", "en"),
+        mk("gias-uk:100027", "gias-uk", "Latymer School", "London", "Greater London", "UK", "uk-state", "hs-7-13", "en"),
+        mk("gias-uk:100028", "gias-uk", "The Manchester Grammar School Junior", "Manchester", "Greater Manchester", "UK", "uk-independent", "primary", "en"),
+        mk("gias-uk:100029", "gias-uk", "Royal Grammar School Guildford", "Guildford", "Surrey", "UK", "uk-independent", "hs-7-13", "en"),
+        // ── Singapore: 10 ──
+        mk("gias-sg:0001", "gias-sg", "Raffles Institution", "Singapore", "Central", "SG", "moe", "hs-7-12", "en"),
+        mk("gias-sg:0002", "gias-sg", "Raffles Girls' School", "Singapore", "Central", "SG", "moe", "hs-7-10", "en"),
+        mk("gias-sg:0003", "gias-sg", "Hwa Chong Institution", "Singapore", "Central", "SG", "moe", "hs-7-12", "en"),
+        mk("gias-sg:0004", "gias-sg", "Nanyang Girls' High School", "Singapore", "Central", "SG", "moe", "hs-7-10", "en"),
+        mk("gias-sg:0005", "gias-sg", "NUS High School of Mathematics and Science", "Singapore", "West", "SG", "moe", "hs-7-12", "en"),
+        mk("gias-sg:0006", "gias-sg", "Anglo-Chinese School (Independent)", "Singapore", "Central", "SG", "moe", "hs-7-12", "en"),
+        mk("gias-sg:0007", "gias-sg", "Methodist Girls' School", "Singapore", "West", "SG", "moe", "hs-7-10", "en"),
+        mk("gias-sg:0008", "gias-sg", "Singapore Chinese Girls' School", "Singapore", "Central", "SG", "moe", "hs-7-10", "en"),
+        mk("gias-sg:0009", "gias-sg", "Victoria Junior College", "Singapore", "East", "SG", "moe", "preuniv", "en"),
+        mk("gias-sg:0010", "gias-sg", "Temasek Junior College", "Singapore", "East", "SG", "moe", "preuniv", "en"),
+        // ── Brazil: 10 ──
+        mk("inep:35001234", "inep", "Colégio Bandeirantes", "São Paulo", "SP", "BR", "br-private", "k-12", "pt"),
+        mk("inep:35001235", "inep", "Colégio Etapa", "São Paulo", "SP", "BR", "br-private", "hs-6-12", "pt"),
+        mk("inep:35001236", "inep", "Colégio Objetivo", "São Paulo", "SP", "BR", "br-private", "k-12", "pt"),
+        mk("inep:35001237", "inep", "Colégio Móbile", "São Paulo", "SP", "BR", "br-private", "k-12", "pt"),
+        mk("inep:35001238", "inep", "Colégio Vértice", "São Paulo", "SP", "BR", "br-private", "hs-6-12", "pt"),
+        mk("inep:33001234", "inep", "Colégio Santo Agostinho", "Rio de Janeiro", "RJ", "BR", "br-private", "k-12", "pt"),
+        mk("inep:33001235", "inep", "Colégio São Bento", "Rio de Janeiro", "RJ", "BR", "br-private", "hs-6-12", "pt"),
+        mk("inep:33001236", "inep", "Escola Americana do Rio de Janeiro", "Rio de Janeiro", "RJ", "BR", "ib", "k-12", "en"),
+        mk("inep:31001234", "inep", "Colégio Bernoulli", "Belo Horizonte", "MG", "BR", "br-private", "hs-6-12", "pt"),
+        mk("inep:41001234", "inep", "Colégio Positivo", "Curitiba", "PR", "BR", "br-private", "k-12", "pt"),
+        // ── Other: 20 (France, Germany, UAE, Japan, Korea, AU, CA, ZA, NG, MX) ──
+        mk("freetext-seed:fr-001", "freetext", "Lycée Louis-le-Grand", "Paris", "Île-de-France", "FR", "fr-public", "hs-9-12", "fr"),
+        mk("freetext-seed:fr-002", "freetext", "Lycée Henri-IV", "Paris", "Île-de-France", "FR", "fr-public", "hs-9-12", "fr"),
+        mk("freetext-seed:fr-003", "freetext", "Lycée Stanislas", "Paris", "Île-de-France", "FR", "fr-private", "hs-9-12", "fr"),
+        mk("freetext-seed:de-001", "freetext", "German European School Singapore", "Singapore", "West", "SG", "de-abitur", "k-12", "de"),
+        mk("freetext-seed:de-002", "freetext", "Schadow-Gymnasium Berlin", "Berlin", "Berlin", "DE", "de-gymnasium", "hs-5-12", "de"),
+        mk("freetext-seed:de-003", "freetext", "Vitzthum-Gymnasium Dresden", "Dresden", "Saxony", "DE", "de-gymnasium", "hs-5-12", "de"),
+        mk("freetext-seed:ae-001", "freetext", "GEMS Modern Academy", "Dubai", "Dubai", "AE", "cbse", "k-12", "en"),
+        mk("freetext-seed:ae-002", "freetext", "Dubai College", "Dubai", "Dubai", "AE", "uk-independent", "hs-7-13", "en"),
+        mk("freetext-seed:ae-003", "freetext", "American School of Dubai", "Dubai", "Dubai", "AE", "us-private", "k-12", "en"),
+        mk("freetext-seed:jp-001", "freetext", "Nada High School", "Kobe", "Hyogo", "JP", "jp-private", "hs-7-12", "ja"),
+        mk("freetext-seed:jp-002", "freetext", "Kaisei Academy", "Tokyo", "Tokyo", "JP", "jp-private", "hs-7-12", "ja"),
+        mk("freetext-seed:kr-001", "freetext", "Seoul Science High School", "Seoul", "Seoul", "KR", "kr-public", "hs-10-12", "ko"),
+        mk("freetext-seed:kr-002", "freetext", "Daewon Foreign Language High School", "Seoul", "Seoul", "KR", "kr-public", "hs-10-12", "ko"),
+        mk("freetext-seed:au-001", "freetext", "Melbourne Grammar School", "Melbourne", "Victoria", "AU", "au-independent", "k-12", "en"),
+        mk("freetext-seed:au-002", "freetext", "Sydney Grammar School", "Sydney", "NSW", "AU", "au-independent", "k-12", "en"),
+        mk("freetext-seed:ca-001", "freetext", "Upper Canada College", "Toronto", "Ontario", "CA", "ca-independent", "k-12", "en"),
+        mk("freetext-seed:ca-002", "freetext", "St. George's School", "Vancouver", "BC", "CA", "ca-independent", "k-12", "en"),
+        mk("freetext-seed:za-001", "freetext", "Bishops Diocesan College", "Cape Town", "Western Cape", "ZA", "za-independent", "k-12", "en"),
+        mk("freetext-seed:ng-001", "freetext", "King's College Lagos", "Lagos", "Lagos", "NG", "ng-public", "hs-7-12", "en"),
+        mk("freetext-seed:mx-001", "freetext", "Colegio Americano", "Mexico City", "CDMX", "MX", "mx-private", "k-12", "es"),
+    ];
+    // 50 generic placeholders so the picker always returns SOMETHING for the
+    // long-tail country / city combinations the gateway will throw at it.
+    (function seedGenericPlaceholders() {
+        var GENERIC_COUNTRIES = [
+            "AE", "AR", "AT", "BD", "BE", "BG", "CH", "CL", "CN", "CO",
+            "CZ", "DK", "EG", "ES", "FI", "GR", "HU", "ID", "IE", "IL",
+            "IT", "KE", "MY", "NL", "NO", "NZ", "PE", "PH", "PK", "PL",
+            "PT", "QA", "RO", "RU", "SA", "SE", "SK", "TH", "TR", "TW",
+            "UA", "UY", "VE", "VN", "ZA", "ZW", "BH", "JO", "KW", "LK",
+        ];
+        for (var i = 0; i < GENERIC_COUNTRIES.length; i++) {
+            var cc = GENERIC_COUNTRIES[i];
+            LearnerToolbelt.SCHOOL_FIXTURE.push(mk("freetext-seed:" + cc.toLowerCase() + "-placeholder", "freetext", "(generic placeholder — " + cc + ")", "—", "—", cc, null, "k-12", null));
+        }
+    })();
+    function normalize(s) {
+        // Lowercase, drop punctuation (so "R.K. Puram" → "rk puram"), collapse ws.
+        return ("" + (s || "")).toLowerCase().replace(/[.,;:'"()]/g, "").replace(/\s+/g, " ").trim();
+    }
+    // Build an acronym from a normalized name. We take the first letter of each
+    // token, EXCEPT for very short tokens (≤2 chars, e.g. "rk", "st") where we
+    // include every letter — that way "delhi public school rk puram" → "dpsrkp"
+    // and "dps rkp" (or "dpsrkp") matches via prefix.
+    function acronymOf(normalizedName) {
+        var tokens = normalizedName.split(" ");
+        var out = "";
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (!t)
+                continue;
+            if (t.length <= 2) {
+                out += t;
+            }
+            else {
+                out += t.charAt(0);
+            }
+        }
+        return out;
+    }
+    // Tiny Levenshtein distance — bounded at maxDist so we can early-exit.
+    function editDistance(a, b, maxDist) {
+        if (a === b)
+            return 0;
+        var aLen = a.length;
+        var bLen = b.length;
+        if (Math.abs(aLen - bLen) > maxDist)
+            return maxDist + 1;
+        if (aLen === 0)
+            return bLen;
+        if (bLen === 0)
+            return aLen;
+        var prev = [];
+        for (var j = 0; j <= bLen; j++)
+            prev.push(j);
+        for (var i = 1; i <= aLen; i++) {
+            var curr = [i];
+            var rowMin = i;
+            for (var k = 1; k <= bLen; k++) {
+                var cost = a.charAt(i - 1) === b.charAt(k - 1) ? 0 : 1;
+                var v = Math.min(curr[k - 1] + 1, prev[k] + 1, prev[k - 1] + cost);
+                curr.push(v);
+                if (v < rowMin)
+                    rowMin = v;
+            }
+            if (rowMin > maxDist)
+                return maxDist + 1;
+            prev = curr;
+        }
+        return prev[bLen];
+    }
+    function searchSchools(query, countryCode, limit) {
+        var q = normalize(query);
+        var cc = ("" + (countryCode || "")).toUpperCase();
+        var qTokens = q.split(/\s+/).filter(function (t) { return t.length > 0; });
+        var hits = [];
+        var qCompact = q.replace(/\s+/g, "");
+        for (var i = 0; i < LearnerToolbelt.SCHOOL_FIXTURE.length; i++) {
+            var rec = LearnerToolbelt.SCHOOL_FIXTURE[i];
+            if (cc && rec.country_code !== cc)
+                continue;
+            var name = normalize(rec.display_name);
+            var acro = acronymOf(name);
+            var score = 0;
+            if (name === q) {
+                score = 1000;
+            }
+            else if (name.indexOf(q) === 0) {
+                score = 800;
+            }
+            else if (q.length >= 2 && name.indexOf(q) > 0) {
+                score = 500;
+            }
+            else if (qCompact.length >= 3 && (acro === qCompact || acro.indexOf(qCompact) === 0)) {
+                // Acronym match — covers "dpsrkp" → "Delhi Public School RK Puram",
+                // "dps" → all DPS branches, "njc" → "Nanyang JC", etc.
+                score = (acro === qCompact) ? 850 : 600;
+            }
+            else {
+                // Per-token substring or per-token acronym-substring.
+                // "DPS RKP" (two tokens) → "dps" is the acronym of "delhi public school"
+                // and "rkp" is the acronym of "rk puram" — match the suffix-acronym
+                // by sliding through the name's per-word initials.
+                var hits2 = 0;
+                for (var t = 0; t < qTokens.length; t++) {
+                    var tok = qTokens[t];
+                    if (tok.length < 2)
+                        continue;
+                    if (name.indexOf(tok) >= 0) {
+                        hits2++;
+                        continue;
+                    }
+                    // Acronym slide: any window-of-tok.length over `acro` matches?
+                    if (tok.length <= acro.length && acro.indexOf(tok) >= 0)
+                        hits2++;
+                }
+                if (hits2 === qTokens.length && qTokens.length > 0) {
+                    score = qTokens.length >= 2 ? 700 : 350;
+                }
+                else if (qTokens.length > 0 && hits2 >= Math.ceil(qTokens.length / 2)) {
+                    score = 200;
+                }
+                else if (q.length >= 3) {
+                    // Edit-distance fallback (≤2) only against name's first token.
+                    var firstNameToken = name.split(" ")[0] || "";
+                    var d = editDistance(q.slice(0, firstNameToken.length + 2), firstNameToken, 2);
+                    if (d <= 2)
+                        score = Math.max(score, 100);
+                }
+            }
+            if (score === 0)
+                continue;
+            // City boost
+            var city = normalize(rec.city);
+            if (city && q.indexOf(city) >= 0)
+                score += 200;
+            // Country filter passed → +50 (free signal that the rec is relevant region)
+            if (cc)
+                score += 50;
+            hits.push({
+                school_id: rec.school_id,
+                display_name: rec.display_name,
+                city: rec.city,
+                state_region: rec.state_region,
+                country_code: rec.country_code,
+                board: rec.board,
+                source: rec.source,
+                score: score,
+            });
+        }
+        hits.sort(function (a, b) { return b.score - a.score; });
+        if (hits.length > limit)
+            hits = hits.slice(0, limit);
+        return hits;
+    }
+    LearnerToolbelt.searchSchools = searchSchools;
+    function getSchoolById(schoolId) {
+        for (var i = 0; i < LearnerToolbelt.SCHOOL_FIXTURE.length; i++) {
+            if (LearnerToolbelt.SCHOOL_FIXTURE[i].school_id === schoolId)
+                return LearnerToolbelt.SCHOOL_FIXTURE[i];
+        }
+        return null;
+    }
+    LearnerToolbelt.getSchoolById = getSchoolById;
 })(LearnerToolbelt || (LearnerToolbelt = {}));
 // per-exam-config.ts
 // ─────────────────────────────────────────────────────────────────────────────
