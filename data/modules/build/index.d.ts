@@ -181,6 +181,9 @@ declare namespace QvProductChangelog {
     var ALLOWED_KINDS: string[];
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace ConvCapture {
+    function register(initializer: nkruntime.Initializer): void;
+}
 /**
  * Cricket Auction — Nakama server module
  *
@@ -2917,6 +2920,9 @@ declare namespace MpVoiceLiveKit {
     function urlFor(cfg: IConfig, region: string): string;
     function makeMinter(cfg: IConfig, b64url: (s: string) => string, hmacSha256: (key: string, msg: string) => string): MpKernelVoice.ITokenMinter;
 }
+declare namespace BrainCoins {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3888,6 +3894,9 @@ declare namespace Satori {
             [id: string]: MetricDefinition;
         };
     }
+}
+declare namespace UserModel {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace KbEnrichment {
     function register(initializer: nkruntime.Initializer): void;

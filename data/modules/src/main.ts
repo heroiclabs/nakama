@@ -355,6 +355,40 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[KbEnrichment] failed to register KbEnrichment: " + (err && err.message ? err.message : String(err)));
     }
 
+    // Conversation → User KB ingestion (PLAN-CONVERSATIONAL_HUB.md §E.5).
+    // 3 RPCs: conv_message_capture (service-only inbound funnel),
+    // conv_my_list (user-side, powers /me/reveal), conv_user_purge
+    // (DPDP Article 17 / GDPR right-to-erasure).
+    logger.info("[ConvCapture] Registering Conversation Hub capture RPCs...");
+    try {
+      ConvCapture.register(initializer);
+      logger.info("[ConvCapture] conv_message_capture, conv_my_list, conv_user_purge registered");
+    } catch (err: any) {
+      logger.error("[ConvCapture] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
+    // User Model (PLAN-USER_INTELLIGENCE_LOOP.md PR-5). Read derived
+    // attributes + ingest the 25-event behavioural signal taxonomy +
+    // per-channel consent toggles.
+    logger.info("[UserModel] Registering User Model RPCs (derived + signals + consent)...");
+    try {
+      UserModel.register(initializer);
+      logger.info("[UserModel] user_model_get, user_model_signal_ingest, user_model_consent_set registered");
+    } catch (err: any) {
+      logger.error("[UserModel] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
+    // Brain Coins economy (PLAN-CONVERSATIONAL_HUB.md §G). Soft currency
+    // ledger; earn rules enforced server-side; Tremendous redemption
+    // settled via service-token callback from /api/p2e/tremendous/mint.
+    logger.info("[BrainCoins] Registering Brain Coins P2E RPCs...");
+    try {
+      BrainCoins.register(initializer);
+      logger.info("[BrainCoins] brain_coins_get, brain_coins_earn, brain_coins_redeem_request, brain_coins_redemption_settle registered");
+    } catch (err: any) {
+      logger.error("[BrainCoins] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     logger.info("[Satori] Registering Audiences RPCs...");
     SatoriAudiences.register(initializer);
 
