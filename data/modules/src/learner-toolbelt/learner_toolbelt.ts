@@ -24,13 +24,15 @@
 //   lt_school_get_detail) — no auth.
 // • Service-only RPCs accept either (a) ctx.userId from a Nakama session,
 //   or (b) service_token + user_id in payload matching ctx.env["LT_SERVICE_TOKEN"].
-// RPCs registered (15)
-// RPCs registered (16)
+// RPCs registered (19)
 // --------------------
 //   lt_score_predict                  service-only (auth) — § 3 of plan
 //   lt_exam_countdown_get             service-only        — § 4 of plan
 //   lt_exam_countdown_set             service-only        — § 4 of plan
 //   lt_exam_countdown_clear           service-only        — § 4 of plan
+//   lt_countdown_visit                service-only (gracefully degrades anon) — engaging-UI § 4.4
+//   lt_study_log_log                  service-only        — engaging-UI § 4.5
+//   lt_study_log_heatmap              service-only (gracefully degrades anon) — engaging-UI § 4.6
 //   lt_exam_calendar_get              public (anonymous OK)— § 4.5
 //   lt_gpa_compute                    public               — § 5 stateless
 //   lt_gpa_save                       service-only        — § 5
@@ -656,6 +658,21 @@ namespace LearnerToolbelt {
     entries: ExamCountdownEntry[];
     primary_exam_id: string | null;
     updated_unix: number;
+    // PLAN-EXAM_COUNTDOWN_ENGAGING_UI § 4.2 — new engagement fields.
+    // All optional for backwards-compat with docs written before the upgrade.
+    theme?: string;                              // "default" | "forest" | "cupcake" | "nord" | "retro"
+    milestones_celebrated?: string[];            // ["sat:T-100", "sat:T-30", …] — dedupes milestone toasts
+    last_visit_unix?: number;                    // streak rolling window anchor
+    streak_days?: number;                        // consecutive-day visit count
+    longest_streak_days?: number;                // bragging right (monotonically non-decreasing)
+  }
+  // Per-day study log entry — collection qv_lt_study_log / key=YYYY-MM-DD.
+  interface StudyLogEntry {
+    date_iso: string;
+    minutes: number;                             // 0 = "no study" (still counts as a visit)
+    exam_focus: string;                          // exam_id, or "general" when not specified
+    logged_unix: number;
+    channel: string;                             // "web" | "unity" | "voice"
   }
   interface UserSchoolRecord {
     school_id: string;
@@ -692,10 +709,19 @@ namespace LearnerToolbelt {
           entries: Array.isArray(v.entries) ? v.entries : [],
           primary_exam_id: v.primary_exam_id || null,
           updated_unix: v.updated_unix || 0,
+          theme: v.theme || "default",
+          milestones_celebrated: Array.isArray(v.milestones_celebrated) ? v.milestones_celebrated : [],
+          last_visit_unix: v.last_visit_unix || 0,
+          streak_days: v.streak_days || 0,
+          longest_streak_days: v.longest_streak_days || 0,
         };
       }
     } catch (e: any) { /* fall through */ }
-    return { entries: [], primary_exam_id: null, updated_unix: 0 };
+    return {
+      entries: [], primary_exam_id: null, updated_unix: 0,
+      theme: "default", milestones_celebrated: [],
+      last_visit_unix: 0, streak_days: 0, longest_streak_days: 0,
+    };
   }
 
   function writeCountdownDoc(nk: nkruntime.Nakama, userId: string, doc: ExamCountdownDoc): void {
@@ -849,6 +875,12 @@ namespace LearnerToolbelt {
         derived: view,
         days_until: view.map(function (v: any) { return { exam_id: v.exam_id, days_until: v.days_until }; }),
         minutes_per_day_recommended: view.length > 0 ? view[0].minutes_per_day_recommended : 0,
+        // PLAN-EXAM_COUNTDOWN_ENGAGING_UI § 4.7
+        theme: doc.theme || "default",
+        milestones_celebrated: doc.milestones_celebrated || [],
+        streak_days: doc.streak_days || 0,
+        longest_streak_days: doc.longest_streak_days || 0,
+        last_visit_unix: doc.last_visit_unix || 0,
         updated_unix: doc.updated_unix,
       });
     } catch (err: any) {
@@ -872,6 +904,13 @@ namespace LearnerToolbelt {
       var targetScore = (data.target_score !== undefined && data.target_score !== null)
         ? parseFloat("" + data.target_score) : null;
       var makePrimary = data.make_primary === true;
+      var themeIn = ("" + (data.theme || "")).toLowerCase();
+      // PLAN-EXAM_COUNTDOWN_ENGAGING_UI § 4.2 — allow-list themes; ignore unknown.
+      var allowedThemes = ["default", "forest", "cupcake", "nord", "retro"];
+      var themeNext: string | null = null;
+      for (var ti = 0; ti < allowedThemes.length; ti++) {
+        if (themeIn === allowedThemes[ti]) { themeNext = themeIn; break; }
+      }
 
       if (!examId) return RpcHelpers.errorResponse("exam_id required", 400);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return RpcHelpers.errorResponse("date_iso required (YYYY-MM-DD)", 400);
@@ -902,11 +941,13 @@ namespace LearnerToolbelt {
         });
       }
       if (makePrimary || !doc.primary_exam_id) doc.primary_exam_id = examId;
+      if (themeNext) doc.theme = themeNext;
       doc.updated_unix = nowSec();
 
       writeCountdownDoc(nk, auth.userId, doc);
       emitAnalytics(nk, logger, auth.userId, "lt_exam_countdown_set", {
         exam_id: examId, date_iso: dateIso, target_score: targetScore,
+        theme: themeNext || doc.theme || "default",
       });
 
       return safeWrap({
@@ -914,6 +955,7 @@ namespace LearnerToolbelt {
         entry: { exam_id: examId, exam_label: examLabel, date_iso: dateIso, timezone: timezone, target_score: targetScore },
         primary_exam_id: doc.primary_exam_id,
         entry_count: doc.entries.length,
+        theme: doc.theme || "default",
       });
     } catch (err: any) {
       logger.error("lt_exam_countdown_set failed: " + (err && err.message ? err.message : String(err)));
@@ -952,6 +994,215 @@ namespace LearnerToolbelt {
       });
     } catch (err: any) {
       logger.error("lt_exam_countdown_clear failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // RPCs: lt_countdown_visit, lt_study_log_log, lt_study_log_heatmap
+  // PLAN-EXAM_COUNTDOWN_ENGAGING_UI § 4.4-4.6
+  //
+  // These wire up the engaging-UI upgrade: streak counter, "I studied today"
+  // habit loop, and the 90-day heatmap. All three are auth-required (service
+  // token OR Nakama session). Anonymous callers get a graceful 200 with empty
+  // payload so the web component can render a sign-in nudge without throwing.
+  // ════════════════════════════════════════════════════════════════════════
+
+  var COLLECTION_STUDY_LOG = "qv_lt_study_log";
+  var STREAK_GRACE_SECONDS = 48 * 3600;   // 2-day forgiveness window
+  var STREAK_BUCKET_SECONDS = 24 * 3600;  // 1-day no-op window
+  var MAX_HEATMAP_DAYS = 180;             // safety cap on storageList page
+  var ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+  function dateIsoForUnix(unix: number): string {
+    var d = new Date(unix * 1000);
+    var m = d.getUTCMonth() + 1;
+    var dy = d.getUTCDate();
+    return d.getUTCFullYear() + "-" + (m < 10 ? "0" + m : "" + m) + "-" + (dy < 10 ? "0" + dy : "" + dy);
+  }
+
+  // RPC: lt_countdown_visit — idempotent daily-touch (drives streak).
+  function rpcCountdownVisit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) {
+        // Anonymous: return a 200 with zeros so the web component doesn't error.
+        return safeWrap({
+          ok: true, status: "anonymous",
+          streak_days: 0, longest_streak_days: 0,
+          incremented: false, last_visit_unix: 0,
+        });
+      }
+
+      var doc = readCountdownDoc(nk, auth.userId);
+      var now = nowSec();
+      var last = doc.last_visit_unix || 0;
+      var gap = last > 0 ? (now - last) : Number.MAX_SAFE_INTEGER;
+
+      var streak = doc.streak_days || 0;
+      var longest = doc.longest_streak_days || 0;
+      var incremented = false;
+
+      if (last === 0) {
+        // First visit ever — streak starts at 1.
+        streak = 1;
+        incremented = true;
+      } else if (gap < STREAK_BUCKET_SECONDS) {
+        // Already counted today — no-op.
+        incremented = false;
+      } else if (gap < STREAK_GRACE_SECONDS) {
+        streak = streak + 1;
+        incremented = true;
+      } else {
+        // Beyond grace window — streak resets but doesn't lose longest.
+        streak = 1;
+        incremented = true;
+      }
+      if (streak > longest) longest = streak;
+
+      doc.streak_days = streak;
+      doc.longest_streak_days = longest;
+      if (incremented) doc.last_visit_unix = now;
+      doc.updated_unix = now;
+      writeCountdownDoc(nk, auth.userId, doc);
+
+      emitAnalytics(nk, logger, auth.userId, "lt_countdown_visit", {
+        streak_days: streak, longest_streak_days: longest, incremented: incremented,
+      });
+
+      return safeWrap({
+        ok: true, status: "ok",
+        streak_days: streak,
+        longest_streak_days: longest,
+        incremented: incremented,
+        last_visit_unix: doc.last_visit_unix || now,
+      });
+    } catch (err: any) {
+      logger.error("lt_countdown_visit failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
+  // RPC: lt_study_log_log — upsert per (user, date).
+  function rpcStudyLogLog(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) return RpcHelpers.errorResponse(auth.error, auth.code);
+
+      var dateIso = "" + (data.date_iso || dateIsoForUnix(nowSec()));
+      if (!ISO_DATE_RE.test(dateIso)) return RpcHelpers.errorResponse("date_iso must be YYYY-MM-DD", 400);
+
+      var minutes = parseInt("" + (data.minutes || 0), 10);
+      if (!(minutes >= 0)) minutes = 0;
+      if (minutes > 1440) minutes = 1440;   // cap at one full day
+
+      var examFocus = ("" + (data.exam_focus || "general")).toLowerCase().slice(0, 32);
+      var channel = ("" + (data.channel || "web")).toLowerCase().slice(0, 16);
+      if (channel !== "web" && channel !== "unity" && channel !== "voice") channel = "web";
+
+      var entry: StudyLogEntry = {
+        date_iso: dateIso,
+        minutes: minutes,
+        exam_focus: examFocus,
+        logged_unix: nowSec(),
+        channel: channel,
+      };
+
+      nk.storageWrite([{
+        collection: COLLECTION_STUDY_LOG,
+        key: dateIso,
+        userId: auth.userId,
+        value: entry,
+        permissionRead: 0,
+        permissionWrite: 0,
+      }]);
+
+      emitAnalytics(nk, logger, auth.userId, "lt_study_log_log", {
+        date_iso: dateIso, minutes: minutes, exam_focus: examFocus, channel: channel,
+      });
+
+      return safeWrap({
+        ok: true, status: "ok",
+        date_iso: dateIso, minutes: minutes,
+        exam_focus: examFocus, logged_unix: entry.logged_unix,
+      });
+    } catch (err: any) {
+      logger.error("lt_study_log_log failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
+  // RPC: lt_study_log_heatmap — last-N-day study log for heatmap render.
+  function rpcStudyLogHeatmap(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) {
+        return safeWrap({
+          ok: true, status: "anonymous", days: [],
+          total_minutes: 0, days_studied: 0, days_in_window: 0, consistency_pct: 0,
+        });
+      }
+
+      var daysBack = parseInt("" + (data.days_back || 90), 10);
+      if (!(daysBack >= 1)) daysBack = 90;
+      if (daysBack > MAX_HEATMAP_DAYS) daysBack = MAX_HEATMAP_DAYS;
+
+      // Pull the user's study-log rows; index page is sufficient (max ~180 docs).
+      var byDate: { [k: string]: StudyLogEntry } = {};
+      try {
+        var listResult = nk.storageList(auth.userId, COLLECTION_STUDY_LOG, MAX_HEATMAP_DAYS, "");
+        var rows = listResult && listResult.objects ? listResult.objects : [];
+        for (var i = 0; i < rows.length; i++) {
+          var r = rows[i];
+          if (!r || !r.key || !r.value) continue;
+          var v = r.value as StudyLogEntry;
+          byDate["" + r.key] = {
+            date_iso: "" + r.key,
+            minutes: parseInt("" + (v.minutes || 0), 10) || 0,
+            exam_focus: "" + (v.exam_focus || "general"),
+            logged_unix: parseInt("" + (v.logged_unix || 0), 10) || 0,
+            channel: "" + (v.channel || "web"),
+          };
+        }
+      } catch (e: any) {
+        logger.warn("[learner-toolbelt] study-log read failed for user " + auth.userId + ": " + (e && e.message ? e.message : String(e)));
+      }
+
+      // Build dense list newest→oldest covering exactly daysBack days.
+      var now = nowSec();
+      var days: any[] = [];
+      var totalMinutes = 0;
+      var daysStudied = 0;
+      for (var d = 0; d < daysBack; d++) {
+        var iso = dateIsoForUnix(now - d * 86400);
+        var hit = byDate[iso];
+        var minutesForDay = hit ? hit.minutes : 0;
+        var studied = minutesForDay > 0;
+        if (studied) daysStudied++;
+        totalMinutes += minutesForDay;
+        days.push({
+          date_iso: iso,
+          minutes: minutesForDay,
+          studied: studied,
+          exam_focus: hit ? hit.exam_focus : "",
+        });
+      }
+
+      var consistencyPct = daysBack > 0 ? Math.round((daysStudied * 100) / daysBack) : 0;
+
+      return safeWrap({
+        ok: true, status: "ok",
+        days: days,
+        total_minutes: totalMinutes,
+        days_studied: daysStudied,
+        days_in_window: daysBack,
+        consistency_pct: consistencyPct,
+      });
+    } catch (err: any) {
+      logger.error("lt_study_log_heatmap failed: " + (err && err.message ? err.message : String(err)));
       return RpcHelpers.errorResponse("internal error", 500);
     }
   }
@@ -1642,6 +1893,10 @@ namespace LearnerToolbelt {
     initializer.registerRpc("lt_exam_countdown_get", rpcExamCountdownGet);
     initializer.registerRpc("lt_exam_countdown_set", rpcExamCountdownSet);
     initializer.registerRpc("lt_exam_countdown_clear", rpcExamCountdownClear);
+    // PLAN-EXAM_COUNTDOWN_ENGAGING_UI § 4.4-4.6
+    initializer.registerRpc("lt_countdown_visit", rpcCountdownVisit);
+    initializer.registerRpc("lt_study_log_log", rpcStudyLogLog);
+    initializer.registerRpc("lt_study_log_heatmap", rpcStudyLogHeatmap);
     initializer.registerRpc("lt_exam_calendar_get", rpcExamCalendarGet);
     initializer.registerRpc("lt_gpa_compute", rpcGpaCompute);
     initializer.registerRpc("lt_gpa_save", rpcGpaSave);
