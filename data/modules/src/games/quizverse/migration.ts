@@ -53,6 +53,10 @@ namespace QuizVerseMigration {
   var COL_QUESTION_PACK  = "qv_question_pack";   // P1 issued pack ledger for v2 scoring
   var COL_WORDS_DAILY    = "qv_words_daily";     // PWords daily-puzzle dedupe ledger
                                                   // (one row per user × mode × skin × utc_day)
+  var COL_DUEL_ATTEMPT   = "qv_duel_attempt";    // PWords-Duel per-user attempt ledger
+                                                  // (one row per user × exam × utc_day)
+  var COL_DUEL_PAIR      = "qv_duel_pair";       // PWords-Duel public pairing queue +
+                                                  // match ledger (one row per exam × utc_day)
 
   function nakamaError(msg: string, code: number): nkruntime.Error {
     return { message: msg, code: code };
@@ -1450,6 +1454,491 @@ namespace QuizVerseMigration {
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // PWords Vocab Duel — Phase 4 of PLAN-LEARNER_TOOLBELT § 3
+  // ─────────────────────────────────────────────────────────────────────
+  // Async PvP. Each day a fixed 10-word multiple-choice quiz is generated
+  // server-side from the per-exam wordbank (GRE / GMAT / IELTS). Picks +
+  // option order are deterministic in (utc_day, exam) so every player on a
+  // given day sees the same questions. Pairing: first user to submit on a
+  // given day for a given exam is enqueued; the second user is paired with
+  // the first; the cycle resets every UTC day.
+  //
+  // Anti-cheat:
+  //   - Server holds the answer key. Client only ever sees the question +
+  //     options; correctness is decided here on submit.
+  //   - First-submit-wins idempotency. A second submit for the same
+  //     (user, exam, utc_day) returns the original score — no replays.
+  //   - Storage permissions: OWNER_READ / NO_WRITE on attempt rows; pair
+  //     row is PUBLIC_READ / NO_WRITE for global queue visibility.
+  //
+  // Bonus mechanic (per the plan table):
+  //   - When paired, the response surfaces opponent.missed[] (their wrong
+  //     question indices). The SPA renders these as a "study these" list
+  //     for spaced-repetition export in Phase 3.
+
+  var DUEL_VALID_EXAMS: { [k: string]: boolean } = {
+    "gre": true, "gmat": true, "ielts": true
+  };
+
+  // Wordbanks: ~25 words/exam. Picks are 10/day so the rotation cycles
+  // cleanly every 25 days without repeating the same 10. Each entry has
+  // canonical word + 1-line definition; distractors are drawn from the
+  // remaining 15 entries' definitions, also deterministically.
+  //
+  // Provenance:
+  //   GRE  — Magoosh top-1200 frequent picks (synonym-test material)
+  //   GMAT — Manhattan GMAT verbal "tough" word list
+  //   IELTS— Coxhead Academic Word List (sublist 1-3 high-frequency)
+  var DUEL_BANK_GRE = [
+    { w: "ABATE",       d: "To lessen in intensity or amount." },
+    { w: "ABSCOND",     d: "To leave secretly to avoid arrest." },
+    { w: "AESTHETIC",   d: "Concerned with beauty or art." },
+    { w: "ALACRITY",    d: "Brisk and cheerful readiness." },
+    { w: "AMBIGUOUS",   d: "Open to more than one interpretation." },
+    { w: "ANOMALY",     d: "A deviation from the normal." },
+    { w: "APATHY",      d: "Lack of interest, enthusiasm, or concern." },
+    { w: "ARDUOUS",     d: "Involving strenuous effort; difficult." },
+    { w: "AUSTERE",     d: "Severe or strict in manner; without comfort." },
+    { w: "BOLSTER",     d: "Support or strengthen." },
+    { w: "CACOPHONY",   d: "A harsh, discordant mixture of sounds." },
+    { w: "CAPRICIOUS",  d: "Given to sudden, unaccountable changes of mood." },
+    { w: "DELETERIOUS", d: "Causing harm or damage." },
+    { w: "DOGMATIC",    d: "Inclined to lay down principles as undeniably true." },
+    { w: "EBULLIENT",   d: "Cheerful and full of energy." },
+    { w: "EPHEMERAL",   d: "Lasting for a very short time." },
+    { w: "FASTIDIOUS",  d: "Very attentive to and concerned about accuracy." },
+    { w: "GARRULOUS",   d: "Excessively talkative, especially on trivial matters." },
+    { w: "HACKNEYED",   d: "Lacking significance through having been overused." },
+    { w: "INDIGENT",    d: "Poor; needy." },
+    { w: "LACONIC",     d: "Using very few words; terse." },
+    { w: "MENDACIOUS",  d: "Not telling the truth; lying." },
+    { w: "OBSEQUIOUS",  d: "Obedient or attentive to an excessive degree." },
+    { w: "PERFIDIOUS",  d: "Deceitful and untrustworthy." },
+    { w: "QUIESCENT",   d: "In a state of quiet inactivity; dormant." }
+  ];
+  var DUEL_BANK_GMAT = [
+    { w: "ABROGATE",    d: "Repeal or do away with (a law or formal agreement)." },
+    { w: "ACQUIESCE",   d: "Accept something reluctantly but without protest." },
+    { w: "ANATHEMA",    d: "Something or someone that one vehemently dislikes." },
+    { w: "BELIE",       d: "Fail to give a true notion or impression of; contradict." },
+    { w: "CAVIL",       d: "Make petty or unnecessary objections." },
+    { w: "COGENT",      d: "Clear, logical, and convincing." },
+    { w: "CONCOMITANT", d: "Naturally accompanying or associated." },
+    { w: "DERIDE",      d: "Express contempt for; ridicule." },
+    { w: "DIDACTIC",    d: "Intended to teach; morally instructive." },
+    { w: "EQUIVOCATE",  d: "Use ambiguous language to conceal the truth." },
+    { w: "EXCULPATE",   d: "Show or declare that someone is not guilty of wrongdoing." },
+    { w: "FATUOUS",     d: "Silly and pointless." },
+    { w: "FECKLESS",    d: "Lacking initiative or strength of character; irresponsible." },
+    { w: "FORTUITOUS",  d: "Happening by chance rather than design." },
+    { w: "GRATUITOUS",  d: "Uncalled for; unwarranted." },
+    { w: "INCHOATE",    d: "Just begun; not yet fully formed." },
+    { w: "INVEIGH",     d: "Speak or write about with great hostility." },
+    { w: "OSTENSIBLE",  d: "Stated or appearing to be true, but not necessarily so." },
+    { w: "PARAGON",     d: "A person or thing regarded as a perfect example." },
+    { w: "PERFUNCTORY", d: "Carried out with minimum effort or reflection." },
+    { w: "PROPITIATE",  d: "Win or regain the favor of by doing something pleasing." },
+    { w: "REPUDIATE",   d: "Refuse to accept or be associated with." },
+    { w: "SAGACIOUS",   d: "Having or showing keen mental discernment." },
+    { w: "TENDENTIOUS", d: "Expressing a strong viewpoint that one has firm views on." },
+    { w: "VENERATE",    d: "Regard with great respect; revere." }
+  ];
+  var DUEL_BANK_IELTS = [
+    { w: "ANALYZE",     d: "Examine in detail to discover essential features." },
+    { w: "APPROACH",    d: "Come near or nearer to; a way of dealing with something." },
+    { w: "ASSESS",      d: "Evaluate or estimate the nature, ability, or quality of." },
+    { w: "BENEFIT",     d: "An advantage or profit gained from something." },
+    { w: "CONCEPT",     d: "An abstract idea; a general notion." },
+    { w: "CONSIST",     d: "Be composed or made up of." },
+    { w: "CONTEXT",     d: "The circumstances that form the setting for an event." },
+    { w: "DERIVE",      d: "Obtain something from a specified source." },
+    { w: "DISTRIBUTE",  d: "Give shares of something; spread or arrange." },
+    { w: "ECONOMIC",    d: "Relating to economics or the economy." },
+    { w: "ENVIRONMENT", d: "The surroundings or conditions in which one lives." },
+    { w: "ESTABLISH",   d: "Set up on a firm or permanent basis." },
+    { w: "EVIDENT",     d: "Plain or obvious; clearly seen or understood." },
+    { w: "FACTOR",      d: "A circumstance, fact, or influence contributing to a result." },
+    { w: "FUNCTION",    d: "An activity that is natural to or the purpose of a thing." },
+    { w: "IDENTIFY",    d: "Establish or indicate who or what something is." },
+    { w: "INDICATE",    d: "Point out; show." },
+    { w: "INTERPRET",   d: "Explain the meaning of information or actions." },
+    { w: "MAINTAIN",    d: "Cause or enable a condition to continue." },
+    { w: "OCCUR",       d: "Happen; take place." },
+    { w: "POLICY",      d: "A course or principle of action adopted by an organization." },
+    { w: "PRINCIPLE",   d: "A fundamental truth that serves as the foundation." },
+    { w: "PROCEDURE",   d: "An established or official way of doing something." },
+    { w: "REQUIRE",     d: "Need for a particular purpose." },
+    { w: "SIGNIFICANT", d: "Sufficiently great or important to be worthy of attention." }
+  ];
+
+  function duelBank(exam: string): { w: string; d: string }[] {
+    if (exam === "gmat")  return DUEL_BANK_GMAT;
+    if (exam === "ielts") return DUEL_BANK_IELTS;
+    return DUEL_BANK_GRE;
+  }
+
+  // Same Lehmer LCG the SPA uses (lib/words/seed.ts → seededShuffle). This
+  // function is the reason the web client and the server agree on which 10
+  // words a given (utc_day, exam) maps to — change either implementation
+  // and the daily puzzle goes out of sync.
+  function duelShuffle<T>(arr: T[], seed: number): T[] {
+    var out: T[] = arr.slice();
+    var s = seed >>> 0;
+    for (var i = out.length - 1; i > 0; i--) {
+      s = ((s * 1664525) + 1013904223) >>> 0;
+      var j = s % (i + 1);
+      var t = out[i]; out[i] = out[j]; out[j] = t;
+    }
+    return out;
+  }
+
+  function duelDailyPuzzle(exam: string, utcDay: string) {
+    var bank = duelBank(exam);
+    var seed = wordsSeedHash("duel:" + exam + ":" + utcDay);
+    var words = duelShuffle(bank, seed);
+    var picks = words.slice(0, 10);
+    var rest  = words.slice(10);
+    var qs: any[] = [];
+    for (var i = 0; i < picks.length; i++) {
+      var p = picks[i];
+      // Per-question subseed; multiply by golden-ratio prime to spread bits.
+      var sub = (seed ^ (((i + 1) * 2654435761) >>> 0)) >>> 0;
+      var distractors = duelShuffle(rest, sub).slice(0, 3);
+      var optDefs = [p.d, distractors[0].d, distractors[1].d, distractors[2].d];
+      var optsShuffled = duelShuffle(optDefs, (sub * 31) >>> 0);
+      var correctIdx = -1;
+      for (var k = 0; k < optsShuffled.length; k++) {
+        if (optsShuffled[k] === p.d) { correctIdx = k; break; }
+      }
+      qs.push({
+        idx: i,
+        word: p.w,
+        opts: optsShuffled,
+        correct_idx: correctIdx
+      });
+    }
+    return { questions: qs, seed: seed };
+  }
+
+  function rpcWordsDuelGetPuzzle(
+    ctx: nkruntime.Context,
+    _logger: nkruntime.Logger,
+    _nk: nkruntime.Nakama,
+    payload: string
+  ): string {
+    // Anonymous-friendly: the puzzle is the same for everyone today, so we
+    // return it without auth. Auth is required on submit (we need a stable
+    // user_id to record + pair).
+    var req = parseJson(payload);
+    var exam = String(req.exam || "gre").toLowerCase();
+    if (!DUEL_VALID_EXAMS[exam]) {
+      throw nakamaError("invalid exam: " + exam, nkruntime.Codes.INVALID_ARGUMENT);
+    }
+    var now = nowMs();
+    var day = wordsUtcDay(now);
+    var puzzle = duelDailyPuzzle(exam, day);
+    // Strip the answer key on the wire.
+    var qs: any[] = [];
+    for (var i = 0; i < puzzle.questions.length; i++) {
+      var q = puzzle.questions[i];
+      qs.push({ idx: q.idx, word: q.word, opts: q.opts });
+    }
+    var userId = ctx.userId || "";
+    var alreadySubmitted = false;
+    var prevScore = 0;
+    if (userId) {
+      try {
+        var existing = _nk.storageRead([{
+          collection: COL_DUEL_ATTEMPT, key: exam + ":" + day, userId: userId
+        }]);
+        if (existing && existing.length > 0 && existing[0].value && (existing[0].value as any).score !== undefined) {
+          alreadySubmitted = true;
+          prevScore = (existing[0].value as any).score;
+        }
+      } catch (_e) { /* ignore */ }
+    }
+    return JSON.stringify({
+      ok: true,
+      utc_day: day,
+      exam: exam,
+      seed: puzzle.seed,
+      questions: qs,
+      already_submitted: alreadySubmitted,
+      previous_score: prevScore
+    });
+  }
+
+  function rpcWordsDuelSubmit(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    payload: string
+  ): string {
+    var userId = requireAuth(ctx);
+    var req = parseJson(payload);
+    var exam = String(req.exam || "gre").toLowerCase();
+    if (!DUEL_VALID_EXAMS[exam]) {
+      throw nakamaError("invalid exam: " + exam, nkruntime.Codes.INVALID_ARGUMENT);
+    }
+    var answers = req.answers;
+    if (!answers || answers.length !== 10) {
+      throw nakamaError("answers must be a length-10 array of option indices", nkruntime.Codes.INVALID_ARGUMENT);
+    }
+    var elapsedMs = Number(req.elapsed_ms || 0);
+
+    var now = nowMs();
+    var day = wordsUtcDay(now);
+    var puzzle = duelDailyPuzzle(exam, day);
+    var attemptKey = exam + ":" + day;
+    var pairKey = exam + ":" + day;
+
+    // Idempotency: first submit wins. Replay returns the same envelope.
+    try {
+      var existing = nk.storageRead([{
+        collection: COL_DUEL_ATTEMPT, key: attemptKey, userId: userId
+      }]);
+      if (existing && existing.length > 0 && existing[0].value &&
+          (existing[0].value as any).score !== undefined) {
+        var prev: any = existing[0].value;
+        return JSON.stringify({
+          ok: true,
+          already_submitted: true,
+          score: prev.score,
+          total: 10,
+          missed: prev.missed || [],
+          opponent: prev.opponent || null,
+          status: prev.opponent ? "paired" : "queued",
+          utc_day: day,
+          exam: exam
+        });
+      }
+    } catch (_e) { /* ignore — first submit */ }
+
+    // Score
+    var score = 0;
+    var missed: number[] = [];
+    var detail: any[] = [];
+    for (var i = 0; i < 10; i++) {
+      var q = puzzle.questions[i];
+      var ans = Number(answers[i]);
+      var ok = ans === q.correct_idx;
+      if (ok) score++;
+      else missed.push(i);
+      detail.push({ idx: i, word: q.word, picked: ans, correct: ok, correct_idx: q.correct_idx });
+    }
+
+    // Pair attempt — read pair row, dequeue any waiting non-self user.
+    var opponent: any = null;
+    var pair: any = { waiting: [], matches: [] };
+    try {
+      var pairList = nk.storageRead([{
+        collection: COL_DUEL_PAIR, key: pairKey, userId: ""  // global owner-less row
+      }]);
+      if (pairList && pairList.length > 0 && pairList[0].value) {
+        pair = pairList[0].value;
+        if (!pair.waiting)  pair.waiting  = [];
+        if (!pair.matches)  pair.matches  = [];
+      }
+    } catch (_e) { /* ignore — first match of the day */ }
+
+    // Try to dequeue an opponent (skip self if somehow already in queue).
+    var paired = false;
+    while (pair.waiting.length > 0 && !paired) {
+      var oppId = pair.waiting.shift();
+      if (oppId === userId) continue;
+      try {
+        var oppAttemptList = nk.storageRead([{
+          collection: COL_DUEL_ATTEMPT, key: attemptKey, userId: oppId
+        }]);
+        if (oppAttemptList && oppAttemptList.length > 0 && oppAttemptList[0].value) {
+          var oppAttempt: any = oppAttemptList[0].value;
+          opponent = {
+            user_id: oppId,
+            score: oppAttempt.score || 0,
+            missed: oppAttempt.missed || []
+          };
+          pair.matches.push({
+            a: oppId, b: userId,
+            a_score: oppAttempt.score || 0,
+            b_score: score,
+            finished_at_ms: now
+          });
+          // Back-fill the opponent's row with this user as their match.
+          oppAttempt.opponent = { user_id: userId, score: score, missed: missed };
+          nk.storageWrite([{
+            collection:      COL_DUEL_ATTEMPT,
+            key:             attemptKey,
+            userId:          oppId,
+            value:           oppAttempt,
+            permissionRead:  1,  // OWNER_READ
+            permissionWrite: 0   // NO_WRITE
+          }]);
+          paired = true;
+        }
+      } catch (e: any) {
+        logger.warn("[Duel] opponent attempt read failed: " +
+          (e && e.message ? e.message : String(e)));
+      }
+    }
+    if (!paired) {
+      pair.waiting.push(userId);
+    }
+
+    // Persist self-attempt
+    var myAttempt = {
+      score:           score,
+      total:           10,
+      answers:         answers,
+      missed:          missed,
+      elapsed_ms:      elapsedMs,
+      finished_at_ms:  now,
+      opponent:        opponent,
+      exam:            exam,
+      utc_day:         day
+    };
+    nk.storageWrite([{
+      collection:      COL_DUEL_ATTEMPT,
+      key:             attemptKey,
+      userId:          userId,
+      value:           myAttempt,
+      permissionRead:  1,
+      permissionWrite: 0
+    }]);
+
+    // Persist pair row (PUBLIC_READ so the global queue is visible to ops).
+    nk.storageWrite([{
+      collection:      COL_DUEL_PAIR,
+      key:             pairKey,
+      userId:          "",  // Goja runtime maps "" → null owner = system row.
+      value:           pair,
+      permissionRead:  2,   // PUBLIC_READ
+      permissionWrite: 0
+    }]);
+
+    // Bump the same dedupe ledger PR #78 introduced — Vocab Duel counts
+    // toward the user's daily-played streak, so the existing landing-page
+    // streak counter shows duel attempts under "duel:<exam>" key.
+    try {
+      var ledgerKey = "duel:" + exam + ":" + day;
+      var prevLedger = nk.storageRead([{ collection: COL_WORDS_DAILY, key: ledgerKey, userId: userId }]);
+      var attemptCount = 1;
+      var firstAttemptMs = now;
+      if (prevLedger && prevLedger.length > 0 && prevLedger[0].value) {
+        var pv: any = prevLedger[0].value;
+        attemptCount = (typeof pv.attempt_count === "number" ? pv.attempt_count : 0) + 1;
+        firstAttemptMs = (typeof pv.first_attempt_ms === "number" && pv.first_attempt_ms > 0)
+          ? pv.first_attempt_ms : now;
+      }
+      nk.storageWrite([{
+        collection:      COL_WORDS_DAILY,
+        key:             ledgerKey,
+        userId:          userId,
+        value: {
+          mode:             "duel",
+          skin:             exam,
+          utc_day:          day,
+          day_index:        wordsDayIndex(now),
+          seed:             puzzle.seed,
+          attempt_count:    attemptCount,
+          first_attempt_ms: firstAttemptMs,
+          last_attempt_ms:  now,
+          last_score:       score
+        },
+        permissionRead:  1,
+        permissionWrite: 0
+      }]);
+    } catch (e: any) {
+      logger.warn("[Duel] dedupe-ledger bump failed: " +
+        (e && e.message ? e.message : String(e)));
+    }
+
+    // Leaderboard: per-(exam,utc_day). Reset cron 00:00 UTC matches the
+    // daily puzzle reset, so each leaderboard is a single calendar day.
+    try {
+      var lbId = "qv_duel_" + exam + "_" + day;
+      nk.leaderboardCreate(lbId, false, "desc", "best", "0 0 * * *");
+      nk.leaderboardRecordWrite(lbId, userId, "", score, 0, { exam: exam, utc_day: day });
+    } catch (e: any) {
+      logger.warn("[Duel] leaderboard write failed: " +
+        (e && e.message ? e.message : String(e)));
+    }
+
+    return JSON.stringify({
+      ok:               true,
+      score:            score,
+      total:            10,
+      missed:           missed,
+      detail:           detail,
+      opponent:         opponent,
+      status:           paired ? "paired" : "queued",
+      utc_day:          day,
+      exam:             exam
+    });
+  }
+
+  function rpcWordsDuelLeaderboard(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    payload: string
+  ): string {
+    var req = parseJson(payload);
+    var exam = String(req.exam || "gre").toLowerCase();
+    if (!DUEL_VALID_EXAMS[exam]) {
+      throw nakamaError("invalid exam: " + exam, nkruntime.Codes.INVALID_ARGUMENT);
+    }
+    var limit = Number(req.limit || 10);
+    if (limit < 1)  limit = 1;
+    if (limit > 50) limit = 50;
+    var now = nowMs();
+    var day = wordsUtcDay(now);
+    var lbId = "qv_duel_" + exam + "_" + day;
+    var entries: any[] = [];
+    try {
+      // Idempotent — leaderboardCreate returns existing if it already exists.
+      nk.leaderboardCreate(lbId, false, "desc", "best", "0 0 * * *");
+      var records = nk.leaderboardRecordsList(lbId, [], limit);
+      if (records && records.records) {
+        for (var i = 0; i < records.records.length; i++) {
+          var r: any = records.records[i];
+          entries.push({
+            user_id:   r.ownerId,
+            username:  r.username || "",
+            score:     r.score,
+            rank:      i + 1,
+            update_at: r.updateTime || 0
+          });
+        }
+      }
+    } catch (e: any) {
+      logger.warn("[Duel] leaderboard read failed: " +
+        (e && e.message ? e.message : String(e)));
+    }
+
+    // Caller's own score (if any) — useful for "you ranked X of Y" UI.
+    var myScore = -1;
+    var userId = ctx.userId || "";
+    if (userId) {
+      try {
+        var mine = nk.storageRead([{
+          collection: COL_DUEL_ATTEMPT, key: exam + ":" + day, userId: userId
+        }]);
+        if (mine && mine.length > 0 && mine[0].value) {
+          myScore = (mine[0].value as any).score;
+        }
+      } catch (_e) { /* ignore */ }
+    }
+
+    return JSON.stringify({
+      ok:       true,
+      utc_day:  day,
+      exam:     exam,
+      entries:  entries,
+      my_score: myScore
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // Registration
   // ─────────────────────────────────────────────────────────────────────
   export function register(
@@ -1497,8 +1986,15 @@ namespace QuizVerseMigration {
     // body for the wire-format contract.
     initializer.registerRpc("quizverse_words_daily_seed",     rpcWordsDailySeed);
 
+    // PWords Vocab Duel — async PvP across GRE / GMAT / IELTS. Three RPCs
+    // form the full game loop: get-puzzle (anonymous OK), submit (auth
+    // required, idempotent), leaderboard (scoped per exam × utc_day).
+    initializer.registerRpc("quizverse_words_duel_get",         rpcWordsDuelGetPuzzle);
+    initializer.registerRpc("quizverse_words_duel_submit",      rpcWordsDuelSubmit);
+    initializer.registerRpc("quizverse_words_duel_leaderboard", rpcWordsDuelLeaderboard);
+
     if (logger && logger.info) {
-      logger.info("[QuizVerseMigration] registered 23 RPCs (P0-P8 live + PWords daily seed)");
+      logger.info("[QuizVerseMigration] registered 26 RPCs (P0-P8 live + PWords daily seed + Vocab Duel)");
     }
   }
 
