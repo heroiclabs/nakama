@@ -14347,9 +14347,124 @@ var IdentityResolver;
             return externalId;
         return externalId.substr(0, 3) + "***" + externalId.substr(externalId.length - 2);
     }
+    // ── RPC: identity_resolve_or_ghost_create ────────────────────────────────
+    // Service-only. Lookup-or-mint variant of identity_resolve. Used by
+    // outbound surfaces that want a stable cognito_sub for HMAC-signed CTA
+    // tracking even when the contact has never authenticated against
+    // Cognito (e.g. anonymous newsletter signups via web form).
+    //
+    // Behaviour:
+    //   1. If a binding already exists → return that cognito_sub (no mint).
+    //   2. Else → mint a brand-new Nakama user via authenticateCustom() with
+    //      a deterministic ghost custom_id derived from (channel, external_id),
+    //      write the binding, return the new userId as cognito_sub.
+    //
+    // The minted user has no Cognito account behind it. When the human later
+    // signs up via Cognito with the same email/phone, the cognito_wallet_mapper
+    // bootstrap should merge the ghost record into the real cognito_sub (TODO:
+    // implement merge — for now both records coexist, last write wins via
+    // identity_link).
+    //
+    // Auth: REQUIRES service_token (no Nakama session caller path). The
+    // operation has side effects so we restrict to trusted backends.
+    //
+    // Request:
+    //   { "channel": "email", "external_id": "user@example.com",
+    //     "source": "newsletter_subscribe", "service_token": "..." }
+    //
+    // Response (existing binding):
+    //   { "success": true, "data": {
+    //       "cognito_sub": "...", "channel": "email", "external_id": "...",
+    //       "linked_at": 1735000000, "confidence": "medium", "is_ghost": false
+    //   }}
+    //
+    // Response (newly minted ghost):
+    //   { "success": true, "data": {
+    //       "cognito_sub": "<freshly-minted nakama userId>",
+    //       "channel": "email", "external_id": "...",
+    //       "linked_at": <now>, "confidence": "low", "is_ghost": true
+    //   }}
+    function rpcResolveOrGhostCreate(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            // Auth: service-only — this RPC has side effects (user mint + storage write).
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised — identity_resolve_or_ghost_create is service-only", 401);
+            }
+            var channel = ("" + (data.channel || "")).toLowerCase();
+            var externalIdRaw = data.external_id || data.externalId;
+            if (!channel || !SUPPORTED_CHANNELS[channel]) {
+                return RpcHelpers.errorResponse("unsupported channel", 400);
+            }
+            if (!externalIdRaw) {
+                return RpcHelpers.errorResponse("external_id is required", 400);
+            }
+            var externalId = normalizeExternalId(channel, "" + externalIdRaw);
+            if (!externalId) {
+                return RpcHelpers.errorResponse("external_id failed normalisation", 400);
+            }
+            // 1. Fast path: existing binding.
+            var existing = readLink(nk, channel, externalId);
+            if (existing && existing.cognito_sub) {
+                return RpcHelpers.successResponse({
+                    cognito_sub: existing.cognito_sub,
+                    channel: channel,
+                    external_id: externalId,
+                    linked_at: existing.linked_at,
+                    confidence: existing.confidence || "medium",
+                    is_ghost: false,
+                });
+            }
+            // 2. Slow path: mint a ghost. authenticateCustom with create=true
+            //    is idempotent — passing the same custom_id always returns the
+            //    same userId, so we get exactly-once semantics even under
+            //    concurrent subscribes for the same email.
+            var customId = "ghost:" + channel + ":" + externalId;
+            // Nakama enforces custom_id ≤ 128 chars. Email + channel + prefix
+            // usually fits comfortably; truncate defensively just in case.
+            if (customId.length > 128) {
+                customId = customId.substr(0, 128);
+            }
+            var username = "ghost_" + channel + "_" + maskExternalId(channel, externalId).replace(/[^a-zA-Z0-9_]/g, "_");
+            // Nakama usernames are unique + ≤ 128 chars. We don't actually
+            // care about collisions for ghost users, so suffix with a short
+            // hash of the custom_id to disambiguate.
+            var suffix = customId.length > 8 ? customId.substr(customId.length - 8) : customId;
+            username = (username + "_" + suffix).substr(0, 128);
+            var authResult;
+            try {
+                authResult = nk.authenticateCustom(customId, username, true);
+            }
+            catch (e) {
+                logger.error("identity_resolve_or_ghost_create: authenticateCustom failed: " + (e && e.message ? e.message : String(e)));
+                return RpcHelpers.errorResponse("ghost mint failed", 500);
+            }
+            var ghostSub = authResult && authResult.userId ? authResult.userId : "";
+            if (!ghostSub) {
+                return RpcHelpers.errorResponse("ghost mint returned no userId", 500);
+            }
+            // 3. Bind the new ghost to the channel.
+            var source = ("" + (data.source || "service_ghost_create")).slice(0, 64);
+            writeLink(nk, channel, externalId, ghostSub, source, "low");
+            logger.info("identity_resolve_or_ghost_create minted ghost: sub=" + ghostSub + " channel=" + channel + " ext=" + maskExternalId(channel, externalId));
+            return RpcHelpers.successResponse({
+                cognito_sub: ghostSub,
+                channel: channel,
+                external_id: externalId,
+                linked_at: Math.floor(Date.now() / 1000),
+                confidence: "low",
+                is_ghost: true,
+            });
+        }
+        catch (err) {
+            logger.error("identity_resolve_or_ghost_create failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
     // ── Registration ─────────────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("identity_resolve", rpcResolve);
+        initializer.registerRpc("identity_resolve_or_ghost_create", rpcResolveOrGhostCreate);
         initializer.registerRpc("identity_link", rpcLink);
         initializer.registerRpc("identity_unlink", rpcUnlink);
         initializer.registerRpc("identity_list_mine", rpcListMine);
