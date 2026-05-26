@@ -1399,7 +1399,10 @@ namespace SatoriCreatorEvents {
   }
 
   export function register(initializer: nkruntime.Initializer): void {
-    initializer.registerBeforeStorageWrite(beforeStorageWrite);
+    var runtimeInitializer = initializer as any;
+    if (runtimeInitializer && typeof runtimeInitializer.registerBeforeStorageWrite === "function") {
+      runtimeInitializer.registerBeforeStorageWrite(beforeStorageWrite);
+    }
     initializer.registerRpc("creator_event_list", rpcList);
     initializer.registerRpc("creator_event_join", rpcJoin);
     initializer.registerRpc("creator_event_submit", rpcSubmit);
