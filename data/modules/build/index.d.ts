@@ -4,7 +4,7 @@ declare var __TS_OWNED_RPCS: {
 } | undefined;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 declare namespace AiPipelines {
-    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace QvCrashHandler {
     export var LOG_COLLECTION: string;
@@ -1297,39 +1297,6 @@ declare namespace LegacyWallet {
  * to keep the bundle rebuild atomic with the rest of the Library mount.
  */
 declare namespace LibraryCountdownPlugin {
-    function register(initializer: nkruntime.Initializer, _nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
-}
-/**
- * library-intent.ts — User intent + target-exam capture for the Library plane.
- *
- * Companion to library-countdown.ts. Every QuizVerse user is exactly one of:
- *   • LEARNER → declared an upcoming exam, gets the countdown hero on home
- *   • PLAYER  → here for fun, gets the casual home (no countdown card)
- *   • UNSURE  → answered "not sure" / skipped → treated as PLAYER but flagged
- *
- * The Unity client (Trivia.Library.Intent.IntentNakamaClient) calls these RPCs
- * during the Onboarding V2 flow at the IntentChooserStep + ExamPickerStep, and
- * later from Settings if the user toggles Learner mode.
- *
- * RPCs registered:
- *   library.intent.set    — { is_exam_intent, target_exam_id?, target_exam_date?, unsure? }
- *   library.intent.get    — returns the caller's IntentRecord
- *   library.intent.clear  — wipes the record (back to default)
- *
- * Storage:
- *   collection "library_user_intent", key "intent" (single-row per user).
- *   Owner-read + system-read (perm 2), owner-only write (perm 1) — same as
- *   library_countdown_subs so Settings + analytics can both read it.
- *
- * Side-effect: setting an exam intent with both id+date queues a system-side
- *   library.countdown.subscribe so the countdown notifications start firing
- *   without the client needing two round-trips. This is idempotent — the
- *   countdown record is keyed by exam_id:exam_date and overwrite-safe.
- *
- * Wiring: add `LibraryIntentPlugin.register(initializer, nk, logger)` to
- *   `src/main.ts` next to LibraryCountdownPlugin.register(...).
- */
-declare namespace LibraryIntentPlugin {
     function register(initializer: nkruntime.Initializer, _nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
 }
 /**

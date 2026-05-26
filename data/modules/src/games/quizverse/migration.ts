@@ -1189,6 +1189,100 @@ namespace QuizVerseMigration {
   }
 
   // ─────────────────────────────────────────────────────────────────────
+  // Weekly polymorphic quiz fetch (Fortune / Emoji / Prediction / Health /
+  // PersonalFinance). The Unity client (WeeklyQuizService) needs a single
+  // RPC because each weekly type has a distinct JSON shape (EmojiQuizData,
+  // PredictionQuizData, HealthQuizData, PersonalFinanceQuizData, …) — but
+  // all are produced by the same S3 ISO-week-date upload pipeline:
+  //
+  //   {S3_BASE}/quiz-verse/weekly/{year}-{week}-{day}-{type}_{lang}.json
+  //
+  // We proxy a single (year,week,day,type,lang) tuple and return the raw
+  // JSON body. The client deserializes it polymorphically based on `type`.
+  // Server-side fallback chains (try previous weeks / fallback langs) are
+  // intentionally kept on the client so multiple consecutive RPC calls
+  // can be cancelled by the user and cached client-side.
+  // ─────────────────────────────────────────────────────────────────────
+  function rpcWeeklyFetch(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    payload: string
+  ): string {
+    requireAuth(ctx);
+    var req = parseJson(payload);
+    var type = String(req.type || "").toLowerCase();
+    var lang = String(req.lang_code || req.lang || "en").toLowerCase();
+    var year = Number(req.iso_year || 0);
+    var week = Number(req.iso_week || 0);
+    var day  = Number(req.iso_day  || 0);
+
+    var allowedTypes: { [k: string]: boolean } = {
+      "fortune": true, "emoji": true, "prediction": true,
+      "health":  true, "personal_finance": true
+    };
+    if (!allowedTypes[type]) {
+      throw nakamaError("type must be one of: fortune|emoji|prediction|health|personal_finance",
+                        nkruntime.Codes.INVALID_ARGUMENT);
+    }
+    if (!year || !week || !day || day < 1 || day > 7) {
+      throw nakamaError("iso_year, iso_week, iso_day (1-7) required", nkruntime.Codes.INVALID_ARGUMENT);
+    }
+
+    var env: any = ctx.env || {};
+    var s3Base = env.IVX_WEEKLY_S3_BASE_URL ||
+                 "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/weekly/";
+    if (s3Base.charAt(s3Base.length - 1) !== "/") s3Base = s3Base + "/";
+
+    var url = s3Base + year + "-" + week + "-" + day + "-" + type + "_" + lang + ".json";
+
+    try {
+      var resp = nk.httpRequest(url, "get", { "Accept": "application/json" }, "");
+      if (resp.code < 200 || resp.code >= 300) {
+        // 404/403 are the expected "not yet uploaded for this slot" signal;
+        // log only for higher-severity codes so ops doesn't get spammed
+        // during the normal weekly-fallback search.
+        if (resp.code !== 404 && resp.code !== 403 && logger && logger.warn) {
+          logger.warn("[Migration/Weekly] HTTP " + resp.code + " for " + url);
+        }
+        return JSON.stringify({
+          ok: false,
+          error: "upstream_http_" + resp.code,
+          status: resp.code,
+          fallback_to_client: true,
+          tried_url: url
+        });
+      }
+      var body = resp.body || "";
+      // Soft validation — the client also runs MIN_VALID_JSON_BYTES (=100)
+      // to reject error stubs that S3 sometimes serves with 200. Mirror
+      // that here so the fallback search advances faster.
+      if (body.length < 100) {
+        return JSON.stringify({
+          ok: false, error: "response_too_small",
+          status: resp.code, fallback_to_client: true, tried_url: url
+        });
+      }
+      return JSON.stringify({
+        ok: true,
+        type: type,
+        lang_code: lang,
+        iso_year: year, iso_week: week, iso_day: day,
+        raw_json: body,
+        source: "s3_v1",
+        source_url: url
+      });
+    } catch (err: any) {
+      if (logger && logger.error) {
+        logger.error("[Migration/Weekly] threw: " + (err && err.message ? err.message : String(err)));
+      }
+      return JSON.stringify({
+        ok: false, error: "transport_error", fallback_to_client: true, tried_url: url
+      });
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
   // PHASE 8 — Personalization plane
   // ─────────────────────────────────────────────────────────────────────
 
@@ -1986,6 +2080,11 @@ namespace QuizVerseMigration {
     initializer.registerRpc("xpromo_get_apps",                rpcXpromoGetApps);
     initializer.registerRpc("webview_token_issue",            rpcWebviewTokenIssue);
     initializer.registerRpc("asset_catalog_get",              rpcAssetCatalogGet);
+    // Weekly polymorphic — single proxy for the 5 weekly quiz types
+    // (Fortune/Emoji/Prediction/Health/PersonalFinance). Client passes
+    // type + (iso_year, iso_week, iso_day, lang_code) and receives
+    // raw_json that it deserializes polymorphically.
+    initializer.registerRpc("quizverse_weekly_fetch",         rpcWeeklyFetch);
 
     initializer.registerRpc("quizverse_analytics_fanout",     rpcAnalyticsFanout);
     initializer.registerRpc("quizverse_livekit_token_mint",   rpcLivekitTokenMint);
@@ -2004,7 +2103,7 @@ namespace QuizVerseMigration {
     initializer.registerRpc("quizverse_words_duel_leaderboard", rpcWordsDuelLeaderboard);
 
     if (logger && logger.info) {
-      logger.info("[QuizVerseMigration] registered 26 RPCs (P0-P8 live + PWords daily seed + Vocab Duel)");
+      logger.info("[QuizVerseMigration] registered 27 RPCs (P0-P8 live + PWords daily seed + Vocab Duel + weekly polymorphic)");
     }
   }
 
