@@ -352,6 +352,14 @@ namespace SatoriCreatorEvents {
     return findLiveEventDefinition(nk, logger, eventId, data.creatorId || data.creator_id);
   }
 
+  function readCompletedAnswer(nk: nkruntime.Nakama, eventId: string, userId: string): any {
+    var records = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
+    if (records && records.length > 0 && records[0].value) {
+      return records[0].value;
+    }
+    return null;
+  }
+
   function validateSubmitWindow(def: CreatorEventDefinition, nowSec: number): string {
     var status = (def.status || "published").toString().toLowerCase();
     if (status === "cancelled") return "Event is cancelled";
@@ -484,14 +492,61 @@ namespace SatoriCreatorEvents {
     };
   }
 
+  function rpcCanPlay(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+
+    var eventId = String(data.eventId);
+    var completedAnswer = readCompletedAnswer(nk, eventId, userId);
+    if (completedAnswer) {
+      return RpcHelpers.successResponse({
+        success: true,
+        eventId: eventId,
+        canPlay: false,
+        played: 1,
+        completed: true,
+        submitted: true,
+        reason: "You have already completed this event.",
+        score: completedAnswer.score || 0,
+        correct: completedAnswer.correct === true,
+      });
+    }
+
+    var def = loadSubmitEventDefinition(nk, logger, data, eventId);
+    var checkWindow = data.checkWindow !== false && data.check_window !== false;
+    if (def && checkWindow) {
+      var windowError = validateSubmitWindow(def, Math.floor(Date.now() / 1000));
+      if (windowError) {
+        return RpcHelpers.successResponse({
+          success: true,
+          eventId: eventId,
+          canPlay: false,
+          played: 0,
+          completed: false,
+          submitted: false,
+          reason: windowError,
+        });
+      }
+    }
+
+    return RpcHelpers.successResponse({
+      success: true,
+      eventId: eventId,
+      canPlay: true,
+      played: 0,
+      completed: false,
+      submitted: false,
+    });
+  }
+
   function rpcSubmit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
 
     var eventId = String(data.eventId);
-    var existingAnswers = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
-    if (existingAnswers && existingAnswers.length > 0 && existingAnswers[0].value) {
+    if (readCompletedAnswer(nk, eventId, userId)) {
       return RpcHelpers.errorResponse("You have already completed this event.");
     }
 
@@ -1405,6 +1460,7 @@ namespace SatoriCreatorEvents {
     }
     initializer.registerRpc("creator_event_list", rpcList);
     initializer.registerRpc("creator_event_join", rpcJoin);
+    initializer.registerRpc("creator_event_can_play", rpcCanPlay);
     initializer.registerRpc("creator_event_submit", rpcSubmit);
     initializer.registerRpc("creator_event_leaderboard", rpcLeaderboard);
     initializer.registerRpc("creator_event_results", rpcResults);
