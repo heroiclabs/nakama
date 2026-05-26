@@ -145,9 +145,23 @@ namespace QuizVerseMigration {
     ctx: nkruntime.Context,
     logger: nkruntime.Logger,
     nk: nkruntime.Nakama,
-    _payload: string
+    payload: string
   ): string {
-    var userId = requireAuth(ctx);
+    // Resolve caller. Unity uses ctx.userId from session auth; server-to-
+    // server (http_key) callers — e.g. content-factory's NakamaMasterAgent
+    // building personalized recaps — can supply user_id in the payload.
+    // Safe because this RPC is READ-ONLY and http_key is admin-level
+    // (same trust boundary as qe_player_full_profile).
+    var userId = ctx.userId;
+    if (!userId) {
+      try {
+        var data: any = payload ? JSON.parse(payload) : {};
+        userId = (data && (data.user_id || data.userId)) || "";
+      } catch (_e) { /* ignore */ }
+    }
+    if (!userId) {
+      throw nakamaError("not authenticated", nkruntime.Codes.UNAUTHENTICATED);
+    }
     try {
       return JSON.stringify({ ok: true, pack: readPlayerContext(nk, userId) });
     } catch (err: any) {

@@ -22851,7 +22851,21 @@ function rpcStreakShieldRepair(ctx, logger, nk, payload) {
 
 function rpcWeeklyRecapGet(ctx, logger, nk, payload) {
     try {
-        var storage = nk.storageRead([{ collection: 'weekly_recap', key: 'latest', userId: ctx.userId }]);
+        // Resolve caller. Unity uses ctx.userId from session auth; server-to-
+        // server (http_key) callers — content-factory's NakamaMasterAgent —
+        // can supply user_id explicitly in the payload. Same trust boundary
+        // as qe_player_full_profile; safe because this RPC is READ-ONLY.
+        var userId = ctx.userId;
+        if (!userId) {
+            try {
+                var _d = payload ? JSON.parse(payload) : {};
+                userId = (_d && (_d.user_id || _d.userId)) || '';
+            } catch (_e) { /* ignore parse — userId stays '' */ }
+        }
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "no_session" });
+        }
+        var storage = nk.storageRead([{ collection: 'weekly_recap', key: 'latest', userId: userId }]);
         var recap = (storage && storage.length > 0) ? JSON.parse(storage[0].value) : { weekStart: null, quizzesPlayed: 0, correctAnswers: 0, totalAnswers: 0, xpEarned: 0, coinsEarned: 0, streakDays: 0, topCategory: null };
         return JSON.stringify({ success: true, recap: recap });
     } catch(e) { return JSON.stringify({ success: false, error: e.message }); }

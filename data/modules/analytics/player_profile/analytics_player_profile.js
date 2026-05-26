@@ -55,6 +55,16 @@ function rpcAnalyticsGetPlayerProfile(ctx, logger, nk, payload) {
         var gameId = appResolveGameId(data.gameId || data.game_id || DEFAULT_GAME_ID);
         var userId = ctx.userId;
         if (!userId) {
+            // Server-to-server (http_key) callers — e.g. content-factory's
+            // NakamaMasterAgent generating personalized recaps — can supply
+            // user_id explicitly. http_key is an admin-level credential
+            // (same trust boundary as qe_player_full_profile) and is only
+            // empty-ctx.userId-bypass-eligible because this RPC is READ-ONLY.
+            // Real Unity clients always have ctx.userId set, so this branch
+            // is a no-op for them.
+            userId = (data && (data.user_id || data.userId)) || "";
+        }
+        if (!userId) {
             return JSON.stringify({ success: false, error: "no_session" });
         }
 

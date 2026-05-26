@@ -599,13 +599,18 @@ function rpcSmartReviewGetState(ctx, logger, nk, payload) {
 // → weaker. Returns a list sorted by weakness descending.
 
 function rpcSmartReviewGetWeaknessMap(ctx, logger, nk, payload) {
-    if (!ctx.userId) return srErrorResponse('User not authenticated');
-
     var data = srValidatePayload(payload);
     if (data === null) return srErrorResponse('Invalid JSON payload');
 
+    // Resolve caller — Unity clients use ctx.userId from their session;
+    // server-to-server (http_key) callers may supply user_id in the payload.
+    // Same trust boundary as qe_player_full_profile; safe because this RPC
+    // is READ-ONLY and the http_key is admin-level.
+    var userId = ctx.userId || (data && (data.user_id || data.userId)) || '';
+    if (!userId) return srErrorResponse('User not authenticated');
+
     var gameId = data.gameId || 'quizverse';
-    var reviewData = readSmartReviewData(nk, logger, ctx.userId, gameId);
+    var reviewData = readSmartReviewData(nk, logger, userId, gameId);
     if (!reviewData || !reviewData.cards) {
         return JSON.stringify({
             success: true,
