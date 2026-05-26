@@ -181,8 +181,14 @@ namespace AiPipelines {
 
   // ── Validation ─────────────────────────────────────────────────────────────
 
+  // Recap + motion-graphics platforms — must match the AI svc DTO enums
+  // exactly (CreateRecapJobDto.platform: tiktok|youtube_shorts|instagram_reels|web,
+  // CreateMotionGraphicsFromPromptJobDto.platform: + 'youtube'). We send the
+  // intersection so the same sanitizer works for both. Anything outside the
+  // set (e.g. legacy "in_app" payloads from older clients) falls back to the
+  // default; the AI svc validator would otherwise reject the entire body.
   function sanitizePlatform(p: string | undefined): string {
-    var allowed = ["youtube_shorts", "tiktok", "instagram_reels", "in_app"];
+    var allowed = ["youtube_shorts", "tiktok", "instagram_reels", "web"];
     if (!p) return "youtube_shorts";
     for (var i = 0; i < allowed.length; i++) {
       if (allowed[i] === p) return p;
@@ -228,15 +234,18 @@ namespace AiPipelines {
       return errEnvelope("invalid_json", "Invalid JSON payload");
     }
 
+    // NOTE: CreateRecapJobDto does NOT accept `language` — Nest's
+    // ValidationPipe runs with whitelist+forbidNonWhitelisted, so any extra
+    // field 400s the whole request. Keep the body to fields declared in
+    // src/content-factory/dto/content-factory.dto.ts::CreateRecapJobDto.
     var body = {
       cognitoSub: userId,
       concept: safeStr(data.concept, 200),
-      targetDurationSec: clampDuration(data.targetDurationSec, 10, 90, 20),
+      targetDurationSec: clampDuration(data.targetDurationSec, 15, 90, 20),
       platform: sanitizePlatform(data.platform),
       withVoiceover: safeBool(data.withVoiceover, true),
       personalize: safeBool(data.personalize, true),
       playerId: userId,
-      language: safeStr(data.language, 8) || "en",
     };
 
     var resp = postSigned(ctx, nk, logger, ROUTE_BASE + "/weekly-recap", body);
@@ -263,6 +272,7 @@ namespace AiPipelines {
       return errEnvelope("invalid_json", "Invalid JSON payload");
     }
 
+    // See weekly-recap note: `language` is not in the CreateRecapJobDto.
     var body = {
       cognitoSub: userId,
       concept: safeStr(data.concept, 200),
@@ -271,7 +281,6 @@ namespace AiPipelines {
       withVoiceover: safeBool(data.withVoiceover, true),
       personalize: safeBool(data.personalize, true),
       playerId: userId,
-      language: safeStr(data.language, 8) || "en",
     };
 
     var resp = postSigned(ctx, nk, logger, ROUTE_BASE + "/monthly-recap", body);
@@ -303,14 +312,16 @@ namespace AiPipelines {
       return errEnvelope("invalid_prompt", "Prompt must be 4-2000 chars");
     }
 
-    // The AI svc accepts a few values; map free-form Unity strings down.
+    // The AI svc accepts a narrow enum on CreateMotionGraphicsFromPromptJobDto;
+    // map free-form Unity strings down. Anything outside the set is dropped
+    // so the AI svc applies its default ("kinetic_typography").
     var styleHint = safeStr(data.styleHint, 40);
     var allowedStyle = [
+      "minimalist",
       "kinetic_typography",
-      "data_explainer",
-      "product_demo",
-      "social_cut",
-      "tutorial",
+      "data_visualization",
+      "explainer_cartoon",
+      "academic",
     ];
     var styleHintFinal: string | undefined = undefined;
     if (styleHint) {
