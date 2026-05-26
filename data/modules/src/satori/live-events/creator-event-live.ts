@@ -3,12 +3,16 @@ namespace SatoriCreatorEvents {
   // ---- Types ----
 
   interface CreatorEventQuestion {
-    id: string;
-    text: string;
+    id?: string;
+    text?: string;
+    question?: string;
+    q?: string;
     options?: string[];
-    correctAnswer: string;
-    timeLimit: number;
-    points: number;
+    correctAnswer?: string;
+    answer?: string;
+    a?: string;
+    timeLimit?: number;
+    points?: number;
   }
 
   interface CreatorEventPrizeTier {
@@ -268,131 +272,309 @@ namespace SatoriCreatorEvents {
     return 1.5; // challenge / default
   }
 
+  function normalizeAnswer(value: any): string {
+    return String(value === undefined || value === null ? "" : value).toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function answersMatch(given: any, expected: any): boolean {
+    var g = normalizeAnswer(given);
+    var e = normalizeAnswer(expected);
+    return !!g && !!e && g === e;
+  }
+
+  function questionAnswer(q: any): string {
+    if (!q) return "";
+    return String(q.correctAnswer || q.answer || q.a || "");
+  }
+
+  function questionPrompt(q: any): string {
+    if (!q) return "";
+    return String(q.text || q.question || q.q || q.id || "");
+  }
+
+  function numericValue(value: any, fallback: number): number {
+    var n = Number(value);
+    return isFinite(n) ? n : fallback;
+  }
+
+  function speedQuizQuestionSeconds(diff: string | undefined | null): number {
+    var d = (diff || "challenge").toString().toLowerCase().trim();
+    if (d === "casual" || d === "easy") return 25;
+    if (d === "expert" || d === "hard" || d === "pro") return 12;
+    return 18;
+  }
+
+  function findLiveEventDefinition(nk: nkruntime.Nakama, logger: nkruntime.Logger, eventId: string, creatorId?: string): CreatorEventDefinition | null {
+    var seen: { [id: string]: boolean } = {};
+    var owners: string[] = [];
+    if (creatorId) owners.push(String(creatorId));
+    owners.push(Constants.SYSTEM_USER_ID);
+
+    for (var oi = 0; oi < owners.length; oi++) {
+      var owner = owners[oi];
+      if (!owner || seen[owner]) continue;
+      seen[owner] = true;
+      try {
+        var records = nk.storageRead([{ collection: "live_events", key: eventId, userId: owner }]);
+        if (records && records.length > 0 && records[0].value) {
+          return records[0].value as CreatorEventDefinition;
+        }
+      } catch (readErr: any) {
+        logger.warn("[CreatorEvent] live_events read failed for event %s owner %s: %s", eventId, owner, readErr.message || String(readErr));
+      }
+    }
+
+    var cursor = "";
+    for (var page = 0; page < 10; page++) {
+      try {
+        var result = nk.storageList("", "live_events", 100, cursor);
+        var objects = result.objects || [];
+        for (var i = 0; i < objects.length; i++) {
+          var obj = objects[i];
+          if (obj && obj.key === eventId && obj.value) {
+            return obj.value as CreatorEventDefinition;
+          }
+        }
+        cursor = result.cursor || "";
+        if (!cursor) break;
+      } catch (listErr: any) {
+        logger.warn("[CreatorEvent] live_events list failed while locating event %s: %s", eventId, listErr.message || String(listErr));
+        break;
+      }
+    }
+
+    return null;
+  }
+
+  function loadSubmitEventDefinition(nk: nkruntime.Nakama, logger: nkruntime.Logger, data: any, eventId: string): CreatorEventDefinition | null {
+    var def = getEventDefinition(nk, eventId);
+    if (def) return def;
+    return findLiveEventDefinition(nk, logger, eventId, data.creatorId || data.creator_id);
+  }
+
+  function validateSubmitWindow(def: CreatorEventDefinition, nowSec: number): string {
+    var status = (def.status || "published").toString().toLowerCase();
+    if (status === "cancelled") return "Event is cancelled";
+    if (status === "ended" || status === "distributed") return "Event has ended";
+    if (status === "draft" || status === "funded") return "Event is not live";
+
+    var startAt = Math.floor(numericValue(def.scheduledAt, 0));
+    var durationMin = numericValue(def.duration, 30);
+    if (startAt <= 0 || durationMin <= 0) return "Event schedule is invalid";
+
+    var endAt = startAt + Math.floor(durationMin * 60);
+    if (nowSec < startAt) return "Event has not started yet";
+    if (nowSec >= endAt) return "Event has ended";
+    return "";
+  }
+
+  function scoreBestGuess(def: CreatorEventDefinition, answer: any, nowMs: number): any {
+    var correctAnswer = String(def.answer || "");
+    var correct = answersMatch(answer, correctAnswer);
+    var startMs = Math.floor(numericValue(def.scheduledAt, 0) * 1000);
+    var durationSec = Math.max(1, Math.floor(numericValue(def.duration, 30) * 60));
+    var elapsedSec = startMs > 0 ? Math.max(0, Math.floor((nowMs - startMs) / 1000)) : 0;
+    var speedBonus = 0;
+
+    if (correct) {
+      var remainingRatio = Math.max(0, Math.min(1, (durationSec - elapsedSec) / durationSec));
+      speedBonus = Math.floor(Math.round(900 * remainingRatio) * difficultySpeedMultiplier(def.difficulty));
+    }
+
+    return {
+      answer: String(answer),
+      correct: correct,
+      score: correct ? 100 + speedBonus : 0,
+      speedBonus: speedBonus,
+      elapsedSec: elapsedSec,
+      correctAnswer: correctAnswer,
+      funFact: (def as any).funFact || "",
+      correctCount: correct ? 1 : 0,
+      totalQuestions: 1,
+      qAnswers: [],
+    };
+  }
+
+  function scoreQuestionSet(def: CreatorEventDefinition, data: any, nowMs: number): any {
+    var questions = def.questions || [];
+    if (!questions || questions.length === 0) {
+      return { error: "Event has no questions configured" };
+    }
+
+    var submitted = Array.isArray(data.answers) ? data.answers : (Array.isArray(data.qAnswers) ? data.qAnswers : []);
+    var splitAnswers = submitted.length === 0 ? String(data.answer || "").split("|") : [];
+    var submittedByIndex: { [idx: number]: any } = {};
+    for (var si = 0; si < submitted.length; si++) {
+      var submittedItem = submitted[si];
+      var submittedIdx = si;
+      if (submittedItem !== undefined && submittedItem !== null && typeof submittedItem === "object") {
+        var idxValue = (submittedItem as any).questionIdx;
+        if (idxValue === undefined || idxValue === null) idxValue = (submittedItem as any).question_idx;
+        var parsedIdx = Number(idxValue);
+        if (isFinite(parsedIdx) && parsedIdx >= 0) submittedIdx = Math.floor(parsedIdx);
+      }
+      submittedByIndex[submittedIdx] = submittedItem;
+    }
+
+    var correctCount = 0;
+    var totalScore = 0;
+    var totalSpeedBonus = 0;
+    var sanitizedAnswers: any[] = [];
+    var perQuestionSec = speedQuizQuestionSeconds(def.difficulty);
+    var maxSpeedBonus = Math.floor(perQuestionSec * 10 * difficultySpeedMultiplier(def.difficulty));
+    var startMs = Math.floor(numericValue(def.scheduledAt, 0) * 1000);
+    var elapsedSec = startMs > 0 ? Math.max(0, Math.floor((nowMs - startMs) / 1000)) : 0;
+    var trustedQuestionBudget = Math.max(1, questions.length * perQuestionSec);
+    var trustedSpeedRatio = Math.max(0, Math.min(1, (trustedQuestionBudget - elapsedSec) / trustedQuestionBudget));
+
+    for (var i = 0; i < questions.length; i++) {
+      var question = questions[i] as any;
+      var provided = submitted.length > 0 ? submittedByIndex[i] : splitAnswers[i];
+      var given = "";
+
+      if (provided !== undefined && provided !== null && typeof provided === "object") {
+        given = String((provided as any).given || (provided as any).answer || "");
+      } else {
+        given = String(provided || "").trim();
+      }
+
+      var expected = questionAnswer(question);
+      var correct = answersMatch(given, expected);
+      var baseScore = correct ? Math.floor(numericValue(question.points, 100)) : 0;
+      var appliedSpeedBonus = 0;
+      if (correct) {
+        appliedSpeedBonus = Math.floor(maxSpeedBonus * trustedSpeedRatio);
+      }
+
+      var qScore = baseScore + appliedSpeedBonus;
+      if (correct) correctCount++;
+      totalScore += qScore;
+      totalSpeedBonus += appliedSpeedBonus;
+      sanitizedAnswers.push({
+        questionIdx: i,
+        question: questionPrompt(question),
+        given: given,
+        correct: correct,
+        score: qScore,
+        speedBonus: appliedSpeedBonus,
+      });
+    }
+
+    var answerText = String(data.answer || "");
+    if (!answerText) {
+      var parts: string[] = [];
+      for (var pi = 0; pi < sanitizedAnswers.length; pi++) parts.push(String(sanitizedAnswers[pi].given || ""));
+      answerText = parts.join(" | ");
+    }
+
+    var correctAnswers: string[] = [];
+    for (var ci = 0; ci < questions.length; ci++) correctAnswers.push(questionAnswer(questions[ci]));
+
+    return {
+      answer: answerText,
+      correct: correctCount > 0,
+      score: totalScore,
+      speedBonus: totalSpeedBonus,
+      elapsedSec: elapsedSec,
+      correctAnswer: correctAnswers.join(" | "),
+      funFact: (def as any).funFact || "",
+      correctCount: correctCount,
+      totalQuestions: questions.length,
+      qAnswers: sanitizedAnswers,
+    };
+  }
+
   function rpcSubmit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
-    if (data.answer === undefined || data.answer === null) return RpcHelpers.errorResponse("answer required");
 
-    var def = getEventDefinition(nk, data.eventId);
+    var eventId = String(data.eventId);
+    var existingAnswers = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
+    if (existingAnswers && existingAnswers.length > 0 && existingAnswers[0].value) {
+      return RpcHelpers.errorResponse("You have already completed this event.");
+    }
+
+    var def = loadSubmitEventDefinition(nk, logger, data, eventId);
     if (!def) return RpcHelpers.errorResponse("Event not found");
 
-    var status = computeEffectiveStatus(def);
-    if (status !== "live") return RpcHelpers.errorResponse("Event is not live");
+    var nowMs = Date.now();
+    var nowSec = Math.floor(nowMs / 1000);
+    var windowError = validateSubmitWindow(def, nowSec);
+    if (windowError) return RpcHelpers.errorResponse(windowError);
 
-    var speedMult = difficultySpeedMultiplier(def.difficulty);
-
-    var userStates = getUserStates(nk, userId);
-    var state = userStates[data.eventId];
-    if (!state || !state.joinedAt) return RpcHelpers.errorResponse("Not joined");
-    if (state.eliminated) return RpcHelpers.errorResponse("Eliminated from event");
-
-    var now = Math.floor(Date.now() / 1000);
-    var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
-
-    // ---- Best Guess mode ----
-    if (def.gameMode === "best_guess") {
-      var userAnswer = data.answer.toString().toLowerCase().trim();
-      var correctAnswer = (def.answer || "").toLowerCase().trim();
-      var isCorrect = userAnswer === correctAnswer;
-
-      var elapsedSec = now - def.scheduledAt;
-      var maxDuration = def.duration * 60;
-      var rawTimeBonus = isCorrect ? Math.max(0, Math.floor(((maxDuration - elapsedSec) / maxDuration) * 1000)) : 0;
-      var timeBonus = Math.floor(rawTimeBonus * speedMult);
-      var points = isCorrect ? 1000 + timeBonus : 0;
-
-      state.score = points;
-      state.answers.push({
-        questionId: "best_guess",
-        answer: data.answer.toString(),
-        correct: isCorrect,
-        answeredAt: now,
-        points: points,
-      });
-      saveUserStates(nk, userId, userStates);
-
-      try {
-        nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", points, 0);
-      } catch (err: any) {
-        logger.warn("[CreatorEvent] Leaderboard write failed: %s", err.message || String(err));
-      }
-
-      return RpcHelpers.successResponse({
-        correct: isCorrect,
-        score: points,
-        timeBonus: timeBonus,
-        difficulty: def.difficulty || "challenge",
-        speedMultiplier: speedMult,
-      });
+    var mode = String(def.gameMode || "best_guess").toLowerCase();
+    if (mode === "speed_quiz" || mode === "elimination") {
+      var hasAnswerArray = Array.isArray(data.answers) || Array.isArray(data.qAnswers);
+      if (!hasAnswerArray && (data.answer === undefined || data.answer === null)) return RpcHelpers.errorResponse("answers required");
+    } else if (data.answer === undefined || data.answer === null) {
+      return RpcHelpers.errorResponse("answer required");
     }
 
-    // ---- Speed Quiz / Elimination mode ----
-    if (!data.questionId) return RpcHelpers.errorResponse("questionId required");
+    var scoreResult = (mode === "speed_quiz" || mode === "elimination")
+      ? scoreQuestionSet(def, data, nowMs)
+      : scoreBestGuess(def, data.answer, nowMs);
+    if (scoreResult.error) return RpcHelpers.errorResponse(scoreResult.error);
 
-    var question: CreatorEventQuestion | null = null;
-    for (var qi = 0; qi < def.questions.length; qi++) {
-      if (def.questions[qi].id === data.questionId) {
-        question = def.questions[qi];
-        break;
-      }
-    }
-    if (!question) return RpcHelpers.errorResponse("Question not found");
-
-    for (var ai = 0; ai < state.answers.length; ai++) {
-      if (state.answers[ai].questionId === data.questionId) {
-        return RpcHelpers.errorResponse("Question already answered");
-      }
-    }
-
-    var isCorrect = data.answer.toString().toLowerCase().trim() === question.correctAnswer.toLowerCase().trim();
-    var points = isCorrect ? question.points : 0;
-
-    var appliedSpeedBonus = 0;
-    if (isCorrect && typeof data.timeElapsed === "number") {
-      var rawSpeedBonus = Math.max(0, Math.floor(((question.timeLimit - data.timeElapsed) / question.timeLimit) * (question.points * 0.5)));
-      appliedSpeedBonus = Math.floor(rawSpeedBonus * speedMult);
-      points += appliedSpeedBonus;
-    }
-
-    if (def.gameMode === "elimination" && !isCorrect) {
-      state.eliminated = true;
-    }
-
-    state.score += points;
-    state.currentQuestion++;
-    state.answers.push({
-      questionId: data.questionId,
-      answer: data.answer.toString(),
-      correct: isCorrect,
-      answeredAt: now,
-      points: points,
-    });
-    saveUserStates(nk, userId, userStates);
+    var answerRecord: any = {
+      eventId: eventId,
+      playerId: userId,
+      deviceId: data.deviceId || data.device_id || "",
+      answer: scoreResult.answer,
+      correct: scoreResult.correct,
+      score: scoreResult.score,
+      speedBonus: scoreResult.speedBonus,
+      submitMs: nowMs,
+      elapsedSec: scoreResult.elapsedSec,
+      answered: true,
+      correctCount: scoreResult.correctCount,
+      totalQuestions: scoreResult.totalQuestions,
+      qAnswers: scoreResult.qAnswers,
+      source: "creator_event_submit_rpc",
+    };
 
     try {
-      nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", state.score, 0);
+      nk.storageWrite([{
+        collection: "event_answers",
+        key: eventId,
+        userId: userId,
+        value: answerRecord,
+        permissionRead: 2,
+        permissionWrite: 0,
+        version: "*",
+      }]);
+    } catch (writeErr: any) {
+      logger.warn("[CreatorEvent] Duplicate/failed answer write for user=%s event=%s: %s", userId, eventId, writeErr.message || String(writeErr));
+      return RpcHelpers.errorResponse("You have already completed this event.");
+    }
+
+    var leaderboardId = LEADERBOARD_PREFIX + eventId;
+
+    try {
+      nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", scoreResult.score, 0);
     } catch (err: any) {
       logger.warn("[CreatorEvent] Leaderboard write failed: %s", err.message || String(err));
     }
 
     EventBus.emit(nk, logger, ctx, EventBus.Events.SCORE_SUBMITTED, {
       userId: userId,
-      eventId: data.eventId,
-      score: state.score,
-      questionId: data.questionId,
+      eventId: eventId,
+      score: scoreResult.score,
+      correct: scoreResult.correct,
     });
 
     return RpcHelpers.successResponse({
-      correct: isCorrect,
-      points: points,
-      speedBonus: appliedSpeedBonus,
-      totalScore: state.score,
-      eliminated: state.eliminated || false,
-      questionsAnswered: state.answers.length,
-      totalQuestions: def.questions.length,
+      success: true,
+      correct: scoreResult.correct,
+      score: scoreResult.score,
+      speedBonus: scoreResult.speedBonus,
+      totalScore: scoreResult.score,
+      correctAnswer: scoreResult.correctAnswer,
+      funFact: scoreResult.funFact,
+      correctCount: scoreResult.correctCount,
+      totalQuestions: scoreResult.totalQuestions,
       difficulty: def.difficulty || "challenge",
-      speedMultiplier: speedMult,
+      speedMultiplier: difficultySpeedMultiplier(def.difficulty),
     });
   }
 
@@ -1202,7 +1384,22 @@ namespace SatoriCreatorEvents {
     });
   }
 
+  function beforeStorageWrite(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, writes: nkruntime.StorageWriteRequest[]): nkruntime.StorageWriteRequest[] {
+    if (!writes || writes.length === 0) return writes;
+
+    for (var i = 0; i < writes.length; i++) {
+      var w = writes[i];
+      if (w && w.collection === "event_answers") {
+        logger.warn("[CreatorEvent] Blocked client storage write to event_answers user=%s key=%s", ctx.userId || "", w.key || "");
+        throw new Error("event_answers is server-authoritative; use creator_event_submit.");
+      }
+    }
+
+    return writes;
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
+    initializer.registerBeforeStorageWrite(beforeStorageWrite);
     initializer.registerRpc("creator_event_list", rpcList);
     initializer.registerRpc("creator_event_join", rpcJoin);
     initializer.registerRpc("creator_event_submit", rpcSubmit);
@@ -1282,7 +1479,7 @@ namespace SatoriCreatorEvents {
   //  This RPC plugs that gap:
   //    1. Reads the event from `live_events` (creator-owned).
   //    2. Reads the player's answer from `event_answers`.
-  //    3. Lists ALL `event_answers` (cross-user) and ranks players.
+  //    3. Lists canonical `event_answers` rows (key === eventId) and ranks players.
   //    4. Picks the matching gift-card / XUT tier from
   //       `giftCardPrizes.tiers` (rank → '1st' | '2nd' | '3rd' |
   //       'top_10' | 'all').
@@ -1418,6 +1615,7 @@ namespace SatoriCreatorEvents {
       for (var i = 0; i < objs.length; i++) {
         var o = objs[i];
         var v = o.value as SpaEventAnswer;
+        if (!o || o.key !== eventId) continue;
         if (!v || v.eventId !== eventId) continue;
         allAnswers.push({
           userId: o.userId,

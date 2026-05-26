@@ -60,6 +60,9 @@ namespace Storage {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.collection || !data.key) return RpcHelpers.errorResponse("collection and key required");
+    if (data.collection === "event_answers") {
+      return RpcHelpers.errorResponse("event_answers is server-authoritative; use creator_event_submit.");
+    }
 
     var targetUserId = data.user_id || userId;
     var value = typeof data.value === "string" ? JSON.parse(data.value) : (data.value || {});

@@ -1354,6 +1354,7 @@ namespace AdminConsole {
         var result = nk.storageList("", "event_answers", 100, cursor);
         var objects = result.objects || [];
         for (var j = 0; j < objects.length; j++) {
+          if (objects[j].key !== eventId) continue;
           var ans: any = objects[j].value;
           if (ans && ans.eventId === eventId) {
             answersCount++;
