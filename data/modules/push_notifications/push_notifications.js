@@ -177,12 +177,32 @@ function rpcPushRegisterToken(ctx, logger, nk, payload) {
     } catch (err) {
         return utils.handleError(ctx, null, "Invalid Lambda response JSON");
     }
-    
-    if (!lambdaData.success || !lambdaData.snsEndpointArn) {
-        return utils.handleError(ctx, null, "Lambda did not return endpoint ARN: " + (lambdaData.error || "Unknown error"));
+
+    // Lambda uses "endpointArn" (some versions use "snsEndpointArn") — normalise here.
+    var endpointArn = lambdaData.endpointArn || lambdaData.snsEndpointArn || "";
+
+    if (!lambdaData.success || !endpointArn) {
+        // ─── SNS duplicate-endpoint recovery ──────────────────────────────
+        // AWS SNS CreatePlatformEndpoint throws "Endpoint ... already exists with
+        // the same Token, but different attributes" when the endpoint was previously
+        // created and then disabled (e.g. after a delivery failure).
+        // In this case SNS embeds the existing ARN in the error string.
+        // We extract it, re-enable the endpoint by updating its token, and proceed.
+        var rawError = lambdaData.error
+            || (lambdaData.provider && lambdaData.provider.error)
+            || "";
+
+        var arnPattern = /arn:aws:sns:[a-z0-9\-]+:\d+:endpoint\/[A-Za-z0-9\-_\/]+/;
+        var arnMatch = rawError.match(arnPattern);
+
+        if (arnMatch && rawError.indexOf("already exists") !== -1) {
+            endpointArn = arnMatch[0];
+            utils.logInfo(logger, "[push_register_token] SNS duplicate endpoint recovered — reusing ARN: " + endpointArn);
+        } else {
+            utils.logError(logger, "[push_register_token] Lambda did not return a usable endpoint ARN. error=" + rawError);
+            return utils.handleError(ctx, null, "Lambda did not return endpoint ARN: " + (rawError || "Unknown error"));
+        }
     }
-    
-    var endpointArn = lambdaData.snsEndpointArn;
     
     // Store endpoint ARN
     if (!storeEndpointArn(nk, logger, userId, gameId, platform, endpointArn)) {
@@ -228,6 +248,8 @@ function rpcPushSendEvent(ctx, logger, nk, payload) {
     }
     
     var data = parsed.data;
+    // Accept both "targetUserId" (server→server) and "userId" (Unity client SDK).
+    data.targetUserId = data.targetUserId || data.userId;
     var validation = utils.validatePayload(data, ['targetUserId', 'gameId', 'eventType', 'title', 'body']);
     if (!validation.valid) {
         return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
