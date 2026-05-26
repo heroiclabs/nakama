@@ -154,9 +154,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     // forwards to the AI svc's /content-factory/from-nakama/* routes
     // using the existing IVX_INSIGHTS_SHARED_SECRET. Acting user id is
     // stamped from `ctx.userId` so the SDK can never spoof identities.
+    //
+    // Note: AiPipelines.register() takes ONLY `(initializer)` so that
+    // data/modules/postbuild.js auto-invokes it at IIFE scope and the
+    // `__rpc_*` globals are visible to the generated InitModule
+    // wrapper. See comments in src/ai-content/ai_pipelines.ts.
     try {
       logger.info("[AiPipelines] Registering ai_pipeline_weekly_recap / monthly_recap / motion_graphics / poll RPCs...");
-      AiPipelines.register(initializer, logger);
+      AiPipelines.register(initializer);
     } catch (err: any) {
       logger.error("[AiPipelines] failed to register: " + (err && err.message ? err.message : String(err)));
     }

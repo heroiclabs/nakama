@@ -53,7 +53,11 @@ namespace AiPipelines {
 
   // ── Constants ──────────────────────────────────────────────────────────────
   var SERVICE_NAME = "nakama";
-  var ROUTE_BASE = "/api/ai/content-factory/from-nakama/jobs";
+  // NOTE: IVX_AI_SVC_BASE_URL already terminates in `/api/ai` (matches every
+  // other Nakama → AI-svc consumer: personalization-rpc, cross-sell-rpc,
+  // privacy-rpc). Route paths here MUST NOT re-include `/api/ai` or the
+  // upstream returns 404.
+  var ROUTE_BASE = "/content-factory/from-nakama/jobs";
   var REQUEST_TIMEOUT_MS = 6500;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -353,13 +357,15 @@ namespace AiPipelines {
 
   // ── Registration ───────────────────────────────────────────────────────────
 
-  export function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void {
+  // Note: this register() takes ONLY `(initializer)` — that single-arg shape is
+  // required by data/modules/postbuild.js so the `__rpc_*` globals populated by
+  // `initializer.registerRpc(...)` are visible to the auto-generated InitModule
+  // wrapper. A second parameter would silently disable auto-invoke and the
+  // runtime would fail every dispatch with "JavaScript runtime function invalid".
+  export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("ai_pipeline_weekly_recap", rpcWeeklyRecap);
     initializer.registerRpc("ai_pipeline_monthly_recap", rpcMonthlyRecap);
     initializer.registerRpc("ai_pipeline_motion_graphics", rpcMotionGraphics);
     initializer.registerRpc("ai_pipeline_poll", rpcPoll);
-    logger.info(
-      "[AiPipelines] Registered ai_pipeline_weekly_recap / monthly_recap / motion_graphics / poll",
-    );
   }
 }
