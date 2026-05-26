@@ -455,21 +455,32 @@ namespace IdentityResolver {
       }
 
       // 2. Slow path: mint a ghost. authenticateCustom with create=true
-      //    is idempotent — passing the same custom_id always returns the
-      //    same userId, so we get exactly-once semantics even under
-      //    concurrent subscribes for the same email.
+      //    is idempotent on custom_id — passing the same custom_id always
+      //    returns the same userId, so we get exactly-once semantics even
+      //    under concurrent subscribes for the same email.
       var customId = "ghost:" + channel + ":" + externalId;
       // Nakama enforces custom_id ≤ 128 chars. Email + channel + prefix
       // usually fits comfortably; truncate defensively just in case.
       if (customId.length > 128) {
         customId = customId.substr(0, 128);
       }
-      var username = "ghost_" + channel + "_" + maskExternalId(channel, externalId).replace(/[^a-zA-Z0-9_]/g, "_");
-      // Nakama usernames are unique + ≤ 128 chars. We don't actually
-      // care about collisions for ghost users, so suffix with a short
-      // hash of the custom_id to disambiguate.
-      var suffix = customId.length > 8 ? customId.substr(customId.length - 8) : customId;
-      username = (username + "_" + suffix).substr(0, 128);
+      // Nakama usernames MUST be globally unique across all users (DB
+      // uniqueness constraint). custom_id is the idempotency key — when
+      // we re-call ghost_create for the same email, authenticateCustom
+      // returns the existing user and the username we'd pass here is
+      // discarded. We therefore only need uniqueness on first mint.
+      //
+      // Earlier attempt derived the username suffix from the last 8
+      // chars of custom_id, but for any common email domain (gmail.com,
+      // yahoo.com, etc.) those 8 chars are identical across ALL users
+      // (e.g. "mail.com"), and the user-distinct character was only the
+      // first letter of the masked local-part → catastrophic collision
+      // rate (any two t*@gmail.com emails → same username). Switching
+      // to a UUID guarantees collision-free first mint; subsequent
+      // mints for the same email never reach this branch (idempotent
+      // on custom_id).
+      var uniqueSuffix = nk.uuidv4().replace(/-/g, "").substr(0, 16);
+      var username = "ghost_" + channel + "_" + uniqueSuffix;
 
       var authResult: nkruntime.AuthResult;
       try {
