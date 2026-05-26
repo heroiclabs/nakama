@@ -149,6 +149,18 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[QvPrivacy] Registering privacy_erase_user / privacy_erase_discord / consent_upsert / consent_invalidate RPCs...");
     QvPrivacy.register(initializer);
 
+    // AI content-factory pipeline RPCs (weekly_recap / monthly_recap /
+    // motion_graphics / poll). Unity calls these and Nakama signs +
+    // forwards to the AI svc's /content-factory/from-nakama/* routes
+    // using the existing IVX_INSIGHTS_SHARED_SECRET. Acting user id is
+    // stamped from `ctx.userId` so the SDK can never spoof identities.
+    try {
+      logger.info("[AiPipelines] Registering ai_pipeline_weekly_recap / monthly_recap / motion_graphics / poll RPCs...");
+      AiPipelines.register(initializer, logger);
+    } catch (err: any) {
+      logger.error("[AiPipelines] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     logger.info("[Legacy] Registering friends RPCs...");
     LegacyFriends.register(initializer);
 
