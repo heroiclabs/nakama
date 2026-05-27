@@ -563,21 +563,25 @@ function rpcGetCommunityPredictions(ctx, logger, nk, payload) {
     });
 }
 
-// Register RPCs
-var rpcFunctions = {
-    'cricket_submit_prediction': rpcSubmitPrediction,
-    'cricket_add_trivia_boost': rpcAddTriviaBoost,
-    'cricket_lock_predictions': rpcLockMatchPredictions,
-    'cricket_process_results': rpcProcessMatchResults,
-    'cricket_get_prediction': rpcGetPrediction,
-    'cricket_get_prediction_leaderboard': rpcGetPredictionLeaderboard,
-    'cricket_get_prediction_stats': rpcGetPredictionStats,
-    'cricket_get_community_predictions': rpcGetCommunityPredictions
-};
-
-// Export for Nakama
-for (var name in rpcFunctions) {
-    var InitModule = function(ctx, logger, nk, initializer) {
-        initializer.registerRpc(name, rpcFunctions[name]);
-    };
+// Register RPCs.
+//
+// Nakama invokes InitModule exactly once per JS file and walks the AST to
+// extract each registered function's name as the "function key". A dynamic
+// property lookup like `rpcFunctions[name]` is opaque to that walker and
+// crashes module load with:
+//   "js cricket_get_community_predictions function key could not be
+//    extracted: not found"
+// which then drops the ENTIRE JS runtime (every other module fails to
+// register too). Register each RPC with an explicit named handler so the
+// AST walker can resolve the key statically.
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc('cricket_submit_prediction',           rpcSubmitPrediction);
+    initializer.registerRpc('cricket_add_trivia_boost',            rpcAddTriviaBoost);
+    initializer.registerRpc('cricket_lock_predictions',            rpcLockMatchPredictions);
+    initializer.registerRpc('cricket_process_results',             rpcProcessMatchResults);
+    initializer.registerRpc('cricket_get_prediction',              rpcGetPrediction);
+    initializer.registerRpc('cricket_get_prediction_leaderboard',  rpcGetPredictionLeaderboard);
+    initializer.registerRpc('cricket_get_prediction_stats',        rpcGetPredictionStats);
+    initializer.registerRpc('cricket_get_community_predictions',   rpcGetCommunityPredictions);
+    logger.info('[cricket_worldcup/predictions] registered 8 RPCs');
 }
