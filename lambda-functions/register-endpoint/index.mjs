@@ -149,8 +149,38 @@ export const handler = async (event) => {
         } catch (createError) {
             console.warn(`[register-endpoint] SNS CreatePlatformEndpoint threw: ${createError.name}: ${createError.message}`);
             // Token already exists for a different endpoint → reuse it.
-            if (createError.name === 'InvalidParameterException' && createError.message.includes('already exists')) {
-                const arnMatch = createError.message.match(/arn:aws:sns:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+/);
+            //
+            // SNS error string (verbatim sample from EKS Nakama logs on
+            // 2026-05-27, all 18 occurrences in the 24h audit):
+            //
+            //   "Invalid parameter: Token Reason: Endpoint
+            //    arn:aws:sns:us-east-1:970547373533:endpoint/GCM/IntelliVerseX-Android/ce09dd6a-c19b-3b02-b6b3-58bb2239c040
+            //    already exists with the same Token, but different attributes."
+            //
+            // The previous regex `/arn:aws:sns:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+/`
+            // expected EIGHT colons in the ARN (a `:`-separated 7-segment
+            // tail) — but a real SNS endpoint ARN has only FIVE colons:
+            //
+            //   arn : aws : sns : <region> : <account> : endpoint/<plat>/<app>/<uuid>
+            //
+            // So `arnMatch` was always null on collision, the catch threw
+            // through, the Lambda returned a 500, and Nakama's
+            // push_register_token wrote the "ghost row" warning we see
+            // 18× in 24h prod logs. The user's device had no
+            // endpointArn → no push notifications could ever be delivered
+            // to that user until Lambda admin restarted SNS.
+            //
+            // Fix: match the canonical 6-segment ARN shape, accepting any
+            // non-colon, non-whitespace, non-quote suffix so the
+            // `endpoint/GCM/<app>/<uuid>` resource portion (which contains
+            // `/` not `:`) is captured intact.
+            const isAlreadyExists =
+                createError.name === 'InvalidParameterException' &&
+                /already exists/i.test(createError.message || '');
+            if (isAlreadyExists) {
+                const arnMatch = (createError.message || '').match(
+                    /arn:aws:sns:[a-z0-9-]+:\d+:[^\s"',]+/i
+                );
                 if (arnMatch) {
                     endpointArn = arnMatch[0];
                     console.log(`[register-endpoint] ✓ Recovered existing SNS endpoint | arn=${endpointArn} | re-enabling + refreshing token...`);
@@ -165,8 +195,16 @@ export const handler = async (event) => {
                     }));
                     console.log(`[register-endpoint] ✓ Endpoint re-enabled and token refreshed | arn=${endpointArn}`);
                 } else {
-                    console.error(`[register-endpoint] FAIL — InvalidParameterException but could not extract ARN from message: ${createError.message}`);
-                    throw createError;
+                    console.error(
+                        `[register-endpoint] FAIL — SNS reported "already exists" but ARN could not be parsed. ` +
+                        `Raw message: ${createError.message}`
+                    );
+                    return response(502, {
+                        success: false,
+                        error: 'SNS reported endpoint already exists but did not include a parseable ARN; ' +
+                               'on-call should inspect Lambda logs and update the ARN-extraction regex.',
+                        rawMessage: createError.message
+                    });
                 }
             } else {
                 console.error(`[register-endpoint] FAIL — SNS error: ${createError.name}: ${createError.message}` +
