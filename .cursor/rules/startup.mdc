@@ -1,0 +1,134 @@
+---
+description: ALWAYS ACTIVE — Nakama backend startup context. Loads routing, hard rules, and zero-defect workflow for every session.
+globs:
+alwaysApply: true
+---
+
+# 🔥 Nakama Backend — Zero-Defect Agent Protocol
+
+You are working on the **IntelliVerseX Nakama game backend** (Nakama 3.35.0, CockroachDB v24.1, TypeScript/JavaScript Goja ES5 runtime).
+
+---
+
+## 🚦 MANDATORY SESSION START — Do These First
+
+Before touching ANY file, silently read (in this order):
+
+1. **[`.agents/SKILL_BOOK.md`](.agents/SKILL_BOOK.md)** — keyword router, picks the right skill
+2. **[`.agents/skills/<matched>/SKILL.md`](.agents/skills/)** — load ONLY the 1-2 skills that match the task
+3. **Never read all skills** — budget is 2 skills max per task
+
+---
+
+## ⚡ Non-Negotiable Hard Rules (Memorize These)
+
+| # | Rule | Consequence of Breaking |
+|---|------|------------------------|
+| 1 | **NEVER hand-edit `data/modules/index.js`** | Next `npm run build` overwrites silently |
+| 2 | **TypeScript `target` MUST stay `"es5"`** | Goja VM crashes at runtime with cryptic errors |
+| 3 | **No global-scope state variables** | Goja VM pool isolates each call — state is lost |
+| 4 | **No Node.js built-ins** (`require('fs')`, `require('http')`, etc.) | postbuild.js skips the file entirely — RPC silently missing |
+| 5 | **All RPC functions must be declared in global scope** | Nakama AST walker won't detect them — RPC not registered |
+| 6 | **Env vars for JS MUST be in `RUNTIME_ENV_KEYS`** in docker-compose entrypoint | `ctx.env['KEY']` returns `undefined` with no error |
+| 7 | **Always rebuild + restart after code changes** | Goja loads modules at startup only — changes invisible |
+| 8 | **NEVER commit `.env` or credentials** | Security breach |
+
+---
+
+## 🏗️ Mental Model — How Code Flows
+
+```
+You edit:   data/modules/src/**/*.ts
+            ↓ npm run build (tsc → es5 → build/index.js)
+            ↓ node postbuild.js  (merge all .js + generate RPC wrappers)
+Lives at:   data/modules/index.js  ← NEVER touch this
+            ↓ docker volume mount → /nakama/data/data/modules/
+            ↓ docker compose restart nakama
+            ↓ Goja VM loads index.js at startup
+Tested at:  http://localhost:7351  (Nakama Console API Explorer)
+```
+
+---
+
+## 🔁 Zero-Defect Workflow (Follow Every Time)
+
+```
+PLAN   → Read SKILL_BOOK, load matched skill(s), grep project for context
+CODE   → Write only in data/modules/src/**/*.ts or matched JS module
+BUILD  → cd data/modules && npm run build
+VERIFY → grep new RPC/function in data/modules/index.js  ← confirm it's there
+RELOAD → docker compose restart nakama
+TEST   → docker compose logs -f nakama (watch for goja errors)
+        → Test via http://localhost:7351 API Explorer
+DONE   → Zero console errors = ship
+```
+
+**If any step fails, STOP and fix before continuing. Never skip VERIFY.**
+
+---
+
+## 🧠 Critical Project Facts
+
+```
+Server:           Nakama 3.35.0
+DB:               CockroachDB v24.1
+JS Engine:        Goja (ES5 only — NO arrow fns in registerRpc args, no const/let in output)
+Build:            npm run build  →  tsc + postbuild.js v2
+RPC count:        1018+ in index.js
+Module count:     40+ domain folders
+Source root:      data/modules/src/
+Final bundle:     data/modules/index.js  (auto-generated)
+RPC prefix:       quizverse_*, lasttolive_*, ai_pipeline_*, analytics_*
+Env vars to JS:   ctx.env['KEY']  (only if KEY is in RUNTIME_ENV_KEYS in docker-compose.yml)
+Console:          http://localhost:7351  (admin / password)
+HTTP API:         http://localhost:7350
+Prometheus:       http://localhost:9100/metrics
+Go plugin:        analytics_metrics.so  (ABI pinned to Nakama 3.35.0)
+postbuild rule:   registerRpc("id", fn) must be DIRECT inside InitModule body
+                  — helper functions that call registerRpc() are NOT detected
+```
+
+---
+
+## 🚨 Pre-Flight Checklist (Before Declaring Done)
+
+- [ ] `rg "registerRpc.*my_rpc_name" data/modules/index.js` returns a result
+- [ ] `docker compose logs nakama` shows no `goja:` errors after restart
+- [ ] RPC tested via Nakama Console API Explorer or curl
+- [ ] No `ctx.env['KEY'] undefined` in logs
+- [ ] No Node.js `require()` calls in any new/modified file
+- [ ] `data/modules/index.js` was NOT manually edited (postbuild generated it)
+- [ ] `.env` was NOT committed
+
+---
+
+## 📂 File Map Quick-Reference
+
+| What | Where |
+|------|-------|
+| TypeScript source | `data/modules/src/<domain>/<domain>.ts` |
+| Plain JS modules | `data/modules/<domain>/<domain>.js` |
+| Final bundle | `data/modules/index.js` |
+| Build scripts | `data/modules/package.json` |
+| Compiler config | `data/modules/tsconfig.json` |
+| Merge tool | `data/modules/postbuild.js` |
+| Docker stack | `docker-compose.yml` |
+| Prod Dockerfile | `Dockerfile.production` |
+| Dev Dockerfile | `Dockerfile` |
+| Env example | `.env.example` |
+| All RPCs | `docs/COMPLETE_RPC_REFERENCE.md` (grep only) |
+| Wallet docs | `docs/wallets.md` |
+| Auth docs | `docs/identity.md` |
+| Leaderboard docs | `docs/leaderboards.md` |
+
+---
+
+## 🛑 Read-Only / Forbidden Zones
+
+```
+vendor/           ← Go vendor tree
+.github/          ← CI config
+go.mod / go.sum   ← Go dependency pins
+data/modules/index.js  ← auto-generated (no hand edits)
+data/modules/build/    ← tsc output (no hand edits)
+```
