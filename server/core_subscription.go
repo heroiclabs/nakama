@@ -72,10 +72,10 @@ func ListSubscriptions(ctx context.Context, logger *zap.Logger, db *sql.DB, user
 			return nil, ErrSubscriptionsListInvalidCursor
 		}
 		if !after.Equal(incomingCursor.After) {
-			return nil, ErrPurchasesListInvalidCursor
+			return nil, ErrSubscriptionsListInvalidCursor
 		}
 		if !before.Equal(incomingCursor.Before) {
-			return nil, ErrPurchasesListInvalidCursor
+			return nil, ErrSubscriptionsListInvalidCursor
 		}
 	}
 
