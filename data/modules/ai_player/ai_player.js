@@ -1,5 +1,5 @@
 // ai_player.js - Player-Facing AI Features powered by LLM
-// Supports: Claude (Anthropic), OpenAI (GPT), xAI (Grok)
+// Supports: Claude (Anthropic), OpenAI (GPT), xAI (Grok), Qwen3 (local vLLM)
 // RPCs: ai_coach_advice, ai_match_recap, ai_player_journey, ai_rival_taunt,
 //       ai_trivia_generate, ai_daily_briefing, ai_group_hype
 
@@ -37,6 +37,9 @@ var HARDCODED_XAI_KEY       = ''; // ← paste xai-...     here (optional)
 // LLM CLIENT INFRASTRUCTURE
 // ============================================================================
 
+var QWEN3_DEFAULT_BASE_URL = 'http://vllm-coder-pro.content-factory.svc.cluster.local:8000';
+var QWEN3_DEFAULT_MODEL    = 'Qwen/Qwen3-7B-Instruct';
+
 var LLM_PROVIDERS = {
     openai: {
         url: 'https://api.openai.com/v1/chat/completions',
@@ -55,17 +58,27 @@ var LLM_PROVIDERS = {
         model: 'grok-3-mini',
         envKey: 'XAI_API_KEY',
         hardcoded: function () { return HARDCODED_XAI_KEY; }
+    },
+    qwen3: {
+        // URL and model resolved at call-time via ctx.env so operators can
+        // swap without a redeploy; fall back to cluster-local vLLM defaults.
+        url: null,
+        model: null,
+        envKey: null,
+        hardcoded: function () { return ''; }
     }
 };
 
 // Explicit fallback order so behaviour does not depend on object-iteration
 // order. If the preferred provider has neither env-var nor hardcoded key, we
 // walk this list and pick the first provider that does.
-var LLM_PROVIDER_FALLBACK_ORDER = ['openai', 'claude', 'xai'];
+var LLM_PROVIDER_FALLBACK_ORDER = ['qwen3', 'openai', 'claude', 'xai'];
 
 // Resolves a provider's key from ctx.env first, then the hardcoded constant.
 // Returns null if both are missing/empty.
-function resolveProviderKey(ctx, provider) {
+// qwen3 is keyless — this returns a sentinel so it can be selected without a key.
+function resolveProviderKey(ctx, providerName, provider) {
+    if (providerName === 'qwen3') return 'no-key-required';
     var envKey = ctx && ctx.env ? ctx.env[provider.envKey] : null;
     if (envKey) return envKey;
     var hard = provider.hardcoded ? provider.hardcoded() : '';
@@ -73,15 +86,25 @@ function resolveProviderKey(ctx, provider) {
     return null;
 }
 
+// Returns the resolved vLLM base URL for qwen3, reading QWEN3_BASE_URL from
+// ctx.env when present so operators can override without a redeploy.
+function resolveQwen3BaseUrl(ctx) {
+    return (ctx && ctx.env && ctx.env['QWEN3_BASE_URL']) || QWEN3_DEFAULT_BASE_URL;
+}
+
+function resolveQwen3Model(ctx) {
+    return (ctx && ctx.env && ctx.env['QWEN3_MODEL']) || QWEN3_DEFAULT_MODEL;
+}
+
 function getActiveProvider(ctx) {
-    var preferred = (ctx.env && ctx.env['LLM_PROVIDER']) || 'openai';
+    var preferred = (ctx.env && ctx.env['LLM_PROVIDER']) || 'qwen3';
     var provider = LLM_PROVIDERS[preferred];
     if (!provider) {
-        preferred = 'openai';
-        provider = LLM_PROVIDERS.openai;
+        preferred = 'qwen3';
+        provider = LLM_PROVIDERS.qwen3;
     }
 
-    var apiKey = resolveProviderKey(ctx, provider);
+    var apiKey = resolveProviderKey(ctx, preferred, provider);
     if (apiKey) {
         return { name: preferred, config: provider, apiKey: apiKey };
     }
@@ -91,7 +114,7 @@ function getActiveProvider(ctx) {
         var name = LLM_PROVIDER_FALLBACK_ORDER[i];
         if (name === preferred) continue; // already checked above
         var p = LLM_PROVIDERS[name];
-        var k = resolveProviderKey(ctx, p);
+        var k = resolveProviderKey(ctx, name, p);
         if (k) return { name: name, config: p, apiKey: k };
     }
     return null;
@@ -100,7 +123,7 @@ function getActiveProvider(ctx) {
 function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
     var provider = getActiveProvider(ctx);
     if (!provider) {
-        return { success: false, error: 'No LLM API key configured. Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY.' };
+        return { success: false, error: 'No LLM provider available. Set LLM_PROVIDER=qwen3 (default) or supply OPENAI_API_KEY / ANTHROPIC_API_KEY / XAI_API_KEY.' };
     }
 
     maxTokens = maxTokens || 500;
@@ -117,6 +140,19 @@ function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
                 max_tokens: maxTokens,
                 system: systemPrompt,
                 messages: [{ role: 'user', content: userMessage }]
+            }));
+        } else if (provider.name === 'qwen3') {
+            var qUrl   = resolveQwen3BaseUrl(ctx) + '/v1/chat/completions';
+            var qModel = resolveQwen3Model(ctx);
+            response = nk.httpRequest(qUrl, 'post', {
+                'Content-Type': 'application/json'
+            }, JSON.stringify({
+                model: qModel,
+                max_tokens: maxTokens,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userMessage }
+                ]
             }));
         } else {
             response = nk.httpRequest(provider.config.url, 'post', {
@@ -139,6 +175,7 @@ function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
 
         var parsed = JSON.parse(response.body);
         var text = '';
+        var modelUsed = provider.name === 'qwen3' ? resolveQwen3Model(ctx) : provider.config.model;
 
         if (provider.name === 'claude') {
             text = parsed.content && parsed.content[0] ? parsed.content[0].text : '';
@@ -146,7 +183,7 @@ function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
             text = parsed.choices && parsed.choices[0] ? parsed.choices[0].message.content : '';
         }
 
-        return { success: true, text: text, provider: provider.name, model: provider.config.model };
+        return { success: true, text: text, provider: provider.name, model: modelUsed };
 
     } catch (err) {
         logger.error('[AI] LLM call failed: ' + err.message);
