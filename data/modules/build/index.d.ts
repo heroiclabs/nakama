@@ -907,6 +907,9 @@ declare namespace HiroUnlockables {
     function getConfig(nk: nkruntime.Nakama): Hiro.UnlockablesConfig;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace AccountMerge {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace IdentityResolver {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -2926,6 +2929,101 @@ declare namespace MpVoiceLiveKit {
 declare namespace BrainCoins {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace TournamentEconomy {
+    const HOUSE_RAKE_PCT = 0.15;
+    const BC_PER_USD_USA = 333.333;
+    const PRE_ENROLL_FOUNDER_CAP = 1000;
+    const FOUNDER_FIRST_WIN_MULTIPLIER = 2;
+    const HOUSE_PRE_ENROLL_SUBSIDY_USD = 5000;
+    const HOUSE_PRE_ENROLL_SUBSIDY_BC_PER_ENROLLEE = 5;
+    const REFERRAL_TOP_1_USD = 500;
+    const REFERRAL_TOP_2_3_USD = 250;
+    const REFERRAL_TOP_4_10_USD = 100;
+    const REFERRAL_TOP_11_100_USD = 25;
+    const PUBLIC_OPEN_TIME_ISO = "2026-07-01T04:00:00Z";
+    const ENTRY_BLOCK_US_STATES: string[];
+    const REDEMPTION_BLOCK_US_STATES: string[];
+    const TIER1_COUNTRIES: string[];
+    const MIN_AGE = 18;
+    const ANTICHEAT_LATENCY_FLOOR_MS = 300;
+    const ANTICHEAT_DAILY_SUBMIT_CEILING = 200;
+    type TournamentStatus = "DRAFT" | "PRE_ENROLL" | "OPEN" | "ACTIVE" | "SETTLING" | "SETTLED" | "ARCHIVED";
+    type TournamentFormat = "classic" | "elimination" | "pick_n";
+    type FormatUiVariant = "classic-pot" | "elim-survivors" | "pick-n-slip";
+    const CLASSIC_POT_SPLIT_TOP_N: {
+        rank: number;
+        share: number;
+    }[];
+    interface EliminationSchedule {
+        cut_times_utc: string[];
+        cut_pct: number;
+        survivor_split: "equal" | "weighted_by_score";
+        final_survivor_bonus_bc: number;
+    }
+    interface PickNConfig {
+        n: number;
+        multipliers: {
+            [grade: string]: number;
+        };
+        max_pick_window_hours: number;
+        house_backstop_usd_per_day: number;
+    }
+    interface AmoeRule {
+        learning_series_required_videos: number;
+        free_entries_per_tournament: number;
+        no_lose_refund_finish_pct?: number;
+        no_lose_survive_round?: number;
+        no_lose_pick_threshold?: string;
+    }
+    interface TournamentConfig {
+        slug: string;
+        name: string;
+        description: string;
+        topic_tag: string;
+        format: TournamentFormat;
+        format_ui_variant: FormatUiVariant;
+        pre_enroll_start_iso: string;
+        open_start_iso: string;
+        end_iso: string;
+        entry_fee_bc: number;
+        rake_pct: number;
+        pot_seed_bc: number;
+        pot_split_top_n?: {
+            rank: number;
+            share: number;
+        }[];
+        elimination_schedule?: EliminationSchedule;
+        pick_n_config?: PickNConfig;
+        countries_allowed: string[] | "ALL";
+        min_age: number;
+        amoe: AmoeRule;
+        hero_image_url?: string;
+        sponsor?: string;
+        badge_emoji?: string;
+    }
+    const AMOE_CLASSIC: AmoeRule;
+    const AMOE_ELIMINATION: AmoeRule;
+    const AMOE_PICK_N: AmoeRule;
+    const LAUNCH_SLATE: TournamentConfig[];
+    function getBySlug(slug: string): TournamentConfig | null;
+    function listAll(): TournamentConfig[];
+    function isCountryAllowed(cfg: TournamentConfig, country: string): boolean;
+    function isUsStateEntryBlocked(state: string): boolean;
+    function isUsStateRedemptionBlocked(state: string): boolean;
+    const GEO_DISPLAY_RATES: {
+        [country: string]: {
+            symbol: string;
+            usd_to_local: number;
+        };
+    };
+    function bcToLocalDisplay(bc: number, country: string): {
+        symbol: string;
+        amount: string;
+    };
+}
+declare namespace WalletGuestSync {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3204,6 +3302,20 @@ declare namespace HttpClient {
         [key: string]: string;
     }): any;
 }
+declare namespace SharedRateLimit {
+    interface RateLimitOpts {
+        perUserPerSec?: number;
+        perUserPerMin?: number;
+        perIpPerMin?: number;
+    }
+    interface RateLimitDecision {
+        allowed: boolean;
+        reason?: string;
+        retryAfterSec?: number;
+    }
+    function check(ctx: nkruntime.Context, nk: nkruntime.Nakama, rpcName: string, opts: RateLimitOpts): RateLimitDecision;
+    function enforce(ctx: nkruntime.Context, nk: nkruntime.Nakama, rpcName: string, opts: RateLimitOpts): string | null;
+}
 declare namespace RewardEngine {
     function resolveReward(nk: nkruntime.Nakama, reward: Hiro.Reward): Hiro.ResolvedReward;
     function grantReward(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, resolved: Hiro.ResolvedReward): void;
@@ -3278,6 +3390,350 @@ declare namespace WalletHelpers {
     function addCurrency(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, currencyId: string, amount: number): GameWallet;
     function spendCurrency(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, currencyId: string, amount: number): GameWallet;
     function hasCurrency(nk: nkruntime.Nakama, userId: string, gameId: string, currencyId: string, amount: number): boolean;
+}
+declare namespace TournamentAntiCheat {
+    interface SubmitCheckInput {
+        user_id: string;
+        answers_count: number;
+        duration_ms: number;
+        latency_ms: number;
+        correct: number;
+        total: number;
+        honeypot_correct?: number;
+        honeypot_total?: number;
+    }
+    interface CheckResult {
+        pass: boolean;
+        reasons: string[];
+    }
+    function check(nk: nkruntime.Nakama, input: SubmitCheckInput): CheckResult;
+}
+declare namespace BracketClient {
+    function createBracketShell(ctx: nkruntime.Context, nk: nkruntime.Nakama, slug: string, name: string, playerCount: number): {
+        ok: boolean;
+        bracket_id?: string;
+        error?: string;
+    };
+    function seedPlayers(ctx: nkruntime.Context, nk: nkruntime.Nakama, bracketId: string, players: {
+        user_id: string;
+        username: string;
+        seed_score: number;
+    }[]): {
+        ok: boolean;
+        error?: string;
+    };
+    function postMatchResult(ctx: nkruntime.Context, nk: nkruntime.Nakama, bracketId: string, matchId: string, winnerUserId: string, scores: any): {
+        ok: boolean;
+        error?: string;
+    };
+    function getBracketState(ctx: nkruntime.Context, nk: nkruntime.Nakama, bracketId: string): {
+        ok: boolean;
+        state?: any;
+        error?: string;
+    };
+}
+declare namespace ContentFactoryClient {
+    interface CatalogEntry {
+        s3_url: string;
+        generated_at: number;
+        question_count: number;
+        content_factory_task_id: string;
+        tags: string[];
+    }
+    interface VideoCatalogEntry {
+        s3_url: string;
+        duration_s: number;
+        generated_at: number;
+        content_factory_task_id: string;
+    }
+    function readPackCatalog(nk: nkruntime.Nakama, slug: string, language: string, weekNum: number): CatalogEntry | null;
+    function writePackCatalog(nk: nkruntime.Nakama, slug: string, language: string, weekNum: number, entry: CatalogEntry): void;
+    function readVideoCatalog(nk: nkruntime.Nakama, slug: string, videoIndex: number, language: string): VideoCatalogEntry | null;
+    function writeVideoCatalog(nk: nkruntime.Nakama, slug: string, videoIndex: number, language: string, entry: VideoCatalogEntry): void;
+    interface EnqueuePackArgs {
+        concept: string;
+        exam_board: string;
+        language: string;
+        num_cards?: number;
+        days_until_exam?: number;
+        tags?: string[];
+    }
+    function enqueuePackGeneration(ctx: nkruntime.Context, nk: nkruntime.Nakama, args: EnqueuePackArgs): {
+        ok: boolean;
+        task_id?: string;
+        error?: string;
+    };
+    interface EnqueueVideoArgs {
+        concept: string;
+        language: string;
+        target_duration_sec?: number;
+        tags?: string[];
+    }
+    function enqueueVideoGeneration(ctx: nkruntime.Context, nk: nkruntime.Nakama, args: EnqueueVideoArgs): {
+        ok: boolean;
+        task_id?: string;
+        error?: string;
+    };
+    interface TaskStatus {
+        ok: boolean;
+        status?: "pending" | "running" | "completed" | "failed";
+        result?: any;
+        error?: string;
+    }
+    function getTaskStatus(ctx: nkruntime.Context, nk: nkruntime.Nakama, taskId: string): TaskStatus;
+    function extractPackResultUrl(result: any): {
+        s3_url: string;
+        question_count: number;
+    } | null;
+    function extractVideoResultUrl(result: any): {
+        s3_url: string;
+        duration_s: number;
+    } | null;
+}
+declare namespace TournamentCrons {
+    function opportunisticTick(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): boolean;
+    function tick(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): any;
+    function pregenerateTick(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, maxJobs: number): any;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace TournamentLeaderboard {
+    function lbId(slug: string): string;
+    function tierLbId(slug: string, tier: string): string;
+    function ensureLeaderboard(nk: nkruntime.Nakama, slug: string, resetSchedule: string | null, expiry: number): void;
+    function recordSubmit(nk: nkruntime.Nakama, slug: string, userId: string, username: string, score: number): void;
+    function listTop(nk: nkruntime.Nakama, slug: string, limit: number, cursor: string | null): any;
+    function listAroundMe(nk: nkruntime.Nakama, slug: string, userId: string, limit: number): any;
+    function listFriends(nk: nkruntime.Nakama, slug: string, userId: string, limit: number): any;
+    function listCountry(nk: nkruntime.Nakama, slug: string, country: string, limit: number): any;
+    function tierForBalance(lifetimeEarned: number): string;
+    function listTierLeague(nk: nkruntime.Nakama, slug: string, tier: string, limit: number): any;
+    function recordTierSubmit(nk: nkruntime.Nakama, slug: string, tier: string, userId: string, username: string, score: number): void;
+}
+declare namespace LearningSeries {
+    interface VideoCheck {
+        video_index: number;
+        correct: number;
+        total: number;
+        completed_at: number;
+        passed: boolean;
+    }
+    interface ProgressRow {
+        topic_tag: string;
+        user_id: string;
+        checks: VideoCheck[];
+        last_updated: number;
+        amoe_unlocked: boolean;
+    }
+    function read(nk: nkruntime.Nakama, userId: string, topicTag: string): ProgressRow | null;
+    function recordVideoCheck(nk: nkruntime.Nakama, userId: string, topicTag: string, videoIndex: number, correct: number, total: number): ProgressRow;
+    function getProgress(nk: nkruntime.Nakama, userId: string, topicTag: string): ProgressRow;
+    function hasUnlockedAmoe(nk: nkruntime.Nakama, userId: string, topicTag: string, requiredVideos: number): boolean;
+}
+declare namespace TournamentRealtime {
+    const CODE_POT_UPDATE = 1001;
+    const CODE_LB_UPDATE = 1002;
+    const CODE_ELIMINATED = 1003;
+    const CODE_SETTLED = 1004;
+    const CODE_PREENROLL_SCARCITY = 1005;
+    function sendToUsers(nk: nkruntime.Nakama, userIds: string[], code: number, subject: string, content: any, persistent: boolean): void;
+    function sendToUser(nk: nkruntime.Nakama, userId: string, code: number, subject: string, content: any, persistent: boolean): void;
+    function notifyPotUpdate(nk: nkruntime.Nakama, tournamentSlug: string, newPotBc: number, recentDelta: number, _subscribers?: string[], scorer?: {
+        userId: string;
+        score?: number;
+    }): void;
+    function notifyEliminated(nk: nkruntime.Nakama, userId: string, tournamentSlug: string, round: number, finalRank: number): void;
+    function notifySettled(nk: nkruntime.Nakama, userId: string, tournamentSlug: string, payoutBc: number, finalRank: number, certId: string | null): void;
+    function notifyPreEnrollScarcity(nk: nkruntime.Nakama, tournamentSlug: string, founderSpotsLeft: number, _subscribers?: string[]): void;
+    function notifyScoreTick(nk: nkruntime.Nakama, tournamentSlug: string, scorerUserId: string, newTotalScore: number): void;
+    function notifyEntered(nk: nkruntime.Nakama, tournamentSlug: string, enteredUserId: string, newPotBc: number, newEntriesCount: number): void;
+    function notifyLeaderboardTick(nk: nkruntime.Nakama, tournamentSlug: string, topRows: any[]): void;
+}
+declare namespace Referrals {
+    const LEADERBOARD_ID = "preenroll_referrals";
+    function ensureCodeForUser(nk: nkruntime.Nakama, userId: string): string;
+    function resolveCodeToOwner(nk: nkruntime.Nakama, code: string): string | null;
+    function recordReferral(nk: nkruntime.Nakama, referralCode: string, referredUserId: string, tournamentSlug: string): void;
+    function getMySummary(nk: nkruntime.Nakama, userId: string): any;
+    function settleTopN(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): any;
+}
+declare namespace TournamentRpcs {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace TournamentSettlement {
+    function settle(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, slug: string): any;
+    function eliminateRound(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, slug: string, round: number): any;
+}
+declare namespace TournamentsStorage {
+    const COL_META = "tournaments_meta";
+    const COL_ENTRY = "tournament_entries";
+    const COL_SUBMIT = "tournament_submits";
+    const COL_PRE_ENROLL = "tournament_pre_enroll";
+    const COL_POT = "tournament_pot";
+    const COL_CERTS = "tournament_certs";
+    const COL_PICKS = "tournament_picks";
+    const COL_ELIMINATIONS = "tournament_eliminations";
+    const COL_SUBSCRIBERS = "tournament_subscribers";
+    const SUBSCRIBER_TTL_SEC: number;
+    interface MetaRow {
+        slug: string;
+        status: TournamentEconomy.TournamentStatus;
+        pot_bc: number;
+        entries_count: number;
+        pre_enroll_count: number;
+        config_snapshot: any;
+        updated_at: number;
+    }
+    function readMeta(nk: nkruntime.Nakama, slug: string): MetaRow | null;
+    function writeMeta(nk: nkruntime.Nakama, slug: string, meta: MetaRow): void;
+    function listAllMeta(nk: nkruntime.Nakama): MetaRow[];
+    function seedFromConfig(nk: nkruntime.Nakama, cfg: TournamentEconomy.TournamentConfig): MetaRow;
+    interface EntryRow {
+        entry_id: string;
+        tournament_slug: string;
+        user_id: string;
+        paid_via: "balance" | "amoe" | "free_founder";
+        bc_charged: number;
+        founder_member: boolean;
+        enrolled_at: number;
+        eliminated_at?: number;
+        eliminated_round?: number;
+        score: number;
+        rank?: number;
+        claimed_cert?: boolean;
+        cert_id?: string;
+    }
+    function readEntry(nk: nkruntime.Nakama, slug: string, userId: string): EntryRow | null;
+    function writeEntry(nk: nkruntime.Nakama, slug: string, userId: string, entry: EntryRow): void;
+    interface PublicEntrySummary {
+        user_id: string;
+        score: number;
+        eliminated_at?: number;
+        eliminated_round?: number;
+        founder_member: boolean;
+    }
+    interface SubmitRow {
+        idempotency_key: string;
+        tournament_slug: string;
+        pack_id: string;
+        user_id: string;
+        answers_count: number;
+        score: number;
+        correct: number;
+        total: number;
+        latency_ms: number;
+        duration_ms: number;
+        submitted_at: number;
+        status: "counted" | "soft_dq" | "throttled";
+        soft_dq_reasons?: string[];
+    }
+    function readSubmitIdem(nk: nkruntime.Nakama, userId: string, idempotencyKey: string): SubmitRow | null;
+    function writeSubmit(nk: nkruntime.Nakama, userId: string, idempotencyKey: string, row: SubmitRow): void;
+    interface PreEnrollRow {
+        tournament_slug: string;
+        user_id: string;
+        enrolled_at: number;
+        founder_rank?: number;
+        referred_by?: string;
+    }
+    function readPreEnroll(nk: nkruntime.Nakama, slug: string, userId: string): PreEnrollRow | null;
+    function writePreEnroll(nk: nkruntime.Nakama, slug: string, userId: string, row: PreEnrollRow): void;
+    function incrementPot(nk: nkruntime.Nakama, slug: string, deltaBc: number): number;
+    function incrementPreEnrollCount(nk: nkruntime.Nakama, slug: string): number;
+    function addSubscriber(nk: nkruntime.Nakama, slug: string, userId: string): void;
+    function listSubscribers(nk: nkruntime.Nakama, slug: string): string[];
+}
+declare namespace TournamentTopicCatalog {
+    interface TopicEntry {
+        tag: string;
+        exam_board: string;
+        concept: string;
+        learning_series_prompts: string[];
+        rotation?: string[];
+        languages_supported: string[];
+    }
+    function getEntry(tag: string): TopicEntry | null;
+    function getRotatedTag(baseTag: string, weekNum: number): string;
+    function listAllTags(): string[];
+}
+declare namespace TournamentFormatClassic {
+    interface ClassicPayoutRow {
+        user_id: string;
+        rank: number;
+        payout_bc: number;
+        is_refund: boolean;
+        founder_bonus_applied: boolean;
+    }
+    function computePayouts(cfg: TournamentEconomy.TournamentConfig, potBc: number, rankedEntries: {
+        user_id: string;
+        score: number;
+        founder_member: boolean;
+        paid_via: string;
+        bc_charged: number;
+    }[]): ClassicPayoutRow[];
+}
+declare namespace TournamentFormatElimination {
+    interface ElimPayoutRow {
+        user_id: string;
+        rank: number;
+        payout_bc: number;
+        is_refund: boolean;
+        is_final_winner: boolean;
+        eliminated_round?: number;
+    }
+    function selectEliminations(cfg: TournamentEconomy.TournamentConfig, currentSurvivors: {
+        user_id: string;
+        score: number;
+        founder_member: boolean;
+    }[]): string[];
+    function computeFinalPayouts(cfg: TournamentEconomy.TournamentConfig, potBc: number, allEntries: {
+        user_id: string;
+        score: number;
+        founder_member: boolean;
+        paid_via: string;
+        bc_charged: number;
+        eliminated_round?: number;
+    }[]): ElimPayoutRow[];
+}
+declare namespace TournamentFormats {
+    interface UnifiedPayoutRow {
+        user_id: string;
+        rank: number;
+        payout_bc: number;
+        is_refund: boolean;
+        metadata?: any;
+    }
+    interface SettlementResult {
+        format: TournamentEconomy.TournamentFormat;
+        rows: UnifiedPayoutRow[];
+        pool_drained?: boolean;
+        house_backstop_used_bc?: number;
+    }
+    function settle(cfg: TournamentEconomy.TournamentConfig, potBc: number, entries: any[]): SettlementResult;
+}
+declare namespace TournamentFormatPickN {
+    interface PickNPayoutRow {
+        user_id: string;
+        rank: number;
+        payout_bc: number;
+        is_refund: boolean;
+        grade: string;
+        multiplier_applied: number;
+    }
+    interface PickResult {
+        user_id: string;
+        correct: number;
+        total: number;
+        bc_charged: number;
+        founder_member: boolean;
+        submitted_at: number;
+        paid_via: string;
+    }
+    function computePayouts(cfg: TournamentEconomy.TournamentConfig, potBc: number, // total pool (post-rake)
+    results: PickResult[]): {
+        payouts: PickNPayoutRow[];
+        pool_drained: boolean;
+        house_backstop_used_bc: number;
+    };
 }
 declare namespace Hiro {
     interface CurrencyAmount {

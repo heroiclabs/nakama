@@ -406,6 +406,46 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[BrainCoins] failed to register: " + (err && err.message ? err.message : String(err)));
     }
 
+    // Wallet guest sync (plan §1I gap 3). User-callable RPC that reconciles
+    // an anonymous web visitor's Applixir guest BC into their Nakama wallet
+    // post-Cognito sign-up. Idempotent via guest_sync_{wallet_id} key.
+    logger.info("[WalletGuestSync] Registering wallet_sync_guest_to_account RPC...");
+    try {
+      WalletGuestSync.register(initializer);
+      logger.info("[WalletGuestSync] wallet_sync_guest_to_account registered");
+    } catch (err: any) {
+      logger.error("[WalletGuestSync] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
+    // Account merge (plan §1I gap 2). Service-only RPC triggered by the
+    // post-signup callback that ports a ghost Nakama user's BC ledger,
+    // tournament entries, pre-enrollments, and referrals into the real
+    // Cognito-linked user. Closes identity_resolver.ts:397-401 TODO.
+    logger.info("[AccountMerge] Registering account_merge_ghost_to_cognito RPC...");
+    try {
+      AccountMerge.register(initializer);
+      logger.info("[AccountMerge] account_merge_ghost_to_cognito registered");
+    } catch (err: any) {
+      logger.error("[AccountMerge] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
+    // ── Tournaments + P2E (plan §1-§3) ─────────────────────────────────────
+    // Full launch-slate tournament system. Registers 25 RPCs across:
+    //   - user-callable (list/get/enter/submit/leaderboard×6/claim/picks/pre-enroll/...)
+    //   - service-only (admin_create/settle/eliminate_round/cron_tick/pregen)
+    // Plus the format engine (classic | elimination | pick_n), Bracket bridge,
+    // realtime push, anti-cheat, and content-factory integration.
+    //
+    // Plan ref: /.cursor/plans/quizverse_tournaments_+_p2e_5013b974.plan.md
+    logger.info("[Tournaments] Registering tournament RPCs (25 total: 18 user + 7 service)...");
+    try {
+      TournamentRpcs.register(initializer);
+      TournamentCrons.register(initializer);
+      logger.info("[Tournaments] All tournament RPCs + crons registered");
+    } catch (err: any) {
+      logger.error("[Tournaments] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     logger.info("[Satori] Registering Audiences RPCs...");
     SatoriAudiences.register(initializer);
 

@@ -48,6 +48,30 @@ namespace BrainCoins {
     "streak_milestone_d7":     { coinsPerEvent: 25, lifetimeCap: 1 },
     "streak_milestone_d14":    { coinsPerEvent: 50, lifetimeCap: 1 },
     "streak_milestone_d30":    { coinsPerEvent: 100, lifetimeCap: 1 },
+    // ── Tournaments (plan §1A + §1F + §1G) ──
+    // tournament_win: variable payout — actual coins come from `payload.coins`
+    //   if EARN_RULES code allows it (we special-case below). coinsPerEvent=0
+    //   here just signals "variable amount". No day cap (winning more than
+    //   one tournament per day is rare and legitimate).
+    "tournament_win":          { coinsPerEvent: 0 },
+    // tournament_topup_ad: Applixir rewarded video, higher cap than guest
+    //   wallet because user is authenticated.
+    "tournament_topup_ad":     { coinsPerEvent: 25, dailyCap: 20 },
+    // referral_pre_enroll: paid to referrer when a user pre-enrolls via
+    //   their /r/[code] link. lifetimeCap=200 keeps the leaderboard
+    //   meaningful while preventing infinite farming.
+    "referral_pre_enroll":     { coinsPerEvent: 10, lifetimeCap: 200 },
+    // guest_wallet_sync: one-shot per guest wallet on sign-up merge.
+    //   coinsPerEvent=0 because the actual amount comes from payload.coins.
+    "guest_wallet_sync":       { coinsPerEvent: 0 },
+  };
+
+  // Earn codes that carry a variable amount (caller supplies `coins` in payload).
+  // We trust the service caller here because the only callers are settlement
+  // crons + the merge RPC, both behind BRAIN_COINS_SERVICE_TOKEN.
+  const VARIABLE_AMOUNT_CODES: { [code: string]: boolean } = {
+    "tournament_win": true,
+    "guest_wallet_sync": true,
   };
 
   // Payout catalog. Tremendous SKU id → BC cost. The /mint route asserts
@@ -225,10 +249,28 @@ namespace BrainCoins {
         }
       }
 
+      // Determine credit amount. Most codes use the static rule.coinsPerEvent,
+      // but variable-amount codes (tournament_win, guest_wallet_sync) take
+      // the amount from payload.coins — clamped to a sane upper bound to
+      // prevent typos exploding wallets.
+      var credit = rule.coinsPerEvent;
+      if (VARIABLE_AMOUNT_CODES[code]) {
+        var requested = parseInt("" + (data.coins || 0), 10);
+        if (!isFinite(requested) || requested <= 0) {
+          return RpcHelpers.errorResponse("variable-amount code requires positive `coins`", 400);
+        }
+        // Cap any single variable credit at 10M BC (~$30K USD-equiv) — catches
+        // currency-unit-confusion bugs (e.g. someone passing cents instead of BC).
+        if (requested > 10000000) {
+          return RpcHelpers.errorResponse("requested coins exceed safety cap (10M)", 400);
+        }
+        credit = requested;
+      }
+
       // Credit.
       var wallet = readWallet(nk, userId);
-      wallet.balance = (wallet.balance | 0) + rule.coinsPerEvent;
-      wallet.lifetime_earned = (wallet.lifetime_earned | 0) + rule.coinsPerEvent;
+      wallet.balance = (wallet.balance | 0) + credit;
+      wallet.lifetime_earned = (wallet.lifetime_earned | 0) + credit;
       writeWallet(nk, userId, wallet);
 
       // Append immutable earn log row.
@@ -241,7 +283,7 @@ namespace BrainCoins {
         userId: userId,
         value: {
           code: code,
-          coins: rule.coinsPerEvent,
+          coins: credit,
           unix_ts: nowSec(),
           date: todayUtc(),
           source: "" + (data.source || "system"),
@@ -254,7 +296,7 @@ namespace BrainCoins {
 
       return RpcHelpers.successResponse({
         wallet: wallet,
-        credited: rule.coinsPerEvent,
+        credited: credit,
       });
     } catch (err: any) {
       var msg = err && err.message ? err.message : String(err);

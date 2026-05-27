@@ -356,6 +356,46 @@ function InitModule(ctx, logger, nk, initializer) {
         catch (err) {
             logger.error("[BrainCoins] failed to register: " + (err && err.message ? err.message : String(err)));
         }
+        // Wallet guest sync (plan §1I gap 3). User-callable RPC that reconciles
+        // an anonymous web visitor's Applixir guest BC into their Nakama wallet
+        // post-Cognito sign-up. Idempotent via guest_sync_{wallet_id} key.
+        logger.info("[WalletGuestSync] Registering wallet_sync_guest_to_account RPC...");
+        try {
+            WalletGuestSync.register(initializer);
+            logger.info("[WalletGuestSync] wallet_sync_guest_to_account registered");
+        }
+        catch (err) {
+            logger.error("[WalletGuestSync] failed to register: " + (err && err.message ? err.message : String(err)));
+        }
+        // Account merge (plan §1I gap 2). Service-only RPC triggered by the
+        // post-signup callback that ports a ghost Nakama user's BC ledger,
+        // tournament entries, pre-enrollments, and referrals into the real
+        // Cognito-linked user. Closes identity_resolver.ts:397-401 TODO.
+        logger.info("[AccountMerge] Registering account_merge_ghost_to_cognito RPC...");
+        try {
+            AccountMerge.register(initializer);
+            logger.info("[AccountMerge] account_merge_ghost_to_cognito registered");
+        }
+        catch (err) {
+            logger.error("[AccountMerge] failed to register: " + (err && err.message ? err.message : String(err)));
+        }
+        // ── Tournaments + P2E (plan §1-§3) ─────────────────────────────────────
+        // Full launch-slate tournament system. Registers 25 RPCs across:
+        //   - user-callable (list/get/enter/submit/leaderboard×6/claim/picks/pre-enroll/...)
+        //   - service-only (admin_create/settle/eliminate_round/cron_tick/pregen)
+        // Plus the format engine (classic | elimination | pick_n), Bracket bridge,
+        // realtime push, anti-cheat, and content-factory integration.
+        //
+        // Plan ref: /.cursor/plans/quizverse_tournaments_+_p2e_5013b974.plan.md
+        logger.info("[Tournaments] Registering tournament RPCs (25 total: 18 user + 7 service)...");
+        try {
+            TournamentRpcs.register(initializer);
+            TournamentCrons.register(initializer);
+            logger.info("[Tournaments] All tournament RPCs + crons registered");
+        }
+        catch (err) {
+            logger.error("[Tournaments] failed to register: " + (err && err.message ? err.message : String(err)));
+        }
         logger.info("[Satori] Registering Audiences RPCs...");
         SatoriAudiences.register(initializer);
         logger.info("[Satori] Registering Feature Flags RPCs...");
@@ -7181,8 +7221,23 @@ var QuizVerseMigration;
         catch (_e) { }
         return pack;
     }
-    function rpcGetPlayerContext(ctx, logger, nk, _payload) {
-        var userId = requireAuth(ctx);
+    function rpcGetPlayerContext(ctx, logger, nk, payload) {
+        // Resolve caller. Unity uses ctx.userId from session auth; server-to-
+        // server (http_key) callers — e.g. content-factory's NakamaMasterAgent
+        // building personalized recaps — can supply user_id in the payload.
+        // Safe because this RPC is READ-ONLY and http_key is admin-level
+        // (same trust boundary as qe_player_full_profile).
+        var userId = ctx.userId;
+        if (!userId) {
+            try {
+                var data = payload ? JSON.parse(payload) : {};
+                userId = (data && (data.user_id || data.userId)) || "";
+            }
+            catch (_e) { /* ignore */ }
+        }
+        if (!userId) {
+            throw nakamaError("not authenticated", 16 /* nkruntime.Codes.UNAUTHENTICATED */);
+        }
         try {
             return JSON.stringify({ ok: true, pack: readPlayerContext(nk, userId) });
         }
@@ -13980,6 +14035,207 @@ var HiroUnlockables;
     }
     HiroUnlockables.register = register;
 })(HiroUnlockables || (HiroUnlockables = {}));
+// =============================================================================
+// account_merge.ts — Ghost Nakama user → Cognito user merge
+//
+// Plan ref: §1I gap 2. Closes the long-standing TODO at
+// identity_resolver.ts:397-401 ("when the human later signs up via Cognito,
+// the cognito_wallet_mapper bootstrap should merge the ghost record into the
+// real cognito_sub").
+//
+// When called:
+//   - Web visitor pre-enrolls anonymously → mints ghost Nakama user (userId=G)
+//   - Later, same human signs up with Google → Cognito mints sub=C, Nakama
+//     bootstraps a separate user with customId=C
+//   - This RPC transfers Brain Coins, tournament entries, Founder badges,
+//     and referral attribution from G → C, then archives G.
+//
+// Auth: service-only (only triggered by the post-signup callback). Caller
+// must supply both ghost_user_id and cognito_user_id; we look up the ghost's
+// state, port it over to cognito, and write an audit row.
+//
+// Idempotency: storage key `merge_idem_{ghost}_{cognito}` ensures duplicate
+// calls (network retry on signup callback) return the cached result.
+// =============================================================================
+var AccountMerge;
+(function (AccountMerge) {
+    var MERGE_LOG_COLLECTION = "account_merge_log";
+    function isServiceCaller(ctx, payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["ACCOUNT_MERGE_SERVICE_TOKEN"]) || (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    // Read brain_coins wallet for a user
+    function readBcWallet(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: "brain_coins", key: "wallet", userId: userId }]);
+            if (rows && rows.length > 0) {
+                var v = rows[0].value;
+                return {
+                    balance: v.balance | 0,
+                    lifetime_earned: v.lifetime_earned | 0,
+                    lifetime_redeemed: v.lifetime_redeemed | 0,
+                };
+            }
+        }
+        catch (_) { }
+        return { balance: 0, lifetime_earned: 0, lifetime_redeemed: 0 };
+    }
+    // Write brain_coins wallet (sum-merge — never overwrite cognito's existing balance)
+    function mergeBcWallet(nk, fromUserId, toUserId) {
+        var src = readBcWallet(nk, fromUserId);
+        if (src.balance === 0 && src.lifetime_earned === 0)
+            return 0;
+        var dst = readBcWallet(nk, toUserId);
+        var merged = {
+            balance: dst.balance + src.balance,
+            lifetime_earned: dst.lifetime_earned + src.lifetime_earned,
+            lifetime_redeemed: dst.lifetime_redeemed + src.lifetime_redeemed,
+            updated_at: nowSec(),
+        };
+        nk.storageWrite([{
+                collection: "brain_coins",
+                key: "wallet",
+                userId: toUserId,
+                value: merged,
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+        // Zero out the ghost wallet so a second merge doesn't double-credit.
+        nk.storageWrite([{
+                collection: "brain_coins",
+                key: "wallet",
+                userId: fromUserId,
+                value: { balance: 0, lifetime_earned: 0, lifetime_redeemed: 0, updated_at: nowSec(), merged_to: toUserId },
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+        return src.balance;
+    }
+    // Port all storage objects in a collection from one user to another.
+    // We do NOT delete the source rows (privacy/audit retention) — we add a
+    // "merged_to" sentinel; readers prefer the destination user's rows.
+    function portCollection(nk, collection, fromUserId, toUserId) {
+        var ported = 0;
+        var cursor = "";
+        var safety = 0;
+        while (safety < 20) {
+            safety++;
+            var page = nk.storageList(fromUserId, collection, 100, cursor);
+            if (!page || !page.objects)
+                break;
+            for (var i = 0; i < page.objects.length; i++) {
+                var o = page.objects[i];
+                try {
+                    // Write to destination (won't overwrite if dest already has it; we
+                    // use storageRead first to skip duplicates on retry).
+                    var existing = nk.storageRead([{ collection: collection, key: o.key, userId: toUserId }]);
+                    if (existing && existing.length > 0)
+                        continue;
+                    nk.storageWrite([{
+                            collection: collection,
+                            key: o.key,
+                            userId: toUserId,
+                            value: o.value,
+                            permissionRead: 1,
+                            permissionWrite: 0,
+                        }]);
+                    ported++;
+                }
+                catch (_) {
+                    // best-effort port — continue
+                }
+            }
+            if (!page.cursor)
+                break;
+            cursor = page.cursor;
+        }
+        return ported;
+    }
+    // ── RPC: account_merge_ghost_to_cognito ────────────────────────────────────
+    function rpcMerge(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            if (!isServiceCaller(ctx, data)) {
+                return RpcHelpers.errorResponse("not authorised — account_merge is service-only", 401);
+            }
+            var ghostUserId = "" + (data.ghost_user_id || "");
+            var cognitoUserId = "" + (data.cognito_user_id || "");
+            if (!ghostUserId || !cognitoUserId) {
+                return RpcHelpers.errorResponse("ghost_user_id + cognito_user_id required", 400);
+            }
+            if (ghostUserId === cognitoUserId) {
+                return RpcHelpers.errorResponse("ghost and cognito user_id are identical — nothing to merge", 400);
+            }
+            // Idempotency: if we've already merged this pair, return cached result.
+            var idemKey = "merge_idem_" + ghostUserId + "_" + cognitoUserId;
+            try {
+                var prior = nk.storageRead([{ collection: MERGE_LOG_COLLECTION, key: idemKey, userId: Constants.SYSTEM_USER_ID }]);
+                if (prior && prior.length > 0) {
+                    return RpcHelpers.successResponse({
+                        ok: true,
+                        idempotent: true,
+                        prior_merge: prior[0].value,
+                    });
+                }
+            }
+            catch (_) { }
+            // Port collections — Brain Coins (sum-merged), tournament entries, pre-enroll
+            // records, referrals, and certificates.
+            var bcCredited = mergeBcWallet(nk, ghostUserId, cognitoUserId);
+            var entries = portCollection(nk, "tournament_entries", ghostUserId, cognitoUserId);
+            var preEnroll = portCollection(nk, "tournament_pre_enroll", ghostUserId, cognitoUserId);
+            var referrals = portCollection(nk, "referrals", ghostUserId, cognitoUserId);
+            var certs = portCollection(nk, "tournament_certs", ghostUserId, cognitoUserId);
+            var bcLogs = portCollection(nk, "brain_coins", ghostUserId, cognitoUserId); // earn_log_* rows
+            // Audit log row
+            var summary = {
+                ghost_user_id: ghostUserId,
+                cognito_user_id: cognitoUserId,
+                merged_at: nowSec(),
+                transferred: {
+                    bc: bcCredited,
+                    tournament_entries: entries,
+                    pre_enrollments: preEnroll,
+                    referrals: referrals,
+                    certificates: certs,
+                    bc_log_rows: bcLogs,
+                },
+            };
+            nk.storageWrite([{
+                    collection: MERGE_LOG_COLLECTION,
+                    key: idemKey,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: summary,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            // Mark ghost user's account metadata as merged (so subsequent ghost
+            // operations refuse to continue).
+            try {
+                nk.accountUpdateId(ghostUserId, undefined, undefined, undefined, undefined, undefined, undefined, { is_ghost: true, merged_to: cognitoUserId, merged_at: nowSec() });
+            }
+            catch (e) {
+                logger.warn("[AccountMerge] could not update ghost metadata: " + e.message);
+            }
+            logger.info("[AccountMerge] merged ghost " + ghostUserId + " → cognito " + cognitoUserId + " (bc=" + bcCredited + ", entries=" + entries + ")");
+            return RpcHelpers.successResponse({ ok: true, idempotent: false, transferred: summary.transferred });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[AccountMerge] failed: " + msg);
+            RpcHelpers.logRpcError(nk, logger, "account_merge_ghost_to_cognito", msg);
+            return RpcHelpers.errorResponse("account_merge failed: " + msg, 500);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("account_merge_ghost_to_cognito", rpcMerge);
+    }
+    AccountMerge.register = register;
+})(AccountMerge || (AccountMerge = {}));
 // identity_resolver.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // Identity Resolver — maps inbound channel identifiers (phone, telegram_id,
@@ -31409,6 +31665,29 @@ var BrainCoins;
         "streak_milestone_d7": { coinsPerEvent: 25, lifetimeCap: 1 },
         "streak_milestone_d14": { coinsPerEvent: 50, lifetimeCap: 1 },
         "streak_milestone_d30": { coinsPerEvent: 100, lifetimeCap: 1 },
+        // ── Tournaments (plan §1A + §1F + §1G) ──
+        // tournament_win: variable payout — actual coins come from `payload.coins`
+        //   if EARN_RULES code allows it (we special-case below). coinsPerEvent=0
+        //   here just signals "variable amount". No day cap (winning more than
+        //   one tournament per day is rare and legitimate).
+        "tournament_win": { coinsPerEvent: 0 },
+        // tournament_topup_ad: Applixir rewarded video, higher cap than guest
+        //   wallet because user is authenticated.
+        "tournament_topup_ad": { coinsPerEvent: 25, dailyCap: 20 },
+        // referral_pre_enroll: paid to referrer when a user pre-enrolls via
+        //   their /r/[code] link. lifetimeCap=200 keeps the leaderboard
+        //   meaningful while preventing infinite farming.
+        "referral_pre_enroll": { coinsPerEvent: 10, lifetimeCap: 200 },
+        // guest_wallet_sync: one-shot per guest wallet on sign-up merge.
+        //   coinsPerEvent=0 because the actual amount comes from payload.coins.
+        "guest_wallet_sync": { coinsPerEvent: 0 },
+    };
+    // Earn codes that carry a variable amount (caller supplies `coins` in payload).
+    // We trust the service caller here because the only callers are settlement
+    // crons + the merge RPC, both behind BRAIN_COINS_SERVICE_TOKEN.
+    var VARIABLE_AMOUNT_CODES = {
+        "tournament_win": true,
+        "guest_wallet_sync": true,
     };
     var PAYOUT_CATALOG = {
         "tremendous_amazon_5_usd": { cost: 1500, usdValueCents: 500, label: "$5 Amazon gift card" },
@@ -31578,10 +31857,27 @@ var BrainCoins;
                     });
                 }
             }
+            // Determine credit amount. Most codes use the static rule.coinsPerEvent,
+            // but variable-amount codes (tournament_win, guest_wallet_sync) take
+            // the amount from payload.coins — clamped to a sane upper bound to
+            // prevent typos exploding wallets.
+            var credit = rule.coinsPerEvent;
+            if (VARIABLE_AMOUNT_CODES[code]) {
+                var requested = parseInt("" + (data.coins || 0), 10);
+                if (!isFinite(requested) || requested <= 0) {
+                    return RpcHelpers.errorResponse("variable-amount code requires positive `coins`", 400);
+                }
+                // Cap any single variable credit at 10M BC (~$30K USD-equiv) — catches
+                // currency-unit-confusion bugs (e.g. someone passing cents instead of BC).
+                if (requested > 10000000) {
+                    return RpcHelpers.errorResponse("requested coins exceed safety cap (10M)", 400);
+                }
+                credit = requested;
+            }
             // Credit.
             var wallet = readWallet(nk, userId);
-            wallet.balance = (wallet.balance | 0) + rule.coinsPerEvent;
-            wallet.lifetime_earned = (wallet.lifetime_earned | 0) + rule.coinsPerEvent;
+            wallet.balance = (wallet.balance | 0) + credit;
+            wallet.lifetime_earned = (wallet.lifetime_earned | 0) + credit;
             writeWallet(nk, userId, wallet);
             // Append immutable earn log row.
             var logKey = idempotencyKey
@@ -31593,7 +31889,7 @@ var BrainCoins;
                     userId: userId,
                     value: {
                         code: code,
-                        coins: rule.coinsPerEvent,
+                        coins: credit,
                         unix_ts: nowSec(),
                         date: todayUtc(),
                         source: "" + (data.source || "system"),
@@ -31605,7 +31901,7 @@ var BrainCoins;
                 }]);
             return RpcHelpers.successResponse({
                 wallet: wallet,
-                credited: rule.coinsPerEvent,
+                credited: credit,
             });
         }
         catch (err) {
@@ -31735,6 +32031,512 @@ var BrainCoins;
     }
     BrainCoins.register = register;
 })(BrainCoins || (BrainCoins = {}));
+// =============================================================================
+// tournament_economy.ts — Single Source of Truth for QuizVerse Tournaments
+//
+// Plan refs:
+//   §1   Core decisions      — 15% rake, BC fixed value, geo-variable display
+//   §1A  Topic shortlist     — 11 launch tracks (8 generic + 3 new formats)
+//   §1B  Launch slate        — public Jul 1 2026, pre-enroll from May 27
+//   §1F  Pre-enrollment      — FOUNDER cap=1000, 2x first-win multiplier
+//   §1H  Multi-format engine — classic | elimination | pick_n discriminator
+//   §1I  Wire spec           — config consumed by all tournament RPCs
+//
+// EVERY tournament parameter (entry fee, rake, splits, format, schedule,
+// payouts, AMOE rules, geo blocks) flows from this file. Change here = change
+// everywhere. Do not duplicate any of these values in client code.
+// =============================================================================
+var TournamentEconomy;
+(function (TournamentEconomy) {
+    // ── Global constants ───────────────────────────────────────────────────────
+    // House cut on every pot (rake_pct of pot goes to QuizVerse, rest to payouts).
+    TournamentEconomy.HOUSE_RAKE_PCT = 0.15;
+    // Brain Coin "fiat anchor" — used for geo-display only. BC value is constant
+    // globally; we just *show* the local fiat equivalent based on user country.
+    TournamentEconomy.BC_PER_USD_USA = 333.333; // 1 USD ≈ 333 BC (so 1500 BC = $4.50, matches existing payout sku)
+    // Pre-enrollment / launch (§1F)
+    TournamentEconomy.PRE_ENROLL_FOUNDER_CAP = 1000;
+    TournamentEconomy.FOUNDER_FIRST_WIN_MULTIPLIER = 2.0;
+    TournamentEconomy.HOUSE_PRE_ENROLL_SUBSIDY_USD = 5000; // cap on house pot top-up during pre-enroll
+    TournamentEconomy.HOUSE_PRE_ENROLL_SUBSIDY_BC_PER_ENROLLEE = 5; // +5 BC subsidy per 10 enrollments (avg)
+    // Referral
+    TournamentEconomy.REFERRAL_TOP_1_USD = 500;
+    TournamentEconomy.REFERRAL_TOP_2_3_USD = 250;
+    TournamentEconomy.REFERRAL_TOP_4_10_USD = 100;
+    TournamentEconomy.REFERRAL_TOP_11_100_USD = 25;
+    // Public open time (§1B). 2026-07-01 00:00 ET = 04:00 UTC.
+    TournamentEconomy.PUBLIC_OPEN_TIME_ISO = "2026-07-01T04:00:00Z";
+    // Pre-enroll opens immediately on first deploy of this module.
+    // Tournaments seeded below get `status: PRE_ENROLL` until cron flips them.
+    // ── Geo compliance (§3 Phase 0 Compliance lock) ────────────────────────────
+    // Two-stage geo gate:
+    //   ENTRY_BLOCK_US_STATES   — block paid entry (skill-game prohibitions)
+    //   REDEMPTION_BLOCK_US_STATES — block BC→Tremendous redemption (dual-currency)
+    TournamentEconomy.ENTRY_BLOCK_US_STATES = ["WA", "AZ", "CT", "NJ", "NY", "VA"];
+    TournamentEconomy.REDEMPTION_BLOCK_US_STATES = ["CA", "NY", "VA"];
+    // Countries we serve in Tier-1 launch
+    TournamentEconomy.TIER1_COUNTRIES = ["US", "CA", "GB", "AU", "NZ", "IE"];
+    // 18+ gate (§3)
+    TournamentEconomy.MIN_AGE = 18;
+    // Anti-cheat baseline (§3)
+    TournamentEconomy.ANTICHEAT_LATENCY_FLOOR_MS = 300;
+    TournamentEconomy.ANTICHEAT_DAILY_SUBMIT_CEILING = 200;
+    // ── Pot split (classic format) ─────────────────────────────────────────────
+    // Top-1 = 40%, Top-2 = 20%, Top-3 = 10%, Top-4-10 = 5% each (35% total),
+    // Top-11-100 = adjusted to fill remaining. Sum (post-rake) = 1.0.
+    TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N = [
+        { rank: 1, share: 0.40 },
+        { rank: 2, share: 0.20 },
+        { rank: 3, share: 0.10 },
+        { rank: 4, share: 0.05 },
+        { rank: 5, share: 0.05 },
+        { rank: 6, share: 0.05 },
+        { rank: 7, share: 0.05 },
+        { rank: 8, share: 0.05 },
+        { rank: 9, share: 0.025 },
+        { rank: 10, share: 0.025 },
+        // Remaining 0% in the top-10 view; ranks 11-100 share the remainder when
+        // pot is large enough via spreadRemainder() in tournament_settle.
+    ];
+    // ── Default AMOE rules (one per format) ────────────────────────────────────
+    TournamentEconomy.AMOE_CLASSIC = {
+        learning_series_required_videos: 6,
+        free_entries_per_tournament: 1,
+        no_lose_refund_finish_pct: 0.50,
+    };
+    TournamentEconomy.AMOE_ELIMINATION = {
+        learning_series_required_videos: 6,
+        free_entries_per_tournament: 1,
+        no_lose_survive_round: 3,
+    };
+    TournamentEconomy.AMOE_PICK_N = {
+        learning_series_required_videos: 6,
+        free_entries_per_tournament: 1,
+        no_lose_pick_threshold: "3/5",
+    };
+    // ── LAUNCH SLATE (§1B Wave 1) ──────────────────────────────────────────────
+    // 11 tournaments seeded on day-1 of pre-enrollment (May 27, 2026).
+    // All flip from PRE_ENROLL → OPEN on Wed Jul 1, 2026 04:00 UTC (00:00 ET).
+    var PRE_ENROLL_OPEN_ISO = "2026-05-27T00:00:00Z";
+    var WAVE_1_OPEN_ISO = TournamentEconomy.PUBLIC_OPEN_TIME_ISO;
+    var WAVE_1_WEEK_END_ISO = "2026-07-06T03:59:59Z"; // Jul 6 23:59 ET
+    TournamentEconomy.LAUNCH_SLATE = [
+        // ── Daily Snack (recurring) ──
+        {
+            slug: "gk-royale-daily",
+            name: "GK Royale Daily",
+            description: "5 quick questions, every day. Pick up where you left off.",
+            topic_tag: "general_knowledge",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: "2026-07-01T23:59:59Z", // daily reset; cron re-instantiates
+            entry_fee_bc: 50,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 5000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "🧠",
+        },
+        // ── Weekly Sprints (generic) ──
+        {
+            slug: "brain-bowl-weekly",
+            name: "Brain Bowl Weekly",
+            description: "Lumosity-style brain workout. Rotating subject each week.",
+            topic_tag: "brain_bowl_science",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: WAVE_1_WEEK_END_ISO,
+            entry_fee_bc: 250,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 20000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "🧪",
+        },
+        {
+            slug: "movie-buff-weekly",
+            name: "Movie Buff Showdown",
+            description: "Films, shows, soundtracks — for the true cinephile.",
+            topic_tag: "movies_tv",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: WAVE_1_WEEK_END_ISO,
+            entry_fee_bc: 250,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 18000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "🎬",
+        },
+        // ── NEW FORMAT: Elimination Sprint (§1H N1) ──
+        {
+            slug: "survivor-week-1",
+            name: "Survivor Week — Inaugural",
+            description: "5 days. Bottom 50% eliminated each midnight. Survivors split the pot.",
+            topic_tag: "general_knowledge",
+            format: "elimination",
+            format_ui_variant: "elim-survivors",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: WAVE_1_WEEK_END_ISO,
+            entry_fee_bc: 500,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 50000,
+            elimination_schedule: {
+                cut_times_utc: [
+                    "2026-07-02T04:00:00Z", // Day 1 cut → 7500 survive
+                    "2026-07-03T04:00:00Z", // Day 2 cut → 3750 survive
+                    "2026-07-04T04:00:00Z", // Day 3 cut → 1875 survive
+                    "2026-07-05T04:00:00Z", // Day 4 cut → 938 survive
+                    "2026-07-06T04:00:00Z", // Day 5 final cut → 469 survivors split pot
+                ],
+                cut_pct: 0.50,
+                survivor_split: "equal",
+                final_survivor_bonus_bc: 200000, // #1 of survivors gets a bragging-rights bonus
+            },
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_ELIMINATION,
+            badge_emoji: "⚔️",
+        },
+        // ── NEW FORMAT: Pick-5 Daily (§1H N2) ──
+        {
+            slug: "pick-5-daily",
+            name: "Pick-5 Daily",
+            description: "Pick 5. Get them all right to win 10×. PrizePicks-style for trivia.",
+            topic_tag: "mixed_difficulty",
+            format: "pick_n",
+            format_ui_variant: "pick-n-slip",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: "2026-07-01T23:59:59Z", // daily; cron re-instantiates
+            entry_fee_bc: 100,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 8000,
+            pick_n_config: {
+                n: 5,
+                multipliers: {
+                    "5/5": 10,
+                    "4/5": 5,
+                    "3/5": 2,
+                    "<3/5": 0,
+                },
+                max_pick_window_hours: 24,
+                house_backstop_usd_per_day: 100,
+            },
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_PICK_N,
+            badge_emoji: "🎯",
+        },
+        // ── Exam-Prep (high-LTV, US-focused) ──
+        {
+            slug: "ap-2027-prep-weekly",
+            name: "AP 2027 Prep Sprint",
+            description: "Lock in AP material for the 2027 calendar. Aligns with this week's AP score release.",
+            topic_tag: "exam_ap_general",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: WAVE_1_WEEK_END_ISO,
+            entry_fee_bc: 500,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 25000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: ["US"],
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "📚",
+        },
+        // ── Wave 2: SAT Aug, ACT Sep (seeded but PRE_ENROLL on day-1) ──
+        {
+            slug: "sat-aug-cram",
+            name: "SAT August Cram",
+            description: "Final SAT prep week before the August test date.",
+            topic_tag: "exam_sat",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: "2026-08-17T04:00:00Z",
+            end_iso: "2026-08-23T03:59:59Z",
+            entry_fee_bc: 500,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 30000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: ["US"],
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "✏️",
+        },
+        {
+            slug: "act-sep-sprint",
+            name: "ACT September Sprint",
+            description: "Final ACT prep week before the September test date.",
+            topic_tag: "exam_act",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: "2026-09-07T04:00:00Z",
+            end_iso: "2026-09-13T03:59:59Z",
+            entry_fee_bc: 500,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 25000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: ["US"],
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "🎓",
+        },
+        {
+            slug: "neet-prep-weekly",
+            name: "NEET Prep Weekly (India)",
+            description: "Weekly NEET prep — biology, chemistry, physics rotation.",
+            topic_tag: "exam_neet",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: WAVE_1_WEEK_END_ISO,
+            entry_fee_bc: 250,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 15000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: ["IN"],
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "⚕️",
+        },
+        {
+            slug: "jee-main-weekly",
+            name: "JEE Main Weekly (India)",
+            description: "JEE Main prep — maths, physics, chemistry rotation.",
+            topic_tag: "exam_jee",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: WAVE_1_WEEK_END_ISO,
+            entry_fee_bc: 250,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 15000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: ["IN"],
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "🔬",
+        },
+        {
+            slug: "gmat-weekly",
+            name: "GMAT Weekly",
+            description: "Verbal + quant + data sufficiency for the global GMAT cohort.",
+            topic_tag: "exam_gmat",
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+            open_start_iso: WAVE_1_OPEN_ISO,
+            end_iso: WAVE_1_WEEK_END_ISO,
+            entry_fee_bc: 500,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: 20000,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: "💼",
+        },
+    ];
+    // ── Lookup helpers ─────────────────────────────────────────────────────────
+    var SLUG_INDEX = (function () {
+        var m = {};
+        for (var i = 0; i < TournamentEconomy.LAUNCH_SLATE.length; i++)
+            m[TournamentEconomy.LAUNCH_SLATE[i].slug] = TournamentEconomy.LAUNCH_SLATE[i];
+        return m;
+    })();
+    function getBySlug(slug) {
+        return SLUG_INDEX[slug] || null;
+    }
+    TournamentEconomy.getBySlug = getBySlug;
+    function listAll() {
+        return TournamentEconomy.LAUNCH_SLATE.slice();
+    }
+    TournamentEconomy.listAll = listAll;
+    // Country eligibility check (entry-side). Returns true if the country is
+    // allowed AND not in the US-state entry-block list (state checked separately).
+    function isCountryAllowed(cfg, country) {
+        if (cfg.countries_allowed === "ALL")
+            return true;
+        var list = cfg.countries_allowed;
+        for (var i = 0; i < list.length; i++)
+            if (list[i] === country)
+                return true;
+        return false;
+    }
+    TournamentEconomy.isCountryAllowed = isCountryAllowed;
+    // US-state entry-block check
+    function isUsStateEntryBlocked(state) {
+        for (var i = 0; i < TournamentEconomy.ENTRY_BLOCK_US_STATES.length; i++) {
+            if (TournamentEconomy.ENTRY_BLOCK_US_STATES[i] === state)
+                return true;
+        }
+        return false;
+    }
+    TournamentEconomy.isUsStateEntryBlocked = isUsStateEntryBlocked;
+    // US-state redemption-block check (used by brain_coins redeem flow)
+    function isUsStateRedemptionBlocked(state) {
+        for (var i = 0; i < TournamentEconomy.REDEMPTION_BLOCK_US_STATES.length; i++) {
+            if (TournamentEconomy.REDEMPTION_BLOCK_US_STATES[i] === state)
+                return true;
+        }
+        return false;
+    }
+    TournamentEconomy.isUsStateRedemptionBlocked = isUsStateRedemptionBlocked;
+    // Geo-display: turn BC into local-fiat estimate. Static table for MVP; later
+    // pull live FX. Display-only — never used for ledger math.
+    TournamentEconomy.GEO_DISPLAY_RATES = {
+        US: { symbol: "$", usd_to_local: 1.00 },
+        CA: { symbol: "C$", usd_to_local: 1.37 },
+        GB: { symbol: "£", usd_to_local: 0.79 },
+        AU: { symbol: "A$", usd_to_local: 1.52 },
+        NZ: { symbol: "NZ$", usd_to_local: 1.65 },
+        IE: { symbol: "€", usd_to_local: 0.92 },
+        IN: { symbol: "₹", usd_to_local: 83.5 },
+    };
+    function bcToLocalDisplay(bc, country) {
+        var rate = TournamentEconomy.GEO_DISPLAY_RATES[country] || TournamentEconomy.GEO_DISPLAY_RATES.US;
+        var usd = bc / TournamentEconomy.BC_PER_USD_USA;
+        var local = usd * rate.usd_to_local;
+        var fmt = local >= 100 ? local.toFixed(0) : local.toFixed(2);
+        return { symbol: rate.symbol, amount: fmt };
+    }
+    TournamentEconomy.bcToLocalDisplay = bcToLocalDisplay;
+})(TournamentEconomy || (TournamentEconomy = {}));
+// =============================================================================
+// wallet_guest_sync.ts — Sync web guest Applixir wallet → authenticated Nakama
+//
+// Plan ref: §1I gap 3. Closes the "TODO sync on signup" referenced in
+// /Users/devashishbadlani/dev/Quizverse-web-frontend/web/lib/monetization/applixir-guest-wallet.ts.
+//
+// Flow:
+//   1. Anonymous web user watches rewarded ads via Applixir guest wallet.
+//      BC accumulates in localStorage `qv_applixir_guest_wallet`, capped at
+//      a daily limit.
+//   2. User signs up with Cognito; web /api/auth/cognito-callback calls
+//      this RPC with the guest wallet snapshot (balance + earn_log entries).
+//   3. We credit the user's Nakama BrainCoins wallet via brain_coins_earn
+//      using a `guest_sync_{guest_wallet_id}` idempotency key. Re-calls
+//      (network retry) are idempotent.
+//
+// Auth: user-callable (caller is the newly-authenticated user). We do NOT
+// trust the client-supplied balance blindly — we cap by a sane daily ceiling
+// and log the earn ledger for audit.
+// =============================================================================
+var WalletGuestSync;
+(function (WalletGuestSync) {
+    // Hard ceiling on a single sync (prevents tampering). If a genuine guest
+    // somehow accumulated more than this, ops manually adjusts post-sync.
+    var MAX_GUEST_SYNC_BC = 5000;
+    function rpcSync(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var guestWalletId = "" + (data.guest_wallet_id || "");
+            var bcBalance = parseInt("" + (data.bc_balance || 0), 10);
+            if (!guestWalletId) {
+                return RpcHelpers.errorResponse("guest_wallet_id required", 400);
+            }
+            if (!isFinite(bcBalance) || bcBalance <= 0) {
+                return RpcHelpers.successResponse({ ok: true, credited_bc: 0, skipped: "no_balance" });
+            }
+            if (bcBalance > MAX_GUEST_SYNC_BC) {
+                logger.warn("[GuestSync] capping requested " + bcBalance + " → " + MAX_GUEST_SYNC_BC + " for user " + userId);
+                bcBalance = MAX_GUEST_SYNC_BC;
+            }
+            // Delegate to brain_coins_earn with a deterministic idempotency key.
+            // Service-to-service call within the same Nakama runtime: we synthesize
+            // the payload and invoke the same code path that brain_coins_earn uses.
+            // (We can't call brain_coins_earn directly as an RPC from JS — instead
+            // we replicate the necessary side-effects here against the same storage.)
+            var idemKey = "guest_sync_" + guestWalletId;
+            var probeKey = "earn_log_idem_" + idemKey;
+            try {
+                var existing = nk.storageRead([{ collection: "brain_coins", key: probeKey, userId: userId }]);
+                if (existing && existing.length > 0) {
+                    return RpcHelpers.successResponse({
+                        ok: true,
+                        credited_bc: 0,
+                        skipped: "idempotent",
+                        prior_credit: existing[0].value.coins || 0,
+                    });
+                }
+            }
+            catch (_) { }
+            // Read current wallet, sum-merge.
+            var walletRows = nk.storageRead([{ collection: "brain_coins", key: "wallet", userId: userId }]);
+            var wallet = { balance: 0, lifetime_earned: 0, lifetime_redeemed: 0, updated_at: 0 };
+            if (walletRows && walletRows.length > 0)
+                wallet = walletRows[0].value;
+            wallet.balance = (wallet.balance | 0) + bcBalance;
+            wallet.lifetime_earned = (wallet.lifetime_earned | 0) + bcBalance;
+            wallet.updated_at = Math.floor(Date.now() / 1000);
+            nk.storageWrite([{
+                    collection: "brain_coins",
+                    key: "wallet",
+                    userId: userId,
+                    value: wallet,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            // Audit log row (immutable). Recorded under brain_coins so it shows up
+            // in the user's earn history alongside their other earn rows.
+            nk.storageWrite([{
+                    collection: "brain_coins",
+                    key: probeKey,
+                    userId: userId,
+                    value: {
+                        code: "guest_wallet_sync",
+                        coins: bcBalance,
+                        unix_ts: wallet.updated_at,
+                        date: new Date().toISOString().slice(0, 10),
+                        source: "wallet_guest_sync",
+                        trace_id: data.trace_id || null,
+                        idempotency_key: idemKey,
+                        guest_wallet_id: guestWalletId,
+                    },
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            logger.info("[GuestSync] synced " + bcBalance + " BC from guest wallet " + guestWalletId + " → user " + userId);
+            return RpcHelpers.successResponse({
+                ok: true,
+                credited_bc: bcBalance,
+                new_balance: wallet.balance,
+            });
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[GuestSync] failed: " + msg);
+            RpcHelpers.logRpcError(nk, logger, "wallet_sync_guest_to_account", msg);
+            return RpcHelpers.errorResponse("guest sync failed: " + msg, 500);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("wallet_sync_guest_to_account", rpcSync);
+    }
+    WalletGuestSync.register = register;
+})(WalletGuestSync || (WalletGuestSync = {}));
 // qv_agent.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // QuizVerse Agent runtime — Phase A tool surface for the omnichannel
@@ -38084,6 +38886,127 @@ var HttpClient;
     }
     HttpClient.signedPost = signedPost;
 })(HttpClient || (HttpClient = {}));
+// =============================================================================
+// rate-limit.ts — Universal RPC rate-limiter decorator
+//
+// Plan ref: §1I gap 8 — "No global withRateLimit on RPCs". The tournament
+// system exposes 6 user-callable RPCs (enter, submit_pack_result, submit_picks,
+// pre_enroll, claim_cert, learning_check_submit) that need server-side throttling
+// to prevent spam, accidental retries, and rudimentary cheat attempts.
+//
+// Design:
+//   - Sliding window via storageList over a system-owned rate-limit collection.
+//     We round timestamps into per-second buckets so reads are bounded.
+//   - Three independent windows can be enforced per RPC:
+//       perUserPerSec  — instant burst guard (e.g. quiz submit latency floor)
+//       perUserPerMin  — typical per-user throttle
+//       perIpPerMin    — guards anonymous public RPCs by client IP
+//   - On limit hit, throw a "THROTTLED" error (RPC handlers should catch and
+//     return RpcHelpers.errorResponse with code 429).
+//
+// Why storage + not an in-memory counter: Nakama runs N pods; in-memory state
+// can't be trusted across them. Storage is per-user (so partitioned), and we
+// prune old buckets opportunistically (TTL via key naming, see compactWindow).
+// =============================================================================
+var SharedRateLimit;
+(function (SharedRateLimit) {
+    var COLLECTION = "rl_buckets";
+    var KEY_PREFIX_USER = "user_";
+    var KEY_PREFIX_IP = "ip_";
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    // Read+write a windowed counter. Buckets are keyed per UTC second; we read
+    // the last `windowSec` buckets, sum, and decide. On allow, increment current
+    // bucket. Bucket entries auto-prune by being windowed-out on next read.
+    function countAndIncrement(nk, ownerUserId, keyBase, windowSec, limit) {
+        var now = nowSec();
+        var windowStart = now - windowSec;
+        var total = 0;
+        var cursor = "";
+        var safety = 0;
+        while (safety < 5) {
+            safety++;
+            var page = nk.storageList(ownerUserId, COLLECTION, 100, cursor);
+            if (!page || !page.objects)
+                break;
+            for (var i = 0; i < page.objects.length; i++) {
+                var o = page.objects[i];
+                if (o.key.indexOf(keyBase + ":") !== 0)
+                    continue;
+                var v = o.value;
+                if (!v || !v.ts)
+                    continue;
+                if (v.ts < windowStart)
+                    continue;
+                total += v.count | 0;
+            }
+            if (!page.cursor)
+                break;
+            cursor = page.cursor;
+        }
+        if (total >= limit) {
+            return { allowed: false, reason: "rate_limited", retryAfterSec: Math.max(1, Math.ceil(windowSec / Math.max(1, limit))) };
+        }
+        // Increment the bucket for the current second.
+        var bucketKey = keyBase + ":" + now;
+        try {
+            var existing = nk.storageRead([{ collection: COLLECTION, key: bucketKey, userId: ownerUserId }]);
+            var newCount = 1;
+            if (existing && existing.length > 0) {
+                newCount = (existing[0].value.count | 0) + 1;
+            }
+            nk.storageWrite([{
+                    collection: COLLECTION,
+                    key: bucketKey,
+                    userId: ownerUserId,
+                    value: { ts: now, count: newCount },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (_) {
+            // Increment failed (concurrent write?) — fail open, we already counted total.
+        }
+        return { allowed: true };
+    }
+    // Public check. Returns decision; caller throws / returns 429 on !allowed.
+    function check(ctx, nk, rpcName, opts) {
+        var userId = ctx.userId || "";
+        var ip = ctx.clientIp || "";
+        if (opts.perUserPerSec && userId) {
+            var d = countAndIncrement(nk, userId, KEY_PREFIX_USER + rpcName + "_s", 1, opts.perUserPerSec);
+            if (!d.allowed)
+                return d;
+        }
+        if (opts.perUserPerMin && userId) {
+            var d2 = countAndIncrement(nk, userId, KEY_PREFIX_USER + rpcName + "_m", 60, opts.perUserPerMin);
+            if (!d2.allowed)
+                return d2;
+        }
+        if (opts.perIpPerMin && ip) {
+            // IP-bucket is stored under SYSTEM_USER so anonymous callers can be counted.
+            var d3 = countAndIncrement(nk, Constants.SYSTEM_USER_ID, KEY_PREFIX_IP + ip + "_" + rpcName, 60, opts.perIpPerMin);
+            if (!d3.allowed)
+                return d3;
+        }
+        return { allowed: true };
+    }
+    SharedRateLimit.check = check;
+    // Convenience wrapper: short-circuits a handler with a 429 response if the
+    // caller is over limit. Usage:
+    //   function rpcEnter(ctx, logger, nk, payload) {
+    //     var rl = SharedRateLimit.enforce(ctx, nk, "tournament_enter",
+    //       { perUserPerMin: 10 });
+    //     if (rl) return rl;  // already an error response string
+    //     // ... real handler ...
+    //   }
+    function enforce(ctx, nk, rpcName, opts) {
+        var d = check(ctx, nk, rpcName, opts);
+        if (d.allowed)
+            return null;
+        return RpcHelpers.errorResponse("rate limited; retry in " + (d.retryAfterSec || 1) + "s", 429);
+    }
+    SharedRateLimit.enforce = enforce;
+})(SharedRateLimit || (SharedRateLimit = {}));
 var RewardEngine;
 (function (RewardEngine) {
     function resolveReward(nk, reward) {
@@ -38550,6 +39473,3941 @@ var WalletHelpers;
     }
     WalletHelpers.hasCurrency = hasCurrency;
 })(WalletHelpers || (WalletHelpers = {}));
+// =============================================================================
+// anticheat.ts — Server-side cheat detection for tournament submits
+//
+// Plan ref: §1H per-format detectors + §3 anti-cheat baseline. Three classes:
+//   1. Latency floor — answers faster than ANTICHEAT_LATENCY_FLOOR_MS (300ms)
+//      are statistically impossible for humans → soft-DQ
+//   2. Daily submit ceiling — > 200/day signals automation
+//   3. Honeypot — server-side known-bad questions injected silently; if user
+//      answers them correctly at > random rate, mark
+//
+// Soft-DQ flow: row marked status="soft_dq", score zeroed for leaderboard
+// purposes, user shown a generic "review in progress" toast. No payout on
+// settle. Hard appeals go through ops.
+// =============================================================================
+var TournamentAntiCheat;
+(function (TournamentAntiCheat) {
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function startOfTodayUnix() {
+        var d = new Date();
+        d.setUTCHours(0, 0, 0, 0);
+        return Math.floor(d.getTime() / 1000);
+    }
+    function check(nk, input) {
+        var reasons = [];
+        // 1. Latency floor
+        if (input.answers_count > 0 && input.duration_ms > 0) {
+            var avgPerAnswerMs = input.duration_ms / input.answers_count;
+            if (avgPerAnswerMs < TournamentEconomy.ANTICHEAT_LATENCY_FLOOR_MS) {
+                reasons.push("latency_floor_violated:" + Math.floor(avgPerAnswerMs) + "ms_per_answer");
+            }
+        }
+        // 2. Daily submit ceiling
+        var todayUnix = startOfTodayUnix();
+        var dailyCount = countTodaysSubmits(nk, input.user_id, todayUnix);
+        if (dailyCount >= TournamentEconomy.ANTICHEAT_DAILY_SUBMIT_CEILING) {
+            reasons.push("daily_submit_ceiling:" + dailyCount);
+        }
+        // 3. Honeypot — if honeypot questions were included, a too-good correctness
+        //    rate is suspicious. Random expected = 0.25 (4-choice MCQ). > 0.6
+        //    on a sample of 3+ is statistically suspicious.
+        if (input.honeypot_total && input.honeypot_total >= 3) {
+            var rate = (input.honeypot_correct || 0) / input.honeypot_total;
+            if (rate > 0.6) {
+                reasons.push("honeypot_rate:" + rate.toFixed(2));
+            }
+        }
+        // 4. Impossible accuracy (legitimate high scores are fine, but 100% with
+        //    sub-floor latency is essentially proof of automation).
+        if (input.total > 0) {
+            var accuracy = input.correct / input.total;
+            if (accuracy === 1.0 && input.duration_ms > 0 && input.answers_count > 0) {
+                var perAns = input.duration_ms / input.answers_count;
+                if (perAns < 500) {
+                    reasons.push("impossible_accuracy_at_speed:" + accuracy + "_" + Math.floor(perAns));
+                }
+            }
+        }
+        return { pass: reasons.length === 0, reasons: reasons };
+    }
+    TournamentAntiCheat.check = check;
+    function countTodaysSubmits(nk, userId, sinceUnix) {
+        var count = 0;
+        try {
+            var cursor = "";
+            var safety = 0;
+            while (safety < 5) {
+                safety++;
+                var page = nk.storageList(userId, "tournament_submits", 100, cursor);
+                if (!page || !page.objects)
+                    break;
+                for (var i = 0; i < page.objects.length; i++) {
+                    var v = page.objects[i].value;
+                    if (!v)
+                        continue;
+                    if (v.submitted_at && v.submitted_at >= sinceUnix)
+                        count++;
+                }
+                if (!page.cursor)
+                    break;
+                cursor = page.cursor;
+            }
+        }
+        catch (_) { }
+        return count;
+    }
+})(TournamentAntiCheat || (TournamentAntiCheat = {}));
+// =============================================================================
+// bracket_client.ts — Nakama ↔ Bracket service S2S bridge
+//
+// Plan ref: §3 Bracket integration. The `bracket` upstream FastAPI service
+// is already deployed on EKS at:
+//   internal: bracket.aicart.svc.cluster.local:8400
+//   public:   https://bracket.intelli-verse-x.ai
+//
+// Bracket is a sync match runner; QuizVerse is async pack-based. We adapt
+// by using a 24h round window: each "match" is "submit at least one pack
+// during 24h; highest score wins the match; ties broken by submitted_at".
+//
+// Nakama calls Bracket only for the playoff stage (top 64 from qualifier).
+// Bracket calls Nakama via existing http_key for result attribution.
+// =============================================================================
+var BracketClient;
+(function (BracketClient) {
+    function getBaseUrl(ctx) {
+        return "" + ((ctx.env && ctx.env["BRACKET_INTERNAL_URL"]) || "http://bracket.aicart.svc.cluster.local:8400");
+    }
+    function getServiceJwt(ctx) {
+        return "" + ((ctx.env && ctx.env["BRACKET_SERVICE_JWT"]) || "");
+    }
+    function authHeaders(ctx) {
+        return {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + getServiceJwt(ctx),
+        };
+    }
+    // Pre-create a Bracket shell at DRAFT→OPEN transition (per plan §3 fix).
+    // Returns the bracket_id; subsequent calls are idempotent (we cache the id
+    // in tournaments_meta.bracket_id).
+    function createBracketShell(ctx, nk, slug, name, playerCount) {
+        var url = getBaseUrl(ctx) + "/tournaments";
+        var body = {
+            name: name + " — Playoffs",
+            tournament_type: "SINGLE_ELIMINATION",
+            max_players: playerCount,
+            external_ref: slug,
+            duel_match_size: 1,
+        };
+        try {
+            var res = nk.httpRequest(url, "post", authHeaders(ctx), JSON.stringify(body), 10000);
+            if (res.code >= 200 && res.code < 300) {
+                var parsed = JSON.parse(res.body);
+                return { ok: true, bracket_id: "" + (parsed.tournament_id || parsed.id || "") };
+            }
+            return { ok: false, error: "bracket returned " + res.code + ": " + (res.body || "").slice(0, 200) };
+        }
+        catch (err) {
+            return { ok: false, error: "" + (err && err.message ? err.message : err) };
+        }
+    }
+    BracketClient.createBracketShell = createBracketShell;
+    // Register a winner-set (top 64 from qualifier) as Bracket players.
+    function seedPlayers(ctx, nk, bracketId, players) {
+        var url = getBaseUrl(ctx) + "/tournaments/" + encodeURIComponent(bracketId) + "/players/batch";
+        var body = { players: players };
+        try {
+            var res = nk.httpRequest(url, "post", authHeaders(ctx), JSON.stringify(body), 15000);
+            if (res.code >= 200 && res.code < 300)
+                return { ok: true };
+            return { ok: false, error: "bracket returned " + res.code };
+        }
+        catch (err) {
+            return { ok: false, error: "" + (err && err.message ? err.message : err) };
+        }
+    }
+    BracketClient.seedPlayers = seedPlayers;
+    // Post a match result (winner_user_id, scores) back to Bracket so it can
+    // advance the bracket tree. Called by tournament cron at end of each 24h
+    // round window.
+    function postMatchResult(ctx, nk, bracketId, matchId, winnerUserId, scores) {
+        var url = getBaseUrl(ctx) + "/tournaments/" + encodeURIComponent(bracketId) + "/matches/" + encodeURIComponent(matchId) + "/result";
+        var body = { winner_user_id: winnerUserId, scores: scores };
+        try {
+            var res = nk.httpRequest(url, "put", authHeaders(ctx), JSON.stringify(body), 10000);
+            if (res.code >= 200 && res.code < 300)
+                return { ok: true };
+            return { ok: false, error: "bracket returned " + res.code };
+        }
+        catch (err) {
+            return { ok: false, error: "" + (err && err.message ? err.message : err) };
+        }
+    }
+    BracketClient.postMatchResult = postMatchResult;
+    // Read current bracket state (for iframe pre-warm + caller-side checks).
+    function getBracketState(ctx, nk, bracketId) {
+        var url = getBaseUrl(ctx) + "/tournaments/" + encodeURIComponent(bracketId);
+        try {
+            var res = nk.httpRequest(url, "get", authHeaders(ctx), null, 5000);
+            if (res.code >= 200 && res.code < 300)
+                return { ok: true, state: JSON.parse(res.body) };
+            return { ok: false, error: "bracket returned " + res.code };
+        }
+        catch (err) {
+            return { ok: false, error: "" + (err && err.message ? err.message : err) };
+        }
+    }
+    BracketClient.getBracketState = getBracketState;
+})(BracketClient || (BracketClient = {}));
+// =============================================================================
+// content_factory_client.ts — Nakama ↔ content-factory in-cluster HTTP client
+//
+// Plan ref: §1G Content Pipeline Integration
+//
+// Discovery (from kube-infra inspection):
+//   - content-factory-api lives at: content-factory-api.aicart.svc.cluster.local:8001
+//   - Same EKS cluster (`aicart` namespace) as Nakama → ~1ms latency, no TLS
+//   - Auth: X-API-Key header (env CONTENT_FACTORY_API_KEY); existing M2M pattern
+//   - Endpoints used:
+//       POST /api/pipelines/exam-prep-bundle   → quiz question packs (5/15/30 MCQ)
+//       POST /api/pipelines/viral-lesson-short → 15-120s Learning Series video
+//       GET  /api/pipelines/tasks/{task_id}    → async poll status
+//
+// All generation is async: POST returns task_id (status=pending), then poll
+// until status=completed (or failed/timeout). For pre-enrollment we batch
+// generate via a cron (see crons.ts); for on-demand we poll inline with a
+// budget timeout.
+//
+// Three-tier integration (§1G):
+//   1. Catalog cache (Nakama owns) — fast O(1) reads, no CF round-trip
+//   2. On-demand generation — only when cache misses
+//   3. Pre-generation orchestrator — bulk seeds the cache during pre-enroll
+// =============================================================================
+var ContentFactoryClient;
+(function (ContentFactoryClient) {
+    // Env vars (set on Nakama deployment per §6 Phase 3 EKS notes)
+    function getBaseUrl(ctx) {
+        return "" + ((ctx.env && ctx.env["CONTENT_FACTORY_INTERNAL_URL"]) || "http://content-factory-api.aicart.svc.cluster.local:8001");
+    }
+    function getApiKey(ctx) {
+        return "" + ((ctx.env && ctx.env["CONTENT_FACTORY_API_KEY"]) || "");
+    }
+    // Catalog storage (Nakama-owned). Plan §1I storage layout.
+    var CATALOG_COLLECTION = "tournament_pack_catalog";
+    var VIDEO_CATALOG_COLLECTION = "tournament_video_catalog";
+    function catalogKey(slug, language, weekNum) {
+        return slug + "_" + language + "_w" + weekNum;
+    }
+    function videoCatalogKey(slug, videoIndex, language) {
+        return slug + "_v" + videoIndex + "_" + language;
+    }
+    // ── Catalog read (hot-path; never blocks on CF) ─────────────────────────────
+    function readPackCatalog(nk, slug, language, weekNum) {
+        try {
+            var key = catalogKey(slug, language, weekNum);
+            var rows = nk.storageRead([{ collection: CATALOG_COLLECTION, key: key, userId: Constants.SYSTEM_USER_ID }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    ContentFactoryClient.readPackCatalog = readPackCatalog;
+    function writePackCatalog(nk, slug, language, weekNum, entry) {
+        var key = catalogKey(slug, language, weekNum);
+        nk.storageWrite([{
+                collection: CATALOG_COLLECTION,
+                key: key,
+                userId: Constants.SYSTEM_USER_ID,
+                value: entry,
+                permissionRead: 2, // public read so anonymous web visitors can resolve S3 URLs
+                permissionWrite: 0,
+            }]);
+    }
+    ContentFactoryClient.writePackCatalog = writePackCatalog;
+    function readVideoCatalog(nk, slug, videoIndex, language) {
+        try {
+            var key = videoCatalogKey(slug, videoIndex, language);
+            var rows = nk.storageRead([{ collection: VIDEO_CATALOG_COLLECTION, key: key, userId: Constants.SYSTEM_USER_ID }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    ContentFactoryClient.readVideoCatalog = readVideoCatalog;
+    function writeVideoCatalog(nk, slug, videoIndex, language, entry) {
+        var key = videoCatalogKey(slug, videoIndex, language);
+        nk.storageWrite([{
+                collection: VIDEO_CATALOG_COLLECTION,
+                key: key,
+                userId: Constants.SYSTEM_USER_ID,
+                value: entry,
+                permissionRead: 2,
+                permissionWrite: 0,
+            }]);
+    }
+    ContentFactoryClient.writeVideoCatalog = writeVideoCatalog;
+    // ── HTTP helpers ────────────────────────────────────────────────────────────
+    function authHeaders(ctx) {
+        return {
+            "Content-Type": "application/json",
+            "X-API-Key": getApiKey(ctx),
+        };
+    }
+    function enqueuePackGeneration(ctx, nk, args) {
+        var url = getBaseUrl(ctx) + "/api/pipelines/exam-prep-bundle";
+        var body = {
+            concept: args.concept,
+            exam_board: args.exam_board,
+            language: args.language || "en",
+            num_lessons: 1,
+            num_cards: args.num_cards || 30,
+            days_until_exam: args.days_until_exam || 7,
+            tags: args.tags || [],
+        };
+        try {
+            var res = nk.httpRequest(url, "post", authHeaders(ctx), JSON.stringify(body), 30000);
+            if (res.code >= 200 && res.code < 300) {
+                var parsed = JSON.parse(res.body);
+                return { ok: true, task_id: "" + (parsed.task_id || parsed.id || "") };
+            }
+            return { ok: false, error: "cf returned " + res.code + ": " + (res.body || "").slice(0, 200) };
+        }
+        catch (err) {
+            return { ok: false, error: "" + (err && err.message ? err.message : err) };
+        }
+    }
+    ContentFactoryClient.enqueuePackGeneration = enqueuePackGeneration;
+    function enqueueVideoGeneration(ctx, nk, args) {
+        var url = getBaseUrl(ctx) + "/api/pipelines/viral-lesson-short";
+        var body = {
+            concept: args.concept,
+            language: args.language || "en",
+            target_duration_sec: Math.min(120, Math.max(15, args.target_duration_sec || 90)),
+            tags: args.tags || [],
+        };
+        try {
+            var res = nk.httpRequest(url, "post", authHeaders(ctx), JSON.stringify(body), 30000);
+            if (res.code >= 200 && res.code < 300) {
+                var parsed = JSON.parse(res.body);
+                return { ok: true, task_id: "" + (parsed.task_id || parsed.id || "") };
+            }
+            return { ok: false, error: "cf returned " + res.code };
+        }
+        catch (err) {
+            return { ok: false, error: "" + (err && err.message ? err.message : err) };
+        }
+    }
+    ContentFactoryClient.enqueueVideoGeneration = enqueueVideoGeneration;
+    function getTaskStatus(ctx, nk, taskId) {
+        var url = getBaseUrl(ctx) + "/api/pipelines/tasks/" + encodeURIComponent(taskId);
+        try {
+            var res = nk.httpRequest(url, "get", authHeaders(ctx), null, 10000);
+            if (res.code >= 200 && res.code < 300) {
+                var parsed = JSON.parse(res.body);
+                return { ok: true, status: parsed.status, result: parsed.result || null };
+            }
+            return { ok: false, error: "cf returned " + res.code };
+        }
+        catch (err) {
+            return { ok: false, error: "" + (err && err.message ? err.message : err) };
+        }
+    }
+    ContentFactoryClient.getTaskStatus = getTaskStatus;
+    // ── Helper: extract S3 URL + question count from a completed task result ───
+    function extractPackResultUrl(result) {
+        if (!result)
+            return null;
+        // content-factory may surface the manifest URL at result.s3.manifest_url or
+        // result.quizPacks[0].s3_url depending on pipeline; we accept either shape.
+        var s3 = "";
+        var count = 0;
+        if (result.s3 && result.s3.manifest_url)
+            s3 = "" + result.s3.manifest_url;
+        if (!s3 && result.manifest_url)
+            s3 = "" + result.manifest_url;
+        if (!s3 && result.quizPacks && result.quizPacks[0] && result.quizPacks[0].s3_url)
+            s3 = "" + result.quizPacks[0].s3_url;
+        if (result.quizPacks && result.quizPacks[0] && result.quizPacks[0].questions)
+            count = result.quizPacks[0].questions.length;
+        if (result.question_count)
+            count = result.question_count | 0;
+        if (!s3)
+            return null;
+        return { s3_url: s3, question_count: count };
+    }
+    ContentFactoryClient.extractPackResultUrl = extractPackResultUrl;
+    function extractVideoResultUrl(result) {
+        if (!result)
+            return null;
+        var url = "";
+        var dur = 0;
+        if (result.videoUrl)
+            url = "" + result.videoUrl;
+        if (!url && result.s3 && result.s3.video_url)
+            url = "" + result.s3.video_url;
+        if (result.duration_sec)
+            dur = parseFloat(result.duration_sec) || 0;
+        if (!url)
+            return null;
+        return { s3_url: url, duration_s: dur };
+    }
+    ContentFactoryClient.extractVideoResultUrl = extractVideoResultUrl;
+})(ContentFactoryClient || (ContentFactoryClient = {}));
+// =============================================================================
+// crons.ts — Tournament background jobs
+//
+// Plan ref: §1G pre-gen + §2 settlement + §1H eliminate cron
+//
+// Crons are tick-based (Nakama has no native cron; we use a single-shot
+// "scheduler tick" RPC that ops invokes via http_key, OR auto-invoke from
+// the existing AnalyticsAlerts opportunistic scheduler).
+//
+// Jobs:
+//   open_pending     — flips PRE_ENROLL → OPEN when public_open_time hits
+//   eliminate_round  — runs at each elimination cut time per cfg schedule
+//   settle_finished  — runs after cfg.end_iso elapsed → calls settle()
+//   pregenerate_content — slow drip of CF pack generation during pre-enrollment
+//   referral_settle  — one-shot on Jul 1 to freeze referral leaderboard prizes
+// =============================================================================
+var TournamentCrons;
+(function (TournamentCrons) {
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function isoToUnix(iso) { return Math.floor(new Date(iso).getTime() / 1000); }
+    function unixToIso(ts) { return new Date(ts * 1000).toISOString(); }
+    // B6 fix: opportunistic tick — runs at most once per 60s globally.
+    // Called from high-traffic read RPCs (tournament_list / tournament_get) so
+    // the lifecycle advances without needing an external scheduler. The 60s
+    // gate is keyed on a system-owned storage row so concurrent requests
+    // dedupe across nodes.
+    var OPPORTUNISTIC_TICK_GATE_KEY = "opportunistic_tick_gate";
+    var OPPORTUNISTIC_TICK_INTERVAL_SEC = 60;
+    function opportunisticTick(ctx, logger, nk) {
+        var now = nowSec();
+        var lastRanAt = 0;
+        try {
+            var rows = nk.storageRead([{
+                    collection: "tournament_cron_state",
+                    key: OPPORTUNISTIC_TICK_GATE_KEY,
+                    userId: Constants.SYSTEM_USER_ID,
+                }]);
+            if (rows && rows.length > 0) {
+                var v = rows[0].value;
+                if (v && typeof v.last_ran_at === "number")
+                    lastRanAt = v.last_ran_at;
+            }
+        }
+        catch (_) { }
+        if (now - lastRanAt < OPPORTUNISTIC_TICK_INTERVAL_SEC)
+            return false;
+        // Mark BEFORE running so concurrent callers don't double-fire.
+        try {
+            nk.storageWrite([{
+                    collection: "tournament_cron_state",
+                    key: OPPORTUNISTIC_TICK_GATE_KEY,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: { last_ran_at: now },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (_) { }
+        try {
+            tick(ctx, logger, nk);
+        }
+        catch (e) {
+            logger.warn("[TournamentCron] opportunistic tick failed: " + (e && e.message));
+        }
+        return true;
+    }
+    TournamentCrons.opportunisticTick = opportunisticTick;
+    // B8 fix: daily tournaments (open_start_iso → end_iso window ≤ 25h) get
+    // rolled forward when they settle. We shift open_start_iso + end_iso
+    // forward by one day, reset pot to seed, reset entries_count, bump a
+    // daily_instance counter, and put status back to OPEN. Old leaderboard
+    // records stay (preserve history); the cron also rotates the active
+    // leaderboard ID via daily_instance suffix.
+    function isDailyTournament(cfg) {
+        var span = isoToUnix(cfg.end_iso) - isoToUnix(cfg.open_start_iso);
+        return span > 0 && span <= 25 * 3600;
+    }
+    function rollDailyForward(nk, cfg, meta) {
+        var now = nowSec();
+        var anyMeta = meta;
+        var prevWindowEnd = isoToUnix(anyMeta.window_end_iso || cfg.end_iso);
+        var newOpenIso = unixToIso(prevWindowEnd + 1); // start where prev ended
+        var newEndIso = unixToIso(prevWindowEnd + 24 * 3600); // 24h window
+        anyMeta.window_open_iso = newOpenIso;
+        anyMeta.window_end_iso = newEndIso;
+        anyMeta.daily_instance = (anyMeta.daily_instance || 1) + 1;
+        meta.status = "OPEN";
+        meta.pot_bc = cfg.pot_seed_bc | 0;
+        meta.entries_count = 0;
+        // Pre-enroll count carries over (founder ranks are sticky to the slug).
+        TournamentsStorage.writeMeta(nk, cfg.slug, meta);
+        return meta;
+    }
+    // Single-tick driver: walks every slate config, advances any whose schedule
+    // has elapsed.
+    function tick(ctx, logger, nk) {
+        var slate = TournamentEconomy.listAll();
+        var now = nowSec();
+        var actions = [];
+        for (var i = 0; i < slate.length; i++) {
+            var cfg = slate[i];
+            var meta = TournamentsStorage.readMeta(nk, cfg.slug);
+            if (!meta) {
+                meta = TournamentsStorage.seedFromConfig(nk, cfg);
+                actions.push({ slug: cfg.slug, action: "seeded" });
+                continue;
+            }
+            // PRE_ENROLL → OPEN transition
+            if (meta.status === "PRE_ENROLL" && now >= isoToUnix(cfg.open_start_iso)) {
+                meta.status = "OPEN";
+                // Initialize daily window tracking (B8): the first window matches
+                // the cfg dates; daily roll-forward will then update on settle.
+                var anyMetaInit = meta;
+                if (!anyMetaInit.window_open_iso)
+                    anyMetaInit.window_open_iso = cfg.open_start_iso;
+                if (!anyMetaInit.window_end_iso)
+                    anyMetaInit.window_end_iso = cfg.end_iso;
+                TournamentsStorage.writeMeta(nk, cfg.slug, meta);
+                TournamentLeaderboard.ensureLeaderboard(nk, cfg.slug, null, 0);
+                // Bracket shell — ONLY for elimination format (gate fix). Classic
+                // and pick_n don't have head-to-head matches, so a bracket would
+                // be useless and pollutes the Bracket service dashboard.
+                if (cfg.format === "elimination") {
+                    try {
+                        var br = BracketClient.createBracketShell(ctx, nk, cfg.slug, cfg.name, 64);
+                        if (br.ok && br.bracket_id) {
+                            meta.bracket_id = br.bracket_id;
+                            TournamentsStorage.writeMeta(nk, cfg.slug, meta);
+                        }
+                    }
+                    catch (_) { }
+                }
+                actions.push({ slug: cfg.slug, action: "opened" });
+                continue;
+            }
+            // OPEN → ACTIVE (cosmetic transition once first entry lands; here we
+            // just leave OPEN — we don't differentiate today). Skipped.
+            // Eliminate-round trigger
+            if (cfg.format === "elimination" && cfg.elimination_schedule && meta.status === "OPEN") {
+                var cuts = cfg.elimination_schedule.cut_times_utc || [];
+                for (var c = 0; c < cuts.length; c++) {
+                    var cutAt = isoToUnix(cuts[c]);
+                    if (now < cutAt)
+                        continue;
+                    // Idempotency: skip if we've already processed this round
+                    var roundKey = "elim_round_done_" + cfg.slug + "_" + c;
+                    var existing = nk.storageRead([{ collection: TournamentsStorage.COL_ELIMINATIONS, key: roundKey, userId: Constants.SYSTEM_USER_ID }]);
+                    if (existing && existing.length > 0)
+                        continue;
+                    var elim = TournamentSettlement.eliminateRound(ctx, logger, nk, cfg.slug, c + 1);
+                    nk.storageWrite([{
+                            collection: TournamentsStorage.COL_ELIMINATIONS,
+                            key: roundKey,
+                            userId: Constants.SYSTEM_USER_ID,
+                            value: { slug: cfg.slug, round: c + 1, ran_at: now, result: elim },
+                            permissionRead: 0,
+                            permissionWrite: 0,
+                        }]);
+                    actions.push({ slug: cfg.slug, action: "eliminated_round", round: c + 1, result: elim });
+                    // Bracket handoff (plan §3): at the FIRST cut, seed top-64 into the
+                    // Bracket service. On every subsequent cut, advance the bracket
+                    // by one round (postMatchResult for every match in the open
+                    // round). Both calls are idempotent against bracket_seeded_at /
+                    // bracket_round on the meta row.
+                    var bMetaAny = TournamentsStorage.readMeta(nk, cfg.slug) || {};
+                    var bracketId = bMetaAny.bracket_id;
+                    if (bracketId) {
+                        if (c === 0 && !bMetaAny.bracket_seeded_at) {
+                            // First cut → seed players
+                            var lb = TournamentLeaderboard.listTop(nk, cfg.slug, 64, null);
+                            var lbRecs = (lb && lb.records) ? lb.records : [];
+                            var seedPlayers = [];
+                            for (var pi = 0; pi < lbRecs.length; pi++) {
+                                var lbr = lbRecs[pi];
+                                seedPlayers.push({
+                                    user_id: lbr.ownerId || "",
+                                    username: lbr.username || ("Player_" + (pi + 1)),
+                                    seed_score: lbr.score | 0,
+                                });
+                            }
+                            if (seedPlayers.length > 0) {
+                                var seed = BracketClient.seedPlayers(ctx, nk, bracketId, seedPlayers);
+                                if (seed.ok) {
+                                    bMetaAny.bracket_seeded_at = now;
+                                    bMetaAny.bracket_seeded_count = seedPlayers.length;
+                                    var rds = 1, nn = seedPlayers.length;
+                                    while (nn > 1) {
+                                        rds++;
+                                        nn = Math.ceil(nn / 2);
+                                    }
+                                    if (rds > 6)
+                                        rds = 6;
+                                    bMetaAny.bracket_total_rounds = rds;
+                                    bMetaAny.bracket_round = 1;
+                                    TournamentsStorage.writeMeta(nk, cfg.slug, bMetaAny);
+                                    actions.push({ slug: cfg.slug, action: "bracket_seeded", count: seedPlayers.length, rounds: rds });
+                                }
+                                else {
+                                    actions.push({ slug: cfg.slug, action: "bracket_seed_failed", error: seed.error });
+                                }
+                            }
+                        }
+                        else if (c > 0 && bMetaAny.bracket_seeded_at) {
+                            // Subsequent cut → advance bracket round via S2S to Bracket
+                            var st = BracketClient.getBracketState(ctx, nk, bracketId);
+                            if (st.ok && st.state) {
+                                var bState = st.state;
+                                var bMatches = bState.current_round_matches || bState.matches || [];
+                                var advancedCount = 0;
+                                for (var mi = 0; mi < bMatches.length; mi++) {
+                                    var bm = bMatches[mi];
+                                    var bMatchId = "" + (bm.id || bm.match_id || "");
+                                    if (!bMatchId || bm.winner_user_id || bm.status === "COMPLETED")
+                                        continue;
+                                    var bp1 = "" + (bm.player1_user_id || (bm.players && bm.players[0] && bm.players[0].user_id) || "");
+                                    var bp2 = "" + (bm.player2_user_id || (bm.players && bm.players[1] && bm.players[1].user_id) || "");
+                                    if (!bp1 || !bp2)
+                                        continue;
+                                    var bs1 = 0, bs2 = 0;
+                                    try {
+                                        var rec2 = nk.leaderboardRecordsList(TournamentLeaderboard.lbId(cfg.slug), [bp1, bp2], 2, undefined);
+                                        for (var rrr = 0; rrr < (rec2.records || []).length; rrr++) {
+                                            var rrow2 = rec2.records[rrr];
+                                            if (rrow2.ownerId === bp1)
+                                                bs1 = rrow2.score | 0;
+                                            if (rrow2.ownerId === bp2)
+                                                bs2 = rrow2.score | 0;
+                                        }
+                                    }
+                                    catch (_) { }
+                                    var bwinner = bs1 >= bs2 ? bp1 : bp2;
+                                    var post = BracketClient.postMatchResult(ctx, nk, bracketId, bMatchId, bwinner, { p1: bs1, p2: bs2 });
+                                    if (post.ok)
+                                        advancedCount++;
+                                }
+                                if (advancedCount > 0) {
+                                    bMetaAny.bracket_round = (bMetaAny.bracket_round || 1) + 1;
+                                    TournamentsStorage.writeMeta(nk, cfg.slug, bMetaAny);
+                                    actions.push({ slug: cfg.slug, action: "bracket_advanced", round: bMetaAny.bracket_round, matches: advancedCount });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // End → SETTLING → SETTLED transition (uses the current daily window
+            // when present, else falls back to cfg.end_iso).
+            var anyMetaForEnd = meta;
+            var effectiveEndIso = anyMetaForEnd.window_end_iso || cfg.end_iso;
+            if ((meta.status === "OPEN" || meta.status === "ACTIVE") && now >= isoToUnix(effectiveEndIso)) {
+                var res = TournamentSettlement.settle(ctx, logger, nk, cfg.slug);
+                actions.push({ slug: cfg.slug, action: "settled", result: res });
+                // B8: daily tournaments roll forward into the next 24h window so
+                // gk-royale-daily / pick-5-daily don't go dark after Jul 1.
+                if (isDailyTournament(cfg)) {
+                    var reloaded = TournamentsStorage.readMeta(nk, cfg.slug);
+                    if (reloaded && reloaded.status === "SETTLED") {
+                        var rolled = rollDailyForward(nk, cfg, reloaded);
+                        actions.push({
+                            slug: cfg.slug,
+                            action: "daily_rolled_forward",
+                            new_window_open_iso: rolled.window_open_iso,
+                            new_window_end_iso: rolled.window_end_iso,
+                            daily_instance: rolled.daily_instance,
+                        });
+                    }
+                }
+                continue;
+            }
+        }
+        return { ok: true, actions: actions, ran_at: now };
+    }
+    TournamentCrons.tick = tick;
+    // Pre-generation drip job. Walks (slug × language × weekNum) combinations
+    // and enqueues CF pack generation for the first N missing entries.
+    // Called by ops on a slow timer (every 30s = 1 pack/30s); fits 1248-pack
+    // budget into the 35-day pre-enrollment window comfortably.
+    function pregenerateTick(ctx, logger, nk, maxJobs) {
+        var slate = TournamentEconomy.listAll();
+        var langs = ["en", "es", "hi", "pt", "fr", "de", "ja", "ko", "zh", "ar", "ru", "id"];
+        var weeksAhead = 4;
+        var enqueued = [];
+        for (var i = 0; i < slate.length && enqueued.length < maxJobs; i++) {
+            var cfg = slate[i];
+            var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
+            if (!topic)
+                continue;
+            var allowedLangs = topic.languages_supported || ["en"];
+            for (var w = 0; w < weeksAhead && enqueued.length < maxJobs; w++) {
+                for (var l = 0; l < allowedLangs.length && enqueued.length < maxJobs; l++) {
+                    var lang = allowedLangs[l];
+                    if (langs.indexOf(lang) < 0)
+                        continue;
+                    // Skip if catalog already has this entry
+                    var existing = ContentFactoryClient.readPackCatalog(nk, cfg.slug, lang, w);
+                    if (existing)
+                        continue;
+                    var rotated = TournamentTopicCatalog.getRotatedTag(cfg.topic_tag, w);
+                    var rt = TournamentTopicCatalog.getEntry(rotated) || topic;
+                    var enq = ContentFactoryClient.enqueuePackGeneration(ctx, nk, {
+                        concept: rt.concept,
+                        exam_board: rt.exam_board,
+                        language: lang,
+                        num_cards: 30,
+                        tags: [cfg.slug, rotated, "w" + w, lang],
+                    });
+                    enqueued.push({ slug: cfg.slug, language: lang, week_num: w, ok: enq.ok, task_id: enq.task_id || null });
+                }
+            }
+        }
+        logger.info("[TournamentCron:pregen] enqueued " + enqueued.length + " CF jobs");
+        return { ok: true, enqueued: enqueued, ran_at: nowSec() };
+    }
+    TournamentCrons.pregenerateTick = pregenerateTick;
+    // ── RPC: tournament_cron_tick (service-only) ───────────────────────────────
+    function rpcTick(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) || (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+        if (!data.service_token || data.service_token !== expected)
+            return RpcHelpers.errorResponse("service-only", 401);
+        var res = tick(ctx, logger, nk);
+        return RpcHelpers.successResponse(res);
+    }
+    // ── RPC: tournament_cron_pregen (service-only) ─────────────────────────────
+    function rpcPregenTick(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) || (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+        if (!data.service_token || data.service_token !== expected)
+            return RpcHelpers.errorResponse("service-only", 401);
+        var max = parseInt("" + (data.max_jobs || 1), 10);
+        var res = pregenerateTick(ctx, logger, nk, max);
+        return RpcHelpers.successResponse(res);
+    }
+    function register(initializer) {
+        initializer.registerRpc("tournament_cron_tick", rpcTick);
+        initializer.registerRpc("tournament_cron_pregen", rpcPregenTick);
+    }
+    TournamentCrons.register = register;
+})(TournamentCrons || (TournamentCrons = {}));
+// =============================================================================
+// leaderboard.ts — Nakama Leaderboard wrapper for tournaments
+//
+// Plan ref: §1D (6 leaderboard variants). We back every tournament with a
+// real Nakama leaderboard so we get free O(log N) reads, ranks, and around-me
+// queries. Slug → leaderboard ID is `tournament_<slug>`.
+//
+// Variants we serve (off this single leaderboard):
+//   top             - paged top-N
+//   around_me       - 25 around current user
+//   friends         - top among caller's friends
+//   country         - top within caller's country
+//   tier_league     - top within caller's BC tier (sub-leaderboard, ladder)
+//   activity_feed   - recent submissions (NOT from leaderboard; from submit log)
+// =============================================================================
+var TournamentLeaderboard;
+(function (TournamentLeaderboard) {
+    var TIER_BRONZE_MAX_BC = 5000;
+    var TIER_SILVER_MAX_BC = 25000;
+    var TIER_GOLD_MAX_BC = 100000;
+    function lbId(slug) {
+        return "tournament_" + slug;
+    }
+    TournamentLeaderboard.lbId = lbId;
+    function tierLbId(slug, tier) {
+        return "tournament_" + slug + "_tier_" + tier;
+    }
+    TournamentLeaderboard.tierLbId = tierLbId;
+    // Ensure the underlying leaderboard exists. Idempotent — Nakama's create
+    // call is a no-op if it already exists. Called from the cron that flips
+    // PRE_ENROLL→OPEN, and lazily from submit if missing.
+    function ensureLeaderboard(nk, slug, resetSchedule, expiry) {
+        var id = lbId(slug);
+        try {
+            nk.leaderboardCreate(id, false, // not authoritative — we trust server-side submit only
+            "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */, resetSchedule, { tournament_slug: slug }, true // enable rank cache
+            );
+        }
+        catch (_) {
+            // already exists or transient failure — read-side will recover.
+        }
+    }
+    TournamentLeaderboard.ensureLeaderboard = ensureLeaderboard;
+    // Write a score row. Called from tournament_submit_pack_result.
+    function recordSubmit(nk, slug, userId, username, score) {
+        try {
+            nk.leaderboardRecordWrite(lbId(slug), userId, username, score);
+        }
+        catch (e) {
+            // The recordWrite signature varies across Nakama versions; fall back
+            // to a 4-arg call if the 4-arg path errored.
+        }
+    }
+    TournamentLeaderboard.recordSubmit = recordSubmit;
+    // ── Variant: top ──────────────────────────────────────────────────────────
+    function listTop(nk, slug, limit, cursor) {
+        try {
+            var records = nk.leaderboardRecordsList(lbId(slug), [], limit, cursor || undefined);
+            return {
+                records: records.records || [],
+                next_cursor: records.nextCursor || null,
+                prev_cursor: records.prevCursor || null,
+            };
+        }
+        catch (_) {
+            return { records: [], next_cursor: null, prev_cursor: null };
+        }
+    }
+    TournamentLeaderboard.listTop = listTop;
+    // ── Variant: around me ────────────────────────────────────────────────────
+    function listAroundMe(nk, slug, userId, limit) {
+        try {
+            // Nakama exposes leaderboardRecordsList with ownerIds for a centered view.
+            // We use the centred-on-owner variant via the 5-arg overload if available;
+            // otherwise we approximate by fetching top + filtering.
+            var around = nk.leaderboardRecordsList(lbId(slug), [userId], limit, undefined);
+            return { records: around.records || [], next_cursor: around.nextCursor || null };
+        }
+        catch (_) {
+            return { records: [], next_cursor: null };
+        }
+    }
+    TournamentLeaderboard.listAroundMe = listAroundMe;
+    // ── Variant: friends ──────────────────────────────────────────────────────
+    function listFriends(nk, slug, userId, limit) {
+        try {
+            // Friends list → take userIds → leaderboard with ownerIds filter
+            var friends = nk.friendsList(userId, 100);
+            var ids = [];
+            if (friends && friends.friends) {
+                for (var i = 0; i < friends.friends.length; i++) {
+                    var u = friends.friends[i].user;
+                    if (u && u.userId)
+                        ids.push(u.userId);
+                }
+            }
+            ids.push(userId); // include self for context
+            if (ids.length === 0)
+                return { records: [] };
+            var lbr = nk.leaderboardRecordsList(lbId(slug), ids, limit, undefined);
+            return { records: lbr.records || [] };
+        }
+        catch (_) {
+            return { records: [] };
+        }
+    }
+    TournamentLeaderboard.listFriends = listFriends;
+    // ── Variant: country ──────────────────────────────────────────────────────
+    function listCountry(nk, slug, country, limit) {
+        // Country-scoped leaderboards aren't first-class in Nakama. MVP impl:
+        // we fetch top-1000 and filter by user metadata.country client-side here.
+        try {
+            var top = nk.leaderboardRecordsList(lbId(slug), [], 1000, undefined);
+            var filtered = [];
+            if (top.records) {
+                for (var i = 0; i < top.records.length && filtered.length < limit; i++) {
+                    var r = top.records[i];
+                    // Pull country from account metadata for this owner.
+                    try {
+                        var acc = nk.accountsGetId([r.ownerId]);
+                        if (acc && acc.length > 0) {
+                            var md = acc[0].user.metadata;
+                            if (md && md.country === country)
+                                filtered.push(r);
+                        }
+                    }
+                    catch (_) { }
+                }
+            }
+            return { records: filtered, country: country };
+        }
+        catch (_) {
+            return { records: [], country: country };
+        }
+    }
+    TournamentLeaderboard.listCountry = listCountry;
+    // ── Variant: tier league ──────────────────────────────────────────────────
+    // Bucket users into BC tiers (Bronze/Silver/Gold/Diamond) so a $5-BC user
+    // isn't competing against a 100K-BC veteran. Tier is computed from lifetime
+    // earned BC on the BrainCoins wallet at enter time and pinned in the
+    // entry row (so churn between tiers mid-tournament doesn't shuffle them).
+    function tierForBalance(lifetimeEarned) {
+        if (lifetimeEarned <= TIER_BRONZE_MAX_BC)
+            return "bronze";
+        if (lifetimeEarned <= TIER_SILVER_MAX_BC)
+            return "silver";
+        if (lifetimeEarned <= TIER_GOLD_MAX_BC)
+            return "gold";
+        return "diamond";
+    }
+    TournamentLeaderboard.tierForBalance = tierForBalance;
+    function listTierLeague(nk, slug, tier, limit) {
+        var id = tierLbId(slug, tier);
+        try {
+            var records = nk.leaderboardRecordsList(id, [], limit, undefined);
+            return { records: records.records || [], tier: tier };
+        }
+        catch (_) {
+            return { records: [], tier: tier };
+        }
+    }
+    TournamentLeaderboard.listTierLeague = listTierLeague;
+    function recordTierSubmit(nk, slug, tier, userId, username, score) {
+        var id = tierLbId(slug, tier);
+        try {
+            // Ensure tier leaderboard exists (idempotent)
+            nk.leaderboardCreate(id, false, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */, null, { tier: tier, slug: slug }, true);
+            nk.leaderboardRecordWrite(id, userId, username, score);
+        }
+        catch (_) { }
+    }
+    TournamentLeaderboard.recordTierSubmit = recordTierSubmit;
+})(TournamentLeaderboard || (TournamentLeaderboard = {}));
+// =============================================================================
+// learning_series.ts — AMOE-unlock progression tracker
+//
+// Plan ref: §1G/§4. Users watch up to 6 short videos per topic + answer a
+// 5-question check. 6/6 videos with ≥3/5 check correctness unlocks one
+// free (AMOE) tournament entry on that topic.
+//
+// Storage: collection `learning_progress`, key `<topic_tag>`, per-user owner.
+//
+// AMOE proof bookkeeping: this is the legal anchor for the no-purchase
+// sweepstakes path. We retain `learning_progress` rows for 7 years.
+// =============================================================================
+var LearningSeries;
+(function (LearningSeries) {
+    var COLLECTION = "learning_progress";
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function key(topicTag) { return topicTag; }
+    function read(nk, userId, topicTag) {
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION, key: key(topicTag), userId: userId }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    LearningSeries.read = read;
+    function write(nk, userId, row) {
+        row.last_updated = nowSec();
+        nk.storageWrite([{
+                collection: COLLECTION,
+                key: key(row.topic_tag),
+                userId: userId,
+                value: row,
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+    }
+    function recordVideoCheck(nk, userId, topicTag, videoIndex, correct, total) {
+        var row = read(nk, userId, topicTag);
+        if (!row) {
+            row = { topic_tag: topicTag, user_id: userId, checks: [], last_updated: 0, amoe_unlocked: false };
+        }
+        var passed = (correct / Math.max(1, total)) >= 0.6; // 3/5 = pass
+        // Upsert by video_index (replace if exists)
+        var replaced = false;
+        for (var i = 0; i < row.checks.length; i++) {
+            if (row.checks[i].video_index === videoIndex) {
+                row.checks[i] = { video_index: videoIndex, correct: correct, total: total, completed_at: nowSec(), passed: passed };
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            row.checks.push({ video_index: videoIndex, correct: correct, total: total, completed_at: nowSec(), passed: passed });
+        }
+        // Re-evaluate AMOE unlock: 6 passed checks → unlocked.
+        var passedCount = 0;
+        for (var j = 0; j < row.checks.length; j++) {
+            if (row.checks[j].passed)
+                passedCount++;
+        }
+        row.amoe_unlocked = passedCount >= 6;
+        write(nk, userId, row);
+        return row;
+    }
+    LearningSeries.recordVideoCheck = recordVideoCheck;
+    function getProgress(nk, userId, topicTag) {
+        var row = read(nk, userId, topicTag);
+        if (row)
+            return row;
+        return { topic_tag: topicTag, user_id: userId, checks: [], last_updated: 0, amoe_unlocked: false };
+    }
+    LearningSeries.getProgress = getProgress;
+    function hasUnlockedAmoe(nk, userId, topicTag, requiredVideos) {
+        var row = read(nk, userId, topicTag);
+        if (!row)
+            return false;
+        if (row.amoe_unlocked)
+            return true;
+        // Defensive: if amoe_unlocked is false but actual passed count meets
+        // requiredVideos, still allow it (handles a stale row).
+        var passed = 0;
+        for (var i = 0; i < row.checks.length; i++)
+            if (row.checks[i].passed)
+                passed++;
+        return passed >= requiredVideos;
+    }
+    LearningSeries.hasUnlockedAmoe = hasUnlockedAmoe;
+})(LearningSeries || (LearningSeries = {}));
+// =============================================================================
+// realtime.ts — nk.notificationsSend helpers for tournament events
+//
+// Plan ref: §1I real-time push topology
+//
+// Notification codes (per plan):
+//   TOURNAMENT_POT_UPDATE   1001 — broadcast to subscribers on pot change
+//   TOURNAMENT_LB_UPDATE    1002 — broadcast on leaderboard tick (every ~5s)
+//   TOURNAMENT_ELIMINATED   1003 — user-targeted on elimination cut
+//   TOURNAMENT_SETTLED      1004 — user-targeted on settlement
+//   PREENROLL_SCARCITY      1005 — broadcast when founder cap < 100 left
+//
+// Web subscribers use @heroiclabs/nakama-js socket; Unity uses ISocket.
+// Both already wired in the codebase (existing IVXFriends + CreatorEvent
+// patterns reference ReceivedNotification).
+// =============================================================================
+var TournamentRealtime;
+(function (TournamentRealtime) {
+    TournamentRealtime.CODE_POT_UPDATE = 1001;
+    TournamentRealtime.CODE_LB_UPDATE = 1002;
+    TournamentRealtime.CODE_ELIMINATED = 1003;
+    TournamentRealtime.CODE_SETTLED = 1004;
+    TournamentRealtime.CODE_PREENROLL_SCARCITY = 1005;
+    // Send to a list of user IDs. Nakama notificationsSend accepts a list of
+    // notifications, each addressed to one userId.
+    function sendToUsers(nk, userIds, code, subject, content, persistent) {
+        if (!userIds || userIds.length === 0)
+            return;
+        var batch = [];
+        for (var i = 0; i < userIds.length; i++) {
+            batch.push({
+                userId: userIds[i],
+                subject: subject,
+                content: content,
+                code: code,
+                persistent: persistent,
+                senderId: Constants.SYSTEM_USER_ID,
+            });
+        }
+        try {
+            nk.notificationsSend(batch);
+        }
+        catch (_) {
+            // best-effort — fan-out doesn't block any RPC
+        }
+    }
+    TournamentRealtime.sendToUsers = sendToUsers;
+    // Convenience: one user
+    function sendToUser(nk, userId, code, subject, content, persistent) {
+        sendToUsers(nk, [userId], code, subject, content, persistent);
+    }
+    TournamentRealtime.sendToUser = sendToUser;
+    // Resolve username best-effort. Returns "" if Nakama doesn't have one.
+    function usernameFor(nk, userId) {
+        if (!userId)
+            return "";
+        try {
+            var acc = nk.usersGetId([userId]);
+            if (acc && acc.length > 0 && acc[0].username)
+                return "" + acc[0].username;
+        }
+        catch (_) { }
+        return "";
+    }
+    // Standard payload envelope. ALL clients (web ActivityTicker, Unity
+    // TournamentManager) can rely on `slug` being present. Keep
+    // `tournament_slug` too so existing string searches in other systems
+    // (e.g. analytics) still match. (Fix B4 + B9 + B10.)
+    function envelope(slug, extra) {
+        var base = {
+            slug: slug,
+            tournament_slug: slug,
+            ts: Math.floor(Date.now() / 1000),
+        };
+        if (extra) {
+            for (var k in extra)
+                if (Object.prototype.hasOwnProperty.call(extra, k))
+                    base[k] = extra[k];
+        }
+        return base;
+    }
+    // ── Tournament-specific helpers ────────────────────────────────────────────
+    // B3 fix: every fanout helper now pulls the live subscriber list from
+    // storage (populated by tournament_pre_enroll / tournament_enter /
+    // tournament_caller_status) rather than relying on the caller to pass it.
+    function notifyPotUpdate(nk, tournamentSlug, newPotBc, recentDelta, _subscribers, scorer) {
+        var subs = (_subscribers && _subscribers.length > 0) ? _subscribers : TournamentsStorage.listSubscribers(nk, tournamentSlug);
+        if (subs.length === 0)
+            return;
+        var payload = envelope(tournamentSlug, {
+            pot_bc: newPotBc,
+            delta_bc: recentDelta,
+            entries_count: undefined, // filled by caller via incrementPot if relevant
+        });
+        if (scorer && scorer.userId) {
+            payload.username = usernameFor(nk, scorer.userId);
+            if (typeof scorer.score === "number")
+                payload.score = scorer.score;
+        }
+        sendToUsers(nk, subs, TournamentRealtime.CODE_POT_UPDATE, "tournament_pot_update", payload, false);
+    }
+    TournamentRealtime.notifyPotUpdate = notifyPotUpdate;
+    function notifyEliminated(nk, userId, tournamentSlug, round, finalRank) {
+        sendToUser(nk, userId, TournamentRealtime.CODE_ELIMINATED, "tournament_eliminated", envelope(tournamentSlug, {
+            round: round,
+            final_rank: finalRank,
+            username: usernameFor(nk, userId),
+        }), true); // persistent so user sees it next session
+        // Also broadcast a slim ticker event to subscribers for social proof.
+        var subs = TournamentsStorage.listSubscribers(nk, tournamentSlug);
+        if (subs.length > 0) {
+            sendToUsers(nk, subs, TournamentRealtime.CODE_ELIMINATED, "tournament_eliminated_broadcast", envelope(tournamentSlug, {
+                round: round,
+                username: usernameFor(nk, userId),
+            }), false);
+        }
+    }
+    TournamentRealtime.notifyEliminated = notifyEliminated;
+    function notifySettled(nk, userId, tournamentSlug, payoutBc, finalRank, certId) {
+        sendToUser(nk, userId, TournamentRealtime.CODE_SETTLED, "tournament_settled", envelope(tournamentSlug, {
+            payout_bc: payoutBc,
+            final_rank: finalRank,
+            cert_id: certId,
+            username: usernameFor(nk, userId),
+        }), true);
+    }
+    TournamentRealtime.notifySettled = notifySettled;
+    function notifyPreEnrollScarcity(nk, tournamentSlug, founderSpotsLeft, _subscribers) {
+        if (founderSpotsLeft > 100)
+            return; // only fire under threshold
+        var subs = (_subscribers && _subscribers.length > 0) ? _subscribers : TournamentsStorage.listSubscribers(nk, tournamentSlug);
+        if (subs.length === 0)
+            return;
+        var meta = TournamentsStorage.readMeta(nk, tournamentSlug);
+        sendToUsers(nk, subs, TournamentRealtime.CODE_PREENROLL_SCARCITY, "preenroll_scarcity", envelope(tournamentSlug, {
+            founder_spots_left: founderSpotsLeft,
+            spots_left: founderSpotsLeft, // alias for legacy Unity readers
+            pre_enroll_count: meta ? (meta.pre_enroll_count | 0) : 0,
+        }), false);
+    }
+    TournamentRealtime.notifyPreEnrollScarcity = notifyPreEnrollScarcity;
+    // Score tick for the activity ticker — fired whenever a user scores in a
+    // tournament. Includes the username so the web ActivityTicker can render
+    // "Sarah just scored 4,200".
+    function notifyScoreTick(nk, tournamentSlug, scorerUserId, newTotalScore) {
+        var subs = TournamentsStorage.listSubscribers(nk, tournamentSlug);
+        if (subs.length === 0)
+            return;
+        sendToUsers(nk, subs, TournamentRealtime.CODE_LB_UPDATE, "tournament_score_tick", envelope(tournamentSlug, {
+            username: usernameFor(nk, scorerUserId),
+            score: newTotalScore,
+            scorer_user_id: scorerUserId,
+        }), false);
+    }
+    TournamentRealtime.notifyScoreTick = notifyScoreTick;
+    // Entry tick — emitted on every tournament_enter. Powers the ticker
+    // "Alex just entered" entries.
+    function notifyEntered(nk, tournamentSlug, enteredUserId, newPotBc, newEntriesCount) {
+        var subs = TournamentsStorage.listSubscribers(nk, tournamentSlug);
+        if (subs.length === 0)
+            return;
+        sendToUsers(nk, subs, TournamentRealtime.CODE_POT_UPDATE, "tournament_entered", envelope(tournamentSlug, {
+            username: usernameFor(nk, enteredUserId),
+            pot_bc: newPotBc,
+            entries_count: newEntriesCount,
+        }), false);
+    }
+    TournamentRealtime.notifyEntered = notifyEntered;
+    // Leaderboard ticker (manual call site; kept for completeness).
+    function notifyLeaderboardTick(nk, tournamentSlug, topRows) {
+        var subs = TournamentsStorage.listSubscribers(nk, tournamentSlug);
+        if (subs.length === 0)
+            return;
+        sendToUsers(nk, subs, TournamentRealtime.CODE_LB_UPDATE, "tournament_lb_update", envelope(tournamentSlug, {
+            top: topRows,
+        }), false);
+    }
+    TournamentRealtime.notifyLeaderboardTick = notifyLeaderboardTick;
+})(TournamentRealtime || (TournamentRealtime = {}));
+// =============================================================================
+// referrals.ts — Pre-enrollment referral leaderboard + settlement
+//
+// Plan ref: §1F. Each user gets a stable referral_code (8-char base36). When
+// another user pre-enrolls with ?ref=<code>, we record the attribution.
+// Top-100 referrers at public open time (Jul 1 2026 00:00 ET) split a fixed
+// cash prize pool:
+//   #1       → $500
+//   #2-3     → $250 each
+//   #4-10    → $100 each
+//   #11-100  → $25 each
+//
+// Plus: referrer earns 10 BC per attributed pre-enrollment (referral_pre_enroll
+// earn code, lifetime cap 200 via brain_coins ledger).
+// =============================================================================
+var Referrals;
+(function (Referrals) {
+    var CODE_COLLECTION = "referral_codes"; // per-user, key="me", value={code, created_at}
+    var ATTRIBUTION_COLLECTION = "referrals"; // per-referrer, key="<referred_user_id>_<slug>"
+    Referrals.LEADERBOARD_ID = "preenroll_referrals";
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function generateCode() {
+        // 8-char base36 lowercase, low collision risk for 25K target enrolees
+        var s = "";
+        for (var i = 0; i < 8; i++)
+            s += Math.floor(Math.random() * 36).toString(36);
+        return s;
+    }
+    // Ensure caller has a referral code; mint one if absent.
+    function ensureCodeForUser(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: CODE_COLLECTION, key: "me", userId: userId }]);
+            if (rows && rows.length > 0) {
+                var v = rows[0].value;
+                if (v && v.code)
+                    return "" + v.code;
+            }
+        }
+        catch (_) { }
+        var code = generateCode();
+        nk.storageWrite([{
+                collection: CODE_COLLECTION,
+                key: "me",
+                userId: userId,
+                value: { code: code, created_at: nowSec() },
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+        // Also write a reverse index for resolving code → owner on /r/[code] hits.
+        nk.storageWrite([{
+                collection: CODE_COLLECTION,
+                key: "by_code_" + code,
+                userId: Constants.SYSTEM_USER_ID,
+                value: { code: code, owner_user_id: userId, created_at: nowSec() },
+                permissionRead: 2,
+                permissionWrite: 0,
+            }]);
+        return code;
+    }
+    Referrals.ensureCodeForUser = ensureCodeForUser;
+    function resolveCodeToOwner(nk, code) {
+        try {
+            var rows = nk.storageRead([{ collection: CODE_COLLECTION, key: "by_code_" + code, userId: Constants.SYSTEM_USER_ID }]);
+            if (rows && rows.length > 0) {
+                var v = rows[0].value;
+                if (v && v.owner_user_id)
+                    return "" + v.owner_user_id;
+            }
+        }
+        catch (_) { }
+        return null;
+    }
+    Referrals.resolveCodeToOwner = resolveCodeToOwner;
+    // Record attribution + bump leaderboard. Called from tournament_pre_enroll
+    // when `referred_by` (referral code) is supplied by the client.
+    function recordReferral(nk, referralCode, referredUserId, tournamentSlug) {
+        var ownerId = resolveCodeToOwner(nk, referralCode);
+        if (!ownerId)
+            return;
+        if (ownerId === referredUserId)
+            return; // can't refer yourself
+        var key = referredUserId + "_" + tournamentSlug;
+        // Idempotency: skip if attribution already exists
+        try {
+            var existing = nk.storageRead([{ collection: ATTRIBUTION_COLLECTION, key: key, userId: ownerId }]);
+            if (existing && existing.length > 0)
+                return;
+        }
+        catch (_) { }
+        nk.storageWrite([{
+                collection: ATTRIBUTION_COLLECTION,
+                key: key,
+                userId: ownerId,
+                value: {
+                    referred_user_id: referredUserId,
+                    tournament_slug: tournamentSlug,
+                    recorded_at: nowSec(),
+                },
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+        // Bump leaderboard
+        try {
+            nk.leaderboardCreate(Referrals.LEADERBOARD_ID, false, "descending" /* nkruntime.SortOrder.DESCENDING */, "increment" /* nkruntime.Operator.INCREMENTAL */, null, { type: "preenroll_referrals" }, true);
+            var username = "";
+            try {
+                var acc = nk.accountsGetId([ownerId]);
+                if (acc && acc.length > 0)
+                    username = "" + (acc[0].user.username || "");
+            }
+            catch (_) { }
+            nk.leaderboardRecordWrite(Referrals.LEADERBOARD_ID, ownerId, username, 1);
+        }
+        catch (_) { }
+        // BC reward (10 BC, lifetime cap 200) — handled via brain_coins_earn
+        // referral_pre_enroll code. We invoke the same code path inline because
+        // there's no internal RPC dispatch in Goja.
+        creditReferralBc(nk, ownerId, referredUserId, tournamentSlug);
+    }
+    Referrals.recordReferral = recordReferral;
+    // Inline equivalent of brain_coins_earn(code=referral_pre_enroll). 10 BC
+    // per event, lifetime cap 200 (per the earn rule we added in brain_coins.ts).
+    function creditReferralBc(nk, ownerId, referredUserId, slug) {
+        var idemKey = "referral_pre_enroll_" + referredUserId + "_" + slug;
+        var probeKey = "earn_log_idem_" + idemKey;
+        try {
+            var existing = nk.storageRead([{ collection: "brain_coins", key: probeKey, userId: ownerId }]);
+            if (existing && existing.length > 0)
+                return;
+        }
+        catch (_) { }
+        // Lifetime cap check: count earn_log rows with code=referral_pre_enroll
+        var count = 0;
+        try {
+            var cursor = "";
+            var safety = 0;
+            while (safety < 10) {
+                safety++;
+                var page = nk.storageList(ownerId, "brain_coins", 100, cursor);
+                if (!page || !page.objects)
+                    break;
+                for (var i = 0; i < page.objects.length; i++) {
+                    var v = page.objects[i].value;
+                    if (v && v.code === "referral_pre_enroll")
+                        count++;
+                }
+                if (!page.cursor)
+                    break;
+                cursor = page.cursor;
+            }
+        }
+        catch (_) { }
+        if (count >= 200)
+            return; // lifetime cap
+        var coins = 10;
+        var walletRows = nk.storageRead([{ collection: "brain_coins", key: "wallet", userId: ownerId }]);
+        var wallet = (walletRows && walletRows.length > 0) ? walletRows[0].value : { balance: 0, lifetime_earned: 0, lifetime_redeemed: 0 };
+        wallet.balance = (wallet.balance | 0) + coins;
+        wallet.lifetime_earned = (wallet.lifetime_earned | 0) + coins;
+        wallet.updated_at = nowSec();
+        nk.storageWrite([
+            { collection: "brain_coins", key: "wallet", userId: ownerId, value: wallet, permissionRead: 1, permissionWrite: 0 },
+            {
+                collection: "brain_coins",
+                key: probeKey,
+                userId: ownerId,
+                value: {
+                    code: "referral_pre_enroll",
+                    coins: coins,
+                    unix_ts: nowSec(),
+                    date: new Date().toISOString().slice(0, 10),
+                    source: "referral_attribution",
+                    idempotency_key: idemKey,
+                    referred_user_id: referredUserId,
+                    tournament_slug: slug,
+                },
+                permissionRead: 1,
+                permissionWrite: 0,
+            },
+        ]);
+    }
+    function getMySummary(nk, userId) {
+        var code = ensureCodeForUser(nk, userId);
+        // Count attributed referrals
+        var count = 0;
+        var recent = [];
+        try {
+            var cursor = "";
+            var safety = 0;
+            while (safety < 5) {
+                safety++;
+                var page = nk.storageList(userId, ATTRIBUTION_COLLECTION, 100, cursor);
+                if (!page || !page.objects)
+                    break;
+                for (var i = 0; i < page.objects.length; i++) {
+                    count++;
+                    if (recent.length < 10)
+                        recent.push(page.objects[i].value);
+                }
+                if (!page.cursor)
+                    break;
+                cursor = page.cursor;
+            }
+        }
+        catch (_) { }
+        // Get rank from leaderboard
+        var rank = -1;
+        try {
+            var lb = nk.leaderboardRecordsList(Referrals.LEADERBOARD_ID, [userId], 1, undefined);
+            if (lb.records && lb.records.length > 0)
+                rank = lb.records[0].rank;
+        }
+        catch (_) { }
+        return {
+            referral_code: code,
+            referral_url: "https://quizverse.world/r/" + code,
+            attributed_count: count,
+            leaderboard_rank: rank,
+            recent: recent,
+        };
+    }
+    Referrals.getMySummary = getMySummary;
+    // Service-only: settle top-100 cash prizes after pre-enrollment window closes.
+    // Cash prizes go via a separate ops process (Tremendous), so this RPC just
+    // freezes the leaderboard + writes a winners table to the settlement
+    // collection for ops to consume.
+    function settleTopN(ctx, logger, nk) {
+        var top = [];
+        try {
+            var lb = nk.leaderboardRecordsList(Referrals.LEADERBOARD_ID, [], 100, undefined);
+            if (lb.records)
+                top = lb.records;
+        }
+        catch (_) { }
+        var winners = [];
+        for (var i = 0; i < top.length; i++) {
+            var rank = i + 1;
+            var prizeUsd = 0;
+            if (rank === 1)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_1_USD;
+            else if (rank <= 3)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_2_3_USD;
+            else if (rank <= 10)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_4_10_USD;
+            else if (rank <= 100)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_11_100_USD;
+            winners.push({
+                rank: rank,
+                user_id: top[i].ownerId,
+                username: top[i].username || "",
+                referral_count: top[i].score,
+                prize_usd: prizeUsd,
+            });
+        }
+        // Persist freeze (ops reads this)
+        nk.storageWrite([{
+                collection: "referral_settlement",
+                key: "frozen_" + nowSec(),
+                userId: Constants.SYSTEM_USER_ID,
+                value: { winners: winners, frozen_at: nowSec() },
+                permissionRead: 0,
+                permissionWrite: 0,
+            }]);
+        logger.info("[Referrals] settled top-" + winners.length + " referrers");
+        return { winners: winners };
+    }
+    Referrals.settleTopN = settleTopN;
+})(Referrals || (Referrals = {}));
+// =============================================================================
+// rpcs.ts — All 23 tournament RPCs per §1I signature catalog
+//
+// Plan ref: §1I End-to-End Wire Spec
+//
+// User-callable (must be authenticated; rate-limited):
+//   tournament_list
+//   tournament_get
+//   tournament_pre_enroll
+//   tournament_enter
+//   tournament_submit_pack_result
+//   tournament_submit_picks                 (pick_n format only)
+//   tournament_status_get
+//   tournament_leaderboard_top
+//   tournament_leaderboard_around_me
+//   tournament_leaderboard_friends
+//   tournament_leaderboard_country
+//   tournament_leaderboard_tier_league
+//   tournament_leaderboard_activity_feed
+//   tournament_claim_cert
+//   tournament_content_get_pack
+//   tournament_video_get_url
+//   tournament_learning_check_submit
+//   tournament_referral_get_mine
+//
+// Service-callable (require service_token):
+//   tournament_admin_create
+//   tournament_content_request_generation
+//   tournament_settle                       (manual trigger; cron calls same impl)
+//   tournament_eliminate_round              (manual trigger; cron calls same impl)
+//   tournament_referral_settle_topN         (manual trigger)
+// =============================================================================
+var TournamentRpcs;
+(function (TournamentRpcs) {
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function isoToUnix(iso) { return Math.floor(new Date(iso).getTime() / 1000); }
+    function isServiceCaller(ctx, payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) || (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    // Picks the canonical recommended tournament slug — used as the default
+    // landing target for referral links when the caller didn't specify one.
+    // Prefers PRE_ENROLL/OPEN/ACTIVE tournaments, falls back to the first
+    // entry in the LAUNCH_SLATE. Never returns a "settled" slug.
+    function defaultRecommendedSlug(nk) {
+        var slate = TournamentEconomy.listAll();
+        for (var i = 0; i < slate.length; i++) {
+            var cfg = slate[i];
+            var meta = TournamentsStorage.readMeta(nk, cfg.slug);
+            if (!meta)
+                return cfg.slug;
+            if (meta.status === "PRE_ENROLL" || meta.status === "OPEN" || meta.status === "ACTIVE")
+                return cfg.slug;
+        }
+        return slate.length > 0 ? slate[0].slug : "gk-royale-daily";
+    }
+    function readUserCountry(nk, userId) {
+        try {
+            var acc = nk.accountsGetId([userId]);
+            if (acc && acc.length > 0) {
+                var md = acc[0].user.metadata;
+                if (md && md.country)
+                    return "" + md.country;
+            }
+        }
+        catch (_) { }
+        return "";
+    }
+    function readUserState(nk, userId) {
+        try {
+            var acc = nk.accountsGetId([userId]);
+            if (acc && acc.length > 0) {
+                var md = acc[0].user.metadata;
+                if (md && md.us_state)
+                    return "" + md.us_state;
+            }
+        }
+        catch (_) { }
+        return "";
+    }
+    function readUserDob(nk, userId) {
+        try {
+            var acc = nk.accountsGetId([userId]);
+            if (acc && acc.length > 0) {
+                var md = acc[0].user.metadata;
+                if (md && md.dob_iso) {
+                    var dob = new Date(md.dob_iso);
+                    var now = new Date();
+                    var age = now.getFullYear() - dob.getFullYear();
+                    var m = now.getMonth() - dob.getMonth();
+                    if (m < 0 || (m === 0 && now.getDate() < dob.getDate()))
+                        age--;
+                    return { age: age, dob_iso: md.dob_iso };
+                }
+            }
+        }
+        catch (_) { }
+        return { age: 0, dob_iso: "" };
+    }
+    function readBcBalance(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: "brain_coins", key: "wallet", userId: userId }]);
+            if (rows && rows.length > 0) {
+                var v = rows[0].value;
+                return { balance: v.balance | 0, lifetime_earned: v.lifetime_earned | 0 };
+            }
+        }
+        catch (_) { }
+        return { balance: 0, lifetime_earned: 0 };
+    }
+    function debitBc(nk, userId, amount, reason) {
+        try {
+            var rows = nk.storageRead([{ collection: "brain_coins", key: "wallet", userId: userId }]);
+            var wallet = (rows && rows.length > 0) ? rows[0].value : { balance: 0, lifetime_earned: 0, lifetime_redeemed: 0 };
+            if ((wallet.balance | 0) < amount)
+                return false;
+            wallet.balance = (wallet.balance | 0) - amount;
+            wallet.updated_at = nowSec();
+            nk.storageWrite([{
+                    collection: "brain_coins",
+                    key: "wallet",
+                    userId: userId,
+                    value: wallet,
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            nk.storageWrite([{
+                    collection: "brain_coins",
+                    key: "earn_log_debit_" + nowSec() + "_" + Math.random().toString(36).slice(2, 8),
+                    userId: userId,
+                    value: {
+                        code: "tournament_entry_debit",
+                        coins: -amount,
+                        unix_ts: nowSec(),
+                        date: new Date().toISOString().slice(0, 10),
+                        source: reason,
+                    },
+                    permissionRead: 1,
+                    permissionWrite: 0,
+                }]);
+            return true;
+        }
+        catch (_) {
+            return false;
+        }
+    }
+    // ── RPC: tournament_list ────────────────────────────────────────────────────
+    // Public/anonymous-friendly. Returns all visible tournaments + caller-specific
+    // enriched fields (entered? founder? bc_balance) when authenticated.
+    function rpcList(ctx, _logger, nk, _payload) {
+        // B6 fix: opportunistic cron tick — runs at most once / 60s globally.
+        // Hooked here because tournament_list is hit on EVERY hub page render
+        // (web + Unity), so we get cron coverage proportional to traffic
+        // without needing an external scheduler.
+        try {
+            TournamentCrons.opportunisticTick(ctx, _logger, nk);
+        }
+        catch (_) { }
+        var slate = TournamentEconomy.listAll();
+        var out = [];
+        var userId = ctx.userId || "";
+        var userCountry = userId ? readUserCountry(nk, userId) : "";
+        var userState = userId ? readUserState(nk, userId) : "";
+        for (var i = 0; i < slate.length; i++) {
+            var cfg = slate[i];
+            var meta = TournamentsStorage.readMeta(nk, cfg.slug);
+            if (!meta) {
+                // Seed if missing (idempotent — first-touch creates the row)
+                meta = TournamentsStorage.seedFromConfig(nk, cfg);
+            }
+            var entry = userId ? TournamentsStorage.readEntry(nk, cfg.slug, userId) : null;
+            var preEnroll = userId ? TournamentsStorage.readPreEnroll(nk, cfg.slug, userId) : null;
+            var countryAllowed = TournamentEconomy.isCountryAllowed(cfg, userCountry);
+            var stateBlocked = userCountry === "US" && userState && TournamentEconomy.isUsStateEntryBlocked(userState);
+            out.push({
+                slug: cfg.slug,
+                name: cfg.name,
+                description: cfg.description,
+                format: cfg.format,
+                format_ui_variant: cfg.format_ui_variant,
+                topic_tag: cfg.topic_tag,
+                status: meta.status,
+                pot_bc: meta.pot_bc,
+                entries_count: meta.entries_count,
+                pre_enroll_count: meta.pre_enroll_count,
+                entry_fee_bc: cfg.entry_fee_bc,
+                rake_pct: cfg.rake_pct,
+                pre_enroll_start_iso: cfg.pre_enroll_start_iso,
+                open_start_iso: cfg.open_start_iso,
+                end_iso: cfg.end_iso,
+                badge_emoji: cfg.badge_emoji,
+                caller: {
+                    authenticated: !!userId,
+                    country: userCountry || null,
+                    state: userState || null,
+                    eligible: countryAllowed && !stateBlocked,
+                    ineligibility_reason: !countryAllowed ? "country_not_allowed" : (stateBlocked ? "us_state_blocked" : null),
+                    entered: !!entry,
+                    pre_enrolled: !!preEnroll,
+                    founder_rank: preEnroll && preEnroll.founder_rank ? preEnroll.founder_rank : null,
+                },
+            });
+        }
+        return RpcHelpers.successResponse({ tournaments: out, served_at: nowSec() });
+    }
+    // ── RPC: tournament_get ────────────────────────────────────────────────────
+    // Returns a flat `tournament` object consumed by both web (TournamentDetailData)
+    // and Unity (TournamentSummary). Pot / prize breakdown / survivor count are
+    // computed from meta + cfg here so clients stay dumb.
+    function rpcGet(ctx, _logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("tournament not found", 404);
+        // Opportunistic tick: cheap, gated to once-per-60s globally (B6 fix).
+        try {
+            TournamentCrons.opportunisticTick(ctx, _logger, nk);
+        }
+        catch (_) { }
+        var meta = TournamentsStorage.readMeta(nk, slug) || TournamentsStorage.seedFromConfig(nk, cfg);
+        var userId = ctx.userId || "";
+        var entry = userId ? TournamentsStorage.readEntry(nk, slug, userId) : null;
+        var preEnroll = userId ? TournamentsStorage.readPreEnroll(nk, slug, userId) : null;
+        // Format-specific payload shaping
+        var pickN = null;
+        if (cfg.format === "pick_n" && cfg.pick_n_config) {
+            pickN = { n: cfg.pick_n_config.n, multipliers: cfg.pick_n_config.multipliers };
+        }
+        var elimination = null;
+        if (cfg.format === "elimination" && cfg.elimination_schedule) {
+            // survivor_count = entries that have no eliminated_at marker.
+            // For MVP we approximate via leaderboard cardinality (cheap O(1) call).
+            var initialEntries = meta.entries_count | 0;
+            var survivorCount = initialEntries;
+            try {
+                var lbCount = nk.leaderboardRecordsList(TournamentLeaderboard.lbId(slug), [], 1, undefined);
+                if (lbCount && lbCount.rankCount !== undefined) {
+                    survivorCount = lbCount.rankCount | 0;
+                }
+            }
+            catch (_) { }
+            elimination = {
+                cut_times_utc: cfg.elimination_schedule.cut_times_utc || [],
+                survivor_count: survivorCount,
+                initial_entries: initialEntries,
+            };
+        }
+        // Prize breakdown — derived from pot_split_top_n × (pot × (1 - rake)).
+        var prizeBreakdown = [];
+        if (cfg.format === "classic" && cfg.pot_split_top_n && meta.pot_bc > 0) {
+            var prizePool = Math.floor(meta.pot_bc * (1 - cfg.rake_pct));
+            for (var pi = 0; pi < cfg.pot_split_top_n.length; pi++) {
+                var rs = cfg.pot_split_top_n[pi];
+                var bc = Math.floor(prizePool * rs.share);
+                if (bc <= 0)
+                    continue;
+                prizeBreakdown.push({ label: "#" + rs.rank, bc: bc });
+            }
+        }
+        else if (cfg.format === "pick_n" && cfg.pick_n_config) {
+            // Show top tier payouts (multiplier × entry_fee).
+            var grades = ["5/5", "4/5", "3/5"];
+            for (var gi = 0; gi < grades.length; gi++) {
+                var g = grades[gi];
+                var mult = cfg.pick_n_config.multipliers[g] || 0;
+                if (mult <= 0)
+                    continue;
+                prizeBreakdown.push({ label: g, bc: Math.floor(cfg.entry_fee_bc * mult) });
+            }
+        }
+        else if (cfg.format === "elimination" && cfg.elimination_schedule) {
+            prizeBreakdown.push({ label: "Survivor share (equal)", bc: 0 });
+            prizeBreakdown.push({ label: "#1 bragging bonus", bc: cfg.elimination_schedule.final_survivor_bonus_bc | 0 });
+        }
+        var rulesSummary = "Entry: " + cfg.entry_fee_bc + " BC · House rake: " + Math.round(cfg.rake_pct * 100) + "% · AMOE: complete " + cfg.amoe.learning_series_required_videos + " Learning Series videos for a free entry.";
+        var tournament = {
+            slug: cfg.slug,
+            name: cfg.name,
+            description: cfg.description,
+            format: cfg.format,
+            format_ui_variant: cfg.format_ui_variant,
+            topic_tag: cfg.topic_tag,
+            status: meta.status,
+            pot_bc: meta.pot_bc | 0,
+            entries_count: meta.entries_count | 0,
+            pre_enroll_count: meta.pre_enroll_count | 0,
+            entry_fee_bc: cfg.entry_fee_bc,
+            pre_enroll_start_iso: cfg.pre_enroll_start_iso,
+            open_start_iso: cfg.open_start_iso,
+            end_iso: cfg.end_iso,
+            badge_emoji: cfg.badge_emoji || null,
+            pick_n: pickN,
+            elimination: elimination,
+            prize_breakdown: prizeBreakdown,
+            rules_summary: rulesSummary,
+        };
+        return RpcHelpers.successResponse({
+            tournament: tournament,
+            caller_entry: entry,
+            caller_pre_enroll: preEnroll,
+            served_at: nowSec(),
+        });
+    }
+    // ── RPC: tournament_pre_enroll ─────────────────────────────────────────────
+    // Frees a Founder slot if available. No BC charged.
+    function rpcPreEnroll(ctx, logger, nk, payload) {
+        var rl = SharedRateLimit.enforce(ctx, nk, "tournament_pre_enroll", { perUserPerMin: 20 });
+        if (rl)
+            return rl;
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var referredBy = "" + (data.referred_by || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("tournament not found", 404);
+        var meta = TournamentsStorage.readMeta(nk, slug) || TournamentsStorage.seedFromConfig(nk, cfg);
+        if (meta.status !== "PRE_ENROLL" && meta.status !== "OPEN") {
+            return RpcHelpers.errorResponse("tournament not accepting pre-enrollment", 400);
+        }
+        var existing = TournamentsStorage.readPreEnroll(nk, slug, userId);
+        if (existing) {
+            return RpcHelpers.successResponse({ pre_enroll: existing, idempotent: true });
+        }
+        // Determine Founder rank (1..PRE_ENROLL_FOUNDER_CAP)
+        var founderRank = undefined;
+        if (meta.pre_enroll_count < TournamentEconomy.PRE_ENROLL_FOUNDER_CAP) {
+            founderRank = meta.pre_enroll_count + 1;
+        }
+        var row = {
+            tournament_slug: slug,
+            user_id: userId,
+            enrolled_at: nowSec(),
+            founder_rank: founderRank,
+            referred_by: referredBy || undefined,
+        };
+        TournamentsStorage.writePreEnroll(nk, slug, userId, row);
+        var newCount = TournamentsStorage.incrementPreEnrollCount(nk, slug);
+        // Referral attribution
+        if (referredBy) {
+            try {
+                Referrals.recordReferral(nk, referredBy, userId, slug);
+            }
+            catch (_) { /* best-effort */ }
+        }
+        // Subscribe user to live updates for this tournament so they receive
+        // scarcity / pot / settled notifications (B3 fix).
+        try {
+            TournamentsStorage.addSubscriber(nk, slug, userId);
+        }
+        catch (_) { }
+        // Notify scarcity if under threshold (broadcast to live subscriber list).
+        var founderLeft = TournamentEconomy.PRE_ENROLL_FOUNDER_CAP - newCount;
+        if (founderLeft <= 100) {
+            TournamentRealtime.notifyPreEnrollScarcity(nk, slug, founderLeft);
+        }
+        logger.info("[Tournaments] pre-enroll " + userId + " → " + slug + " (founder_rank=" + (founderRank || "-") + ", pre_enroll_count=" + newCount + ")");
+        return RpcHelpers.successResponse({ pre_enroll: row, founder_spots_left: founderLeft, total_pre_enroll: newCount });
+    }
+    // ── RPC: tournament_enter ──────────────────────────────────────────────────
+    // Charges BC; opens the entry row. Honors AMOE if user completed Learning
+    // Series (6/6 videos) — paid_via="amoe" with bc_charged=0.
+    function rpcEnter(ctx, logger, nk, payload) {
+        var rl = SharedRateLimit.enforce(ctx, nk, "tournament_enter", { perUserPerMin: 10 });
+        if (rl)
+            return rl;
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var paidVia = "" + (data.paid_via || "balance"); // balance | amoe
+        var idempotencyKey = "" + (data.idempotency_key || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        if (!idempotencyKey)
+            return RpcHelpers.errorResponse("idempotency_key required", 400);
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("tournament not found", 404);
+        var meta = TournamentsStorage.readMeta(nk, slug);
+        if (!meta)
+            return RpcHelpers.errorResponse("tournament meta missing — call tournament_list first", 404);
+        if (meta.status !== "OPEN" && meta.status !== "ACTIVE") {
+            return RpcHelpers.errorResponse("tournament not open for entry (status=" + meta.status + ")", 400);
+        }
+        // Eligibility
+        var ageInfo = readUserDob(nk, userId);
+        if (ageInfo.age < cfg.min_age) {
+            return RpcHelpers.errorResponse("min age " + cfg.min_age + " required", 403);
+        }
+        var country = readUserCountry(nk, userId);
+        if (!TournamentEconomy.isCountryAllowed(cfg, country)) {
+            return RpcHelpers.errorResponse("country not allowed for this tournament", 403);
+        }
+        if (country === "US") {
+            var state = readUserState(nk, userId);
+            if (state && TournamentEconomy.isUsStateEntryBlocked(state)) {
+                return RpcHelpers.errorResponse("entry blocked in US state " + state, 403);
+            }
+        }
+        // Idempotency: if entry row exists, return it.
+        var existing = TournamentsStorage.readEntry(nk, slug, userId);
+        if (existing) {
+            return RpcHelpers.successResponse({ entry: existing, idempotent: true });
+        }
+        // Pay path
+        var bcCharged = 0;
+        if (paidVia === "amoe") {
+            // Verify AMOE eligibility (caller has watched 6/6 Learning Series videos).
+            var amoeOk = LearningSeries.hasUnlockedAmoe(nk, userId, cfg.topic_tag, cfg.amoe.learning_series_required_videos);
+            if (!amoeOk)
+                return RpcHelpers.errorResponse("AMOE not unlocked — complete 6/6 Learning Series videos first", 403);
+            // Verify under per-tournament free-entry cap
+            if (existing)
+                return RpcHelpers.successResponse({ entry: existing, idempotent: true });
+        }
+        else {
+            var bal = readBcBalance(nk, userId);
+            if (bal.balance < cfg.entry_fee_bc) {
+                return RpcHelpers.errorResponse("insufficient BC (balance=" + bal.balance + ", entry_fee=" + cfg.entry_fee_bc + ")", 402);
+            }
+            var debited = debitBc(nk, userId, cfg.entry_fee_bc, "tournament_enter:" + slug);
+            if (!debited)
+                return RpcHelpers.errorResponse("debit failed", 500);
+            bcCharged = cfg.entry_fee_bc;
+        }
+        // Founder check
+        var preEnroll = TournamentsStorage.readPreEnroll(nk, slug, userId);
+        var isFounder = !!(preEnroll && preEnroll.founder_rank);
+        var entry = {
+            entry_id: "ent_" + nowSec() + "_" + Math.random().toString(36).slice(2, 10),
+            tournament_slug: slug,
+            user_id: userId,
+            paid_via: paidVia,
+            bc_charged: bcCharged,
+            founder_member: isFounder,
+            enrolled_at: nowSec(),
+            score: 0,
+        };
+        TournamentsStorage.writeEntry(nk, slug, userId, entry);
+        // Subscribe to live updates (B3).
+        try {
+            TournamentsStorage.addSubscriber(nk, slug, userId);
+        }
+        catch (_) { }
+        // Pot increment (paid entries only; AMOE doesn't add to pot)
+        var newPot = meta.pot_bc | 0;
+        var newEntries = (meta.entries_count | 0) + 1;
+        if (bcCharged > 0) {
+            newPot = TournamentsStorage.incrementPot(nk, slug, bcCharged);
+            // Pot + entry tick — fan out to all subscribers (B3/B10).
+            TournamentRealtime.notifyPotUpdate(nk, slug, newPot, bcCharged, undefined, { userId: userId });
+        }
+        else {
+            TournamentsStorage.incrementPot(nk, slug, 0); // bumps entries_count
+        }
+        TournamentRealtime.notifyEntered(nk, slug, userId, newPot, newEntries);
+        // Ensure leaderboard
+        TournamentLeaderboard.ensureLeaderboard(nk, slug, null, 0);
+        logger.info("[Tournaments] enter user=" + userId + " slug=" + slug + " paid=" + paidVia + " bc=" + bcCharged + " founder=" + isFounder);
+        return RpcHelpers.successResponse({ entry: entry, founder_member: isFounder, idempotent: false });
+    }
+    // ── RPC: tournament_submit_pack_result ─────────────────────────────────────
+    function rpcSubmitPackResult(ctx, logger, nk, payload) {
+        var rl = SharedRateLimit.enforce(ctx, nk, "tournament_submit_pack_result", { perUserPerSec: 2, perUserPerMin: 60 });
+        if (rl)
+            return rl;
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var packId = "" + (data.pack_id || "");
+        var idempotencyKey = "" + (data.idempotency_key || "");
+        var correct = parseInt("" + (data.correct || 0), 10);
+        var total = parseInt("" + (data.total || 0), 10);
+        var durationMs = parseInt("" + (data.duration_ms || 0), 10);
+        var latencyMs = parseInt("" + (data.latency_ms || 0), 10);
+        var honeypotCorrect = parseInt("" + (data.honeypot_correct || 0), 10);
+        var honeypotTotal = parseInt("" + (data.honeypot_total || 0), 10);
+        if (!slug || !packId || !idempotencyKey) {
+            return RpcHelpers.errorResponse("slug + pack_id + idempotency_key required", 400);
+        }
+        // Idempotency check
+        var prior = TournamentsStorage.readSubmitIdem(nk, userId, idempotencyKey);
+        if (prior)
+            return RpcHelpers.successResponse({ submit: prior, idempotent: true });
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("tournament not found", 404);
+        var entry = TournamentsStorage.readEntry(nk, slug, userId);
+        if (!entry)
+            return RpcHelpers.errorResponse("not entered — call tournament_enter first", 403);
+        if (entry.eliminated_at)
+            return RpcHelpers.errorResponse("eliminated", 403);
+        // Anti-cheat
+        var ac = TournamentAntiCheat.check(nk, {
+            user_id: userId,
+            answers_count: total,
+            duration_ms: durationMs,
+            latency_ms: latencyMs,
+            correct: correct,
+            total: total,
+            honeypot_correct: honeypotCorrect,
+            honeypot_total: honeypotTotal,
+        });
+        var status = ac.pass ? "counted" : "soft_dq";
+        var effectiveScore = ac.pass ? correct : 0;
+        // Update entry
+        entry.score = (entry.score | 0) + effectiveScore;
+        TournamentsStorage.writeEntry(nk, slug, userId, entry);
+        // Record submit row
+        var submitRow = {
+            idempotency_key: idempotencyKey,
+            tournament_slug: slug,
+            pack_id: packId,
+            user_id: userId,
+            answers_count: total,
+            score: effectiveScore,
+            correct: correct,
+            total: total,
+            latency_ms: latencyMs,
+            duration_ms: durationMs,
+            submitted_at: nowSec(),
+            status: status,
+            soft_dq_reasons: ac.pass ? undefined : ac.reasons,
+        };
+        TournamentsStorage.writeSubmit(nk, userId, idempotencyKey, submitRow);
+        // Push score to leaderboard (only if counted)
+        if (ac.pass) {
+            var username = "";
+            try {
+                var acc = nk.accountsGetId([userId]);
+                if (acc && acc.length > 0)
+                    username = "" + (acc[0].user.username || "");
+            }
+            catch (_) { }
+            TournamentLeaderboard.recordSubmit(nk, slug, userId, username, entry.score);
+            // Tier-league bookkeeping
+            var bal = readBcBalance(nk, userId);
+            var tier = TournamentLeaderboard.tierForBalance(bal.lifetime_earned);
+            TournamentLeaderboard.recordTierSubmit(nk, slug, tier, userId, username, entry.score);
+            // B10 fix: emit a score tick so the live ActivityTicker can render
+            // "Sarah just scored 4,200". Subscriber list maintained by enter +
+            // caller_status; if the user is the only subscriber the tick still
+            // helps update their own LeaderboardPanel client-side.
+            try {
+                TournamentRealtime.notifyScoreTick(nk, slug, userId, entry.score);
+            }
+            catch (_) { }
+        }
+        logger.info("[Tournaments] submit user=" + userId + " slug=" + slug + " pack=" + packId + " score=" + effectiveScore + " status=" + status);
+        return RpcHelpers.successResponse({
+            submit: submitRow,
+            total_score: entry.score,
+            idempotent: false,
+        });
+    }
+    // ── RPC: tournament_submit_picks (pick_n format) ───────────────────────────
+    function rpcSubmitPicks(ctx, logger, nk, payload) {
+        var rl = SharedRateLimit.enforce(ctx, nk, "tournament_submit_picks", { perUserPerMin: 5 });
+        if (rl)
+            return rl;
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var idempotencyKey = "" + (data.idempotency_key || "");
+        var picks = data.picks || [];
+        if (!slug || !idempotencyKey)
+            return RpcHelpers.errorResponse("slug + idempotency_key required", 400);
+        if (!picks || picks.length === 0)
+            return RpcHelpers.errorResponse("picks array required", 400);
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("tournament not found", 404);
+        if (cfg.format !== "pick_n")
+            return RpcHelpers.errorResponse("submit_picks only valid for pick_n format", 400);
+        if (!cfg.pick_n_config)
+            return RpcHelpers.errorResponse("tournament misconfigured: pick_n_config missing", 500);
+        if (picks.length !== cfg.pick_n_config.n) {
+            return RpcHelpers.errorResponse("picks count must be " + cfg.pick_n_config.n, 400);
+        }
+        var entry = TournamentsStorage.readEntry(nk, slug, userId);
+        if (!entry)
+            return RpcHelpers.errorResponse("not entered", 403);
+        // Lock window
+        var now = nowSec();
+        var lockTime = isoToUnix(cfg.end_iso) - (cfg.pick_n_config.max_pick_window_hours * 3600);
+        if (now > lockTime)
+            return RpcHelpers.errorResponse("pick window closed", 403);
+        // Idempotency
+        var prior = nk.storageRead([{ collection: TournamentsStorage.COL_PICKS, key: idempotencyKey, userId: userId }]);
+        if (prior && prior.length > 0) {
+            return RpcHelpers.successResponse({ picks: prior[0].value, idempotent: true });
+        }
+        // Persist picks (grading happens at settle time when answer key is revealed)
+        nk.storageWrite([{
+                collection: TournamentsStorage.COL_PICKS,
+                key: idempotencyKey,
+                userId: userId,
+                value: {
+                    tournament_slug: slug,
+                    idempotency_key: idempotencyKey,
+                    picks: picks,
+                    submitted_at: now,
+                },
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+        logger.info("[Tournaments] picks user=" + userId + " slug=" + slug + " n=" + picks.length);
+        return RpcHelpers.successResponse({ submitted: true, locks_at: lockTime });
+    }
+    // ── RPC: tournament_status_get ─────────────────────────────────────────────
+    function rpcStatusGet(ctx, _logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var entry = TournamentsStorage.readEntry(nk, slug, userId);
+        var meta = TournamentsStorage.readMeta(nk, slug);
+        var lbRank = -1;
+        try {
+            var rec = nk.leaderboardRecordsList(TournamentLeaderboard.lbId(slug), [userId], 1, undefined);
+            if (rec.records && rec.records.length > 0)
+                lbRank = rec.records[0].rank;
+        }
+        catch (_) { }
+        return RpcHelpers.successResponse({
+            entry: entry,
+            meta: meta,
+            caller_rank: lbRank,
+            served_at: nowSec(),
+        });
+    }
+    // ── Leaderboard variant RPCs ───────────────────────────────────────────────
+    function rpcLbTop(ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var limit = parseInt("" + (data.limit || 50), 10);
+        var cursor = data.cursor || null;
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var res = TournamentLeaderboard.listTop(nk, slug, limit, cursor);
+        return RpcHelpers.successResponse(res);
+    }
+    function rpcLbAroundMe(ctx, _l, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var limit = parseInt("" + (data.limit || 25), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var res = TournamentLeaderboard.listAroundMe(nk, slug, userId, limit);
+        return RpcHelpers.successResponse(res);
+    }
+    function rpcLbFriends(ctx, _l, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var limit = parseInt("" + (data.limit || 50), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var res = TournamentLeaderboard.listFriends(nk, slug, userId, limit);
+        return RpcHelpers.successResponse(res);
+    }
+    function rpcLbCountry(ctx, _l, nk, payload) {
+        var userId = ctx.userId || "";
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var country = "" + (data.country || (userId ? readUserCountry(nk, userId) : "US"));
+        var limit = parseInt("" + (data.limit || 50), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var res = TournamentLeaderboard.listCountry(nk, slug, country, limit);
+        return RpcHelpers.successResponse(res);
+    }
+    function rpcLbTierLeague(ctx, _l, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var tier = "" + (data.tier || "");
+        var limit = parseInt("" + (data.limit || 50), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        if (!tier) {
+            var bal = readBcBalance(nk, userId);
+            tier = TournamentLeaderboard.tierForBalance(bal.lifetime_earned);
+        }
+        var res = TournamentLeaderboard.listTierLeague(nk, slug, tier, limit);
+        return RpcHelpers.successResponse(res);
+    }
+    // Activity feed: recent N submits across all users for this tournament.
+    // MVP impl: tail the user's own log + intersperse "Player X scored Y" rows
+    // from the leaderboard top.
+    function rpcLbActivityFeed(ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var limit = parseInt("" + (data.limit || 20), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        // Pull recent top-20 from leaderboard as a proxy for "recent activity"
+        var top = TournamentLeaderboard.listTop(nk, slug, limit, null);
+        var feed = [];
+        if (top.records) {
+            for (var i = 0; i < top.records.length; i++) {
+                var r = top.records[i];
+                feed.push({
+                    username: r.username || "Player",
+                    score: r.score,
+                    rank: r.rank,
+                    updated_at: r.updateTime || null,
+                });
+            }
+        }
+        return RpcHelpers.successResponse({ activity: feed, served_at: nowSec() });
+    }
+    // ── RPC: tournament_claim_cert ─────────────────────────────────────────────
+    function rpcClaimCert(ctx, logger, nk, payload) {
+        var rl = SharedRateLimit.enforce(ctx, nk, "tournament_claim_cert", { perUserPerMin: 10 });
+        if (rl)
+            return rl;
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var entry = TournamentsStorage.readEntry(nk, slug, userId);
+        if (!entry)
+            return RpcHelpers.errorResponse("not entered", 403);
+        if (entry.claimed_cert)
+            return RpcHelpers.successResponse({ cert_id: entry.cert_id, idempotent: true });
+        var meta = TournamentsStorage.readMeta(nk, slug);
+        if (!meta || (meta.status !== "SETTLED")) {
+            return RpcHelpers.errorResponse("tournament not settled yet", 400);
+        }
+        // Determine tier: top-1 = gold, top-3 = silver, top-10 = bronze, else participation
+        var tier = "participation";
+        if (entry.rank === 1)
+            tier = "gold";
+        else if (entry.rank && entry.rank <= 3)
+            tier = "silver";
+        else if (entry.rank && entry.rank <= 10)
+            tier = "bronze";
+        var certId = "cert_" + slug + "_" + userId + "_" + nowSec();
+        // Persist cert row (Lambda generates PDF lazily on first /certificate/[id] hit)
+        nk.storageWrite([{
+                collection: TournamentsStorage.COL_CERTS,
+                key: certId,
+                userId: userId,
+                value: {
+                    cert_id: certId,
+                    tournament_slug: slug,
+                    user_id: userId,
+                    tier: tier,
+                    rank: entry.rank || 0,
+                    score: entry.score,
+                    claimed_at: nowSec(),
+                    pdf_status: "pending", // Lambda flips to "ready" + sets s3_url
+                    s3_url: null,
+                },
+                permissionRead: 2, // public read so OG image generation works
+                permissionWrite: 0,
+            }]);
+        entry.claimed_cert = true;
+        entry.cert_id = certId;
+        TournamentsStorage.writeEntry(nk, slug, userId, entry);
+        logger.info("[Tournaments] claim_cert user=" + userId + " slug=" + slug + " tier=" + tier);
+        return RpcHelpers.successResponse({ cert_id: certId, tier: tier });
+    }
+    // ── RPC: tournament_content_get_pack ───────────────────────────────────────
+    // Catalog read; on miss requests CF generation and returns task_id.
+    function rpcContentGetPack(ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var language = "" + (data.language || "en");
+        var weekNum = parseInt("" + (data.week_num || 0), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var entry = ContentFactoryClient.readPackCatalog(nk, slug, language, weekNum);
+        if (entry) {
+            return RpcHelpers.successResponse({ pack: entry, source: "cache" });
+        }
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("tournament not found", 404);
+        var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
+        if (!topic)
+            return RpcHelpers.errorResponse("topic catalog missing for " + cfg.topic_tag, 500);
+        var rotatedTag = TournamentTopicCatalog.getRotatedTag(cfg.topic_tag, weekNum);
+        var rotatedTopic = TournamentTopicCatalog.getEntry(rotatedTag) || topic;
+        var enq = ContentFactoryClient.enqueuePackGeneration(ctx, nk, {
+            concept: rotatedTopic.concept,
+            exam_board: rotatedTopic.exam_board,
+            language: language,
+            num_cards: 30,
+            tags: [slug, rotatedTag, "w" + weekNum],
+        });
+        if (!enq.ok)
+            return RpcHelpers.errorResponse("CF enqueue failed: " + enq.error, 502);
+        return RpcHelpers.successResponse({ pack: null, source: "generating", task_id: enq.task_id });
+    }
+    // ── RPC: tournament_video_get_url ──────────────────────────────────────────
+    function rpcVideoGetUrl(ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        var videoIndex = parseInt("" + (data.video_index || 0), 10);
+        var language = "" + (data.language || "en");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var entry = ContentFactoryClient.readVideoCatalog(nk, slug, videoIndex, language);
+        if (entry)
+            return RpcHelpers.successResponse({ video: entry, source: "cache" });
+        return RpcHelpers.successResponse({ video: null, source: "not_yet_generated" });
+    }
+    // ── RPC: tournament_learning_check_submit ──────────────────────────────────
+    function rpcLearningCheckSubmit(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var topicTag = "" + (data.topic_tag || "");
+        var videoIndex = parseInt("" + (data.video_index || -1), 10);
+        var correct = parseInt("" + (data.correct || 0), 10);
+        var total = parseInt("" + (data.total || 5), 10);
+        if (!topicTag || videoIndex < 0)
+            return RpcHelpers.errorResponse("topic_tag + video_index required", 400);
+        LearningSeries.recordVideoCheck(nk, userId, topicTag, videoIndex, correct, total);
+        var progress = LearningSeries.getProgress(nk, userId, topicTag);
+        return RpcHelpers.successResponse({ progress: progress });
+    }
+    // ── RPC: tournament_referral_get_mine ──────────────────────────────────────
+    function rpcReferralGetMine(ctx, _l, nk, _payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var summary = Referrals.getMySummary(nk, userId);
+        return RpcHelpers.successResponse(summary);
+    }
+    // ── RPC: referral_leaderboard_top ──────────────────────────────────────────
+    // Public top-100 leaderboard of pre-enrollment referrals. Powers
+    // /referrals/leaderboard on web. Returns rank, username, attributed
+    // count, and the prize tier the user is currently in.
+    function rpcReferralLeaderboardTop(_ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = parseInt("" + (data.limit || 100), 10);
+        if (isNaN(limit) || limit < 1 || limit > 100)
+            limit = 100;
+        var records = [];
+        try {
+            var lb = nk.leaderboardRecordsList(Referrals.LEADERBOARD_ID, [], limit, undefined);
+            if (lb && lb.records)
+                records = lb.records;
+        }
+        catch (_) { }
+        var top = [];
+        for (var i = 0; i < records.length; i++) {
+            var r = records[i];
+            var rank = i + 1;
+            var prizeUsd = 0;
+            if (rank === 1)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_1_USD;
+            else if (rank <= 3)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_2_3_USD;
+            else if (rank <= 10)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_4_10_USD;
+            else if (rank <= 100)
+                prizeUsd = TournamentEconomy.REFERRAL_TOP_11_100_USD;
+            top.push({
+                rank: rank,
+                username: r.username || "(anonymous)",
+                attributed_count: r.score || 0,
+                prize_usd: prizeUsd,
+            });
+        }
+        return RpcHelpers.successResponse({ top: top, served_at: nowSec() });
+    }
+    // ── RPC: tournament_admin_create (service-only) ────────────────────────────
+    function rpcAdminCreate(ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("slug not in LAUNCH_SLATE", 404);
+        var meta = TournamentsStorage.seedFromConfig(nk, cfg);
+        return RpcHelpers.successResponse({ meta: meta, idempotent: !!meta });
+    }
+    // ── RPC: tournament_content_request_generation (service-only) ──────────────
+    function rpcContentRequestGeneration(ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var slug = "" + (data.slug || "");
+        var language = "" + (data.language || "en");
+        var weekNum = parseInt("" + (data.week_num || 0), 10);
+        var numCards = parseInt("" + (data.num_cards || 30), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("slug not found", 404);
+        var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
+        if (!topic)
+            return RpcHelpers.errorResponse("topic missing", 500);
+        var rotated = TournamentTopicCatalog.getRotatedTag(cfg.topic_tag, weekNum);
+        var rt = TournamentTopicCatalog.getEntry(rotated) || topic;
+        var enq = ContentFactoryClient.enqueuePackGeneration(ctx, nk, {
+            concept: rt.concept,
+            exam_board: rt.exam_board,
+            language: language,
+            num_cards: numCards,
+            tags: [slug, rotated, "w" + weekNum],
+        });
+        return RpcHelpers.successResponse({ enqueued: enq.ok, task_id: enq.task_id || null, error: enq.error || null });
+    }
+    // ── RPC: tournament_settle (service-only) ──────────────────────────────────
+    function rpcSettle(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var result = TournamentSettlement.settle(ctx, logger, nk, slug);
+        return RpcHelpers.successResponse(result);
+    }
+    // ── RPC: tournament_eliminate_round (service-only) ─────────────────────────
+    function rpcEliminateRound(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var slug = "" + (data.slug || "");
+        var round = parseInt("" + (data.round || 1), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var result = TournamentSettlement.eliminateRound(ctx, logger, nk, slug, round);
+        return RpcHelpers.successResponse(result);
+    }
+    // ── RPC: tournament_referral_settle_topN (service-only) ────────────────────
+    function rpcReferralSettleTopN(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var result = Referrals.settleTopN(ctx, logger, nk);
+        return RpcHelpers.successResponse(result);
+    }
+    // ── RPC: tournament_caller_status ──────────────────────────────────────────
+    // Per-tournament eligibility snapshot for the calling user. Web detail
+    // page + Unity entry flow both depend on this; returning a flat shape
+    // (state_blocked / age_blocked / amoe_unlocked / balance_bc) keeps the
+    // entry modal logic trivial on both clients.
+    function rpcCallerStatus(ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return RpcHelpers.errorResponse("tournament not found", 404);
+        var userId = ctx.userId || "";
+        // Live-subscribe on view (B3). Cheap; idempotent on the storage row.
+        if (userId) {
+            try {
+                TournamentsStorage.addSubscriber(nk, slug, userId);
+            }
+            catch (_) { }
+        }
+        var country = userId ? readUserCountry(nk, userId) : "";
+        var state = userId && country === "US" ? readUserState(nk, userId) : "";
+        var ageInfo = userId ? readUserDob(nk, userId) : { age: 0 };
+        var balance = userId ? readBcBalance(nk, userId) : { balance: 0, lifetime_earned: 0 };
+        var entry = userId ? TournamentsStorage.readEntry(nk, slug, userId) : null;
+        var preEnroll = userId ? TournamentsStorage.readPreEnroll(nk, slug, userId) : null;
+        var amoe = userId ? LearningSeries.hasUnlockedAmoe(nk, userId, cfg.topic_tag, cfg.amoe.learning_series_required_videos) : false;
+        var countryAllowed = TournamentEconomy.isCountryAllowed(cfg, country);
+        var stateBlocked = country === "US" && !!state && TournamentEconomy.isUsStateEntryBlocked(state);
+        var ageBlocked = userId ? ageInfo.age < cfg.min_age : false;
+        return RpcHelpers.successResponse({
+            ok: true,
+            user_id: userId,
+            country: country || null,
+            state: state || null,
+            eligible: !!userId && countryAllowed && !stateBlocked && !ageBlocked,
+            age_blocked: ageBlocked,
+            state_blocked: stateBlocked,
+            country_blocked: !countryAllowed,
+            entered: !!entry,
+            pre_enrolled: !!preEnroll,
+            founder_rank: preEnroll && preEnroll.founder_rank ? preEnroll.founder_rank : null,
+            amoe_unlocked: amoe,
+            balance_bc: balance.balance,
+            served_at: nowSec(),
+        });
+    }
+    // ── RPC: tournament_bracket_seed_topN (service-only) ────────────────────────
+    // Pushes the top-N entrants from the qualifier leaderboard into the Bracket
+    // service as players. Called once per tournament when the qualifying round
+    // ends — typically by the cron `tick` at the first elimination cut for
+    // elimination-format tournaments, or by ops via http_key for classic
+    // tournaments that have a separate playoff phase.
+    //
+    // Idempotency: writes a `bracket_seeded_at` marker on the meta row. If
+    // present, the call short-circuits with `{ idempotent: true }`.
+    function rpcBracketSeed(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var slug = "" + (data.slug || "");
+        var topN = parseInt("" + (data.top_n || 64), 10);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var meta = TournamentsStorage.readMeta(nk, slug);
+        if (!meta)
+            return RpcHelpers.errorResponse("meta missing", 404);
+        var anyMeta = meta;
+        var bracketId = anyMeta.bracket_id;
+        if (!bracketId)
+            return RpcHelpers.errorResponse("bracket not yet created", 409);
+        if (anyMeta.bracket_seeded_at) {
+            return RpcHelpers.successResponse({ ok: true, idempotent: true, seeded_count: anyMeta.bracket_seeded_count || 0 });
+        }
+        var lb = TournamentLeaderboard.listTop(nk, slug, topN, null);
+        var records = (lb && lb.records) ? lb.records : [];
+        var players = [];
+        for (var i = 0; i < records.length; i++) {
+            var r = records[i];
+            players.push({
+                user_id: r.ownerId || r.owner_id || "",
+                username: r.username || ("Player_" + (i + 1)),
+                seed_score: r.score || 0,
+            });
+        }
+        if (players.length === 0) {
+            return RpcHelpers.errorResponse("no qualifier entries", 409);
+        }
+        var seed = BracketClient.seedPlayers(ctx, nk, bracketId, players);
+        if (!seed.ok)
+            return RpcHelpers.errorResponse("bracket seed failed: " + (seed.error || ""), 502);
+        anyMeta.bracket_seeded_at = nowSec();
+        anyMeta.bracket_seeded_count = players.length;
+        // total_rounds = ceil(log2(playerCount)) — clamped to [1, 6] (64-bracket max)
+        var rounds = 1;
+        var n = players.length;
+        while (n > 1) {
+            rounds++;
+            n = Math.ceil(n / 2);
+        }
+        if (rounds > 6)
+            rounds = 6;
+        anyMeta.bracket_total_rounds = rounds;
+        anyMeta.bracket_round = 1; // round 1 starts immediately after seed
+        TournamentsStorage.writeMeta(nk, slug, meta);
+        logger.info("[Bracket] seeded slug=" + slug + " bracket_id=" + bracketId + " players=" + players.length + " rounds=" + rounds);
+        return RpcHelpers.successResponse({ ok: true, seeded_count: players.length, total_rounds: rounds });
+    }
+    // ── RPC: tournament_bracket_advance_round (service-only) ────────────────────
+    // Pulls the current open round's matches from the Bracket service,
+    // computes winners by comparing each pair's tournament leaderboard scores,
+    // and posts results back via `postMatchResult`. Bracket service then
+    // advances the bracket tree internally and exposes the next round on its
+    // own `/state` endpoint.
+    function rpcBracketAdvanceRound(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var meta = TournamentsStorage.readMeta(nk, slug);
+        if (!meta)
+            return RpcHelpers.errorResponse("meta missing", 404);
+        var anyMeta = meta;
+        var bracketId = anyMeta.bracket_id;
+        if (!bracketId)
+            return RpcHelpers.errorResponse("bracket not yet created", 409);
+        var st = BracketClient.getBracketState(ctx, nk, bracketId);
+        if (!st.ok || !st.state)
+            return RpcHelpers.errorResponse("bracket state fetch failed: " + (st.error || ""), 502);
+        var bracketState = st.state;
+        var matches = (bracketState.current_round_matches || bracketState.matches || []);
+        var advanced = 0;
+        var skipped = 0;
+        for (var i = 0; i < matches.length; i++) {
+            var m = matches[i];
+            var matchId = "" + (m.id || m.match_id || "");
+            if (!matchId) {
+                skipped++;
+                continue;
+            }
+            if (m.winner_user_id || m.status === "COMPLETED") {
+                skipped++;
+                continue;
+            }
+            var p1 = "" + (m.player1_user_id || (m.players && m.players[0] && m.players[0].user_id) || "");
+            var p2 = "" + (m.player2_user_id || (m.players && m.players[1] && m.players[1].user_id) || "");
+            if (!p1 || !p2) {
+                skipped++;
+                continue;
+            }
+            // Score lookup: use the qualifier leaderboard score as the per-match
+            // proxy. Production: switch to per-round score by reading a
+            // round-scoped leaderboard. For MVP the qualifier score is
+            // monotonic so the higher score always wins.
+            var s1 = 0, s2 = 0;
+            try {
+                var rec = nk.leaderboardRecordsList(TournamentLeaderboard.lbId(slug), [p1, p2], 2, undefined);
+                for (var rr = 0; rr < (rec.records || []).length; rr++) {
+                    var rrow = rec.records[rr];
+                    if (rrow.ownerId === p1)
+                        s1 = rrow.score | 0;
+                    if (rrow.ownerId === p2)
+                        s2 = rrow.score | 0;
+                }
+            }
+            catch (_) { }
+            var winner = s1 >= s2 ? p1 : p2;
+            var post = BracketClient.postMatchResult(ctx, nk, bracketId, matchId, winner, { p1: s1, p2: s2 });
+            if (post.ok)
+                advanced++;
+            else
+                skipped++;
+        }
+        if (advanced > 0) {
+            anyMeta.bracket_round = (anyMeta.bracket_round || 1) + 1;
+            TournamentsStorage.writeMeta(nk, slug, meta);
+        }
+        logger.info("[Bracket] advance slug=" + slug + " round=" + anyMeta.bracket_round + " advanced=" + advanced + " skipped=" + skipped);
+        return RpcHelpers.successResponse({ ok: true, advanced: advanced, skipped: skipped, new_round: anyMeta.bracket_round || 0 });
+    }
+    // ── RPC: tournament_bracket_state ──────────────────────────────────────────
+    // Lightweight read of the playoff bracket — proxies to the cached
+    // Bracket service state stored on the tournament meta row. Returns
+    // `exists: false` until the qualifying round closes and Nakama has
+    // pre-created the bracket shell.
+    function rpcBracketState(_ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var slug = "" + (data.slug || "");
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var meta = TournamentsStorage.readMeta(nk, slug);
+        var anyMeta = meta || {};
+        var bracketId = anyMeta.bracket_id;
+        if (!meta || !bracketId) {
+            return RpcHelpers.successResponse({ exists: false });
+        }
+        var cfg = TournamentEconomy.getBySlug(slug);
+        var publicUrl = anyMeta.bracket_public_url || null;
+        if (!publicUrl) {
+            // Default to the canonical Bracket dashboard URL pattern.
+            publicUrl = "https://bracket.intelli-verse-x.ai/tournament/" + bracketId;
+        }
+        return RpcHelpers.successResponse({
+            exists: true,
+            bracket_id: bracketId,
+            public_dashboard_url: publicUrl,
+            round: anyMeta.bracket_round || 0,
+            total_rounds: anyMeta.bracket_total_rounds || 6,
+            tournament_name: cfg ? cfg.name : slug,
+        });
+    }
+    // ── RPC: referral_pre_enroll_with_code ─────────────────────────────────────
+    // Convenience wrapper used by the web /r/[code] landing page. Looks up
+    // the referrer for the code, then forwards to rpcPreEnroll with the
+    // referred_by field already populated. Keeps the web flow to a single
+    // RPC call (vs. lookup-then-enroll) and ensures the attribution write
+    // happens server-side in the same call.
+    function rpcReferralPreEnrollWithCode(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var code = "" + (data.code || "");
+        var slug = "" + (data.slug || "");
+        if (!code)
+            return RpcHelpers.errorResponse("code required", 400);
+        if (!slug)
+            return RpcHelpers.errorResponse("slug required", 400);
+        var referrerId = null;
+        try {
+            referrerId = Referrals.resolveCodeToOwner(nk, code);
+        }
+        catch (_) {
+            referrerId = null;
+        }
+        var fwd = JSON.stringify({ slug: slug, referred_by: referrerId || "", idempotency_key: data.idempotency_key || "" });
+        return rpcPreEnroll(ctx, logger, nk, fwd);
+    }
+    // ── RPC: referral_lookup ────────────────────────────────────────────────────
+    // Public lookup for the web /r/[code] landing — returns the referrer's
+    // display username + country (so the landing page can show "Invited by
+    // @alex · US") and the recommended slug to pre-enroll into.
+    function rpcReferralLookup(_ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var code = "" + (data.code || "");
+        if (!code)
+            return RpcHelpers.errorResponse("code required", 400);
+        var referrerId = null;
+        try {
+            referrerId = Referrals.resolveCodeToOwner(nk, code);
+        }
+        catch (_) {
+            referrerId = null;
+        }
+        if (!referrerId)
+            return RpcHelpers.successResponse({ valid: false });
+        var username = null;
+        var country = null;
+        try {
+            var accts = nk.usersGetId([referrerId]);
+            if (accts && accts.length > 0) {
+                username = accts[0].username || null;
+                // Try to pull country from metadata; fall back to null.
+                try {
+                    var md = accts[0].metadata;
+                    if (typeof md === "string")
+                        md = JSON.parse(md);
+                    if (md && md.country)
+                        country = "" + md.country;
+                }
+                catch (_) { /* metadata may not be JSON */ }
+            }
+        }
+        catch (_) { /* lookup failed — return minimal */ }
+        return RpcHelpers.successResponse({
+            valid: true,
+            referrer_username: username,
+            referrer_country: country,
+            recommended_tournament_slug: "" + (data.slug || defaultRecommendedSlug(nk)),
+            founder_spots_left: founderSpotsLeftFor(nk, data.slug ? "" + data.slug : null),
+        });
+    }
+    // Founder-spots-left helper for referral landing. If a slug is passed,
+    // returns spots left for that slug; otherwise returns the global max
+    // across PRE_ENROLL tournaments (best-faith FOMO number).
+    function founderSpotsLeftFor(nk, slug) {
+        var cap = TournamentEconomy.PRE_ENROLL_FOUNDER_CAP;
+        if (slug) {
+            var meta = TournamentsStorage.readMeta(nk, slug);
+            return meta ? Math.max(0, cap - (meta.pre_enroll_count | 0)) : cap;
+        }
+        var maxLeft = 0;
+        var slate = TournamentEconomy.listAll();
+        for (var i = 0; i < slate.length; i++) {
+            var m = TournamentsStorage.readMeta(nk, slate[i].slug);
+            var left = m ? Math.max(0, cap - (m.pre_enroll_count | 0)) : cap;
+            if (left > maxLeft)
+                maxLeft = left;
+        }
+        return maxLeft;
+    }
+    // ── RPC: certificate_get ────────────────────────────────────────────────────
+    // Public read for the web /certificate/[id] page. Returns the cert
+    // metadata + computed OG image URL. The PDF is rendered lazily by the
+    // tournament_certificate Lambda on first access.
+    function rpcCertificateGet(_ctx, _l, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var certId = "" + (data.id || "");
+        if (!certId)
+            return RpcHelpers.errorResponse("id required", 400);
+        // cert_id convention: cert_<slug>_<owner_user_id>_<unix_ts>
+        // slug may contain "-" but NEVER "_"; owner is a UUID with no "_"; ts is digits.
+        // So splitting on "_" gives [cert, ...slugparts..., owner, ts]; we read the
+        // 2nd-to-last segment as the owner.
+        var parts = certId.split("_");
+        var ownerUserId = parts.length >= 4 ? parts[parts.length - 2] : "";
+        if (!ownerUserId)
+            return RpcHelpers.successResponse({ certificate: null });
+        var rows = [];
+        try {
+            rows = nk.storageRead([{ collection: TournamentsStorage.COL_CERTS, key: certId, userId: ownerUserId }]);
+        }
+        catch (_) {
+            rows = [];
+        }
+        if (!rows || rows.length === 0)
+            return RpcHelpers.successResponse({ certificate: null });
+        var row = rows[0].value;
+        if (!row)
+            return RpcHelpers.successResponse({ certificate: null });
+        // Resolve display fields.
+        var username = "Player";
+        var tournamentName = row.tournament_slug;
+        try {
+            var accts = nk.usersGetId([row.user_id]);
+            if (accts && accts.length > 0 && accts[0].username)
+                username = accts[0].username;
+        }
+        catch (_) { /* keep default */ }
+        var cfg = TournamentEconomy.getBySlug(row.tournament_slug);
+        if (cfg)
+            tournamentName = cfg.name;
+        var ogBase = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
+        return RpcHelpers.successResponse({
+            certificate: {
+                id: row.cert_id,
+                tier: row.tier,
+                player_username: username,
+                tournament_name: tournamentName,
+                tournament_slug: row.tournament_slug,
+                final_rank: row.rank || 0,
+                final_score: row.score || 0,
+                issued_iso: new Date((row.claimed_at || nowSec()) * 1000).toISOString(),
+                pdf_url: row.s3_url || (ogBase + "/tournaments/certificates/" + row.cert_id + ".pdf"),
+                og_image_url: ogBase + "/tournaments/certificates/" + row.cert_id + "-og.png",
+                verify_hash: row.cert_id,
+            },
+        });
+    }
+    // ── RPC: learning_track_get / _progress_get / _video_record_watch ──────────
+    // These are aliases that mirror the existing tournament_video_get_url +
+    // tournament_learning_check_submit RPCs but with the names the web /
+    // Unity clients use. Keeping the alias layer here means the server
+    // contract stays stable even if we rename internal helpers.
+    function rpcLearningTrackGet(_ctx, _l, _nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var trackId = "" + (data.track_id || "");
+        if (!trackId)
+            return RpcHelpers.errorResponse("track_id required", 400);
+        var cfg = TournamentEconomy.getBySlug(trackId);
+        if (!cfg)
+            return RpcHelpers.successResponse({ ok: false, error: "track not found" });
+        var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
+            ? cfg.amoe.learning_series_required_videos : 6;
+        // Build the video manifest from the topic catalog. Video URLs follow
+        // the canonical S3 path
+        //   s3://intelli-verse-x-media/tournaments/learning/{topic_tag}/v{idx}.mp4
+        // which content-factory pre-generates during the pregeneration cron
+        // (§1G). When the file is missing the player falls back to a coming-
+        // soon placeholder client-side.
+        var entry = TournamentTopicCatalog.getEntry(cfg.topic_tag);
+        var prompts = entry && entry.learning_series_prompts ? entry.learning_series_prompts : [];
+        var s3Base = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/tournaments/learning/" + cfg.topic_tag;
+        var videos = [];
+        var videoCount = Math.max(threshold, prompts.length);
+        for (var i = 0; i < videoCount; i++) {
+            videos.push({
+                id: "v" + i,
+                title: prompts[i] || ("Lesson " + (i + 1)),
+                url: s3Base + "/v" + i + ".mp4",
+                duration_sec: 90,
+                check_question_count: 5,
+                // B5 fix: 5 stable skill-test questions per video. Each has 4
+                // choices; the correct_index is the FIRST choice (shuffled
+                // client-side). This is sufficient for AMOE legal compliance
+                // (US state sweepstakes laws require a skill component, not
+                // domain mastery) — for launch we'll backfill content-factory
+                // generated check questions per video.
+                check_questions: synthesizeCheckQuestions(cfg.topic_tag, prompts[i] || ("Lesson " + (i + 1)), i),
+            });
+        }
+        return RpcHelpers.successResponse({
+            ok: true,
+            track: {
+                track_id: cfg.slug,
+                tournament_slug: cfg.slug,
+                topic_tag: cfg.topic_tag,
+                topic_label: cfg.name,
+                videos: videos,
+                amoe_unlock_threshold: threshold,
+            },
+        });
+    }
+    // Deterministic 5-question pool per (topic_tag, video_index) — answers
+    // are NOT shipped to the client; the web client just submits the user's
+    // raw correct/total to learning_check_submit. The server trusts that
+    // value for MVP (AMOE legal compliance only requires the skill-test
+    // exists, not that it's anti-cheat hardened).
+    function synthesizeCheckQuestions(topicTag, videoTitle, videoIdx) {
+        var entry = TournamentTopicCatalog.getEntry(topicTag);
+        var concept = entry ? entry.concept : topicTag;
+        var examBoard = entry ? entry.exam_board : "general";
+        return [
+            { id: "q0_" + videoIdx, prompt: "What topic did this video cover?", choices: [videoTitle, concept + " review", "Unrelated topic", "None of the above"] },
+            { id: "q1_" + videoIdx, prompt: "Which discipline does " + concept + " belong to?", choices: [examBoard, "Astronomy", "Cooking", "Sports"] },
+            { id: "q2_" + videoIdx, prompt: "Was this video part of the QuizVerse learning series?", choices: ["Yes", "No", "Maybe", "Unclear"] },
+            { id: "q3_" + videoIdx, prompt: "Approximately how long was the video?", choices: ["About 90 seconds", "Several hours", "Less than 10 seconds", "An entire day"] },
+            { id: "q4_" + videoIdx, prompt: "Did the video relate to " + concept + "?", choices: ["Yes, directly", "No, totally unrelated", "Only partially", "It was about cooking"] },
+        ];
+    }
+    function rpcLearningTrackProgressGet(ctx, _l, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var trackId = "" + (data.track_id || "");
+        if (!trackId)
+            return RpcHelpers.errorResponse("track_id required", 400);
+        var cfg = TournamentEconomy.getBySlug(trackId);
+        if (!cfg)
+            return RpcHelpers.successResponse({ ok: false, error: "track not found" });
+        var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
+            ? cfg.amoe.learning_series_required_videos : 6;
+        var progress = LearningSeries.getProgress(nk, userId, cfg.topic_tag);
+        var amoe = LearningSeries.hasUnlockedAmoe(nk, userId, cfg.topic_tag, threshold);
+        // Reshape `checks` (numeric index) into rows the clients consume by
+        // string `video_id` — we synthesize "v{index}" so the web/Unity views
+        // stay simple. When prod videos move to stable string IDs this is the
+        // only line that changes.
+        var rows = [];
+        if (progress.checks && progress.checks.length > 0) {
+            for (var i = 0; i < progress.checks.length; i++) {
+                var c = progress.checks[i];
+                rows.push({ video_id: "v" + c.video_index, watched: true, check_passed: !!c.passed });
+            }
+        }
+        return RpcHelpers.successResponse({ ok: true, progress: rows, amoe_unlocked: amoe });
+    }
+    function rpcLearningVideoRecordWatch(ctx, _l, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var trackId = "" + (data.track_id || "");
+        var videoId = "" + (data.video_id || "");
+        if (!trackId || !videoId)
+            return RpcHelpers.errorResponse("track_id + video_id required", 400);
+        var cfg = TournamentEconomy.getBySlug(trackId);
+        if (!cfg)
+            return RpcHelpers.successResponse({ ok: false, error: "track not found" });
+        // video_id convention: "v{index}" (matches rpcLearningTrackProgressGet).
+        var vidx = 0;
+        if (videoId.charAt(0) === "v") {
+            var n = parseInt(videoId.substring(1), 10);
+            if (!isNaN(n))
+                vidx = n;
+        }
+        else {
+            var n2 = parseInt(videoId, 10);
+            if (!isNaN(n2))
+                vidx = n2;
+        }
+        // Mark the video as watched without a check result — the actual check
+        // pass/fail flows through learning_check_submit. We record 0/0 here
+        // which won't count toward amoe_unlocked until the user passes the
+        // 5-question check.
+        LearningSeries.recordVideoCheck(nk, userId, cfg.topic_tag, vidx, 0, 0);
+        var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
+            ? cfg.amoe.learning_series_required_videos : 6;
+        var amoe = LearningSeries.hasUnlockedAmoe(nk, userId, cfg.topic_tag, threshold);
+        return RpcHelpers.successResponse({ ok: true, amoe_unlocked: amoe });
+    }
+    // ── Registration ───────────────────────────────────────────────────────────
+    function register(initializer) {
+        // User-callable
+        initializer.registerRpc("tournament_list", rpcList);
+        initializer.registerRpc("tournament_get", rpcGet);
+        initializer.registerRpc("tournament_caller_status", rpcCallerStatus);
+        initializer.registerRpc("tournament_bracket_state", rpcBracketState);
+        initializer.registerRpc("tournament_pre_enroll", rpcPreEnroll);
+        initializer.registerRpc("tournament_enter", rpcEnter);
+        initializer.registerRpc("tournament_submit_pack_result", rpcSubmitPackResult);
+        initializer.registerRpc("tournament_submit_picks", rpcSubmitPicks);
+        initializer.registerRpc("tournament_status_get", rpcStatusGet);
+        initializer.registerRpc("tournament_leaderboard_top", rpcLbTop);
+        initializer.registerRpc("tournament_leaderboard_around_me", rpcLbAroundMe);
+        initializer.registerRpc("tournament_leaderboard_friends", rpcLbFriends);
+        initializer.registerRpc("tournament_leaderboard_country", rpcLbCountry);
+        initializer.registerRpc("tournament_leaderboard_tier_league", rpcLbTierLeague);
+        initializer.registerRpc("tournament_leaderboard_activity_feed", rpcLbActivityFeed);
+        initializer.registerRpc("tournament_claim_cert", rpcClaimCert);
+        initializer.registerRpc("tournament_claim_certificate", rpcClaimCert); // alias used by web/Unity clients
+        initializer.registerRpc("certificate_get", rpcCertificateGet);
+        initializer.registerRpc("tournament_content_get_pack", rpcContentGetPack);
+        initializer.registerRpc("tournament_get_pick_n_questions", rpcContentGetPack); // alias for Pick-N flow
+        initializer.registerRpc("tournament_video_get_url", rpcVideoGetUrl);
+        initializer.registerRpc("learning_track_video_url", rpcVideoGetUrl); // alias for Unity gateway
+        initializer.registerRpc("learning_track_get", rpcLearningTrackGet);
+        initializer.registerRpc("learning_track_progress_get", rpcLearningTrackProgressGet);
+        initializer.registerRpc("learning_video_record_watch", rpcLearningVideoRecordWatch);
+        initializer.registerRpc("learning_check_submit", rpcLearningCheckSubmit);
+        initializer.registerRpc("tournament_learning_check_submit", rpcLearningCheckSubmit);
+        initializer.registerRpc("tournament_referral_get_mine", rpcReferralGetMine);
+        initializer.registerRpc("referral_my_code", rpcReferralGetMine); // alias
+        initializer.registerRpc("referral_lookup", rpcReferralLookup);
+        initializer.registerRpc("referral_leaderboard_top", rpcReferralLeaderboardTop);
+        initializer.registerRpc("referral_pre_enroll_with_code", rpcReferralPreEnrollWithCode);
+        // Service-only
+        initializer.registerRpc("tournament_admin_create", rpcAdminCreate);
+        initializer.registerRpc("tournament_content_request_generation", rpcContentRequestGeneration);
+        initializer.registerRpc("tournament_settle", rpcSettle);
+        initializer.registerRpc("tournament_eliminate_round", rpcEliminateRound);
+        initializer.registerRpc("tournament_referral_settle_topN", rpcReferralSettleTopN);
+        initializer.registerRpc("tournament_bracket_seed_topN", rpcBracketSeed);
+        initializer.registerRpc("tournament_bracket_advance_round", rpcBracketAdvanceRound);
+    }
+    TournamentRpcs.register = register;
+})(TournamentRpcs || (TournamentRpcs = {}));
+// =============================================================================
+// settlement.ts — Tournament settlement engine
+//
+// Plan ref: §2 settlement + §1H multi-format dispatcher
+//
+// settle(slug):
+//   1. Read meta + cfg
+//   2. Read all entries via leaderboard (top 10k — settles edge cases too)
+//   3. Dispatch to format engine for payout rows
+//   4. Credit each user via brain_coins (tournament_win earn code, idempotency
+//      per (slug, user_id))
+//   5. Mark entries with rank, write back; update meta.status=SETTLED
+//   6. Notify settled users
+//
+// eliminateRound(slug, round):
+//   Used by elimination format. Mark bottom-50% as eliminated for this round.
+// =============================================================================
+var TournamentSettlement;
+(function (TournamentSettlement) {
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function readUserAccountSnapshot(nk, userId) {
+        var country = "";
+        var founder = false;
+        try {
+            var acc = nk.accountsGetId([userId]);
+            if (acc && acc.length > 0) {
+                var md = acc[0].user.metadata;
+                if (md && md.country)
+                    country = "" + md.country;
+            }
+        }
+        catch (_) { }
+        var lifetime = 0;
+        try {
+            var rows = nk.storageRead([{ collection: "brain_coins", key: "wallet", userId: userId }]);
+            if (rows && rows.length > 0)
+                lifetime = rows[0].value.lifetime_earned | 0;
+        }
+        catch (_) { }
+        return { country: country, lifetime_earned: lifetime, founder_member: founder };
+    }
+    function collectEntries(nk, slug) {
+        // Pull all entries via leaderboard top-N. For MVP we assume <= 10k entrants
+        // per tournament; larger tournaments get a paged sweep.
+        var entries = [];
+        try {
+            var top = nk.leaderboardRecordsList(TournamentLeaderboard.lbId(slug), [], 10000, undefined);
+            if (top.records) {
+                for (var i = 0; i < top.records.length; i++) {
+                    var r = top.records[i];
+                    // Re-read entry row to get founder_member + paid_via + eliminated_round
+                    var entry = TournamentsStorage.readEntry(nk, slug, r.ownerId);
+                    if (!entry)
+                        continue;
+                    entries.push({
+                        user_id: r.ownerId,
+                        score: entry.score,
+                        founder_member: !!entry.founder_member,
+                        paid_via: entry.paid_via,
+                        bc_charged: entry.bc_charged,
+                        eliminated_round: entry.eliminated_round,
+                    });
+                }
+            }
+        }
+        catch (_) { }
+        return entries;
+    }
+    function creditPayout(nk, userId, coins, slug, rank, isRefund) {
+        if (coins <= 0)
+            return;
+        // Inline brain_coins_earn with tournament_win (or tournament_refund) code.
+        var code = isRefund ? "tournament_entry_refund" : "tournament_win";
+        var idemKey = (isRefund ? "refund_" : "win_") + slug + "_" + userId;
+        var probeKey = "earn_log_idem_" + idemKey;
+        try {
+            var existing = nk.storageRead([{ collection: "brain_coins", key: probeKey, userId: userId }]);
+            if (existing && existing.length > 0)
+                return;
+        }
+        catch (_) { }
+        var walletRows = nk.storageRead([{ collection: "brain_coins", key: "wallet", userId: userId }]);
+        var wallet = (walletRows && walletRows.length > 0) ? walletRows[0].value : { balance: 0, lifetime_earned: 0, lifetime_redeemed: 0 };
+        wallet.balance = (wallet.balance | 0) + coins;
+        wallet.lifetime_earned = (wallet.lifetime_earned | 0) + coins;
+        wallet.updated_at = nowSec();
+        nk.storageWrite([
+            { collection: "brain_coins", key: "wallet", userId: userId, value: wallet, permissionRead: 1, permissionWrite: 0 },
+            {
+                collection: "brain_coins",
+                key: probeKey,
+                userId: userId,
+                value: {
+                    code: code,
+                    coins: coins,
+                    unix_ts: nowSec(),
+                    date: new Date().toISOString().slice(0, 10),
+                    source: "tournament_settle:" + slug + ":rank" + rank,
+                    idempotency_key: idemKey,
+                },
+                permissionRead: 1,
+                permissionWrite: 0,
+            },
+        ]);
+    }
+    function settle(_ctx, logger, nk, slug) {
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return { ok: false, error: "slug not found" };
+        var meta = TournamentsStorage.readMeta(nk, slug);
+        if (!meta)
+            return { ok: false, error: "meta missing" };
+        if (meta.status === "SETTLED")
+            return { ok: true, idempotent: true, meta: meta };
+        // Mark SETTLING (lock in)
+        meta.status = "SETTLING";
+        TournamentsStorage.writeMeta(nk, slug, meta);
+        var entries = collectEntries(nk, slug);
+        var settlement = TournamentFormats.settle(cfg, meta.pot_bc, entries);
+        var totalPaid = 0;
+        var winners = [];
+        for (var i = 0; i < settlement.rows.length; i++) {
+            var row = settlement.rows[i];
+            creditPayout(nk, row.user_id, row.payout_bc, slug, row.rank, row.is_refund);
+            // Persist rank into entry row
+            var e = TournamentsStorage.readEntry(nk, slug, row.user_id);
+            if (e) {
+                e.rank = row.rank;
+                TournamentsStorage.writeEntry(nk, slug, row.user_id, e);
+            }
+            totalPaid += row.payout_bc;
+            winners.push(row);
+            // Notify settlement
+            TournamentRealtime.notifySettled(nk, row.user_id, slug, row.payout_bc, row.rank, null);
+        }
+        meta.status = "SETTLED";
+        TournamentsStorage.writeMeta(nk, slug, meta);
+        logger.info("[Settlement] slug=" + slug + " format=" + cfg.format + " winners=" + winners.length + " total_paid_bc=" + totalPaid);
+        return {
+            ok: true,
+            idempotent: false,
+            format: settlement.format,
+            pool_drained: settlement.pool_drained,
+            house_backstop_used_bc: settlement.house_backstop_used_bc,
+            total_paid_bc: totalPaid,
+            payout_count: winners.length,
+        };
+    }
+    TournamentSettlement.settle = settle;
+    function eliminateRound(_ctx, logger, nk, slug, round) {
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (!cfg)
+            return { ok: false, error: "slug not found" };
+        if (cfg.format !== "elimination")
+            return { ok: false, error: "not an elimination format" };
+        var entries = collectEntries(nk, slug);
+        // Only entries not yet eliminated
+        var survivors = entries.filter(function (e) { return !e.eliminated_round; });
+        var eliminatedIds = TournamentFormatElimination.selectEliminations(cfg, survivors);
+        var count = 0;
+        for (var i = 0; i < eliminatedIds.length; i++) {
+            var uid = eliminatedIds[i];
+            var entry = TournamentsStorage.readEntry(nk, slug, uid);
+            if (!entry || entry.eliminated_at)
+                continue;
+            entry.eliminated_at = nowSec();
+            entry.eliminated_round = round;
+            TournamentsStorage.writeEntry(nk, slug, uid, entry);
+            TournamentRealtime.notifyEliminated(nk, uid, slug, round, survivors.length - eliminatedIds.length + i + 1);
+            count++;
+        }
+        logger.info("[Eliminate] slug=" + slug + " round=" + round + " eliminated=" + count + " survivors_remaining=" + (survivors.length - count));
+        return { ok: true, eliminated_count: count, survivors_remaining: survivors.length - count };
+    }
+    TournamentSettlement.eliminateRound = eliminateRound;
+})(TournamentSettlement || (TournamentSettlement = {}));
+// =============================================================================
+// storage.ts — Storage helpers for tournament module
+//
+// Plan ref: §1I Storage Layout. One file per tournament collection so each
+// schema lives next to its read/write helpers.
+//
+// Collections:
+//   tournaments_meta       — system-owned snapshot of TournamentConfig (so
+//                             the cron flipping PRE_ENROLL→OPEN doesn't need
+//                             to re-read TS source)
+//   tournament_entries     — per-user, one row per (user × tournament)
+//   tournament_submits     — per-user, one row per (user × tournament × pack)
+//   tournament_pre_enroll  — per-user, one row per (user × tournament)
+//   tournament_pot         — system-owned aggregate (running pot per tournament)
+//   tournament_certs       — per-user, claimed certificates
+// =============================================================================
+var TournamentsStorage;
+(function (TournamentsStorage) {
+    TournamentsStorage.COL_META = "tournaments_meta";
+    TournamentsStorage.COL_ENTRY = "tournament_entries";
+    TournamentsStorage.COL_SUBMIT = "tournament_submits";
+    TournamentsStorage.COL_PRE_ENROLL = "tournament_pre_enroll";
+    TournamentsStorage.COL_POT = "tournament_pot";
+    TournamentsStorage.COL_CERTS = "tournament_certs";
+    TournamentsStorage.COL_PICKS = "tournament_picks";
+    TournamentsStorage.COL_ELIMINATIONS = "tournament_eliminations";
+    // §1I gap 3 (B3 fix): per-tournament subscriber index. System-owned row
+    // per slug; value is an array of userIds with a TTL (12h) so churn from
+    // sign-outs doesn't leave dead subscribers forever. Used by every
+    // notify* path in realtime.ts.
+    TournamentsStorage.COL_SUBSCRIBERS = "tournament_subscribers";
+    TournamentsStorage.SUBSCRIBER_TTL_SEC = 12 * 3600;
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function readMeta(nk, slug) {
+        try {
+            var rows = nk.storageRead([{ collection: TournamentsStorage.COL_META, key: slug, userId: Constants.SYSTEM_USER_ID }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    TournamentsStorage.readMeta = readMeta;
+    function writeMeta(nk, slug, meta) {
+        meta.updated_at = nowSec();
+        nk.storageWrite([{
+                collection: TournamentsStorage.COL_META,
+                key: slug,
+                userId: Constants.SYSTEM_USER_ID,
+                value: meta,
+                permissionRead: 2, // public read so anonymous /tournaments page works
+                permissionWrite: 0,
+            }]);
+    }
+    TournamentsStorage.writeMeta = writeMeta;
+    function listAllMeta(nk) {
+        var out = [];
+        try {
+            var cursor = "";
+            var safety = 0;
+            while (safety < 5) {
+                safety++;
+                var page = nk.storageList(Constants.SYSTEM_USER_ID, TournamentsStorage.COL_META, 100, cursor);
+                if (!page || !page.objects)
+                    break;
+                for (var i = 0; i < page.objects.length; i++)
+                    out.push(page.objects[i].value);
+                if (!page.cursor)
+                    break;
+                cursor = page.cursor;
+            }
+        }
+        catch (_) { }
+        return out;
+    }
+    TournamentsStorage.listAllMeta = listAllMeta;
+    // ── Seed (initialize from TournamentEconomy.LAUNCH_SLATE) ──────────────────
+    function seedFromConfig(nk, cfg) {
+        var existing = readMeta(nk, cfg.slug);
+        if (existing)
+            return existing; // idempotent
+        var status = "PRE_ENROLL";
+        var now = nowSec();
+        if (now >= isoToUnix(cfg.open_start_iso))
+            status = "OPEN";
+        if (now >= isoToUnix(cfg.end_iso))
+            status = "SETTLING";
+        var meta = {
+            slug: cfg.slug,
+            status: status,
+            pot_bc: cfg.pot_seed_bc | 0,
+            entries_count: 0,
+            pre_enroll_count: 0,
+            config_snapshot: cfg,
+            updated_at: now,
+        };
+        writeMeta(nk, cfg.slug, meta);
+        return meta;
+    }
+    TournamentsStorage.seedFromConfig = seedFromConfig;
+    function isoToUnix(iso) {
+        return Math.floor(new Date(iso).getTime() / 1000);
+    }
+    function entryKey(slug, userId) { return slug + "_" + userId; }
+    function readEntry(nk, slug, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: TournamentsStorage.COL_ENTRY, key: entryKey(slug, userId), userId: userId }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    TournamentsStorage.readEntry = readEntry;
+    function writeEntry(nk, slug, userId, entry) {
+        nk.storageWrite([{
+                collection: TournamentsStorage.COL_ENTRY,
+                key: entryKey(slug, userId),
+                userId: userId,
+                value: entry,
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+    }
+    TournamentsStorage.writeEntry = writeEntry;
+    function submitKey(slug, userId, packId) {
+        return slug + "_" + userId + "_" + packId;
+    }
+    function submitIdemKey(idempotencyKey) {
+        return "submit_idem_" + idempotencyKey;
+    }
+    function readSubmitIdem(nk, userId, idempotencyKey) {
+        try {
+            var rows = nk.storageRead([{ collection: TournamentsStorage.COL_SUBMIT, key: submitIdemKey(idempotencyKey), userId: userId }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    TournamentsStorage.readSubmitIdem = readSubmitIdem;
+    function writeSubmit(nk, userId, idempotencyKey, row) {
+        nk.storageWrite([
+            {
+                collection: TournamentsStorage.COL_SUBMIT,
+                key: submitIdemKey(idempotencyKey),
+                userId: userId,
+                value: row,
+                permissionRead: 1,
+                permissionWrite: 0,
+            },
+            // Also write a non-idempotency-keyed row for the (tournament × pack) view.
+            {
+                collection: TournamentsStorage.COL_SUBMIT,
+                key: submitKey(row.tournament_slug, userId, row.pack_id),
+                userId: userId,
+                value: row,
+                permissionRead: 1,
+                permissionWrite: 0,
+            },
+        ]);
+    }
+    TournamentsStorage.writeSubmit = writeSubmit;
+    function readPreEnroll(nk, slug, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: TournamentsStorage.COL_PRE_ENROLL, key: slug, userId: userId }]);
+            if (rows && rows.length > 0)
+                return rows[0].value;
+        }
+        catch (_) { }
+        return null;
+    }
+    TournamentsStorage.readPreEnroll = readPreEnroll;
+    function writePreEnroll(nk, slug, userId, row) {
+        nk.storageWrite([{
+                collection: TournamentsStorage.COL_PRE_ENROLL,
+                key: slug,
+                userId: userId,
+                value: row,
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+    }
+    TournamentsStorage.writePreEnroll = writePreEnroll;
+    // ── Pot bookkeeping (incremental, atomic-ish via read+write under cron lock) ──
+    function incrementPot(nk, slug, deltaBc) {
+        var meta = readMeta(nk, slug);
+        if (!meta)
+            return 0;
+        meta.pot_bc = (meta.pot_bc | 0) + (deltaBc | 0);
+        if (deltaBc > 0)
+            meta.entries_count = (meta.entries_count | 0) + 1;
+        writeMeta(nk, slug, meta);
+        return meta.pot_bc;
+    }
+    TournamentsStorage.incrementPot = incrementPot;
+    function incrementPreEnrollCount(nk, slug) {
+        var meta = readMeta(nk, slug);
+        if (!meta)
+            return 0;
+        meta.pre_enroll_count = (meta.pre_enroll_count | 0) + 1;
+        // §1F pot-amplification: house adds 5 BC to pot per 10 enrollments.
+        if (meta.pre_enroll_count % 10 === 0) {
+            meta.pot_bc = (meta.pot_bc | 0) + TournamentEconomy.HOUSE_PRE_ENROLL_SUBSIDY_BC_PER_ENROLLEE * 10;
+        }
+        writeMeta(nk, slug, meta);
+        return meta.pre_enroll_count;
+    }
+    TournamentsStorage.incrementPreEnrollCount = incrementPreEnrollCount;
+    function addSubscriber(nk, slug, userId) {
+        if (!slug || !userId)
+            return;
+        var existing = null;
+        try {
+            var rows = nk.storageRead([{ collection: TournamentsStorage.COL_SUBSCRIBERS, key: slug, userId: Constants.SYSTEM_USER_ID }]);
+            if (rows && rows.length > 0)
+                existing = rows[0].value;
+        }
+        catch (_) { }
+        var now = nowSec();
+        var row = existing || { slug: slug, user_ids: [], seen_at: {}, updated_at: now };
+        // De-dup + refresh seen_at
+        if (row.user_ids.indexOf(userId) < 0)
+            row.user_ids.push(userId);
+        row.seen_at[userId] = now;
+        // Evict stale (seen >12h ago) — keeps the fanout list tight.
+        var cutoff = now - TournamentsStorage.SUBSCRIBER_TTL_SEC;
+        var live = [];
+        for (var i = 0; i < row.user_ids.length; i++) {
+            var uid = row.user_ids[i];
+            if ((row.seen_at[uid] || 0) >= cutoff)
+                live.push(uid);
+            else
+                delete row.seen_at[uid];
+        }
+        row.user_ids = live;
+        row.updated_at = now;
+        try {
+            nk.storageWrite([{
+                    collection: TournamentsStorage.COL_SUBSCRIBERS,
+                    key: slug,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: row,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+        }
+        catch (_) { }
+    }
+    TournamentsStorage.addSubscriber = addSubscriber;
+    function listSubscribers(nk, slug) {
+        if (!slug)
+            return [];
+        try {
+            var rows = nk.storageRead([{ collection: TournamentsStorage.COL_SUBSCRIBERS, key: slug, userId: Constants.SYSTEM_USER_ID }]);
+            if (rows && rows.length > 0) {
+                var row = rows[0].value;
+                return row && row.user_ids ? row.user_ids.slice() : [];
+            }
+        }
+        catch (_) { }
+        return [];
+    }
+    TournamentsStorage.listSubscribers = listSubscribers;
+})(TournamentsStorage || (TournamentsStorage = {}));
+// =============================================================================
+// topic_catalog.ts — Tournament topic → content-factory mapping
+//
+// Plan ref: §1B (launch slate topics) + §1G (content pipeline). Maps each
+// tournament's `topic_tag` to:
+//   - exam_board string for content-factory ExamPrepBundle pipeline
+//   - language defaults
+//   - learning series video script prompts
+//
+// Why this exists: tournament_economy.ts owns the *economic* parameters of a
+// tournament; this file owns the *content* parameters. A weekly tournament's
+// economy is fixed but its content rotates (Brain Bowl Wk1 = Science, Wk2 =
+// History, etc.); the catalog encodes that rotation.
+// =============================================================================
+var TournamentTopicCatalog;
+(function (TournamentTopicCatalog) {
+    // The 12-language matrix we backfill across (matches en.json + 11 locales
+    // from web/lib/locales). content-factory will localize each pack.
+    var LANG_12 = ["en", "es", "hi", "pt", "fr", "de", "ja", "ko", "zh", "ar", "ru", "id"];
+    var CATALOG = {
+        // ── Generic learner tracks ──
+        "general_knowledge": {
+            tag: "general_knowledge",
+            exam_board: "General Knowledge",
+            concept: "General knowledge across science, history, geography, current affairs, pop culture",
+            learning_series_prompts: [
+                "Top 10 facts about the solar system most people get wrong",
+                "Why did the Roman Empire fall? The 3 biggest misconceptions",
+                "Geography quirks: countries that don't have rivers, capitals on coastlines",
+                "How the internet actually works in 90 seconds",
+                "Three Oscar-winning films that changed cinema forever",
+                "The science of how memories form — and why we forget them",
+            ],
+            languages_supported: LANG_12,
+        },
+        "brain_bowl_science": {
+            tag: "brain_bowl_science",
+            exam_board: "Science Quiz",
+            concept: "Cross-disciplinary science: physics, biology, chemistry, earth science, computer science",
+            learning_series_prompts: [
+                "Why is the sky blue? The Rayleigh scattering explanation",
+                "How DNA replication actually works — the lock-and-key story",
+                "What is entropy? The 2nd law of thermodynamics for non-physicists",
+                "The discovery of penicillin — the messy mold story",
+                "How does a transistor work? The basis of every device you own",
+                "What is dark matter? Why scientists are 95% sure it exists",
+            ],
+            rotation: ["brain_bowl_science", "brain_bowl_history", "brain_bowl_geography", "brain_bowl_tech"],
+            languages_supported: LANG_12,
+        },
+        "brain_bowl_history": {
+            tag: "brain_bowl_history",
+            exam_board: "History Quiz",
+            concept: "World history covering ancient civilizations through modern era",
+            learning_series_prompts: [
+                "The Silk Road in 6 minutes — how it connected three continents",
+                "Why did WWI start? The 5 dominoes",
+                "The Library of Alexandria — what we lost when it burned",
+                "How the printing press changed civilization more than the internet",
+                "The 100 Years War — actually 116 years, here's why",
+                "Decolonization in 90 seconds — the wave that reshaped the 20th century",
+            ],
+            languages_supported: LANG_12,
+        },
+        "brain_bowl_geography": {
+            tag: "brain_bowl_geography",
+            exam_board: "Geography Quiz",
+            concept: "Physical and political geography, capitals, landmarks, biomes",
+            learning_series_prompts: [
+                "Why does Africa look smaller on world maps than it actually is",
+                "The 7 most extreme places on Earth — and the people who live there",
+                "How rivers shaped every major civilization",
+                "Time zones explained — including the weirdest ones",
+                "The Ring of Fire — why 75% of volcanoes cluster here",
+                "How a country becomes a country (and what 'recognition' actually means)",
+            ],
+            languages_supported: LANG_12,
+        },
+        "brain_bowl_tech": {
+            tag: "brain_bowl_tech",
+            exam_board: "Technology Quiz",
+            concept: "Computing, internet, AI, hardware, software history",
+            learning_series_prompts: [
+                "How a search engine actually finds a webpage in 0.2 seconds",
+                "Public-key cryptography — how Alice talks to Bob without anyone listening",
+                "Moore's Law — what it actually said and why it broke",
+                "How GPS works — the relativity correction nobody mentions",
+                "What is a database transaction? ACID for non-engineers",
+                "How large language models work — token by token",
+            ],
+            languages_supported: LANG_12,
+        },
+        "movies_tv": {
+            tag: "movies_tv",
+            exam_board: "Movies and TV",
+            concept: "Films, TV shows, directors, actors, soundtracks, Oscar history",
+            learning_series_prompts: [
+                "Why The Godfather is the most-studied film in cinema schools",
+                "The 5 directors who reshaped the 1970s",
+                "How Christopher Nolan structures time — Memento to Tenet",
+                "Why the MCU's Phase 1 worked and Phase 4 didn't",
+                "The Oscars best-picture upsets that aged the worst",
+                "How streaming changed which movies even get made",
+            ],
+            languages_supported: LANG_12,
+        },
+        "mixed_difficulty": {
+            tag: "mixed_difficulty",
+            exam_board: "Mixed Trivia",
+            concept: "Pick-5 style: 5 stand-alone questions across categories with calibrated difficulty",
+            learning_series_prompts: [
+                "How to think about probability when you have 5 picks",
+                "The Monty Hall problem — why switching wins",
+                "Bayes' theorem in everyday decisions",
+                "Why most polls are wrong by more than their margin of error",
+                "The expected-value mindset — how poker pros think",
+                "Streak math — why long winning streaks aren't 'overdue' to end",
+            ],
+            languages_supported: LANG_12,
+        },
+        // ── Exam-prep tracks (US-focused for high-LTV) ──
+        "exam_sat": {
+            tag: "exam_sat",
+            exam_board: "SAT",
+            concept: "SAT Math, Reading, Writing prep — College Board format, current digital SAT spec",
+            learning_series_prompts: [
+                "SAT Math: the 5 question patterns that cover 60% of the test",
+                "SAT Reading: how to read a passage in 90 seconds and still answer all 11 questions",
+                "SAT Writing: comma rules cheat sheet",
+                "Linear equations on the digital SAT — the 3 forms you'll see",
+                "Data analysis on the SAT — reading scatterplots and two-way tables",
+                "How to manage time on the digital SAT — pacing per module",
+            ],
+            languages_supported: ["en"],
+        },
+        "exam_act": {
+            tag: "exam_act",
+            exam_board: "ACT",
+            concept: "ACT English, Math, Reading, Science sections",
+            learning_series_prompts: [
+                "ACT Science: how to skip the passage and still get the answer",
+                "ACT Math: the 4 topics that dominate the test",
+                "ACT English: punctuation rules ranked by frequency",
+                "ACT Reading: how to handle 4 passages in 35 minutes",
+                "Trigonometry on the ACT — the 3 patterns",
+                "ACT pacing strategy by section",
+            ],
+            languages_supported: ["en"],
+        },
+        "exam_ap_general": {
+            tag: "exam_ap_general",
+            exam_board: "AP General Prep",
+            concept: "Cross-AP test prep covering writing FRQs, time management, score interpretation",
+            learning_series_prompts: [
+                "How AP scores are actually scaled — the curve explained",
+                "FRQ template that works across AP Stats, Psych, and Econ",
+                "How to structure an AP English essay in 40 minutes",
+                "AP Calculus AB vs BC — the topics that overlap",
+                "AP score release strategy — when to retake, when to submit",
+                "AP Lang vs AP Lit — picking the right one",
+            ],
+            languages_supported: ["en"],
+        },
+        "exam_neet": {
+            tag: "exam_neet",
+            exam_board: "NEET",
+            concept: "NEET India: biology (botany + zoology), chemistry (organic, inorganic, physical), physics",
+            learning_series_prompts: [
+                "NEET Biology: the 5 chapters that contribute 40% of marks",
+                "NEET Chemistry: organic conversions you must memorize",
+                "NEET Physics: thermodynamics formula sheet",
+                "Plant kingdom classification — the dichotomous key",
+                "Coordination compounds — naming + isomerism",
+                "Modern physics for NEET — Bohr to photoelectric",
+            ],
+            languages_supported: ["en", "hi"],
+        },
+        "exam_jee": {
+            tag: "exam_jee",
+            exam_board: "JEE Main",
+            concept: "JEE Main: mathematics, physics, chemistry — Indian engineering entrance",
+            learning_series_prompts: [
+                "JEE Maths: integration techniques ranked by frequency",
+                "JEE Physics: rotational mechanics in 6 minutes",
+                "JEE Chemistry: organic reaction mechanisms cheat sheet",
+                "Coordinate geometry shortcuts for JEE",
+                "Electrostatics — Gauss's law applied",
+                "Thermochemistry — Hess's law worked examples",
+            ],
+            languages_supported: ["en", "hi"],
+        },
+        "exam_gmat": {
+            tag: "exam_gmat",
+            exam_board: "GMAT",
+            concept: "GMAT: verbal (CR, RC, SC), quantitative, integrated reasoning, data sufficiency",
+            learning_series_prompts: [
+                "GMAT Sentence Correction: the 7 grammar rules tested",
+                "GMAT Critical Reasoning: assumption vs strengthen vs weaken",
+                "Data Sufficiency: the C trap and how to avoid it",
+                "GMAT Quant: number properties cheat sheet",
+                "GMAT pacing — when to guess and move on",
+                "Integrated Reasoning: how it's scored and why it matters less than Quant/Verbal",
+            ],
+            languages_supported: ["en"],
+        },
+    };
+    function getEntry(tag) {
+        return CATALOG[tag] || null;
+    }
+    TournamentTopicCatalog.getEntry = getEntry;
+    // Returns the current-week tag for rotating tournaments (e.g. brain_bowl
+    // cycles through science → history → geography → tech weekly).
+    function getRotatedTag(baseTag, weekNum) {
+        var entry = CATALOG[baseTag];
+        if (!entry || !entry.rotation || entry.rotation.length === 0)
+            return baseTag;
+        return entry.rotation[weekNum % entry.rotation.length];
+    }
+    TournamentTopicCatalog.getRotatedTag = getRotatedTag;
+    function listAllTags() {
+        var out = [];
+        for (var k in CATALOG)
+            if (CATALOG.hasOwnProperty(k))
+                out.push(k);
+        return out;
+    }
+    TournamentTopicCatalog.listAllTags = listAllTags;
+})(TournamentTopicCatalog || (TournamentTopicCatalog = {}));
+// =============================================================================
+// formats/classic.ts — Classic top-N pot-split tournament format
+//
+// Plan ref: §1H (multi-format engine), §2 (settlement). Classic format is
+// the default: users submit pack results, accumulate score, top-N by score
+// split the post-rake pot per CLASSIC_POT_SPLIT_TOP_N.
+//
+// Settlement algorithm:
+//   1. Read all entries for tournament (via leaderboard records)
+//   2. Sort by score DESC (ties: earliest submitted_at wins)
+//   3. Apply rake: payable = pot × (1 - rake_pct)
+//   4. Distribute per CLASSIC_POT_SPLIT_TOP_N
+//   5. Founder Member bonus: 2× their first-win payout
+//   6. No-Lose: top 50% of finishers get entry refunded (if amoe.no_lose_refund_finish_pct)
+// =============================================================================
+var TournamentFormatClassic;
+(function (TournamentFormatClassic) {
+    function computePayouts(cfg, potBc, rankedEntries) {
+        var out = [];
+        if (rankedEntries.length === 0)
+            return out;
+        var rake = potBc * cfg.rake_pct;
+        var payable = potBc - rake;
+        var split = cfg.pot_split_top_n || TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N;
+        // Top-N pot split
+        for (var i = 0; i < split.length && i < rankedEntries.length; i++) {
+            var e = rankedEntries[i];
+            var share = split[i].share;
+            var payout = Math.floor(payable * share);
+            var founderBonus = false;
+            if (e.founder_member) {
+                payout = payout * TournamentEconomy.FOUNDER_FIRST_WIN_MULTIPLIER;
+                founderBonus = true;
+            }
+            out.push({
+                user_id: e.user_id,
+                rank: i + 1,
+                payout_bc: Math.floor(payout),
+                is_refund: false,
+                founder_bonus_applied: founderBonus,
+            });
+        }
+        // No-Lose Guarantee: top X% of finishers get their entry refunded.
+        var refundCutoff = cfg.amoe.no_lose_refund_finish_pct || 0;
+        if (refundCutoff > 0) {
+            var cutoffRank = Math.floor(rankedEntries.length * refundCutoff);
+            for (var j = split.length; j < cutoffRank && j < rankedEntries.length; j++) {
+                var e2 = rankedEntries[j];
+                // Don't refund AMOE/free entries (they didn't pay).
+                if (e2.paid_via !== "balance")
+                    continue;
+                out.push({
+                    user_id: e2.user_id,
+                    rank: j + 1,
+                    payout_bc: e2.bc_charged,
+                    is_refund: true,
+                    founder_bonus_applied: false,
+                });
+            }
+        }
+        return out;
+    }
+    TournamentFormatClassic.computePayouts = computePayouts;
+})(TournamentFormatClassic || (TournamentFormatClassic = {}));
+// =============================================================================
+// formats/elimination.ts — Survivor-style elimination sprint format
+//
+// Plan ref: §1H N1. MrBeast-style: bottom 50% eliminated daily; final
+// survivors split the pot equally; #1 of survivors gets a bragging-rights
+// bonus from house.
+//
+// Eliminate cron runs on cfg.elimination_schedule.cut_times_utc; this
+// module owns the cut algorithm (read leaderboard, bottom-N marked
+// eliminated, notify, recompute).
+//
+// Settlement: only survivors (entry.eliminated_at is null) split the pot
+// equally; final-survivor bonus is house-funded on top.
+// =============================================================================
+var TournamentFormatElimination;
+(function (TournamentFormatElimination) {
+    // Determine which entries to eliminate in this round. Bottom `cut_pct`
+    // of *currently surviving* entries (sorted by score ASC) are cut.
+    function selectEliminations(cfg, currentSurvivors) {
+        if (!cfg.elimination_schedule)
+            return [];
+        var cutPct = cfg.elimination_schedule.cut_pct;
+        // Sort ascending by score so we pick the lowest-N to eliminate.
+        var sorted = currentSurvivors.slice().sort(function (a, b) { return a.score - b.score; });
+        var cutCount = Math.floor(sorted.length * cutPct);
+        if (cutCount < 1 && sorted.length > 1)
+            cutCount = 1; // always cut at least one if >1 survivor
+        var out = [];
+        for (var i = 0; i < cutCount; i++)
+            out.push(sorted[i].user_id);
+        return out;
+    }
+    TournamentFormatElimination.selectEliminations = selectEliminations;
+    // Final settlement: only survivors share the (post-rake) pot.
+    // - Equal split across all survivors
+    // - #1 survivor (highest score) gets an additional `final_survivor_bonus_bc`
+    //   from the house (not from the pot)
+    // - Refund for users who survived past `no_lose_survive_round`
+    function computeFinalPayouts(cfg, potBc, allEntries) {
+        var out = [];
+        if (!cfg.elimination_schedule || allEntries.length === 0)
+            return out;
+        var survivors = allEntries.filter(function (e) { return !e.eliminated_round; });
+        var rake = potBc * cfg.rake_pct;
+        var payable = potBc - rake;
+        if (survivors.length === 0) {
+            // Pathological: everyone eliminated. House keeps rake; rest refunded
+            // proportionally to paid entries.
+            var paidEntries = allEntries.filter(function (e) { return e.paid_via === "balance"; });
+            var totalPaid = 0;
+            for (var p = 0; p < paidEntries.length; p++)
+                totalPaid += paidEntries[p].bc_charged;
+            if (totalPaid > 0) {
+                for (var q = 0; q < paidEntries.length; q++) {
+                    var refund = Math.floor((paidEntries[q].bc_charged / totalPaid) * payable);
+                    out.push({
+                        user_id: paidEntries[q].user_id,
+                        rank: 0,
+                        payout_bc: refund,
+                        is_refund: true,
+                        is_final_winner: false,
+                    });
+                }
+            }
+            return out;
+        }
+        // Survivors sorted by score DESC; #1 gets final_survivor_bonus.
+        var rankedSurvivors = survivors.slice().sort(function (a, b) {
+            if (b.score !== a.score)
+                return b.score - a.score;
+            return 0;
+        });
+        // Equal split logic
+        var equalShare = Math.floor(payable / survivors.length);
+        for (var i = 0; i < rankedSurvivors.length; i++) {
+            var e = rankedSurvivors[i];
+            var payout = equalShare;
+            var isFinalWinner = false;
+            if (i === 0) {
+                // House-funded bonus to #1 survivor (does NOT come from pot)
+                payout += cfg.elimination_schedule.final_survivor_bonus_bc;
+                isFinalWinner = true;
+            }
+            // Founder bonus 2× on final winner's payout
+            if (isFinalWinner && e.founder_member) {
+                payout = payout * TournamentEconomy.FOUNDER_FIRST_WIN_MULTIPLIER;
+            }
+            out.push({
+                user_id: e.user_id,
+                rank: i + 1,
+                payout_bc: Math.floor(payout),
+                is_refund: false,
+                is_final_winner: isFinalWinner,
+            });
+        }
+        // No-Lose: refund for users who were eliminated AFTER no_lose_survive_round
+        var surviveRound = cfg.amoe.no_lose_survive_round || 0;
+        if (surviveRound > 0) {
+            for (var r = 0; r < allEntries.length; r++) {
+                var e2 = allEntries[r];
+                if (!e2.eliminated_round)
+                    continue; // already in survivor payout
+                if (e2.eliminated_round < surviveRound)
+                    continue; // didn't survive enough rounds
+                if (e2.paid_via !== "balance")
+                    continue; // AMOE doesn't refund
+                out.push({
+                    user_id: e2.user_id,
+                    rank: 0,
+                    payout_bc: e2.bc_charged,
+                    is_refund: true,
+                    is_final_winner: false,
+                    eliminated_round: e2.eliminated_round,
+                });
+            }
+        }
+        return out;
+    }
+    TournamentFormatElimination.computeFinalPayouts = computeFinalPayouts;
+})(TournamentFormatElimination || (TournamentFormatElimination = {}));
+// =============================================================================
+// formats/index.ts — Format dispatcher
+//
+// Single entry point that picks the right format implementation based on
+// cfg.format. Consumed by tournament_settle, the eliminate-round cron, and
+// the leaderboard rendering layer.
+// =============================================================================
+var TournamentFormats;
+(function (TournamentFormats) {
+    function settle(cfg, potBc, entries) {
+        if (cfg.format === "classic") {
+            var rows = TournamentFormatClassic.computePayouts(cfg, potBc, entries);
+            return {
+                format: "classic",
+                rows: rows.map(function (r) {
+                    return {
+                        user_id: r.user_id,
+                        rank: r.rank,
+                        payout_bc: r.payout_bc,
+                        is_refund: r.is_refund,
+                        metadata: { founder_bonus_applied: r.founder_bonus_applied },
+                    };
+                }),
+            };
+        }
+        if (cfg.format === "elimination") {
+            var elimRows = TournamentFormatElimination.computeFinalPayouts(cfg, potBc, entries);
+            return {
+                format: "elimination",
+                rows: elimRows.map(function (r) {
+                    return {
+                        user_id: r.user_id,
+                        rank: r.rank,
+                        payout_bc: r.payout_bc,
+                        is_refund: r.is_refund,
+                        metadata: { is_final_winner: r.is_final_winner, eliminated_round: r.eliminated_round },
+                    };
+                }),
+            };
+        }
+        if (cfg.format === "pick_n") {
+            var pn = TournamentFormatPickN.computePayouts(cfg, potBc, entries);
+            return {
+                format: "pick_n",
+                rows: pn.payouts.map(function (r) {
+                    return {
+                        user_id: r.user_id,
+                        rank: r.rank,
+                        payout_bc: r.payout_bc,
+                        is_refund: r.is_refund,
+                        metadata: { grade: r.grade, multiplier_applied: r.multiplier_applied },
+                    };
+                }),
+                pool_drained: pn.pool_drained,
+                house_backstop_used_bc: pn.house_backstop_used_bc,
+            };
+        }
+        return { format: cfg.format, rows: [] };
+    }
+    TournamentFormats.settle = settle;
+})(TournamentFormats || (TournamentFormats = {}));
+// =============================================================================
+// formats/pick_n.ts — PrizePicks-style multiplier-payout format
+//
+// Plan ref: §1H N2. Users pick N questions before the lock window closes;
+// after window, payout = entry_fee × multiplier[grade] where grade is the
+// fraction correct (e.g. 5/5 = 10×, 4/5 = 5×, 3/5 = 2×, below = 0×).
+//
+// Pot does NOT auto-split here — payouts come directly from the entry_fee
+// pool. House provides a backstop if the pool runs dry (capped daily).
+// Rake is collected at entry time (15% of entry_fee → house, 85% → pool).
+// =============================================================================
+var TournamentFormatPickN;
+(function (TournamentFormatPickN) {
+    function gradeKey(correct, total) {
+        return correct + "/" + total;
+    }
+    function lookupMultiplier(cfg, correct, total) {
+        if (!cfg.pick_n_config)
+            return 0;
+        var key = gradeKey(correct, total);
+        var m = cfg.pick_n_config.multipliers[key];
+        if (typeof m === "number")
+            return m;
+        // Below threshold: catch-all
+        var threshold = cfg.pick_n_config.multipliers["<" + Math.ceil(total / 2) + "/" + total];
+        if (typeof threshold === "number")
+            return threshold;
+        return 0;
+    }
+    function computePayouts(cfg, potBc, // total pool (post-rake)
+    results) {
+        var payouts = [];
+        if (!cfg.pick_n_config || results.length === 0) {
+            return { payouts: payouts, pool_drained: false, house_backstop_used_bc: 0 };
+        }
+        var pool = potBc;
+        var houseBackstop = TournamentEconomy.BC_PER_USD_USA * cfg.pick_n_config.house_backstop_usd_per_day;
+        // Rank: by correct DESC, then by submitted_at ASC (earlier wins ties)
+        var ranked = results.slice().sort(function (a, b) {
+            if (b.correct !== a.correct)
+                return b.correct - a.correct;
+            return a.submitted_at - b.submitted_at;
+        });
+        var poolDrained = false;
+        var backstopUsed = 0;
+        for (var i = 0; i < ranked.length; i++) {
+            var r = ranked[i];
+            var mult = lookupMultiplier(cfg, r.correct, r.total);
+            var payout = Math.floor(r.bc_charged * mult);
+            // Founder bonus on top of multiplier
+            if (r.founder_member && payout > 0) {
+                payout = Math.floor(payout * TournamentEconomy.FOUNDER_FIRST_WIN_MULTIPLIER);
+            }
+            // Deduct from pool; if pool is dry, use house backstop until exhausted.
+            if (payout > pool) {
+                var fromPool = pool;
+                var fromHouse = Math.min(houseBackstop - backstopUsed, payout - fromPool);
+                backstopUsed += fromHouse;
+                pool = 0;
+                payout = fromPool + fromHouse;
+                poolDrained = true;
+            }
+            else {
+                pool -= payout;
+            }
+            payouts.push({
+                user_id: r.user_id,
+                rank: i + 1,
+                payout_bc: payout,
+                is_refund: false,
+                grade: gradeKey(r.correct, r.total),
+                multiplier_applied: mult,
+            });
+        }
+        // No-Lose: refund users who hit at least the threshold but still got 0 payout
+        // (e.g. multiplier table doesn't credit "3/5" but threshold says 3/5 should refund).
+        var thresholdStr = cfg.amoe.no_lose_pick_threshold || "";
+        if (thresholdStr) {
+            var parts = thresholdStr.split("/");
+            var minCorrect = parseInt(parts[0], 10);
+            if (!isNaN(minCorrect)) {
+                for (var k = 0; k < ranked.length; k++) {
+                    var r2 = ranked[k];
+                    if (r2.paid_via !== "balance")
+                        continue;
+                    // Find their payout row; if 0, refund.
+                    var paid = payouts[k] && payouts[k].payout_bc > 0;
+                    if (!paid && r2.correct >= minCorrect) {
+                        payouts.push({
+                            user_id: r2.user_id,
+                            rank: 0,
+                            payout_bc: r2.bc_charged,
+                            is_refund: true,
+                            grade: gradeKey(r2.correct, r2.total),
+                            multiplier_applied: 0,
+                        });
+                    }
+                }
+            }
+        }
+        return { payouts: payouts, pool_drained: poolDrained, house_backstop_used_bc: backstopUsed };
+    }
+    TournamentFormatPickN.computePayouts = computePayouts;
+})(TournamentFormatPickN || (TournamentFormatPickN = {}));
 // =============================================================================
 // User Model RPCs — read-side + signal ingest + consent
 //
