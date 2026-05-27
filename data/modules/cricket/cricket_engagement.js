@@ -11,10 +11,10 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     ENGAGEMENT: "cricket_engagement",
     DAILY_STREAKS: "cricket_daily_streaks",
     SESSION_DATA: "cricket_sessions",
@@ -23,7 +23,7 @@ const COLLECTIONS = {
 };
 
 // Engagement point values
-const ENGAGEMENT_POINTS = {
+var ENGAGEMENT_POINTS = {
     VIEW_MATCH: 5,
     VIEW_LINEUP: 10,
     WATCH_HIGHLIGHT: 15,
@@ -40,7 +40,7 @@ const ENGAGEMENT_POINTS = {
 };
 
 // Engagement thresholds for rewards
-const ENGAGEMENT_TIERS = {
+var ENGAGEMENT_TIERS = {
     BRONZE: 25,
     SILVER: 50,
     GOLD: 100,
@@ -48,7 +48,7 @@ const ENGAGEMENT_TIERS = {
 };
 
 // Rewards for engagement tiers
-const TIER_REWARDS = {
+var TIER_REWARDS = {
     BRONZE: { coins: 50, xp: 25 },
     SILVER: { coins: 100, xp: 50, item: "bronze_cap" },
     GOLD: { coins: 200, xp: 100, item: "silver_cap" },

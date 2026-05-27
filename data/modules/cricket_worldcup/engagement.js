@@ -9,10 +9,10 @@
  * - Super sticky engagement loops
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Leaderboard IDs
-const LEADERBOARDS = {
+var LEADERBOARDS = {
     daily: "cricket_daily",
     weekly: "cricket_weekly",
     allTime: "cricket_all_time",
@@ -22,7 +22,7 @@ const LEADERBOARDS = {
 };
 
 // Cricket-specific mission templates
-const CRICKET_MISSIONS = [
+var CRICKET_MISSIONS = [
     {
         id: "daily_login",
         name: "Daily Login",
@@ -90,7 +90,7 @@ const CRICKET_MISSIONS = [
 ];
 
 // Weekly special missions
-const WEEKLY_MISSIONS = [
+var WEEKLY_MISSIONS = [
     {
         id: "weekly_trivia_master",
         name: "Trivia Master",

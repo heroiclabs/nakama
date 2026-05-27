@@ -14,11 +14,11 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // AI API Configuration (would be environment variables in production)
-const AI_API_BASE = "https://api.intelliversex.com";
-const AI_API_ENDPOINTS = {
+var AI_API_BASE = "https://api.intelliversex.com";
+var AI_API_ENDPOINTS = {
     GENERATE_QUIZ: "/ai-prompts/cricket/quiz",
     GENERATE_TRIVIA: "/ai-prompts/cricket/trivia",
     ENHANCE_QUESTION: "/ai-enhancement/improve",
@@ -26,7 +26,7 @@ const AI_API_ENDPOINTS = {
 };
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     TRIVIA_SESSIONS: "cricket_trivia_sessions",
     TRIVIA_QUESTIONS: "cricket_trivia_questions",
     TRIVIA_HISTORY: "cricket_trivia_history",
@@ -34,13 +34,13 @@ const COLLECTIONS = {
 };
 
 // Leaderboard
-const LEADERBOARDS = {
+var LEADERBOARDS = {
     DAILY_TRIVIA: "cricket_daily_trivia",
     ALL_TIME: "cricket_all_time_master"
 };
 
 // Scoring configuration
-const SCORING = {
+var SCORING = {
     CORRECT_ANSWER: 100,
     SPEED_BONUS_MAX: 50,
     STREAK_MULTIPLIER: 0.1,
@@ -53,7 +53,7 @@ const SCORING = {
 };
 
 // Question categories for cricket
-const QUESTION_CATEGORIES = {
+var QUESTION_CATEGORIES = {
     GENERAL: "general_cricket",
     WORLD_CUP: "world_cup",
     IPL: "ipl",

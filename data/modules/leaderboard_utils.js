@@ -12,7 +12,7 @@
  */
 
 // UserManagement API Configuration
-const USER_MANAGEMENT_API_URL = "https://api.intelli-verse-x.ai/api/user";
+var USER_MANAGEMENT_API_URL = "https://api.intelli-verse-x.ai/api/user";
 
 /**
  * Enrich a single leaderboard record with profile picture

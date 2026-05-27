@@ -10,10 +10,10 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Leaderboard IDs
-const LEADERBOARDS = {
+var LEADERBOARDS = {
     DAILY_TRIVIA: "cricket_daily_trivia",
     WEEKLY_TOURNAMENT: "cricket_weekly_tournament",
     WORLDCUP_2026: "cricket_worldcup_2026",
@@ -23,7 +23,7 @@ const LEADERBOARDS = {
 };
 
 // Collection names
-const COLLECTIONS = {
+var COLLECTIONS = {
     PREDICTIONS: "cricket_predictions",
     MATCH_RESULTS: "cricket_match_results",
     USER_STATS: "cricket_user_stats",
@@ -32,7 +32,7 @@ const COLLECTIONS = {
 };
 
 // Points configuration
-const POINTS = {
+var POINTS = {
     CORRECT_WINNER: 100,
     CORRECT_SCORE_EXACT: 500,
     CORRECT_SCORE_CLOSE: 200, // Within 10 runs

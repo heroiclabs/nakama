@@ -21,10 +21,10 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     WALLETS: "cricket_wallets",
     TRANSACTIONS: "cricket_transactions",
     IAP_HISTORY: "cricket_iap_history",
@@ -33,7 +33,7 @@ const COLLECTIONS = {
 };
 
 // Coin costs (server-authoritative)
-const COSTS = {
+var COSTS = {
     // Tournament
     tournament_entry: 50,
     tournament_premium_entry: 200,
@@ -78,7 +78,7 @@ const COSTS = {
 };
 
 // IAP Packages (must match client)
-const IAP_PACKAGES = {
+var IAP_PACKAGES = {
     coins_starter: { coins: 100, bonus: 0 },
     coins_basic: { coins: 500, bonus: 50 },
     coins_popular: { coins: 1200, bonus: 200 },
@@ -88,7 +88,7 @@ const IAP_PACKAGES = {
 };
 
 // Coin earning limits (anti-cheat)
-const DAILY_LIMITS = {
+var DAILY_LIMITS = {
     ad_rewards: 50, // Max coins from ads per day
     daily_login_max: 50,
     referral_max: 500 // Per day

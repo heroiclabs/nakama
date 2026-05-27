@@ -10,17 +10,17 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     DAILY_CHALLENGES: "cricket_daily_challenges",
     CHALLENGE_PROGRESS: "cricket_challenge_progress",
     CHALLENGE_HISTORY: "cricket_challenge_history"
 };
 
 // Challenge types
-const CHALLENGE_TYPES = {
+var CHALLENGE_TYPES = {
     TRIVIA_SCORE: "trivia_score",
     TRIVIA_ACCURACY: "trivia_accuracy",
     PREDICTIONS_MADE: "predictions_made",
@@ -32,7 +32,7 @@ const CHALLENGE_TYPES = {
 };
 
 // Challenge templates
-const CHALLENGE_TEMPLATES = [
+var CHALLENGE_TEMPLATES = [
     {
         type: CHALLENGE_TYPES.TRIVIA_SCORE,
         title: "Trivia Master",

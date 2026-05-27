@@ -11,10 +11,10 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     SCHEDULES: "cricket_schedules",
     LIVE_MATCHES: "cricket_live_matches",
     FLASH_DROPS: "cricket_flash_drops",
@@ -23,7 +23,7 @@ const COLLECTIONS = {
 };
 
 // Flash drop configuration
-const FLASH_DROPS = {
+var FLASH_DROPS = {
     OVER_6: {
         id: "powerplay_end",
         name: "Powerplay Bonus",

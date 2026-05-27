@@ -29,7 +29,7 @@
 //   - cricket_weekly_trivia
 
 // Reset schedules (cron format)
-const RESET_SCHEDULES = {
+var RESET_SCHEDULES = {
     daily: "0 0 * * *",      // Every day at midnight UTC
     weekly: "0 0 * * 1",      // Every Monday at midnight UTC
     monthly: "0 0 1 * *",     // First of every month at midnight UTC
@@ -37,7 +37,7 @@ const RESET_SCHEDULES = {
 };
 
 // Sort orders
-const LEADERBOARD_CONFIG = {
+var LEADERBOARD_CONFIG = {
     descending: "desc",
     ascending: "asc",
     best: "best",     // Keep best score

@@ -17,10 +17,10 @@
  */
 
 // UserManagement API Configuration
-const USER_MANAGEMENT_API_URL = "https://api.intelli-verse-x.ai/api/user";
+var USER_MANAGEMENT_API_URL = "https://api.intelli-verse-x.ai/api/user";
 
 // Collection for storing profile sync metadata
-const PROFILE_SYNC_COLLECTION = "profile_sync";
+var PROFILE_SYNC_COLLECTION = "profile_sync";
 
 /**
  * RPC: Sync profile from UserManagement API to Nakama

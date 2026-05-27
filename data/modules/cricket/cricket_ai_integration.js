@@ -16,10 +16,10 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // AI API Configuration
-const AI_CONFIG = {
+var AI_CONFIG = {
     baseUrl: "https://api.intelliversex.com",
     endpoints: {
         createNote: "/ai-notes/notes/create-from-url",
@@ -33,7 +33,7 @@ const AI_CONFIG = {
 };
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     AI_NOTES: "cricket_ai_notes",
     AI_QUIZZES: "cricket_ai_quizzes",
     AI_REQUESTS: "cricket_ai_requests",
@@ -41,7 +41,7 @@ const COLLECTIONS = {
 };
 
 // Supported link types for cricket content
-const LINK_TYPES = {
+var LINK_TYPES = {
     YOUTUBE: "youtube",
     IPL_OFFICIAL: "ipl_official",
     ICC_OFFICIAL: "icc_official",
@@ -53,7 +53,7 @@ const LINK_TYPES = {
 };
 
 // Cricket-specific prompt templates
-const PROMPT_TEMPLATES = {
+var PROMPT_TEMPLATES = {
     MATCH_TRIVIA: `Generate {count} trivia questions about the cricket match between {team1} and {team2}.
 Focus on:
 - Player statistics and records

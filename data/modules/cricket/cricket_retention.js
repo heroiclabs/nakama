@@ -19,10 +19,10 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     RETENTION_DATA: "cricket_retention_data",
     STREAK_HISTORY: "cricket_streak_history",
     TRIGGER_HISTORY: "cricket_trigger_history",
@@ -31,7 +31,7 @@ const COLLECTIONS = {
 };
 
 // Trigger types
-const TRIGGER_TYPES = {
+var TRIGGER_TYPES = {
     STREAK_START: "streak_start",
     LEADERBOARD_DECAY: "leaderboard_decay",
     SQUAD_PRESSURE: "squad_pressure",
@@ -46,7 +46,7 @@ const TRIGGER_TYPES = {
 };
 
 // Streak milestone configurations
-const STREAK_MILESTONES = {
+var STREAK_MILESTONES = {
     1: {
         type: TRIGGER_TYPES.STREAK_START,
         title: "🔥 You're On Fire!",
@@ -86,7 +86,7 @@ const STREAK_MILESTONES = {
 };
 
 // Tier configuration
-const TIERS = {
+var TIERS = {
     BRONZE: { name: "Bronze", xpRequired: 0, multiplier: 1.0 },
     SILVER: { name: "Silver", xpRequired: 1000, multiplier: 1.1 },
     GOLD: { name: "Gold", xpRequired: 2500, multiplier: 1.2 },

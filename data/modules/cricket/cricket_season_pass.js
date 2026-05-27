@@ -10,17 +10,17 @@
  * Game ID: 78244246-1e9e-4e0f-a8a2-7447d5b0284e
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     SEASON_PASS: "cricket_season_pass",
     XP_HISTORY: "cricket_xp_history",
     CLAIMED_REWARDS: "cricket_claimed_rewards"
 };
 
 // Season configuration
-const SEASONS = {
+var SEASONS = {
     WORLDCUP_2026: {
         id: "worldcup_2026",
         name: "ICC T20 World Cup 2026",
@@ -42,7 +42,7 @@ const SEASONS = {
 };
 
 // XP sources
-const XP_SOURCES = {
+var XP_SOURCES = {
     DAILY_LOGIN: 50,
     TRIVIA_COMPLETION: 100,
     PREDICTION_MADE: 75,
@@ -56,7 +56,7 @@ const XP_SOURCES = {
 };
 
 // Tier rewards (every 5 levels)
-const TIER_REWARDS = {
+var TIER_REWARDS = {
     FREE: [
         { level: 1, reward: { type: "cap", id: "basic_cap", name: "Basic Cap" } },
         { level: 5, reward: { type: "coins", amount: 100 } },

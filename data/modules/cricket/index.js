@@ -71,10 +71,10 @@
  * - cricket_generate_debate
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Collection constants for reference
-const COLLECTIONS = {
+var COLLECTIONS = {
     // Predictions
     PREDICTIONS: "cricket_predictions",
     MATCH_RESULTS: "cricket_match_results",
@@ -117,7 +117,7 @@ const COLLECTIONS = {
 };
 
 // Leaderboard IDs
-const LEADERBOARDS = {
+var LEADERBOARDS = {
     DAILY_TRIVIA: "cricket_daily_trivia",
     WEEKLY_TOURNAMENT: "cricket_weekly_tournament",
     WORLDCUP_2026: "cricket_worldcup_2026",

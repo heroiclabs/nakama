@@ -4,13 +4,13 @@
  */
 
 // Collections
-const PREDICTIONS_COLLECTION = 'cricket_predictions';
-const RESULTS_COLLECTION = 'cricket_results';
-const LEADERBOARD_PREDICTION = 'cricket_prediction_leaderboard';
-const LEADERBOARD_DAILY = 'cricket_daily_prediction';
+var PREDICTIONS_COLLECTION = 'cricket_predictions';
+var RESULTS_COLLECTION = 'cricket_results';
+var LEADERBOARD_PREDICTION = 'cricket_prediction_leaderboard';
+var LEADERBOARD_DAILY = 'cricket_daily_prediction';
 
 // Point values
-const POINTS = {
+var POINTS = {
     CORRECT_WINNER: 100,
     EXACT_SCORE: 200,
     CLOSE_SCORE: 50,        // Within 10 runs

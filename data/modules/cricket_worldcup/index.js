@@ -14,13 +14,13 @@
 // CRICKET WORLD CUP 2026 MODULE
 // ============================================================================
 
-const CRICKET_WC_COLLECTION = "cricket_worldcup_2026";
-const CRICKET_PREDICTIONS_COLLECTION = "cricket_predictions";
-const CRICKET_LEADERBOARD_ID = "cricket_worldcup_2026_leaderboard";
-const CRICKET_TRIVIA_LEADERBOARD = "cricket_trivia_leaderboard";
+var CRICKET_WC_COLLECTION = "cricket_worldcup_2026";
+var CRICKET_PREDICTIONS_COLLECTION = "cricket_predictions";
+var CRICKET_LEADERBOARD_ID = "cricket_worldcup_2026_leaderboard";
+var CRICKET_TRIVIA_LEADERBOARD = "cricket_trivia_leaderboard";
 
 // Points Configuration
-const CRICKET_POINTS = {
+var CRICKET_POINTS = {
     // Prediction Points
     correctWinner: 100,
     exactScore: 200,

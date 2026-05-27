@@ -19,7 +19,7 @@
  */
 
 // AWS Signature Version 4 implementation for S3 pre-signed URLs
-const ALGORITHM = 'AWS4-HMAC-SHA256';
+var ALGORITHM = 'AWS4-HMAC-SHA256';
 
 /**
  * Get AWS configuration from environment

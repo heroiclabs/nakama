@@ -14,7 +14,7 @@
  * Follows QuizVerse pattern for consistency
  */
 
-const CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
+var CRICKET_GAME_ID = "78244246-1e9e-4e0f-a8a2-7447d5b0284e";
 
 // Match simulator functions (inlined for Nakama compatibility)
 function simulateBall(state, rng) {
@@ -143,7 +143,7 @@ function generateCommentary(outcome, state, rng) {
 }
 
 // Collections
-const COLLECTIONS = {
+var COLLECTIONS = {
     // User Data
     MANAGER_PROFILES: "cricket_manager_profiles",
     USER_SQUADS: "cricket_user_squads",
@@ -171,7 +171,7 @@ const COLLECTIONS = {
 };
 
 // Leaderboards
-const LEADERBOARDS = {
+var LEADERBOARDS = {
     MANAGER_RANKINGS: "cricket_manager_rankings",
     SEASON_POINTS: "cricket_season_points",
     BATSMAN_RUNS: "cricket_batsman_runs",
