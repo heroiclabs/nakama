@@ -73,31 +73,45 @@ export const handler = async (event) => {
     const effectiveFormat = detectedFormat;
     const wantSandbox = isSandbox === true || isSandbox === "true";
 
+    const tokenPrefix = deviceToken.substring(0, Math.min(30, deviceToken.length));
+    const tokenSuffix = deviceToken.length > 10 ? deviceToken.substring(deviceToken.length - 10) : "";
+    console.log(`[register-endpoint] ════ TOKEN ROUTING ════════════════════════════════`);
+    console.log(`[register-endpoint] userId=${userId} | platform=${platform} | platformType=${platformType}`);
+    console.log(`[register-endpoint] tokenLen=${deviceToken.length} | tokenPrefix=${tokenPrefix}...${tokenSuffix}`);
+    console.log(`[register-endpoint] detectedFormat=${detectedFormat} | declaredFormat=${declaredFormat} | wantSandbox=${wantSandbox}`);
+
     let platformApplicationArn;
     if (effectiveFormat === 'APNS') {
-        // Hex-shaped → native APNs. Sandbox vs prod by explicit flag.
         platformApplicationArn = wantSandbox
             ? SNS_PLATFORM_APPLICATION_ARN_IOS_SANDBOX
             : SNS_PLATFORM_APPLICATION_ARN_IOS;
+        console.log(`[register-endpoint] → ROUTING to APNS (native hex token) | sandbox=${wantSandbox} | arn=${platformApplicationArn}`);
     } else if (effectiveFormat === 'FCM') {
-        // Firebase token (Android, iOS-via-Firebase, Web). Route by hint
-        // platform — only Web has its own Platform App; everything else
-        // goes through the GCM Platform App (Firebase forwards iOS tokens
-        // to APNs internally, using the .p8 uploaded to Firebase Console).
         platformApplicationArn = platform === 'web' && SNS_PLATFORM_APPLICATION_ARN_WEB
             ? SNS_PLATFORM_APPLICATION_ARN_WEB
             : SNS_PLATFORM_APPLICATION_ARN_ANDROID;
+        console.log(`[register-endpoint] → ROUTING to GCM/FCM platform app (FCM-shaped token) | platform=${platform}`);
+        console.log(`[register-endpoint]   iOS-via-FCM: Firebase will bridge to APNs internally using .p8 uploaded in Firebase Console.`);
+        console.log(`[register-endpoint]   arn=${platformApplicationArn}`);
+        if (platform === 'ios') {
+            console.log(`[register-endpoint]   ⚠ iOS using FCM token: ensure APNs Auth Key (.p8) is uploaded in Firebase Console → Project Settings → Cloud Messaging → iOS App Config.`);
+        }
     } else if (platformType === 'WNS') {
         platformApplicationArn = SNS_PLATFORM_APPLICATION_ARN_WINDOWS;
+        console.log(`[register-endpoint] → ROUTING to WNS | arn=${platformApplicationArn}`);
     } else {
+        console.error(`[register-endpoint] FAIL — unsupported platform type: ${platformType} | declared=${declaredFormat} | detected=${detectedFormat}`);
         return response(400, { success: false, error: `Unsupported platform type: ${platformType}` });
     }
 
     if (declaredFormat !== effectiveFormat) {
-        console.warn(`Token routing override: SDK declared ${declaredFormat} but token shape is ${effectiveFormat}. Routing to ${platformApplicationArn}.`);
+        console.warn(`[register-endpoint] ⚠ TOKEN FORMAT OVERRIDE: SDK declared ${declaredFormat} but token shape is ${effectiveFormat}. ` +
+            `Routing to ${platformApplicationArn}. This is expected for iOS+Firebase (FCM token routed via GCM Platform App).`);
     }
 
     if (!platformApplicationArn) {
+        console.error(`[register-endpoint] FAIL — no Platform Application ARN configured for platformType=${platformType}. ` +
+            `Check Lambda env vars: SNS_PLATFORM_APP_ARN_IOS, SNS_PLATFORM_APP_ARN_ANDROID, etc.`);
         return response(500, {
             success: false,
             error: `Platform application ARN not configured for ${platformType}`
@@ -126,18 +140,20 @@ export const handler = async (event) => {
             Attributes: { Enabled: 'true' }
         };
 
+        console.log(`[register-endpoint] → calling SNS CreatePlatformEndpoint | platformAppArn=${platformApplicationArn} | tokenLen=${deviceToken.length}`);
         let endpointArn;
         try {
             const createResult = await sns.send(new CreatePlatformEndpointCommand(createEndpointParams));
             endpointArn = createResult.EndpointArn;
-            console.log(`Created new SNS endpoint: ${endpointArn}`);
+            console.log(`[register-endpoint] ✓ SNS endpoint CREATED | arn=${endpointArn}`);
         } catch (createError) {
+            console.warn(`[register-endpoint] SNS CreatePlatformEndpoint threw: ${createError.name}: ${createError.message}`);
             // Token already exists for a different endpoint → reuse it.
             if (createError.name === 'InvalidParameterException' && createError.message.includes('already exists')) {
                 const arnMatch = createError.message.match(/arn:aws:sns:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+/);
                 if (arnMatch) {
                     endpointArn = arnMatch[0];
-                    console.log(`Using existing SNS endpoint: ${endpointArn}`);
+                    console.log(`[register-endpoint] ✓ Recovered existing SNS endpoint | arn=${endpointArn} | re-enabling + refreshing token...`);
                     // Re-enable + refresh token in case it was disabled by APNS feedback.
                     await sns.send(new SetEndpointAttributesCommand({
                         EndpointArn: endpointArn,
@@ -147,10 +163,14 @@ export const handler = async (event) => {
                             CustomUserData: customUserData
                         }
                     }));
+                    console.log(`[register-endpoint] ✓ Endpoint re-enabled and token refreshed | arn=${endpointArn}`);
                 } else {
+                    console.error(`[register-endpoint] FAIL — InvalidParameterException but could not extract ARN from message: ${createError.message}`);
                     throw createError;
                 }
             } else {
+                console.error(`[register-endpoint] FAIL — SNS error: ${createError.name}: ${createError.message}` +
+                    ` | Possible causes: (1) Platform App ARN is wrong/deleted (2) APNs .p8 key expired (3) FCM server key revoked`);
                 throw createError;
             }
         }

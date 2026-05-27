@@ -84,11 +84,20 @@ export const handler = async (event) => {
     // so the upstream registration bug stays visible until fixed.
     const arnPlatform = platformFromArn(endpointArn);
     const platform = arnPlatform || String(requestedPlatform || "").toLowerCase();
+    const arnSegment = endpointArn ? (endpointArn.split(":endpoint/")[1] || "").split("/")[0] : "?";
+    console.log(`[send-push] ════ ROUTING ════════════════════════════════════════════`);
+    console.log(`[send-push] arn=${endpointArn}`);
+    console.log(`[send-push] arnPlatform=${arnPlatform} | requestedPlatform=${requestedPlatform} | effectivePlatform=${platform}`);
+    console.log(`[send-push] arnSegment=${arnSegment} | eventType=${eventType} | title='${title}'`);
     if (arnPlatform && requestedPlatform && arnPlatform !== String(requestedPlatform).toLowerCase()) {
         console.warn(
-            `[send-push] caller said platform=${requestedPlatform} but ARN resolves to ${arnPlatform}. ` +
-            `Trusting ARN. arn=${endpointArn}`
+            `[send-push] ⚠ PLATFORM MISMATCH: caller said platform=${requestedPlatform} but ARN segment=${arnSegment} → resolved=${arnPlatform}. ` +
+            `Trusting ARN. This usually means Nakama stored the wrong platform when registering.`
         );
+    }
+    if (!arnPlatform) {
+        console.warn(`[send-push] ⚠ Could not derive platform from ARN segment '${arnSegment}' — using caller claim '${requestedPlatform}'. ` +
+            `If platform is wrong the message format will be wrong.`);
     }
 
     try {
@@ -96,6 +105,7 @@ export const handler = async (event) => {
         // SNS APNs auth uses our .p8 key (one Team owns one APNs cert/key,
         // no project mismatch possible) so this path is reliable.
         if (platform === "ios") {
+            console.log(`[send-push] → Path 1: SNS Publish → APNS | arn=${endpointArn}`);
             const apnsPayload = {
                 aps: {
                     alert: { title, body: messageBody },
@@ -113,6 +123,7 @@ export const handler = async (event) => {
                 APNS: JSON.stringify(apnsPayload),
                 APNS_SANDBOX: JSON.stringify(apnsPayload),
             });
+            console.log(`[send-push] → calling SNS Publish | arn=${endpointArn} | messageLen=${message.length}`);
             const result = await sns.send(new PublishCommand({
                 TargetArn: endpointArn,
                 Message: message,
@@ -122,6 +133,7 @@ export const handler = async (event) => {
                     eventType: { DataType: "String", StringValue: eventType || "" },
                 },
             }));
+            console.log(`[send-push] ✓ SNS-APNS delivered | messageId=${result.MessageId}`);
             return response(200, {
                 success: true,
                 provider: "sns-apns",
@@ -135,8 +147,12 @@ export const handler = async (event) => {
         // We never use SNS Publish for FCM tokens any more — the GCM Platform
         // App can only auth as ONE project, but our tokens come from many.
         if (platform === "android" || platform === "web") {
+            console.log(`[send-push] → Path 2: FCM v1 direct | arn=${endpointArn}`);
             const attrs = await readEndpointAttrs(endpointArn);
+            console.log(`[send-push]   SNS endpoint attrs: tokenLen=${attrs.token.length} | enabled=${attrs.enabled} | userData=${JSON.stringify(attrs.userData)}`);
             if (!attrs.token) {
+                console.error(`[send-push] FAIL — SNS endpoint has no Token attribute. arn=${endpointArn}` +
+                    ` | Fix: device must re-register with a valid FCM token (call push_register_token again).`);
                 return response(400, {
                     success: false,
                     error: "Endpoint has no Token attribute — re-register the device",
@@ -144,10 +160,15 @@ export const handler = async (event) => {
                 });
             }
             if (!attrs.enabled) {
-                console.warn(`[send-push] endpoint disabled, attempting send anyway. arn=${endpointArn}`);
+                console.warn(`[send-push] ⚠ SNS endpoint is DISABLED | arn=${endpointArn}` +
+                    ` | Attempting send anyway — FCM may still accept it. If it fails with UNREGISTERED, the app was uninstalled.`);
             }
             const projectId = attrs.userData.fcmProjectId || DEFAULT_FCM_PROJECT_ID;
+            console.log(`[send-push]   fcmProjectId=${projectId} | source=${attrs.userData.fcmProjectId ? "endpoint.userData" : "DEFAULT_FCM_PROJECT_ID env"}`);
             if (!projectId) {
+                console.error(`[send-push] FAIL — no fcmProjectId available.` +
+                    ` | Fix: (1) Re-register device and include fcmProjectId in the registration payload.` +
+                    ` | OR: (2) Set DEFAULT_FCM_PROJECT_ID Lambda env var to the Firebase project ID.`);
                 return response(400, {
                     success: false,
                     error: "No fcmProjectId on endpoint and no DEFAULT_FCM_PROJECT_ID env var. " +
@@ -155,6 +176,8 @@ export const handler = async (event) => {
                     code: "FCM_PROJECT_ID_MISSING",
                 });
             }
+            const fcmDeviceTokenPrefix = attrs.token.substring(0, Math.min(20, attrs.token.length));
+            console.log(`[send-push] → calling sendFcmDirect | projectId=${projectId} | tokenPrefix=${fcmDeviceTokenPrefix}...`);
             const fcmResult = await sendFcmDirect({
                 projectId,
                 deviceToken: attrs.token,
@@ -163,7 +186,11 @@ export const handler = async (event) => {
                 data: Object.assign({}, data || {}, { gameId: gameId || "" }),
                 eventType,
             });
+            console.log(`[send-push] ← FCM result: success=${fcmResult.success} | messageName=${fcmResult.messageName || "?"} | errorCode=${fcmResult.errorCode || "?"} | shouldRemoveToken=${fcmResult.shouldRemoveToken || false}`);
             if (!fcmResult.success) {
+                console.error(`[send-push] ✗ FCM delivery FAILED | error=${fcmResult.error} | errorCode=${fcmResult.errorCode}` +
+                    ` | shouldRemoveToken=${fcmResult.shouldRemoveToken}` +
+                    ` | Possible causes: (1) UNREGISTERED=app uninstalled (2) SENDER_ID_MISMATCH=wrong Firebase project (3) INVALID_ARGUMENT=malformed token`);
                 return response(fcmResult.httpStatus >= 500 ? 502 : 400, {
                     success: false,
                     provider: "fcm-v1",
@@ -173,6 +200,7 @@ export const handler = async (event) => {
                     shouldRemoveToken: !!fcmResult.shouldRemoveToken,
                 });
             }
+            console.log(`[send-push] ✓ FCM delivered | messageName=${fcmResult.messageName}`);
             return response(200, {
                 success: true,
                 provider: "fcm-v1",
@@ -209,12 +237,19 @@ export const handler = async (event) => {
 
         return response(400, { success: false, error: `Unsupported platform: ${platform}` });
     } catch (error) {
-        console.error("[send-push] Error:", error);
+        console.error(`[send-push] ✗ UNHANDLED EXCEPTION: ${error.name}: ${error.message}`);
+        console.error(`[send-push]   arn=${endpointArn} | platform=${platform} | eventType=${eventType}`);
+        console.error(`[send-push]   stack=${error.stack}`);
         if (error.name === "EndpointDisabledException") {
-            return response(400, { success: false, error: "Endpoint is disabled", code: "ENDPOINT_DISABLED" });
+            console.error(`[send-push] EndpointDisabledException — SNS permanently disabled this endpoint after repeated delivery failures.` +
+                ` | arn=${endpointArn} | shouldRemoveToken=true will be returned to Nakama for cleanup.` +
+                ` | Root cause: (1) APNs invalidated device token (app uninstall/reinstall) (2) APNS cert/key expired in SNS Platform App`);
+            return response(400, { success: false, error: "Endpoint is disabled", code: "ENDPOINT_DISABLED", shouldRemoveToken: true });
         }
         if (error.name === "InvalidParameterException") {
-            return response(400, { success: false, error: "Invalid endpoint ARN or parameters", code: "INVALID_PARAMETER" });
+            console.error(`[send-push] InvalidParameterException — bad ARN or token format.` +
+                ` | arn=${endpointArn} | Cause: ARN deleted from SNS console, or account mismatch.`);
+            return response(400, { success: false, error: "Invalid endpoint ARN or parameters", code: "INVALID_PARAMETER", shouldRemoveToken: true });
         }
         return response(500, { success: false, error: error.message || "Failed to send push notification" });
     }
