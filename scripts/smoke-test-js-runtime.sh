@@ -118,6 +118,39 @@ assert_known_rpc_registered() {
     esac
 }
 
+# Read the list of prod-critical RPCs that must be registered.
+# See scripts/critical-rpcs.txt for the rationale and how to extend.
+critical_rpcs() {
+    local manifest
+    manifest="$(dirname "$0")/critical-rpcs.txt"
+    if [ ! -f "$manifest" ]; then
+        echo "[smoke] WARN: $manifest missing — falling back to legacy 2-RPC probe"
+        printf 'nakama_js_health\nwallet_get_all\n'
+        return
+    fi
+    sed -e 's/[[:space:]]\+#.*$//' \
+        -e 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+        "$manifest" \
+        | grep -v '^#' \
+        | grep -v '^$'
+}
+
+assert_critical_rpcs_registered() {
+    local URL="$1"
+    local KEY="$2"
+    local count=0
+    local rpc
+    while IFS= read -r rpc; do
+        [ -z "$rpc" ] && continue
+        # nakama_js_health is already exercised by assert_health_rpc;
+        # don't double-probe.
+        [ "$rpc" = "nakama_js_health" ] && continue
+        assert_known_rpc_registered "$URL" "$KEY" "$rpc"
+        count=$((count + 1))
+    done < <(critical_rpcs)
+    ok "all $count prod-critical RPCs are registered"
+}
+
 # ──────────────────────────────────────────────────────────────────────────
 case "$MODE" in
     image)
@@ -203,7 +236,13 @@ EOF
 
         assert_logs_clean "$LOGS"
         assert_health_rpc "http://127.0.0.1:57350" "defaultkey"
-        assert_known_rpc_registered "http://127.0.0.1:57350" "defaultkey" "wallet_get_all"
+        # 2026-05-27 — extended from a single wallet_get_all probe to the
+        # full critical-rpcs.txt manifest. The previous 2-RPC probe (just
+        # nakama_js_health + wallet_get_all) let three simultaneous mount
+        # regressions reach prod (quizverse_create_match,
+        # fantasy_event_leaderboard, fantasy_scoring_process) because none
+        # of them happened to be on the probe list.
+        assert_critical_rpcs_registered "http://127.0.0.1:57350" "defaultkey"
         echo
         ok "image $IMAGE: JS runtime healthy"
         ;;
@@ -373,23 +412,36 @@ EOF
             cat /tmp/h.json
         " || fail "in-pod nakama_js_health probe failed"
 
+        # 2026-05-27 — extended from a single wallet_get_all probe to the
+        # full critical-rpcs.txt manifest. See the matching note in image
+        # mode above; same rationale, same prevention target.
+        CRITICAL_LIST=$(critical_rpcs | grep -v '^nakama_js_health$' | tr '\n' ' ')
         kubectl exec -n "$NS" "$POD" -- /bin/sh -c "
-            # Same JSON-encoded-string body convention as nakama_js_health.
-            # Sending '{}' to wallet_get_all returns HTTP 400 with
-            # 'json: cannot unmarshal object into Go value of type string'
-            # which is technically also fine for this probe (anything but
-            # 404 means the RPC is registered) — but the mixed convention
-            # was confusing in the previous build's logs.
-            CODE=\$(curl -s -o /dev/null -w '%{http_code}' -X POST \
-                  -H 'Content-Type: application/json' \
-                  'http://127.0.0.1:7350/v2/rpc/wallet_get_all' -d '\"\"')
-            case \"\$CODE\" in
-                404) echo '✗ wallet_get_all 404 — bundle not loaded'; exit 1 ;;
-                *) echo '✓ wallet_get_all registered (HTTP '\"\$CODE\"')' ;;
-            esac
-        " || fail "in-pod wallet_get_all probe failed"
+            set -eu
+            # Each RPC is probed unauthenticated. 404 = unregistered (FAIL);
+            # 200/400/401/403 = registered (PASS). We use the JSON-encoded
+            # empty string ('\"\"') body so Nakama's HTTP RPC handler doesn't
+            # reject the payload before reaching the registration check.
+            FAIL=0
+            for RPC in $CRITICAL_LIST; do
+                CODE=\$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+                        -H 'Content-Type: application/json' \
+                        \"http://127.0.0.1:7350/v2/rpc/\$RPC?http_key=${HTTP_KEY}\" \
+                        -d '\"\"')
+                case \"\$CODE\" in
+                    404)
+                        echo \"✗ \$RPC 404 — RPC not registered (JS bundle did not mount it)\"
+                        FAIL=1
+                        ;;
+                    *)
+                        echo \"✓ \$RPC registered (HTTP \$CODE)\"
+                        ;;
+                esac
+            done
+            exit \$FAIL
+        " || fail "in-pod critical-rpcs probe failed (one or more RPCs returned 404)"
 
-        ok "cluster $NS/$DEPLOY: JS runtime healthy"
+        ok "cluster $NS/$DEPLOY: JS runtime healthy (all critical RPCs registered)"
         ;;
 
     *)

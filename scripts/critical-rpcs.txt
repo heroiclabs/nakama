@@ -1,0 +1,54 @@
+# critical-rpcs.txt — prod-critical RPCs that MUST be registered.
+#
+# Used by scripts/smoke-test-js-runtime.sh in BOTH image and cluster
+# modes. If any of these returns HTTP 404 ("rpc id not found"), the
+# build aborts (image mode) or the rollout is auto-rolled back
+# (cluster mode).
+#
+# Format: one RPC id per line. Lines starting with `#` and blank
+# lines are ignored.
+#
+# Why this file exists
+# --------------------
+# The 2026-05-27 EKS audit caught 3 simultaneous mount regressions:
+#   • quizverse_create_match    — every QV multiplayer match-create
+#                                 since 17:57 UTC failed
+#   • fantasy_event_leaderboard — 505 RPC failures / 24h
+#   • fantasy_scoring_process   — 466 RPC failures / 24h
+# All three were "registered" in source but never reached the runtime
+# registry because of the literal-string / Goja AST issue. The smoke
+# test only probed `wallet_get_all` + `nakama_js_health`, so the
+# regression made it through CI and only surfaced from prod logs.
+#
+# Add an RPC here whenever:
+#   1. It's on a critical user path (signup, match-create, scoring).
+#   2. Or it's in the registration-anti-pattern blast radius
+#      (postbuild.js dynamic suffix expansion, MpKernel template
+#      registry, satori sampling proxy).
+#
+# Cost: each entry adds one in-pod curl call (~200ms each) to the
+# rollout gate. Keep the list focused on REGISTRATION proof, not
+# functional correctness — the goal is to catch "404 rpc id not
+# found", not validate the RPC's behaviour.
+
+# ── Always-on health probes (existing) ────────────────────────────
+nakama_js_health
+wallet_get_all
+
+# ── Quizverse multiplayer (row 6 of the 2026-05-27 audit) ─────────
+quizverse_create_match
+quizverse_load_pack
+quizverse_list_packs
+
+# ── Fantasy / cricket live-event (rows 3, 4) ──────────────────────
+fantasy_event_leaderboard
+fantasy_scoring_process
+
+# ── Tournament + analytics scheduler (row 6, internal noise row) ──
+tournament_cron_tick
+nakama_analytics_tick
+
+# ── Wallet & user-backend critical path ───────────────────────────
+# NOTE: registered name is `wallet_get_balances` (plural) in
+# src/legacy/wallet.ts:750 — verified pre-merge against master.
+wallet_get_balances
