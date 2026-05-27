@@ -5454,7 +5454,7 @@
                 const yesterday = new Date();
                 yesterday.setUTCDate(yesterday.getUTCDate() - 1);
                 const dateStr = yesterday.toISOString().slice(0, 10);
-                const result = await callRpc('analytics_run_rollup', { date: dateStr });
+                const result = await callRpc('analytics_rollup_run', { date: dateStr });
                 showToast(result && result.success ? `✅ Rollup done: ${result.events_processed || 0} events` : `⚠️ Rollup: ${result && result.error || 'check logs'}`, result && result.success ? 'success' : 'warn', 5000);
                 const fresh = await callRpc('analytics_freshness_check', {});
                 renderPipelineFreshness(fresh);

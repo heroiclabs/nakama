@@ -449,7 +449,10 @@ function rpcAnalyticsEnforcementStatus(ctx, logger, nk, payload) {
 
     // Read today's metrics counter (same shape used by analytics_metrics RPC).
     var today   = new Date().toISOString().slice(0, 10);
-    var counter = ahReadOne(nk, AH_METRICS_COLLECTION, "metrics_" + today, AH_SYSTEM_USER) || {};
+    // bumpMetricsCounter (analytics.js) writes under key "counter_<YYYY-MM-DD>",
+    // not "metrics_<...>" — fix this read so today_accepted / today_rejected /
+    // today_v2_warnings stop being permanently zero on the dashboard.
+    var counter = ahReadOne(nk, AH_METRICS_COLLECTION, "counter_" + today, AH_SYSTEM_USER) || {};
 
     var accepted    = counter.accepted         || 0;
     var rejected    = counter.rejected         || 0;

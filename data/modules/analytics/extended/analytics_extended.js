@@ -62,6 +62,13 @@ function extRollupHasAny(rangeArr) {
 
 function extIsoDate(value) {
     if (!value) return null;
+    // Per-player docs (game_player_analytics) store unix-seconds in numeric
+    // fields like first_seen_utc / last_active_utc. JS treats those as
+    // milliseconds and ends up in 1970 — promote to ms when the value is in
+    // a reasonable unix-seconds range.
+    if (typeof value === 'number' && value > 0 && value < 1e12) {
+        value = value * 1000;
+    }
     var parsed = new Date(value);
     if (isNaN(parsed.getTime())) return null;
     return parsed.toISOString().slice(0, 10);
@@ -104,11 +111,34 @@ function extNormalizeEvent(val, key) {
     return val;
 }
 
+/**
+ * The segment / churn / funnel scans were originally written against a legacy
+ * "player_analytics_profile" doc shape with a `.games[gameId]` map, ISO
+ * timestamps (`firstSeenAt`, `lastSeenAt`) and a `.monetization` subtree.
+ *
+ * Production never populated that collection — the live per-player store is
+ * `game_player_analytics`, with a flat shape:
+ *
+ *   { v, user_id, game_id, first_seen_utc, last_active_utc,
+ *     lt_sessions, eng: { streak }, money: { spend_usd, iap_count,
+ *     rewarded_ads, adRemovalPurchased }, ... }
+ *
+ * The helpers below now accept either shape so segment / churn / funnel RPCs
+ * return real numbers from the live GPA collection while still being
+ * tolerant of the legacy shape if any data ever ships in it.
+ */
 function extResolveProfile(profile, gameId) {
     if (!profile) return null;
+    // Legacy multi-game profile (kept for tolerance).
+    if (profile.games && typeof profile.games === 'object') {
+        if (!gameId) return profile;
+        if (!profile.games[gameId]) return null;
+        return profile.games[gameId];
+    }
+    // Flat GPA doc — one doc per (gameId, userId).
     if (!gameId) return profile;
-    if (!profile.games || !profile.games[gameId]) return null;
-    return profile.games[gameId];
+    if (profile.game_id && profile.game_id === gameId) return profile;
+    return null;
 }
 
 function extProfileFirstSeen(profile) {
@@ -116,6 +146,7 @@ function extProfileFirstSeen(profile) {
     if (profile.firstSeenAt) return profile.firstSeenAt;
     if (profile.global && profile.global.firstSeenAt) return profile.global.firstSeenAt;
     if (profile.createdAt) return profile.createdAt;
+    if (profile.first_seen_utc) return profile.first_seen_utc;
     return null;
 }
 
@@ -125,6 +156,8 @@ function extProfileLastSeen(profile) {
     if (profile.engagement && profile.engagement.lastSessionAt) return profile.engagement.lastSessionAt;
     if (profile.global && profile.global.lastSeenAt) return profile.global.lastSeenAt;
     if (profile.updatedAt) return profile.updatedAt;
+    if (profile.last_active_utc) return profile.last_active_utc;
+    if (profile.updated_utc) return profile.updated_utc;
     return null;
 }
 
@@ -143,6 +176,10 @@ function extProfileTotalSpent(profile) {
             }
         }
         return total;
+    }
+
+    if (profile.money && typeof profile.money.spend_usd === 'number') {
+        return profile.money.spend_usd;
     }
 
     return (profile.global && profile.global.totalRevenue) || 0;
@@ -165,6 +202,10 @@ function extProfilePurchaseCount(profile) {
         return total;
     }
 
+    if (profile.money && typeof profile.money.iap_count === 'number') {
+        return profile.money.iap_count;
+    }
+
     return 0;
 }
 
@@ -185,6 +226,10 @@ function extProfileRewardedAds(profile) {
         return total;
     }
 
+    if (profile.money && typeof profile.money.rewarded_ads === 'number') {
+        return profile.money.rewarded_ads;
+    }
+
     return 0;
 }
 
@@ -203,6 +248,10 @@ function extProfileAdRemovalPurchased(profile) {
         }
     }
 
+    if (profile.money && typeof profile.money.adRemovalPurchased !== 'undefined') {
+        return !!profile.money.adRemovalPurchased;
+    }
+
     return false;
 }
 
@@ -217,6 +266,8 @@ function extProfileRecentSessions(profile) {
         return profile.global.totalSessions || 0;
     }
 
+    if (typeof profile.lt_sessions === 'number') return profile.lt_sessions;
+
     return 0;
 }
 
@@ -225,6 +276,10 @@ function extProfileStreak(profile) {
 
     if (profile.engagement) {
         return profile.engagement.currentStreak || 0;
+    }
+
+    if (profile.eng && typeof profile.eng.streak === 'number') {
+        return profile.eng.streak;
     }
 
     return 0;
@@ -2241,7 +2296,7 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
 
 /**
  * Segment players into categories: whale, power_user, casual, at_risk, churned, new_user
- * Uses player_analytics_profile collection from Phase 2.
+ * Reads the live `game_player_analytics` collection (flat per-player docs).
  *
  * Segment Definitions:
  * - whale: totalSpent > $100
@@ -2275,14 +2330,15 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
             total_profiled: 0
         };
 
-        // Scan player_analytics_profile collection
+        // Scan game_player_analytics — the live per-player store (the legacy
+        // `player_analytics_profile` collection was never populated in prod).
         try {
             var cursor = null;
             var iterations = 0;
             var maxIterations = 50;
 
             do {
-                var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
+                var result = nk.storageList(null, 'game_player_analytics', 100, cursor);
                 if (!result || !result.objects) break;
 
                 for (var i = 0; i < result.objects.length; i++) {
@@ -2357,7 +2413,7 @@ function rpcAnalyticsPlayerSegments(ctx, logger, nk, payload) {
  * Identify at-risk and churned players.
  * - At Risk: 7-14 days inactive
  * - Churned: 14+ days inactive
- * Uses player_analytics_profile collection.
+ * Reads the live `game_player_analytics` collection (flat per-player docs).
  */
 function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
     try {
@@ -2384,14 +2440,15 @@ function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
             inactivityBuckets[d] = 0;
         }
 
-        // Scan player_analytics_profile collection
+        // Scan game_player_analytics — the live per-player store (the legacy
+        // `player_analytics_profile` collection was never populated in prod).
         try {
             var cursor = null;
             var iterations = 0;
             var maxIterations = 50;
 
             do {
-                var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
+                var result = nk.storageList(null, 'game_player_analytics', 100, cursor);
                 if (!result || !result.objects) break;
 
                 for (var i = 0; i < result.objects.length; i++) {
@@ -2469,7 +2526,7 @@ function rpcAnalyticsChurnRisk(ctx, logger, nk, payload) {
  * - Free → First IAP purchase
  * - Free → Ad removal purchase
  * - Free → Any monetization event (ad watch, IAP)
- * Uses player_analytics_profile collection.
+ * Reads the live `game_player_analytics` collection (flat per-player docs).
  */
 function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
     try {
@@ -2486,14 +2543,15 @@ function rpcAnalyticsConversionFunnel(ctx, logger, nk, payload) {
             repeat_purchasers: 0     // More than 1 IAP
         };
 
-        // Scan player_analytics_profile collection
+        // Scan game_player_analytics — the live per-player store (the legacy
+        // `player_analytics_profile` collection was never populated in prod).
         try {
             var cursor = null;
             var iterations = 0;
             var maxIterations = 50;
 
             do {
-                var result = nk.storageList(null, 'player_analytics_profile', 100, cursor);
+                var result = nk.storageList(null, 'game_player_analytics', 100, cursor);
                 if (!result || !result.objects) break;
 
                 for (var i = 0; i < result.objects.length; i++) {

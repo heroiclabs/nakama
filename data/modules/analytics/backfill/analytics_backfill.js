@@ -1040,6 +1040,27 @@ function abAutoRunIfNeeded(ctx, nk, logger) {
 // tick keeps crashing on the same cursor (after a fix is deployed).
 function rpcAnalyticsAutoKick(ctx, logger, nk, payload) {
     var data = abParse(payload);
+
+    // SECURITY: this RPC drains up to 500 pages of GPA / events_existing /
+    // dau_synthetic / rollup work per call. Cron drives it via the
+    // dashboard_secret shared secret; admin sessions drive it from the
+    // dashboard UI. Either is acceptable, nothing else is.
+    var secret = (ctx && ctx.env && ctx.env["DASHBOARD_SECRET"]) || null;
+    var bySecret = !!(secret && data && data.dashboard_secret === secret);
+    var bySession = false;
+    if (!bySecret) {
+        try {
+            if (typeof ahIsAdmin === "function") {
+                bySession = ahIsAdmin(ctx, nk);
+            } else if (typeof arIsAdminUser === "function" && ctx && ctx.userId) {
+                bySession = arIsAdminUser(nk, logger, ctx.userId, ctx.username);
+            }
+        } catch (e) { /* fall through to deny */ }
+    }
+    if (!bySecret && !bySession) {
+        return abErr("admin authentication required", 401);
+    }
+
     var force = !!data.force;
     var summary = abAutoRunTick(ctx, nk, logger, force);
     return abOk(summary || { state_phase: "unknown" });

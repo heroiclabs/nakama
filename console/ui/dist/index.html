@@ -11,9 +11,27 @@
         nt: "{{nt}}",
       }
     </script>
+    <!--
+      IntelliVerseX pre-boot guard.
+      Runs BEFORE the Vue bundle so a direct hit on /admin-dashboard/analytics
+      doesn't get caught by Vue Router's catch-all redirect to /login. We
+      rewrite the URL to '/' and flip a flag so boot() mounts the iframe
+      overlay on top of whatever Vue ends up rendering.
+    -->
+    <script>
+      (function() {
+        try {
+          var p = window.location.pathname;
+          if (p === '/admin-dashboard/analytics' || p.indexOf('/admin-dashboard/analytics/') === 0) {
+            window.__ivxShowAnalyticsOnBoot = true;
+            history.replaceState(null, '', '/');
+          }
+        } catch (e) { /* no-op */ }
+      })();
+    </script>
     <script type="module" crossorigin src="/static/index-C69ekwQb.js"></script>
     <link rel="stylesheet" crossorigin href="/static/index-DgkeZLvR.css">
-    
+
     <!-- IntelliVerseX Analytics Integration -->
     <style>
       #ivx-analytics-link {
@@ -28,8 +46,9 @@
         transition: all 0.2s ease;
         border-left: 3px solid transparent;
         margin: 2px 0;
+        cursor: pointer;
       }
-      #ivx-analytics-link:hover {
+      #ivx-analytics-link:hover, #ivx-analytics-link.active {
         color: #fff;
         background: rgba(255, 255, 255, 0.05);
         border-left-color: #8b5cf6;
@@ -38,6 +57,7 @@
         width: 18px;
         height: 18px;
         opacity: 0.8;
+        flex-shrink: 0;
       }
       #ivx-analytics-section {
         padding: 16px 16px 8px;
@@ -48,96 +68,144 @@
         text-transform: uppercase;
         font-family: Inter, system-ui, sans-serif;
       }
+      #ivx-analytics-frame-wrap {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 2147483647;
+        background: #0a0a0f;
+        display: flex;
+        flex-direction: column;
+      }
+      #ivx-analytics-frame-wrap iframe {
+        flex: 1;
+        width: 100%;
+        border: none;
+        background: #0a0a0f;
+      }
+      #ivx-analytics-close {
+        position: absolute;
+        top: 12px;
+        right: 16px;
+        z-index: 2;
+        background: rgba(0,0,0,0.6);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 12px;
+        cursor: pointer;
+        backdrop-filter: blur(6px);
+      }
+      #ivx-analytics-close:hover {
+        background: rgba(255,255,255,0.12);
+      }
     </style>
     <script>
       (function() {
+        const ANALYTICS_URL = 'https://nakama.intelli-verse-x.ai/analytics.html';
         const analyticsIcon = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>';
-        
+
+        function showAnalyticsFrame() {
+          if (document.getElementById('ivx-analytics-frame-wrap')) return;
+          const wrap = document.createElement('div');
+          wrap.id = 'ivx-analytics-frame-wrap';
+
+          const close = document.createElement('button');
+          close.id = 'ivx-analytics-close';
+          close.textContent = '\u2715 Close';
+          close.addEventListener('click', hideAnalyticsFrame);
+          wrap.appendChild(close);
+
+          const iframe = document.createElement('iframe');
+          iframe.src = ANALYTICS_URL;
+          iframe.title = 'Game Analytics';
+          iframe.allow = 'clipboard-write';
+          iframe.setAttribute('allowfullscreen', 'true');
+          wrap.appendChild(iframe);
+
+          document.body.appendChild(wrap);
+          const link = document.getElementById('ivx-analytics-link');
+          if (link) link.classList.add('active');
+        }
+
+        function hideAnalyticsFrame() {
+          const wrap = document.getElementById('ivx-analytics-frame-wrap');
+          if (wrap) wrap.remove();
+          const link = document.getElementById('ivx-analytics-link');
+          if (link) link.classList.remove('active');
+        }
+
         function injectAnalyticsLink() {
           if (document.getElementById('ivx-analytics-link')) return true;
-          
-          // Find sidebar by looking for common patterns
-          const sidebar = document.querySelector('[class*="sidebar"]') || 
+
+          const sidebar = document.querySelector('[class*="sidebar"]') ||
                           document.querySelector('[class*="Sidebar"]') ||
                           document.querySelector('aside') ||
                           document.querySelector('nav');
-          
           if (!sidebar) return false;
-          
-          // Look for menu items by finding links with specific text
+
+          const sectionHeader = document.createElement('div');
+          sectionHeader.id = 'ivx-analytics-section';
+          sectionHeader.textContent = 'ANALYTICS';
+
+          const analyticsLink = document.createElement('a');
+          analyticsLink.id = 'ivx-analytics-link';
+          analyticsLink.href = '#';
+          analyticsLink.innerHTML = analyticsIcon + '<span>Game Analytics</span>';
+          analyticsLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            showAnalyticsFrame();
+          });
+
           const allLinks = Array.from(document.querySelectorAll('a'));
           const chatLink = allLinks.find(a => a.textContent && a.textContent.includes('Chat'));
-          const forumLink = allLinks.find(a => a.textContent && a.textContent.includes('Forum'));
-          
-          // Insert after Chat Messages (before DEVELOPMENT section)
-          if (chatLink) {
-            const container = chatLink.parentElement;
-            
-            // Create analytics section header
-            const sectionHeader = document.createElement('div');
-            sectionHeader.id = 'ivx-analytics-section';
-            sectionHeader.textContent = 'ANALYTICS';
-            
-            // Create analytics link
-            const analyticsLink = document.createElement('a');
-            analyticsLink.id = 'ivx-analytics-link';
-            analyticsLink.href = '/analytics.html';
-            analyticsLink.innerHTML = analyticsIcon + '<span>Game Analytics</span>';
-            
-            // Find where to insert (after Chat Messages link)
-            const chatParent = chatLink.closest('div[class]') || chatLink.parentElement;
-            if (chatParent && chatParent.parentElement) {
-              chatParent.parentElement.insertBefore(sectionHeader, chatParent.nextSibling);
-              chatParent.parentElement.insertBefore(analyticsLink, sectionHeader.nextSibling);
-              console.log('[IVX] Analytics link injected successfully');
-              return true;
-            }
-          }
-          
-          // Fallback: Insert at the end of sidebar
-          if (sidebar) {
-            const sectionHeader = document.createElement('div');
-            sectionHeader.id = 'ivx-analytics-section';
-            sectionHeader.textContent = 'ANALYTICS';
-            
-            const analyticsLink = document.createElement('a');
-            analyticsLink.id = 'ivx-analytics-link';
-            analyticsLink.href = '/analytics.html';
-            analyticsLink.innerHTML = analyticsIcon + '<span>Game Analytics</span>';
-            
+          const chatParent = chatLink && (chatLink.closest('div[class]') || chatLink.parentElement);
+
+          if (chatParent && chatParent.parentElement) {
+            chatParent.parentElement.insertBefore(sectionHeader, chatParent.nextSibling);
+            chatParent.parentElement.insertBefore(analyticsLink, sectionHeader.nextSibling);
+          } else {
             sidebar.appendChild(sectionHeader);
             sidebar.appendChild(analyticsLink);
-            console.log('[IVX] Analytics link appended to sidebar');
-            return true;
           }
-          
-          return false;
+
+          console.log('[IVX] Analytics link injected');
+          return true;
         }
-        
+
+        // Keep re-injecting forever — Vue re-renders the sidebar on every
+        // route change and will silently wipe our link otherwise.
         function tryInject() {
-          if (!injectAnalyticsLink()) {
-            const observer = new MutationObserver((mutations, obs) => {
-              if (injectAnalyticsLink()) {
-                obs.disconnect();
-              }
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-            
-            let attempts = 0;
-            const interval = setInterval(() => {
-              attempts++;
-              if (injectAnalyticsLink() || attempts > 30) {
-                clearInterval(interval);
-              }
-            }, 300);
+          injectAnalyticsLink();
+          try {
+            const obs = new MutationObserver(function() { injectAnalyticsLink(); });
+            obs.observe(document.body, { childList: true, subtree: true });
+          } catch (e) { /* no-op */ }
+          let n = 0;
+          const t = setInterval(function() {
+            injectAnalyticsLink();
+            if (++n > 120) clearInterval(t);
+          }, 500);
+        }
+
+        function boot() {
+          tryInject();
+          if (window.__ivxShowAnalyticsOnBoot) {
+            // Wait a tick so Vue Router finishes its initial redirect, then
+            // mount the overlay on top.
+            setTimeout(showAnalyticsFrame, 400);
           }
         }
-        
+
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', tryInject);
+          document.addEventListener('DOMContentLoaded', boot);
         } else {
-          setTimeout(tryInject, 200);
+          setTimeout(boot, 200);
         }
+
+        window.__ivxAnalytics = { show: showAnalyticsFrame, hide: hideAnalyticsFrame };
       })();
     </script>
   </head>
