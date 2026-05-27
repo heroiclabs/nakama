@@ -232,18 +232,21 @@ phases:
           || echo "")
         if [ -n "$BACKFILL_FROM" ] && [ -n "$BACKFILL_TO" ]; then
           echo "  Backfilling $BACKFILL_FROM to $BACKFILL_TO"
-          BF_STATUS=$(curl -sf -o /tmp/backfill.json -w "%{http_code}" \
-            -X POST "${NAKAMA_EXTERNAL_URL}/v2/rpc/analytics_rollup_backfill?http_key=${RUNTIME_HTTP_KEY}" \
+          # unwrap=true: Nakama parses the JSON body as the RPC payload, not a string.
+          # --max-time 1800: 30-day backfill can take up to 30 minutes.
+          # --retry 3: auto-retry on connection-level failures.
+          BF_STATUS=$(curl -s -o /tmp/backfill.json -w "%{http_code}" \
+            -X POST "${NAKAMA_EXTERNAL_URL}/v2/rpc/analytics_rollup_backfill?http_key=${RUNTIME_HTTP_KEY}&unwrap=true" \
             -H "Content-Type: application/json" \
             -d "{\"from\":\"${BACKFILL_FROM}\",\"to\":\"${BACKFILL_TO}\",\"dashboard_secret\":\"${RUNTIME_DASHBOARD_SECRET}\"}" \
-            --max-time 300 \
+            --max-time 1800 --retry 3 --retry-delay 30 --retry-connrefused \
             || echo "000")
           echo "  Backfill HTTP status=${BF_STATUS}"
-          head -c 300 /tmp/backfill.json 2>/dev/null; echo ""
-          if [ "$BF_STATUS" = "200" ]; then
+          head -c 500 /tmp/backfill.json 2>/dev/null; echo ""
+          if [ "$BF_STATUS" = "200" ] && grep -q '"success"[[:space:]]*:[[:space:]]*true' /tmp/backfill.json 2>/dev/null; then
             echo "  Backfill complete"
           else
-            echo "  WARN: backfill status ${BF_STATUS} - dashboard populates after first nightly cron run"
+            echo "  WARN: backfill status ${BF_STATUS} or success!=true - dashboard history populates after first nightly cron run"
           fi
         else
           echo "  WARN: could not compute date range - skipping backfill"

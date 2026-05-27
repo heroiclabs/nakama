@@ -233,7 +233,7 @@ services:
           FROM_DATE=$$(date -u -d @$$FROM_EPOCH +%Y-%m-%d 2>/dev/null || date -u -r $$FROM_EPOCH +%Y-%m-%d)
           TO_DATE=$$(date -u -d @$$TO_EPOCH +%Y-%m-%d 2>/dev/null || date -u -r $$TO_EPOCH +%Y-%m-%d)
           echo "[analytics_cron] bootstrap backfill $$FROM_DATE → $$TO_DATE"
-          curl -sS -X POST "$$NAKAMA_URL/v2/rpc/analytics_rollup_backfill?http_key=$$HTTP_KEY" \
+          curl -sS -X POST "$$NAKAMA_URL/v2/rpc/analytics_rollup_backfill?http_key=$$HTTP_KEY&unwrap=true" \
                -H "Content-Type: application/json" \
                --data-raw "{\"from\":\"$$FROM_DATE\",\"to\":\"$$TO_DATE\",\"dashboard_secret\":\"$$DASHBOARD_SECRET\"}" \
                -o /tmp/backfill.json -w "[analytics_cron] backfill status=%{http_code}\n" || true
@@ -261,13 +261,19 @@ services:
             YEST_EPOCH=$$((NOW_EPOCH - 86400))
             YEST=$$(date -u -d @$$YEST_EPOCH +%Y-%m-%d 2>/dev/null || date -u -r $$YEST_EPOCH +%Y-%m-%d)
             echo "[analytics_cron] $$NOW_DATE $$NOW_HOUR:00Z — running rollup for $$YEST"
-            # POST JSON body; Nakama unwraps the body as the RPC payload string.
-            curl -sS -X POST "$$NAKAMA_URL/v2/rpc/analytics_rollup_run?http_key=$$HTTP_KEY" \
+            # POST JSON body; unwrap=true tells Nakama to parse the body as the RPC payload.
+            ROLLUP_HTTP=$$(curl -sS -X POST "$$NAKAMA_URL/v2/rpc/analytics_rollup_run?http_key=$$HTTP_KEY&unwrap=true" \
                  -H "Content-Type: application/json" \
                  --data-raw "{\"date\":\"$$YEST\",\"dashboard_secret\":\"$$DASHBOARD_SECRET\"}" \
-                 -o /tmp/rollup.json -w "[analytics_cron] rollup status=%{http_code}\n" || true
+                 -o /tmp/rollup.json -w "%{http_code}" || echo "000")
+            echo "[analytics_cron] rollup status=$$ROLLUP_HTTP"
             head -c 400 /tmp/rollup.json 2>/dev/null || true; echo ""
-            LAST_ROLLUP_DATE="$$NOW_DATE"
+            if [ "$$ROLLUP_HTTP" != "200" ]; then
+              echo "[analytics_cron] WARN: rollup HTTP $$ROLLUP_HTTP — will retry next cycle"
+              # Do NOT update LAST_ROLLUP_DATE — the loop will retry next tick
+            else
+              LAST_ROLLUP_DATE="$$NOW_DATE"
+            fi
           fi
           # ── External pollers: every POLL_INTERVAL_SECS ──
           if [ $$((NOW_EPOCH - LAST_POLL_EPOCH)) -ge "$$POLL_INTERVAL_SECS" ]; then

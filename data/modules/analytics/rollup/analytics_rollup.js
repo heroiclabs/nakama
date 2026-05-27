@@ -236,7 +236,10 @@ function arWriteOne(nk, collection, key, userId, value) {
             permissionWrite: 0
         }]);
         return true;
-    } catch (e) { return false; }
+    } catch (e) {
+        // Return the error message so callers can decide whether to fail or warn.
+        return { ok: false, error: e.message || String(e) };
+    }
 }
 
 // ─── Core: scan events for one day ────────────────────────
@@ -1086,6 +1089,14 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         return arErr("Scan failed: " + e.message, 500);
     }
 
+    // Hard-fail on truncation: a truncated scan means the rollup is incomplete.
+    // The cron job checks for this and will retry/alert. Operator must raise
+    // maxPages in arScanEventsForDate or partition by game.
+    if (scanResult.truncated) {
+        logger.error("[analytics_rollup] scan truncated at " + scanResult.scanned + " events — rollup aborted for " + dateStr);
+        return arErr("Event scan truncated at " + scanResult.scanned + " objects; increase maxPages or partition by gameId", 507);
+    }
+
     var events = scanResult.events;
 
     // Build list of gameIds present in this date's events, plus optional explicit list.
@@ -1103,6 +1114,7 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     var gameIds = Object.keys(gameIdSet);
 
     var written = [];
+    var writeErrors = [];  // accumulate critical write failures
 
     // Build per-game active-user sets once — used for both first-seen upsert
     // and retention. This replaces two prior full-events scans per game.
@@ -1136,10 +1148,12 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         }
 
         var roll = arComputeRollup(events, gameId, dateStr, firstSeen.newUsers);
-        arWriteOne(nk, AR_ROLLUP_COLLECTION, "rollup_" + gameId + "_" + dateStr, AR_SYSTEM_USER, roll);
-        arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_" + gameId + "_" + dateStr, AR_SYSTEM_USER, {
+        var wRoll = arWriteOne(nk, AR_ROLLUP_COLLECTION, "rollup_" + gameId + "_" + dateStr, AR_SYSTEM_USER, roll);
+        if (wRoll !== true) writeErrors.push("rollup_" + gameId + ": " + (wRoll.error || "write failed"));
+        var wFunnel = arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_" + gameId + "_" + dateStr, AR_SYSTEM_USER, {
             gameId: gameId, date: dateStr, funnel: roll.funnel, funnel_order: roll.funnel_order
         });
+        if (wFunnel !== true) writeErrors.push("funnel_" + gameId + ": " + (wFunnel.error || "write failed"));
 
         // Phase 4 — per-mode, dropoff, question-intel, and offer-performance
         // rollups are all computed in the same scan pass so we don't pay
@@ -1183,10 +1197,12 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     // Platform-wide rollup — compute AFTER per-game so we can reuse the
     // aggregated new-users set across games.
     var allRollup = arComputeRollup(events, "all", dateStr, allNewUsers);
-    arWriteOne(nk, AR_ROLLUP_COLLECTION, "rollup_all_" + dateStr, AR_SYSTEM_USER, allRollup);
-    arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_all_" + dateStr, AR_SYSTEM_USER, {
+    var wAllRoll = arWriteOne(nk, AR_ROLLUP_COLLECTION, "rollup_all_" + dateStr, AR_SYSTEM_USER, allRollup);
+    if (wAllRoll !== true) writeErrors.push("rollup_all: " + (wAllRoll.error || "write failed"));
+    var wAllFunnel = arWriteOne(nk, AR_FUNNEL_COLLECTION, "funnel_all_" + dateStr, AR_SYSTEM_USER, {
         gameId: "all", date: dateStr, funnel: allRollup.funnel, funnel_order: allRollup.funnel_order
     });
+    if (wAllFunnel !== true) writeErrors.push("funnel_all: " + (wAllFunnel.error || "write failed"));
     try {
         var modesAllDoc = arComputeModesDaily(events, "all", dateStr);
         arWriteOne(nk, AR_MODES_COLLECTION, "modes_all_" + dateStr, AR_SYSTEM_USER, modesAllDoc);
@@ -1216,6 +1232,14 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         }
         try { arvBumpForDate(nk, logger, "all", dateStr); }
         catch (eAB) { logger.warn("[analytics_rollup] history bump failed all: " + eAB.message); }
+    }
+
+    // Only record success if all critical rollup writes succeeded.
+    // A partial write (e.g. storage quota exceeded) must NOT mark the day as done,
+    // or the dashboard will show incomplete data as if the rollup finished cleanly.
+    if (writeErrors.length > 0) {
+        logger.error("[analytics_rollup] critical write failures for " + dateStr + ": " + writeErrors.join("; "));
+        return arErr("Rollup write failures: " + writeErrors.join("; "), 500);
     }
 
     // Record success marker.
