@@ -7,8 +7,8 @@
 // ============================================================================
 
 var QVS_COLLECTION = "qv_seen";
-var QVS_VERSION = 1;
-var QVS_DEFAULT_REPEAT_AFTER_DAYS = 30;
+var QVS_VERSION = 2;              // Bumped: timestamps now stored as ISO-8601 strings for human readability
+var QVS_DEFAULT_REPEAT_AFTER_DAYS = 90; // Increased from 30 → 90 days so questions repeat less often
 var QVS_MAX_LEDGER_SIZE = 10000; // Safety cap per key
 var QVS_OCC_MAX_RETRIES = 3;    // Optimistic concurrency retries on version conflict
 
@@ -71,6 +71,28 @@ function qvsNowUnix() {
     return Math.floor(Date.now() / 1000);
 }
 
+/**
+ * Returns a human-readable ISO-8601 UTC datetime string for storage.
+ * Example: "2026-05-27T18:30:00Z"
+ * Stored as the value for each seen question ID instead of a raw unix integer.
+ */
+function qvsNowIso() {
+    return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/**
+ * Parse a seen-entry value (ISO string OR legacy unix number) to unix seconds.
+ * Ensures backward compatibility with ledgers written before v2.
+ */
+function qvsParseTimestamp(val) {
+    if (typeof val === "number") return val;               // legacy unix int
+    if (typeof val === "string" && val.length > 0) {
+        var ms = Date.parse(val);
+        if (!isNaN(ms)) return Math.floor(ms / 1000);     // ISO string → unix
+    }
+    return 0;
+}
+
 function qvsSlugify(str) {
     if (!str) return "unknown";
     return str.trim().toLowerCase()
@@ -122,18 +144,21 @@ function qvsSeenMerge(nk, userId, scope, topic, questionIds) {
         var data = record.value || { ids: {}, version: QVS_VERSION };
         if (!data.ids) data.ids = {};
 
-        var now = qvsNowUnix();
+        var nowIso  = qvsNowIso();
+        var nowUnix = qvsNowUnix();
         for (var i = 0; i < questionIds.length; i++) {
             var qid = questionIds[i];
             if (qid && typeof qid === "string") {
-                data.ids[qid] = now;
+                data.ids[qid] = nowIso; // human-readable ISO-8601 string
             }
         }
 
         // Safety: cap ledger size by removing oldest entries
         var idKeys = Object.keys(data.ids);
         if (idKeys.length > QVS_MAX_LEDGER_SIZE) {
-            var sorted = idKeys.sort(function(a, b) { return data.ids[a] - data.ids[b]; });
+            var sorted = idKeys.sort(function(a, b) {
+                return qvsParseTimestamp(data.ids[a]) - qvsParseTimestamp(data.ids[b]);
+            });
             var toRemove = sorted.length - QVS_MAX_LEDGER_SIZE;
             for (var r = 0; r < toRemove; r++) {
                 delete data.ids[sorted[r]];
@@ -172,7 +197,8 @@ function qvsSeenPurgeStale(nk, userId, scope, topic, repeatAfterDays) {
         var keys = Object.keys(data.ids);
 
         for (var i = 0; i < keys.length; i++) {
-            if (data.ids[keys[i]] < cutoff) {
+            // qvsParseTimestamp handles both ISO strings (v2) and legacy unix ints (v1)
+            if (qvsParseTimestamp(data.ids[keys[i]]) < cutoff) {
                 delete data.ids[keys[i]];
                 purged++;
             }
