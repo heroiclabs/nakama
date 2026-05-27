@@ -152,7 +152,8 @@ function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
                 messages: [
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: userMessage }
-                ]
+                ],
+                chat_template_kwargs: { enable_thinking: false }
             }));
         } else {
             response = nk.httpRequest(provider.config.url, 'post', {
