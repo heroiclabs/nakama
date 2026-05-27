@@ -230,36 +230,69 @@ namespace MpKernelModule {
   };
 
   // Single boot path: registers all built-in templates + RPCs.
+  //
+  // Per-template registration is wrapped in a try/catch + null-check so a
+  // single broken template (e.g. an undefined `template` from a TS-bundle
+  // load-order issue, or a missing `template.opRange`/`template.templateId`)
+  // can't take down the entire kernel mount. Symptom in prod (EKS,
+  // 2026-05-27): "[MpKernel] failed to mount: Cannot read property 'name'
+  // of undefined" caused every match-create + every fantasy_event_leaderboard
+  // / fantasy_scoring_process RPC to fail across all 4 pods after rollout.
+  // The defensive guards here keep healthy templates registering and emit a
+  // pinpoint log for the broken one(s).
+  function safeRegisterTemplate(
+    initializer: nkruntime.Initializer,
+    logger: nkruntime.Logger,
+    label: string,
+    template: any,
+    afterRegister?: () => void
+  ): void {
+    try {
+      if (!template || typeof template !== "object") {
+        logger.error("[MpKernel] template '" + label + "' is undefined at boot — skipping (check TS bundle load order)");
+        return;
+      }
+      if (!template.templateId || !template.opRange ||
+          typeof template.opRange.from !== "number" ||
+          typeof template.opRange.to !== "number") {
+        logger.error("[MpKernel] template '" + label + "' missing required fields (templateId/opRange) — skipping");
+        return;
+      }
+      MpKernelMatch.registerTemplate(initializer, template, logger);
+      registerTemplateId(template.templateId);
+      if (afterRegister) afterRegister();
+    } catch (err: any) {
+      logger.error("[MpKernel] template '" + label + "' register failed: " +
+        (err && err.message ? err.message : String(err)) +
+        " — kernel boot continues with remaining templates");
+    }
+  }
+
   export function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void {
-    MpKernelCodeRegistry.bootstrapKernelRanges();
+    try {
+      MpKernelCodeRegistry.bootstrapKernelRanges();
+    } catch (err: any) {
+      logger.error("[MpKernel] bootstrapKernelRanges failed: " +
+        (err && err.message ? err.message : String(err)) +
+        " — kernel boot continues; opcode-range overlap detection disabled");
+    }
 
     // Templates ship one-by-one; P1 ships SyncTurnMatch, P5 adds
     // AsyncTurnMatch + LobbyHandoffMatch.
-    MpKernelMatch.registerTemplate(initializer, MpKernelSyncTurn.template, logger);
-    registerTemplateId(MpKernelSyncTurn.template.templateId);
-    MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
+    safeRegisterTemplate(initializer, logger, "sync-turn-v1", MpKernelSyncTurn && MpKernelSyncTurn.template, function () {
+      MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
+    });
 
-    MpKernelMatch.registerTemplate(initializer, MpKernelAsyncTurn.template, logger);
-    registerTemplateId(MpKernelAsyncTurn.template.templateId);
-    MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
+    safeRegisterTemplate(initializer, logger, "async-turn-v1", MpKernelAsyncTurn && MpKernelAsyncTurn.template, function () {
+      MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
+    });
 
-    MpKernelMatch.registerTemplate(initializer, MpKernelLobbyHandoff.template, logger);
-    registerTemplateId(MpKernelLobbyHandoff.template.templateId);
-
-    MpKernelMatch.registerTemplate(initializer, MpKernelTournament.template, logger);
-    registerTemplateId(MpKernelTournament.template.templateId);
-
-    MpKernelMatch.registerTemplate(initializer, MpKernelLiveEvent.template, logger);
-    registerTemplateId(MpKernelLiveEvent.template.templateId);
-
-    MpKernelMatch.registerTemplate(initializer, MpKernelPersistentParty.template, logger);
-    registerTemplateId(MpKernelPersistentParty.template.templateId);
-
-    MpKernelMatch.registerTemplate(initializer, MpKernelConvParty.template, logger);
-    registerTemplateId(MpKernelConvParty.template.templateId);
-
-    MpKernelMatch.registerTemplate(initializer, MpKernelMrAnchor.template, logger);
-    registerTemplateId(MpKernelMrAnchor.template.templateId);
+    safeRegisterTemplate(initializer, logger, "lobby-handoff-v1", MpKernelLobbyHandoff && MpKernelLobbyHandoff.template);
+    safeRegisterTemplate(initializer, logger, "tournament-v1",    MpKernelTournament && MpKernelTournament.template);
+    safeRegisterTemplate(initializer, logger, "live-event-v1",    MpKernelLiveEvent && MpKernelLiveEvent.template);
+    safeRegisterTemplate(initializer, logger, "persistent-party-v1", MpKernelPersistentParty && MpKernelPersistentParty.template);
+    safeRegisterTemplate(initializer, logger, "conversational-party-v1", MpKernelConvParty && MpKernelConvParty.template);
+    safeRegisterTemplate(initializer, logger, "mixed-reality-anchor-v1", MpKernelMrAnchor && MpKernelMrAnchor.template);
 
     // RealtimeTickMatch lives in a native Go plugin (data/modules/realtime_tick.so)
     // so it can run at 10–30 Hz without paying the Goja per-tick cost. The Go

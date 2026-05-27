@@ -6831,6 +6831,17 @@ var QuizVerseGenerator;
 var QuizVersePlugin;
 (function (QuizVersePlugin) {
     // RPC ids — keep stable; adapters depend on these strings.
+    //
+    // NOTE: these constants are kept for adapter/SDK introspection only.
+    // The registerRpc() calls below MUST pass literal strings — Nakama's
+    // Goja runtime walks the AST to extract each registered handler's
+    // "function key" (its source name), and a namespaced var reference
+    // (`QuizVersePlugin.RPC_CREATE_MATCH` after TS compilation) is a
+    // dynamic property lookup the walker can NOT resolve statically.
+    // Symptom in prod (EKS, 2026-05-27): "[QuizVerse] plugin failed to
+    // mount: js quizverse_create_match function key could not be
+    // extracted: not found" on every pod boot, dropping all 3 RPCs.
+    // See PR #94 (cricket InitModule loop) for the canonical analysis.
     QuizVersePlugin.RPC_CREATE_MATCH = "quizverse_create_match";
     QuizVersePlugin.RPC_LOAD_PACK = "quizverse_load_pack";
     QuizVersePlugin.RPC_LIST_PACKS = "quizverse_list_packs";
@@ -7070,9 +7081,10 @@ var QuizVersePlugin;
         for (var i = 0; i < gens.length; i++) {
             MpKernelSyncTurn.registerGenerator(gens[i]);
         }
-        initializer.registerRpc(QuizVersePlugin.RPC_CREATE_MATCH, rpcCreateMatch);
-        initializer.registerRpc(QuizVersePlugin.RPC_LOAD_PACK, rpcLoadPack);
-        initializer.registerRpc(QuizVersePlugin.RPC_LIST_PACKS, rpcListPacks);
+        // Literal-string registrations REQUIRED — see RPC_* doc above and PR #94.
+        initializer.registerRpc("quizverse_create_match", rpcCreateMatch);
+        initializer.registerRpc("quizverse_load_pack", rpcLoadPack);
+        initializer.registerRpc("quizverse_list_packs", rpcListPacks);
         logger.info("[QuizVerse] plugin registered; generators=" + gens.length + " modes=classic|friend_battle|link_and_play");
     }
     QuizVersePlugin.register = register;
@@ -20894,7 +20906,18 @@ var LegacyNotifScheduler;
     function register(initializer) {
         if (!initializer || typeof initializer.registerMatch !== "function")
             return;
-        initializer.registerMatch(LegacyNotifScheduler.MATCH_NAME, {
+        // Literal "notif_scheduler_v1" REQUIRED here. Passing the namespaced
+        // var (LegacyNotifScheduler.MATCH_NAME after TS compilation) is a
+        // dynamic property lookup the Goja AST walker can NOT resolve, which
+        // surfaces in prod as: '[Legacy] Failed to register legacy RPCs: js
+        // match handler "matchInit" function for module "notif_scheduler_v1"
+        // global id could not be extracted: not found'. The walker also
+        // refuses to bind matchInit when its source is a function-EXPRESSION
+        // assigned to a namespace var (`exports.matchInit = function(...)`).
+        // Inline the handler functions in the registerMatch call so the
+        // walker sees real function declarations in scope. See PR #94 for
+        // the canonical analysis of this anti-pattern.
+        initializer.registerMatch("notif_scheduler_v1", {
             matchInit: LegacyNotifScheduler.matchInit,
             matchJoinAttempt: LegacyNotifScheduler.matchJoinAttempt,
             matchJoin: LegacyNotifScheduler.matchJoin,
@@ -25055,28 +25078,62 @@ var MpKernelModule;
         }
     };
     // Single boot path: registers all built-in templates + RPCs.
+    //
+    // Per-template registration is wrapped in a try/catch + null-check so a
+    // single broken template (e.g. an undefined `template` from a TS-bundle
+    // load-order issue, or a missing `template.opRange`/`template.templateId`)
+    // can't take down the entire kernel mount. Symptom in prod (EKS,
+    // 2026-05-27): "[MpKernel] failed to mount: Cannot read property 'name'
+    // of undefined" caused every match-create + every fantasy_event_leaderboard
+    // / fantasy_scoring_process RPC to fail across all 4 pods after rollout.
+    // The defensive guards here keep healthy templates registering and emit a
+    // pinpoint log for the broken one(s).
+    function safeRegisterTemplate(initializer, logger, label, template, afterRegister) {
+        try {
+            if (!template || typeof template !== "object") {
+                logger.error("[MpKernel] template '" + label + "' is undefined at boot — skipping (check TS bundle load order)");
+                return;
+            }
+            if (!template.templateId || !template.opRange ||
+                typeof template.opRange.from !== "number" ||
+                typeof template.opRange.to !== "number") {
+                logger.error("[MpKernel] template '" + label + "' missing required fields (templateId/opRange) — skipping");
+                return;
+            }
+            MpKernelMatch.registerTemplate(initializer, template, logger);
+            registerTemplateId(template.templateId);
+            if (afterRegister)
+                afterRegister();
+        }
+        catch (err) {
+            logger.error("[MpKernel] template '" + label + "' register failed: " +
+                (err && err.message ? err.message : String(err)) +
+                " — kernel boot continues with remaining templates");
+        }
+    }
     function register(initializer, logger) {
-        MpKernelCodeRegistry.bootstrapKernelRanges();
+        try {
+            MpKernelCodeRegistry.bootstrapKernelRanges();
+        }
+        catch (err) {
+            logger.error("[MpKernel] bootstrapKernelRanges failed: " +
+                (err && err.message ? err.message : String(err)) +
+                " — kernel boot continues; opcode-range overlap detection disabled");
+        }
         // Templates ship one-by-one; P1 ships SyncTurnMatch, P5 adds
         // AsyncTurnMatch + LobbyHandoffMatch.
-        MpKernelMatch.registerTemplate(initializer, MpKernelSyncTurn.template, logger);
-        registerTemplateId(MpKernelSyncTurn.template.templateId);
-        MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
-        MpKernelMatch.registerTemplate(initializer, MpKernelAsyncTurn.template, logger);
-        registerTemplateId(MpKernelAsyncTurn.template.templateId);
-        MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
-        MpKernelMatch.registerTemplate(initializer, MpKernelLobbyHandoff.template, logger);
-        registerTemplateId(MpKernelLobbyHandoff.template.templateId);
-        MpKernelMatch.registerTemplate(initializer, MpKernelTournament.template, logger);
-        registerTemplateId(MpKernelTournament.template.templateId);
-        MpKernelMatch.registerTemplate(initializer, MpKernelLiveEvent.template, logger);
-        registerTemplateId(MpKernelLiveEvent.template.templateId);
-        MpKernelMatch.registerTemplate(initializer, MpKernelPersistentParty.template, logger);
-        registerTemplateId(MpKernelPersistentParty.template.templateId);
-        MpKernelMatch.registerTemplate(initializer, MpKernelConvParty.template, logger);
-        registerTemplateId(MpKernelConvParty.template.templateId);
-        MpKernelMatch.registerTemplate(initializer, MpKernelMrAnchor.template, logger);
-        registerTemplateId(MpKernelMrAnchor.template.templateId);
+        safeRegisterTemplate(initializer, logger, "sync-turn-v1", MpKernelSyncTurn && MpKernelSyncTurn.template, function () {
+            MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
+        });
+        safeRegisterTemplate(initializer, logger, "async-turn-v1", MpKernelAsyncTurn && MpKernelAsyncTurn.template, function () {
+            MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
+        });
+        safeRegisterTemplate(initializer, logger, "lobby-handoff-v1", MpKernelLobbyHandoff && MpKernelLobbyHandoff.template);
+        safeRegisterTemplate(initializer, logger, "tournament-v1", MpKernelTournament && MpKernelTournament.template);
+        safeRegisterTemplate(initializer, logger, "live-event-v1", MpKernelLiveEvent && MpKernelLiveEvent.template);
+        safeRegisterTemplate(initializer, logger, "persistent-party-v1", MpKernelPersistentParty && MpKernelPersistentParty.template);
+        safeRegisterTemplate(initializer, logger, "conversational-party-v1", MpKernelConvParty && MpKernelConvParty.template);
+        safeRegisterTemplate(initializer, logger, "mixed-reality-anchor-v1", MpKernelMrAnchor && MpKernelMrAnchor.template);
         // RealtimeTickMatch lives in a native Go plugin (data/modules/realtime_tick.so)
         // so it can run at 10–30 Hz without paying the Goja per-tick cost. The Go
         // plugin registers the match handler under "realtime-tick-v1" at boot via

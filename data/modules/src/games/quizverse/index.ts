@@ -9,6 +9,17 @@
 
 namespace QuizVersePlugin {
   // RPC ids — keep stable; adapters depend on these strings.
+  //
+  // NOTE: these constants are kept for adapter/SDK introspection only.
+  // The registerRpc() calls below MUST pass literal strings — Nakama's
+  // Goja runtime walks the AST to extract each registered handler's
+  // "function key" (its source name), and a namespaced var reference
+  // (`QuizVersePlugin.RPC_CREATE_MATCH` after TS compilation) is a
+  // dynamic property lookup the walker can NOT resolve statically.
+  // Symptom in prod (EKS, 2026-05-27): "[QuizVerse] plugin failed to
+  // mount: js quizverse_create_match function key could not be
+  // extracted: not found" on every pod boot, dropping all 3 RPCs.
+  // See PR #94 (cricket InitModule loop) for the canonical analysis.
   export var RPC_CREATE_MATCH = "quizverse_create_match";
   export var RPC_LOAD_PACK    = "quizverse_load_pack";
   export var RPC_LIST_PACKS   = "quizverse_list_packs";
@@ -261,9 +272,10 @@ namespace QuizVersePlugin {
     for (var i = 0; i < gens.length; i++) {
       MpKernelSyncTurn.registerGenerator(gens[i]);
     }
-    initializer.registerRpc(RPC_CREATE_MATCH, rpcCreateMatch);
-    initializer.registerRpc(RPC_LOAD_PACK,    rpcLoadPack);
-    initializer.registerRpc(RPC_LIST_PACKS,   rpcListPacks);
+    // Literal-string registrations REQUIRED — see RPC_* doc above and PR #94.
+    initializer.registerRpc("quizverse_create_match", rpcCreateMatch);
+    initializer.registerRpc("quizverse_load_pack",    rpcLoadPack);
+    initializer.registerRpc("quizverse_list_packs",   rpcListPacks);
     logger.info("[QuizVerse] plugin registered; generators=" + gens.length + " modes=classic|friend_battle|link_and_play");
   }
 }

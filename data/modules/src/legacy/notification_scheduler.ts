@@ -185,7 +185,18 @@ namespace LegacyNotifScheduler {
   // belt + suspenders for future modules.)
   export function register(initializer: nkruntime.Initializer): void {
     if (!initializer || typeof initializer.registerMatch !== "function") return;
-    initializer.registerMatch<SchedulerState>(MATCH_NAME, {
+    // Literal "notif_scheduler_v1" REQUIRED here. Passing the namespaced
+    // var (LegacyNotifScheduler.MATCH_NAME after TS compilation) is a
+    // dynamic property lookup the Goja AST walker can NOT resolve, which
+    // surfaces in prod as: '[Legacy] Failed to register legacy RPCs: js
+    // match handler "matchInit" function for module "notif_scheduler_v1"
+    // global id could not be extracted: not found'. The walker also
+    // refuses to bind matchInit when its source is a function-EXPRESSION
+    // assigned to a namespace var (`exports.matchInit = function(...)`).
+    // Inline the handler functions in the registerMatch call so the
+    // walker sees real function declarations in scope. See PR #94 for
+    // the canonical analysis of this anti-pattern.
+    initializer.registerMatch<SchedulerState>("notif_scheduler_v1", {
       matchInit: matchInit,
       matchJoinAttempt: matchJoinAttempt,
       matchJoin: matchJoin,
