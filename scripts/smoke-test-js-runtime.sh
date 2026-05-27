@@ -58,6 +58,9 @@ assert_health_rpc() {
     local URL="$1"
     local KEY="${2:-defaultkey}"
     local BODY
+    local MAX_TRIES=5
+    local RETRY_DELAY=5
+    local i=0
     # IMPORTANT: Nakama's HTTP RPC API expects the body to be a JSON-encoded
     # *string* (the RPC's `payload` parameter), not a JSON object. Sending
     # `{}` returns:
@@ -65,9 +68,25 @@ assert_health_rpc() {
     # which is what triggered a spurious auto-rollback in CodeBuild #193.
     # We send `""` (a JSON-encoded empty string) which Nakama unmarshals to
     # an empty payload string — which our nakama_js_health handler ignores.
-    BODY=$(curl -fsS -X POST -H "Content-Type: application/json" \
-                "${URL}/v2/rpc/nakama_js_health?http_key=${KEY}" \
-                -d '""' 2>&1) || fail "nakama_js_health RPC returned non-200: $BODY"
+    #
+    # Retry rationale: Nakama's HTTP gateway (port 7350) can respond to the
+    # Docker healthcheck (port 7349) before the JS InitModule wrapper finishes
+    # its __OriginalInitModule + 1020 registerRpc calls. The window is small
+    # but non-zero on slower CI machines. Retrying 5×5s gives 25 extra seconds
+    # of coverage without meaningfully slowing the happy path (first call wins).
+    while [ "$i" -lt "$MAX_TRIES" ]; do
+        BODY=$(curl -fsS -X POST -H "Content-Type: application/json" \
+                    "${URL}/v2/rpc/nakama_js_health?http_key=${KEY}" \
+                    -d '""' 2>&1) && break
+        i=$((i+1))
+        if [ "$i" -lt "$MAX_TRIES" ]; then
+            echo "  [retry $i/$MAX_TRIES] nakama_js_health not ready yet ($BODY), waiting ${RETRY_DELAY}s..."
+            sleep "$RETRY_DELAY"
+        fi
+    done
+    if [ "$i" -ge "$MAX_TRIES" ]; then
+        fail "nakama_js_health RPC returned non-200 after $MAX_TRIES attempts: $BODY"
+    fi
     # Nakama wraps RPC return as {"payload":"<our-json-string-escaped>"}.
     # Our handler returns JSON-stringified {ok:true,...}, so in the wire
     # response the `ok:true` text is escaped → `\"ok\":true`. Match either.
