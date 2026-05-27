@@ -850,9 +850,12 @@ function bumpMetricsCounter(nk, delta) {
 
 /**
  * Track per-platform daily counter (used by analytics_platform_breakdown).
+ *
+ * Key shape: platform_<gameId>_<YYYY-MM-DD>_<platform>. Was previously using
+ * unix-seconds in the date slot, breaking dashboard reads (see trackDAU note).
  */
 function trackPlatform(nk, logger, gameId, platform) {
-    var today = utils.getStartOfDay();
+    var today = new Date().toISOString().slice(0, 10);
     var key = "platform_" + gameId + "_" + today + "_" + platform;
     casUpdate(nk, logger, "analytics_platform", key, SYSTEM_USER, function (rec) {
         if (!rec) rec = { gameId: gameId, date: today, platform: platform, count: 0 };
@@ -872,17 +875,24 @@ function trackPlatform(nk, logger, gameId, platform) {
 // Above DAU_MAX_TRACKED_USERS the array stays frozen; overflow_count tracks
 // additional increments so `count` stays accurate (with minor overcount risk
 // past the cap since dedup can no longer be applied).
-// Fix #8: include gameId in the platform-level key so per-game breakdown is
-// correct on multi-game Nakama instances.
+//
+// CRITICAL 2026-05-27: The previous implementation used utils.getStartOfDay()
+// which returns a unix-seconds number (e.g. 1716768000), but EVERY downstream
+// reader of analytics_dau expects ISO-date keys (e.g. dau_<gameId>_2026-05-27).
+// That made the per-game + platform DAU permanently zero on the live branch
+// of analytics_dashboard_summary — even though events were flowing. Also
+// previously embedded `gameId` into the platform-wide key, but the reader
+// looks for dau_platform_<date> (no gameId), so that aggregate was also
+// invisible. Fixed both in this commit.
 var DAU_MAX_TRACKED_USERS = 10000;
 
 function trackDAU(nk, logger, userId, gameId, isNewUser) {
-    var today = utils.getStartOfDay();
+    var today = new Date().toISOString().slice(0, 10);
     var collection = "analytics_dau";
 
     var keys = [
         "dau_" + gameId + "_" + today,
-        "dau_platform_" + gameId + "_" + today   // Fix #8: added gameId
+        "dau_platform_" + today
     ];
 
     for (var k = 0; k < keys.length; k++) {
@@ -949,7 +959,11 @@ function trackSession(nk, logger, userId, gameId, eventName, eventData) {
  * Uses casUpdate to survive concurrent session_end bursts.
  */
 function aggregateSessionStats(nk, logger, durationSeconds, gameId) {
-    var today = utils.getStartOfDay();
+    // ISO date — matches what every reader (analytics_dashboard,
+    // analytics_dashboard_summary, analytics_session_stats) expects. Was
+    // previously utils.getStartOfDay() returning unix-seconds, so dashboard
+    // sessions card showed 0 even when sessions were flowing.
+    var today = new Date().toISOString().slice(0, 10);
     var collection = "analytics_sessions";
     var keys = ["session_stats_" + today];
     if (gameId) keys.push("session_stats_" + gameId + "_" + today);

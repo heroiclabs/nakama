@@ -4252,22 +4252,29 @@
                     dauMauRatio: data.dau_mau_ratio || 0
                 });
                 
-                // Fetch retention data for benchmarks (async, doesn't block)
-                callRpc('analytics_retention', { windows: [1, 7], ...getGamePayload() })
-                    .then(retData => {
-                        if (retData && retData.retention_windows) {
-                            const d1 = retData.retention_windows.find(w => w.day === 1)?.retention_rate;
-                            const d7 = retData.retention_windows.find(w => w.day === 7)?.retention_rate;
-                            updateBenchmarksGrid({
-                                sessionsPerDau: sessionsPerDauNum,
-                                arpdau: arpdau,
-                                d1Retention: d1 !== undefined ? d1 * 100 : null,
-                                d7Retention: d7 !== undefined ? d7 * 100 : null,
-                                avgSessionSeconds: data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0,
-                                dauMauRatio: data.dau_mau_ratio || 0
-                            });
-                        }
-                    }).catch(() => {});
+                // Fetch retention data for benchmarks (async, doesn't block).
+                // analytics_retention is not a registered RPC; the per-game
+                // cohort RPC is analytics_retention_curves. Read avg_d1_pct /
+                // avg_d7_pct from .summary (already in 0-100 percent form).
+                const gpForRet = getGamePayload();
+                const gameIdForRet = gpForRet.gameId || gpForRet.game_id;
+                if (gameIdForRet && gameIdForRet !== 'all') {
+                    callRpc('analytics_retention_curves', { gameId: gameIdForRet, days: 14 })
+                        .then(retData => {
+                            if (retData && retData.summary) {
+                                const d1 = retData.summary.avg_d1_pct;
+                                const d7 = retData.summary.avg_d7_pct;
+                                updateBenchmarksGrid({
+                                    sessionsPerDau: sessionsPerDauNum,
+                                    arpdau: arpdau,
+                                    d1Retention: typeof d1 === 'number' ? d1 : null,
+                                    d7Retention: typeof d7 === 'number' ? d7 : null,
+                                    avgSessionSeconds: data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0,
+                                    dauMauRatio: data.dau_mau_ratio || 0
+                                });
+                            }
+                        }).catch(() => {});
+                }
 
                 // Run anomaly detection in background (doesn't block)
                 checkAnomalies().catch(e => console.warn('Anomaly check failed:', e));
@@ -9324,9 +9331,15 @@
 
             try {
                 // Fetch current and historical data for comparison
+                // analytics_summary is not a registered RPC — the closest one
+                // that returns dau/wau/mau/sessions/events is
+                // analytics_dashboard_summary. Use 1-day and 7-day windows for
+                // current vs historical comparison.
+                const todayISO = new Date().toISOString().slice(0, 10);
+                const weekAgoISO = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
                 const [currentData, historicalData] = await Promise.all([
-                    callRpc('analytics_summary', { period: 'day', ...getGamePayload() }),
-                    callRpc('analytics_summary', { period: 'week', ...getGamePayload() })
+                    callRpc('analytics_dashboard_summary', { date: todayISO,  ...getGamePayload() }),
+                    callRpc('analytics_dashboard_summary', { date: weekAgoISO, ...getGamePayload() })
                 ]);
 
                 const anomalies = detectAnomalies(currentData, historicalData);
