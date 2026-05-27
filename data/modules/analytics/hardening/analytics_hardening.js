@@ -187,19 +187,19 @@ function rpcAnalyticsFreshnessCheck(ctx, logger, nk, payload) {
     var gameId = data.game_id || data.gameId || "all";
     var stages = {};
 
-    // ── 1. Event ingest — scan last event written today ─────────────────
+    // ── 1. Event ingest — last event ingested today (any game). ─────────
+    // We use analytics_live_daily/live_all_<today>.last_event_at as the
+    // truth source because it's the same counter liveCountersUpdate() ticks
+    // on every accepted event. The previous implementation scanned
+    // analytics_events under SYSTEM_USER, but the dash_* docs are owned by
+    // the firing player, so the scan returned ~nothing and the panel
+    // displayed a 1970-01-01 epoch timestamp.
     var lastEventSec = null;
     try {
-        var evResult = nk.storageList(AH_SYSTEM_USER, AH_EVENTS_COLLECTION, 1, "");
-        if (evResult && evResult.objects && evResult.objects.length > 0) {
-            var ev = evResult.objects[0];
-            // Events are stored with updateTime; fall back to value.timestamp
-            if (ev.updateTime) {
-                lastEventSec = ahIsoToSec(ev.updateTime);
-            } else if (ev.value && ev.value.timestamp) {
-                var ts = parseInt(ev.value.timestamp, 10);
-                lastEventSec = ts > 1e12 ? Math.floor(ts / 1000) : ts;
-            }
+        var liveAllKey = "live_all_" + new Date().toISOString().slice(0, 10);
+        var liveAllDoc = ahReadOne(nk, "analytics_live_daily", liveAllKey, AH_SYSTEM_USER);
+        if (liveAllDoc && liveAllDoc.last_event_at) {
+            lastEventSec = parseInt(liveAllDoc.last_event_at, 10) || null;
         }
     } catch (e) { /* */ }
     stages.event_ingest = ahFreshnessStatus("event_ingest", lastEventSec);
@@ -449,13 +449,13 @@ function rpcAnalyticsEnforcementStatus(ctx, logger, nk, payload) {
 
     // Read today's metrics counter (same shape used by analytics_metrics RPC).
     var today   = new Date().toISOString().slice(0, 10);
-    // bumpMetricsCounter (analytics.js) writes under key "counter_<YYYY-MM-DD>",
-    // not "metrics_<...>" — fix this read so today_accepted / today_rejected /
-    // today_v2_warnings stop being permanently zero on the dashboard.
+    // bumpMetricsCounter (analytics.js) writes under key "counter_<YYYY-MM-DD>"
+    // with fields events_accepted / events_rejected (not the old accepted /
+    // rejected names). Read both so we never regress when either writer ships.
     var counter = ahReadOne(nk, AH_METRICS_COLLECTION, "counter_" + today, AH_SYSTEM_USER) || {};
 
-    var accepted    = counter.accepted         || 0;
-    var rejected    = counter.rejected         || 0;
+    var accepted    = counter.events_accepted || counter.accepted || 0;
+    var rejected    = counter.events_rejected || counter.rejected || 0;
     var v2Warnings  = counter.schema_v2_warnings || 0;
     var v2Events    = counter.schema_v2_events   || 0;
     var aliasNorm   = counter.alias_normalized   || 0;
