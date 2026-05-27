@@ -272,7 +272,13 @@ namespace QuizVersePlugin {
     for (var i = 0; i < gens.length; i++) {
       MpKernelSyncTurn.registerGenerator(gens[i]);
     }
-    // Literal-string registrations REQUIRED — see RPC_* doc above and PR #94.
+    // Literal-string registrations REQUIRED — Goja's AST walker only
+    // extracts RPC ids that appear as string literals at the call site.
+    // The RPC_CREATE_MATCH / RPC_LOAD_PACK / RPC_LIST_PACKS constants
+    // above remain for export so external callers can reference them
+    // by name; do not replace these literals with the constants.
+    // See PRs #94 and #100 for the live regression that motivated this,
+    // and PR #97 for the build-time linter that enforces it going forward.
     initializer.registerRpc("quizverse_create_match", rpcCreateMatch);
     initializer.registerRpc("quizverse_load_pack",    rpcLoadPack);
     initializer.registerRpc("quizverse_list_packs",   rpcListPacks);

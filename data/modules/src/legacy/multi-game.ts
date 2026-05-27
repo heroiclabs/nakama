@@ -1,3 +1,21 @@
+// nakama-allow-dynamic-rpc-id:file
+//
+// Intentional file-level exemption from check-rpc-literals.js.
+//
+// `registerGameRpcs(initializer, prefix, gameId)` registers RPCs of
+// the form `<prefix><suffix>` for an enumerated suffix list. Goja's
+// AST walker would not extract these dynamic ids on its own, but
+// postbuild.js text-scans this file for the
+// `initializer.registerRpc(prefix + "<suffix>", gameRpcHandler(gameId, fn))`
+// pattern and emits explicit
+// `initializer.registerRpc("<prefix><suffix>", ...)` calls into the
+// generated bundle for every (prefix, suffix) pair declared at the
+// `register(...)` call sites below. The dynamic-looking source is
+// the input to that generator, not the runtime form.
+//
+// If you ADD or REMOVE rpcs in this file, also re-run `npm run build`
+// to regenerate the postbuild expansion. See `postbuild.js` ~line 199
+// for the matching extractor.
 namespace LegacyMultiGame {
 
   function gameRpcHandler(gameId: string, handler: (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: any, userId: string, gameId: string) => any): (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string {

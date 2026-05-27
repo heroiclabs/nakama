@@ -950,6 +950,10 @@ namespace AnalyticsAlerts {
           throw err;
         }
       };
+      // AnalyticsAlerts proxy: the literal RPC name is passed by the
+      // upstream caller into proxy.registerRpc("the_literal_name", fn).
+      // The Goja AST walker sees that literal at the original call site;
+      // this passthrough only adds metric sampling. nakama-allow-dynamic-rpc-id
       initializer.registerRpc(id, wrapped);
     };
     logger.info("[AnalyticsAlerts] initializer instrumented — all RPCs will be sampled");

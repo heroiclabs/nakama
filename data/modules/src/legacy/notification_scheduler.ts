@@ -194,8 +194,9 @@ namespace LegacyNotifScheduler {
     // refuses to bind matchInit when its source is a function-EXPRESSION
     // assigned to a namespace var (`exports.matchInit = function(...)`).
     // Inline the handler functions in the registerMatch call so the
-    // walker sees real function declarations in scope. See PR #94 for
-    // the canonical analysis of this anti-pattern.
+    // walker sees real function declarations in scope. See PRs #94 / #100
+    // for the canonical analysis of this anti-pattern, and PR #97 for the
+    // build-time linter that enforces it going forward.
     initializer.registerMatch<SchedulerState>("notif_scheduler_v1", {
       matchInit: matchInit,
       matchJoinAttempt: matchJoinAttempt,

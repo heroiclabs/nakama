@@ -466,6 +466,13 @@ namespace MpKernelMatch {
       to: template.opRange.to,
       template_id: template.templateId
     });
+    // MpKernel per-template registration helper. The set of templates
+    // is enumerated at build time in src/multiplayer-kernel/index.ts —
+    // each one is wrapped in safeRegisterTemplate() with a known literal
+    // label, and the templateId itself comes from a const exported in
+    // src/multiplayer-kernel/code-registry.ts. So while this exact call
+    // site doesn't have a literal, the upstream chain is fully static
+    // and reviewable. nakama-allow-dynamic-rpc-id
     initializer.registerMatch(template.templateId, makeHandler(template));
     logger.info("[MpKernel] registered match template '" + template.templateId +
       "' opRange=0x" + template.opRange.from.toString(16) + "-0x" + template.opRange.to.toString(16));

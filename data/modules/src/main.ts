@@ -617,6 +617,10 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
         if (_alreadyRegistered[id]) {
           _skippedCount++;
         } else {
+          // Bridged-from-legacy proxy. The actual RPC name reaches Goja's
+          // AST walker via the literal-string registerRpc call inside
+          // LegacyInitModule itself; this passthrough is just gating
+          // duplicates. nakama-allow-dynamic-rpc-id
           initializer.registerRpc(id, fn);
           _alreadyRegistered[id] = true;
           _bridgedCount++;
