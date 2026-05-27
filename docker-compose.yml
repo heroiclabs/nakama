@@ -51,6 +51,9 @@ services:
           ANALYTICS_ENFORCE_SCHEMA
           SATORI_URL SATORI_API_KEY_NAME SATORI_API_KEY SATORI_SIGNING_KEY SATORI_HTTP_TIMEOUT_MS
           AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION AWS_S3_BUCKET AWS_PRESIGNED_URL_EXPIRY
+          GNEWS_API_KEY NEWSAPI_API_KEY
+          PUSH_REGISTER_URL PUSH_SEND_URL DEFAULT_FCM_PROJECT_ID
+          TMDB_API_KEY LASTFM_API_KEY
         "
         RUNTIME_ENV_FLAGS=""
         for k in $$RUNTIME_ENV_KEYS; do
@@ -132,6 +135,16 @@ services:
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
       - AWS_PRESIGNED_URL_EXPIRY=${AWS_PRESIGNED_URL_EXPIRY:-3600}
+      # News quiz API keys (GNews free: 100 req/day; server caches 6h)
+      - GNEWS_API_KEY=${GNEWS_API_KEY:-}
+      - NEWSAPI_API_KEY=${NEWSAPI_API_KEY:-}
+      # Push notification Lambda endpoints and FCM project ID
+      - PUSH_REGISTER_URL=${PUSH_REGISTER_URL:-}
+      - PUSH_SEND_URL=${PUSH_SEND_URL:-}
+      - DEFAULT_FCM_PROJECT_ID=${DEFAULT_FCM_PROJECT_ID:-}
+      # Geo-aware quiz external APIs
+      - TMDB_API_KEY=${TMDB_API_KEY:-}
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
     volumes:
       - ./:/nakama/data
     expose:
