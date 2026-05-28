@@ -9,6 +9,18 @@ namespace LegacyPush {
       provider?: string;
       providerRegisteredAt?: number;
       providerError?: string;
+      // Set to true when the Lambda registration has not yet completed
+      // (e.g. client disconnected mid-flight → context canceled). The
+      // scheduler calls flushPendingRegistrations every 30 min to retry
+      // all rows where pendingRegistration=true.
+      pendingRegistration?: boolean;
+      // Retry bookkeeping for the scheduler flush loop.
+      pendingRetries?: number;
+      pendingLastAttempt?: number;
+      // Stash original payload so scheduler can replay without client.
+      pendingGameId?: string;
+      pendingIsSandbox?: boolean;
+      pendingFcmProjectId?: string;
     }[];
   }
 
@@ -289,15 +301,30 @@ namespace LegacyPush {
         logger.warn("[Push] push_register_token rejected: no token provided. userId=%s platform=%s", userId, platform);
         return RpcHelpers.errorResponse("token required");
       }
-      var tokensData = getPushTokens(nk, userId);
+
       var now = Math.floor(Date.now() / 1000);
-      var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId, isSandbox, fcmProjectId);
-      // Resolved platform: ARN-derived when SNS handed us back an endpoint,
-      // else the caller's input. This is the value we persist & report — never
-      // the raw `data.platform` from the request, which can be wrong.
-      var resolvedPlatform: string = (provider && provider.platform) ||
-        (provider && provider.endpointArn ? platformFromArn(provider.endpointArn) : "") ||
-        normalizePlatform(platform);
+      var normalizedPlatformEarly = normalizePlatform(platform);
+
+      // ─────────────────────────────────────────────────────────────────────
+      // CRITICAL: Write the token to storage BEFORE any Lambda/HTTP call.
+      //
+      // Root-cause of "context canceled" errors:
+      //   Nakama's Goja runtime binds ALL operations (nk.httpRequest AND
+      //   nk.storageWrite) to the RPC's HTTP context. When the mobile client
+      //   disconnects mid-flight (app backgrounded, network switch, OS kills
+      //   the socket), the context is canceled. If storageWrite runs AFTER
+      //   nk.httpRequest, it also fails — producing:
+      //     [Push] push_register_token exception: failed to write storage
+      //     objects: context canceled
+      //   and the token is lost entirely.
+      //
+      // Fix: write a "pending" row first (fast, local, completes before
+      // the client can disconnect). Lambda call happens after. If Lambda
+      // succeeds we update the row with the ARN. If Lambda fails (context
+      // canceled), the pending row stays and the scheduler retries every
+      // 30 min via flushPendingRegistrations.
+      // ─────────────────────────────────────────────────────────────────────
+      var tokensData = getPushTokens(nk, userId);
 
       // Ghost-row hygiene: drop any existing rows for this user that have no
       // endpointArn (stale failed registrations). They're never deliverable
@@ -309,55 +336,108 @@ namespace LegacyPush {
       }
       tokensData.tokens = pruned.kept;
 
-      var existing = tokensData.tokens.find(function (t) { return t.token === token; });
-      if (existing) {
-        existing.platform = resolvedPlatform;
-        existing.updatedAt = now;
-        if (provider.endpointArn) existing.endpointArn = provider.endpointArn;
-        if (provider.success) {
-          existing.provider = provider.provider || "sns";
-          existing.providerRegisteredAt = now;
-          existing.providerError = undefined;
-        } else if (provider.configured) {
-          existing.providerError = provider.error || "Provider registration failed";
-        }
-      } else if (provider && provider.success && provider.endpointArn) {
-        // Only write a fresh row when we actually got an ARN back. Refusing
-        // to persist ARN-less rows is what prevents the "3 ghost ios rows"
-        // class of bug from ever recurring.
+      // Upsert a pending row — guarantees the token is never lost regardless
+      // of what happens to the Lambda call or the second storage write.
+      var existingPendingIdx = -1;
+      for (var i = 0; i < tokensData.tokens.length; i++) {
+        if (tokensData.tokens[i].token === token) { existingPendingIdx = i; break; }
+      }
+      if (existingPendingIdx >= 0) {
+        var ep = tokensData.tokens[existingPendingIdx];
+        ep.platform = normalizedPlatformEarly;
+        ep.updatedAt = now;
+        ep.pendingRegistration = true;
+        ep.pendingGameId = gameId;
+        ep.pendingIsSandbox = isSandbox;
+        ep.pendingFcmProjectId = fcmProjectId;
+      } else {
         tokensData.tokens.push({
           token: token,
-          platform: resolvedPlatform,
+          platform: normalizedPlatformEarly,
           updatedAt: now,
-          endpointArn: provider.endpointArn,
-          provider: provider.provider || "sns",
-          providerRegisteredAt: now,
-          providerError: undefined
+          pendingRegistration: true,
+          pendingRetries: 0,
+          pendingLastAttempt: now,
+          pendingGameId: gameId,
+          pendingIsSandbox: isSandbox,
+          pendingFcmProjectId: fcmProjectId,
         });
-      } else {
-        logger.warn("[Push] push_register_token: refusing to write ghost row — " +
-          "Lambda did not return an endpointArn. userId=%s platform=%s providerError=%s",
-          userId, resolvedPlatform, (provider && provider.error) || "none");
       }
+      // This write MUST happen before any nk.httpRequest call. It is the
+      // atomicity guarantee — token is safe even if context cancels later.
       savePushTokens(nk, userId, tokensData);
-      var finalArn = provider && provider.endpointArn ? provider.endpointArn : "";
+      // Register this user in the pending index so the scheduler can find
+      // the row if the Lambda call below fails (context canceled).
+      addToPendingIndex(nk, logger, userId);
+      logger.info("[Push] push_register_token: pending row saved. Calling Lambda. userId=%s platform=%s",
+        userId, normalizedPlatformEarly);
+
+      // ─── Lambda call (context-cancel-safe: pending row already saved) ───
+      var provider = registerProviderEndpoint(ctx, logger, nk, userId, token, platform, gameId, isSandbox, fcmProjectId);
+
+      // Resolved platform: ARN-derived when SNS handed us back an endpoint,
+      // else the caller's input.
+      var resolvedPlatform: string = (provider && provider.platform) ||
+        (provider && provider.endpointArn ? platformFromArn(provider.endpointArn) : "") ||
+        normalizedPlatformEarly;
+
+      // ─── Update storage with ARN (wrapped — may fail if context canceled) ──
+      // If this write fails, the pending row from above is already saved.
+      // The scheduler will retry and obtain the ARN on the next 30-min tick.
+      try {
+        var tokensData2 = getPushTokens(nk, userId);
+        var targetIdx = -1;
+        for (var j = 0; j < tokensData2.tokens.length; j++) {
+          if (tokensData2.tokens[j].token === token) { targetIdx = j; break; }
+        }
+        if (targetIdx < 0) {
+          // Pending row was somehow absent — re-add it (defensive)
+          targetIdx = tokensData2.tokens.length;
+          tokensData2.tokens.push({ token: token, platform: resolvedPlatform, updatedAt: now, pendingRegistration: true });
+        }
+        var row = tokensData2.tokens[targetIdx];
+        row.platform = resolvedPlatform;
+        row.updatedAt = now;
+        if (provider && provider.success && provider.endpointArn) {
+          row.endpointArn = provider.endpointArn;
+          row.pendingRegistration = false;
+          row.pendingRetries = 0;
+          row.provider = provider.provider || "sns";
+          row.providerRegisteredAt = now;
+          row.providerError = undefined;
+          // Clear scheduler stash fields after successful registration
+          row.pendingGameId = undefined;
+          row.pendingIsSandbox = undefined;
+          row.pendingFcmProjectId = undefined;
+        } else if (provider && provider.configured) {
+          row.pendingRegistration = true;
+          row.pendingRetries = (row.pendingRetries || 0) + 1;
+          row.pendingLastAttempt = now;
+          row.providerError = (provider && provider.error) || "Lambda registration failed";
+        }
+        savePushTokens(nk, userId, tokensData2);
+      } catch (saveErr: any) {
+        // Context was already canceled during or after the Lambda call.
+        // The initial pending row (written BEFORE Lambda) is safe in storage.
+        // The scheduler (flushPendingRegistrations, every 30 min) will retry.
+        logger.warn("[Push] push_register_token: ARN-update write skipped (context canceled after Lambda) — " +
+          "pending row already saved, scheduler will complete registration. userId=%s error=%s",
+          userId, saveErr.message || String(saveErr));
+      }
+
+      var finalArn = (provider && provider.endpointArn) ? provider.endpointArn : "";
       if (finalArn) {
         logger.info("[Push] push_register_token SUCCESS: userId=%s requestedPlatform=%s resolvedPlatform=%s endpointArn=%s",
           userId, platform, resolvedPlatform, finalArn);
       } else {
-        logger.warn("[Push] push_register_token INCOMPLETE: no endpointArn returned by Lambda. " +
-          "userId=%s requestedPlatform=%s providerError=%s | " +
-          "iOS fix: upload APNs Auth Key in Firebase Console → Project Settings → Cloud Messaging. " +
-          "Android fix: verify google-services.json is correct and Lambda has FCM server key.",
+        logger.warn("[Push] push_register_token PENDING: no ARN from Lambda — row saved as pending, scheduler will retry. " +
+          "userId=%s requestedPlatform=%s providerError=%s",
           userId, platform, (provider && provider.error) || "none");
       }
-      // Flat response shape — matches Unity's PushRegisterResponse fields exactly so
-      // JsonConvert.DeserializeObject reads endpointArn/platform/userId/gameId without
-      // an extra .data unwrap step. Do NOT wrap in RpcHelpers.successResponse here.
-      // We surface BOTH the resolved platform (truth, used for routing) AND the
-      // requested platform (for client-side debugging when they disagree).
+
       return JSON.stringify({
         success: !!finalArn,
+        pending: !finalArn,
         userId: userId,
         gameId: gameId,
         platform: resolvedPlatform,
@@ -365,7 +445,7 @@ namespace LegacyPush {
         endpointArn: finalArn,
         registeredAt: new Date().toISOString(),
         provider: provider,
-        error: finalArn ? undefined : ((provider && provider.error) || "Provider registration failed")
+        error: finalArn ? undefined : ((provider && provider.error) || "Pending — scheduler will complete registration")
       });
     } catch (e: any) {
       logger.error("[Push] push_register_token exception: %s", e.message || String(e));
@@ -1132,10 +1212,159 @@ namespace LegacyPush {
   export var runStreakWarningCron = rpcNotifCronStreakWarning;
   export var runMotivationCron    = rpcNotifCronMotivation;
 
+  // ─── Pending-registration flush ──────────────────────────────────────────
+  // Called by the scheduler (LegacyNotifScheduler.matchLoop) every 30 min
+  // and available as an admin RPC (push_flush_pending).
+  //
+  // Scans the push_tokens_pending collection (token rows with
+  // pendingRegistration=true) and retries the Lambda call with a FRESH
+  // context (the scheduler match context, not bound to any client connection).
+  // This is the production fix for "context canceled" errors: the pending row
+  // is already in storage (written before the Lambda call in rpcPushRegisterToken),
+  // and this function completes the registration asynchronously.
+  //
+  // Max 3 retries per token row (pendingRetries) to avoid hammering Lambda with
+  // permanently invalid tokens (revoked by OS, wiped on uninstall, etc.).
+  // ─────────────────────────────────────────────────────────────────────────
+  var PENDING_MAX_RETRIES = 3;
+  var PENDING_RETRY_INTERVAL_SEC = 30 * 60; // 30 min — matches scheduler dispatch period
+
+  export function flushPendingRegistrations(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void {
+    try {
+      // List all records in the push_tokens collection across all users.
+      // Nakama's storageList with empty userId iterates global-scope objects;
+      // our tokens are user-scoped, so we use a sentinel index key.
+      // Strategy: read the pending_index — a small JSON array of userIds that
+      // have pending tokens, maintained by rpcPushRegisterToken.
+      var PENDING_INDEX_COLLECTION = "push_pending_index";
+      var PENDING_INDEX_KEY        = "index";
+      var SYSTEM_USER_ID           = "00000000-0000-0000-0000-000000000000";
+
+      var indexObjs = nk.storageRead([{ collection: PENDING_INDEX_COLLECTION, key: PENDING_INDEX_KEY, userId: SYSTEM_USER_ID }]);
+      var pendingUserIds: string[] = [];
+      if (indexObjs && indexObjs.length > 0 && indexObjs[0].value && indexObjs[0].value.userIds) {
+        pendingUserIds = indexObjs[0].value.userIds as string[];
+      }
+      if (!pendingUserIds || pendingUserIds.length === 0) {
+        logger.info("[Push] flushPendingRegistrations: no pending registrations.");
+        return;
+      }
+      logger.info("[Push] flushPendingRegistrations: retrying pending registrations for %s user(s).", pendingUserIds.length);
+
+      var now = Math.floor(Date.now() / 1000);
+      var remainingUserIds: string[] = [];
+
+      for (var u = 0; u < pendingUserIds.length; u++) {
+        var uid = pendingUserIds[u];
+        try {
+          var td = getPushTokens(nk, uid);
+          var hasPending = false;
+          for (var k = 0; k < td.tokens.length; k++) {
+            var row = td.tokens[k];
+            if (!row.pendingRegistration) continue;
+
+            // Skip tokens that hit max retries — they're permanently invalid.
+            if ((row.pendingRetries || 0) >= PENDING_MAX_RETRIES) {
+              logger.warn("[Push] flushPending: token maxed out retries (%s) — marking dead. userId=%s platform=%s tokenPrefix=%s",
+                PENDING_MAX_RETRIES, uid, row.platform, row.token ? row.token.substring(0, 10) : "?");
+              row.pendingRegistration = false;
+              row.providerError = "max_retries_exceeded";
+              continue;
+            }
+
+            // Throttle: don't retry more often than PENDING_RETRY_INTERVAL_SEC.
+            if (row.pendingLastAttempt && (now - row.pendingLastAttempt) < PENDING_RETRY_INTERVAL_SEC) {
+              hasPending = true;
+              continue;
+            }
+
+            var pGameId      = row.pendingGameId      || "quizverse";
+            var pIsSandbox   = row.pendingIsSandbox   || false;
+            var pFcmProjId   = row.pendingFcmProjectId || env(ctx, "DEFAULT_FCM_PROJECT_ID") || "";
+
+            logger.info("[Push] flushPending: retrying Lambda registration. userId=%s platform=%s attempt=%s tokenPrefix=%s",
+              uid, row.platform, (row.pendingRetries || 0) + 1, row.token ? row.token.substring(0, 10) : "?");
+
+            var pResult = registerProviderEndpoint(ctx, logger, nk, uid, row.token, row.platform, pGameId, pIsSandbox, pFcmProjId);
+            row.pendingRetries = (row.pendingRetries || 0) + 1;
+            row.pendingLastAttempt = now;
+
+            if (pResult && pResult.success && pResult.endpointArn) {
+              var arnP = platformFromArn(pResult.endpointArn);
+              row.endpointArn         = pResult.endpointArn;
+              row.platform            = arnP || row.platform;
+              row.provider            = pResult.provider || "sns";
+              row.providerRegisteredAt = now;
+              row.providerError       = undefined;
+              row.pendingRegistration = false;
+              row.pendingGameId       = undefined;
+              row.pendingIsSandbox    = undefined;
+              row.pendingFcmProjectId = undefined;
+              logger.info("[Push] flushPending: SUCCESS userId=%s endpointArn=%s resolvedPlatform=%s",
+                uid, pResult.endpointArn, row.platform);
+            } else {
+              row.providerError = (pResult && pResult.error) || "Lambda registration failed";
+              hasPending = true;
+              logger.warn("[Push] flushPending: retry failed. userId=%s attempt=%s error=%s",
+                uid, row.pendingRetries, row.providerError);
+            }
+          }
+          savePushTokens(nk, uid, td);
+          if (hasPending) remainingUserIds.push(uid);
+        } catch (ue: any) {
+          logger.error("[Push] flushPending: error processing userId=%s: %s", uid, ue.message || String(ue));
+          remainingUserIds.push(uid); // keep in index so next tick retries
+        }
+      }
+
+      // Update the pending index with only the users that still have pending tokens.
+      nk.storageWrite([{
+        collection: PENDING_INDEX_COLLECTION,
+        key: PENDING_INDEX_KEY,
+        userId: SYSTEM_USER_ID,
+        value: { userIds: remainingUserIds },
+        permissionRead: 0,
+        permissionWrite: 0,
+      }]);
+      logger.info("[Push] flushPendingRegistrations: done. remaining pending users: %s", remainingUserIds.length);
+    } catch (e: any) {
+      logger.error("[Push] flushPendingRegistrations exception: %s", e.message || String(e));
+    }
+  }
+
+  // Adds a userId to the pending_index so the scheduler can find it.
+  // Called automatically from rpcPushRegisterToken when a pending row is written.
+  function addToPendingIndex(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string): void {
+    try {
+      var PENDING_INDEX_COLLECTION = "push_pending_index";
+      var PENDING_INDEX_KEY        = "index";
+      var SYSTEM_USER_ID           = "00000000-0000-0000-0000-000000000000";
+      var objs = nk.storageRead([{ collection: PENDING_INDEX_COLLECTION, key: PENDING_INDEX_KEY, userId: SYSTEM_USER_ID }]);
+      var ids: string[] = (objs && objs.length > 0 && objs[0].value && objs[0].value.userIds)
+        ? (objs[0].value.userIds as string[])
+        : [];
+      if (ids.indexOf(userId) < 0) ids.push(userId);
+      nk.storageWrite([{
+        collection: PENDING_INDEX_COLLECTION,
+        key: PENDING_INDEX_KEY,
+        userId: SYSTEM_USER_ID,
+        value: { userIds: ids },
+        permissionRead: 0,
+        permissionWrite: 0,
+      }]);
+    } catch (_) { /* non-fatal — flush will just skip this user this tick */ }
+  }
+
+  function rpcPushFlushPending(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+    flushPendingRegistrations(ctx, logger, nk);
+    return JSON.stringify({ success: true });
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("push_register_token", rpcPushRegisterToken);
     initializer.registerRpc("push_send_event", rpcPushSendEvent);
     initializer.registerRpc("push_get_endpoints", rpcPushGetEndpoints);
+    initializer.registerRpc("push_flush_pending", rpcPushFlushPending);
     // Notification broadcaster — admin/server-key callers only (no userId in ctx).
     initializer.registerRpc("notif_cron_daily_quiz", rpcNotifCronDailyQuiz);
     initializer.registerRpc("notif_cron_weekly_quiz", rpcNotifCronWeeklyQuiz);

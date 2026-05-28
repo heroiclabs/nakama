@@ -115,6 +115,12 @@ namespace LegacyNotifScheduler {
     if (shouldDispatch(state, "idle_winback",    30)) dispatchSafely("idle_winback",   LegacyPush.runIdleWinbackCron,   ctx, logger, nk);
     if (shouldDispatch(state, "streak_warning",  30)) dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
     if (shouldDispatch(state, "motivation",      60)) dispatchSafely("motivation",     LegacyPush.runMotivationCron,    ctx, logger, nk);
+    // Retry push tokens that saved as "pending" because the Lambda call was
+    // canceled mid-flight (client disconnected). Uses fresh scheduler context —
+    // not bound to any mobile client connection — so it can't get context canceled.
+    if (shouldDispatch(state, "flush_pending_push", 30)) {
+      try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
+    }
 
     // Heartbeat once per hour so we can verify the scheduler is alive in logs
     // without spamming. Best-effort; never throws.

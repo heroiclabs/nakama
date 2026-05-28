@@ -1187,6 +1187,7 @@ declare namespace LegacyPush {
     export var runIdleWinbackCron: typeof rpcNotifCronIdleWinback;
     export var runStreakWarningCron: typeof rpcNotifCronStreakWarning;
     export var runMotivationCron: typeof rpcNotifCronMotivation;
+    export function flushPendingRegistrations(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
     export function register(initializer: nkruntime.Initializer): void;
     export {};
 }
