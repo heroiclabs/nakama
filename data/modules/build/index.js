@@ -20959,26 +20959,81 @@ var LegacyNotifScheduler;
     function register(initializer) {
         if (!initializer || typeof initializer.registerMatch !== "function")
             return;
-        // Literal "notif_scheduler_v1" REQUIRED here. Passing the namespaced
-        // var (LegacyNotifScheduler.MATCH_NAME after TS compilation) is a
-        // dynamic property lookup the Goja AST walker can NOT resolve, which
-        // surfaces in prod as: '[Legacy] Failed to register legacy RPCs: js
-        // match handler "matchInit" function for module "notif_scheduler_v1"
-        // global id could not be extracted: not found'. The walker also
-        // refuses to bind matchInit when its source is a function-EXPRESSION
-        // assigned to a namespace var (`exports.matchInit = function(...)`).
-        // Inline the handler functions in the registerMatch call so the
-        // walker sees real function declarations in scope. See PRs #94 / #100
-        // for the canonical analysis of this anti-pattern, and PR #97 for the
-        // build-time linter that enforces it going forward.
+        // Inline literal function expressions for every match handler.
+        //
+        // Build #378 attempt (function-declaration form referenced by name from
+        // here, e.g. `matchInit: matchInit`) STILL produced
+        //   [Legacy] Failed to register legacy RPCs: js match handler "matchInit"
+        //   function for module "notif_scheduler_v1" global id could not be
+        //   extracted: not found
+        // on every pod boot. Goja's AST walker, run by Nakama before the JS VM
+        // is fully evaluated, only resolves handlers when they appear as
+        // LITERAL function expressions inside the object passed to
+        // registerMatch(). It walks the call's argument list, not the
+        // enclosing function/closure/namespace scope. A named reference is a
+        // free-variable from the walker's POV — it has no way to follow the
+        // binding to the function declaration even when both live in the same
+        // IIFE.
+        //
+        // Confirmed empirically by build #378 prod log: identical error after
+        // we converted the seven handlers from `export var matchInit = function(...){}`
+        // (build #377 form) to `function matchInit(...) {}` (build #378 form).
+        // Only inlining the function bodies fixes it. Same root family as
+        // cricket #94 / PRs #97 / #100 / #101.
+        //
+        // The body of each handler is intentionally trivial; the real work is
+        // delegated to a named helper (e.g. shouldDispatch, dispatchSafely,
+        // LegacyPush.run*Cron) so we don't have to re-inline a few hundred
+        // lines just to satisfy Goja.
         initializer.registerMatch("notif_scheduler_v1", {
-            matchInit: matchInit,
-            matchJoinAttempt: matchJoinAttempt,
-            matchJoin: matchJoin,
-            matchLeave: matchLeave,
-            matchLoop: matchLoop,
-            matchSignal: matchSignal,
-            matchTerminate: matchTerminate
+            matchInit: function (_ctx, logger, _nk, _params) {
+                logger.info("[NotifScheduler] match init — tickRate=1, label=notif_scheduler_v1");
+                return {
+                    state: { lastDispatchedMinute: {}, lastLog: 0 },
+                    tickRate: 1,
+                    label: "notif_scheduler_v1"
+                };
+            },
+            matchJoinAttempt: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _presence, _metadata) {
+                return { state: state, accept: false, rejectMessage: "scheduler match — no joins" };
+            },
+            matchJoin: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _presences) {
+                return { state: state };
+            },
+            matchLeave: function (_ctx, _logger, _nk, _dispatcher, _tick, state, _presences) {
+                return { state: state };
+            },
+            matchLoop: function (ctx, logger, nk, _dispatcher, _tick, state, _messages) {
+                if (shouldDispatch(state, "daily_quiz", 30))
+                    dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk);
+                if (shouldDispatch(state, "weekly_quiz", 60))
+                    dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk);
+                if (shouldDispatch(state, "idle_winback", 30))
+                    dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk);
+                if (shouldDispatch(state, "streak_warning", 30))
+                    dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
+                if (shouldDispatch(state, "motivation", 60))
+                    dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk);
+                if (shouldDispatch(state, "flush_pending_push", 30)) {
+                    try {
+                        LegacyPush.flushPendingRegistrations(ctx, logger, nk);
+                    }
+                    catch (_) { }
+                }
+                var m = nowMinute();
+                if ((m % 60) === 0 && state.lastLog !== m) {
+                    state.lastLog = m;
+                    logger.info("[NotifScheduler] heartbeat — minute=%d", m);
+                }
+                return { state: state };
+            },
+            matchSignal: function (_ctx, _logger, _nk, _dispatcher, _tick, state, data) {
+                return { state: state, data: data };
+            },
+            matchTerminate: function (_ctx, logger, _nk, _dispatcher, _tick, state, graceSeconds) {
+                logger.warn("[NotifScheduler] match terminating — grace=%ds", graceSeconds);
+                return { state: state };
+            }
         });
     }
     LegacyNotifScheduler.register = register;
