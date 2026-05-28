@@ -6,15 +6,15 @@
 //  CronJob, no external scheduler, no AWS EventBridge required.
 //
 //  Why a match:
-//    • Goja JS runtime resets between RPC calls, so setInterval() / setTimeout()
+//    * Goja JS runtime resets between RPC calls, so setInterval() / setTimeout()
 //      cannot survive across requests.
-//    • Match handlers are the ONLY long-running Goja contexts Nakama exposes.
-//    • Nakama config has `match.max_empty_sec 0`, so a player-less match runs
+//    * Match handlers are the ONLY long-running Goja contexts Nakama exposes.
+//    * Nakama config has `match.max_empty_sec 0`, so a player-less match runs
 //      indefinitely until the process exits.
 //
 //  Multi-replica safety:
-//    • Each Nakama pod creates its own scheduler match on boot.
-//    • All five cron handlers already deduplicate per-user via the
+//    * Each Nakama pod creates its own scheduler match on boot.
+//    * All five cron handlers already deduplicate per-user via the
 //      `notif_send_markers` storage collection — first writer wins, others
 //      see hasMarker() and skip. Worst-case cost across N pods is a few
 //      extra storage reads per minute.
@@ -24,18 +24,18 @@
 //    handler, so the scheduler just dispatches frequently enough to not miss
 //    any user's local time window. 60 s tick is plenty.
 //
-//      daily_quiz       → every 30 minutes (per-user 09:00–13:00 local gating)
-//      weekly_quiz      → every 60 minutes (5 types × 13 langs S3 reads)
-//      idle_winback     → every 30 minutes (per-user 11:00–19:00 local gating)
-//      streak_warning   → every 30 minutes (per-user 18:00–22:00 local gating)
-//      motivation       → every 60 minutes (per-user 12:00–18:00 + 3-day throttle)
+//      daily_quiz       -> every 30 minutes (per-user 09:00-13:00 local gating)
+//      weekly_quiz      -> every 60 minutes (5 types x 13 langs S3 reads)
+//      idle_winback     -> every 30 minutes (per-user 11:00-19:00 local gating)
+//      streak_warning   -> every 30 minutes (per-user 18:00-22:00 local gating)
+//      motivation       -> every 60 minutes (per-user 12:00-18:00 + 3-day throttle)
 // ===========================================================================
 
 namespace LegacyNotifScheduler {
 
   export var MATCH_NAME = "notif_scheduler_v1";
 
-  interface SchedulerState {
+  export interface SchedulerState {
     // Last UTC minute we already dispatched each task (epoch / 60000).
     // Prevents double-firing when matchLoop runs faster than 1 Hz.
     lastDispatchedMinute: { [taskName: string]: number };
@@ -43,7 +43,7 @@ namespace LegacyNotifScheduler {
     lastLog: number;
   }
 
-  function nowMinute(): number {
+  export function nowMinute(): number {
     return Math.floor(Date.now() / 60000);
   }
 
@@ -60,7 +60,7 @@ namespace LegacyNotifScheduler {
   // across 5 crons + a bunch of users on each). We instead initialize
   // `last = nowMinute()` so the first dispatch happens after `periodMin`
   // minutes — same cadence, no boot-time spike.
-  function shouldDispatch(state: SchedulerState, task: string, periodMin: number): boolean {
+  export function shouldDispatch(state: SchedulerState, task: string, periodMin: number): boolean {
     var m = nowMinute();
     var last = state.lastDispatchedMinute[task];
     if (last === undefined || last === 0) {
@@ -75,7 +75,7 @@ namespace LegacyNotifScheduler {
   // Wrap each cron call in try/catch so one task's exception cannot kill the
   // scheduler match. The handlers return JSON strings on success; we ignore
   // them. Non-fatal logging only.
-  function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama): void {
+  export function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama): void {
     try {
       var ret = fn(ctx, logger, nk, "");
       logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
@@ -84,76 +84,59 @@ namespace LegacyNotifScheduler {
     }
   }
 
-  // CRITICAL: These MUST be `function` DECLARATIONS, not `export var name =
-  // function(...){}` EXPRESSIONS. Nakama's Goja JS runtime walks the AST at
-  // registerMatch() time to extract the handler functions by name; it can
-  // resolve a top-level `function matchInit(...)` declaration but cannot
-  // resolve a namespace-property-assigned function expression. The build
-  // (#367, 2026-05-28) shipped the expression form and prod logged on every
-  // pod boot:
-  //   '[Legacy] Failed to register legacy RPCs: js match handler "matchInit"
-  //    function for module "notif_scheduler_v1" global id could not be
-  //    extracted: not found'
-  // …which meant `notif_scheduler_v1` was never registered and the
-  // LegacyNotifScheduler.spawnSchedulerMatch() call in shared/health.ts
-  // silently failed on every nakama_js_health probe. Net effect: zero push
-  // notifications (daily quiz, weekly quiz, winback, streak warning,
-  // motivation) actually fired from any pod between 2026-05-28T00:57Z and
-  // this fix. Same root pattern as cricket #94 and PRs #97/#100.
-  function matchInit(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _params: { [k: string]: string }) {
+  // ---- Match handler implementations (callable from the top-level wrappers
+  //      that postbuild.js injects below the bundle). These live INSIDE the
+  //      namespace so the source organization stays tidy, but they're invoked
+  //      from the globally-scoped `notifSchedulerMatch<X>` wrappers in
+  //      `data/modules/zz_notif_scheduler_handlers.js`, which is what Goja's
+  //      AST walker actually picks up.
+  //
+  //      See data/modules/postbuild.js section 5b for the wrapper-injection
+  //      logic and src/legacy/notification_scheduler.ts header for the
+  //      "why a match" rationale.
+  export function matchInitImpl(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _params: { [k: string]: string }) {
     logger.info("[NotifScheduler] match init — tickRate=1, label=" + MATCH_NAME);
     return {
       state: { lastDispatchedMinute: {}, lastLog: 0 } as SchedulerState,
-      tickRate: 1,                       // 1 Hz — once per second
+      tickRate: 1,
       label: MATCH_NAME
     };
   }
 
-  // Headless: never accept any joiners. Scheduler runs without players.
-  function matchJoinAttempt(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presence: nkruntime.Presence, _metadata: { [k: string]: any }) {
+  export function matchJoinAttemptImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presence: nkruntime.Presence, _metadata: { [k: string]: any }) {
     return { state: state, accept: false, rejectMessage: "scheduler match — no joins" };
   }
 
-  function matchJoin(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
+  export function matchJoinImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
     return { state: state };
   }
 
-  function matchLeave(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
+  export function matchLeaveImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
     return { state: state };
   }
 
-  function matchLoop(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _messages: nkruntime.MatchMessage[]) {
-    // Direct calls into the cron functions inside LegacyPush. Note these
-    // functions enforce `if (ctx.userId)` to reject user-token callers; the
-    // match context has no userId so the admin gate passes.
+  export function matchLoopImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _messages: nkruntime.MatchMessage[]) {
     if (shouldDispatch(state, "daily_quiz",      30)) dispatchSafely("daily_quiz",     LegacyPush.runDailyQuizCron,     ctx, logger, nk);
     if (shouldDispatch(state, "weekly_quiz",     60)) dispatchSafely("weekly_quiz",    LegacyPush.runWeeklyQuizCron,    ctx, logger, nk);
     if (shouldDispatch(state, "idle_winback",    30)) dispatchSafely("idle_winback",   LegacyPush.runIdleWinbackCron,   ctx, logger, nk);
     if (shouldDispatch(state, "streak_warning",  30)) dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
     if (shouldDispatch(state, "motivation",      60)) dispatchSafely("motivation",     LegacyPush.runMotivationCron,    ctx, logger, nk);
-    // Retry push tokens that saved as "pending" because the Lambda call was
-    // canceled mid-flight (client disconnected). Uses fresh scheduler context —
-    // not bound to any mobile client connection — so it can't get context canceled.
     if (shouldDispatch(state, "flush_pending_push", 30)) {
       try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
     }
-
-    // Heartbeat once per hour so we can verify the scheduler is alive in logs
-    // without spamming. Best-effort; never throws.
     var m = nowMinute();
     if ((m % 60) === 0 && state.lastLog !== m) {
       state.lastLog = m;
       logger.info("[NotifScheduler] heartbeat — minute=%d", m);
     }
-
     return { state: state };
   }
 
-  function matchSignal(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, data: string) {
+  export function matchSignalImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, data: string) {
     return { state: state, data: data };
   }
 
-  function matchTerminate(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, graceSeconds: number) {
+  export function matchTerminateImpl(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, graceSeconds: number) {
     logger.warn("[NotifScheduler] match terminating — grace=%ds", graceSeconds);
     return { state: state };
   }
@@ -184,96 +167,21 @@ namespace LegacyNotifScheduler {
     }
   }
 
-  // Register the match handler. Call from InitModule.
+  // Legacy entry point. The ACTUAL `initializer.registerMatch(...)` call is
+  // injected by `data/modules/postbuild.js` into the generated InitModule
+  // wrapper — Goja's AST walker (see nakama-source/server/runtime_javascript_init.go
+  // @ 1828) only finds match registrations that are DIRECT statements in
+  // InitModule's body AND whose handler properties resolve to top-level
+  // (global-scope) function declarations. A registerMatch call nested inside
+  // a helper like this one is invisible to that walker, which is why
+  // builds #377/#378/#379 all logged
+  //   'js match handler "matchInit" function for module "notif_scheduler_v1"
+  //    global id could not be extracted: not found'
+  // on every pod boot and the scheduler match never spawned.
   //
-  // Defensive guard required (build #200 root-cause): postbuild.js scans
-  // for "<NS>" + "." + "register = register;" patterns and auto-injects a
-  // bare `register();` call right after each one. That trick populates
-  // __rpc_* stubs on every pooled Goja VM. It works when the body is
-  // only rewritten registerRpc lines, but registerMatch calls survive
-  // unrewritten and would deref `undefined` at IIFE auto-invoke time —
-  // throwing a TypeError that escapes the IIFE and halts the rest of
-  // the bundle's top-level evaluation (~15 KB later, including the
-  // JsRuntimeHealth IIFE). The smoke-test 404 from build #200 was that
-  // exact path: the runtime loaded but nakama_js_health was never
-  // assigned to its __rpc_ stub.
-  //
-  // The check below makes this function a no-op when called with an
-  // undefined initializer (the IIFE auto-invoke case), so file evaluation
-  // never aborts. The REAL handler registration still happens when
-  // InitModule calls register() with the genuine initializer object.
-  // (postbuild.js was also hardened to skip auto-invoke for any single-
-  // param register whose body still touches initializer.something() —
-  // belt + suspenders for future modules.)
-  export function register(initializer: nkruntime.Initializer): void {
-    if (!initializer || typeof initializer.registerMatch !== "function") return;
-    // Inline literal function expressions for every match handler.
-    //
-    // Build #378 attempt (function-declaration form referenced by name from
-    // here, e.g. `matchInit: matchInit`) STILL produced
-    //   [Legacy] Failed to register legacy RPCs: js match handler "matchInit"
-    //   function for module "notif_scheduler_v1" global id could not be
-    //   extracted: not found
-    // on every pod boot. Goja's AST walker, run by Nakama before the JS VM
-    // is fully evaluated, only resolves handlers when they appear as
-    // LITERAL function expressions inside the object passed to
-    // registerMatch(). It walks the call's argument list, not the
-    // enclosing function/closure/namespace scope. A named reference is a
-    // free-variable from the walker's POV — it has no way to follow the
-    // binding to the function declaration even when both live in the same
-    // IIFE.
-    //
-    // Confirmed empirically by build #378 prod log: identical error after
-    // we converted the seven handlers from `export var matchInit = function(...){}`
-    // (build #377 form) to `function matchInit(...) {}` (build #378 form).
-    // Only inlining the function bodies fixes it. Same root family as
-    // cricket #94 / PRs #97 / #100 / #101.
-    //
-    // The body of each handler is intentionally trivial; the real work is
-    // delegated to a named helper (e.g. shouldDispatch, dispatchSafely,
-    // LegacyPush.run*Cron) so we don't have to re-inline a few hundred
-    // lines just to satisfy Goja.
-    initializer.registerMatch<SchedulerState>("notif_scheduler_v1", {
-      matchInit: function (_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _params: { [k: string]: string }) {
-        logger.info("[NotifScheduler] match init — tickRate=1, label=notif_scheduler_v1");
-        return {
-          state: { lastDispatchedMinute: {}, lastLog: 0 } as SchedulerState,
-          tickRate: 1,
-          label: "notif_scheduler_v1"
-        };
-      },
-      matchJoinAttempt: function (_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presence: nkruntime.Presence, _metadata: { [k: string]: any }) {
-        return { state: state, accept: false, rejectMessage: "scheduler match — no joins" };
-      },
-      matchJoin: function (_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
-        return { state: state };
-      },
-      matchLeave: function (_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
-        return { state: state };
-      },
-      matchLoop: function (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _messages: nkruntime.MatchMessage[]) {
-        if (shouldDispatch(state, "daily_quiz",      30)) dispatchSafely("daily_quiz",     LegacyPush.runDailyQuizCron,     ctx, logger, nk);
-        if (shouldDispatch(state, "weekly_quiz",     60)) dispatchSafely("weekly_quiz",    LegacyPush.runWeeklyQuizCron,    ctx, logger, nk);
-        if (shouldDispatch(state, "idle_winback",    30)) dispatchSafely("idle_winback",   LegacyPush.runIdleWinbackCron,   ctx, logger, nk);
-        if (shouldDispatch(state, "streak_warning",  30)) dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
-        if (shouldDispatch(state, "motivation",      60)) dispatchSafely("motivation",     LegacyPush.runMotivationCron,    ctx, logger, nk);
-        if (shouldDispatch(state, "flush_pending_push", 30)) {
-          try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
-        }
-        var m = nowMinute();
-        if ((m % 60) === 0 && state.lastLog !== m) {
-          state.lastLog = m;
-          logger.info("[NotifScheduler] heartbeat — minute=%d", m);
-        }
-        return { state: state };
-      },
-      matchSignal: function (_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, data: string) {
-        return { state: state, data: data };
-      },
-      matchTerminate: function (_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, graceSeconds: number) {
-        logger.warn("[NotifScheduler] match terminating — grace=%ds", graceSeconds);
-        return { state: state };
-      }
-    });
+  // Kept as a no-op so the existing call site in src/main.ts and any
+  // external IIFE auto-invokers (postbuild section 3b) remain safe.
+  export function register(_initializer: nkruntime.Initializer): void {
+    // postbuild handles the real registration. See section 5b in postbuild.js.
   }
 }
