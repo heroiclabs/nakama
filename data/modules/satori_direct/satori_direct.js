@@ -582,44 +582,15 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
 //   call there's no interleaving. Across calls, we tolerate a small
 //   amount of clobbering (a tail event might be dropped if two RPCs
 //   race a flush) — the in-house dash_* write is the source of truth.
+// Goja VM pool gives each RPC call a fresh module-scope snapshot — module-level
+// objects (SD_BATCH_BUFFER, SD_BATCH_LAST_SWEEP, etc.) reset on every call,
+// so the batching logic never accumulated anything in practice. Every event
+// was already being flushed as a single-item batch. The buffer has been removed;
+// sdEnqueueOrFlush now calls sdEventsPublish directly, which is what was
+// happening implicitly before.
 function sdEnqueueOrFlush(ctx, nk, logger, identifier, events) {
     if (!events || events.length === 0) return null;
-    var iid = identifier ? String(identifier) : "";
-    // Anonymous / system events skip the buffer entirely — they're rare
-    // (self-check, satori_diag, manual ops) and the batching adds no
-    // latency win.
-    if (!iid) return sdEventsPublish(ctx, nk, logger, identifier, events);
-
-    // All events are forwarded — no allowlist filtering.
-    // slim (sdSlimMetadata) still happens inside sdEventsPublish.
-    var keep = events;
-
-    var now = Date.now();
-    var entry = SD_BATCH_BUFFER[iid];
-    if (!entry) {
-        entry = { events: [], firstAt: now, lastAt: now };
-        SD_BATCH_BUFFER[iid] = entry;
-    }
-    for (var j = 0; j < keep.length; j++) entry.events.push(keep[j]);
-    entry.lastAt = now;
-
-    // Periodic global sweep — flush any buffer that's gone idle for >5s
-    // even if its OWNER hasn't fired another event. Keeps low-traffic
-    // identities from sitting in the buffer indefinitely.
-    if (now - SD_BATCH_LAST_SWEEP > SD_BATCH_SWEEP_MS) {
-        sdSweepStaleBuffers(ctx, nk, logger, now);
-        SD_BATCH_LAST_SWEEP = now;
-    }
-
-    // Size threshold flush
-    if (entry.events.length >= SD_BATCH_MAX_EVENTS) {
-        return sdFlushBuffer(ctx, nk, logger, iid);
-    }
-    // Idle-since-first threshold (rare for a single user but cheap to check)
-    if (now - entry.firstAt > SD_BATCH_MAX_IDLE_MS) {
-        return sdFlushBuffer(ctx, nk, logger, iid);
-    }
-    return null;
+    return sdEventsPublish(ctx, nk, logger, identifier || "", events);
 }
 
 // Flush ONE identity's buffer right now. Removes it from the buffer map
@@ -813,7 +784,9 @@ function sdFlagsList(ctx, nk, logger, identifier) {
  * operator's custom event taxonomy. Returns the HTTP response struct.
  */
 function sdSelfCheck(ctx, nk, logger) {
-    var sysId = "00000000-0000-0000-0000-000000000000";
+    // Use ...0001 — Satori rejects the all-zeros UUID (00000000-...-0000) as INVALID_ID.
+    // The ...0001 system identity is the established non-zero sentinel used by analytics_segments.js.
+    var sysId = "00000000-0000-0000-0000-000000000001";
     var resp = sdEventsPublish(ctx, nk, logger, sysId, [{
         name: "gameStarted",
         id: "selfcheck_" + Date.now(),
@@ -832,7 +805,8 @@ function sdSelfCheck(ctx, nk, logger) {
  * is obvious from a single curl.
  */
 function rpcSatoriDiag(ctx, logger, nk, payload) {
-    var sysId = "00000000-0000-0000-0000-000000000000";
+    // Use ...0001 — Satori rejects the all-zeros UUID as INVALID_ID.
+    var sysId = "00000000-0000-0000-0000-000000000001";
     var ev = sdSelfCheck(ctx, nk, logger);
     var auth = sdAuthenticate(ctx, nk, logger, sysId);
 
