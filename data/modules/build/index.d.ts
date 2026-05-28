@@ -1154,24 +1154,10 @@ declare namespace LegacyMultiGame {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyNotifScheduler {
-    export var MATCH_NAME: string;
-    interface SchedulerState {
-        lastDispatchedMinute: {
-            [taskName: string]: number;
-        };
-        lastLog: number;
-    }
-    export var matchInit: nkruntime.MatchInitFunction<SchedulerState>;
-    export var matchJoinAttempt: nkruntime.MatchJoinAttemptFunction<SchedulerState>;
-    export var matchJoin: nkruntime.MatchJoinFunction<SchedulerState>;
-    export var matchLeave: nkruntime.MatchLeaveFunction<SchedulerState>;
-    export var matchLoop: nkruntime.MatchLoopFunction<SchedulerState>;
-    export var matchSignal: nkruntime.MatchSignalFunction<SchedulerState>;
-    export var matchTerminate: nkruntime.MatchTerminateFunction<SchedulerState>;
-    export var _spawned: boolean;
-    export function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
-    export function register(initializer: nkruntime.Initializer): void;
-    export {};
+    var MATCH_NAME: string;
+    var _spawned: boolean;
+    function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyPlayer {
     function register(initializer: nkruntime.Initializer): void;

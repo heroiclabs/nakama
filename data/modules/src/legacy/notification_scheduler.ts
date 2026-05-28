@@ -84,29 +84,45 @@ namespace LegacyNotifScheduler {
     }
   }
 
-  export var matchInit: nkruntime.MatchInitFunction<SchedulerState> = function(ctx, logger, nk, params) {
+  // CRITICAL: These MUST be `function` DECLARATIONS, not `export var name =
+  // function(...){}` EXPRESSIONS. Nakama's Goja JS runtime walks the AST at
+  // registerMatch() time to extract the handler functions by name; it can
+  // resolve a top-level `function matchInit(...)` declaration but cannot
+  // resolve a namespace-property-assigned function expression. The build
+  // (#367, 2026-05-28) shipped the expression form and prod logged on every
+  // pod boot:
+  //   '[Legacy] Failed to register legacy RPCs: js match handler "matchInit"
+  //    function for module "notif_scheduler_v1" global id could not be
+  //    extracted: not found'
+  // …which meant `notif_scheduler_v1` was never registered and the
+  // LegacyNotifScheduler.spawnSchedulerMatch() call in shared/health.ts
+  // silently failed on every nakama_js_health probe. Net effect: zero push
+  // notifications (daily quiz, weekly quiz, winback, streak warning,
+  // motivation) actually fired from any pod between 2026-05-28T00:57Z and
+  // this fix. Same root pattern as cricket #94 and PRs #97/#100.
+  function matchInit(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _params: { [k: string]: string }) {
     logger.info("[NotifScheduler] match init — tickRate=1, label=" + MATCH_NAME);
     return {
-      state: { lastDispatchedMinute: {}, lastLog: 0 },
+      state: { lastDispatchedMinute: {}, lastLog: 0 } as SchedulerState,
       tickRate: 1,                       // 1 Hz — once per second
       label: MATCH_NAME
     };
-  };
+  }
 
   // Headless: never accept any joiners. Scheduler runs without players.
-  export var matchJoinAttempt: nkruntime.MatchJoinAttemptFunction<SchedulerState> = function(ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
+  function matchJoinAttempt(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presence: nkruntime.Presence, _metadata: { [k: string]: any }) {
     return { state: state, accept: false, rejectMessage: "scheduler match — no joins" };
-  };
+  }
 
-  export var matchJoin: nkruntime.MatchJoinFunction<SchedulerState> = function(ctx, logger, nk, dispatcher, tick, state, presences) {
+  function matchJoin(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
     return { state: state };
-  };
+  }
 
-  export var matchLeave: nkruntime.MatchLeaveFunction<SchedulerState> = function(ctx, logger, nk, dispatcher, tick, state, presences) {
+  function matchLeave(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]) {
     return { state: state };
-  };
+  }
 
-  export var matchLoop: nkruntime.MatchLoopFunction<SchedulerState> = function(ctx, logger, nk, dispatcher, tick, state, messages) {
+  function matchLoop(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _messages: nkruntime.MatchMessage[]) {
     // Direct calls into the cron functions inside LegacyPush. Note these
     // functions enforce `if (ctx.userId)` to reject user-token callers; the
     // match context has no userId so the admin gate passes.
@@ -131,16 +147,16 @@ namespace LegacyNotifScheduler {
     }
 
     return { state: state };
-  };
+  }
 
-  export var matchSignal: nkruntime.MatchSignalFunction<SchedulerState> = function(ctx, logger, nk, dispatcher, tick, state, data) {
+  function matchSignal(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, data: string) {
     return { state: state, data: data };
-  };
+  }
 
-  export var matchTerminate: nkruntime.MatchTerminateFunction<SchedulerState> = function(ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
+  function matchTerminate(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, graceSeconds: number) {
     logger.warn("[NotifScheduler] match terminating — grace=%ds", graceSeconds);
     return { state: state };
-  };
+  }
 
   // Spawn one scheduler match for this Nakama process. Called LAZILY from
   // the first nakama_js_health invocation after boot (NOT from InitModule —
