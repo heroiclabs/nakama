@@ -143,27 +143,56 @@ namespace LegacyNotifScheduler {
 
   // Spawn one scheduler match for this Nakama process. Called LAZILY from
   // the first nakama_js_health invocation after boot (NOT from InitModule —
-  // see main.ts comment for why). Idempotent across repeated calls within
-  // the same Goja VM via the `_spawned` flag — k8s liveness probes hit
-  // nakama_js_health every 30 s and we only want one match per process.
+  // see main.ts comment for why). Idempotent within ONE Goja VM via the
+  // `_spawned` flag AND across VMs via an nk.matchList() pre-check — k8s
+  // liveness probes hit nakama_js_health every 30 s and we only want one
+  // match per process.
   //
-  // `nk.matchCreate` returns a fresh match id every time it's called, so
-  // without this flag a 30-second probe cadence would create 2 matches/min
-  // (~2880/day) across the deployment. Each match holds a Goja loop
-  // running at 1 Hz, so leaking them would trash CPU.
+  // Why the matchList() pre-check: Nakama pools Goja VMs across RPC calls.
+  // Module-scope `var _spawned` lives in one VM's heap; the next probe
+  // call can land on a DIFFERENT pooled VM where `_spawned` is still false.
+  // Production observation (build #380): the per-VM flag let every probe
+  // create a fresh match, accumulating ~14 matches per pod per 10 minutes
+  // (~2000/day per pod, all running at 1 Hz forever). matchList() is the
+  // authoritative cross-VM check — matches are a server-process resource,
+  // so the list is the same regardless of which VM queries it.
+  //
+  // Pod-scoped, not cluster-scoped: each Nakama pod creates and owns one
+  // scheduler match. matchList() returns matches owned by THIS pod, which
+  // is what we want — every pod needs its own scheduler so the cron tasks
+  // keep firing after a partial outage.
   export var _spawned = false;
   export function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void {
     if (_spawned) return;
     try {
+      // Cross-VM dedup: check if a notif_scheduler_v1 match already exists
+      // on this pod. matchList filters by label (set by matchInitImpl above
+      // to MATCH_NAME). limit=1 + authoritative=true scopes to server-owned
+      // matches we created ourselves.
+      var existing: nkruntime.Match[] = [];
+      try {
+        existing = nk.matchList(1, true, MATCH_NAME) || [];
+      } catch (_listErr) {
+        // If matchList fails for any reason, fall through to matchCreate.
+        // Creating a duplicate is preferable to leaving the scheduler dead.
+      }
+      if (existing.length > 0) {
+        _spawned = true;
+        logger.info("[NotifScheduler] Scheduler match already exists on this pod: " + existing[0].matchId + " — skipping spawn");
+        return;
+      }
       var matchId = nk.matchCreate(MATCH_NAME, {});
       _spawned = true;
-      logger.info("[NotifScheduler] Scheduler match spawned: %s", matchId);
+      // String concatenation (not %s) — Goja's printf-style format silently
+      // drops the message on some build configs, which is how production
+      // build #380 had visible matchInit logs but zero "spawned" logs.
+      logger.info("[NotifScheduler] Scheduler match spawned: " + matchId);
     } catch (e: any) {
       // Mark spawned even on failure to avoid log-spam every 30 s. A real
       // failure here is non-fatal — the cron RPCs remain callable via HTTP
       // for ops to fire manually, and the next pod restart will retry.
       _spawned = true;
-      logger.error("[NotifScheduler] Failed to spawn scheduler match: %s", e && e.message ? e.message : String(e));
+      logger.error("[NotifScheduler] Failed to spawn scheduler match: " + (e && e.message ? e.message : String(e)));
     }
   }
 
