@@ -22509,7 +22509,10 @@ var LegacyPush;
                         remainingUserIds.push(uid);
                 }
                 catch (ue) {
-                    logger.error("[Push] flushPending: error processing userId=%s: %s", uid, ue.message || String(ue));
+                    // Storage read error or unexpected failure for this specific user —
+                    // demoted to warn since it's per-user, not a system-level failure.
+                    // The userId stays in remainingUserIds so the next scheduler tick retries.
+                    logger.warn("[Push] flushPending: error processing userId=%s (will retry): %s", uid, ue.message || String(ue));
                     remainingUserIds.push(uid); // keep in index so next tick retries
                 }
             }
