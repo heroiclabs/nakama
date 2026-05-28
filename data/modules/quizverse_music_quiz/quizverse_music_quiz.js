@@ -220,7 +220,13 @@ function rpcQuizverseFetchMusicQuiz(ctx, logger, nk, payload) {
 // ─────────────────────────────────────────────────────────────────
 // Registration
 // ─────────────────────────────────────────────────────────────────
-var InitModule = function(ctx, logger, nk, initializer) {
+// IMPORTANT: this file is concatenated into data/modules/index.js by
+// postbuild.js. Top-level `var InitModule = function(...)` here would
+// SHADOW the wrapper InitModule that postbuild generates and contains
+// the 1000+ direct registerRpc calls Goja's AST walker requires — every
+// other RPC then returns 404 (smoke-test caught this regression on
+// build #373 / sha 6f79b127). Use the canonical `register(initializer)`
+// export that postbuild auto-invokes from inside the wrapper.
+function register(initializer) {
     initializer.registerRpc("quizverse_fetch_music_quiz", rpcQuizverseFetchMusicQuiz);
-    logger.info("[MusicQuiz] Module registered — RPC: quizverse_fetch_music_quiz (Deezer, no key)");
-};
+}
