@@ -208,14 +208,22 @@ phases:
           kubectl set env deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" $INJECT_ARGS
           echo "  ✓ kubectl set env completed"
         fi
-      # Apply analytics CronJobs (rollup + external pollers).
-      # deploy/analytics-cron.yaml has two CronJobs: daily rollup 01:15 UTC
-      # and external pollers every 6h. apply is idempotent.
+      # ── Analytics CronJobs are GitOps'd in intelli-verse-kube-infra ──
+      # As of intelli-verse-kube-infra#83 (2026-05-27) the two CronJobs
+      # (analytics-rollup, analytics-external-poll) live at
+      # `intelli-verse-kube-infra/nakama/analytics-cron.yaml` and are
+      # applied via the kube-infra workflow. Applying them again from
+      # this buildspec creates a race: the kube-infra apply and this
+      # apply use different field-managers, which trips
+      # `kubectl apply --force-conflicts` warnings and (on a bad day)
+      # silently overwrites kube-infra-managed env blocks.
+      #
+      # If you need to roll a CronJob change quickly, edit the YAML in
+      # kube-infra and `kubectl apply -f` from there. Do NOT add this
+      # apply step back. The legacy YAML at deploy/analytics-cron.yaml
+      # has been deleted in this PR.
       - |
-        echo "=== Applying analytics CronJobs ==="
-        kubectl apply -f deploy/analytics-cron.yaml -n "$K8S_NAMESPACE" \
-          && echo "  CronJobs applied OK" \
-          || echo "  WARN: CronJob apply failed - check deploy/analytics-cron.yaml"
+        echo "=== analytics CronJobs are owned by intelli-verse-kube-infra/nakama/analytics-cron.yaml ==="
         kubectl get cronjobs -n "$K8S_NAMESPACE" -l component=analytics-cron 2>/dev/null || true
       # Post-deploy bootstrap backfill: populate analytics_rollup_daily for
       # the last 30 days so the dashboard has history immediately.
