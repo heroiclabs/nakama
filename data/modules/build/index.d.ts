@@ -1154,24 +1154,49 @@ declare namespace LegacyMultiGame {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyNotifScheduler {
-    export var MATCH_NAME: string;
+    var MATCH_NAME: string;
     interface SchedulerState {
         lastDispatchedMinute: {
             [taskName: string]: number;
         };
         lastLog: number;
     }
-    export var matchInit: nkruntime.MatchInitFunction<SchedulerState>;
-    export var matchJoinAttempt: nkruntime.MatchJoinAttemptFunction<SchedulerState>;
-    export var matchJoin: nkruntime.MatchJoinFunction<SchedulerState>;
-    export var matchLeave: nkruntime.MatchLeaveFunction<SchedulerState>;
-    export var matchLoop: nkruntime.MatchLoopFunction<SchedulerState>;
-    export var matchSignal: nkruntime.MatchSignalFunction<SchedulerState>;
-    export var matchTerminate: nkruntime.MatchTerminateFunction<SchedulerState>;
-    export var _spawned: boolean;
-    export function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
-    export function register(initializer: nkruntime.Initializer): void;
-    export {};
+    function nowMinute(): number;
+    function shouldDispatch(state: SchedulerState, task: string, periodMin: number): boolean;
+    function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    function matchInitImpl(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _params: {
+        [k: string]: string;
+    }): {
+        state: SchedulerState;
+        tickRate: number;
+        label: string;
+    };
+    function matchJoinAttemptImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presence: nkruntime.Presence, _metadata: {
+        [k: string]: any;
+    }): {
+        state: SchedulerState;
+        accept: boolean;
+        rejectMessage: string;
+    };
+    function matchJoinImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]): {
+        state: SchedulerState;
+    };
+    function matchLeaveImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _presences: nkruntime.Presence[]): {
+        state: SchedulerState;
+    };
+    function matchLoopImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _messages: nkruntime.MatchMessage[]): {
+        state: SchedulerState;
+    };
+    function matchSignalImpl(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, data: string): {
+        state: SchedulerState;
+        data: string;
+    };
+    function matchTerminateImpl(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, graceSeconds: number): {
+        state: SchedulerState;
+    };
+    var _spawned: boolean;
+    function spawnSchedulerMatch(logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    function register(_initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyPlayer {
     function register(initializer: nkruntime.Initializer): void;

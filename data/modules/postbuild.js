@@ -684,11 +684,72 @@ var registrationLines = rpcEntries.map(function(e) {
   return '  try { initializer.registerRpc("' + e.id + '", ' + e.varName + '); } catch(e) {}';
 }).join('\n');
 
+// ─── 5b. Match handler registration ──────────────────────────────
+//
+// Nakama's Goja runtime walks InitModule's body AST for every
+// `initializer.registerMatch(name, obj)` call. Three rules:
+//   (1) the call must be a direct statement in the InitModule function
+//       body (or in a try block within it) — nested helper functions
+//       are invisible to the walker
+//       (server/runtime_javascript_init.go @ getMatchHookFnIdentifier),
+//   (2) each handler property value must be an *Identifier*; function
+//       expressions are rejected with `errInlinedFunction`
+//       (server/runtime_javascript_init.go @ line 1877),
+//   (3) the identifier must resolve to a function on r.GlobalObject() —
+//       declarations inside TS `namespace { ... }` IIFEs don't qualify
+//       (server/runtime_javascript_init.go @ checkFnScope, line 1899).
+//
+// Builds #377/#378/#379 all violated rule (1) (nested call inside
+// LegacyNotifScheduler.register) and tried various tweaks at the call
+// site — but the walker can't see calls it can't reach. We fix it here
+// by emitting the registration in the InitModule wrapper directly,
+// pointing at the top-level wrapper functions declared in
+// data/modules/zz_notif_scheduler_handlers.js.
+//
+// MATCH_HANDLERS is the source of truth for "which matches do we
+// register here". Each entry lists the seven required handler names
+// AND the globally-declared function each one delegates to. Adding a
+// new match means:
+//   1. Declare the 7 wrapper functions at file scope in a `.js` module
+//      that postbuild's `discoverModuleFiles` picks up,
+//   2. Append an entry to MATCH_HANDLERS below.
+var MATCH_HANDLERS = [
+  {
+    matchName: 'notif_scheduler_v1',
+    handlers: {
+      matchInit:        'notifSchedulerMatchInit',
+      matchJoinAttempt: 'notifSchedulerMatchJoinAttempt',
+      matchJoin:        'notifSchedulerMatchJoin',
+      matchLeave:       'notifSchedulerMatchLeave',
+      matchLoop:        'notifSchedulerMatchLoop',
+      matchSignal:      'notifSchedulerMatchSignal',
+      matchTerminate:   'notifSchedulerMatchTerminate'
+    }
+  }
+];
+
+var matchRegistrationLines = MATCH_HANDLERS.map(function(m) {
+  var props = Object.keys(m.handlers).map(function(h) {
+    return '      ' + h + ': ' + m.handlers[h];
+  }).join(',\n');
+  return [
+    '  try {',
+    '    initializer.registerMatch("' + m.matchName + '", {',
+    props,
+    '    });',
+    '    logger.info("[Postbuild] Registered match handler: ' + m.matchName + '");',
+    '  } catch(e) {',
+    '    try { logger.error("[Postbuild] registerMatch ' + m.matchName + ' failed: " + (e && e.message ? e.message : String(e))); } catch(_) {}',
+    '  }'
+  ].join('\n');
+}).join('\n');
+
 var newInitModule = [
   '',
-  '// --- RPC Registration Bridge (Goja AST Compatible) ---',
-  '// Nakama\'s AST walker only finds registerRpc calls that are direct',
-  '// statements in InitModule\'s body. This wrapper satisfies that requirement.',
+  '// --- RPC + Match Registration Bridge (Goja AST Compatible) ---',
+  '// Nakama\'s AST walker only finds registerRpc / registerMatch calls that',
+  '// are direct statements in InitModule\'s body. This wrapper satisfies',
+  '// that requirement for both kinds of registration.',
   '//',
   '// CRITICAL: __OriginalInitModule is wrapped in try/catch so that any',
   '// exception from a subsystem that escapes its own try/catch cannot prevent',
@@ -707,7 +768,9 @@ var newInitModule = [
   '  // --- RPC alias overrides (post-Hiro, pre-registration) ---',
   aliasOverrideLines,
   registrationLines,
-  '  logger.info("[Postbuild] Registered " + ' + rpcEntries.length + ' + " RPCs via AST-compatible wrapper (' + RPC_ALIAS_OVERRIDES.length + ' aliases applied)");',
+  '  // --- Match handler registrations (see section 5b in postbuild.js) ---',
+  matchRegistrationLines,
+  '  logger.info("[Postbuild] Registered " + ' + rpcEntries.length + ' + " RPCs via AST-compatible wrapper (' + RPC_ALIAS_OVERRIDES.length + ' aliases applied, ' + MATCH_HANDLERS.length + ' match handlers)");',
   '}',
   ''
 ].join('\n');
