@@ -9646,6 +9646,22 @@
         // Initialize
         // ─────────────────────────────────────────────────────────────────────
 
+        // Auto-login via postMessage from the Nakama admin dashboard iframe
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'IVX_ADMIN_TOKEN') {
+                const { token, username, expiresAt } = event.data;
+                if (!token) return;
+                sessionStorage.setItem(CONFIG.adminTokenStorageKey, JSON.stringify({
+                    token,
+                    username: username || 'admin',
+                    expiresAt: expiresAt || null
+                }));
+                if (!isAuthenticated && checkAuth()) {
+                    loadTab('overview');
+                }
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', () => {
             // Restore session auth and lazy-load the initial (overview) tab
             if (checkAuth()) {

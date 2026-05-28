@@ -1713,7 +1713,49 @@ export function AnalyticsPage() {
 /*  Standalone Dashboard tab — embeds the canonical analytics.html.    */
 /* ------------------------------------------------------------------ */
 
+interface AdminLoginResult {
+  success?: boolean;
+  token?: string;
+  username?: string;
+  expiresAt?: number;
+  error?: string;
+}
+
 function StandaloneDashboardTab() {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const tokenSentRef = useRef(false);
+
+  const postTokenToIframe = useCallback(async () => {
+    if (tokenSentRef.current) return;
+    try {
+      const result = await callRpc<Record<string, unknown>, AdminLoginResult>(
+        "admin_login",
+        {},
+        serverKeyAuth(),
+      );
+      if (result?.token && iframeRef.current?.contentWindow) {
+        tokenSentRef.current = true;
+        iframeRef.current.contentWindow.postMessage(
+          {
+            type: "IVX_ADMIN_TOKEN",
+            token: result.token,
+            username: result.username ?? "admin",
+            expiresAt: result.expiresAt ?? null,
+          },
+          new URL(STANDALONE_DASHBOARD_URL).origin,
+        );
+      }
+    } catch {
+      // If the RPC proxy can't call admin_login directly, the iframe will
+      // show its own login screen as a fallback.
+    }
+  }, []);
+
+  const handleIframeLoad = useCallback(() => {
+    tokenSentRef.current = false;
+    postTokenToIframe();
+  }, [postTokenToIframe]);
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
@@ -1735,10 +1777,12 @@ function StandaloneDashboardTab() {
       </div>
       <div className="overflow-hidden rounded-lg border border-border bg-background">
         <iframe
+          ref={iframeRef}
           title="Standalone Analytics Dashboard"
           src={STANDALONE_DASHBOARD_URL}
           className="h-[calc(100vh-260px)] w-full border-0"
           loading="lazy"
+          onLoad={handleIframeLoad}
         />
       </div>
     </div>
