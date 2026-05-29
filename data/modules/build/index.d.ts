@@ -3490,6 +3490,18 @@ declare namespace RpcHelpers {
     function gameId(data: any): string | undefined;
     function logRpcError(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpcName: string, errorMessage: string, userId?: string, gameId?: string): void;
     function requireUserId(ctx: nkruntime.Context): string;
+    /**
+     * Higher-order wrapper that converts AUTH_REQUIRED errors thrown by
+     * requireUserId() into a clean JSON response. Apply at the
+     * `initializer.registerRpc(...)` callsite for every RPC that calls
+     * requireUserId(), so anonymous callers get a proper "sign in required"
+     * payload instead of a Goja stack trace + HTTP 500.
+     *
+     * Usage:
+     *   initializer.registerRpc("tournament_enter",
+     *     RpcHelpers.withCleanAuthError(rpcEnter));
+     */
+    function withCleanAuthError(handler: (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string): (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string;
     function resolveUserId(ctx: nkruntime.Context, payload?: any): string;
     function requireAdmin(ctx: nkruntime.Context, nk: nkruntime.Nakama): void;
 }

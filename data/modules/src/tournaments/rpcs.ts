@@ -1384,36 +1384,42 @@ namespace TournamentRpcs {
 
   // ── Registration ───────────────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer): void {
+    // Short alias to keep registration lines readable. Wraps an RPC handler
+    // so that AUTH_REQUIRED errors thrown by RpcHelpers.requireUserId() are
+    // converted to a clean unauthenticated response instead of leaking a
+    // Goja stack trace + HTTP 500 to anonymous callers (B6 fix).
+    var auth = RpcHelpers.withCleanAuthError;
+
     // User-callable
     initializer.registerRpc("tournament_list", rpcList);
     initializer.registerRpc("tournament_get", rpcGet);
     initializer.registerRpc("tournament_caller_status", rpcCallerStatus);
     initializer.registerRpc("tournament_bracket_state", rpcBracketState);
-    initializer.registerRpc("tournament_pre_enroll", rpcPreEnroll);
-    initializer.registerRpc("tournament_enter", rpcEnter);
-    initializer.registerRpc("tournament_submit_pack_result", rpcSubmitPackResult);
-    initializer.registerRpc("tournament_submit_picks", rpcSubmitPicks);
-    initializer.registerRpc("tournament_status_get", rpcStatusGet);
+    initializer.registerRpc("tournament_pre_enroll", auth(rpcPreEnroll));
+    initializer.registerRpc("tournament_enter", auth(rpcEnter));
+    initializer.registerRpc("tournament_submit_pack_result", auth(rpcSubmitPackResult));
+    initializer.registerRpc("tournament_submit_picks", auth(rpcSubmitPicks));
+    initializer.registerRpc("tournament_status_get", auth(rpcStatusGet));
     initializer.registerRpc("tournament_leaderboard_top", rpcLbTop);
-    initializer.registerRpc("tournament_leaderboard_around_me", rpcLbAroundMe);
-    initializer.registerRpc("tournament_leaderboard_friends", rpcLbFriends);
+    initializer.registerRpc("tournament_leaderboard_around_me", auth(rpcLbAroundMe));
+    initializer.registerRpc("tournament_leaderboard_friends", auth(rpcLbFriends));
     initializer.registerRpc("tournament_leaderboard_country", rpcLbCountry);
-    initializer.registerRpc("tournament_leaderboard_tier_league", rpcLbTierLeague);
+    initializer.registerRpc("tournament_leaderboard_tier_league", auth(rpcLbTierLeague));
     initializer.registerRpc("tournament_leaderboard_activity_feed", rpcLbActivityFeed);
-    initializer.registerRpc("tournament_claim_cert", rpcClaimCert);
-    initializer.registerRpc("tournament_claim_certificate", rpcClaimCert); // alias used by web/Unity clients
+    initializer.registerRpc("tournament_claim_cert", auth(rpcClaimCert));
+    initializer.registerRpc("tournament_claim_certificate", auth(rpcClaimCert)); // alias used by web/Unity clients
     initializer.registerRpc("certificate_get", rpcCertificateGet);
     initializer.registerRpc("tournament_content_get_pack", rpcContentGetPack);
     initializer.registerRpc("tournament_get_pick_n_questions", rpcContentGetPack); // alias for Pick-N flow
     initializer.registerRpc("tournament_video_get_url", rpcVideoGetUrl);
     initializer.registerRpc("learning_track_video_url", rpcVideoGetUrl);   // alias for Unity gateway
     initializer.registerRpc("learning_track_get", rpcLearningTrackGet);
-    initializer.registerRpc("learning_track_progress_get", rpcLearningTrackProgressGet);
-    initializer.registerRpc("learning_video_record_watch", rpcLearningVideoRecordWatch);
-    initializer.registerRpc("learning_check_submit", rpcLearningCheckSubmit);
-    initializer.registerRpc("tournament_learning_check_submit", rpcLearningCheckSubmit);
-    initializer.registerRpc("tournament_referral_get_mine", rpcReferralGetMine);
-    initializer.registerRpc("referral_my_code", rpcReferralGetMine);       // alias
+    initializer.registerRpc("learning_track_progress_get", auth(rpcLearningTrackProgressGet));
+    initializer.registerRpc("learning_video_record_watch", auth(rpcLearningVideoRecordWatch));
+    initializer.registerRpc("learning_check_submit", auth(rpcLearningCheckSubmit));
+    initializer.registerRpc("tournament_learning_check_submit", auth(rpcLearningCheckSubmit));
+    initializer.registerRpc("tournament_referral_get_mine", auth(rpcReferralGetMine));
+    initializer.registerRpc("referral_my_code", auth(rpcReferralGetMine));       // alias
     initializer.registerRpc("referral_lookup", rpcReferralLookup);
     initializer.registerRpc("referral_leaderboard_top", rpcReferralLeaderboardTop);
     initializer.registerRpc("referral_pre_enroll_with_code", rpcReferralPreEnrollWithCode);

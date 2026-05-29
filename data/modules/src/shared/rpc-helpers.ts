@@ -75,9 +75,44 @@ namespace RpcHelpers {
 
   export function requireUserId(ctx: nkruntime.Context): string {
     if (!ctx.userId) {
-      throw new Error("User ID is required");
+      // Sentinel marker so the withCleanAuthError wrapper can convert this
+      // into a clean 401-style JSON response instead of leaking the Goja
+      // stack trace to anonymous clients.
+      throw new Error("AUTH_REQUIRED: User ID is required");
     }
     return ctx.userId;
+  }
+
+  /**
+   * Higher-order wrapper that converts AUTH_REQUIRED errors thrown by
+   * requireUserId() into a clean JSON response. Apply at the
+   * `initializer.registerRpc(...)` callsite for every RPC that calls
+   * requireUserId(), so anonymous callers get a proper "sign in required"
+   * payload instead of a Goja stack trace + HTTP 500.
+   *
+   * Usage:
+   *   initializer.registerRpc("tournament_enter",
+   *     RpcHelpers.withCleanAuthError(rpcEnter));
+   */
+  export function withCleanAuthError(
+    handler: (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string
+  ): (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string {
+    return function (ctx, logger, nk, payload) {
+      try {
+        return handler(ctx, logger, nk, payload);
+      } catch (err: any) {
+        var msg = (err && err.message) ? String(err.message) : "";
+        if (msg.indexOf("AUTH_REQUIRED") >= 0 || msg.indexOf("User ID is required") >= 0) {
+          return JSON.stringify({
+            success: false,
+            error: "sign in required",
+            code: "unauthenticated",
+            http_status: 401,
+          });
+        }
+        throw err;
+      }
+    };
   }
 
   export function resolveUserId(ctx: nkruntime.Context, payload?: any): string {
