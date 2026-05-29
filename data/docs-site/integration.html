@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Integration · QuizVerse Tournaments</title>
+<meta name="description" content="Step-by-step QuizVerse tournament integration: Web (Next.js), Unity (C#), and direct Nakama JS module. Code samples, RPC bodies, and prod hostnames.">
+<link rel="stylesheet" href="assets/styles.css?v=7">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: true, theme: "dark", themeVariables: { fontSize: "13px" } });
+    }
+  });
+</script>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html">Overview</a>
+      <a href="journey.html">Journey</a>
+      <a href="flows.html">Flows</a>
+      <a href="integration.html" class="active">Integration</a>
+      <a href="testing.html">Testing</a>
+      <a href="reference.html">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="status.html">Status</a>
+      <a href="launch.html">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">0 → done · Web · Unity · Backend</span>
+  <h1>Integration Guide</h1>
+  <p>Three independent tracks. Read the one that matches your stack. Each is self-contained and walks from "I have nothing wired" to "tournaments are visible and enterable in my client."</p>
+</header>
+
+<main class="container-narrow">
+
+<!-- ─────────────────── Endpoints + auth ─────────────────── -->
+<section>
+  <h2>0. Endpoints &amp; auth (read first)</h2>
+  <table>
+    <thead><tr><th>Service</th><th>Hostname</th><th>Auth</th></tr></thead>
+    <tbody>
+      <tr><td>Nakama HTTP API (prod)</td><td><code>https://nakama.intelli-verse-x.ai</code></td><td>Session token (Bearer) or <code>http_key</code> (read-only)</td></tr>
+      <tr><td>Nakama gRPC (prod)</td><td><code>nakama.intelli-verse-x.ai:443</code></td><td>Session token (TLS)</td></tr>
+      <tr><td>Nakama (in-cluster)</td><td><code>http://intelliverse-nakama.aicart.svc.cluster.local:7350</code></td><td>http_key</td></tr>
+      <tr><td>Bracket public</td><td><code>https://bracket.intelli-verse-x.ai</code></td><td>Public iframe; mutating endpoints require S2S JWT</td></tr>
+      <tr><td>Bracket internal</td><td><code>http://bracket.aicart.svc.cluster.local:8400</code></td><td><code>BRACKET_SERVICE_JWT</code> (Authorization: Bearer)</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Server key (HTTP key):</strong> <code>TjJU2n07lAJ6HIGG7BQrARp6cbm2IKIeag1uGXjb</code> — read-only RPCs (<code>tournament_list</code>, <code>tournament_get</code>, the <code>nakama_js_health</code> probe). Never use this for mutating calls in clients; do those over an authenticated session.</p>
+</section>
+
+<!-- ─────────────────── Web (Next.js) ─────────────────── -->
+<section>
+  <h2>1. Web — Next.js 16 / React 19</h2>
+  <p>The web client uses the official <code>@heroiclabs/nakama-js</code> SDK plus a thin wrapper at <code>web/lib/nakama/web-client.ts</code>. The board component (<code>TournamentsBoard.tsx</code>) and detail card already exist; you mostly wire them into a route.</p>
+
+  <h3 id="web-1">1.1 Install + env</h3>
+<pre><code>npm i @heroiclabs/nakama-js
+
+# .env.local
+NEXT_PUBLIC_NAKAMA_HOST=nakama.intelli-verse-x.ai
+NEXT_PUBLIC_NAKAMA_PORT=443
+NEXT_PUBLIC_NAKAMA_USE_SSL=true
+NEXT_PUBLIC_NAKAMA_KEY=defaultkey   # client key only, NOT the server http_key</code></pre>
+
+  <h3 id="web-2">1.2 Mint a session (anonymous-first, merge on sign-in)</h3>
+<pre><code>// web/lib/nakama/web-client.ts (already exists in repo)
+import { Client } from "@heroiclabs/nakama-js";
+
+const client = new Client(
+  process.env.NEXT_PUBLIC_NAKAMA_KEY!,
+  process.env.NEXT_PUBLIC_NAKAMA_HOST!,
+  process.env.NEXT_PUBLIC_NAKAMA_PORT!,
+  process.env.NEXT_PUBLIC_NAKAMA_USE_SSL === "true",
+);
+
+let session;
+export async function ensureSession() {
+  if (session) return session;
+  // ghost user = device-bound anonymous; merges on Google sign-in via authenticateGoogle()
+  const deviceId = crypto.randomUUID();
+  session = await client.authenticateDevice(deviceId, true);
+  return session;
+}
+
+export async function rpc&lt;T = any&gt;(name: string, payload: object) {
+  const s = await ensureSession();
+  const r = await client.rpc(s, name, payload);
+  return { ok: true, data: r.payload as T };
+}</code></pre>
+
+  <h3 id="web-3">1.3 Render the tournaments board</h3>
+<pre><code>// app/tournaments/page.tsx
+import TournamentsBoard from "@/components/tournaments/TournamentsBoard";
+import { rpc } from "@/lib/nakama/web-client";
+
+export default async function Page() {
+  // Server-side fetch for fast first paint (uses the http_key, read-only)
+  const r = await fetch(
+    "https://nakama.intelli-verse-x.ai/v2/rpc/tournament_list?http_key=TjJU2n07lAJ6HIGG7BQrARp6cbm2IKIeag1uGXjb&unwrap",
+    { next: { revalidate: 30 } } // 30-second ISR
+  );
+  const data = await r.json();
+  return &lt;TournamentsBoard initialTournaments={data.data?.tournaments ?? []} /&gt;;
+}</code></pre>
+
+  <h3 id="web-4">1.4 Wire the Enter button</h3>
+<pre><code>// inside TournamentDetail.tsx — already implemented
+const onEnter = async () =&gt; {
+  const idempotency_key = crypto.randomUUID();
+  const r = await rpc("tournament_enter", { slug, idempotency_key });
+  if (r.data?.ok) {
+    setEntryId(r.data.entry_id);
+    setPotBc(r.data.pot_bc);
+    showToast("You're in. Pot is now " + r.data.pot_bc + " BC");
+  } else if (r.data?.error === "insufficient_balance") {
+    openBuyBcSheet();
+  } else if (r.data?.error === "entry_blocked_in_us_state") {
+    showAmoeUpsell();
+  }
+};</code></pre>
+
+  <h3 id="web-5">1.5 Subscribe to live pot updates</h3>
+<pre><code>const socket = client.createSocket(true);
+await socket.connect(session, true);
+await socket.joinChat("tournament:" + slug, 1, false, false);
+socket.onchannelmessage = (msg) =&gt; {
+  const data = JSON.parse(msg.content);
+  if (data.op === 1001) setPotBc(data.pot_bc);
+  if (data.op === 1004) setSettled(data.payouts);
+};</code></pre>
+</section>
+
+<!-- ─────────────────── Unity ─────────────────── -->
+<section>
+  <h2>2. Unity — C# (Built-in pipeline)</h2>
+  <p>Unity uses <code>Nakama.Client</code> (the official C# SDK, already in <code>Assets/Plugins/Nakama/</code>). The QuizVerse SDK wrapper at <code>Assets/_QuizVerse/Scripts/Backend/NakamaService.cs</code> exposes a typed <code>RpcAsync&lt;T&gt;()</code> helper.</p>
+
+  <h3 id="unity-1">2.1 List tournaments</h3>
+<pre><code>using Nakama;
+using Nakama.TinyJson;
+
+public async UniTask&lt;TournamentListResponse&gt; ListTournamentsAsync()
+{
+    var rpcResult = await NakamaService.Instance.RpcAsync(
+        "tournament_list",
+        new { }
+    );
+    return rpcResult.Payload.FromJson&lt;TournamentListResponse&gt;();
+}
+
+[System.Serializable]
+public class TournamentListResponse {
+    public bool success;
+    public TournamentListData data;
+}
+[System.Serializable]
+public class TournamentListData {
+    public TournamentSummary[] tournaments;
+}
+[System.Serializable]
+public class TournamentSummary {
+    public string slug;
+    public string name;
+    public string format;
+    public string status;
+    public int pot_bc;
+    public int entries_count;
+    public int entry_fee_bc;
+}</code></pre>
+
+  <h3 id="unity-2">2.2 Enter a tournament</h3>
+<pre><code>public async UniTask&lt;EnterResult&gt; EnterAsync(string slug)
+{
+    var key = System.Guid.NewGuid().ToString();
+    var rpc = await NakamaService.Instance.RpcAsync(
+        "tournament_enter",
+        new { slug = slug, idempotency_key = key }
+    );
+    return rpc.Payload.FromJson&lt;EnterResult&gt;();
+}</code></pre>
+
+  <h3 id="unity-3">2.3 Submit a pack result</h3>
+<pre><code>public async UniTask SubmitPackAsync(string slug, string packId, int[] answers, int latencyMs)
+{
+    await NakamaService.Instance.RpcAsync(
+        "tournament_submit_pack_result",
+        new { slug, pack_id = packId, answers, client_latency_ms = latencyMs }
+    );
+}</code></pre>
+
+  <h3 id="unity-4">2.4 Live pot via socket</h3>
+<pre><code>public async UniTask SubscribeToTournamentAsync(string slug, System.Action&lt;int&gt; onPot)
+{
+    var socket = NakamaService.Instance.Socket;
+    var channel = await socket.JoinChatAsync("tournament:" + slug, ChannelType.Room);
+    socket.ReceivedChannelMessage += (msg) =&gt; {
+        var data = JsonUtility.FromJson&lt;PotMsg&gt;(msg.Content);
+        if (data.op == 1001) onPot(data.pot_bc);
+    };
+}
+[System.Serializable] class PotMsg { public int op; public int pot_bc; }</code></pre>
+
+  <h3 id="unity-5">2.5 Bracket viewer (iframe → WebView)</h3>
+  <p>The bracket playoff stage is rendered via Bracket's React UI. In Unity we wrap it in <code>UniWebView</code> and pass the bracket_id from the Nakama RPC <code>tournament_bracket_state</code>.</p>
+<pre><code>var bracket = await NakamaService.Instance.RpcAsync(
+    "tournament_bracket_state", new { slug });
+var bracketId = bracket.Payload.FromJson&lt;BracketStateResp&gt;().data.bracket_id;
+var url = $"https://bracket.intelli-verse-x.ai/tournaments/{bracketId}";
+webView.Load(url);
+webView.Show();</code></pre>
+</section>
+
+<!-- ─────────────────── Backend ─────────────────── -->
+<section>
+  <h2>3. Backend — direct Nakama JS module</h2>
+  <p>Most server-side code is already shipped in <code>data/modules/src/tournaments/</code>. You only need backend work if you're adding a <em>new</em> tournament format, a new RPC, or wiring a new microservice.</p>
+
+  <h3 id="be-1">3.1 Adding a new tournament to the launch slate</h3>
+  <p>Edit <code>data/modules/src/p2e/tournament_economy.ts</code>:</p>
+<pre><code>// Append to LAUNCH_SLATE
+{
+  slug: "your-new-tournament",
+  name: "Your New Tournament",
+  description: "What it is.",
+  topic_tag: "your_topic",
+  format: "classic",
+  format_ui_variant: "classic-pot",
+  pre_enroll_start_iso: PRE_ENROLL_OPEN_ISO,
+  open_start_iso: WAVE_1_OPEN_ISO,
+  end_iso: WAVE_1_WEEK_END_ISO,
+  entry_fee_bc: 250,
+  rake_pct: HOUSE_RAKE_PCT,
+  pot_seed_bc: 15000,
+  pot_split_top_n: CLASSIC_POT_SPLIT_TOP_N,
+  countries_allowed: "ALL",
+  min_age: MIN_AGE,
+  amoe: AMOE_CLASSIC,
+  badge_emoji: "🆕",
+}</code></pre>
+  <p>Then rebuild and deploy:</p>
+<pre><code>cd data/modules
+npm run build      # tsc + postbuild → data/modules/index.js
+git add . &amp;&amp; git commit -m "feat(tournaments): seed your-new-tournament"
+git push origin master</code></pre>
+  <p>The CI pipeline (<code>intelliverse-nakama</code>) will build, push to ECR, and roll out to all 8 EKS pods. The cron <code>tournament_cron_tick</code> will seed the new slug on the next tick.</p>
+
+  <h3 id="be-2">3.2 Running locally</h3>
+<pre><code>cd data/modules
+npm install
+npm run build       # outputs to data/modules/index.js
+docker compose up   # boots Nakama with the JS module mounted</code></pre>
+
+  <h3 id="be-3">3.3 Adding a new RPC</h3>
+  <p>Three steps:</p>
+  <ol>
+    <li>Implement in <code>data/modules/src/tournaments/rpcs.ts</code> as a top-level function: <code>function rpcMyNew(ctx, logger, nk, payload): { ok: true, ... }</code>.</li>
+    <li>Add <code>initializer.registerRpc("my_new_rpc", rpcMyNew)</code> at the bottom of the same file.</li>
+    <li>Run <code>npm run build</code> and verify the count went up: <code>grep -c registerRpc data/modules/build/index.js</code>.</li>
+  </ol>
+  <p><strong>Goja gotcha:</strong> the RPC handler MUST be a top-level function declaration, not a function expression or method. The AST walker rejects nested or assigned handlers. See <code>postbuild.js</code> for the auto-injection that satisfies this constraint for tournament RPCs.</p>
+</section>
+
+<!-- ─────────────────── Definition of Done ─────────────────── -->
+<section>
+  <h2>4. Definition of Done — the integration checklist</h2>
+  <table>
+    <thead><tr><th>Stack</th><th>Check</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="6">Web</td><td>/tournaments route renders the 11 cards from <code>tournament_list</code></td></tr>
+      <tr><td>Detail page (/tournaments/[slug]) renders pot, entries, format-specific UI</td></tr>
+      <tr><td>Enter CTA debits BC and shows the success toast within 1.5s</td></tr>
+      <tr><td>Live pot ticker updates within ≤ 8s of a new entry</td></tr>
+      <tr><td>Geo-blocked state shows the AMOE upsell instead of a generic error</td></tr>
+      <tr><td>OG cert page (/certificate/[id]) renders for sharing</td></tr>
+      <tr><td rowspan="5">Unity</td><td>TournamentsBoardScreen.cs lists 11 tournaments + filter chips</td></tr>
+      <tr><td>TournamentDetailPanel.cs handles all 3 formats (classic, elimination, pick-N)</td></tr>
+      <tr><td>Pack play loop submits via <code>tournament_submit_pack_result</code></td></tr>
+      <tr><td>Live pot updates via <code>NakamaService.Socket</code></td></tr>
+      <tr><td>Bracket viewer opens via UniWebView for playoff stage</td></tr>
+      <tr><td rowspan="4">Backend</td><td>All 30+ RPCs registered (<code>nakama_js_health</code> shows ts_owned_rpc_count ≥ 590)</td></tr>
+      <tr><td><code>tournament_cron_tick</code> running every 60s</td></tr>
+      <tr><td>0 ledger drift on every settled tournament</td></tr>
+      <tr><td>Bracket S2S JWT injected into pods (env var <code>BRACKET_SERVICE_JWT</code>)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);margin-top:60px;padding:32px 24px;text-align:center;color:var(--text-muted);font-size:13px;">
+  <p>Integration Guide · <a href="flows.html">← Flows</a> · <a href="testing.html">Testing →</a></p>
+</footer>
+</body>
+</html>

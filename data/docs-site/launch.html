@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Launch &amp; Ops Runbook · QuizVerse Tournaments</title>
+<meta name="description" content="The Jul 1 launch checklist for QuizVerse Tournaments. Ghost run, load test, T-0, T+1h, T+24h, acceptance criteria.">
+<link rel="stylesheet" href="assets/styles.css?v=7">
+</head>
+<body>
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html">Overview</a>
+      <a href="journey.html">Journey</a>
+      <a href="flows.html">Flows</a>
+      <a href="integration.html">Integration</a>
+      <a href="testing.html">Testing</a>
+      <a href="reference.html">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="status.html">Status</a>
+      <a href="launch.html" class="active">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">Public launch · Wed Jul 1, 2026 · 10:00 UTC</span>
+  <h1>Launch &amp; Ops Runbook</h1>
+  <p>Sequential plan from internal ghost run to the Jul 1 public flip — and what to watch in the first 24 hours.</p>
+</header>
+
+<main class="container-narrow">
+
+<section>
+  <h2>Timeline</h2>
+  <table>
+    <thead><tr><th>Date</th><th>Phase</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td>now → Jun 23</td><td>Code complete, pre‑enroll funnel live</td><td>Squad</td></tr>
+      <tr><td>Jun 24 – 26</td><td><a href="#ghost-run">Internal ghost run</a> (50 testers)</td><td>QA + on‑call</td></tr>
+      <tr><td>Jun 27 14:00 UTC</td><td><a href="#load-test">Load test</a> (k6 from c6i.4xlarge)</td><td>Platform</td></tr>
+      <tr><td>Jun 30 EOD</td><td><a href="#t-24h">T‑24 h pre‑flight</a></td><td>Release captain</td></tr>
+      <tr><td><strong>Wed Jul 1 10:00 UTC</strong></td><td><a href="#t-0"><strong>Public launch</strong></a></td><td>All hands</td></tr>
+      <tr><td>Jul 1 +1 h</td><td><a href="#t-1h">Referral cash settlement</a></td><td>Backend</td></tr>
+      <tr><td>Jul 1 +24 h</td><td><a href="#t-24h-post">First daily settlement</a></td><td>On‑call</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="ghost-run">
+  <h2>§1 — Ghost run (Jun 24 → Jun 26)</h2>
+  <p><strong>Goal:</strong> end‑to‑end shakedown with 50 internal testers. No real money.</p>
+
+  <h3>Pre‑flight (Jun 23 EOD)</h3>
+  <ul class="checklist">
+    <li>Nakama TS build clean — <code>npm run build</code> in <code>data/modules</code> shows ≥ 1008 RPCs</li>
+    <li><code>tournament_list</code> returns 11 tournaments including <code>ghost_run_*</code> slugs</li>
+    <li>Content pre‑gen cron backlog ≤ 25 % of capacity</li>
+    <li>BC ledger smoke test — enter → check <code>bc_wallet</code> debit equals <code>entry_fee_bc</code></li>
+    <li>WS push works — see <code>1001</code> event within 5 s of an entry</li>
+  </ul>
+
+  <h3>During the run</h3>
+  <ul>
+    <li><strong>Day 1 — Jun 24:</strong> open <code>ghost_classic_daily</code>. Target pot cadence ≤ 8 s, entry success ≥ 99 %.</li>
+    <li><strong>Day 2 — Jun 25:</strong> open <code>ghost_elimination_sprint</code>. Verify 5 cuts on schedule + per‑user 1003 notifications.</li>
+    <li><strong>Day 3 — Jun 26:</strong> open <code>ghost_pick_5</code>. Lock at <code>pick_lock_iso</code> ± 5 s, settle 24 h after.</li>
+  </ul>
+
+  <h3>Exit criteria</h3>
+  <ul class="checklist">
+    <li>All three formats settled with <strong>0 ledger drift</strong> (payouts + rake = pot)</li>
+    <li>Certificates rendered for top‑10 in each (S3 keys exist)</li>
+    <li>0 P0/P1 incidents open</li>
+  </ul>
+</section>
+
+<section id="load-test">
+  <h2>§2 — Load test (Jun 27 14:00 UTC)</h2>
+
+  <h3>Targets</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Target RPS</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td><code>tournament_submit_pack_result</code></td><td><strong>1,000</strong></td><td>Critical hot path; rate‑limited 60/min/user</td></tr>
+      <tr><td><code>tournament_enter</code></td><td>200</td><td>Idempotency dedup must hold</td></tr>
+      <tr><td><code>tournament_caller_status</code></td><td>500</td><td>Polled by web detail page</td></tr>
+      <tr><td><code>tournament_leaderboard_*</code></td><td>800 combined</td><td>Hits Nakama LB cache</td></tr>
+      <tr><td><code>tournament_pre_enroll</code></td><td>100</td><td>Rate‑limited 20/min/user</td></tr>
+      <tr><td>Content‑factory pre‑gen</td><td>4× normal</td><td>Stress S3 + worker queues</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Procedure</h3>
+  <pre><code>cd ~/dev/nakama/tools/loadtest
+k6 run tournaments-launch.js \
+  --vus 500 --duration 30m \
+  -e BASE=https://nakama.intelli-verse-x.ai \
+  -e HTTP_KEY=$NK_HTTP</code></pre>
+  <p>Soak for 30 min. Pass criteria: <strong>p99 &lt; 1.2 s, error rate &lt; 0.5 %</strong>.</p>
+
+  <h3>KPI instrumentation (Mixpanel)</h3>
+  <table>
+    <thead><tr><th>Event</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td><code>tournament_view_list</code></td><td>First render of <code>/tournaments</code></td></tr>
+      <tr><td><code>tournament_view_detail</code></td><td>First render of <code>/tournaments/[slug]</code></td></tr>
+      <tr><td><code>tournament_enter_attempt</code></td><td>Confirm button tap</td></tr>
+      <tr><td><code>tournament_enter_success</code></td><td>Server returned <code>ok:true</code></td></tr>
+      <tr><td><code>tournament_submit_score</code></td><td>Score POST returned 200</td></tr>
+      <tr><td><code>tournament_settled</code></td><td>First post‑settle view</td></tr>
+      <tr><td><code>tournament_certificate_view</code></td><td>First cert page render</td></tr>
+      <tr><td><code>tournament_referral_attributed</code></td><td>Server attribution succeeded</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Alarms (Grafana)</h3>
+  <ul>
+    <li>Funnel <code>view_list → enter_success</code> ≥ 35 %</li>
+    <li>p99 latency on <code>tournament_submit_pack_result</code> &lt; 1.2 s</li>
+    <li>Referral cron lag &lt; 60 s</li>
+  </ul>
+</section>
+
+<section id="t-24h">
+  <h2>§3 — T‑24 h pre‑flight (Jun 30 EOD)</h2>
+  <ul class="checklist">
+    <li><code>tournament_list</code> returns Wave‑1 slugs (scheduler will flip them at 10:00 UTC)</li>
+    <li>Push notification opt‑ins ≥ 18,000 (75 % of pre‑enrolled)</li>
+    <li>Referral leaderboard frozen for cash prize settlement</li>
+    <li>Lambda <code>tournament_certificate</code> deployed + smoke‑tested</li>
+    <li>Bracket service healthy — <code>curl bracket.intelli-verse-x.ai/healthz</code> returns 200</li>
+    <li>Status page is clear; <code>#incidents</code> Slack channel empty</li>
+    <li>On‑call rotation confirmed in PagerDuty</li>
+  </ul>
+</section>
+
+<section id="t-0">
+  <h2>§4 — T‑0 (Wed Jul 1, 10:00 UTC)</h2>
+  <p><code>tournament_cron_tick</code> automatically flips Wave‑1 slugs <code>PRE_ENROLL → OPEN</code>. Background job pushes <em>"Tournaments are LIVE"</em> to all opted‑in users.</p>
+
+  <h3>On‑call engineer dashboard (first 60 min)</h3>
+  <ul>
+    <li>Pot update drift — target ≤ 30 s end‑to‑end</li>
+    <li>Entry success rate — target ≥ 99 %</li>
+    <li>Funnel <code>view_list → enter_success</code> — target ≥ 35 %</li>
+    <li>Lambda invocation error rate — target &lt; 1 %</li>
+    <li>WS reconnect rate — target &lt; 5 % per 5‑min window</li>
+  </ul>
+
+  <div class="callout danger">
+    <div class="callout-title">If anything trips an alarm</div>
+    <p>Page the release captain in <code>#incidents</code> within 2 min. Do <strong>not</strong> roll back without explicit captain approval — partial rollback corrupts the BC ledger.</p>
+  </div>
+</section>
+
+<section id="t-1h">
+  <h2>§5 — T+1 h — referral cash settlement</h2>
+  <pre><code>curl -sS https://nakama.intelli-verse-x.ai/v2/rpc/tournament_referral_settle_topN \
+  -X POST -H <span class="tok-str">"Authorization: Bearer $OPS_TOKEN"</span> -d <span class="tok-str">'""'</span> | jq</code></pre>
+  <ul class="checklist">
+    <li>Response includes 100 winners with Tremendous order IDs</li>
+    <li>Sample 10 winner emails — confirm Tremendous gift link arrived</li>
+    <li>Post a summary to <code>#tournaments-launch</code></li>
+  </ul>
+</section>
+
+<section id="t-24h-post">
+  <h2>§6 — T+24 h — first daily settlement</h2>
+  <p>Daily tournaments settle 24 h after open. Watch:</p>
+  <ul class="checklist">
+    <li>Settlement runtime &lt; 60 s per tournament</li>
+    <li><strong>0 ledger drift</strong> across all settled tournaments</li>
+    <li>Certificate Lambda success rate &gt; 99 %</li>
+    <li>Top‑10 per tournament received notification 1004</li>
+  </ul>
+</section>
+
+<section id="format-acceptance">
+  <h2>§7 — Per‑format ghost acceptance</h2>
+
+  <h3>Elimination Sprint (Survivor Week)</h3>
+  <ul class="checklist">
+    <li>5 cuts fire on schedule (<code>open_start_iso + N×24h</code>)</li>
+    <li>AMOE‑entered players in separate pool from paid (no cross‑contamination)</li>
+    <li>Share badge image generated for every survivor at each cut</li>
+  </ul>
+
+  <h3>Pick‑N (Pick‑5 Daily)</h3>
+  <ul class="checklist">
+    <li>Pick lock fires at wall‑clock <code>pick_lock_iso</code> ± 5 s</li>
+    <li>Multipliers resolve correctly (5/5 → 3×, 4/5 → 1.5×, etc.)</li>
+    <li>Collusion‑cluster detector flags &gt; 5 identical pick sets</li>
+    <li>Hall of fame top‑10 visible on post‑window screen</li>
+  </ul>
+</section>
+
+<section>
+  <h2>§8 — §1I 9‑check acceptance criteria</h2>
+  <p>Run on a fresh device/browser before declaring "ready for public launch".</p>
+  <table>
+    <thead><tr><th>#</th><th>Check</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Ghost user mints in &lt; 2 s</td><td>Cold‑hit <code>/tournaments</code>, watch network panel</td></tr>
+      <tr><td>2</td><td>Merge survives Google sign‑up</td><td>Pre‑enroll as ghost, sign in with Google, pre‑enroll persists</td></tr>
+      <tr><td>3</td><td>Cross‑device session continuity</td><td>Sign in on phone, see same wallet on web</td></tr>
+      <tr><td>4</td><td>Idempotency on double‑call</td><td>Click Enter 2× fast — one debit only</td></tr>
+      <tr><td>5</td><td>Geo‑block US states blocks entry</td><td>Set <code>state=NY</code>, attempt entry → 403 <code>entry_blocked_in_us_state</code></td></tr>
+      <tr><td>6</td><td>Anti‑cheat soft‑DQ flags impossible scores</td><td>POST <code>submit_pack_result</code> with <code>client_latency_ms=10</code> → response has <code>soft_dq:true</code></td></tr>
+      <tr><td>7</td><td>Live LB updates &lt; 10 s</td><td>Open LB, have a second account enter → row appears</td></tr>
+      <tr><td>8</td><td>Settlement completes &lt; 1 h after <code>end_iso</code></td><td>Watch cron logs</td></tr>
+      <tr><td>9</td><td>All 6 LB variants available on web + Unity</td><td>Click through tabs</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="content-factory-prs">
+  <h2>§9 — Optional content‑factory PRs (parallel, non‑blocking)</h2>
+  <table>
+    <thead><tr><th>PR</th><th>Surface</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td><code>num_cards_override</code> up to 100</td><td><code>/api/v2/quiz_pack</code></td><td>Long‑form weekly tournaments need 75–100 q packs</td></tr>
+      <tr><td><code>tags</code> field on <code>ExamPrepBundleRequest</code></td><td><code>/api/v2/exam_prep_bundle</code></td><td>Per‑tournament topic filtering</td></tr>
+      <tr><td><code>viral_lesson_short</code> cap → 180 s</td><td><code>/api/v2/viral_lesson_short</code></td><td>Some Learning Series lessons need 2–3 min</td></tr>
+      <tr><td>Optional <code>webhook_url</code></td><td>All async endpoints</td><td>Avoid Nakama polling for task status</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Rollback decision matrix</h2>
+  <table>
+    <thead><tr><th>Symptom</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>Web 5xx &gt; 5 % for &gt; 5 min</td><td>Revert merge commit, redeploy via Vercel</td></tr>
+      <tr><td>Nakama crash loop</td><td><code>kubectl rollout undo deploy/nakama -n nakama</code></td></tr>
+      <tr><td>Lambda errors &gt; 10 %</td><td>Re‑deploy previous zip from <code>s3://intelli-verse-x-deploy-archive</code></td></tr>
+      <tr><td>Ledger drift detected</td><td><strong>STOP THE WORLD.</strong> Captain freezes entries, runs reconciliation script, paginates squad.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  Launch runbook · last updated 2026‑05‑26 · keep this open in a tab during T‑0
+</footer>
+</body>
+</html>

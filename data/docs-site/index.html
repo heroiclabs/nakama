@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QuizVerse Tournaments — Developer Hub</title>
+<meta name="description" content="From zero to everything on the QuizVerse Play-n-Earn tournament system: architecture, all flows, mermaid diagrams, integration steps, and end-to-end test commands.">
+<meta property="og:title" content="QuizVerse Tournaments — Developer Hub">
+<meta property="og:description" content="The single source of truth for shipping the QuizVerse Play-n-Earn tournaments system. Unity, web, and backend integration guides plus all flows.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="assets/styles.css?v=7">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "dark",
+        themeVariables: {
+          primaryColor: "#7c3aed",
+          primaryTextColor: "#e8eaf0",
+          primaryBorderColor: "#a78bfa",
+          lineColor: "#9aa0ad",
+          secondaryColor: "#1c1e2b",
+          tertiaryColor: "#14161f",
+          background: "#0a0b10",
+          mainBkg: "#1c1e2b",
+          secondBkg: "#14161f",
+          tertiaryBkg: "#2a2d3e",
+          fontSize: "14px"
+        },
+        flowchart: { curve: "basis", padding: 14 },
+        sequence: { actorMargin: 60, boxMargin: 14 }
+      });
+    }
+  });
+</script>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html" class="active">Overview</a>
+      <a href="journey.html">Journey</a>
+      <a href="flows.html">Flows</a>
+      <a href="integration.html">Integration</a>
+      <a href="testing.html">Testing</a>
+      <a href="reference.html">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="status.html">Status</a>
+      <a href="launch.html">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">Live in production · 11 tournaments seeded · Public open Jul 1, 2026</span>
+  <h1>QuizVerse Play-n-Earn Tournaments</h1>
+  <p>The complete from-zero-to-everything guide to the tournament system. Architecture, all 11 launch tournaments, every flow, integration steps, end-to-end test commands, and pot-share economics — all in one place.</p>
+</header>
+
+<main class="container-narrow">
+
+<!-- ─────────────────── Quick status strip ─────────────────── -->
+<section>
+  <h2>What is live right now</h2>
+  <p style="color:var(--text-dim);margin-bottom:18px;">All values verified live against production at the time this page was deployed.</p>
+  <div class="metric-grid">
+    <div class="metric"><div class="metric-value">11</div><div class="metric-label">Tournaments seeded</div></div>
+    <div class="metric"><div class="metric-value">8</div><div class="metric-label">Nakama pods (EKS)</div></div>
+    <div class="metric"><div class="metric-value">594</div><div class="metric-label">TS-owned RPCs registered</div></div>
+    <div class="metric"><div class="metric-value">PRE_ENROLL</div><div class="metric-label">Status of all 11 slugs</div></div>
+    <div class="metric"><div class="metric-value">231k</div><div class="metric-label">House-seeded pot (BC)</div></div>
+    <div class="metric"><div class="metric-value">15%</div><div class="metric-label">House rake on every pot</div></div>
+  </div>
+</section>
+
+<!-- ─────────────────── 1. Concept ─────────────────── -->
+<section>
+  <h2>1. Concept in one paragraph</h2>
+  <p>QuizVerse Tournaments are <strong>real-money trivia contests</strong> where players pay an entry fee in <em>Brain Coins</em> (BC), play a small pack of questions over a fixed window (daily or weekly), and split a pot. The house seeds every pot, takes a flat <strong>15% rake</strong> on top, and pays out the remainder by rank. Three formats ship at launch: <strong>Classic</strong> (top-N split), <strong>Elimination</strong> (Survivor-style daily cuts), and <strong>Pick-N</strong> (PrizePicks-style multipliers). Every parameter — fees, splits, schedules, geo blocks, AMOE rules — lives in a single file, <code>tournament_economy.ts</code>, so a parameter change is one PR.</p>
+</section>
+
+<!-- ─────────────────── 2. System architecture ─────────────────── -->
+<section>
+  <h2>2. System architecture</h2>
+  <p>Three independently-deployed services, one source of truth (Nakama). Web and Unity clients only ever talk to Nakama RPCs; Bracket is reached through an internal S2S bridge.</p>
+  <div class="mermaid">
+flowchart LR
+  subgraph Clients["Clients"]
+    W[Web · Next.js 16]
+    U[Unity · C#]
+  end
+  subgraph Nakama["Nakama on EKS · 8 pods"]
+    R["RPCs<br/>(594 registered)"]
+    S["Storage<br/>tournaments_meta<br/>tournament_entries<br/>tournament_pot<br/>tournament_certs"]
+    L["Leaderboards<br/>6 variants"]
+    C["Crons<br/>tick · settle · eliminate"]
+  end
+  subgraph External["External services"]
+    B["Bracket<br/>FastAPI · :8400"]
+    CF["Content factory<br/>quiz packs"]
+    AI["AI · narration<br/>cert badges"]
+    TR["Tremendous<br/>fiat redemption"]
+  end
+  W -->|HTTPS rpc| R
+  U -->|HTTPS rpc| R
+  R --> S
+  R --> L
+  C --> S
+  C --> B
+  C --> CF
+  R -->|S2S JWT| B
+  R -->|HTTPS| AI
+  R -->|HTTPS| TR
+  classDef live fill:#7c3aed,stroke:#a78bfa,color:#fff;
+  class R,S,L,C live;
+  </div>
+  <h3 id="arch-key">Key design decisions</h3>
+  <ul>
+    <li><strong>Single config file.</strong> <code>data/modules/src/p2e/tournament_economy.ts</code> holds the launch slate, rake, splits, AMOE rules, geo blocks, and FX-display rates. <em>Change here = change everywhere.</em></li>
+    <li><strong>Idempotent entry.</strong> Every <code>tournament_enter</code> requires a client-supplied <code>idempotency_key</code>; double-clicks are a single debit.</li>
+    <li><strong>Async-pack model.</strong> QuizVerse is async (no real-time match), so each tournament resolves on submitted pack scores within a fixed window.</li>
+    <li><strong>Bracket adapter.</strong> The upstream sync match runner (<a href="https://docs.bracketapp.nl">Bracket</a>) is used only for the playoff stage. We adapt sync to async with a 24h round window.</li>
+    <li><strong>Two-stage geo gate.</strong> <em>Entry</em> is blocked in WA, AZ, CT, NJ, NY, VA. <em>Redemption</em> is also blocked in CA, NY, VA. AMOE refunds are unlocked by completing 6/6 learning videos.</li>
+  </ul>
+</section>
+
+<!-- ─────────────────── 3. The launch slate ─────────────────── -->
+<section>
+  <h2>3. The Wave-1 launch slate (11 tournaments)</h2>
+  <p>All 11 are seeded on day-1 of pre-enroll (May 27, 2026) and flip from <code>PRE_ENROLL</code> to <code>OPEN</code> at <strong>2026-07-01 04:00 UTC</strong> by the <code>tournament_cron_tick</code> cron. Free pre-enrollment is capped at the first 1,000 users (founder cohort) and gives a 2x multiplier on first-win payouts.</p>
+
+  <div class="card-grid">
+    <div class="card"><h4>🧠 GK Royale Daily</h4><p><span class="tag">Classic</span> <span class="tag">Daily</span> <span class="tag">All countries</span></p><p>5 quick questions, every day. Pick up where you left off.</p><div class="kv"><span>Entry</span><strong>50 BC</strong></div><div class="kv"><span>Pot seed</span><strong>5,000 BC</strong></div><div class="kv"><span>Rake</span><strong>15%</strong></div></div>
+
+    <div class="card"><h4>🧪 Brain Bowl Weekly</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag">All countries</span></p><p>Lumosity-style brain workout. Rotating subject each week.</p><div class="kv"><span>Entry</span><strong>250 BC</strong></div><div class="kv"><span>Pot seed</span><strong>20,000 BC</strong></div><div class="kv"><span>Rake</span><strong>15%</strong></div></div>
+
+    <div class="card"><h4>🎬 Movie Buff Showdown</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag">All countries</span></p><p>Films, shows, soundtracks — for the true cinephile.</p><div class="kv"><span>Entry</span><strong>250 BC</strong></div><div class="kv"><span>Pot seed</span><strong>18,000 BC</strong></div><div class="kv"><span>Rake</span><strong>15%</strong></div></div>
+
+    <div class="card"><h4>⚔️ Survivor Week — Inaugural</h4><p><span class="tag tag-purple">Elimination</span> <span class="tag">5 days</span> <span class="tag">All countries</span></p><p>Bottom 50% eliminated each midnight. Survivors split the pot. #1 gets a 200,000 BC bragging-rights bonus.</p><div class="kv"><span>Entry</span><strong>500 BC</strong></div><div class="kv"><span>Pot seed</span><strong>50,000 BC</strong></div><div class="kv"><span>Cuts</span><strong>5 daily</strong></div></div>
+
+    <div class="card"><h4>🎯 Pick-5 Daily</h4><p><span class="tag tag-gold">Pick-N</span> <span class="tag">Daily</span> <span class="tag">All countries</span></p><p>Pick 5. Get them all right to win 10x. PrizePicks-style for trivia.</p><div class="kv"><span>Entry</span><strong>100 BC</strong></div><div class="kv"><span>Pot seed</span><strong>8,000 BC</strong></div><div class="kv"><span>5/5 multiplier</span><strong>10x</strong></div></div>
+
+    <div class="card"><h4>📚 AP 2027 Prep Sprint</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag tag-blue">US-only</span></p><p>Lock in AP material aligned with this week's score release.</p><div class="kv"><span>Entry</span><strong>500 BC</strong></div><div class="kv"><span>Pot seed</span><strong>25,000 BC</strong></div></div>
+
+    <div class="card"><h4>✏️ SAT August Cram</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag tag-blue">US-only</span></p><p>Final SAT prep week before the August test date.</p><div class="kv"><span>Entry</span><strong>500 BC</strong></div><div class="kv"><span>Pot seed</span><strong>30,000 BC</strong></div></div>
+
+    <div class="card"><h4>🎓 ACT September Sprint</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag tag-blue">US-only</span></p><p>Final ACT prep week before the September test date.</p><div class="kv"><span>Entry</span><strong>500 BC</strong></div><div class="kv"><span>Pot seed</span><strong>25,000 BC</strong></div></div>
+
+    <div class="card"><h4>⚕️ NEET Prep Weekly</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag tag-blue">India-only</span></p><p>Bio, chem, physics rotation for India NEET cohort.</p><div class="kv"><span>Entry</span><strong>250 BC</strong></div><div class="kv"><span>Pot seed</span><strong>15,000 BC</strong></div></div>
+
+    <div class="card"><h4>🔬 JEE Main Weekly</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag tag-blue">India-only</span></p><p>Maths, physics, chemistry rotation for India JEE Main cohort.</p><div class="kv"><span>Entry</span><strong>250 BC</strong></div><div class="kv"><span>Pot seed</span><strong>15,000 BC</strong></div></div>
+
+    <div class="card"><h4>💼 GMAT Weekly</h4><p><span class="tag">Classic</span> <span class="tag">Weekly</span> <span class="tag">All countries</span></p><p>Verbal, quant, data sufficiency for the global GMAT cohort.</p><div class="kv"><span>Entry</span><strong>500 BC</strong></div><div class="kv"><span>Pot seed</span><strong>20,000 BC</strong></div></div>
+  </div>
+
+  <p style="margin-top:18px;"><strong>BC value anchor:</strong> 1 USD ≈ 333.333 BC. So a 250 BC entry ≈ $0.75 USD; a 50,000 BC pot seed ≈ $150. Display is geo-localized per <code>GEO_DISPLAY_RATES</code> (US, CA, GB, AU, NZ, IE, IN ship at launch).</p>
+</section>
+
+<!-- ─────────────────── 4. Three formats ─────────────────── -->
+<section>
+  <h2>4. The three formats</h2>
+  <p>Pick the format that fits. All three share the same lifecycle, the same leaderboards, and the same AMOE pillar — but they pay out differently.</p>
+
+  <div class="format-strip">
+    <div class="format-card classic">
+      <span class="fmt-emoji">🧠</span>
+      <h3>Classic</h3>
+      <div class="fmt-tagline">Top-N pot split</div>
+      <div class="fmt-bullet">Pay entry, play pack, score-based ranking</div>
+      <div class="fmt-bullet">40/20/10/5×5/2.5×2 split across top 10</div>
+      <div class="fmt-bullet">9 of 11 launch tournaments</div>
+      <div class="fmt-bullet">AMOE refund: top-50%</div>
+    </div>
+    <div class="format-card elimination">
+      <span class="fmt-emoji">⚔️</span>
+      <h3>Elimination</h3>
+      <div class="fmt-tagline">Survivor-style daily cuts</div>
+      <div class="fmt-bullet">5 days, bottom-50% cut each midnight</div>
+      <div class="fmt-bullet">Survivors split pot equally</div>
+      <div class="fmt-bullet">#1 gets 200,000 BC bonus</div>
+      <div class="fmt-bullet">AMOE refund: survive past day-3</div>
+    </div>
+    <div class="format-card pickn">
+      <span class="fmt-emoji">🎯</span>
+      <h3>Pick-N</h3>
+      <div class="fmt-tagline">PrizePicks-style multiplier</div>
+      <div class="fmt-bullet">Pick 5 answers, lock 24h before close</div>
+      <div class="fmt-bullet">5/5 = 10×, 4/5 = 5×, 3/5 = 2×, ≤2/5 = 0</div>
+      <div class="fmt-bullet">House backstops $100/day if pot drained</div>
+      <div class="fmt-bullet">AMOE refund: ≥3/5</div>
+    </div>
+  </div>
+
+  <h3 id="fmt-classic">Classic — top-N pot split</h3>
+  <p>The default format. Players pay an entry fee, the house seeds the pot, and at the end of the window the highest scorers split the (post-rake) pot by rank.</p>
+  <table>
+    <thead><tr><th>Rank</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr></thead>
+    <tbody><tr><th>Share</th><td>40%</td><td>20%</td><td>10%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>5%</td><td>2.5%</td><td>2.5%</td></tr></tbody>
+  </table>
+  <p>Ranks 11-100 share any remaining post-top-10 budget via <code>spreadRemainder()</code> in <code>settlement.ts</code>. Ledger drift target: <strong>0</strong> (sum of payouts + rake must equal the pot).</p>
+
+  <h3 id="fmt-elim">Elimination — Survivor-style</h3>
+  <p>Open registration for day 0. Each midnight UTC the bottom 50% by accumulated score is eliminated. Survivors at the final cut split the pot equally. #1 of survivors gets a flat <code>final_survivor_bonus_bc</code> (200,000 BC for Wave-1).</p>
+  <p>For Survivor Week: 5 cuts at 04:00 UTC on Jul 2-6, 2026. ~15,000 entrants → 7,500 → 3,750 → 1,875 → 938 → 469 final survivors.</p>
+
+  <h3 id="fmt-pick">Pick-N — multiplier slip</h3>
+  <p>Players assemble a "slip" of N picks (Wave-1: N=5) before the lock. The grade unlocks a multiplier:</p>
+  <ul>
+    <li><strong>5/5</strong> → 10x entry returned</li>
+    <li><strong>4/5</strong> → 5x entry returned</li>
+    <li><strong>3/5</strong> → 2x entry returned (also the AMOE no-lose threshold)</li>
+    <li><strong>≤2/5</strong> → 0 (entry stays in pot)</li>
+  </ul>
+  <p>Pick window closes <code>max_pick_window_hours</code> before tournament end (24h for Wave-1). House backstops the pot at up to <strong>$100/day</strong> if multipliers exceed available pot.</p>
+</section>
+
+<!-- ─────────────────── 5. Pot economics ─────────────────── -->
+<section>
+  <h2>5. Pot economics — exactly how the money flows</h2>
+  <p>Every tournament has a deterministic ledger. There are only four sources/sinks of BC, and they always balance.</p>
+
+  <div class="mermaid">
+flowchart LR
+  HS["House seed<br/>pot_seed_bc"] --> POT[("Pot<br/>(running total)")]
+  EF["Entry fees<br/>entry_fee_bc x entries"] --> POT
+  POT -->|"15% rake"| HOUSE["House<br/>(rake_pct = 0.15)"]
+  POT -->|"85% payouts"| WIN["Winners<br/>(top-N split)"]
+  POT -->|"AMOE refund"| AMOE["No-lose AMOE<br/>(top-50% in classic)"]
+  classDef money fill:#fbbf24,stroke:#fbbf24,color:#0a0b10;
+  classDef pot fill:#7c3aed,stroke:#a78bfa,color:#fff;
+  class HS,EF,HOUSE,WIN,AMOE money;
+  class POT pot;
+  </div>
+
+  <h3 id="pot-math">Worked example — Brain Bowl Weekly</h3>
+  <p>Assume 800 paid entries at 250 BC, plus the 20,000 BC house seed. Visual breakdown:</p>
+
+  <div class="money-flow">
+    <h4 style="margin-bottom:14px;color:var(--text-dim);font-size:13px;text-transform:uppercase;letter-spacing:0.06em;">Money in — gross pot 220,000 BC</h4>
+    <div class="money-row in"><div class="label">House seed</div><div class="bar"><div class="bar-fill" style="width:9.1%">20,000 BC</div></div><div class="amt">9.1%</div></div>
+    <div class="money-row in"><div class="label">Entry fees (800 × 250)</div><div class="bar"><div class="bar-fill" style="width:90.9%">200,000 BC</div></div><div class="amt">90.9%</div></div>
+
+    <h4 style="margin:20px 0 14px;color:var(--text-dim);font-size:13px;text-transform:uppercase;letter-spacing:0.06em;">Money out — total 220,000 BC</h4>
+    <div class="money-row rake"><div class="label">House rake (15%)</div><div class="bar"><div class="bar-fill" style="width:15%">33,000 BC</div></div><div class="amt">15%</div></div>
+    <div class="money-row payout"><div class="label">Top-1 (40% of net)</div><div class="bar"><div class="bar-fill" style="width:34%">74,800 BC</div></div><div class="amt">34%</div></div>
+    <div class="money-row payout"><div class="label">Top-2 (20% of net)</div><div class="bar"><div class="bar-fill" style="width:17%">37,400 BC</div></div><div class="amt">17%</div></div>
+    <div class="money-row payout"><div class="label">Top-3 (10% of net)</div><div class="bar"><div class="bar-fill" style="width:8.5%">18,700 BC</div></div><div class="amt">8.5%</div></div>
+    <div class="money-row payout"><div class="label">Top-4 to 10 (35% of net)</div><div class="bar"><div class="bar-fill" style="width:29.7%">65,450 BC</div></div><div class="amt">29.7%</div></div>
+    <div class="money-row" style="border-top:2px solid var(--border);margin-top:10px;padding-top:14px;"><div class="label" style="font-weight:700;color:var(--text);">Ledger drift</div><div class="bar"></div><div class="amt" style="color:var(--success);">0 ✓</div></div>
+  </div>
+
+  <h3 id="pot-bc">From BC to fiat</h3>
+  <p>BC has a <strong>fixed global value</strong> (1 USD ≈ 333 BC). What changes is the display: <code>bcToLocalDisplay(bc, country)</code> applies a static FX table to show, e.g., <code>£0.59</code> in GB or <code>₹62</code> in IN for the same 250 BC entry. Display is never used for ledger math — only for marketing and the entry CTA.</p>
+</section>
+
+<!-- ─────────────────── 6. Status lifecycle ─────────────────── -->
+<section>
+  <h2>6. Tournament lifecycle</h2>
+  <p>A slug travels through 7 statuses, automated by <code>tournament_cron_tick</code> (every 60s) and <code>tournament_settle</code> (on <code>end_iso</code>):</p>
+
+  <div class="lifecycle">
+    <span class="lifecycle-pill">DRAFT</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-pill active">PRE_ENROLL</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-pill">OPEN</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-pill">ACTIVE</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-pill">SETTLING</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-pill">SETTLED</span>
+    <span class="lifecycle-arrow">→</span>
+    <span class="lifecycle-pill">ARCHIVED</span>
+  </div>
+  <p style="font-size:12px;color:var(--text-muted);">All 11 launch tournaments are at the highlighted <code>PRE_ENROLL</code> stage today. They flip to <code>OPEN</code> at <strong>2026-07-01 04:00 UTC</strong>.</p>
+
+  <div class="mermaid">
+stateDiagram-v2
+  [*] --> DRAFT: seed
+  DRAFT --> PRE_ENROLL: pre_enroll_start_iso
+  PRE_ENROLL --> OPEN: open_start_iso
+  OPEN --> ACTIVE: first submit (or start_iso)
+  ACTIVE --> SETTLING: end_iso
+  SETTLING --> SETTLED: settle cron
+  SETTLED --> ARCHIVED: T+30d
+  </div>
+  <ul>
+    <li><strong>DRAFT</strong> — not yet visible to clients. Used for ad-hoc admin-created tournaments.</li>
+    <li><strong>PRE_ENROLL</strong> — visible, free pre-enroll, no BC charged. Founder cohort cap = 1,000.</li>
+    <li><strong>OPEN</strong> — public, BC charged on enter, leaderboard live, push notifications fire on every entry.</li>
+    <li><strong>ACTIVE</strong> — same as OPEN; semantic flag once the first pack is submitted.</li>
+    <li><strong>SETTLING</strong> — entries closed, cron computing payouts. Typical < 60s.</li>
+    <li><strong>SETTLED</strong> — payouts complete; certificates claimable; UI shows results forever.</li>
+    <li><strong>ARCHIVED</strong> — hidden from default lists; historical record kept.</li>
+  </ul>
+</section>
+
+<!-- ─────────────────── 7. Where to next ─────────────────── -->
+<section>
+  <h2>7. Where to next</h2>
+  <div class="role-grid">
+    <a class="role-card" href="journey.html">
+      <div class="role-icon">J</div>
+      <h3>A player's journey · 0 jargon</h3>
+      <p>Follow Sarah from sign-in to certificate in 12 numbered steps. The simplest, most visual walkthrough — perfect for first-time readers.</p>
+      <span class="role-arrow">Open Journey →</span>
+    </a>
+    <a class="role-card" href="flows.html">
+      <div class="role-icon">F</div>
+      <h3>All flows + diagrams</h3>
+      <p>Player adds tournament, AMOE, refunds, certs, referrals, brackets, settlement — every flow with a mermaid sequence diagram.</p>
+      <span class="role-arrow">Open Flows →</span>
+    </a>
+    <a class="role-card" href="integration.html">
+      <div class="role-icon">I</div>
+      <h3>Integration · 0 → done</h3>
+      <p>Step-by-step for Web (Next.js), Unity (C#), and direct backend (Nakama JS module). Code samples + RPC bodies.</p>
+      <span class="role-arrow">Open Integration →</span>
+    </a>
+    <a class="role-card" href="testing.html">
+      <div class="role-icon">T</div>
+      <h3>End-to-end testing</h3>
+      <p>Curl every RPC, verify pot updates, settle a test tournament, claim a certificate. Includes the Firecrawl-cited live-state verification.</p>
+      <span class="role-arrow">Open Testing →</span>
+    </a>
+    <a class="role-card" href="reference.html">
+      <div class="role-icon">R</div>
+      <h3>RPC reference</h3>
+      <p>All 30+ tournament RPCs with request bodies, response shapes, error codes, and rate limits.</p>
+      <span class="role-arrow">Open Reference →</span>
+    </a>
+  </div>
+</section>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);margin-top:60px;padding:32px 24px;text-align:center;color:var(--text-muted);font-size:13px;">
+  <p>QuizVerse Tournaments — Developer Hub · Hosted on S3 (<code>tournaments-docs.intelli-verse-x.ai</code>)</p>
+  <p>Source of truth: <code>data/modules/src/p2e/tournament_economy.ts</code> in the <a href="https://github.com/intelliversex/nakama">nakama</a> repo</p>
+</footer>
+
+</body>
+</html>

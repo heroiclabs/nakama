@@ -1,0 +1,64 @@
+{
+  "_about": "Phase 4 — Tournament-themed quests for the ivx_quest catalog. POST each entry to quests-economy-api /quests/create on deploy. Quest IDs use a `qv_tourn_*` namespace so they're easy to filter out post-launch if engagement underperforms.",
+  "_owner": "QuizVerse Tournaments — see Trivia.Tournaments.TournamentManager",
+  "_seeded_at": "2026-05-26",
+  "quests": [
+    {
+      "quest_id": "qv_tourn_first_entry",
+      "title": "Step Into the Arena",
+      "description": "Enter your first QuizVerse tournament — daily, weekly, or special event.",
+      "category": "tournaments",
+      "icon": "trophy",
+      "trigger_event": "tournament_entered",
+      "trigger_count": 1,
+      "reward_brain_coins": 25,
+      "reward_xp": 50,
+      "visibility": "always",
+      "deeplink": "quizverse://tournaments",
+      "expires_at": null
+    },
+    {
+      "quest_id": "qv_tourn_3_in_week",
+      "title": "Tournament Triple",
+      "description": "Enter 3 tournaments in a single week. Variety pays.",
+      "category": "tournaments",
+      "icon": "calendar_3",
+      "trigger_event": "tournament_entered",
+      "trigger_count": 3,
+      "window_days": 7,
+      "reward_brain_coins": 75,
+      "reward_xp": 150,
+      "visibility": "after:qv_tourn_first_entry",
+      "deeplink": "quizverse://tournaments",
+      "expires_at": null
+    },
+    {
+      "quest_id": "qv_tourn_refer_friend",
+      "title": "Bring Your Crew",
+      "description": "Get a friend to pre-enroll using your invite link. Both of you earn rewards.",
+      "category": "tournaments",
+      "icon": "user_plus",
+      "trigger_event": "tournament_referral_attributed",
+      "trigger_count": 1,
+      "reward_brain_coins": 100,
+      "reward_xp": 200,
+      "visibility": "always",
+      "deeplink": "quizverse://tournaments/share",
+      "expires_at": null
+    },
+    {
+      "quest_id": "qv_tourn_founder_member",
+      "title": "Founder Member",
+      "description": "Lock in a Founder spot before the July 1 launch — 2× rewards on your first tournament win.",
+      "category": "tournaments",
+      "icon": "star",
+      "trigger_event": "tournament_pre_enrolled_founder",
+      "trigger_count": 1,
+      "reward_brain_coins": 50,
+      "reward_xp": 100,
+      "visibility": "before:2026-07-01",
+      "deeplink": "quizverse://tournaments",
+      "expires_at": "2026-06-30T23:59:59Z"
+    }
+  ]
+}

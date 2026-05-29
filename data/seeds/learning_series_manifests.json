@@ -1,0 +1,63 @@
+{
+  "_about": "Phase 4 — Learning Series S3 manifests, one per tournament topic_tag. Each entry mirrors the per-video objects returned by the learning_track_get RPC. Use this file to seed s3://intelli-verse-x-media/tournaments/learning/{topic_tag}/manifest.json so the player can list videos before content-factory has finished generation.",
+  "_video_path_convention": "s3://intelli-verse-x-media/tournaments/learning/{topic_tag}/v{idx}.mp4",
+  "_check_questions_path_convention": "s3://intelli-verse-x-media/tournaments/learning/{topic_tag}/v{idx}-check.json (5 MCQs, pass threshold 3/5)",
+  "_amoe_unlock_threshold": 6,
+  "manifests": {
+    "general_knowledge": {
+      "topic_label": "General Knowledge",
+      "videos": [
+        { "id": "v0", "title": "Top 10 facts about the solar system most people get wrong", "duration_sec": 90 },
+        { "id": "v1", "title": "Why did the Roman Empire fall? The 3 biggest misconceptions", "duration_sec": 95 },
+        { "id": "v2", "title": "Geography quirks: countries with no rivers, capitals on coastlines", "duration_sec": 88 },
+        { "id": "v3", "title": "How the internet actually works in 90 seconds", "duration_sec": 90 },
+        { "id": "v4", "title": "Three Oscar-winning films that changed cinema forever", "duration_sec": 92 },
+        { "id": "v5", "title": "The science of how memories form — and why we forget them", "duration_sec": 90 }
+      ]
+    },
+    "brain_bowl_science": {
+      "topic_label": "Brain Bowl — Science",
+      "videos": [
+        { "id": "v0", "title": "Why is the sky blue? Rayleigh scattering for non-physicists", "duration_sec": 90 },
+        { "id": "v1", "title": "How DNA replication actually works — the lock-and-key story", "duration_sec": 95 },
+        { "id": "v2", "title": "What is entropy? The 2nd law of thermodynamics, simplified", "duration_sec": 90 },
+        { "id": "v3", "title": "The discovery of penicillin — the messy mold story", "duration_sec": 88 },
+        { "id": "v4", "title": "How does a transistor work? The basis of every device you own", "duration_sec": 92 },
+        { "id": "v5", "title": "What is dark matter? Why scientists are 95% sure it exists", "duration_sec": 90 }
+      ]
+    },
+    "movies_tv": {
+      "topic_label": "Movie Buff",
+      "videos": [
+        { "id": "v0", "title": "3 plot devices that defined modern cinema", "duration_sec": 90 },
+        { "id": "v1", "title": "Why Citizen Kane still tops every critics list", "duration_sec": 92 },
+        { "id": "v2", "title": "The Pixar pitch process — how Inside Out got made", "duration_sec": 88 },
+        { "id": "v3", "title": "Stanley Kubrick's 5-shot rule", "duration_sec": 90 },
+        { "id": "v4", "title": "How streaming changed Hollywood greenlight math", "duration_sec": 90 },
+        { "id": "v5", "title": "3 silent film techniques modern blockbusters still use", "duration_sec": 88 }
+      ]
+    },
+    "mixed_difficulty": {
+      "topic_label": "Pick-5 Daily",
+      "videos": [
+        { "id": "v0", "title": "How probability works in everyday games", "duration_sec": 90 },
+        { "id": "v1", "title": "Cognitive biases that mess with predictions", "duration_sec": 92 },
+        { "id": "v2", "title": "Why streaks happen — and why we overrate them", "duration_sec": 90 },
+        { "id": "v3", "title": "The math of expected value, in 90 seconds", "duration_sec": 90 },
+        { "id": "v4", "title": "Pattern recognition tricks for quiz games", "duration_sec": 90 },
+        { "id": "v5", "title": "When to take a risk and when to play safe", "duration_sec": 90 }
+      ]
+    },
+    "exam_ap_general": {
+      "topic_label": "AP 2027 Prep",
+      "videos": [
+        { "id": "v0", "title": "AP exam scoring: what a 5 actually requires", "duration_sec": 95 },
+        { "id": "v1", "title": "The 3-minute essay outline that earns full credit", "duration_sec": 95 },
+        { "id": "v2", "title": "Time-management tactics for free-response sections", "duration_sec": 90 },
+        { "id": "v3", "title": "Why memorizing dates rarely works — and what does", "duration_sec": 90 },
+        { "id": "v4", "title": "How to use practice tests to find your weakest unit", "duration_sec": 90 },
+        { "id": "v5", "title": "Stress-management rituals proven by sports psychology", "duration_sec": 90 }
+      ]
+    }
+  }
+}
