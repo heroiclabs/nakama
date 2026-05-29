@@ -3803,6 +3803,86 @@ declare namespace TournamentTopicCatalog {
     function getRotatedTag(baseTag: string, weekNum: number): string;
     function listAllTags(): string[];
 }
+declare namespace TournamentLevers {
+    const COL_INTENT_QUIZ = "tournament_intent_quiz";
+    const COL_STREAKS = "tournament_streaks";
+    const COL_DETAIL_VIEWS = "tournament_detail_views";
+    const COL_DOUBLEUP = "tournament_doubleup";
+    const COL_PREDICTIVE_STATE = "tournament_predictive_state";
+    const COL_SPECTATORS = "tournament_spectators";
+    const COL_LEVER_ANALYTICS = "tournament_lever_analytics";
+    interface LeverEvent {
+        event: string;
+        user_id: string | null;
+        properties: {
+            [k: string]: any;
+        };
+        ts: number;
+    }
+    function logEvent(nk: nkruntime.Nakama, event: string, userId: string | null, properties: any): void;
+    interface IntentAnswers {
+        favorite_topic: string;
+        time_budget: string;
+        prize_comfort: string;
+        answered_at: number;
+        recommended_slug: string;
+    }
+    function recommendSlug(answers: {
+        favorite_topic: string;
+        time_budget: string;
+        prize_comfort: string;
+    }): string;
+    function readIntent(nk: nkruntime.Nakama, userId: string): IntentAnswers | null;
+    function writeIntent(nk: nkruntime.Nakama, userId: string, answers: IntentAnswers): void;
+    interface StreakRow {
+        current_days: number;
+        last_calendar_day: string;
+        grace_days_used: number;
+        history: string[];
+        longest_ever: number;
+    }
+    function todayKey(timezoneOffsetMin: number): string;
+    function recordCheckin(nk: nkruntime.Nakama, userId: string, timezoneOffsetMin: number): {
+        row: StreakRow;
+        reward: any | null;
+        new_unlock: boolean;
+    };
+    interface DetailViewRow {
+        slug: string;
+        user_id: string;
+        viewed_at: number;
+        nudge_due_at: number;
+        nudged: boolean;
+        entered: boolean;
+    }
+    function recordDetailView(nk: nkruntime.Nakama, userId: string, slug: string): DetailViewRow;
+    function markEntered(nk: nkruntime.Nakama, userId: string, slug: string): void;
+    function processAbandonmentNudges(nk: nkruntime.Nakama, logger: nkruntime.Logger, maxBatch: number): number;
+    interface DoubleupRow {
+        slug: string;
+        user_id: string;
+        picks_made_at_lock: number;
+        cost_bc: number;
+        multiplier: number;
+        locked_at: number;
+    }
+    function readDoubleup(nk: nkruntime.Nakama, userId: string, slug: string): DoubleupRow | null;
+    function writeDoubleup(nk: nkruntime.Nakama, userId: string, slug: string, picksMade: number): DoubleupRow;
+    function addSpectator(nk: nkruntime.Nakama, slug: string, userId: string): void;
+    interface PredictiveState {
+        slug: string;
+        user_id: string;
+        samples: {
+            rank: number;
+            ts: number;
+        }[];
+        last_nudge_at: number;
+    }
+    function pushRankSample(nk: nkruntime.Nakama, userId: string, slug: string, rank: number): {
+        should_nudge: boolean;
+        target_rank: number;
+    };
+}
 declare namespace TournamentFormatClassic {
     interface ClassicPayoutRow {
         user_id: string;

@@ -1,7 +1,7 @@
 # QuizVerse Tournaments — Operations Runbook
 
 **Owner:** Tournaments squad
-**Last updated:** 2026-05-28
+**Last updated:** 2026-05-29 (Wave-2 levers shipped; §6 + §7 added)
 
 This runbook covers everything between code-complete (today) and public
 launch (Jul 1). Use it in sequence — each section produces an artifact
@@ -258,3 +258,75 @@ These nice-to-haves unblock late-launch tightening. Not blocking for Jul 1.
 | `tags` field on `ExamPrepBundleRequest` | `/api/v2/exam_prep_bundle` | Per-tournament topic filtering |
 | `viral_lesson_short` cap → 180s | `/api/v2/viral_lesson_short` | Some Learning Series lessons need 2-3 min |
 | Optional `webhook_url` | All async endpoints | Lets Nakama avoid polling for task status |
+
+---
+
+## §8 — Wave-2 conversion + retention levers (shipped 2026-05-29)
+
+**Status:** all 12 levers from the [2026 audit](https://nakama-tournaments-docs.s3.us-east-1.amazonaws.com/audit.html)
+have **server primitives shipped + verified live in production**. 9/12 feature
+flags flipped `ON`; 2 held off pending billing/creative review.
+
+**Image:** `970547373533.dkr.ecr.us-east-1.amazonaws.com/intelliverse-nakama:3.0.0-1817120-levers-20260529042823`
+
+### 8.1 RPC inventory (11 new)
+
+| Flag | RPCs | Auth | Notes |
+|---|---|---|---|
+| `intent_quiz_onboarding` | `tournament_intent_quiz_get` / `_submit` / `_get_recommendation` | mixed | `_get` is anon-friendly so the web onboarding flow can render before sign-in |
+| `scarcity_counter_v1` | (no new RPC) — `tournament_list` + `tournament_get` now return `founder_slots_left` + `scarcity_low` + `scarcity_very_low` | anon | Always computed; UI gates display |
+| `social_proof_ticker_v1` | `tournament_social_proof_recent` | anon | Returns redact_handles flag for low-volume slugs |
+| `predictive_rank_nudge_v1` | (state-only — fired from settle path via `TournamentLevers.pushRankSample`) | server | 30-min sliding window per user×slug |
+| `abandonment_nudge_v1` | `tournament_track_detail_view` (auth) + `tournament_levers_cron_tick` (service) | mixed | Cron is chained from existing `tournament-cron-tick` — no new K8s manifest |
+| `streak_engine_v1` | `tournament_streak_check_in` / `_get` | auth | TZ-aware day rollover, 1 grace day per 14-day window |
+| `tournament_badges_v1` | (config-only — `TOURNAMENT_BADGES` seeds 7 badges into the existing 207-badge engine) | server | Award rules: `rank/total ≤ 0.01`, `consecutive_weeks ≥ 10`, etc. |
+| `watch_live_v1` | `tournament_spectator_subscribe` | anon | Throttled 10 s vs 5 s entrant refresh; 5,000/pod cap |
+| `pickn_doubleup_v1` | `tournament_pick_doubleup` | auth | **Flag OFF** — returns 503 until billing audit completes |
+| `kpi_alerts_v1` | `tournament_levers_health` | anon | Returns flags + thresholds + cadence config for dashboards |
+
+### 8.2 Verification probes
+
+```bash
+NAKAMA_HTTP_KEY=...
+POD=$(kubectl get pods -n aicart -l app=intelliverse-nakama --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+
+# L1 — intent quiz definition (anon)
+kubectl exec -n aicart "$POD" -- curl -sS -X POST \
+  "http://localhost:7350/v2/rpc/tournament_intent_quiz_get?http_key=$NAKAMA_HTTP_KEY&unwrap=true" \
+  -d '{}' -H "Content-Type: application/json"
+# → {"success":true,"data":{"enabled":true,"questions":[...]}}
+
+# L2 — scarcity counter inline in tournament_list
+kubectl exec -n aicart "$POD" -- curl -sS -X POST \
+  "http://localhost:7350/v2/rpc/tournament_list?http_key=$NAKAMA_HTTP_KEY&unwrap=true" \
+  -d '{}' -H "Content-Type: application/json" | jq '.data.tournaments[0] | {slug, founder_slots_left, scarcity_low}'
+
+# L9 — spectator subscribe (anon)
+kubectl exec -n aicart "$POD" -- curl -sS -X POST \
+  "http://localhost:7350/v2/rpc/tournament_spectator_subscribe?http_key=$NAKAMA_HTTP_KEY&unwrap=true" \
+  -d '{"slug":"brain-bowl-weekly"}' -H "Content-Type: application/json"
+
+# L12 — full health check
+kubectl exec -n aicart "$POD" -- curl -sS -X POST \
+  "http://localhost:7350/v2/rpc/tournament_levers_health?http_key=$NAKAMA_HTTP_KEY&unwrap=true" \
+  -d '{}' -H "Content-Type: application/json"
+```
+
+### 8.3 Remaining client work
+
+The following levers have server primitives ready but require web/Unity UI commitment:
+
+| Lever | Web component | Unity prefab |
+|---|---|---|
+| L1 onboarding | First-sign-in modal calling `tournament_intent_quiz_submit` | Onboarding tile in MainQuiz |
+| L2 scarcity | Pill on tournament cards showing `founder_slots_left` | TMP_Text on TournamentScreen |
+| L4 ticker | 90 s sliding ticker polling `tournament_social_proof_recent` | Marquee component on detail screen |
+| L5 nudge | Toast on rank-slip push | NotificationManager localization |
+| L9 spectator | Watch-live screen | Spectator panel + "join next round" CTA |
+
+Spec lives in [`docs/tournaments/UI_CONVERSION_LEVERS.md`](./UI_CONVERSION_LEVERS.md).
+
+### 8.4 Flag flip plan for L10 + L11
+
+* **L10 (wave2_slate)** — flip after creative + push copy is approved for Movie Trivia Royale, Music History Royale, Pop Culture 2010s. Requires merging `WAVE_2_SLATE_DRAFT` into `LAUNCH_SLATE`.
+* **L11 (pickn_doubleup_v1)** — flip after billing audit confirms the 100 BC debit path on doubleup. Suggested: dry-run on `pick-5-daily` for 1 week post-launch with a 50 BC promotional fee.

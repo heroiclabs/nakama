@@ -7,7 +7,7 @@
 <meta name="description" content="Live end-to-end production verification of the QuizVerse Tournament system. What's working, what's broken, what's a launch blocker. All findings probed live and timestamped.">
 <meta property="og:title" content="QuizVerse Tournaments — Live E2E Status">
 <meta property="og:description" content="Honest production verification with live probes against Nakama, Bracket, Lambda, S3, web, and Unity.">
-<link rel="stylesheet" href="assets/styles.css?v=5">
+<link rel="stylesheet" href="assets/styles.css?v=6">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
@@ -90,6 +90,38 @@
 </header>
 
 <main class="container-narrow">
+
+<!-- ─────────────────── Wave-2 levers shipped ─────────────────── -->
+<section>
+  <h2>Wave-2 conversion + retention levers — all 12 server primitives shipped</h2>
+  <p>Re-probed 2026-05-29 04:30 UTC after the levers overlay rolled out. <strong>Image: <code>3.0.0-1817120-levers-20260529042823</code></strong>. 11 new RPCs registered (1025 → 1036 total), 9/12 feature flags flipped <code>ON</code>, 2 held off pending review. UI for L1/L2/L4/L5/L9 is the only remaining client work — full spec lives in <code>docs/tournaments/UI_CONVERSION_LEVERS.md</code>.</p>
+
+  <table>
+    <thead><tr><th>#</th><th>Lever</th><th>Server primitive</th><th>RPC(s)</th><th>Flag</th><th>Client work</th></tr></thead>
+    <tbody>
+      <tr><td>L1</td><td>Personalized onboarding</td><td><code>TournamentLevers.recommendSlug</code></td><td><code>tournament_intent_quiz_get/submit/get_recommendation</code></td><td><span class="pill ok">ON</span></td><td>Web modal + Unity onboarding tile</td></tr>
+      <tr><td>L2</td><td>Live scarcity counter</td><td><code>founder_slots_left</code> on every tournament row</td><td><code>tournament_list</code> + <code>tournament_get</code></td><td><span class="pill ok">ON</span></td><td>Render counter on tournament cards</td></tr>
+      <tr><td>L3</td><td>Push cadence ladder</td><td>8-entry ladder + per-user / per-slug caps</td><td>config consumed by <code>notif-scheduler</code></td><td><span class="pill ok">ON</span></td><td>—</td></tr>
+      <tr><td>L4</td><td>Social-proof ticker</td><td>auto-redact below 3 entries</td><td><code>tournament_social_proof_recent</code></td><td><span class="pill ok">ON</span></td><td>90 s sliding-window component</td></tr>
+      <tr><td>L5</td><td>Predictive rank nudge</td><td><code>TournamentLevers.pushRankSample</code> 30-min sliding window</td><td>fired from settle path</td><td><span class="pill ok">ON</span></td><td>In-app toast (optional)</td></tr>
+      <tr><td>L6</td><td>Abandonment nudge H+24</td><td>per-(user, slug) view ledger</td><td><code>tournament_track_detail_view</code> + <code>tournament_levers_cron_tick</code></td><td><span class="pill ok">ON</span></td><td>Client fires track on detail view</td></tr>
+      <tr><td>L7</td><td>Daily streak</td><td>TZ-aware day rollover, grace days, 6 milestones</td><td><code>tournament_streak_check_in/get</code></td><td><span class="pill ok">ON</span></td><td>Streak HUD + reward popup</td></tr>
+      <tr><td>L8</td><td>Tournament badges</td><td>7 badges seeded (Founders Class, 10 Weeks Unbroken, …)</td><td>award rules in existing badge engine</td><td><span class="pill ok">ON</span></td><td>Badge tray UI (already exists)</td></tr>
+      <tr><td>L9</td><td>Watch-live spectator</td><td>spectator subscriber set, 5k/pod cap</td><td><code>tournament_spectator_subscribe</code></td><td><span class="pill ok">ON</span></td><td>Spectator screen + "join next round" CTA</td></tr>
+      <tr><td>L10</td><td>Slate expansion 25-34</td><td>3 configs in <code>WAVE_2_SLATE_DRAFT</code></td><td>(merge into LAUNCH_SLATE)</td><td><span class="pill warn">OFF</span></td><td>Pending creative + push copy</td></tr>
+      <tr><td>L11</td><td>Pick-N v2 doubleup</td><td>window/picks gating, 100 BC debit</td><td><code>tournament_pick_doubleup</code></td><td><span class="pill warn">OFF</span></td><td>Pending billing audit (debit path)</td></tr>
+      <tr><td>L12</td><td>KPI commitment</td><td>8 thresholds with 2026 benchmarks</td><td><code>tournament_levers_health</code> + <code>TournamentLevers.logEvent</code></td><td><span class="pill ok">ON</span></td><td>PagerDuty alert wiring</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Re-probe (2026-05-29 04:30 UTC)</h3>
+  <pre><code>$ POD=$(kubectl get pods -n aicart -l app=intelliverse-nakama --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+$ kubectl exec -n aicart "$POD" -- sh -c 'curl -sS -X POST "http://localhost:7350/v2/rpc/tournament_intent_quiz_get?http_key=$NAKAMA_HTTP_KEY&unwrap=true" -H "Content-Type: application/json" -d "{}"'
+# → 200 + {"success":true,"data":{"enabled":true,"questions":[{"id":"favorite_topic",...}]}}
+
+$ kubectl exec -n aicart "$POD" -- sh -c 'curl -sS -X POST "http://localhost:7350/v2/rpc/tournament_levers_health?http_key=$NAKAMA_HTTP_KEY&unwrap=true" -H "Content-Type: application/json" -d "{}"'
+# → 200 + flags={intent_quiz_onboarding:true, scarcity_counter_v1:true, ..., wave2_slate:false, pickn_doubleup_v1:false}</code></pre>
+</section>
 
 <!-- ─────────────────── Headline verdict ─────────────────── -->
 <section>

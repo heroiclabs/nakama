@@ -35,20 +35,24 @@ namespace TournamentEconomyV2 {
   // ───────────────────────────────────────────────────────────────────────────
   // Feature flags. Each lever ships behind a flag. Flip via the existing
   // remote-config rpc once the corresponding RPC + UI lands.
+  //
+  // Flag-flip rationale (2026-05-29):
+  //   ON  — server primitive shipped + safe to be discoverable; UI can opt-in.
+  //   OFF — gates a destructive/billing path or requires client work first.
   // ───────────────────────────────────────────────────────────────────────────
   export const FEATURE_FLAGS = {
-    intent_quiz_onboarding:    false,
-    scarcity_counter_v1:       false,
-    push_cadence_ladder_v1:    false,
-    social_proof_ticker_v1:    false,
-    predictive_rank_nudge_v1:  false,
-    abandonment_nudge_v1:      false,
-    streak_engine_v1:          false,
-    tournament_badges_v1:      false,
-    watch_live_v1:             false,
-    wave2_slate:               false,
-    pickn_doubleup_v1:         false,
-    kpi_alerts_v1:             false,
+    intent_quiz_onboarding:    true,   // L1  — RPCs live; client surfaces the quiz UI optionally
+    scarcity_counter_v1:       true,   // L2  — surfaced in tournament_list/get response
+    push_cadence_ladder_v1:    true,   // L3  — cadence config consumed by notif-scheduler
+    social_proof_ticker_v1:    true,   // L4  — RPC live; client renders the ticker optionally
+    predictive_rank_nudge_v1:  true,   // L5  — server tracks state; nudges fire on slip
+    abandonment_nudge_v1:      true,   // L6  — server cron drains nudges; client tracks views
+    streak_engine_v1:          true,   // L7  — RPCs live; rewards mint via existing economy
+    tournament_badges_v1:      true,   // L8  — badges seeded; awards fire on settle
+    watch_live_v1:             true,   // L9  — spectator subscribe RPC live
+    wave2_slate:               false,  // L10 — held off until cohort campaign is creative-ready
+    pickn_doubleup_v1:         false,  // L11 — held off pending billing audit (debits BC)
+    kpi_alerts_v1:             true,   // L12 — events firing; alert wiring follows in PagerDuty
   };
 
   // ───────────────────────────────────────────────────────────────────────────
