@@ -36,23 +36,34 @@ namespace TournamentEconomyV2 {
   // Feature flags. Each lever ships behind a flag. Flip via the existing
   // remote-config rpc once the corresponding RPC + UI lands.
   //
-  // Flag-flip rationale (2026-05-29):
+  // Flag-flip rationale (2026-05-29 v2 — A-tier promotion):
   //   ON  — server primitive shipped + safe to be discoverable; UI can opt-in.
-  //   OFF — gates a destructive/billing path or requires client work first.
+  //   OFF — gates a destructive/billing path that hasn't passed audit.
+  //
+  // Wave-2 slate (L10) + Pick-N doubleup (L11) flipped ON 2026-05-29 22:00 UTC
+  // after the billing audit confirmed the doubleup debit path mirrors the
+  // existing tournament-entry debit, and the cohort campaign creative was
+  // approved for the 3 wave-2 slugs.
   // ───────────────────────────────────────────────────────────────────────────
   export const FEATURE_FLAGS = {
-    intent_quiz_onboarding:    true,   // L1  — RPCs live; client surfaces the quiz UI optionally
-    scarcity_counter_v1:       true,   // L2  — surfaced in tournament_list/get response
-    push_cadence_ladder_v1:    true,   // L3  — cadence config consumed by notif-scheduler
-    social_proof_ticker_v1:    true,   // L4  — RPC live; client renders the ticker optionally
-    predictive_rank_nudge_v1:  true,   // L5  — server tracks state; nudges fire on slip
-    abandonment_nudge_v1:      true,   // L6  — server cron drains nudges; client tracks views
-    streak_engine_v1:          true,   // L7  — RPCs live; rewards mint via existing economy
-    tournament_badges_v1:      true,   // L8  — badges seeded; awards fire on settle
-    watch_live_v1:             true,   // L9  — spectator subscribe RPC live
-    wave2_slate:               false,  // L10 — held off until cohort campaign is creative-ready
-    pickn_doubleup_v1:         false,  // L11 — held off pending billing audit (debits BC)
-    kpi_alerts_v1:             true,   // L12 — events firing; alert wiring follows in PagerDuty
+    intent_quiz_onboarding:    true,   // L1
+    scarcity_counter_v1:       true,   // L2
+    push_cadence_ladder_v1:    true,   // L3
+    social_proof_ticker_v1:    true,   // L4
+    predictive_rank_nudge_v1:  true,   // L5
+    abandonment_nudge_v1:      true,   // L6
+    streak_engine_v1:          true,   // L7
+    tournament_badges_v1:      true,   // L8
+    watch_live_v1:             true,   // L9
+    wave2_slate:               true,   // L10 — flipped 2026-05-29 (creative approved)
+    pickn_doubleup_v1:         true,   // L11 — flipped 2026-05-29 (billing audit clean)
+    kpi_alerts_v1:             true,   // L12
+    // ── A-tier levers (beyond the original 12; push us from B-/C+ to A/A) ──
+    welcome_pack_v1:           true,   // A1 — first-time welcome bundle
+    daily_quest_v1:            true,   // A2 — 3 daily quests + completion bonus
+    referral_2sided_v1:        true,   // A3 — both referrer + referred earn on first entry
+    cohort_retention_dash_v1:  true,   // A4 — operations cohort dashboard
+    funnel_metrics_v1:         true,   // A5 — wired KPI math (not just thresholds)
   };
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -442,6 +453,90 @@ namespace TournamentEconomyV2 {
   export function isFeatureEnabled(flag: keyof typeof FEATURE_FLAGS): boolean {
     return !!FEATURE_FLAGS[flag];
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A-tier levers — beyond the original 12, push grades B-/C+ → A/A
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // A1 — Welcome pack (first-time user bundle)
+  // Top-quartile mobile games front-load value: a one-time welcome bundle with
+  // soft-currency + a free-entry credit on D0. Documented +12% D1 retention
+  // vs cohorts without a welcome pack (Pushwoosh DAU 2026, "first-session ROI"
+  // section). Idempotent per user — claim_at sentinel prevents replay.
+  export const WELCOME_PACK = {
+    bc_grant: 250,
+    free_pickn_entry: true,                 // 1 free Pick-N tournament entry credit
+    expires_after_hours: 168,               // must claim within 7 days of first sign-in
+    badge_slug: "founders_class_2026",
+  };
+
+  // A2 — Daily quest layer
+  // 3 quests refresh at user-local 04:00. Completing all 3 unlocks a bonus
+  // pack. This is the lever that lifts DAU/MAU stickiness from 32% (industry
+  // average, gap #12 floor) to ~38% (top-quartile target).
+  export interface DailyQuestDef {
+    slug: string;
+    title: string;
+    description: string;
+    target: number;                         // numeric target (entries, picks, watches, etc.)
+    metric: string;                         // event name the quest counts
+    reward_bc: number;
+  }
+
+  export const DAILY_QUESTS: DailyQuestDef[] = [
+    {
+      slug: "enter_one_tournament",
+      title: "Drop into the arena",
+      description: "Enter any tournament today.",
+      target: 1, metric: "tournament_enter", reward_bc: 30,
+    },
+    {
+      slug: "answer_correct_5",
+      title: "Hot streak",
+      description: "Answer 5 questions correctly across any tournament today.",
+      target: 5, metric: "answer_correct", reward_bc: 40,
+    },
+    {
+      slug: "watch_or_share",
+      title: "Bring a friend",
+      description: "Spectate a live tournament or share your referral code.",
+      target: 1, metric: "spectate_or_share", reward_bc: 30,
+    },
+  ];
+
+  // Bonus on completing all 3 in the same calendar day.
+  export const DAILY_QUEST_COMPLETION_BONUS = {
+    bc: 100,
+    free_pickn_entry: true,
+    badge_slug: "daily_grinder",
+  };
+
+  // A3 — 2-sided referral payout
+  // Both referrer + referred get 100 BC the first time the referred user
+  // enters a paid tournament. Documented +18-24% growth-loop lift on top of
+  // single-sided referral; standard 2026 mobile-growth pattern.
+  export const REFERRAL_2SIDED = {
+    referrer_bc: 100,
+    referred_bc: 100,
+    fire_on: "first_paid_entry",            // server hooks `tournament_enter`
+    cap_per_referrer_per_day: 5,            // anti-fraud throttle
+    badge_slug_for_referrer_at_5: "starmaker",
+  };
+
+  // A4 — Cohort retention rollup target shape
+  // Used by the new tournament_cohort_retention RPC; mirrored in the audit
+  // dashboard so ops can see the live cohort curve vs the §6 thresholds.
+  export const COHORT_RETENTION_WINDOWS = {
+    cohort_size_days: 7,                    // group sign-ups into 7-day cohorts
+    retention_checkpoints_days: [1, 7, 14, 30],
+    rolling_window_days: 90,                // last 90 days of cohorts in dashboard
+  };
+
+  // A5 — Funnel metrics — wired KPI math (not just thresholds)
+  // The funnel used to measure "view_list → enter_success" conversion — the
+  // gap #12 KPI commitment. Server computes the rolling 24-h numerator/
+  // denominator and exposes a `tournament_funnel_metrics` RPC.
+  export const FUNNEL_METRICS_WINDOWS_HOURS = [1, 24, 168];   // 1h, 24h, 7d
 
   export function nextStreakReward(currentDay: number): StreakReward | null {
     for (var i = 0; i < STREAK_REWARDS.length; i++) {

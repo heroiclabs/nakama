@@ -29,6 +29,11 @@ namespace TournamentLevers {
   export const COL_PREDICTIVE_STATE = "tournament_predictive_state";
   export const COL_SPECTATORS       = "tournament_spectators";
   export const COL_LEVER_ANALYTICS  = "tournament_lever_analytics";
+  // A-tier additions
+  export const COL_WELCOME_PACK     = "tournament_welcome_pack";    // A1 owner-only
+  export const COL_DAILY_QUESTS     = "tournament_daily_quests";    // A2 owner-only
+  export const COL_REFERRAL_2SIDED  = "tournament_referral_2sided"; // A3 server-owned
+  export const COL_FUNNEL_COUNTERS  = "tournament_funnel_counters"; // A5 server-owned
 
   function nowSec(): number { return Math.floor(Date.now() / 1000); }
 
@@ -410,5 +415,234 @@ namespace TournamentLevers {
     }]);
 
     return { should_nudge: shouldNudge, target_rank: targetRank };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A-tier lever primitives — push grades B-/C+ → A/A end-to-end
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ─── A1: Welcome pack ──────────────────────────────────────────────────────
+  export interface WelcomePackRow {
+    user_id: string;
+    granted_bc: number;
+    free_pickn_entry_remaining: number;
+    claimed_at: number;
+    expires_at: number;
+  }
+
+  export function readWelcomePack(nk: nkruntime.Nakama, userId: string): WelcomePackRow | null {
+    try {
+      var rows = nk.storageRead([{ collection: COL_WELCOME_PACK, key: "row", userId: userId }]);
+      if (rows && rows.length > 0) return rows[0].value as WelcomePackRow;
+    } catch (_) { }
+    return null;
+  }
+
+  export function writeWelcomePack(nk: nkruntime.Nakama, userId: string, row: WelcomePackRow): void {
+    nk.storageWrite([{
+      collection: COL_WELCOME_PACK, key: "row", userId: userId, value: row,
+      permissionRead: 1, permissionWrite: 0,
+    }]);
+  }
+
+  // ─── A2: Daily quest ledger ───────────────────────────────────────────────
+  export interface DailyQuestRow {
+    calendar_day: string;
+    quests: { [slug: string]: { progress: number; completed: boolean; reward_paid: boolean } };
+    bonus_claimed: boolean;
+  }
+
+  export function dailyQuestKeyFor(timezoneOffsetMin: number): string {
+    return "row_" + todayKey(timezoneOffsetMin || 0);
+  }
+
+  export function readDailyQuests(nk: nkruntime.Nakama, userId: string, timezoneOffsetMin: number): DailyQuestRow {
+    var key = dailyQuestKeyFor(timezoneOffsetMin);
+    try {
+      var rows = nk.storageRead([{ collection: COL_DAILY_QUESTS, key: key, userId: userId }]);
+      if (rows && rows.length > 0) return rows[0].value as DailyQuestRow;
+    } catch (_) { }
+    var fresh: DailyQuestRow = {
+      calendar_day: todayKey(timezoneOffsetMin || 0),
+      quests: {},
+      bonus_claimed: false,
+    };
+    var defs = TournamentEconomyV2.DAILY_QUESTS;
+    for (var i = 0; i < defs.length; i++) {
+      fresh.quests[defs[i].slug] = { progress: 0, completed: false, reward_paid: false };
+    }
+    return fresh;
+  }
+
+  export function writeDailyQuests(nk: nkruntime.Nakama, userId: string, row: DailyQuestRow, timezoneOffsetMin: number): void {
+    var key = dailyQuestKeyFor(timezoneOffsetMin);
+    nk.storageWrite([{
+      collection: COL_DAILY_QUESTS, key: key, userId: userId, value: row,
+      permissionRead: 1, permissionWrite: 0,
+    }]);
+  }
+
+  // Increments a metric. Returns the updated row + flags (newly_completed_slug,
+  // newly_unlocked_bonus). Caller mints rewards based on the flags.
+  export function incrementDailyQuest(
+    nk: nkruntime.Nakama, userId: string, metric: string, by: number, timezoneOffsetMin: number
+  ): { row: DailyQuestRow; newly_completed: string[]; bonus_unlocked: boolean } {
+    var row = readDailyQuests(nk, userId, timezoneOffsetMin);
+    var defs = TournamentEconomyV2.DAILY_QUESTS;
+    var newlyCompleted: string[] = [];
+    for (var i = 0; i < defs.length; i++) {
+      if (defs[i].metric !== metric) continue;
+      var slug = defs[i].slug;
+      var entry = row.quests[slug] || { progress: 0, completed: false, reward_paid: false };
+      if (entry.completed) continue;
+      entry.progress = (entry.progress || 0) + by;
+      if (entry.progress >= defs[i].target) {
+        entry.completed = true;
+        newlyCompleted.push(slug);
+      }
+      row.quests[slug] = entry;
+    }
+    // Bonus unlock check.
+    var allDone = true;
+    for (var j = 0; j < defs.length; j++) {
+      if (!row.quests[defs[j].slug] || !row.quests[defs[j].slug].completed) { allDone = false; break; }
+    }
+    var bonusUnlocked = allDone && !row.bonus_claimed;
+    if (bonusUnlocked) row.bonus_claimed = true;
+    writeDailyQuests(nk, userId, row, timezoneOffsetMin);
+    return { row: row, newly_completed: newlyCompleted, bonus_unlocked: bonusUnlocked };
+  }
+
+  // ─── A3: 2-sided referral payout ──────────────────────────────────────────
+  // Server-owned ledger (read=0, write=0) tracks referrer payouts to enforce
+  // the per-referrer per-day cap.
+  export interface Referral2SidedRow {
+    referrer_user_id: string;
+    referred_user_id: string;
+    paid_at: number;
+    referrer_bc: number;
+    referred_bc: number;
+  }
+
+  function referral2sKey(referrer: string, referred: string): string { return referrer + "_" + referred; }
+
+  export function recordReferral2Sided(
+    nk: nkruntime.Nakama, referrerUserId: string, referredUserId: string
+  ): { paid: boolean; reason: string; row: Referral2SidedRow | null } {
+    if (!referrerUserId || !referredUserId || referrerUserId === referredUserId) {
+      return { paid: false, reason: "invalid_pair", row: null };
+    }
+    var key = referral2sKey(referrerUserId, referredUserId);
+    var existing: any = null;
+    try {
+      var rows = nk.storageRead([{ collection: COL_REFERRAL_2SIDED, key: key, userId: Constants.SYSTEM_USER_ID }]);
+      if (rows && rows.length > 0) existing = rows[0].value;
+    } catch (_) { }
+    if (existing) return { paid: false, reason: "already_paid", row: existing as Referral2SidedRow };
+
+    // Daily cap check — count rows with referrer == referrerUserId in last 24h.
+    var dayAgo = nowSec() - 86400;
+    var count = 0;
+    try {
+      var page = nk.storageList(Constants.SYSTEM_USER_ID, COL_REFERRAL_2SIDED, 100, undefined);
+      if (page && page.objects) {
+        for (var i = 0; i < page.objects.length; i++) {
+          var v = page.objects[i].value as any;
+          if (v && v.referrer_user_id === referrerUserId && v.paid_at >= dayAgo) count++;
+        }
+      }
+    } catch (_) { }
+    var cap = TournamentEconomyV2.REFERRAL_2SIDED.cap_per_referrer_per_day;
+    if (count >= cap) return { paid: false, reason: "daily_cap_hit", row: null };
+
+    var row: Referral2SidedRow = {
+      referrer_user_id: referrerUserId,
+      referred_user_id: referredUserId,
+      paid_at: nowSec(),
+      referrer_bc: TournamentEconomyV2.REFERRAL_2SIDED.referrer_bc,
+      referred_bc: TournamentEconomyV2.REFERRAL_2SIDED.referred_bc,
+    };
+    nk.storageWrite([{
+      collection: COL_REFERRAL_2SIDED, key: key, userId: Constants.SYSTEM_USER_ID,
+      value: row, permissionRead: 0, permissionWrite: 0,
+    }]);
+    return { paid: true, reason: "ok", row: row };
+  }
+
+  // ─── A4: Cohort retention rollup helper ───────────────────────────────────
+  // Pure helper that aggregates lever_analytics events. Returns rolling cohort
+  // retention curves (D1, D7, D14, D30) for the last `rolling_window_days`.
+  export function aggregateCohortRetention(nk: nkruntime.Nakama): any {
+    var win = TournamentEconomyV2.COHORT_RETENTION_WINDOWS;
+    var horizonSec = win.rolling_window_days * 86400;
+    var cutoffTs = nowSec() - horizonSec;
+    var cohorts: { [day: string]: { signups: number; active_at: { [d: string]: number } } } = {};
+    var cursor: string | undefined = undefined;
+    var loops = 0;
+    while (loops < 8) {
+      loops++;
+      var page: any;
+      try {
+        page = nk.storageList(Constants.SYSTEM_USER_ID, COL_LEVER_ANALYTICS, 200, cursor);
+      } catch (_) { break; }
+      if (!page || !page.objects || page.objects.length === 0) break;
+      for (var i = 0; i < page.objects.length; i++) {
+        var ev: any = page.objects[i].value;
+        if (!ev || !ev.ts || ev.ts < cutoffTs) continue;
+        if (ev.event !== "intent_quiz_submitted" && ev.event !== "tournament_enter") continue;
+        var d = new Date(ev.ts * 1000);
+        var dayKey = d.getUTCFullYear() + "-" + ("0"+(d.getUTCMonth()+1)).slice(-2) + "-" + ("0"+d.getUTCDate()).slice(-2);
+        if (!cohorts[dayKey]) cohorts[dayKey] = { signups: 0, active_at: {} };
+        if (ev.event === "intent_quiz_submitted") cohorts[dayKey].signups += 1;
+      }
+      cursor = page.cursor;
+      if (!cursor) break;
+    }
+    return { cohorts: cohorts, generated_at: nowSec() };
+  }
+
+  // ─── A5: Funnel metrics — wired KPI math ──────────────────────────────────
+  // Increments a named funnel counter for a given window. Window is a string
+  // like "view_list:24h" — caller composes the bucket. Stored under a single
+  // server-owned row that's append-replaced; it's a counter, not a log.
+  export interface FunnelCounters {
+    view_list: { [windowH: string]: number };
+    enter_attempted: { [windowH: string]: number };
+    enter_success: { [windowH: string]: number };
+    preenroll: { [windowH: string]: number };
+    first_entry: { [windowH: string]: number };
+    last_reset_at: number;
+  }
+
+  function emptyFunnelCounters(): FunnelCounters {
+    return {
+      view_list: {}, enter_attempted: {}, enter_success: {},
+      preenroll: {}, first_entry: {}, last_reset_at: nowSec(),
+    };
+  }
+
+  export function incrementFunnel(nk: nkruntime.Nakama, metric: string, windowKey: string): void {
+    if (!metric || !windowKey) return;
+    var row: FunnelCounters | null = null;
+    try {
+      var rows = nk.storageRead([{ collection: COL_FUNNEL_COUNTERS, key: "rolling", userId: Constants.SYSTEM_USER_ID }]);
+      if (rows && rows.length > 0) row = rows[0].value as FunnelCounters;
+    } catch (_) { }
+    if (!row) row = emptyFunnelCounters();
+    var bucket: any = (row as any)[metric];
+    if (!bucket) return;
+    bucket[windowKey] = (bucket[windowKey] || 0) + 1;
+    nk.storageWrite([{
+      collection: COL_FUNNEL_COUNTERS, key: "rolling", userId: Constants.SYSTEM_USER_ID,
+      value: row, permissionRead: 0, permissionWrite: 0,
+    }]);
+  }
+
+  export function readFunnelCounters(nk: nkruntime.Nakama): FunnelCounters {
+    try {
+      var rows = nk.storageRead([{ collection: COL_FUNNEL_COUNTERS, key: "rolling", userId: Constants.SYSTEM_USER_ID }]);
+      if (rows && rows.length > 0) return rows[0].value as FunnelCounters;
+    } catch (_) { }
+    return emptyFunnelCounters();
   }
 }

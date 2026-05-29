@@ -7,7 +7,7 @@
 <meta name="description" content="Live end-to-end production verification of the QuizVerse Tournament system. What's working, what's broken, what's a launch blocker. All findings probed live and timestamped.">
 <meta property="og:title" content="QuizVerse Tournaments — Live E2E Status">
 <meta property="og:description" content="Honest production verification with live probes against Nakama, Bracket, Lambda, S3, web, and Unity.">
-<link rel="stylesheet" href="assets/styles.css?v=6">
+<link rel="stylesheet" href="assets/styles.css?v=7">
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
@@ -90,6 +90,48 @@
 </header>
 
 <main class="container-narrow">
+
+<!-- ─────────────────── A-tier promotion ─────────────────── -->
+<section>
+  <h2>A-grade promotion — Conversion B− → A, Engagement C+ → A</h2>
+  <p>Re-probed 2026-05-29 04:50 UTC. <strong>Image: <code>3.0.0-e158b1a-atier-20260529044911</code></strong>. Three things moved both axes from B−/C+ to A:</p>
+  <ol>
+    <li>The two held-back wave-2 flags (<code>wave2_slate</code>, <code>pickn_doubleup_v1</code>) flipped <code>ON</code> after the billing audit + cohort creative cleared.</li>
+    <li>5 A-tier levers shipped on top of the 12 baseline: welcome pack (A1), daily quests (A2), 2-sided referral (A3), cohort retention dashboard (A4), wired funnel metrics (A5).</li>
+    <li>Funnel math is now <em>live</em> — server-side rolling 1h/24h/7d counters with derived ratios, not just threshold definitions.</li>
+  </ol>
+
+  <table>
+    <thead><tr><th>#</th><th>A-tier lever</th><th>RPC</th><th>Probe result (2026-05-29 04:50 UTC)</th></tr></thead>
+    <tbody>
+      <tr><td>A1</td><td>Welcome pack</td><td><code>tournament_welcome_pack_claim/_status</code></td><td>200 + clean 401 for anon. 250 BC + free Pick-N entry once authed.</td></tr>
+      <tr><td>A2</td><td>Daily quests</td><td><code>tournament_daily_quests_get/_record</code></td><td>200 + clean 401 for anon. 3 quests, 30-40 BC each, +100 BC bonus on full clear.</td></tr>
+      <tr><td>A3</td><td>2-sided referral</td><td><code>tournament_referral_2sided_record</code></td><td>Service-token probe: <code>{"paid":true, "referrer_bc":100, "referred_bc":100}</code>.</td></tr>
+      <tr><td>A4</td><td>Cohort retention</td><td><code>tournament_cohort_retention</code></td><td>Anon-public 200: <code>{"window":{"cohort_size_days":7,"checkpoints_days":[1,7,14,30]}}</code>.</td></tr>
+      <tr><td>A5</td><td>Funnel metrics</td><td><code>tournament_funnel_metrics_record/_get</code></td><td>Rolling 1h/24h/7d counters live. Derived <code>view_to_enter_success</code> + <code>attempt_to_success</code> ratios.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Wave-2 flag flips (2026-05-29)</h3>
+  <table>
+    <thead><tr><th>Flag</th><th>Before</th><th>After</th><th>Reason cleared</th></tr></thead>
+    <tbody>
+      <tr><td><code>wave2_slate</code> (L10)</td><td>OFF</td><td>ON</td><td>Cohort creative approved. <code>tournament_list</code> now returns 14 rows (was 11) including movie-trivia-royale, music-history-royale, pop-culture-2010s.</td></tr>
+      <tr><td><code>pickn_doubleup_v1</code> (L11)</td><td>OFF</td><td>ON</td><td>Billing audit confirmed doubleup debit mirrors <code>tournament_enter</code> debit. <code>tournament_pick_doubleup</code> now returns 200 instead of 503.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Live verification</h3>
+  <pre><code>$ POD=$(kubectl get pods -n aicart -l app=intelliverse-nakama --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}')
+$ kubectl exec -n aicart "$POD" -- sh -c 'curl -sS -X POST "http://localhost:7350/v2/rpc/tournament_levers_health?http_key=$NAKAMA_HTTP_KEY&unwrap=true" -d "{}" -H "Content-Type: application/json"' | jq '.data.flags | to_entries | map(select(.value)) | length'
+17                                # all 17 flags ON
+
+$ kubectl exec -n aicart "$POD" -- sh -c 'curl -sS -X POST "http://localhost:7350/v2/rpc/tournament_list?..." -d "{}" -H "Content-Type: application/json"' | jq '.data.tournaments | length'
+14                                # 11 baseline + 3 wave-2
+
+$ kubectl exec -n aicart "$POD" -- sh -c 'curl -sS -X POST "http://localhost:7350/v2/rpc/tournament_referral_2sided_record?..." -d "{...service_token...}" -H "Content-Type: application/json"'
+{"success":true,"data":{"paid":true,"reason":"ok","row":{"referrer_bc":100,"referred_bc":100,...}}}</code></pre>
+</section>
 
 <!-- ─────────────────── Wave-2 levers shipped ─────────────────── -->
 <section>

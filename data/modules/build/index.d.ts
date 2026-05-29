@@ -3061,6 +3061,11 @@ declare namespace TournamentEconomyV2 {
         wave2_slate: boolean;
         pickn_doubleup_v1: boolean;
         kpi_alerts_v1: boolean;
+        welcome_pack_v1: boolean;
+        daily_quest_v1: boolean;
+        referral_2sided_v1: boolean;
+        cohort_retention_dash_v1: boolean;
+        funnel_metrics_v1: boolean;
     };
     interface KPIThreshold {
         name: string;
@@ -3154,6 +3159,39 @@ declare namespace TournamentEconomyV2 {
     const PICKN_DOUBLEUP_DEFAULT: PickNDoubleupConfig;
     function thresholdByName(name: string): KPIThreshold | null;
     function isFeatureEnabled(flag: keyof typeof FEATURE_FLAGS): boolean;
+    const WELCOME_PACK: {
+        bc_grant: number;
+        free_pickn_entry: boolean;
+        expires_after_hours: number;
+        badge_slug: string;
+    };
+    interface DailyQuestDef {
+        slug: string;
+        title: string;
+        description: string;
+        target: number;
+        metric: string;
+        reward_bc: number;
+    }
+    const DAILY_QUESTS: DailyQuestDef[];
+    const DAILY_QUEST_COMPLETION_BONUS: {
+        bc: number;
+        free_pickn_entry: boolean;
+        badge_slug: string;
+    };
+    const REFERRAL_2SIDED: {
+        referrer_bc: number;
+        referred_bc: number;
+        fire_on: string;
+        cap_per_referrer_per_day: number;
+        badge_slug_for_referrer_at_5: string;
+    };
+    const COHORT_RETENTION_WINDOWS: {
+        cohort_size_days: number;
+        retention_checkpoints_days: number[];
+        rolling_window_days: number;
+    };
+    const FUNNEL_METRICS_WINDOWS_HOURS: number[];
     function nextStreakReward(currentDay: number): StreakReward | null;
     function pushTemplateForCode(code: string): PushCadenceEntry | null;
 }
@@ -3811,6 +3849,10 @@ declare namespace TournamentLevers {
     const COL_PREDICTIVE_STATE = "tournament_predictive_state";
     const COL_SPECTATORS = "tournament_spectators";
     const COL_LEVER_ANALYTICS = "tournament_lever_analytics";
+    const COL_WELCOME_PACK = "tournament_welcome_pack";
+    const COL_DAILY_QUESTS = "tournament_daily_quests";
+    const COL_REFERRAL_2SIDED = "tournament_referral_2sided";
+    const COL_FUNNEL_COUNTERS = "tournament_funnel_counters";
     interface LeverEvent {
         event: string;
         user_id: string | null;
@@ -3882,6 +3924,67 @@ declare namespace TournamentLevers {
         should_nudge: boolean;
         target_rank: number;
     };
+    interface WelcomePackRow {
+        user_id: string;
+        granted_bc: number;
+        free_pickn_entry_remaining: number;
+        claimed_at: number;
+        expires_at: number;
+    }
+    function readWelcomePack(nk: nkruntime.Nakama, userId: string): WelcomePackRow | null;
+    function writeWelcomePack(nk: nkruntime.Nakama, userId: string, row: WelcomePackRow): void;
+    interface DailyQuestRow {
+        calendar_day: string;
+        quests: {
+            [slug: string]: {
+                progress: number;
+                completed: boolean;
+                reward_paid: boolean;
+            };
+        };
+        bonus_claimed: boolean;
+    }
+    function dailyQuestKeyFor(timezoneOffsetMin: number): string;
+    function readDailyQuests(nk: nkruntime.Nakama, userId: string, timezoneOffsetMin: number): DailyQuestRow;
+    function writeDailyQuests(nk: nkruntime.Nakama, userId: string, row: DailyQuestRow, timezoneOffsetMin: number): void;
+    function incrementDailyQuest(nk: nkruntime.Nakama, userId: string, metric: string, by: number, timezoneOffsetMin: number): {
+        row: DailyQuestRow;
+        newly_completed: string[];
+        bonus_unlocked: boolean;
+    };
+    interface Referral2SidedRow {
+        referrer_user_id: string;
+        referred_user_id: string;
+        paid_at: number;
+        referrer_bc: number;
+        referred_bc: number;
+    }
+    function recordReferral2Sided(nk: nkruntime.Nakama, referrerUserId: string, referredUserId: string): {
+        paid: boolean;
+        reason: string;
+        row: Referral2SidedRow | null;
+    };
+    function aggregateCohortRetention(nk: nkruntime.Nakama): any;
+    interface FunnelCounters {
+        view_list: {
+            [windowH: string]: number;
+        };
+        enter_attempted: {
+            [windowH: string]: number;
+        };
+        enter_success: {
+            [windowH: string]: number;
+        };
+        preenroll: {
+            [windowH: string]: number;
+        };
+        first_entry: {
+            [windowH: string]: number;
+        };
+        last_reset_at: number;
+    }
+    function incrementFunnel(nk: nkruntime.Nakama, metric: string, windowKey: string): void;
+    function readFunnelCounters(nk: nkruntime.Nakama): FunnelCounters;
 }
 declare namespace TournamentFormatClassic {
     interface ClassicPayoutRow {
