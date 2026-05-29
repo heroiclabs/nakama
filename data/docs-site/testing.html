@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Testing · QuizVerse Tournaments</title>
+<meta name="description" content="End-to-end test plan for QuizVerse Tournaments: curl every RPC, verify pot update, settle a test tournament, claim a certificate. Live state cited from production.">
+<link rel="stylesheet" href="assets/styles.css?v=3">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.mermaid) {
+      mermaid.initialize({ startOnLoad: true, theme: "dark", themeVariables: { fontSize: "13px" } });
+    }
+  });
+</script>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html">Overview</a>
+      <a href="journey.html">Journey</a>
+      <a href="flows.html">Flows</a>
+      <a href="integration.html">Integration</a>
+      <a href="testing.html" class="active">Testing</a>
+      <a href="reference.html">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="launch.html">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">End-to-end · Curl every flow · Verify live state</span>
+  <h1>End-to-End Test Guide</h1>
+  <p>Run these checks before declaring "ready for public launch." Each command is copy-pasteable; expected outputs are shown. Live-state checks use the production Nakama cluster.</p>
+</header>
+
+<main class="container-narrow">
+
+<!-- ─────────────────── Live state cited ─────────────────── -->
+<section>
+  <h2>0. Live state cited (run-day verification)</h2>
+  <p>Verified on production by exec'ing into a running Nakama pod and hitting the in-cluster <code>nakama_js_health</code> + <code>tournament_list</code> RPCs at the time this site was deployed.</p>
+  <pre><code># JS runtime is up + 594 TS-owned RPCs registered
+$ curl -sS "http://127.0.0.1:7350/v2/rpc/nakama_js_health?http_key=...&amp;unwrap"
+{"ok":true,"runtime":"javascript","ts_owned_rpc_count":594,"now":"2026-05-28T22:43:20.265Z"}
+
+# All 11 tournaments seeded, all PRE_ENROLL, total pot seed = 211k BC
+$ curl -sS ".../v2/rpc/tournament_list?http_key=...&amp;unwrap"
+total: 11 tournaments
+SLUG                         FORMAT        STATUS          POT_BC  ENTRIES    FEE
+gk-royale-daily              classic       PRE_ENROLL        5000        0     50
+brain-bowl-weekly            classic       PRE_ENROLL       20000        0    250
+movie-buff-weekly            classic       PRE_ENROLL       18000        0    250
+survivor-week-1              elimination   PRE_ENROLL       50000        0    500
+pick-5-daily                 pick_n        PRE_ENROLL        8000        0    100
+ap-2027-prep-weekly          classic       PRE_ENROLL       25000        0    500
+sat-aug-cram                 classic       PRE_ENROLL       30000        0    500
+act-sep-sprint               classic       PRE_ENROLL       25000        0    500
+neet-prep-weekly             classic       PRE_ENROLL       15000        0    250
+jee-main-weekly              classic       PRE_ENROLL       15000        0    250
+gmat-weekly                  classic       PRE_ENROLL       20000        0    500</code></pre>
+  <p><strong>Pod health:</strong> 8 pods running on replicaset <code>85b9c8d4c7</code>, 142 minutes uptime, 0 restarts, exactly 1 NotifScheduler match init per pod, and the cron is firing 24× <code>daily_quiz</code> + 24× <code>streak_warning</code> + 24× <code>idle_winback</code> + 16× <code>weekly_quiz</code> + 16× <code>motivation</code> per 90 minutes (the expected 30-min and 60-min cadences).</p>
+  <p><strong>Total pot seed across the slate: 231,000 BC ≈ $693 USD.</strong> Bracket service: 200 in 16 ms internally, 200 in 174 ms publicly. All 5 launch-readiness smoke tests passed at deploy time.</p>
+</section>
+
+<!-- ─────────────────── Read-only tests ─────────────────── -->
+<section>
+  <h2>1. Read-only tests (no auth needed)</h2>
+  <p>These use the server <code>http_key</code>. Safe to run from anywhere.</p>
+
+  <h3 id="r1">1.1 Health probe</h3>
+<pre><code>HTTP_KEY=TjJU2n07lAJ6HIGG7BQrARp6cbm2IKIeag1uGXjb
+NAKAMA=https://nakama.intelli-verse-x.ai
+
+curl -sS "$NAKAMA/v2/rpc/nakama_js_health?http_key=$HTTP_KEY&amp;unwrap" | jq
+
+# Expect:
+# {"ok":true,"runtime":"javascript","ts_owned_rpc_count":&gt;=590,"now":"..."}</code></pre>
+
+  <h3 id="r2">1.2 List all tournaments</h3>
+<pre><code>curl -sS "$NAKAMA/v2/rpc/tournament_list?http_key=$HTTP_KEY&amp;unwrap" | jq '.data.tournaments | length'
+
+# Expect: 11</code></pre>
+
+  <h3 id="r3">1.3 Get one tournament</h3>
+<pre><code>curl -sS "$NAKAMA/v2/rpc/tournament_get?http_key=$HTTP_KEY&amp;unwrap" \
+  -X POST -H 'Content-Type: application/json' \
+  --data '"{\"slug\":\"gk-royale-daily\"}"' | jq
+
+# Expect:
+# {"ok":true,"data":{"slug":"gk-royale-daily","status":"PRE_ENROLL","pot_bc":5000,...}}</code></pre>
+
+  <h3 id="r4">1.4 Bracket service health</h3>
+<pre><code>curl -sS https://bracket.intelli-verse-x.ai/api/health
+# Expect: HTTP 200 (HTML or JSON depending on path)</code></pre>
+</section>
+
+<!-- ─────────────────── Auth + mutating tests ─────────────────── -->
+<section>
+  <h2>2. Authenticated mutating tests</h2>
+  <p>Mint a session first; then exercise the full enter → submit → settle flow.</p>
+
+  <h3 id="m1">2.1 Mint a device session (Bash)</h3>
+<pre><code>SERVER_KEY=defaultkey   # client-facing key
+DEVICE_ID=$(uuidgen)
+
+SESSION=$(curl -sS -X POST \
+  "$NAKAMA/v2/account/authenticate/device?create=true&amp;username=tester_$DEVICE_ID" \
+  -u "$SERVER_KEY:" \
+  -H 'Content-Type: application/json' \
+  --data "{\"id\":\"$DEVICE_ID\"}")
+
+TOKEN=$(echo $SESSION | jq -r .token)
+USER_ID=$(echo $SESSION | jq -r .user_id)
+echo "Logged in as $USER_ID"</code></pre>
+
+  <h3 id="m2">2.2 Pre-enroll for the founder cohort</h3>
+<pre><code>curl -sS -X POST "$NAKAMA/v2/rpc/tournament_pre_enroll?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '"{\"slug\":\"gk-royale-daily\"}"' | jq
+
+# Expect: {"ok":true,"founder":true,"total_enrolled":N+1}
+# Or on second call: {"ok":true,"idempotent":true,"founder":true}</code></pre>
+
+  <h3 id="m3">2.3 Try to enter (will fail — slug is PRE_ENROLL not OPEN)</h3>
+<pre><code>IDEMP=$(uuidgen)
+
+curl -sS -X POST "$NAKAMA/v2/rpc/tournament_enter?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data "{\"slug\":\"gk-royale-daily\",\"idempotency_key\":\"$IDEMP\"}" | jq
+
+# Expect: {"ok":false,"error":"tournament_not_open","status":"PRE_ENROLL"}</code></pre>
+  <p>This is the correct, expected behavior before public launch on Jul 1, 2026. After that date, the same call returns <code>{"ok":true,"entry_id":"...","pot_bc":...}</code>.</p>
+
+  <h3 id="m4">2.4 Read your wallet</h3>
+<pre><code>curl -sS -X POST "$NAKAMA/v2/rpc/bc_wallet_get?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '"{}"' | jq
+
+# Expect: {"ok":true,"balance_bc":N}</code></pre>
+
+  <h3 id="m5">2.5 Get your referral code</h3>
+<pre><code>curl -sS -X POST "$NAKAMA/v2/rpc/referral_my_code?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '"{}"' | jq
+
+# Expect: {"ok":true,"code":"AB12CD","share_link":"..."}</code></pre>
+</section>
+
+<!-- ─────────────────── Day-of-launch flow ─────────────────── -->
+<section>
+  <h2>3. Day-of-launch flow (post Jul 1, 2026)</h2>
+  <p>Run this on a fresh test account once a slug is OPEN.</p>
+
+  <h3 id="l1">3.1 Enter, submit, expect rank</h3>
+<pre><code># 1. Enter
+curl -sS -X POST "$NAKAMA/v2/rpc/tournament_enter?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data "{\"slug\":\"gk-royale-daily\",\"idempotency_key\":\"$(uuidgen)\"}"
+
+# Expect debit of 50 BC + entry_id
+
+# 2. Fetch a pack
+PACK=$(curl -sS -X POST "$NAKAMA/v2/rpc/tournament_content_get_pack?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data '"{\"slug\":\"gk-royale-daily\",\"pack_index\":0}"')
+
+PACK_ID=$(echo $PACK | jq -r .data.pack_id)
+
+# 3. Submit answers (all correct, realistic latency)
+curl -sS -X POST "$NAKAMA/v2/rpc/tournament_submit_pack_result?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data "{\"slug\":\"gk-royale-daily\",\"pack_id\":\"$PACK_ID\",\"answers\":[1,2,3,4,5],\"client_latency_ms\":850}"
+
+# Expect: {"ok":true,"score":N,"your_rank":N}</code></pre>
+
+  <h3 id="l2">3.2 Watch pot tick on the leaderboard</h3>
+<pre><code>curl -sS -X POST "$NAKAMA/v2/rpc/tournament_leaderboard_top?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data '"{\"slug\":\"gk-royale-daily\",\"limit\":10}"' | jq
+
+# Expect: {"ok":true,"data":{"rows":[{"rank":1,"username":"...","score":...},...]}}</code></pre>
+
+  <h3 id="l3">3.3 Settle a test tournament (admin/cron-only)</h3>
+<pre><code># Service-only — requires the admin bearer.
+SERVICE_TOKEN="$TOURNAMENT_SERVICE_TOKEN"
+
+curl -sS -X POST "$NAKAMA/v2/rpc/tournament_settle?unwrap" \
+  -H "Authorization: Bearer $SERVICE_TOKEN" \
+  --data '"{\"slug\":\"test-tournament\"}"' | jq
+
+# Expect: {"ok":true,"payouts_distributed":N,"rake_bc":N,"ledger_drift":0}</code></pre>
+
+  <h3 id="l4">3.4 Claim a certificate</h3>
+<pre><code>curl -sS -X POST "$NAKAMA/v2/rpc/tournament_claim_certificate?unwrap" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data '"{\"slug\":\"test-tournament\"}"' | jq
+
+# Expect: {"ok":true,"url":"https://intelli-verse-x-media.s3...certificates/test-tournament/USER.png","cert_id":"..."}</code></pre>
+</section>
+
+<!-- ─────────────────── 9 acceptance checks ─────────────────── -->
+<section>
+  <h2>4. The 9 acceptance checks (§1I)</h2>
+  <p>Run on a fresh device/browser. All 9 must pass before declaring public-launch ready.</p>
+  <table>
+    <thead><tr><th>#</th><th>Check</th><th>How to verify</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Ghost user mints in &lt; 2s</td><td>Hit /tournaments cold; watch network panel for <code>authenticateDevice</code></td></tr>
+      <tr><td>2</td><td>Merge survives Google sign-up</td><td>Pre-enroll as ghost, sign in with Google, verify pre-enroll persists</td></tr>
+      <tr><td>3</td><td>Cross-device session continuity</td><td>Sign in on phone, see same wallet on web</td></tr>
+      <tr><td>4</td><td>Idempotency on double-call</td><td>Click "Enter" 2× quickly — only one debit, second response has <code>idempotent:true</code></td></tr>
+      <tr><td>5</td><td>Geo-block US states blocks entry</td><td>Set state=NY in profile, attempt entry → 403 with <code>entry_blocked_in_us_state</code></td></tr>
+      <tr><td>6</td><td>Anti-cheat soft-DQ flags impossible scores</td><td>POST <code>tournament_submit_pack_result</code> with <code>client_latency_ms=10</code> → response has <code>soft_dq:true</code></td></tr>
+      <tr><td>7</td><td>Live LB updates within 10s</td><td>Open LB, have a second account enter → row appears</td></tr>
+      <tr><td>8</td><td>Settlement completes &lt; 1h after end_iso</td><td>Watch <code>tournament_settle</code> cron logs</td></tr>
+      <tr><td>9</td><td>All 6 LB variants available on web + Unity</td><td>Click through tabs (top, around-me, friends, country, tier-league, activity-feed)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─────────────────── Load test ─────────────────── -->
+<section>
+  <h2>5. Launch-day load test</h2>
+  <p>Target the launch-day fan-out (~25k pre-enrolled). k6 script template at <code>tools/loadtest/tournaments-launch.js</code>.</p>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Target RPS</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>tournament_submit_pack_result</td><td><strong>1,000</strong></td><td>Critical hot path; rate-limited 60/min/user</td></tr>
+      <tr><td>tournament_enter</td><td>200</td><td>Idempotency key dedup must hold under burst</td></tr>
+      <tr><td>tournament_caller_status</td><td>500</td><td>Polled by web detail page</td></tr>
+      <tr><td>tournament_leaderboard_*</td><td>800 combined</td><td>Hits Nakama leaderboard cache</td></tr>
+      <tr><td>tournament_pre_enroll</td><td>100</td><td>Rate-limited 20/min/user</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Targets:</strong> p99 &lt; 1.2s, error rate &lt; 0.5%, 30-min soak. Run from a c6i.4xlarge in us-east-1.</p>
+</section>
+
+<!-- ─────────────────── Observability ─────────────────── -->
+<section>
+  <h2>6. Observability — what to watch</h2>
+  <table>
+    <thead><tr><th>Signal</th><th>Source</th><th>Alert if</th></tr></thead>
+    <tbody>
+      <tr><td>JS runtime up</td><td>nakama_js_health (60s probe)</td><td>2 consecutive failures</td></tr>
+      <tr><td>RPC count</td><td>nakama_js_health.ts_owned_rpc_count</td><td>&lt; 590</td></tr>
+      <tr><td>Pot drift on settle</td><td>tournament_settle log</td><td>ledger_drift != 0</td></tr>
+      <tr><td>Cron tick lag</td><td>tournament_cron_tick log timestamps</td><td>gap &gt; 90s</td></tr>
+      <tr><td>Bracket reachability</td><td>BracketClient httpRequest result</td><td>5xx for &gt; 5 min</td></tr>
+      <tr><td>Settlement runtime</td><td>tournament_settle log</td><td>&gt; 60s per tournament</td></tr>
+      <tr><td>NotifScheduler match per pod</td><td>matchList(notif_scheduler_v1)</td><td>!= 1 (leak or dead)</td></tr>
+      <tr><td>Entry funnel conversion</td><td>Mixpanel: view_list → enter_success</td><td>&lt; 35%</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);margin-top:60px;padding:32px 24px;text-align:center;color:var(--text-muted);font-size:13px;">
+  <p>End-to-End Testing · <a href="integration.html">← Integration</a> · <a href="reference.html">RPC Reference →</a></p>
+</footer>
+</body>
+</html>

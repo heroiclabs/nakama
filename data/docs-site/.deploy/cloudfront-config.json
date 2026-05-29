@@ -1,0 +1,75 @@
+{
+  "CallerReference": "tournaments-docs-2026-05-26",
+  "Comment": "QuizVerse Tournaments developer docs (static S3)",
+  "Enabled": true,
+  "IsIPV6Enabled": true,
+  "HttpVersion": "http2",
+  "PriceClass": "PriceClass_100",
+  "Aliases": {
+    "Quantity": 1,
+    "Items": ["tournaments-docs.intelli-verse-x.ai"]
+  },
+  "DefaultRootObject": "index.html",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "s3-website-origin",
+        "DomainName": "tournaments-docs.intelli-verse-x.ai.s3-website-us-east-1.amazonaws.com",
+        "OriginPath": "",
+        "CustomHeaders": { "Quantity": 0 },
+        "CustomOriginConfig": {
+          "HTTPPort": 80,
+          "HTTPSPort": 443,
+          "OriginProtocolPolicy": "http-only",
+          "OriginSslProtocols": { "Quantity": 1, "Items": ["TLSv1.2"] },
+          "OriginReadTimeout": 30,
+          "OriginKeepaliveTimeout": 5
+        },
+        "ConnectionAttempts": 3,
+        "ConnectionTimeout": 10,
+        "OriginShield": { "Enabled": false }
+      }
+    ]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "s3-website-origin",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "AllowedMethods": {
+      "Quantity": 2,
+      "Items": ["GET", "HEAD"],
+      "CachedMethods": { "Quantity": 2, "Items": ["GET", "HEAD"] }
+    },
+    "Compress": true,
+    "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+    "OriginRequestPolicyId": "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf",
+    "FunctionAssociations": { "Quantity": 0 },
+    "LambdaFunctionAssociations": { "Quantity": 0 },
+    "FieldLevelEncryptionId": ""
+  },
+  "CacheBehaviors": { "Quantity": 0 },
+  "CustomErrorResponses": {
+    "Quantity": 2,
+    "Items": [
+      { "ErrorCode": 403, "ResponsePagePath": "/404.html", "ResponseCode": "404", "ErrorCachingMinTTL": 30 },
+      { "ErrorCode": 404, "ResponsePagePath": "/404.html", "ResponseCode": "404", "ErrorCachingMinTTL": 30 }
+    ]
+  },
+  "ViewerCertificate": {
+    "ACMCertificateArn": "arn:aws:acm:us-east-1:970547373533:certificate/c5a0e339-3eb5-4ff7-b9d3-7eccfb055331",
+    "SSLSupportMethod": "sni-only",
+    "MinimumProtocolVersion": "TLSv1.2_2021",
+    "Certificate": "arn:aws:acm:us-east-1:970547373533:certificate/c5a0e339-3eb5-4ff7-b9d3-7eccfb055331",
+    "CertificateSource": "acm"
+  },
+  "Restrictions": {
+    "GeoRestriction": { "RestrictionType": "none", "Quantity": 0 }
+  },
+  "WebACLId": "",
+  "Logging": {
+    "Enabled": false,
+    "IncludeCookies": false,
+    "Bucket": "",
+    "Prefix": ""
+  }
+}

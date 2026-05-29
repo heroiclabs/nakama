@@ -3047,6 +3047,116 @@ declare namespace TournamentEconomy {
         amount: string;
     };
 }
+declare namespace TournamentEconomyV2 {
+    const FEATURE_FLAGS: {
+        intent_quiz_onboarding: boolean;
+        scarcity_counter_v1: boolean;
+        push_cadence_ladder_v1: boolean;
+        social_proof_ticker_v1: boolean;
+        predictive_rank_nudge_v1: boolean;
+        abandonment_nudge_v1: boolean;
+        streak_engine_v1: boolean;
+        tournament_badges_v1: boolean;
+        watch_live_v1: boolean;
+        wave2_slate: boolean;
+        pickn_doubleup_v1: boolean;
+        kpi_alerts_v1: boolean;
+    };
+    interface KPIThreshold {
+        name: string;
+        floor: number;
+        target: number;
+        stretch: number;
+        benchmark_2026: number;
+        source: string;
+    }
+    const KPI_THRESHOLDS: KPIThreshold[];
+    interface IntentQuestion {
+        id: string;
+        prompt: string;
+        options: {
+            id: string;
+            label: string;
+            topic_tags: string[];
+        }[];
+    }
+    const INTENT_QUIZ: IntentQuestion[];
+    const SCARCITY_REFRESH_SECONDS = 5;
+    const SCARCITY_LOW_THRESHOLD = 100;
+    const SCARCITY_VERY_LOW_THRESHOLD = 25;
+    interface PushCadenceEntry {
+        code: string;
+        trigger: string;
+        template: string;
+        cap_per_user_per_day: number;
+        cap_per_slug_total: number;
+        quiet_hours_local: [number, number];
+    }
+    const PUSH_CADENCE_LADDER: PushCadenceEntry[];
+    const PUSH_GLOBAL_CAP_PER_24H = 4;
+    const PUSH_HARD_STOP_AFTER_IGNORED = 2;
+    const SOCIAL_PROOF_TICKER: {
+        visible_window_seconds: number;
+        min_visual_refresh_ms: number;
+        show_handle_redaction_below_count: number;
+    };
+    const PREDICTIVE_NUDGE: {
+        rank_slip_threshold: number;
+        sliding_window_minutes: number;
+        bonus_bc_per_target_climb: number;
+        max_bonus_bc_per_window: number;
+        cooldown_minutes_per_user_slug: number;
+    };
+    const ABANDONMENT_NUDGE: {
+        delay_hours: number;
+        max_per_user_per_week: number;
+        expire_if_tournament_closes_within_hours: number;
+    };
+    interface StreakReward {
+        on_day: number;
+        reward_bc: number;
+        badge_slug?: string;
+        free_pickn_entry?: boolean;
+    }
+    const STREAK_REWARDS: StreakReward[];
+    const STREAK_GRACE_DAYS = 1;
+    const STREAK_RESET_LOCAL_HOUR = 4;
+    interface TournamentBadge {
+        slug: string;
+        name: string;
+        description: string;
+        award_rule: string;
+    }
+    const TOURNAMENT_BADGES: TournamentBadge[];
+    const WATCH_LIVE: {
+        spectator_lb_refresh_seconds: number;
+        spectator_max_concurrent_per_pod: number;
+        cta_join_next_round_after_minutes: number;
+    };
+    interface Wave2Tournament {
+        slug: string;
+        name: string;
+        description: string;
+        topic_tag: string;
+        entry_fee_bc: number;
+        pot_seed_bc: number;
+        cohort_target: "25_34" | "18_24" | "35_plus";
+        rationale: string;
+    }
+    const WAVE_2_SLATE_DRAFT: Wave2Tournament[];
+    interface PickNDoubleupConfig {
+        available_window_pct: [number, number];
+        cost_bc: number;
+        multiplier: number;
+        max_per_user_per_tournament: number;
+        eligible_after_picks: number;
+    }
+    const PICKN_DOUBLEUP_DEFAULT: PickNDoubleupConfig;
+    function thresholdByName(name: string): KPIThreshold | null;
+    function isFeatureEnabled(flag: keyof typeof FEATURE_FLAGS): boolean;
+    function nextStreakReward(currentDay: number): StreakReward | null;
+    function pushTemplateForCode(code: string): PushCadenceEntry | null;
+}
 declare namespace WalletGuestSync {
     function register(initializer: nkruntime.Initializer): void;
 }

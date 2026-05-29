@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flows · QuizVerse Tournaments</title>
+<meta name="description" content="Every QuizVerse Tournament flow with mermaid sequence diagrams: enter, pre-enroll, AMOE, settle, refund, certificate, referral, bracket, elimination, pick-N.">
+<link rel="stylesheet" href="assets/styles.css?v=3">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "dark",
+        themeVariables: {
+          primaryColor: "#7c3aed",
+          primaryTextColor: "#e8eaf0",
+          primaryBorderColor: "#a78bfa",
+          lineColor: "#9aa0ad",
+          secondaryColor: "#1c1e2b",
+          tertiaryColor: "#14161f",
+          background: "#0a0b10",
+          mainBkg: "#1c1e2b",
+          secondBkg: "#14161f",
+          tertiaryBkg: "#2a2d3e",
+          fontSize: "13px"
+        },
+        flowchart: { curve: "basis", padding: 14 },
+        sequence: { actorMargin: 60, boxMargin: 14, mirrorActors: false }
+      });
+    }
+  });
+</script>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html">Overview</a>
+      <a href="journey.html">Journey</a>
+      <a href="flows.html" class="active">Flows</a>
+      <a href="integration.html">Integration</a>
+      <a href="testing.html">Testing</a>
+      <a href="reference.html">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="launch.html">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">Every flow · Every actor · Every outcome</span>
+  <h1>Tournament Flows</h1>
+  <p>This is the playbook for every interaction in the tournament system: who calls what, what's stored, what's pushed, and what the user sees. Each flow has a mermaid sequence diagram and the exact RPCs it touches.</p>
+</header>
+
+<main class="container-narrow">
+
+<!-- ─────────────────── Visual journey banner ─────────────────── -->
+<section>
+  <h2>The whole flow at a glance</h2>
+  <p>Every player follows this path. The numbered cards in each section below zoom into one of these stages.</p>
+  <div class="journey">
+    <div class="journey-step"><div class="journey-num">A</div><span class="journey-icon">🎟️</span><h4>Enter</h4><p>Pay BC, idempotent click.</p></div>
+    <div class="journey-step"><div class="journey-num">B</div><span class="journey-icon">🆓</span><h4>Pre-enroll</h4><p>Free, founder cohort.</p></div>
+    <div class="journey-step"><div class="journey-num">C</div><span class="journey-icon">🎓</span><h4>AMOE</h4><p>6 videos = free entry.</p></div>
+    <div class="journey-step"><div class="journey-num">D</div><span class="journey-icon">🎯</span><h4>Submit</h4><p>Play pack, log score.</p></div>
+    <div class="journey-step"><div class="journey-num">E</div><span class="journey-icon">⚖️</span><h4>Settle</h4><p>15% rake, top-N split.</p></div>
+    <div class="journey-step"><div class="journey-num">F</div><span class="journey-icon">🏅</span><h4>Cert</h4><p>Shareable PNG.</p></div>
+    <div class="journey-step"><div class="journey-num">G</div><span class="journey-icon">🔗</span><h4>Refer</h4><p>Top-100 → Tremendous.</p></div>
+  </div>
+  <div class="callout info">
+    <strong>New here?</strong> If you want a beginner-friendly story-form walkthrough first, read <a href="journey.html">A Player's Journey</a> — it follows one user named Sarah through a real tournament with no jargon.
+  </div>
+</section>
+
+<!-- ─────────────────── A. Player adds a tournament (entry flow) ─────────────────── -->
+<section>
+  <h2>A. Player adds (enters) a tournament</h2>
+  <p>The flagship flow. The user picks a tournament, taps Enter, and gets debited the entry fee. Idempotent on <code>idempotency_key</code> — double-clicks are a single debit.</p>
+
+  <div class="steps">
+    <div class="step-card"><div class="step-card-num">1</div><div class="step-card-body"><h4>Tap Enter</h4><p>Web/Unity sends <code>tournament_enter {slug, idempotency_key}</code></p></div></div>
+    <div class="step-card"><div class="step-card-num">2</div><div class="step-card-body"><h4>Validate</h4><p>Status (OPEN/ACTIVE), country, US state (not in WA/AZ/CT/NJ/NY/VA), age (≥18), rate-limit (60/min/user)</p></div></div>
+    <div class="step-card"><div class="step-card-num">3</div><div class="step-card-body"><h4>Idempotency check</h4><p>If a row exists for <code>(user, slug, idempotency_key)</code> → return existing entry, no second debit</p></div></div>
+    <div class="step-card success"><div class="step-card-num">4</div><div class="step-card-body"><h4>Debit + write</h4><p>Read wallet → debit <code>entry_fee_bc</code> → write <code>tournament_entries</code> row → increment <code>tournament_pot.pot_bc</code></p></div></div>
+    <div class="step-card gold"><div class="step-card-num">5</div><div class="step-card-body"><h4>Broadcast + return</h4><p>Realtime <code>1001:entry</code> on the <code>tournament:{slug}</code> stream + leaderboard upsert (score=0) + return <code>{ok, entry_id, pot_bc, your_rank}</code></p></div></div>
+  </div>
+
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as User (web/Unity)
+  participant N as Nakama RPC
+  participant S as Storage (entries, pot, wallet)
+  participant L as Leaderboard
+  participant P as Push subscribers
+  U->>N: tournament_enter {slug, idempotency_key}
+  N->>N: validate slug + status (OPEN/ACTIVE)
+  N->>N: check geo (country, US state)
+  N->>N: check age (>= 18)
+  N->>N: check rate limit (60/min/user)
+  N->>S: read tournament_entries by idempotency_key
+  alt already exists
+    S-->>N: existing entry row
+    N-->>U: {ok:true, entry_id, idempotent:true}
+  else new entry
+    N->>S: read bc_wallet
+    N->>S: debit entry_fee_bc
+    N->>S: write tournament_entries row
+    N->>S: increment tournament_pot.pot_bc
+    N->>L: leaderboard upsert (score=0)
+    N->>P: realtime broadcast 1001 "entry"
+    N-->>U: {ok:true, entry_id, pot_bc, your_rank}
+  end
+  </div>
+  <h3 id="entry-rules">What is enforced</h3>
+  <ul>
+    <li><strong>Status gate:</strong> only <code>OPEN</code> or <code>ACTIVE</code> tournaments accept entries; <code>SETTLING</code> returns <code>tournament_closed</code>.</li>
+    <li><strong>Geo gate:</strong> country must be in <code>countries_allowed</code>; US state must not be in <code>ENTRY_BLOCK_US_STATES</code> (WA, AZ, CT, NJ, NY, VA).</li>
+    <li><strong>Age gate:</strong> Cognito profile must show a DOB &ge; 18 years ago. Violators get <code>age_gated</code>.</li>
+    <li><strong>Idempotency:</strong> <code>(user_id, slug, idempotency_key)</code> is unique; second-call returns the original entry row.</li>
+    <li><strong>Insufficient balance:</strong> falls back to AMOE flow (see §C below).</li>
+  </ul>
+</section>
+
+<!-- ─────────────────── B. Pre-enrollment (free) ─────────────────── -->
+<section>
+  <h2>B. Pre-enrollment (free, founder cohort)</h2>
+  <p>Pre-enroll is the launch funnel — free, 1-click, and gives the first 1,000 users a "founder" badge plus a <strong>2x first-win multiplier</strong> on payouts.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant N as Nakama
+  participant S as Storage
+  participant Q as Quest engine
+  U->>N: tournament_pre_enroll {slug, ref_code?}
+  N->>S: read tournament_pre_enroll(user_id, slug)
+  alt already pre-enrolled
+    S-->>N: existing row
+    N-->>U: {ok:true, idempotent:true, founder:true|false}
+  else first time
+    N->>S: read meta.pre_enroll_count
+    alt count < 1000
+      N->>S: write tournament_pre_enroll {founder:true}
+      N->>Q: emit "founder_signed_up" quest event
+    else cap hit
+      N->>S: write tournament_pre_enroll {founder:false}
+    end
+    N->>S: meta.pre_enroll_count += 1
+    opt ref_code present
+      N->>S: write referral_attribution
+    end
+    N-->>U: {ok:true, founder, total_enrolled}
+  end
+  </div>
+  <p>Pre-enroll is rate-limited at <strong>20/min/user</strong> to keep bots from hogging the founder cap. The cron <code>tournament_cron_tick</code> automatically promotes pre-enrolled users into a paid entry the moment a slug flips <code>OPEN</code>, debiting BC if available, otherwise leaving them at <code>amoe_pending</code>.</p>
+</section>
+
+<!-- ─────────────────── C. AMOE (no-purchase entry) ─────────────────── -->
+<section>
+  <h2>C. AMOE — Alternative Method Of Entry</h2>
+  <p>Required for US-state-skill-gaming compliance: every paid tournament must offer a free, equivalent path. We use a <strong>6-video Learning Series</strong> that gives the user one free entry per tournament. AMOE entrants are flagged in storage but are otherwise indistinguishable from paid entrants on the leaderboard.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant N as Nakama
+  participant V as Learning Series (CDN)
+  participant S as Storage
+  U->>N: learning_track_get {tournament_slug}
+  N-->>U: {videos:[6], progress:{...}}
+  loop 6 videos
+    U->>V: HLS playback
+    U->>N: learning_video_record_watch {video_id, watched_pct}
+    N->>S: write learning_progress
+  end
+  U->>N: learning_check_submit {tournament_slug}
+  N->>S: read learning_progress
+  alt 6/6 complete
+    N->>S: write tournament_entries {paid_via:"amoe", bc_charged:0}
+    N->>S: pot_bc unchanged (AMOE doesn't add to pot)
+    N-->>U: {ok:true, free_entry_granted:true}
+  else < 6
+    N-->>U: {ok:false, error:"learning_incomplete", missing:[ids]}
+  end
+  </div>
+  <h3 id="amoe-no-lose">AMOE "no-lose" refund</h3>
+  <p>AMOE entrants who finish in the top-50% (Classic), survive past day-3 (Elimination), or hit ≥3/5 (Pick-N) get their BC entry refunded by the <code>tournament_settle</code> cron. Paid entrants get the standard payout split. This is the legal pillar that keeps us out of the gambling bucket in skill-game-prohibited US states.</p>
+</section>
+
+<!-- ─────────────────── D. Pack submission (gameplay) ─────────────────── -->
+<section>
+  <h2>D. Pack submission — the play loop</h2>
+  <p>Once entered, a user fetches a quiz pack, plays it, and submits the result. Anti-cheat runs server-side; suspicious submissions are flagged <code>soft_dq</code> and reviewed before payout.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant N as Nakama
+  participant CF as Content Factory
+  participant S as Storage + Leaderboard
+  U->>N: tournament_content_get_pack {slug, pack_index}
+  N->>CF: GET /quiz_pack?id=...
+  CF-->>N: {questions, correct_answers (server-side)}
+  N-->>U: {questions, pack_id, time_limit_sec}
+  Note over U: User plays the pack
+  U->>N: tournament_submit_pack_result {slug, pack_id, answers, client_latency_ms}
+  N->>N: anti-cheat (latency floor 300ms, daily ceiling 200)
+  N->>S: persist tournament_submits
+  N->>S: leaderboard upsert (score = sum of correct + speed bonus)
+  N->>S: write tournament_pot.last_action_at
+  N-->>U: {ok:true, score, your_rank, soft_dq?}
+  </div>
+  <p>For Pick-N, the equivalent endpoint is <code>tournament_submit_picks</code>. The pick window is enforced server-side (<code>max_pick_window_hours</code> before <code>end_iso</code>); after lock, all submissions return <code>pick_window_closed</code>.</p>
+</section>
+
+<!-- ─────────────────── E. Pot share & settlement ─────────────────── -->
+<section>
+  <h2>E. Settlement — paying out the pot</h2>
+  <p>At <code>end_iso</code> the cron flips status to <code>SETTLING</code>, computes the final ranking from the leaderboard, applies the per-format split, and writes payout rows. Target runtime is &lt; 60s per tournament. Ledger-drift target is <strong>0</strong>.</p>
+
+  <div class="steps">
+    <div class="step-card"><div class="step-card-num">1</div><div class="step-card-body"><h4>Status flip</h4><p><code>tournament_cron_tick</code> sees <code>now ≥ end_iso</code> → meta.status = <code>SETTLING</code> + push <code>1004:settling</code></p></div></div>
+    <div class="step-card"><div class="step-card-num">2</div><div class="step-card-body"><h4>Snapshot ranking</h4><p>Read leaderboard, freeze the order. <code>soft_dq</code> entrants are excluded pending review</p></div></div>
+    <div class="step-card gold"><div class="step-card-num">3</div><div class="step-card-body"><h4>Compute rake</h4><p><code>rake_bc = pot_bc * 0.15</code> credited to house ledger. Net payout pool = <code>pot_bc - rake_bc</code></p></div></div>
+    <div class="step-card success"><div class="step-card-num">4</div><div class="step-card-body"><h4>Top-N split (Classic)</h4><p>40/20/10/5/5/5/5/5/2.5/2.5 across top 10 (or equal split for Elimination survivors, or multiplier × entry for Pick-N graders)</p></div></div>
+    <div class="step-card success"><div class="step-card-num">5</div><div class="step-card-body"><h4>AMOE refunds</h4><p>For AMOE entrants who hit the no-lose threshold (top-50% / survive-N / ≥3-of-5), refund their <code>entry_fee_bc</code></p></div></div>
+    <div class="step-card warning"><div class="step-card-num">6</div><div class="step-card-body"><h4>Invariant check</h4><p>Assert <code>sum(payouts) + rake_bc == pot_bc</code>. Any drift triggers a P0 alert and the payout is rolled back</p></div></div>
+    <div class="step-card"><div class="step-card-num">7</div><div class="step-card-body"><h4>Mark settled</h4><p>meta.status = <code>SETTLED</code> + push <code>1004:settled</code> with payouts list + send "Your payout: X BC" notification to every winner</p></div></div>
+  </div>
+
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as tournament_settle cron
+  participant S as Storage
+  participant L as Leaderboard
+  participant W as bc_wallet
+  participant P as Push
+  C->>S: read meta + entries
+  S-->>C: {pot_bc, format, split_config}
+  C->>L: snapshot final ranking
+  L-->>C: ordered [user_id, score]
+  Note over C: rake = pot * 0.15<br/>net = pot - rake
+  loop top-N split
+    C->>W: credit user_i (share_i x net)
+    C->>S: write payout row {tournament, user, bc, rank}
+  end
+  loop AMOE no-lose
+    alt user qualifies (top-50% / survive-N / ≥3/5)
+      C->>W: credit refund (entry_fee_bc)
+      C->>S: write payout row {paid_via:"amoe_refund"}
+    end
+  end
+  C->>S: meta.status = SETTLED
+  C->>P: realtime broadcast 1004 "settled"
+  C->>P: push "Your payout: X BC"
+  </div>
+</section>
+
+<!-- ─────────────────── F. Certificates ─────────────────── -->
+<section>
+  <h2>F. Certificates — the social-share artifact</h2>
+  <p>After settlement, the top-10 (Classic), all survivors (Elimination), or anyone with ≥3/5 (Pick-N) can claim a shareable PNG certificate. The cert is rendered by an AI Lambda and uploaded to <code>intelli-verse-x-media/certificates/</code>.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant N as Nakama
+  participant L as Cert Lambda
+  participant S3
+  U->>N: tournament_claim_certificate {slug}
+  N->>N: verify settled + user qualifies
+  N->>L: invoke {user, slug, rank, score, payout_bc}
+  L->>L: render PNG (1200x630 OG-ratio)
+  L->>S3: PUT certificates/{slug}/{user_id}.png
+  S3-->>L: signed URL
+  L-->>N: {url, cert_id}
+  N->>N: write tournament_certs row
+  N-->>U: {url, share_text, og_meta}
+  Note over U: User shares to FB/X/LinkedIn<br/>OG card pre-warmed
+  </div>
+</section>
+
+<!-- ─────────────────── G. Referrals ─────────────────── -->
+<section>
+  <h2>G. Referrals — viral growth</h2>
+  <p>Every user has a unique 6-char referral code. When a friend pre-enrolls with that code, the referrer accumulates points. Top-100 referrers at <code>T+1h</code> after public launch get cash via Tremendous (Top-1: $500, Top-2-3: $250, Top-4-10: $100, Top-11-100: $25).</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant F as Friend (new user)
+  participant U as Referrer
+  participant N as Nakama
+  participant S as Storage
+  participant T as Tremendous
+  U->>N: referral_my_code → SHARE_LINK?ref=AB12CD
+  F->>F: clicks link
+  F->>N: referral_pre_enroll_with_code {ref_code:"AB12CD"}
+  N->>N: lookup referrer by code
+  N->>S: write referral_attribution {referee, referrer, slug}
+  N->>S: increment referral_points[referrer]
+  N->>N: emit quest "referral_made" for U
+  Note over N: T+1h after public launch
+  N->>S: read referral_leaderboard top 100
+  N->>T: bulk Tremendous order (top 100)
+  T-->>N: tracking IDs per user
+  N->>U: push "Top-1 referrer! $500 inbound"
+  </div>
+</section>
+
+<!-- ─────────────────── H. Brackets (playoff stage) ─────────────────── -->
+<section>
+  <h2>H. Bracket playoff — top-64 from the qualifier</h2>
+  <p>For the biggest weekly tournaments, the top-64 from the open qualifier feed into a Bracket-rendered single-elimination playoff. Each bracket "match" is a 24h pack-submission window; highest score wins, ties broken by submitted-at.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant N as Nakama
+  participant B as Bracket FastAPI
+  participant U as Top-64 users
+  N->>B: POST /tournaments {tournament_type:"SINGLE_ELIMINATION", max_players:64}
+  B-->>N: {tournament_id}
+  N->>S: cache bracket_id in tournaments_meta
+  N->>B: POST /players/batch {top-64 with seed scores}
+  B-->>N: {ok:true, matches:[round-1 pairings]}
+  loop 6 rounds (64→32→16→8→4→2→1)
+    N->>U: push "Round X started — submit your pack"
+    U->>N: tournament_submit_pack_result {slug, pack_id, ...}
+    Note over N: 24h window per round
+    N->>N: at round end, compute winner of each match
+    N->>B: PUT /matches/{match_id}/result {winner_user_id, scores}
+    B-->>N: {next_round_ready}
+  end
+  N-->>U: tournament_settle distributes the playoff bonus pot
+  </div>
+  <p>Bracket is reachable internally at <code>bracket.aicart.svc.cluster.local:8400</code> and publicly at <code>https://bracket.intelli-verse-x.ai</code> (the iframe view). Auth is a service-to-service JWT injected into the Nakama deployment as <code>BRACKET_SERVICE_JWT</code>.</p>
+</section>
+
+<!-- ─────────────────── I. Elimination format ─────────────────── -->
+<section>
+  <h2>I. Elimination — the daily-cut format</h2>
+  <p>Every midnight UTC, the bottom-50% of active entrants are eliminated. The cron <code>tournament_eliminate_round</code> handles the cut; eliminated users receive a notification + a "you survived day N" badge.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant C as tournament_eliminate_round
+  participant L as Leaderboard
+  participant S as Storage
+  participant P as Push
+  Note over C: Triggered at each cut_times_utc[i]
+  C->>L: read current ranking (active only)
+  L-->>C: ordered scores
+  C->>C: bottom 50% by score
+  loop eliminated users
+    C->>S: write tournament_eliminations {user, round, eliminated_at}
+    C->>P: push "You survived to day N. Thanks for playing!"
+  end
+  loop survivors
+    C->>P: push "You survived day N. Day N+1 starts now."
+  end
+  C->>S: meta.survivors_count = N/2
+  Note over C: At final cut → tournament_settle splits pot equally among survivors
+  </div>
+</section>
+
+<!-- ─────────────────── J. Pick-N format ─────────────────── -->
+<section>
+  <h2>J. Pick-N — the slip format</h2>
+  <p>Players submit a single slip of N picks (Wave-1: 5). Score = number of correct picks; multiplier table determines payout.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant N as Nakama
+  participant S as Storage
+  U->>N: tournament_get_pick_n_questions {slug}
+  N-->>U: {questions:[5 questions], pick_lock_iso}
+  U->>N: tournament_submit_picks {slug, picks:[5 answers]}
+  N->>N: validate before pick_lock_iso
+  N->>S: write tournament_picks (idempotent on user)
+  N->>S: leaderboard upsert (score=0 for now)
+  N-->>U: {ok:true, locked_at}
+  Note over N: At end_iso, settle cron runs
+  N->>N: grade picks (e.g. 4/5)
+  N->>N: lookup multiplier (4/5 → 5x)
+  N->>S: credit user (entry_fee_bc x 5)
+  N->>S: write payout
+  </div>
+</section>
+
+<!-- ─────────────────── K. Live pot updates (websocket) ─────────────────── -->
+<section>
+  <h2>K. Live pot updates — Nakama realtime</h2>
+  <p>Every entry, settlement, and elimination broadcasts a typed message on the <code>tournament:{slug}</code> stream. Web and Unity subscribe so the UI ticks without polling.</p>
+  <div class="mermaid">
+sequenceDiagram
+  autonumber
+  participant W as Web client
+  participant N as Nakama (WS)
+  participant S as Storage
+  W->>N: socket.connect()
+  W->>N: joinChat("tournament:slug")
+  Note over N: User-A submits a pack
+  S->>N: realtime broadcast {op:1001, slug, pot_bc, entries_count}
+  N->>W: stream message {op:1001, ...}
+  W->>W: animate pot ticker
+  Note over N: 5s later — settlement
+  S->>N: realtime broadcast {op:1004, slug, payouts}
+  N->>W: stream message {op:1004, ...}
+  W->>W: render winners modal
+  </div>
+  <p>Op codes: <code>1001=entry</code>, <code>1002=submit</code>, <code>1003=elimination</code>, <code>1004=settled</code>, <code>1005=cert_ready</code>. Subscriber TTL is 12h (set in <code>storage.ts</code>) so stale subs from sign-outs don't accumulate.</p>
+</section>
+
+<!-- ─────────────────── L. Edge cases ─────────────────── -->
+<section>
+  <h2>L. Edge cases &amp; how the system handles them</h2>
+  <table>
+    <thead><tr><th>Scenario</th><th>What happens</th></tr></thead>
+    <tbody>
+      <tr><td>User clicks "Enter" 2× quickly</td><td>Idempotency key dedupes — single debit, single entry row.</td></tr>
+      <tr><td>User in a US-blocked state attempts entry</td><td>Returns <code>403 entry_blocked_in_us_state</code>; UI shows the AMOE alternative.</td></tr>
+      <tr><td>User has 0 BC and tries to enter</td><td>Returns <code>insufficient_balance</code>; UI offers Buy-BC sheet or AMOE path.</td></tr>
+      <tr><td>Anti-cheat trips on impossible latency</td><td>Submission accepted but flagged <code>soft_dq=true</code>; settle cron excludes from payouts pending review.</td></tr>
+      <tr><td>Settlement fails mid-payout (pod crash)</td><td>Idempotent re-run safe; payout rows have unique <code>(slug, user_id, rank)</code> key.</td></tr>
+      <tr><td>Bracket service unreachable during seed</td><td>Logged as <code>bracket_unreachable</code>; cron retries every 5 min for up to 1h.</td></tr>
+      <tr><td>User signs out during a tournament</td><td>Entry persists; on re-sign-in they see their pending submissions and rank.</td></tr>
+      <tr><td>Pre-enroll cap hit (1,001st user)</td><td>User is enrolled but flagged <code>founder:false</code>; no 2x multiplier.</td></tr>
+      <tr><td>Tournament ends with 0 entries</td><td>House recovers seed; settle is a no-op; status flips to ARCHIVED at T+30d.</td></tr>
+      <tr><td>Daily reset (gk-royale-daily, pick-5-daily)</td><td>Cron creates a new instance with the same slug + a date suffix; old instance settles independently.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);margin-top:60px;padding:32px 24px;text-align:center;color:var(--text-muted);font-size:13px;">
+  <p>Tournament Flows · <a href="index.html">← Overview</a> · <a href="integration.html">Integration →</a></p>
+</footer>
+</body>
+</html>

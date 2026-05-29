@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RPC Reference · QuizVerse Tournaments</title>
+<meta name="description" content="Complete RPC reference for QuizVerse Tournaments — every public RPC, request body, response shape, error codes, and rate limit.">
+<link rel="stylesheet" href="assets/styles.css?v=3">
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html">Overview</a>
+      <a href="journey.html">Journey</a>
+      <a href="flows.html">Flows</a>
+      <a href="integration.html">Integration</a>
+      <a href="testing.html">Testing</a>
+      <a href="reference.html" class="active">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="launch.html">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">Every RPC · Every parameter · Every error</span>
+  <h1>Tournaments — RPC Reference</h1>
+  <p>Source of truth: <code>data/modules/src/tournaments/rpcs.ts</code>. All 30 RPCs are registered on every Nakama pod. Method is <code>POST</code> unless otherwise noted; payload is always a JSON-encoded string.</p>
+</header>
+
+<main class="container-narrow">
+
+<section>
+  <h2>Public RPCs (session token required)</h2>
+  <table>
+    <thead><tr><th>RPC name</th><th>Purpose</th><th>Rate limit</th></tr></thead>
+    <tbody>
+      <tr><td><code>tournament_list</code></td><td>List all visible tournaments + status</td><td>60/min/user</td></tr>
+      <tr><td><code>tournament_get</code></td><td>Get one tournament by slug</td><td>120/min/user</td></tr>
+      <tr><td><code>tournament_caller_status</code></td><td>Caller's entry/pre-enroll/payout state for a slug</td><td>120/min/user</td></tr>
+      <tr><td><code>tournament_bracket_state</code></td><td>Bracket id + current round state for a slug</td><td>30/min/user</td></tr>
+      <tr><td><code>tournament_pre_enroll</code></td><td>Free pre-enroll (founder cap=1000)</td><td>20/min/user</td></tr>
+      <tr><td><code>tournament_enter</code></td><td>Paid entry (debits BC, idempotent)</td><td>10/min/user</td></tr>
+      <tr><td><code>tournament_submit_pack_result</code></td><td>Submit a played pack — Classic/Elimination</td><td>60/min/user</td></tr>
+      <tr><td><code>tournament_submit_picks</code></td><td>Submit Pick-N slip</td><td>10/min/user</td></tr>
+      <tr><td><code>tournament_status_get</code></td><td>Read settle/elimination/round state</td><td>120/min/user</td></tr>
+      <tr><td><code>tournament_leaderboard_top</code></td><td>Global top-N for a slug</td><td>60/min/user</td></tr>
+      <tr><td><code>tournament_leaderboard_around_me</code></td><td>±5 ranks centered on caller</td><td>60/min/user</td></tr>
+      <tr><td><code>tournament_leaderboard_friends</code></td><td>Caller's friends only</td><td>30/min/user</td></tr>
+      <tr><td><code>tournament_leaderboard_country</code></td><td>Caller's country bucket</td><td>30/min/user</td></tr>
+      <tr><td><code>tournament_leaderboard_tier_league</code></td><td>Caller's tier (bronze/silver/...) bucket</td><td>30/min/user</td></tr>
+      <tr><td><code>tournament_leaderboard_activity_feed</code></td><td>Recent entries + scores (social proof)</td><td>60/min/user</td></tr>
+      <tr><td><code>tournament_claim_certificate</code> (alias <code>tournament_claim_cert</code>)</td><td>Render + claim shareable cert PNG</td><td>5/min/user</td></tr>
+      <tr><td><code>certificate_get</code></td><td>Retrieve an existing cert URL</td><td>120/min/user</td></tr>
+      <tr><td><code>tournament_content_get_pack</code></td><td>Fetch a quiz pack for play</td><td>20/min/user</td></tr>
+      <tr><td><code>tournament_get_pick_n_questions</code></td><td>Alias for Pick-N flow (same as above)</td><td>20/min/user</td></tr>
+      <tr><td><code>tournament_video_get_url</code> (alias <code>learning_track_video_url</code>)</td><td>Signed S3 URL for a learning video</td><td>60/min/user</td></tr>
+      <tr><td><code>learning_track_get</code></td><td>Get the 6-video AMOE track for a slug</td><td>60/min/user</td></tr>
+      <tr><td><code>learning_track_progress_get</code></td><td>Caller's video-watch progress</td><td>60/min/user</td></tr>
+      <tr><td><code>learning_video_record_watch</code></td><td>Record a watch_pct event</td><td>30/min/user</td></tr>
+      <tr><td><code>learning_check_submit</code> (alias <code>tournament_learning_check_submit</code>)</td><td>Submit AMOE completion → grants free entry</td><td>5/min/user</td></tr>
+      <tr><td><code>tournament_referral_get_mine</code> (alias <code>referral_my_code</code>)</td><td>Caller's referral code + share link</td><td>30/min/user</td></tr>
+      <tr><td><code>referral_lookup</code></td><td>Resolve a referral code to a referrer</td><td>60/min/user</td></tr>
+      <tr><td><code>referral_leaderboard_top</code></td><td>Top-100 referrers</td><td>30/min/user</td></tr>
+      <tr><td><code>referral_pre_enroll_with_code</code></td><td>Combined: pre-enroll + attribute referral</td><td>20/min/user</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Service-only RPCs (operator/cron only)</h2>
+  <p>Require the <code>TOURNAMENT_SERVICE_TOKEN</code> bearer. Never callable from a client session.</p>
+  <table>
+    <thead><tr><th>RPC name</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>tournament_admin_create</code></td><td>Create an ad-hoc tournament outside the launch slate</td></tr>
+      <tr><td><code>tournament_content_request_generation</code></td><td>Trigger content-factory pre-generation for a slug</td></tr>
+      <tr><td><code>tournament_settle</code></td><td>Compute payouts + flip status to SETTLED</td></tr>
+      <tr><td><code>tournament_eliminate_round</code></td><td>Run a daily cut for an Elimination tournament</td></tr>
+      <tr><td><code>tournament_referral_settle_topN</code></td><td>Send Tremendous to top-100 referrers</td></tr>
+      <tr><td><code>tournament_bracket_seed_topN</code></td><td>Seed top-64 from qualifier into Bracket</td></tr>
+      <tr><td><code>tournament_bracket_advance_round</code></td><td>Post round results back to Bracket</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Common request bodies</h2>
+
+  <h3>tournament_enter</h3>
+<pre><code>// Request
+{
+  "slug": "gk-royale-daily",
+  "idempotency_key": "uuid-v4",       // required, unique per intent
+  "ref_code": "AB12CD"                 // optional referral attribution
+}
+// Response (success)
+{
+  "ok": true,
+  "entry_id": "ent_...",
+  "pot_bc": 5050,
+  "your_rank": 1,
+  "founder": false,
+  "idempotent": false                  // true if dedup'd
+}
+// Response (errors — non-exhaustive)
+{ "ok": false, "error": "tournament_not_open", "status": "PRE_ENROLL" }
+{ "ok": false, "error": "insufficient_balance", "have": 30, "need": 50 }
+{ "ok": false, "error": "entry_blocked_in_us_state", "state": "NY" }
+{ "ok": false, "error": "country_not_allowed", "country": "FR" }
+{ "ok": false, "error": "age_gated" }
+{ "ok": false, "error": "rate_limited", "retry_after_sec": 12 }</code></pre>
+
+  <h3>tournament_submit_pack_result</h3>
+<pre><code>// Request
+{
+  "slug": "gk-royale-daily",
+  "pack_id": "pkg_...",
+  "answers": [1, 2, 3, 4, 5],          // index per question
+  "client_latency_ms": 850,             // for anti-cheat
+  "client_ts": 1735776000               // unix seconds; server validates skew &lt; 60s
+}
+// Response
+{
+  "ok": true,
+  "score": 4500,
+  "your_rank": 17,
+  "soft_dq": false,                    // anti-cheat verdict
+  "pot_bc": 5300                       // current pot
+}</code></pre>
+
+  <h3>tournament_submit_picks</h3>
+<pre><code>// Request
+{
+  "slug": "pick-5-daily",
+  "picks": [2, 0, 1, 3, 1],            // 5 answer indices
+  "idempotency_key": "uuid-v4"
+}
+// Response
+{ "ok": true, "locked_at": 1735776000, "lock_iso": "2026-07-01T20:00:00Z" }</code></pre>
+
+  <h3>tournament_leaderboard_top</h3>
+<pre><code>// Request
+{ "slug": "gk-royale-daily", "limit": 100, "cursor": null }
+// Response
+{
+  "ok": true,
+  "data": {
+    "rows": [
+      { "rank": 1, "user_id": "...", "username": "alice", "score": 5000, "country": "US" },
+      { "rank": 2, "user_id": "...", "username": "bob",   "score": 4750, "country": "GB" }
+    ],
+    "next_cursor": null
+  }
+}</code></pre>
+
+  <h3>tournament_claim_certificate</h3>
+<pre><code>// Request
+{ "slug": "gk-royale-daily" }
+// Response
+{
+  "ok": true,
+  "url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/certificates/gk-royale-daily/USER_ID.png",
+  "cert_id": "cert_...",
+  "share_text": "I finished top-10 in QuizVerse GK Royale!",
+  "og_meta": { "title": "...", "description": "...", "image": "..." }
+}</code></pre>
+</section>
+
+<section>
+  <h2>Realtime stream — <code>tournament:{slug}</code></h2>
+  <p>Subscribe via <code>socket.joinChat("tournament:gk-royale-daily", 1, false, false)</code>. Messages are JSON in <code>msg.content</code>:</p>
+<pre><code>// op codes
+1001  entry         { op:1001, slug, user_id, pot_bc, entries_count }
+1002  submit        { op:1002, slug, user_id, score, your_rank }
+1003  elimination   { op:1003, slug, eliminated_user_ids:[...], round, survivors }
+1004  settled       { op:1004, slug, payouts:[{user_id,rank,bc}], rake_bc }
+1005  cert_ready    { op:1005, slug, user_id, url }</code></pre>
+</section>
+
+<section>
+  <h2>Error codes — common patterns</h2>
+  <table>
+    <thead><tr><th>Error</th><th>Cause</th><th>Client should</th></tr></thead>
+    <tbody>
+      <tr><td><code>tournament_not_open</code></td><td>Slug status is not OPEN/ACTIVE</td><td>Show "Opens at &lt;ISO&gt;" CTA</td></tr>
+      <tr><td><code>tournament_closed</code></td><td>Slug is SETTLING/SETTLED</td><td>Send to results screen</td></tr>
+      <tr><td><code>insufficient_balance</code></td><td>Wallet &lt; entry_fee_bc</td><td>Open Buy-BC sheet</td></tr>
+      <tr><td><code>entry_blocked_in_us_state</code></td><td>State is in ENTRY_BLOCK_US_STATES</td><td>Show AMOE upsell</td></tr>
+      <tr><td><code>redemption_blocked_in_us_state</code></td><td>State is in REDEMPTION_BLOCK_US_STATES</td><td>Allow play, block redeem</td></tr>
+      <tr><td><code>country_not_allowed</code></td><td>Country not in countries_allowed</td><td>Show country-specific copy</td></tr>
+      <tr><td><code>age_gated</code></td><td>DOB &lt; 18 years ago</td><td>Hard block</td></tr>
+      <tr><td><code>rate_limited</code></td><td>Burst over limit</td><td>Backoff <code>retry_after_sec</code></td></tr>
+      <tr><td><code>idempotency_conflict</code></td><td>Same key used with different payload</td><td>Generate a fresh UUID</td></tr>
+      <tr><td><code>pick_window_closed</code></td><td>Submitting picks after lock</td><td>Show "Picks locked" UI</td></tr>
+      <tr><td><code>learning_incomplete</code></td><td>AMOE without 6/6 videos</td><td>Send to learning track</td></tr>
+      <tr><td><code>founder_cap_reached</code></td><td>Pre-enroll past 1000 cap</td><td>Show "you're enrolled (no founder bonus)"</td></tr>
+      <tr><td><code>bracket_unreachable</code></td><td>Service degraded</td><td>Retry in 30s</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);margin-top:60px;padding:32px 24px;text-align:center;color:var(--text-muted);font-size:13px;">
+  <p>RPC Reference · <a href="testing.html">← Testing</a> · <a href="index.html">Overview →</a></p>
+</footer>
+</body>
+</html>

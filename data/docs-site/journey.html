@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A Player's Journey · QuizVerse Tournaments</title>
+<meta name="description" content="The simplest, most visual walkthrough of QuizVerse Tournaments. Follow Sarah from sign-in to certificate in 12 numbered steps. No code. No jargon.">
+<link rel="stylesheet" href="assets/styles.css?v=3">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "dark",
+        themeVariables: {
+          primaryColor: "#7c3aed",
+          primaryTextColor: "#e8eaf0",
+          primaryBorderColor: "#a78bfa",
+          lineColor: "#9aa0ad",
+          background: "#0a0b10",
+          mainBkg: "#1c1e2b",
+          fontSize: "14px"
+        },
+        flowchart: { curve: "basis", padding: 14 }
+      });
+    }
+  });
+</script>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html">Overview</a>
+      <a href="journey.html" class="active">Journey</a>
+      <a href="flows.html">Flows</a>
+      <a href="integration.html">Integration</a>
+      <a href="testing.html">Testing</a>
+      <a href="reference.html">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="launch.html">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">No code · No jargon · Just the journey</span>
+  <h1>A Player's Journey</h1>
+  <p>Follow Sarah, a first-time QuizVerse player, from sign-in to claiming her certificate. Twelve numbered steps. One real tournament. Everything anyone needs to understand how the system works.</p>
+</header>
+
+<main class="container-narrow">
+
+<!-- ─────────────────── At-a-glance journey ─────────────────── -->
+<section>
+  <h2>At a glance</h2>
+  <p>The whole journey in 6 visual steps. The detailed walkthrough below adds substeps and explanations.</p>
+  <div class="journey">
+    <div class="journey-step"><div class="journey-num">1</div><span class="journey-icon">📱</span><h4>Sign in</h4><p>Anonymous ghost or Google. 1.5 seconds.</p></div>
+    <div class="journey-step"><div class="journey-num">2</div><span class="journey-icon">🏆</span><h4>Pick tournament</h4><p>Browse 11 live ones. Filter by format.</p></div>
+    <div class="journey-step"><div class="journey-num">3</div><span class="journey-icon">💎</span><h4>Pay entry</h4><p>Brain Coins debit. Idempotent click.</p></div>
+    <div class="journey-step"><div class="journey-num">4</div><span class="journey-icon">🎯</span><h4>Play pack</h4><p>5 questions. Submit answers.</p></div>
+    <div class="journey-step"><div class="journey-num">5</div><span class="journey-icon">⚖️</span><h4>Settle</h4><p>Pot splits by rank. BC arrive.</p></div>
+    <div class="journey-step"><div class="journey-num">6</div><span class="journey-icon">🎓</span><h4>Cert + share</h4><p>Branded PNG. Post anywhere.</p></div>
+  </div>
+</section>
+
+<!-- ─────────────────── The detailed story ─────────────────── -->
+<section>
+  <h2>The detailed walkthrough</h2>
+
+  <div class="callout info">
+    <strong>Meet Sarah.</strong> She's 24, lives in Austin, TX, and just heard about QuizVerse from a friend who shared a referral link. She has a phone, a Google account, and zero familiarity with crypto or trivia apps. Today (June 30, 2026) she's going to enter her first tournament. Watch what she sees, what the system does, and what gets stored.
+  </div>
+
+  <!-- Step 1 -->
+  <div class="step-card success">
+    <div class="step-card-num">1</div>
+    <div class="step-card-body">
+      <h4>Sarah taps her friend's referral link</h4>
+      <p>The link is <code>quizverse.world?ref=AB12CD</code>. The web app loads, mints an <strong>anonymous ghost session</strong> in 1.5 seconds (device-bound), and stamps the referral code into local storage. Sarah hasn't signed up for anything yet — she's already a user.</p>
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step-card">
+    <div class="step-card-num">2</div>
+    <div class="step-card-body">
+      <h4>She lands on /tournaments and sees 11 cards</h4>
+      <p>The page server-side-renders the tournament list (cached 30s). Each card shows the pot, format, and a live "X people pre-enrolled" badge. Sarah filters to <strong>"Daily"</strong> and taps <strong>GK Royale Daily</strong> — entry 50 BC, pot 5,000 BC.</p>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="step-card">
+    <div class="step-card-num">3</div>
+    <div class="step-card-body">
+      <h4>She pre-enrolls (it's still PRE_ENROLL, public launch is tomorrow)</h4>
+      <p>The CTA on the detail page reads <strong>"Pre-enroll free — keep your spot"</strong>. She taps it. Nakama checks she's user #847 in the founder cohort (cap = 1,000), so she's flagged <code>founder:true</code> and gets the <strong>2x first-win multiplier</strong>. Her referrer (the friend) gets +1 attribution point.</p>
+    </div>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="step-card warning">
+    <div class="step-card-num">4</div>
+    <div class="step-card-body">
+      <h4>July 1, 04:00 UTC — the slug flips OPEN</h4>
+      <p>Across all 8 Nakama pods, the <code>tournament_cron_tick</code> cron sees <code>now &gt;= open_start_iso</code> and updates the meta row to <code>status: OPEN</code>. The realtime stream pushes a <code>1000:opened</code> event to every subscribed client. Sarah gets a push notification: <strong>"Tournaments are LIVE. Tap to play."</strong></p>
+    </div>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="step-card gold">
+    <div class="step-card-num">5</div>
+    <div class="step-card-body">
+      <h4>She signs in with Google to keep her wallet across devices</h4>
+      <p>Tap "Sign in with Google" → OAuth round-trip → Nakama merges her ghost user with her Google identity. Her pre-enroll, referral attribution, and any future entries all carry over. The wallet shows <strong>250 BC</strong> (a welcome bonus from the signup-rewards service).</p>
+    </div>
+  </div>
+
+  <!-- Step 6 -->
+  <div class="step-card success">
+    <div class="step-card-num">6</div>
+    <div class="step-card-body">
+      <h4>She taps "Enter" — 50 BC debited</h4>
+      <p>Web client generates an <code>idempotency_key</code> (UUID v4) and calls <code>tournament_enter</code>. Nakama:</p>
+      <ul style="margin:6px 0 0 18px;font-size:13px;color:var(--text-dim);">
+        <li>Validates status (<code>OPEN</code> ✓), country (<code>US</code> ✓), state (<code>TX</code> not blocked ✓), age (24 ✓), rate-limit (1st call ✓)</li>
+        <li>Reads her <code>bc_wallet</code> (250 BC ≥ 50 BC ✓), debits 50 BC</li>
+        <li>Writes a <code>tournament_entries</code> row with <code>paid_via:"balance"</code></li>
+        <li>Increments <code>tournament_pot.pot_bc</code> by 50 (5,000 → 5,050)</li>
+        <li>Broadcasts a <code>1001:entry</code> message on the <code>tournament:gk-royale-daily</code> stream</li>
+      </ul>
+      <p>Sarah's UI shows <strong>"You're in. Pot is now 5,050 BC."</strong> in 1.2 seconds.</p>
+    </div>
+  </div>
+
+  <!-- Step 7 -->
+  <div class="step-card">
+    <div class="step-card-num">7</div>
+    <div class="step-card-body">
+      <h4>She fetches today's quiz pack</h4>
+      <p><code>tournament_content_get_pack</code> returns 5 multiple-choice questions on general knowledge. The correct-answer key stays server-side (anti-cheat); the client only gets the questions and a 60-second time limit per question.</p>
+    </div>
+  </div>
+
+  <!-- Step 8 -->
+  <div class="step-card">
+    <div class="step-card-num">8</div>
+    <div class="step-card-body">
+      <h4>She plays the 5 questions</h4>
+      <p>Her score is calculated server-side as <code>correct_count + speed_bonus</code> (faster = more). She gets 4/5 with reasonable latency (avg 850 ms client-server). <code>tournament_submit_pack_result</code> persists the submission and upserts her leaderboard score. The anti-cheat layer flags her as clean (latency &gt; 300 ms floor, daily count &lt; 200 ceiling).</p>
+    </div>
+  </div>
+
+  <!-- Step 9 -->
+  <div class="step-card">
+    <div class="step-card-num">9</div>
+    <div class="step-card-body">
+      <h4>She watches the leaderboard tick live</h4>
+      <p>The detail page subscribes to the <code>tournament:gk-royale-daily</code> stream. As other users enter and submit, the pot ticker animates and her rank wobbles between 12 and 18. The stream pushes <code>1001:entry</code> and <code>1002:submit</code> events; the UI updates without a single HTTP poll.</p>
+    </div>
+  </div>
+
+  <!-- Step 10 -->
+  <div class="step-card warning">
+    <div class="step-card-num">10</div>
+    <div class="step-card-body">
+      <h4>23:59:59 UTC — settlement begins</h4>
+      <p>The cron sees <code>now &gt;= end_iso</code> and flips status to <code>SETTLING</code>. <code>tournament_settle</code>:</p>
+      <ul style="margin:6px 0 0 18px;font-size:13px;color:var(--text-dim);">
+        <li>Snapshots the leaderboard (final ranking)</li>
+        <li>Computes <code>rake = pot * 0.15</code> → house</li>
+        <li>Pays the top-10 by share (40/20/10/5/5/5/5/5/2.5/2.5)</li>
+        <li>Refunds AMOE no-lose entrants who finished in top-50%</li>
+        <li>Asserts <code>ledger_drift == 0</code></li>
+      </ul>
+      <p>Sarah finished rank 14 — outside the top-10 payout — but the <strong>founder 2x multiplier</strong> applied to her referral points means her friend (the referrer) gets credit for one more attribution.</p>
+    </div>
+  </div>
+
+  <!-- Step 11 -->
+  <div class="step-card success">
+    <div class="step-card-num">11</div>
+    <div class="step-card-body">
+      <h4>She qualifies for an "I played in the inaugural" badge</h4>
+      <p>Even though she didn't make top-10, every founder-cohort entrant gets a special launch-week certificate. <code>tournament_claim_certificate</code> invokes the cert Lambda, which renders a 1200x630 OG-shareable PNG with her username, rank, and "Founder · GK Royale · Day 1" copy, then uploads to <code>s3://intelli-verse-x-media/certificates/</code>.</p>
+    </div>
+  </div>
+
+  <!-- Step 12 -->
+  <div class="step-card gold">
+    <div class="step-card-num">12</div>
+    <div class="step-card-body">
+      <h4>She shares it on X. Her friend gets a referral payout.</h4>
+      <p>Sarah posts the cert on X. The OG card pre-renders. Her friend was already top-100 in referrers and at <code>T+1h</code> after launch the <code>tournament_referral_settle_topN</code> cron fires Tremendous emails: top-1 gets $500, top-2-3 get $250, top-4-10 get $100, top-11-100 get $25. He gets $25.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────── What the system did behind the scenes ─────────────────── -->
+<section>
+  <h2>Behind the scenes — what the system did across all 12 steps</h2>
+  <p>The same journey from the system's point of view. Every box is a real database write, RPC, or background cron.</p>
+  <div class="mermaid">
+sequenceDiagram
+  participant S as Sarah (web)
+  participant N as Nakama RPCs
+  participant DB as Storage
+  participant CR as Crons
+  participant CL as Cert Lambda
+  participant TR as Tremendous
+
+  Note over S,TR: STEPS 1–3 (referral, ghost, pre-enroll)
+  S->>N: authenticateDevice (ghost)
+  S->>N: tournament_pre_enroll {slug, ref_code:"AB12CD"}
+  N->>DB: write tournament_pre_enroll {founder:true}
+  N->>DB: write referral_attribution
+  Note over S,TR: STEP 4 (open transition)
+  CR->>DB: meta.status = OPEN
+  CR->>S: realtime push 1000:opened
+  Note over S,TR: STEPS 5–6 (signin + enter)
+  S->>N: authenticateGoogle (merges ghost)
+  S->>N: tournament_enter {slug, idempotency_key}
+  N->>DB: debit bc_wallet 50 BC
+  N->>DB: write tournament_entries
+  N->>DB: pot_bc += 50
+  N->>S: 1001:entry stream
+  Note over S,TR: STEPS 7–9 (play + live updates)
+  S->>N: tournament_content_get_pack
+  S->>N: tournament_submit_pack_result {answers, latency}
+  N->>DB: anti-cheat OK, leaderboard upsert
+  N->>S: 1002:submit stream
+  Note over S,TR: STEP 10 (settlement)
+  CR->>DB: meta.status = SETTLING
+  CR->>DB: snapshot leaderboard
+  CR->>DB: payouts top-10 + AMOE refunds
+  CR->>DB: ledger_drift = 0 ✓
+  Note over S,TR: STEP 11 (cert)
+  S->>N: tournament_claim_certificate
+  N->>CL: render PNG
+  CL->>DB: PUT s3 cert
+  N->>S: {url, og_meta}
+  Note over S,TR: STEP 12 (referral payout)
+  CR->>TR: top-100 referrers, batch send
+  TR->>S: ($25 reward to her friend)
+  </div>
+</section>
+
+<!-- ─────────────────── What if Sarah lived in NY? ─────────────────── -->
+<section>
+  <h2>What if Sarah lived in NY?</h2>
+  <p>Same flow up to step 6 — except the entry call returns an error.</p>
+  <div class="callout warning">
+    <strong>403 entry_blocked_in_us_state</strong> — New York is one of the six states where paid skill-game entries are prohibited (NY, WA, AZ, CT, NJ, VA). The UI immediately shows the <strong>AMOE upsell</strong>: "Watch 6 short videos to unlock a free entry."
+  </div>
+  <div class="steps">
+    <div class="step-card">
+      <div class="step-card-num">A</div>
+      <div class="step-card-body">
+        <h4>She watches the 6-video Learning Series</h4>
+        <p>Each video is ~2 minutes, hosted on CloudFront-cached HLS. <code>learning_video_record_watch</code> records progress. The series is genuinely educational — exam-prep tutorials, GK trivia, mind-sport strategy.</p>
+      </div>
+    </div>
+    <div class="step-card">
+      <div class="step-card-num">B</div>
+      <div class="step-card-body">
+        <h4>She submits her completion check</h4>
+        <p><code>learning_check_submit</code> verifies 6/6 watched. Nakama writes a <code>tournament_entries</code> row with <code>paid_via:"amoe"</code> and <code>bc_charged:0</code>. Pot stays unchanged (AMOE doesn't add to the pot).</p>
+      </div>
+    </div>
+    <div class="step-card success">
+      <div class="step-card-num">C</div>
+      <div class="step-card-body">
+        <h4>She plays exactly the same tournament — no fee</h4>
+        <p>From here on, AMOE entrants are indistinguishable from paid entrants on the leaderboard. If she finishes top-50% she gets the standard payout; if she finishes worse, she gets the <strong>AMOE no-lose</strong> guarantee — no money was at risk.</p>
+      </div>
+    </div>
+  </div>
+  <p>This is the legal pillar that keeps QuizVerse out of the gambling bucket in skill-game-prohibited states. <strong>Every paid tournament has a free, equivalent path.</strong></p>
+</section>
+
+<!-- ─────────────────── Day-2 flows ─────────────────── -->
+<section>
+  <h2>Other Day-2 journeys (one-liners)</h2>
+  <div class="card-grid">
+    <div class="card"><h4>🎯 Pick-5 Daily</h4><p>Sarah picks 5 answers in advance, locks her slip 24h before close, and at settlement gets a multiplier — 5/5 = 10x, 4/5 = 5x, 3/5 = 2x, ≤2/5 = 0.</p></div>
+    <div class="card"><h4>⚔️ Survivor Week</h4><p>Sarah enters Day 0 along with ~15,000 others. Each midnight, the bottom 50% are eliminated. If she survives all 5 cuts she splits the pot equally with ~469 other survivors.</p></div>
+    <div class="card"><h4>🥇 Bracket Playoff</h4><p>The top-64 of Brain Bowl Weekly feed into a 6-round single-elimination bracket. Each round = a 24h pack-submission window; highest score wins. Sarah didn't qualify but watches her friend's bracket via the iframe.</p></div>
+    <div class="card"><h4>📚 Learning Series</h4><p>For the AP 2027 Prep Sprint, the Learning Series doubles as test prep. Sarah completes 6 videos (a real benefit) and unlocks a free AMOE entry into the $25k-pot tournament.</p></div>
+    <div class="card"><h4>💸 Buy-BC sheet</h4><p>Sarah's wallet runs low. She taps "Top up", picks the $5 / 1,500 BC pack, pays via Apple Pay or Stripe, and is back in within 8 seconds.</p></div>
+    <div class="card"><h4>💰 Redeem to fiat</h4><p>Sarah accumulates 50,000 BC over a month. She taps "Redeem", picks Tremendous, and converts to a $150 Visa eGift card (geo-blocked in CA, NY, VA — see <code>REDEMPTION_BLOCK_US_STATES</code>).</p></div>
+  </div>
+</section>
+
+<!-- ─────────────────── Money flow visual ─────────────────── -->
+<section>
+  <h2>Where Sarah's 50 BC ended up</h2>
+  <p>Even though she didn't make top-10, her 50 BC participated in the pot. Here's exactly where every BC went on settlement night for the GK Royale Daily example with 800 paid entries:</p>
+
+  <div class="money-flow">
+    <h4 style="margin-bottom:14px;">Pot composition — gross 220,000 BC</h4>
+    <div class="money-row in"><div class="label">House seed</div><div class="bar"><div class="bar-fill" style="width:9.1%">20,000 BC</div></div><div class="amt">9.1%</div></div>
+    <div class="money-row in"><div class="label">Entry fees (800 × 250)</div><div class="bar"><div class="bar-fill" style="width:90.9%">200,000 BC</div></div><div class="amt">90.9%</div></div>
+
+    <h4 style="margin:18px 0 14px;">Pot disposition — net 220,000 BC out</h4>
+    <div class="money-row rake"><div class="label">House rake (15%)</div><div class="bar"><div class="bar-fill" style="width:15%">33,000 BC</div></div><div class="amt">15%</div></div>
+    <div class="money-row payout"><div class="label">Top-1 payout (40% of net)</div><div class="bar"><div class="bar-fill" style="width:34%">74,800 BC</div></div><div class="amt">34%</div></div>
+    <div class="money-row payout"><div class="label">Top-2 (20% of net)</div><div class="bar"><div class="bar-fill" style="width:17%">37,400 BC</div></div><div class="amt">17%</div></div>
+    <div class="money-row payout"><div class="label">Top-3 (10% of net)</div><div class="bar"><div class="bar-fill" style="width:8.5%">18,700 BC</div></div><div class="amt">8.5%</div></div>
+    <div class="money-row payout"><div class="label">Top-4–10 (35% of net)</div><div class="bar"><div class="bar-fill" style="width:29.7%">65,450 BC</div></div><div class="amt">29.7%</div></div>
+    <div class="money-row" style="border-top:2px solid var(--border);margin-top:8px;padding-top:14px;"><div class="label" style="font-weight:700;color:var(--text);">Ledger drift</div><div class="bar"></div><div class="amt" style="color:var(--success);">0 ✓</div></div>
+  </div>
+  <p style="font-size:12px;color:var(--text-muted);">Sarah's individual 50 BC was pooled with the other 799 entries and contributed to the rake (about 7.5 BC) and the top-10 payouts (about 42.5 BC). She got back her dignity.</p>
+</section>
+
+<!-- ─────────────────── The whole journey on one diagram ─────────────────── -->
+<section>
+  <h2>The whole journey on one diagram</h2>
+  <div class="mermaid">
+flowchart TD
+  start([Sarah taps referral link]) --> ghost[Anonymous ghost session<br/>1.5s mint]
+  ghost --> browse[Browse 11 tournaments]
+  browse --> picks[Picks GK Royale Daily<br/>50 BC entry]
+  picks --> preen{Status?}
+  preen -->|PRE_ENROLL| free[Pre-enroll free<br/>founder:true 2x multiplier]
+  preen -->|OPEN| signin[Sign in Google<br/>merge ghost wallet]
+  free --> signin
+  signin --> wallet{Wallet ≥ 50 BC?}
+  wallet -->|Yes| enter[tournament_enter<br/>debit 50 BC, pot += 50]
+  wallet -->|No| amoe[6-video Learning Series<br/>free AMOE entry]
+  amoe --> enter
+  enter --> geo{State allowed?}
+  geo -->|Blocked NY/WA/AZ/CT/NJ/VA| amoe
+  geo -->|OK| pack[Fetch quiz pack<br/>5 questions, 60s each]
+  pack --> play[Submit answers<br/>anti-cheat: latency, count]
+  play --> watch[Watch live LB<br/>via realtime stream 1001/1002]
+  watch --> end_iso{end_iso reached?}
+  end_iso -->|No| watch
+  end_iso -->|Yes| settle[tournament_settle<br/>rake 15%, top-10 split, AMOE refunds]
+  settle --> drift{Ledger drift = 0?}
+  drift -->|Yes| cert[tournament_claim_certificate<br/>render PNG, S3 upload]
+  drift -->|No| alert[Alert ops, freeze payout]
+  cert --> share([Share to X / FB<br/>OG card pre-warmed])
+  classDef happy fill:#22c55e,stroke:#4ade80,color:#052e16;
+  classDef sad fill:#ef4444,stroke:#f87171,color:#fee2e2;
+  classDef money fill:#fbbf24,stroke:#fbbf24,color:#0a0b10;
+  class start,ghost,signin,enter,pack,play,watch,settle,cert,share happy;
+  class alert,amoe sad;
+  class wallet,enter money;
+  </div>
+</section>
+
+</main>
+
+<footer style="border-top:1px solid var(--border);margin-top:60px;padding:32px 24px;text-align:center;color:var(--text-muted);font-size:13px;">
+  <p>A Player's Journey · <a href="index.html">← Overview</a> · <a href="flows.html">All Flows →</a></p>
+</footer>
+</body>
+</html>
