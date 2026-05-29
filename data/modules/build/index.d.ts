@@ -6,6 +6,10 @@ declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
 declare namespace AiPipelines {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvAvatarComparison {
+    var COLLECTION: string;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QvCrashHandler {
     export var LOG_COLLECTION: string;
     export var PATTERN_COLLECTION: string;

@@ -109,6 +109,12 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[QvProductChangelog] Registering product_changelog_append RPC...");
     QvProductChangelog.register(initializer);
 
+    // Phase 4 (avatar bakeoff): cross-platform telemetry from web + Unity
+    // describing which AutoCurio renderer (2d / 3d / video) the user saw,
+    // and what reactions / transitions happened during onboarding.
+    logger.info("[QvAvatarComparison] Registering analytics_avatar_comparison RPC...");
+    QvAvatarComparison.register(initializer);
+
     // Phase 2A (qv-insights-loop): hourly InsightsAggregator + DLQ.
     // The aggregator hooks into the AnalyticsAlerts scheduler tick so
     // it runs opportunistically on every successful 3h slot post.
