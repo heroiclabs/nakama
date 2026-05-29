@@ -21,6 +21,55 @@ function _qeParseMaybeJson(v) {
   try { return JSON.parse(v); } catch (e) { return v; }
 }
 
+/**
+ * Attach consent markers IVX-AI analytics-knowledge expects on cohort rows.
+ * Reads user_metadata/analytics and scans recent events for consent_state.
+ */
+function _qeBuildConsentContext(nk, userId, session, events) {
+  var out = session && typeof session === 'object' ? Object.assign({}, session) : {};
+
+  try {
+    var recs = nk.storageRead([
+      { collection: 'user_metadata', key: 'analytics', userId: userId },
+      { collection: 'user_metadata', key: 'profile', userId: userId }
+    ]);
+    for (var ri = 0; ri < recs.length; ri++) {
+      var val = recs[ri].value || {};
+      if (val.personalization_consent === true || val.analytics_consent === true) {
+        out.personalization_consent = true;
+        out.analytics_consent = true;
+      }
+      if (val.personalization_consent === false) out.personalization_consent = false;
+      if (val.analytics_consent === false) out.analytics_consent = false;
+      if (val.consent_state) out.consent_state = val.consent_state;
+    }
+  } catch (e) { /* non-fatal */ }
+
+  var evList = Array.isArray(events) ? events : [];
+  for (var i = 0; i < evList.length; i++) {
+    var ev = evList[i] || {};
+    var ed = ev.eventData || ev.data || ev;
+    if (ed.consent_state) out.consent_state = ed.consent_state;
+    if (ed.personalization_consent === true) out.personalization_consent = true;
+    if (ed.personalization_consent === false) out.personalization_consent = false;
+    if (ed.analytics_consent) out.analytics_consent = ed.analytics_consent;
+  }
+
+  if (out.consent_state === 'granted' || out.personalization_consent === true) {
+    out.consent = {
+      personalization_consent: true,
+      analytics_consent: out.analytics_consent !== false
+    };
+  } else if (out.consent_state === 'denied' || out.personalization_consent === false) {
+    out.consent = {
+      personalization_consent: false,
+      analytics_consent: false
+    };
+  }
+
+  return out;
+}
+
 // 2026-04 polish — return HTTP 400 (not generic 500) when callers send a
 // malformed payload or omit a required field. Nakama's JS runtime expects
 // the thrown `code` field to be a **gRPC status code** (0-16), NOT an HTTP
@@ -225,10 +274,12 @@ function rpcQeCohortExport(ctx, logger, nk, payload) {
     var cohort = [];
     for (var k = 0; k < rows.length; k++) {
       var uid = rows[k].user_id;
+      var session = _qeParseMaybeJson(rows[k].value);
+      var events = evMap[uid] || null;
       cohort.push({
         user_id: uid,
-        session: _qeParseMaybeJson(rows[k].value),
-        events:  evMap[uid] || null
+        session: _qeBuildConsentContext(nk, uid, session, events),
+        events:  events
       });
     }
 
@@ -266,7 +317,11 @@ function rpcQeUserEventSummary(ctx, logger, nk, payload) {
       if (combined.length) {
         combined.sort(function(a, b) { return (b.t || 0) - (a.t || 0); });
         if (combined.length > 500) combined.length = 500;
-        return JSON.stringify({ events: combined, found: true });
+        return JSON.stringify({
+          events: combined,
+          found: true,
+          session: _qeBuildConsentContext(nk, userId, null, combined)
+        });
       }
     }
   } catch (e) {
