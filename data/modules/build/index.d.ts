@@ -913,6 +913,9 @@ declare namespace AccountMerge {
 declare namespace IdentityResolver {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvKbUserDump {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace LearnerToolbelt {
     var MODULE_VERSION: string;
     interface LearnerStateInputs {

@@ -348,6 +348,21 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[QvAgent] failed to register QvAgent: " + (err && err.message ? err.message : String(err)));
     }
 
+    // ── User KB inspection RPCs (Nakama wrapper around the BFF dump route) ──
+    // qv_kb_user_dump / qv_kb_user_summary / qv_kb_user_kind. Lets the Unity
+    // client render the in-game Knowledge Graph view through the normal
+    // Nakama SDK without ever shipping the admin secret in the build. See
+    // data/modules/src/kb/qv_kb_user_dump.ts for the full RPC contract.
+    // Requires QV_KB_ADMIN_SECRET (mandatory) and
+    // QV_KB_NAKAMA_SERVICE_TOKEN (for service-token callers) in runtime.env.
+    logger.info("[QvKbUserDump] Registering qv_kb_user_dump / _summary / _kind RPCs...");
+    try {
+      QvKbUserDump.register(initializer);
+      logger.info("[QvKbUserDump] qv_kb_user_dump, qv_kb_user_summary, qv_kb_user_kind registered");
+    } catch (err: any) {
+      logger.error("[QvKbUserDump] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     // ── QuizVerse Learner Toolbelt (Phase A — Score Predictor / Exam Countdown /
     //   GPA Calculator / School Info Gathering) ────────────────────────────
     // Skeleton PR: every RPC returns { ok: true, status: "not_implemented",
