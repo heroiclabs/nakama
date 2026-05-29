@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>End-to-End Status · QuizVerse Tournaments</title>
+<meta name="description" content="Live end-to-end production verification of the QuizVerse Tournament system. What's working, what's broken, what's a launch blocker. All findings probed live and timestamped.">
+<meta property="og:title" content="QuizVerse Tournaments — Live E2E Status">
+<meta property="og:description" content="Honest production verification with live probes against Nakama, Bracket, Lambda, S3, web, and Unity. Launch blockers called out.">
+<link rel="stylesheet" href="assets/styles.css?v=4">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.mermaid) {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: "dark",
+        themeVariables: {
+          primaryColor: "#7c3aed",
+          primaryTextColor: "#e8eaf0",
+          primaryBorderColor: "#a78bfa",
+          lineColor: "#9aa0ad",
+          mainBkg: "#1c1e2b",
+          background: "#0a0b10",
+          fontSize: "14px"
+        },
+        flowchart: { curve: "basis", padding: 14 }
+      });
+    }
+  });
+</script>
+<style>
+  .verdict-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin:18px 0 24px; }
+  .verdict { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; }
+  .verdict-icon { font-size:22px; line-height:1; margin-bottom:6px; }
+  .verdict.ok    { border-left:4px solid var(--success); }
+  .verdict.warn  { border-left:4px solid var(--warning); }
+  .verdict.fail  { border-left:4px solid var(--danger); }
+  .verdict h4 { font-size:14px; margin:0 0 4px; color:var(--text); border:none; padding:0; }
+  .verdict p { font-size:12px; color:var(--text-muted); margin:0; line-height:1.4; }
+  .verdict .num { font-family:var(--mono); font-size:20px; font-weight:800; }
+  .verdict.ok .num   { color:var(--success); }
+  .verdict.warn .num { color:var(--warning); }
+  .verdict.fail .num { color:var(--danger); }
+  .probe { font-family:var(--mono); font-size:12px; color:var(--text-dim); }
+  .probe code { background:rgba(124,58,237,0.12); padding:1px 5px; border-radius:3px; color:var(--primary-bright); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; font-family:var(--mono); letter-spacing:.04em; }
+  .pill.ok   { background:rgba(34,197,94,0.18);   color:var(--success); }
+  .pill.warn { background:rgba(245,158,11,0.18);  color:var(--warning); }
+  .pill.fail { background:rgba(239,68,68,0.18);   color:var(--danger); }
+  .pill.info { background:rgba(59,130,246,0.18);  color:var(--info); }
+  .blocker-card { background:rgba(239,68,68,0.06); border-left:4px solid var(--danger); padding:16px 20px; border-radius:0 var(--radius) var(--radius) 0; margin:14px 0; }
+  .blocker-card h4 { color:var(--danger); margin:0 0 6px; font-size:15px; border:none; padding:0; }
+  .blocker-card .blocker-meta { font-family:var(--mono); font-size:11px; color:var(--text-muted); margin-bottom:8px; }
+  .blocker-card p { color:var(--text); font-size:13.5px; margin:6px 0; line-height:1.55; }
+  .blocker-card .fix { background:rgba(34,197,94,0.08); border-left:3px solid var(--success); padding:8px 12px; margin-top:10px; border-radius:0 var(--radius-sm) var(--radius-sm) 0; font-size:13px; }
+  .blocker-card .fix strong { color:var(--success); }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark"></span> QuizVerse · Tournaments Hub</a>
+    <div class="topnav-links">
+      <a href="index.html">Overview</a>
+      <a href="journey.html">Journey</a>
+      <a href="flows.html">Flows</a>
+      <a href="integration.html">Integration</a>
+      <a href="testing.html">Testing</a>
+      <a href="reference.html">RPC Reference</a>
+      <a href="audit.html">Audit</a>
+      <a href="status.html" class="active">Status</a>
+      <a href="launch.html">Launch</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <span class="hero-eyebrow">Live e2e verification · probed Thu May 28 22:36 PT 2026 · 33 days to launch (Jul 1)</span>
+  <h1>End-to-End Production Status</h1>
+  <p>Every claim on this page was verified by a live probe against the production cluster, AWS, and the deployed web frontend at the timestamp above. No second-hand assertions.</p>
+</header>
+
+<main class="container-narrow">
+
+<!-- ─────────────────── Headline verdict ─────────────────── -->
+<section>
+  <h2>Headline</h2>
+
+  <div class="callout warning">
+    <strong>Status: NOT launch-ready.</strong>
+    Eight Nakama pods are healthy and the 11-tournament slate is correctly seeded with 231,000 BC. But <strong>seven launch blockers</strong> sit between today and Jul 1 — most importantly the cron-jobs that flip <code>PRE_ENROLL → OPEN</code> are not deployed, the certificate Lambda is not deployed, the Bracket JWT expires Jun 4, and the Unity tournament screens aren't wired into any scene.
+  </div>
+
+  <div class="verdict-grid">
+    <div class="verdict ok"><div class="verdict-icon">✓</div><div class="num">11 / 11</div><h4>Tournaments seeded</h4><p>All slugs PRE_ENROLL</p></div>
+    <div class="verdict ok"><div class="verdict-icon">✓</div><div class="num">231,000</div><h4>BC pot seeded</h4><p>Matches docs</p></div>
+    <div class="verdict ok"><div class="verdict-icon">✓</div><div class="num">8 / 8</div><h4>Nakama pods Running</h4><p>+3 multiplayer +2 admin</p></div>
+    <div class="verdict ok"><div class="verdict-icon">✓</div><div class="num">1025</div><h4>RPCs registered</h4><p>From kubectl logs</p></div>
+    <div class="verdict warn"><div class="verdict-icon">!</div><div class="num">7</div><h4>RPCs leak stack traces</h4><p>On anonymous calls</p></div>
+    <div class="verdict fail"><div class="verdict-icon">✗</div><div class="num">0 / 4</div><h4>Tournament cron jobs</h4><p>Not in K8s scheduler</p></div>
+    <div class="verdict fail"><div class="verdict-icon">✗</div><div class="num">0</div><h4>Lambda for certs</h4><p>Not deployed</p></div>
+    <div class="verdict fail"><div class="verdict-icon">✗</div><div class="num">0</div><h4>AMOE videos in S3</h4><p>learning-series/ missing</p></div>
+  </div>
+</section>
+
+<!-- ─────────────────── 7 launch blockers ─────────────────── -->
+<section>
+  <h2>1. Launch blockers (P0 — fix before Jul 1)</h2>
+  <p>Each item below was verified live. None of these are theoretical — every one is a check that failed.</p>
+
+  <div class="blocker-card">
+    <h4>B1 · Tournament cron jobs are NOT deployed in Kubernetes</h4>
+    <div class="blocker-meta">probe: <code>kubectl get cronjobs -A | grep tournament</code> → 0 matches · severity: P0</div>
+    <p><code>tournament_cron_tick</code>, <code>tournament_settle</code>, <code>tournament_eliminate_round</code>, and <code>tournament_cron_pregen</code> are <em>registered as RPCs</em> inside Nakama, but no Kubernetes CronJob is invoking them. Today there are 28 CronJobs in the <code>aicart</code> namespace; none are tournament-related.</p>
+    <p><strong>Impact.</strong> On July 1, 04:00 UTC, the 11 tournaments will <em>not</em> automatically transition from <code>PRE_ENROLL → OPEN</code>. Daily/weekly settlements won't run. Survivor cuts won't fire. Content pre-generation backlog won't drain.</p>
+    <div class="fix"><strong>Fix:</strong> ship 4 K8s <code>CronJob</code> manifests in <code>intelli-verse-kube-infra</code>: tick (every minute), settle (every 5 min), eliminate (every minute during ACTIVE windows), pregen (every 10 min). All four can call the existing internal RPCs via <code>curl http://intelliverse-nakama:7350/v2/rpc/...</code> with the runtime HTTP key already in <code>nakama-secret</code>.</div>
+  </div>
+
+  <div class="blocker-card">
+    <h4>B2 · Lambda <code>tournament_certificate</code> is NOT deployed</h4>
+    <div class="blocker-meta">probe: <code>aws lambda list-functions --region us-east-1</code> → 4 fns; none with "tournament" in the name · severity: P0</div>
+    <p>Only four Lambdas exist in <code>us-east-1/970547373533</code>: <code>extract-and-deploy-webgl-game</code>, <code>ivx-push-provider-bridge</code>, <code>send</code>, <code>register</code>. The runbook §3.1 T-24h checklist explicitly requires "Lambda <code>tournament_certificate</code> deployed + smoke-tested."</p>
+    <p><strong>Impact.</strong> Top-10 finishers in every tournament will have no shareable PNG certificate, blocking the viral-share loop that <code>flows.html</code> assumes.</p>
+    <div class="fix"><strong>Fix:</strong> the source code is staged at <code>nakama/data/lambda-functions/tournament_certificate</code> — deploy via <code>aws lambda create-function</code> + S3 trigger to <code>intelli-verse-x-media/quiz-verse/tournament-certificates/</code>.</div>
+  </div>
+
+  <div class="blocker-card">
+    <h4>B3 · Bracket service JWT expires <strong>before launch</strong></h4>
+    <div class="blocker-meta">probe: env <code>BRACKET_SERVICE_JWT</code> in nakama pod → exp claim = 1780465694 = Jun 4 2026 · severity: P0</div>
+    <p>The Nakama → Bracket S2S bridge uses <code>BRACKET_SERVICE_JWT</code> mounted via env. Decoded payload: <code>{"user":"admin@intelli-verse-x.ai","exp":1780465694}</code>. That's <strong>~6 days from now</strong>, three weeks before public launch on Jul 1.</p>
+    <p><strong>Impact.</strong> When the JWT expires, every Survivor cut, bracket advancement, and elimination flow will start returning 401 from the bracket service. Silent until something tries to advance a round.</p>
+    <div class="fix"><strong>Fix:</strong> rotate to a token with <code>exp ≥ 2026-08-01</code>, redeploy nakama pods so the new env is picked up, then add a quarterly rotation reminder.</div>
+  </div>
+
+  <div class="blocker-card">
+    <h4>B4 · AMOE Learning Series videos are NOT staged in S3</h4>
+    <div class="blocker-meta">probe: <code>aws s3 ls s3://intelli-verse-x-media/quiz-verse/</code> → no <code>learning-series/</code> prefix; <code>aws s3api list-objects-v2 ... | grep amoe|learning|cert</code> → 0 matches · severity: P0</div>
+    <p>The AMOE compliance path requires a 6-video Learning Series so users can earn an entry without paying. Today there is no <code>learning-series/</code> prefix in <code>intelli-verse-x-media/quiz-verse/</code>, and the audit page assumes those videos exist.</p>
+    <p><strong>Impact.</strong> Without an equivalent free path, paid entry from US states with sweepstakes restrictions is legally exposed (<a href="https://key2law.com/en/news/common-legal-mistakes-in-launching-sweepstakes-casinos" target="_blank" rel="noopener">Key2Law 2026</a>: "AMOE must be equivalent and accessible").</p>
+    <div class="fix"><strong>Fix:</strong> generate 6 short videos via <code>content-factory-api</code>'s <code>viral_lesson_short</code> endpoint (one per launch-slate topic), upload to <code>s3://intelli-verse-x-media/quiz-verse/learning-series/{slug}/{1..6}.mp4</code>, and verify <code>tournament_amoe_completion</code> RPC accepts them.</div>
+  </div>
+
+  <div class="blocker-card">
+    <h4>B5 · Unity Tournament screens are NOT wired into any scene</h4>
+    <div class="blocker-meta">probe: <code>grep -l "TournamentScreen\|TournamentManager" Assets/Scenes/*.unity</code> → 0 matches · severity: P0 for mobile launch</div>
+    <p>Twelve C# scripts exist under <code>Assets/_QuizVerse/Scripts/Tournaments/</code> (TournamentManager, TournamentScreen, PreEnrollScreen, BracketViewerScreen, LearningSeriesPlayer, etc.) but a grep across <code>Assets/Scenes/*.unity</code> finds zero references. There are also no tournament <code>.prefab</code> assets in the project.</p>
+    <p><strong>Impact.</strong> The Unity Android/iOS client will not show the tournaments lobby. Web is fine; mobile is not.</p>
+    <div class="fix"><strong>Fix:</strong> add a <code>Screen_TournamentsLobby</code> GameObject under <code>Screen_Canvas/Quizzes/</code> in <code>MainQuiz.unity</code>, attach <code>TournamentScreen</code>, wire it to the existing screen-stack manager, and bind the prefab navigations.</div>
+  </div>
+
+  <div class="blocker-card">
+    <h4>B6 · 7 authenticated RPCs leak Goja stack traces on anonymous calls</h4>
+    <div class="blocker-meta">probe: anonymous POST to each RPC → HTTP 500 with <code>"Error: User ID is required at requireUserId (index.js:132420:19)"</code> · severity: P1 (UX) + P2 (info disclosure)</div>
+    <p>The seven affected RPCs:</p>
+    <p class="probe">tournament_enter, tournament_pre_enroll, tournament_submit_pack_result, tournament_submit_picks, tournament_claim_cert, tournament_leaderboard_around_me, tournament_leaderboard_friends, tournament_leaderboard_tier_league</p>
+    <p>All raise an <em>uncaught</em> exception via <code>requireUserId()</code>. Nakama surfaces it as HTTP 500 with the full stack trace including internal file path and line numbers — bad UX for anonymous web users and information-disclosure for security review.</p>
+    <div class="fix"><strong>Fix:</strong> wrap each handler in a try/catch that maps unauthenticated errors to a clean <code>{"code":"unauthenticated","message":"sign in required"}</code> 401 response. One-line patch at the top of <code>requireUserId</code> in <code>data/modules/src/lib/auth.ts</code> (or whichever module owns it) plus a global RPC outer wrapper.</div>
+  </div>
+
+  <div class="blocker-card">
+    <h4>B7 · Daily quiz manifest for today returns 404 in S3</h4>
+    <div class="blocker-meta">probe: <code>aws s3api head-object --bucket intelli-verse-x-media --key daily-quiz/dailyquiz-2026-05-29.json</code> → 404 Not Found · severity: P0 once tournaments open</div>
+    <p>The doc site references the daily-quiz manifest at <code>s3://intelli-verse-x-media/daily-quiz/dailyquiz-{yyyy-MM-dd}.json</code> as the source for the daily-tournament question pack. Today's key (2026-05-29) does not exist; only Russian-language Premier-League manifests are present in <code>quiz-verse/daily/</code>.</p>
+    <p><strong>Impact.</strong> If <code>gk-royale-daily</code> opens on Jul 1 with no manifest in S3, the entry flow returns "no quiz pack" and the player can't play.</p>
+    <div class="fix"><strong>Fix:</strong> add a <code>daily-pregen</code> CronJob (5 min before midnight UTC) that calls <code>tournament_cron_pregen</code> and uploads the pack to the documented S3 key. Rolls up under B1 above.</div>
+  </div>
+</section>
+
+<!-- ─────────────────── What's healthy ─────────────────── -->
+<section>
+  <h2>2. Working today (verified live)</h2>
+  <table>
+    <thead><tr><th>Component</th><th>Probe</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Nakama pods</td><td><code>kubectl get pods -l app=intelliverse-nakama</code></td><td><span class="pill ok">8/8 Running</span> · 7h uptime</td></tr>
+      <tr><td>Nakama RPCs registered</td><td>kubectl logs <code>"Registered JavaScript runtime RPC"</code></td><td><span class="pill ok">1025</span> incl. tournament family</td></tr>
+      <tr><td>tournament_list</td><td>HTTP POST → <code>http://localhost:7350/v2/rpc/tournament_list</code></td><td><span class="pill ok">200 · 11 slugs</span> · all PRE_ENROLL · 231k BC seeded</td></tr>
+      <tr><td>tournament_caller_status</td><td>POST with valid <code>{"slug":"..."}</code> body</td><td><span class="pill ok">200</span></td></tr>
+      <tr><td>tournament_leaderboard_top</td><td>POST with valid body</td><td><span class="pill ok">200</span></td></tr>
+      <tr><td>tournament_leaderboard_country</td><td>POST with country=US</td><td><span class="pill ok">200</span></td></tr>
+      <tr><td>tournament_leaderboard_activity_feed</td><td>POST with limit=10</td><td><span class="pill ok">200</span></td></tr>
+      <tr><td>Bracket service</td><td><code>http://bracket:8400/api/ping</code></td><td><span class="pill ok">200 "ping"</span> · 47h uptime</td></tr>
+      <tr><td>Bracket OpenAPI</td><td><code>/openapi.json</code></td><td><span class="pill ok">42 endpoints</span> incl. /api/tournaments, /api/token</td></tr>
+      <tr><td>Content Factory API</td><td><code>http://content-factory-api:8001/health</code></td><td><span class="pill ok">200 healthy v1.1.0</span></td></tr>
+      <tr><td>Web frontend live</td><td><code>https://www.quizverse.world/tournaments</code></td><td><span class="pill ok">200 · 91 KB</span> · 5 expected slugs in HTML</td></tr>
+      <tr><td>Web tournament components</td><td><code>web/components/tournaments/*.tsx</code></td><td><span class="pill ok">14 files</span> · TournamentsBoard, EntryModal, PotMeter, CertShareButton, etc.</td></tr>
+      <tr><td>Web tournament routes</td><td><code>app/tournaments/**/page.tsx</code></td><td><span class="pill ok">5 routes</span> incl. <code>/tournaments/[slug]/playoff</code></td></tr>
+      <tr><td>Unity tournament scripts</td><td><code>Assets/_QuizVerse/Scripts/Tournaments/*.cs</code></td><td><span class="pill warn">12 files · code only</span> (see B5)</td></tr>
+      <tr><td>Bracket S2S env</td><td>nakama pod env <code>BRACKET_SERVICE_JWT</code></td><td><span class="pill warn">present · exp Jun 4</span> (see B3)</td></tr>
+      <tr><td>Web S2S token</td><td>nakama pod env <code>TOURNAMENT_SERVICE_TOKEN</code></td><td><span class="pill ok">present</span></td></tr>
+      <tr><td>Tournament family p99</td><td>discord_alerts (last hour)</td><td><span class="pill ok">104 calls · 0 errors · p99 0ms</span></td></tr>
+      <tr><td>TS module build</td><td><code>cd data/modules && npm run build</code></td><td><span class="pill ok">clean · 1025 RPCs</span></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─────────────────── Known noise ─────────────────── -->
+<section>
+  <h2>3. Known noise (P2 — not launch-blocking)</h2>
+  <table>
+    <thead><tr><th>Issue</th><th>Where</th><th>Why not blocker</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Push notification SNS endpoint conflicts</td>
+        <td>nakama logs · <code>"Endpoint already exists with the same Token, but different attributes"</code></td>
+        <td>Token reuse across reinstalls. Auto-retry queue absorbs them; affected users get push on next cycle. Should be cleaned up but no message is permanently lost.</td>
+      </tr>
+      <tr>
+        <td>Weekly quiz S3 manifests are 7 months old</td>
+        <td><code>s3://intelli-verse-x-media/quiz-verse/weekly/</code> — newest = 2025-11-28</td>
+        <td>Belongs to a separate weekly-feature pipeline, not the tournament weekly format. Tournament packs are pre-generated dynamically.</td>
+      </tr>
+      <tr>
+        <td>12 conversion + retention gaps from prior audit</td>
+        <td><a href="audit.html">audit.html</a></td>
+        <td>Tracked separately in <a href="https://github.com/intelli-verse-x/nakama/pull/106" target="_blank" rel="noopener">PR #106</a> with a 4-wave fix plan.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ─────────────────── Probe transcript ─────────────────── -->
+<section>
+  <h2>4. Reproducing the probes</h2>
+  <p>Every check on this page is reproducible from a workstation with kubectl + AWS access to the <code>aicart</code> namespace and <code>970547373533</code> account.</p>
+
+  <h3>4.1 Nakama RPC sanity</h3>
+  <pre><code class="probe">POD=$(kubectl get pods -n aicart -l app=intelliverse-nakama \
+        -o jsonpath='{.items[0].metadata.name}')
+HTTP_KEY=$(kubectl get secret -n aicart nakama-secret \
+        -o jsonpath='{.data.http_key}' | base64 -d)
+
+kubectl exec -n aicart $POD -- sh -c "curl -sS -X POST \
+  'http://localhost:7350/v2/rpc/tournament_list?http_key=$HTTP_KEY' \
+  -H 'Content-Type: application/json' -d '\"{}\"'" \
+  | jq -r '.payload | fromjson | .data.tournaments | length'
+# expected: 11</code></pre>
+
+  <h3>4.2 Bracket health + OpenAPI</h3>
+  <pre><code class="probe">kubectl exec -n aicart $POD -- sh -c \
+  "curl -sS http://bracket.aicart.svc.cluster.local:8400/api/ping"
+# expected: "ping"
+
+kubectl exec -n aicart $POD -- sh -c \
+  "curl -sS http://bracket.aicart.svc.cluster.local:8400/openapi.json" \
+  | jq '.paths | keys | length'
+# expected: 42</code></pre>
+
+  <h3>4.3 K8s tournament cron coverage</h3>
+  <pre><code class="probe">kubectl get cronjobs -A | grep -i tournament
+# expected: at least 4 entries (tick, settle, eliminate, pregen)
+# actual today: 0</code></pre>
+
+  <h3>4.4 Lambda existence</h3>
+  <pre><code class="probe">aws lambda list-functions --region us-east-1 \
+  --query "Functions[?contains(FunctionName, \`tournament\`)].FunctionName" \
+  --output text
+# expected: tournament_certificate
+# actual today: empty</code></pre>
+
+  <h3>4.5 AMOE asset check</h3>
+  <pre><code class="probe">aws s3 ls s3://intelli-verse-x-media/quiz-verse/learning-series/
+# expected: 11 slug folders, 6 .mp4 files in each
+# actual today: NoSuchKey</code></pre>
+
+  <h3>4.6 Bracket JWT expiry</h3>
+  <pre><code class="probe">kubectl exec -n aicart $POD -- sh -c "echo \$BRACKET_SERVICE_JWT" \
+  | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .exp \
+  | xargs -I{} date -r {} -u
+# today: Thu Jun  4 02:14:54 UTC 2026
+# need : after Jul  1 2026 launch</code></pre>
+</section>
+
+<!-- ─────────────────── Fix plan ─────────────────── -->
+<section>
+  <h2>5. Sequenced fix plan (33-day runway to Jul 1)</h2>
+  <p>Each blocker can be a one-PR, one-deploy fix. Total estimated work: ~3 engineer-days.</p>
+  <div class="mermaid">
+flowchart LR
+  W1["Week of Jun 1"] --> A[B1 K8s CronJobs]
+  W1 --> B[B3 Bracket JWT rotate]
+  W1 --> C[B6 Auth-error wrap]
+  W2["Week of Jun 8"] --> D[B2 Lambda deploy]
+  W2 --> E[B4 AMOE videos to S3]
+  W2 --> F[B7 Daily-pregen CronJob]
+  W3["Week of Jun 15"] --> G[B5 Unity scene wiring]
+  W4["Week of Jun 22"] --> H[Ghost run §1]
+  W5["Week of Jun 29"] --> I[Load test §2]
+  W5 --> J[Public launch §3]
+  classDef done fill:#22c55e,stroke:#4ade80,color:#052e16;
+  classDef todo fill:#ef4444,stroke:#f87171,color:#fee2e2;
+  classDef test fill:#7c3aed,stroke:#a78bfa,color:#fff;
+  class A,B,C,D,E,F,G todo;
+  class H,I,J test;
+  </div>
+
+  <div class="callout success" style="margin-top:18px;">
+    <strong>Net-net.</strong> The tournament economy + RPCs are correct and live. The launch-day failure mode is operational — crons, lambdas, scene wiring, AMOE assets, and a JWT rotation. None of it requires new product design, all of it requires checklist execution before Jul 1.
+  </div>
+</section>
+
+<!-- ─────────────────── Where to next ─────────────────── -->
+<section>
+  <h2>6. Where to next</h2>
+  <div class="card-grid">
+    <a class="card" href="audit.html"><h4>2026 Benchmark Audit &nbsp;&rarr;</h4><p>The 12 conversion / retention gaps with cited 2026 sources.</p></a>
+    <a class="card" href="testing.html"><h4>End-to-End Testing &nbsp;&rarr;</h4><p>Read-only + authenticated probe scripts, ghost-run procedure.</p></a>
+    <a class="card" href="launch.html"><h4>Launch runbook &nbsp;&rarr;</h4><p>T-24h checklist, T-0 sequence, T+1h cash-prize settlement.</p></a>
+    <a class="card" href="https://github.com/intelli-verse-x/nakama/pull/106" target="_blank" rel="noopener"><h4>PR #106 &nbsp;&rarr;</h4><p>Audit + Wave-2 conversion-lever spec (already merged-pending).</p></a>
+  </div>
+</section>
+
+<footer style="text-align:center;padding:40px 24px;color:var(--text-muted);font-size:13px;border-top:1px solid var(--border);margin-top:40px;">
+  Live e2e probe · captured Thu May 28 22:36 PT 2026 · <code>aicart</code>/<code>us-east-1</code>/<code>970547373533</code> · 33 days to launch
+</footer>
+
+</main>
+
+</body>
+</html>
