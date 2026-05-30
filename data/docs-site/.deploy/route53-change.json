@@ -1,0 +1,17 @@
+{
+  "Comment": "Tournaments developer docs — alias to S3 website endpoint",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "tournaments-docs.intelli-verse-x.ai.",
+        "Type": "A",
+        "AliasTarget": {
+          "HostedZoneId": "Z3AQBSTGFYJSTF",
+          "DNSName": "s3-website-us-east-1.amazonaws.com.",
+          "EvaluateTargetHealth": false
+        }
+      }
+    }
+  ]
+}

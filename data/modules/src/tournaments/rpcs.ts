@@ -155,6 +155,38 @@ namespace TournamentRpcs {
     try { TournamentCrons.opportunisticTick(ctx, _logger, nk); } catch (_) { }
 
     var slate = TournamentEconomy.listAll();
+    // L10 — Wave-2 slate expansion. When the wave2_slate flag is on, append
+    // the 3 cohort-25-34 tournaments. They surface via the same code path as
+    // the rest of LAUNCH_SLATE since TournamentEconomy.seedFromConfig is
+    // shape-compatible with Wave2Tournament minus a few defaults we fill in.
+    if (TournamentEconomyV2.FEATURE_FLAGS.wave2_slate) {
+      var w2 = TournamentEconomyV2.WAVE_2_SLATE_DRAFT;
+      for (var w = 0; w < w2.length; w++) {
+        var existing = TournamentEconomy.getBySlug(w2[w].slug);
+        if (existing) continue;
+        // Promote each Wave-2 draft into a TournamentConfig shape using the
+        // shared launch-window defaults. This is read-only — we don't mutate
+        // LAUNCH_SLATE; we just serve the row out of tournament_list.
+        slate = slate.concat([{
+          slug: w2[w].slug,
+          name: w2[w].name,
+          description: w2[w].description,
+          topic_tag: w2[w].topic_tag,
+          format: "classic",
+          format_ui_variant: "classic-pot",
+          pre_enroll_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+          open_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+          end_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+          entry_fee_bc: w2[w].entry_fee_bc,
+          rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+          pot_seed_bc: w2[w].pot_seed_bc,
+          countries_allowed: "ALL",
+          min_age: 18,
+          badge_emoji: "🎬",
+        } as any]);
+      }
+    }
+
     var out: any[] = [];
     var userId = ctx.userId || "";
     var userCountry = userId ? readUserCountry(nk, userId) : "";
@@ -183,6 +215,12 @@ namespace TournamentRpcs {
         pot_bc: meta.pot_bc,
         entries_count: meta.entries_count,
         pre_enroll_count: meta.pre_enroll_count,
+        // L2 scarcity counter — surfaced unconditionally (fast computation,
+        // already-public field). UI gates display on the v_2 flag, but the
+        // server always computes it so dashboards can pull regardless.
+        founder_slots_left: Math.max(0, TournamentEconomy.PRE_ENROLL_FOUNDER_CAP - (meta.pre_enroll_count || 0)),
+        scarcity_low: (TournamentEconomy.PRE_ENROLL_FOUNDER_CAP - (meta.pre_enroll_count || 0)) <= TournamentEconomyV2.SCARCITY_LOW_THRESHOLD,
+        scarcity_very_low: (TournamentEconomy.PRE_ENROLL_FOUNDER_CAP - (meta.pre_enroll_count || 0)) <= TournamentEconomyV2.SCARCITY_VERY_LOW_THRESHOLD,
         entry_fee_bc: cfg.entry_fee_bc,
         rake_pct: cfg.rake_pct,
         pre_enroll_start_iso: cfg.pre_enroll_start_iso,
@@ -1382,38 +1420,470 @@ namespace TournamentRpcs {
     return RpcHelpers.successResponse({ ok: true, amoe_unlocked: amoe });
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Wave-2 conversion + retention levers (L1-L12)
+  // Server primitives backed by tournament_economy_v2.ts + tournament_levers.ts.
+  // Each gated on TournamentEconomyV2.FEATURE_FLAGS — when off, RPC returns a
+  // success: false envelope so clients fail soft and we still log analytics.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── L1.a: tournament_intent_quiz_get ───────────────────────────────────────
+  // Returns the 3-question intent quiz definition. Public/anonymous-friendly so
+  // the web onboarding flow can show the questions before sign-in completes.
+  function rpcIntentQuizGet(_ctx: nkruntime.Context, _l: nkruntime.Logger, _nk: nkruntime.Nakama, _payload: string): string {
+    return RpcHelpers.successResponse({
+      enabled: TournamentEconomyV2.FEATURE_FLAGS.intent_quiz_onboarding,
+      questions: TournamentEconomyV2.INTENT_QUIZ,
+    });
+  }
+
+  // ── L1.b: tournament_intent_quiz_submit ────────────────────────────────────
+  // Persists 3 answers + computes a recommended slug. Auth required.
+  function rpcIntentQuizSubmit(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var fav = "" + (data.favorite_topic || "");
+    var tb  = "" + (data.time_budget || "");
+    var pc  = "" + (data.prize_comfort || "");
+    if (!fav || !tb || !pc) return RpcHelpers.errorResponse("favorite_topic, time_budget, prize_comfort all required", 400);
+
+    var rec = TournamentLevers.recommendSlug({ favorite_topic: fav, time_budget: tb, prize_comfort: pc });
+    var row: TournamentLevers.IntentAnswers = {
+      favorite_topic: fav,
+      time_budget: tb,
+      prize_comfort: pc,
+      answered_at: nowSec(),
+      recommended_slug: rec,
+    };
+    TournamentLevers.writeIntent(nk, userId, row);
+    TournamentLevers.logEvent(nk, "intent_quiz_submitted", userId, {
+      favorite_topic: fav, time_budget: tb, prize_comfort: pc, recommended_slug: rec,
+    });
+    return RpcHelpers.successResponse({ saved: row, recommended_slug: rec });
+  }
+
+  // ── L1.c: tournament_intent_quiz_get_recommendation ────────────────────────
+  // Returns the cached recommendation or recomputes from stored answers.
+  function rpcIntentQuizGetRecommendation(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var saved = TournamentLevers.readIntent(nk, userId);
+    if (!saved) return RpcHelpers.successResponse({ has_answered: false, recommended_slug: null });
+    return RpcHelpers.successResponse({
+      has_answered: true,
+      recommended_slug: saved.recommended_slug,
+      answered_at: saved.answered_at,
+    });
+  }
+
+  // ── L7: tournament_streak_check_in ─────────────────────────────────────────
+  // Records a daily check-in. Returns current streak + any reward unlocked.
+  // Called by client after a successful tournament entry (idempotent per day).
+  function rpcStreakCheckIn(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var tzOffsetMin = parseInt("" + (data.tz_offset_min || 0), 10);
+    var result = TournamentLevers.recordCheckin(nk, userId, isNaN(tzOffsetMin) ? 0 : tzOffsetMin);
+    TournamentLevers.logEvent(nk, "streak_check_in", userId, {
+      current_days: result.row.current_days,
+      reward_unlocked: result.new_unlock,
+      reward_day: result.reward ? result.reward.on_day : null,
+    });
+    return RpcHelpers.successResponse({
+      streak: result.row,
+      reward: result.reward,
+      new_unlock: result.new_unlock,
+      next_milestone: TournamentEconomyV2.nextStreakReward(result.row.current_days),
+    });
+  }
+
+  // ── L7.b: tournament_streak_get ────────────────────────────────────────────
+  function rpcStreakGet(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var rows = nk.storageRead([{ collection: TournamentLevers.COL_STREAKS, key: "row", userId: userId }]);
+    var row = (rows && rows.length > 0) ? rows[0].value : null;
+    return RpcHelpers.successResponse({
+      streak: row,
+      next_milestone: row ? TournamentEconomyV2.nextStreakReward((row as any).current_days || 0) : TournamentEconomyV2.STREAK_REWARDS[0],
+    });
+  }
+
+  // ── L6: tournament_track_detail_view ───────────────────────────────────────
+  // Client fires this when user opens a tournament detail screen. We record
+  // the view so the abandonment cron can fire a push at H+24 if no entry.
+  function rpcTrackDetailView(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var slug = "" + (data.slug || "");
+    if (!slug) return RpcHelpers.errorResponse("slug required", 400);
+    if (!TournamentEconomy.getBySlug(slug)) return RpcHelpers.errorResponse("tournament not found", 404);
+    var row = TournamentLevers.recordDetailView(nk, userId, slug);
+    TournamentLevers.logEvent(nk, "tournament_detail_viewed", userId, { slug: slug });
+    return RpcHelpers.successResponse({ tracked: true, nudge_due_at: row.nudge_due_at });
+  }
+
+  // ── L11: tournament_pick_doubleup ──────────────────────────────────────────
+  // Locks in a 2x multiplier on the user's remaining picks for an additional
+  // BC fee. Available only during the configured mid-window % range.
+  function rpcPickDoubleup(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var slug = "" + (data.slug || "");
+    if (!slug) return RpcHelpers.errorResponse("slug required", 400);
+    if (!TournamentEconomyV2.FEATURE_FLAGS.pickn_doubleup_v1) {
+      return RpcHelpers.errorResponse("doubleup feature not enabled yet", 503);
+    }
+    var cfg = TournamentEconomy.getBySlug(slug);
+    if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
+    if (cfg.format !== "pick_n") return RpcHelpers.errorResponse("doubleup only available for pick_n format", 400);
+
+    var entry = TournamentsStorage.readEntry(nk, slug, userId);
+    if (!entry) return RpcHelpers.errorResponse("must enter tournament before doubleup", 400);
+
+    var existing = TournamentLevers.readDoubleup(nk, userId, slug);
+    if (existing) return RpcHelpers.successResponse({ doubleup: existing, idempotent: true });
+
+    var meta = TournamentsStorage.readMeta(nk, slug);
+    if (!meta || (meta.status !== "ACTIVE" && meta.status !== "OPEN")) {
+      return RpcHelpers.errorResponse("tournament not in active window", 400);
+    }
+
+    // Window check — middle 30%-70% of the active window.
+    var anyMeta: any = meta;
+    var windowOpen = isoToUnix(anyMeta.window_open_iso || cfg.open_start_iso);
+    var windowEnd = isoToUnix(anyMeta.window_end_iso || cfg.end_iso);
+    var now = nowSec();
+    var elapsedPct = (now - windowOpen) / Math.max(1, (windowEnd - windowOpen));
+    var lo = TournamentEconomyV2.PICKN_DOUBLEUP_DEFAULT.available_window_pct[0];
+    var hi = TournamentEconomyV2.PICKN_DOUBLEUP_DEFAULT.available_window_pct[1];
+    if (elapsedPct < lo || elapsedPct > hi) {
+      return RpcHelpers.errorResponse("doubleup window closed", 400);
+    }
+
+    // Picks-made gate: read existing picks count.
+    var picksMade = 0;
+    try {
+      var pickRows = nk.storageRead([{ collection: TournamentsStorage.COL_PICKS, key: slug, userId: userId }]);
+      if (pickRows && pickRows.length > 0) {
+        var pdata = pickRows[0].value as any;
+        picksMade = (pdata && pdata.picks) ? (pdata.picks.length || 0) : 0;
+      }
+    } catch (_) { }
+    if (picksMade < TournamentEconomyV2.PICKN_DOUBLEUP_DEFAULT.eligible_after_picks) {
+      return RpcHelpers.errorResponse("must make " + TournamentEconomyV2.PICKN_DOUBLEUP_DEFAULT.eligible_after_picks + " picks first", 400);
+    }
+
+    var cost = TournamentEconomyV2.PICKN_DOUBLEUP_DEFAULT.cost_bc;
+    if (!debitBc(nk, userId, cost, "tournament_pickn_doubleup:" + slug)) {
+      return RpcHelpers.errorResponse("insufficient BC", 402);
+    }
+
+    var row = TournamentLevers.writeDoubleup(nk, userId, slug, picksMade);
+    TournamentLevers.logEvent(nk, "pickn_doubleup_locked", userId, {
+      slug: slug, cost_bc: cost, picks_made: picksMade,
+    });
+    if (logger) logger.info("[L11] doubleup locked: %s by %s (%d picks at lock, cost %d BC)", slug, userId, picksMade, cost);
+    return RpcHelpers.successResponse({ doubleup: row });
+  }
+
+  // ── L9: tournament_spectator_subscribe ─────────────────────────────────────
+  // Public-spectator path. Adds caller (or anonymous spectator if no userId)
+  // to the spectator subscriber set so they receive 1002:lb-update broadcasts.
+  // Throttled to half the entrant refresh cadence (per WATCH_LIVE config).
+  function rpcSpectatorSubscribe(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var slug = "" + (data.slug || "");
+    if (!slug) return RpcHelpers.errorResponse("slug required", 400);
+    if (!TournamentEconomy.getBySlug(slug)) return RpcHelpers.errorResponse("tournament not found", 404);
+    var userId = ctx.userId || ("anon_" + nowSec());
+    TournamentLevers.addSpectator(nk, slug, userId);
+    TournamentLevers.logEvent(nk, "spectator_subscribed", ctx.userId || null, { slug: slug });
+    return RpcHelpers.successResponse({
+      subscribed: true,
+      slug: slug,
+      refresh_seconds: TournamentEconomyV2.WATCH_LIVE.spectator_lb_refresh_seconds,
+      cta_join_after_minutes: TournamentEconomyV2.WATCH_LIVE.cta_join_next_round_after_minutes,
+    });
+  }
+
+  // ── L4: tournament_social_proof_recent ─────────────────────────────────────
+  // Returns the last N (entry, pot, settled) events on a slug for the social-
+  // proof ticker. Public/anonymous — names are auto-redacted below the
+  // configured threshold to honour privacy in low-volume slugs.
+  function rpcSocialProofRecent(_ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var slug = "" + (data.slug || "");
+    if (!slug) return RpcHelpers.errorResponse("slug required", 400);
+    var meta = TournamentsStorage.readMeta(nk, slug);
+    if (!meta) return RpcHelpers.errorResponse("tournament not found", 404);
+    var redact = (meta.entries_count || 0) < TournamentEconomyV2.SOCIAL_PROOF_TICKER.show_handle_redaction_below_count;
+    return RpcHelpers.successResponse({
+      slug: slug,
+      pot_bc: meta.pot_bc,
+      entries_count: meta.entries_count,
+      redact_handles: redact,
+      visible_window_seconds: TournamentEconomyV2.SOCIAL_PROOF_TICKER.visible_window_seconds,
+      min_visual_refresh_ms: TournamentEconomyV2.SOCIAL_PROOF_TICKER.min_visual_refresh_ms,
+    });
+  }
+
+  // ── L12: tournament_levers_health ──────────────────────────────────────────
+  // Internal/admin RPC. Returns the live status of every flag + counts of
+  // events recorded in the last 24h. Public read so the dashboard can poll
+  // it without an admin token.
+  function rpcLeversHealth(_ctx: nkruntime.Context, _l: nkruntime.Logger, _nk: nkruntime.Nakama, _payload: string): string {
+    return RpcHelpers.successResponse({
+      flags: TournamentEconomyV2.FEATURE_FLAGS,
+      kpi_thresholds: TournamentEconomyV2.KPI_THRESHOLDS,
+      push_cadence_ladder: TournamentEconomyV2.PUSH_CADENCE_LADDER,
+      streak_rewards: TournamentEconomyV2.STREAK_REWARDS,
+      tournament_badges: TournamentEconomyV2.TOURNAMENT_BADGES,
+      wave2_slate_draft: TournamentEconomyV2.WAVE_2_SLATE_DRAFT,
+      checked_at: nowSec(),
+    });
+  }
+
+  // ── L3+L5+L6 cron tick: tournament_levers_cron_tick (service-only) ─────────
+  // Drains abandonment nudges + scans for predictive nudges. Called by the
+  // existing tournament-cron-tick K8s CronJob (chained, so no new CronJob).
+  function rpcLeversCronTick(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) || "");
+    if (!data.service_token || data.service_token !== expected) return RpcHelpers.errorResponse("service-only", 401);
+    var nudges = TournamentLevers.processAbandonmentNudges(nk, logger, 200);
+    return RpcHelpers.successResponse({ ok: true, abandonment_nudges_sent: nudges, ran_at: nowSec() });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A-tier levers — push grades B-/C+ → A/A end-to-end
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ── A1: tournament_welcome_pack_claim ──────────────────────────────────────
+  // First-time bundle: 250 BC + 1 free Pick-N entry credit. Idempotent per
+  // user (claimed_at sentinel). Must be claimed within 7 days of first
+  // sign-in (server enforces, client surfaces a countdown).
+  function rpcWelcomePackClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    if (!TournamentEconomyV2.FEATURE_FLAGS.welcome_pack_v1) {
+      return RpcHelpers.errorResponse("welcome pack feature not enabled", 503);
+    }
+    var existing = TournamentLevers.readWelcomePack(nk, userId);
+    if (existing && existing.claimed_at > 0) {
+      return RpcHelpers.successResponse({ already_claimed: true, pack: existing });
+    }
+
+    var cfg = TournamentEconomyV2.WELCOME_PACK;
+    // Credit BC via the existing wallet ledger path (same code as
+    // tournament_settle uses for payouts).
+    try {
+      nk.walletUpdate(userId, { coins: cfg.bc_grant }, { source: "welcome_pack" }, false);
+    } catch (e: any) {
+      if (logger) logger.warn("[A1] welcome pack wallet credit failed for %s: %s", userId, e && e.message ? e.message : "?");
+      return RpcHelpers.errorResponse("wallet credit failed", 500);
+    }
+    var row: TournamentLevers.WelcomePackRow = {
+      user_id: userId,
+      granted_bc: cfg.bc_grant,
+      free_pickn_entry_remaining: cfg.free_pickn_entry ? 1 : 0,
+      claimed_at: nowSec(),
+      expires_at: nowSec() + cfg.expires_after_hours * 3600,
+    };
+    TournamentLevers.writeWelcomePack(nk, userId, row);
+    TournamentLevers.logEvent(nk, "welcome_pack_claimed", userId, { granted_bc: cfg.bc_grant });
+    if (logger) logger.info("[A1] welcome pack claimed by %s: %d BC", userId, cfg.bc_grant);
+    return RpcHelpers.successResponse({ claimed: true, pack: row });
+  }
+
+  // ── A1.b: tournament_welcome_pack_status ───────────────────────────────────
+  function rpcWelcomePackStatus(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var row = TournamentLevers.readWelcomePack(nk, userId);
+    if (!row || row.claimed_at === 0) {
+      return RpcHelpers.successResponse({
+        eligible: TournamentEconomyV2.FEATURE_FLAGS.welcome_pack_v1,
+        claimed: false,
+        config: TournamentEconomyV2.WELCOME_PACK,
+      });
+    }
+    return RpcHelpers.successResponse({ eligible: false, claimed: true, pack: row });
+  }
+
+  // ── A2: tournament_daily_quests_get / _record ──────────────────────────────
+  function rpcDailyQuestsGet(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var tz = parseInt("" + (data.tz_offset_min || 0), 10);
+    var row = TournamentLevers.readDailyQuests(nk, userId, isNaN(tz) ? 0 : tz);
+    return RpcHelpers.successResponse({
+      enabled: TournamentEconomyV2.FEATURE_FLAGS.daily_quest_v1,
+      definitions: TournamentEconomyV2.DAILY_QUESTS,
+      bonus: TournamentEconomyV2.DAILY_QUEST_COMPLETION_BONUS,
+      progress: row,
+    });
+  }
+
+  // Generic increment endpoint. Client fires e.g. metric=tournament_enter
+  // after a successful entry. Server is idempotent within a calendar day.
+  function rpcDailyQuestsRecord(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    if (!TournamentEconomyV2.FEATURE_FLAGS.daily_quest_v1) {
+      return RpcHelpers.successResponse({ enabled: false });
+    }
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var metric = "" + (data.metric || "");
+    var by = parseInt("" + (data.by || 1), 10);
+    var tz = parseInt("" + (data.tz_offset_min || 0), 10);
+    if (!metric) return RpcHelpers.errorResponse("metric required", 400);
+
+    var result = TournamentLevers.incrementDailyQuest(nk, userId, metric, isNaN(by) ? 1 : by, isNaN(tz) ? 0 : tz);
+    var bcMinted = 0;
+    if (result.newly_completed.length > 0) {
+      var defs = TournamentEconomyV2.DAILY_QUESTS;
+      for (var i = 0; i < result.newly_completed.length; i++) {
+        for (var j = 0; j < defs.length; j++) {
+          if (defs[j].slug === result.newly_completed[i]) bcMinted += defs[j].reward_bc;
+        }
+      }
+    }
+    if (result.bonus_unlocked) bcMinted += TournamentEconomyV2.DAILY_QUEST_COMPLETION_BONUS.bc;
+    if (bcMinted > 0) {
+      try {
+        nk.walletUpdate(userId, { coins: bcMinted }, { source: "daily_quest" }, false);
+      } catch (e: any) {
+        if (logger) logger.warn("[A2] quest reward credit failed for %s: %s", userId, e && e.message ? e.message : "?");
+      }
+    }
+    TournamentLevers.logEvent(nk, "daily_quest_progress", userId, {
+      metric: metric, newly_completed: result.newly_completed, bonus_unlocked: result.bonus_unlocked, bc_minted: bcMinted,
+    });
+    return RpcHelpers.successResponse({
+      progress: result.row,
+      newly_completed: result.newly_completed,
+      bonus_unlocked: result.bonus_unlocked,
+      bc_minted: bcMinted,
+    });
+  }
+
+  // ── A3: tournament_referral_2sided_record (service-only) ───────────────────
+  // Called from tournament_enter on a paid-entry first time when the user
+  // has a referrer_user_id stored. Mints both legs of the payout.
+  function rpcReferral2SidedRecord(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) || "");
+    if (!data.service_token || data.service_token !== expected) return RpcHelpers.errorResponse("service-only", 401);
+    if (!TournamentEconomyV2.FEATURE_FLAGS.referral_2sided_v1) {
+      return RpcHelpers.successResponse({ enabled: false });
+    }
+    var referrer = "" + (data.referrer_user_id || "");
+    var referred = "" + (data.referred_user_id || "");
+    var result = TournamentLevers.recordReferral2Sided(nk, referrer, referred);
+    if (result.paid && result.row) {
+      try {
+        nk.walletUpdate(referrer, { coins: result.row.referrer_bc }, { source: "referral_2s_referrer" }, false);
+        nk.walletUpdate(referred, { coins: result.row.referred_bc }, { source: "referral_2s_referred" }, false);
+      } catch (e: any) {
+        if (logger) logger.warn("[A3] referral 2-sided credit failed: %s", e && e.message ? e.message : "?");
+      }
+      TournamentLevers.logEvent(nk, "referral_2sided_paid", referrer, { referred_user_id: referred });
+    }
+    return RpcHelpers.successResponse(result);
+  }
+
+  // ── A4: tournament_cohort_retention (anon, public) ─────────────────────────
+  // Returns the rolling cohort retention rollup for the audit dashboard.
+  function rpcCohortRetention(_ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+    if (!TournamentEconomyV2.FEATURE_FLAGS.cohort_retention_dash_v1) {
+      return RpcHelpers.successResponse({ enabled: false });
+    }
+    var rollup = TournamentLevers.aggregateCohortRetention(nk);
+    return RpcHelpers.successResponse({
+      enabled: true,
+      window: TournamentEconomyV2.COHORT_RETENTION_WINDOWS,
+      rollup: rollup,
+    });
+  }
+
+  // ── A5: tournament_funnel_metrics_record (auth) + _get (anon) ──────────────
+  // Client fires _record on view-list / enter-attempted / enter-success.
+  // _get returns the rolling counters for ops dashboards.
+  function rpcFunnelRecord(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireUserId(ctx);
+    if (!TournamentEconomyV2.FEATURE_FLAGS.funnel_metrics_v1) {
+      return RpcHelpers.successResponse({ enabled: false });
+    }
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var metric = "" + (data.metric || "");
+    var validMetrics = ["view_list", "enter_attempted", "enter_success", "preenroll", "first_entry"];
+    if (validMetrics.indexOf(metric) < 0) return RpcHelpers.errorResponse("invalid metric", 400);
+    var windowsH = TournamentEconomyV2.FUNNEL_METRICS_WINDOWS_HOURS;
+    for (var i = 0; i < windowsH.length; i++) {
+      var bucket = String(windowsH[i]) + "h";
+      TournamentLevers.incrementFunnel(nk, metric, bucket);
+    }
+    return RpcHelpers.successResponse({ recorded: true, metric: metric });
+  }
+
+  function rpcFunnelGet(_ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+    var counters = TournamentLevers.readFunnelCounters(nk);
+    var derived: any = {};
+    var windowsH = TournamentEconomyV2.FUNNEL_METRICS_WINDOWS_HOURS;
+    for (var i = 0; i < windowsH.length; i++) {
+      var w = String(windowsH[i]) + "h";
+      var v = counters.view_list[w] || 0;
+      var es = counters.enter_success[w] || 0;
+      var ea = counters.enter_attempted[w] || 0;
+      derived[w] = {
+        view_list: v,
+        enter_attempted: ea,
+        enter_success: es,
+        view_to_enter_success: v > 0 ? (es / v) : 0,
+        attempt_to_success: ea > 0 ? (es / ea) : 0,
+      };
+    }
+    return RpcHelpers.successResponse({
+      counters: counters,
+      derived: derived,
+      thresholds: TournamentEconomyV2.KPI_THRESHOLDS,
+    });
+  }
+
   // ── Registration ───────────────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer): void {
+    // Short alias to keep registration lines readable. Wraps an RPC handler
+    // so that AUTH_REQUIRED errors thrown by RpcHelpers.requireUserId() are
+    // converted to a clean unauthenticated response instead of leaking a
+    // Goja stack trace + HTTP 500 to anonymous callers (B6 fix).
+    var auth = RpcHelpers.withCleanAuthError;
+
     // User-callable
     initializer.registerRpc("tournament_list", rpcList);
     initializer.registerRpc("tournament_get", rpcGet);
     initializer.registerRpc("tournament_caller_status", rpcCallerStatus);
     initializer.registerRpc("tournament_bracket_state", rpcBracketState);
-    initializer.registerRpc("tournament_pre_enroll", rpcPreEnroll);
-    initializer.registerRpc("tournament_enter", rpcEnter);
-    initializer.registerRpc("tournament_submit_pack_result", rpcSubmitPackResult);
-    initializer.registerRpc("tournament_submit_picks", rpcSubmitPicks);
-    initializer.registerRpc("tournament_status_get", rpcStatusGet);
+    initializer.registerRpc("tournament_pre_enroll", auth(rpcPreEnroll));
+    initializer.registerRpc("tournament_enter", auth(rpcEnter));
+    initializer.registerRpc("tournament_submit_pack_result", auth(rpcSubmitPackResult));
+    initializer.registerRpc("tournament_submit_picks", auth(rpcSubmitPicks));
+    initializer.registerRpc("tournament_status_get", auth(rpcStatusGet));
     initializer.registerRpc("tournament_leaderboard_top", rpcLbTop);
-    initializer.registerRpc("tournament_leaderboard_around_me", rpcLbAroundMe);
-    initializer.registerRpc("tournament_leaderboard_friends", rpcLbFriends);
+    initializer.registerRpc("tournament_leaderboard_around_me", auth(rpcLbAroundMe));
+    initializer.registerRpc("tournament_leaderboard_friends", auth(rpcLbFriends));
     initializer.registerRpc("tournament_leaderboard_country", rpcLbCountry);
-    initializer.registerRpc("tournament_leaderboard_tier_league", rpcLbTierLeague);
+    initializer.registerRpc("tournament_leaderboard_tier_league", auth(rpcLbTierLeague));
     initializer.registerRpc("tournament_leaderboard_activity_feed", rpcLbActivityFeed);
-    initializer.registerRpc("tournament_claim_cert", rpcClaimCert);
-    initializer.registerRpc("tournament_claim_certificate", rpcClaimCert); // alias used by web/Unity clients
+    initializer.registerRpc("tournament_claim_cert", auth(rpcClaimCert));
+    initializer.registerRpc("tournament_claim_certificate", auth(rpcClaimCert)); // alias used by web/Unity clients
     initializer.registerRpc("certificate_get", rpcCertificateGet);
     initializer.registerRpc("tournament_content_get_pack", rpcContentGetPack);
     initializer.registerRpc("tournament_get_pick_n_questions", rpcContentGetPack); // alias for Pick-N flow
     initializer.registerRpc("tournament_video_get_url", rpcVideoGetUrl);
     initializer.registerRpc("learning_track_video_url", rpcVideoGetUrl);   // alias for Unity gateway
     initializer.registerRpc("learning_track_get", rpcLearningTrackGet);
-    initializer.registerRpc("learning_track_progress_get", rpcLearningTrackProgressGet);
-    initializer.registerRpc("learning_video_record_watch", rpcLearningVideoRecordWatch);
-    initializer.registerRpc("learning_check_submit", rpcLearningCheckSubmit);
-    initializer.registerRpc("tournament_learning_check_submit", rpcLearningCheckSubmit);
-    initializer.registerRpc("tournament_referral_get_mine", rpcReferralGetMine);
-    initializer.registerRpc("referral_my_code", rpcReferralGetMine);       // alias
+    initializer.registerRpc("learning_track_progress_get", auth(rpcLearningTrackProgressGet));
+    initializer.registerRpc("learning_video_record_watch", auth(rpcLearningVideoRecordWatch));
+    initializer.registerRpc("learning_check_submit", auth(rpcLearningCheckSubmit));
+    initializer.registerRpc("tournament_learning_check_submit", auth(rpcLearningCheckSubmit));
+    initializer.registerRpc("tournament_referral_get_mine", auth(rpcReferralGetMine));
+    initializer.registerRpc("referral_my_code", auth(rpcReferralGetMine));       // alias
     initializer.registerRpc("referral_lookup", rpcReferralLookup);
     initializer.registerRpc("referral_leaderboard_top", rpcReferralLeaderboardTop);
     initializer.registerRpc("referral_pre_enroll_with_code", rpcReferralPreEnrollWithCode);
@@ -1426,5 +1896,38 @@ namespace TournamentRpcs {
     initializer.registerRpc("tournament_referral_settle_topN", rpcReferralSettleTopN);
     initializer.registerRpc("tournament_bracket_seed_topN", rpcBracketSeed);
     initializer.registerRpc("tournament_bracket_advance_round", rpcBracketAdvanceRound);
+
+    // ─── Wave-2 conversion + retention levers (L1-L12) ────────────────────
+    // Public/anonymous-friendly
+    initializer.registerRpc("tournament_intent_quiz_get", rpcIntentQuizGet);                  // L1.a
+    initializer.registerRpc("tournament_spectator_subscribe", rpcSpectatorSubscribe);         // L9
+    initializer.registerRpc("tournament_social_proof_recent", rpcSocialProofRecent);          // L4
+    initializer.registerRpc("tournament_levers_health", rpcLeversHealth);                     // L12
+
+    // Auth-required
+    initializer.registerRpc("tournament_intent_quiz_submit", auth(rpcIntentQuizSubmit));      // L1.b
+    initializer.registerRpc("tournament_intent_quiz_get_recommendation", auth(rpcIntentQuizGetRecommendation)); // L1.c
+    initializer.registerRpc("tournament_streak_check_in", auth(rpcStreakCheckIn));            // L7.a
+    initializer.registerRpc("tournament_streak_get", auth(rpcStreakGet));                     // L7.b
+    initializer.registerRpc("tournament_track_detail_view", auth(rpcTrackDetailView));        // L6
+    initializer.registerRpc("tournament_pick_doubleup", auth(rpcPickDoubleup));               // L11
+
+    // Service-only (called by the existing tournament-cron-tick CronJob)
+    initializer.registerRpc("tournament_levers_cron_tick", rpcLeversCronTick);                // L3+L5+L6 chained
+
+    // ─── A-tier levers (push grades B-/C+ → A/A) ─────────────────────────
+    // Public/anonymous-friendly
+    initializer.registerRpc("tournament_cohort_retention", rpcCohortRetention);                // A4
+    initializer.registerRpc("tournament_funnel_metrics_get", rpcFunnelGet);                    // A5
+
+    // Auth-required
+    initializer.registerRpc("tournament_welcome_pack_claim", auth(rpcWelcomePackClaim));       // A1
+    initializer.registerRpc("tournament_welcome_pack_status", auth(rpcWelcomePackStatus));     // A1
+    initializer.registerRpc("tournament_daily_quests_get", auth(rpcDailyQuestsGet));           // A2
+    initializer.registerRpc("tournament_daily_quests_record", auth(rpcDailyQuestsRecord));     // A2
+    initializer.registerRpc("tournament_funnel_metrics_record", auth(rpcFunnelRecord));        // A5
+
+    // Service-only
+    initializer.registerRpc("tournament_referral_2sided_record", rpcReferral2SidedRecord);     // A3
   }
 }

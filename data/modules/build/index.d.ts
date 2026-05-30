@@ -6,6 +6,10 @@ declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
 declare namespace AiPipelines {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvAvatarComparison {
+    var COLLECTION: string;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QvCrashHandler {
     export var LOG_COLLECTION: string;
     export var PATTERN_COLLECTION: string;
@@ -3050,6 +3054,154 @@ declare namespace TournamentEconomy {
         amount: string;
     };
 }
+declare namespace TournamentEconomyV2 {
+    const FEATURE_FLAGS: {
+        intent_quiz_onboarding: boolean;
+        scarcity_counter_v1: boolean;
+        push_cadence_ladder_v1: boolean;
+        social_proof_ticker_v1: boolean;
+        predictive_rank_nudge_v1: boolean;
+        abandonment_nudge_v1: boolean;
+        streak_engine_v1: boolean;
+        tournament_badges_v1: boolean;
+        watch_live_v1: boolean;
+        wave2_slate: boolean;
+        pickn_doubleup_v1: boolean;
+        kpi_alerts_v1: boolean;
+        welcome_pack_v1: boolean;
+        daily_quest_v1: boolean;
+        referral_2sided_v1: boolean;
+        cohort_retention_dash_v1: boolean;
+        funnel_metrics_v1: boolean;
+    };
+    interface KPIThreshold {
+        name: string;
+        floor: number;
+        target: number;
+        stretch: number;
+        benchmark_2026: number;
+        source: string;
+    }
+    const KPI_THRESHOLDS: KPIThreshold[];
+    interface IntentQuestion {
+        id: string;
+        prompt: string;
+        options: {
+            id: string;
+            label: string;
+            topic_tags: string[];
+        }[];
+    }
+    const INTENT_QUIZ: IntentQuestion[];
+    const SCARCITY_REFRESH_SECONDS = 5;
+    const SCARCITY_LOW_THRESHOLD = 100;
+    const SCARCITY_VERY_LOW_THRESHOLD = 25;
+    interface PushCadenceEntry {
+        code: string;
+        trigger: string;
+        template: string;
+        cap_per_user_per_day: number;
+        cap_per_slug_total: number;
+        quiet_hours_local: [number, number];
+    }
+    const PUSH_CADENCE_LADDER: PushCadenceEntry[];
+    const PUSH_GLOBAL_CAP_PER_24H = 4;
+    const PUSH_HARD_STOP_AFTER_IGNORED = 2;
+    const SOCIAL_PROOF_TICKER: {
+        visible_window_seconds: number;
+        min_visual_refresh_ms: number;
+        show_handle_redaction_below_count: number;
+    };
+    const PREDICTIVE_NUDGE: {
+        rank_slip_threshold: number;
+        sliding_window_minutes: number;
+        bonus_bc_per_target_climb: number;
+        max_bonus_bc_per_window: number;
+        cooldown_minutes_per_user_slug: number;
+    };
+    const ABANDONMENT_NUDGE: {
+        delay_hours: number;
+        max_per_user_per_week: number;
+        expire_if_tournament_closes_within_hours: number;
+    };
+    interface StreakReward {
+        on_day: number;
+        reward_bc: number;
+        badge_slug?: string;
+        free_pickn_entry?: boolean;
+    }
+    const STREAK_REWARDS: StreakReward[];
+    const STREAK_GRACE_DAYS = 1;
+    const STREAK_RESET_LOCAL_HOUR = 4;
+    interface TournamentBadge {
+        slug: string;
+        name: string;
+        description: string;
+        award_rule: string;
+    }
+    const TOURNAMENT_BADGES: TournamentBadge[];
+    const WATCH_LIVE: {
+        spectator_lb_refresh_seconds: number;
+        spectator_max_concurrent_per_pod: number;
+        cta_join_next_round_after_minutes: number;
+    };
+    interface Wave2Tournament {
+        slug: string;
+        name: string;
+        description: string;
+        topic_tag: string;
+        entry_fee_bc: number;
+        pot_seed_bc: number;
+        cohort_target: "25_34" | "18_24" | "35_plus";
+        rationale: string;
+    }
+    const WAVE_2_SLATE_DRAFT: Wave2Tournament[];
+    interface PickNDoubleupConfig {
+        available_window_pct: [number, number];
+        cost_bc: number;
+        multiplier: number;
+        max_per_user_per_tournament: number;
+        eligible_after_picks: number;
+    }
+    const PICKN_DOUBLEUP_DEFAULT: PickNDoubleupConfig;
+    function thresholdByName(name: string): KPIThreshold | null;
+    function isFeatureEnabled(flag: keyof typeof FEATURE_FLAGS): boolean;
+    const WELCOME_PACK: {
+        bc_grant: number;
+        free_pickn_entry: boolean;
+        expires_after_hours: number;
+        badge_slug: string;
+    };
+    interface DailyQuestDef {
+        slug: string;
+        title: string;
+        description: string;
+        target: number;
+        metric: string;
+        reward_bc: number;
+    }
+    const DAILY_QUESTS: DailyQuestDef[];
+    const DAILY_QUEST_COMPLETION_BONUS: {
+        bc: number;
+        free_pickn_entry: boolean;
+        badge_slug: string;
+    };
+    const REFERRAL_2SIDED: {
+        referrer_bc: number;
+        referred_bc: number;
+        fire_on: string;
+        cap_per_referrer_per_day: number;
+        badge_slug_for_referrer_at_5: string;
+    };
+    const COHORT_RETENTION_WINDOWS: {
+        cohort_size_days: number;
+        retention_checkpoints_days: number[];
+        rolling_window_days: number;
+    };
+    const FUNNEL_METRICS_WINDOWS_HOURS: number[];
+    function nextStreakReward(currentDay: number): StreakReward | null;
+    function pushTemplateForCode(code: string): PushCadenceEntry | null;
+}
 declare namespace WalletGuestSync {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3383,6 +3535,18 @@ declare namespace RpcHelpers {
     function gameId(data: any): string | undefined;
     function logRpcError(nk: nkruntime.Nakama, logger: nkruntime.Logger, rpcName: string, errorMessage: string, userId?: string, gameId?: string): void;
     function requireUserId(ctx: nkruntime.Context): string;
+    /**
+     * Higher-order wrapper that converts AUTH_REQUIRED errors thrown by
+     * requireUserId() into a clean JSON response. Apply at the
+     * `initializer.registerRpc(...)` callsite for every RPC that calls
+     * requireUserId(), so anonymous callers get a proper "sign in required"
+     * payload instead of a Goja stack trace + HTTP 500.
+     *
+     * Usage:
+     *   initializer.registerRpc("tournament_enter",
+     *     RpcHelpers.withCleanAuthError(rpcEnter));
+     */
+    function withCleanAuthError(handler: (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string): (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string;
     function resolveUserId(ctx: nkruntime.Context, payload?: any): string;
     function requireAdmin(ctx: nkruntime.Context, nk: nkruntime.Nakama): void;
 }
@@ -3683,6 +3847,151 @@ declare namespace TournamentTopicCatalog {
     function getEntry(tag: string): TopicEntry | null;
     function getRotatedTag(baseTag: string, weekNum: number): string;
     function listAllTags(): string[];
+}
+declare namespace TournamentLevers {
+    const COL_INTENT_QUIZ = "tournament_intent_quiz";
+    const COL_STREAKS = "tournament_streaks";
+    const COL_DETAIL_VIEWS = "tournament_detail_views";
+    const COL_DOUBLEUP = "tournament_doubleup";
+    const COL_PREDICTIVE_STATE = "tournament_predictive_state";
+    const COL_SPECTATORS = "tournament_spectators";
+    const COL_LEVER_ANALYTICS = "tournament_lever_analytics";
+    const COL_WELCOME_PACK = "tournament_welcome_pack";
+    const COL_DAILY_QUESTS = "tournament_daily_quests";
+    const COL_REFERRAL_2SIDED = "tournament_referral_2sided";
+    const COL_FUNNEL_COUNTERS = "tournament_funnel_counters";
+    interface LeverEvent {
+        event: string;
+        user_id: string | null;
+        properties: {
+            [k: string]: any;
+        };
+        ts: number;
+    }
+    function logEvent(nk: nkruntime.Nakama, event: string, userId: string | null, properties: any): void;
+    interface IntentAnswers {
+        favorite_topic: string;
+        time_budget: string;
+        prize_comfort: string;
+        answered_at: number;
+        recommended_slug: string;
+    }
+    function recommendSlug(answers: {
+        favorite_topic: string;
+        time_budget: string;
+        prize_comfort: string;
+    }): string;
+    function readIntent(nk: nkruntime.Nakama, userId: string): IntentAnswers | null;
+    function writeIntent(nk: nkruntime.Nakama, userId: string, answers: IntentAnswers): void;
+    interface StreakRow {
+        current_days: number;
+        last_calendar_day: string;
+        grace_days_used: number;
+        history: string[];
+        longest_ever: number;
+    }
+    function todayKey(timezoneOffsetMin: number): string;
+    function recordCheckin(nk: nkruntime.Nakama, userId: string, timezoneOffsetMin: number): {
+        row: StreakRow;
+        reward: any | null;
+        new_unlock: boolean;
+    };
+    interface DetailViewRow {
+        slug: string;
+        user_id: string;
+        viewed_at: number;
+        nudge_due_at: number;
+        nudged: boolean;
+        entered: boolean;
+    }
+    function recordDetailView(nk: nkruntime.Nakama, userId: string, slug: string): DetailViewRow;
+    function markEntered(nk: nkruntime.Nakama, userId: string, slug: string): void;
+    function processAbandonmentNudges(nk: nkruntime.Nakama, logger: nkruntime.Logger, maxBatch: number): number;
+    interface DoubleupRow {
+        slug: string;
+        user_id: string;
+        picks_made_at_lock: number;
+        cost_bc: number;
+        multiplier: number;
+        locked_at: number;
+    }
+    function readDoubleup(nk: nkruntime.Nakama, userId: string, slug: string): DoubleupRow | null;
+    function writeDoubleup(nk: nkruntime.Nakama, userId: string, slug: string, picksMade: number): DoubleupRow;
+    function addSpectator(nk: nkruntime.Nakama, slug: string, userId: string): void;
+    interface PredictiveState {
+        slug: string;
+        user_id: string;
+        samples: {
+            rank: number;
+            ts: number;
+        }[];
+        last_nudge_at: number;
+    }
+    function pushRankSample(nk: nkruntime.Nakama, userId: string, slug: string, rank: number): {
+        should_nudge: boolean;
+        target_rank: number;
+    };
+    interface WelcomePackRow {
+        user_id: string;
+        granted_bc: number;
+        free_pickn_entry_remaining: number;
+        claimed_at: number;
+        expires_at: number;
+    }
+    function readWelcomePack(nk: nkruntime.Nakama, userId: string): WelcomePackRow | null;
+    function writeWelcomePack(nk: nkruntime.Nakama, userId: string, row: WelcomePackRow): void;
+    interface DailyQuestRow {
+        calendar_day: string;
+        quests: {
+            [slug: string]: {
+                progress: number;
+                completed: boolean;
+                reward_paid: boolean;
+            };
+        };
+        bonus_claimed: boolean;
+    }
+    function dailyQuestKeyFor(timezoneOffsetMin: number): string;
+    function readDailyQuests(nk: nkruntime.Nakama, userId: string, timezoneOffsetMin: number): DailyQuestRow;
+    function writeDailyQuests(nk: nkruntime.Nakama, userId: string, row: DailyQuestRow, timezoneOffsetMin: number): void;
+    function incrementDailyQuest(nk: nkruntime.Nakama, userId: string, metric: string, by: number, timezoneOffsetMin: number): {
+        row: DailyQuestRow;
+        newly_completed: string[];
+        bonus_unlocked: boolean;
+    };
+    interface Referral2SidedRow {
+        referrer_user_id: string;
+        referred_user_id: string;
+        paid_at: number;
+        referrer_bc: number;
+        referred_bc: number;
+    }
+    function recordReferral2Sided(nk: nkruntime.Nakama, referrerUserId: string, referredUserId: string): {
+        paid: boolean;
+        reason: string;
+        row: Referral2SidedRow | null;
+    };
+    function aggregateCohortRetention(nk: nkruntime.Nakama): any;
+    interface FunnelCounters {
+        view_list: {
+            [windowH: string]: number;
+        };
+        enter_attempted: {
+            [windowH: string]: number;
+        };
+        enter_success: {
+            [windowH: string]: number;
+        };
+        preenroll: {
+            [windowH: string]: number;
+        };
+        first_entry: {
+            [windowH: string]: number;
+        };
+        last_reset_at: number;
+    }
+    function incrementFunnel(nk: nkruntime.Nakama, metric: string, windowKey: string): void;
+    function readFunnelCounters(nk: nkruntime.Nakama): FunnelCounters;
 }
 declare namespace TournamentFormatClassic {
     interface ClassicPayoutRow {

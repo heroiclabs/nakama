@@ -2,6 +2,7 @@ nakama
 nakama-server
 .cookie
 local.yml
+.firecrawl/
 
 # Created by https://www.toptal.com/developers/gitignore/api/go,angular,node,intellij+all,visualstudiocode,visualstudio,sublimetext,windows,linux,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,angular,node,intellij+all,visualstudiocode,visualstudio,sublimetext,windows,linux,macos
@@ -753,3 +754,13 @@ scripts/node_modules
 scripts/apple_data_cache.json
 .local-secrets/
 config.bat
+
+# Lambda function build artifacts — source goes in src/, but the Linux x64
+# node_modules (with native sharp binaries, ~100 MB) and the staging zip
+# are deploy artifacts only. Build with `npm install && npm run package`
+# and deploy via `aws lambda update-function-code`.
+data/lambda-functions/*/node_modules/
+data/lambda-functions/*/dist/
+data/lambda-functions/*/_stage/
+data/lambda-functions/*/*.zip
+data/lambda-functions/*/package-lock.json
