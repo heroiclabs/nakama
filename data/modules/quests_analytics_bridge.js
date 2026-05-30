@@ -21,6 +21,30 @@ function _qeParseMaybeJson(v) {
   try { return JSON.parse(v); } catch (e) { return v; }
 }
 
+// nk.sqlQuery() returns the storage `value` column (JSON content) as a UTF-8
+// BYTE ARRAY in the Goja runtime, not a string or parsed object. _qeParseMaybeJson
+// would pass that array straight through, leaving callers with {0:123,1:34,...}
+// instead of the event. _qeDecodeJson handles all three shapes: already-parsed
+// object, JSON string, or UTF-8 byte array (decoded via the escape/decodeURIComponent
+// trick so multi-byte content — e.g. non-Latin quiz text — survives intact).
+function _qeDecodeJson(v) {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'string') {
+    try { return JSON.parse(v); } catch (e) { return null; }
+  }
+  if (typeof v === 'object') {
+    var looksLikeBytes = (typeof v.length === 'number') &&
+      (v.length === 0 || typeof v[0] === 'number');
+    if (!looksLikeBytes) return v;
+    var bin = '';
+    for (var i = 0; i < v.length; i++) bin += String.fromCharCode(v[i] & 0xff);
+    var str;
+    try { str = decodeURIComponent(escape(bin)); } catch (e) { str = bin; }
+    try { return JSON.parse(str); } catch (e2) { return null; }
+  }
+  return null;
+}
+
 /**
  * Attach consent markers IVX-AI analytics-knowledge expects on cohort rows.
  * Reads user_metadata/analytics and scans recent events for consent_state.
@@ -270,7 +294,7 @@ function rpcQeCohortExport(ctx, logger, nk, payload) {
           [uid, activeSinceDays, maxEventsPerUser]
         );
         for (var e = 0; e < evRows.length; e++) {
-          var parsed = _qeParseMaybeJson(evRows[e].value);
+          var parsed = _qeDecodeJson(evRows[e].value);
           if (parsed) events.push(parsed);
         }
       } catch (eEv) {
@@ -334,7 +358,7 @@ function rpcQeUserEventSummary(ctx, logger, nk, payload) {
     var rows = nk.sqlQuery(sql, params);
     var events = [];
     for (var i = 0; i < rows.length; i++) {
-      var parsed = _qeParseMaybeJson(rows[i].value);
+      var parsed = _qeDecodeJson(rows[i].value);
       if (parsed) events.push(parsed);
     }
     if (events.length) {
