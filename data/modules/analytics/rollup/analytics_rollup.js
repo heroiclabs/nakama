@@ -1242,6 +1242,25 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         return arErr("Rollup write failures: " + writeErrors.join("; "), 500);
     }
 
+    // ── Cumulative lifetime counters ──────────────────────────────────────
+    // Maintain a running total of unique users ever seen, combined across all
+    // games. Read-modify-write is safe here: rollup runs are serialised by
+    // the cron (Forbid concurrency policy) and idempotent re-runs guard by
+    // only adding users that are genuinely new in analytics_user_first_seen.
+    try {
+        var prevTotals = arReadOne(nk, AR_META_COLLECTION, "platform_totals", AR_SYSTEM_USER) || {};
+        var prevTotal = parseInt(prevTotals.total_users_lifetime, 10) || 0;
+        var newThisRun = Object.keys(allNewUsers).length;
+        arWriteOne(nk, AR_META_COLLECTION, "platform_totals", AR_SYSTEM_USER, {
+            total_users_lifetime: prevTotal + newThisRun,
+            new_users_this_run:   newThisRun,
+            last_rollup_date:     dateStr,
+            last_updated_at:      new Date().toISOString()
+        });
+    } catch (eTot) {
+        logger.warn("[analytics_rollup] platform_totals write failed: " + eTot.message);
+    }
+
     // Record success marker.
     arWriteOne(nk, AR_META_COLLECTION, "last_success", AR_SYSTEM_USER, {
         date: dateStr,

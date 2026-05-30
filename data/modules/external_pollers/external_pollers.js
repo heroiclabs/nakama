@@ -343,6 +343,9 @@ function rpcExternalPollAll(ctx, logger, nk, payload) {
         { key: "appodeal", handler: rpcExternalPollAppodeal },
         { key: "appstore", handler: rpcExternalPollAppstore },
         { key: "ugs",      handler: rpcExternalPollUgs }
+        // play_console data is import-only (no automated API fetch possible
+        // from Goja due to OAuth2 RS256 requirement). Use external script:
+        //   node scripts/play_data_fetcher.js | call play_console_import RPC
     ];
 
     for (var i = 0; i < rpcs.length; i++) {
@@ -370,6 +373,11 @@ function rpcExternalPollStatus(ctx, logger, nk, payload) {
         var p = providers[i];
         status[p] = epReadOne(nk, EP_META_COLLECTION, p, EP_SYSTEM_USER) || { provider: p, lastPollUnix: 0 };
     }
+    // Play Console: read the latest snapshot timestamp (imported manually)
+    var playSnap = epReadOne(nk, "external_analytics", "play_quizverse_latest", EP_SYSTEM_USER);
+    status["play_console"] = playSnap
+        ? { provider: "play_console", lastPollAt: playSnap.fetched_at, source: playSnap.source, total_installs: playSnap.total_installs }
+        : { provider: "play_console", lastPollUnix: 0, note: "not yet imported — call play_console_import RPC" };
     return epOk({ enabled: epFeatureEnabled(ctx), providers: status });
 }
 

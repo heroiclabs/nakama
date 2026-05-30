@@ -773,6 +773,30 @@
             align-items: center;
             gap: 0.5rem;
         }
+        /* ── Time-range quick buttons ──────────────────────────── */
+        .range-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 500;
+            padding: 5px 11px;
+            transition: all 0.15s ease;
+        }
+        .range-btn:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        .range-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
         .header-select {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -1403,14 +1427,39 @@
                 </select>
             </div>
             <div class="header-controls">
-                <label style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Range:</label>
-                <select id="daysSelector" class="header-select" onchange="onDaysChange()">
+                <!-- ── Time Range Quick Buttons ─────────────────────────── -->
+                <div id="rangeStrip" style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                    <span style="font-size:0.72rem;color:var(--text-muted);font-weight:500;margin-right:4px;">Range:</span>
+                    <button class="range-btn active" data-days="1"   onclick="setRange(1,this)">Today</button>
+                    <button class="range-btn"         data-days="7"   onclick="setRange(7,this)">Week</button>
+                    <button class="range-btn"         data-days="30"  onclick="setRange(30,this)">30d</button>
+                    <button class="range-btn"         data-days="90"  onclick="setRange(90,this)">90d</button>
+                    <button class="range-btn"         data-days="180" onclick="setRange(180,this)">6 Mo</button>
+                    <button class="range-btn"         data-days="365" onclick="setRange(365,this)">1 Year</button>
+                    <button class="range-btn"         data-days="0"   onclick="openCustomRange(this)" id="customRangeBtn">📅 Custom</button>
+                </div>
+                <!-- ── Custom Date Range Picker (hidden until Custom clicked) ── -->
+                <div id="customRangePicker" style="display:none;align-items:center;gap:6px;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;margin-top:4px;">
+                    <span style="font-size:0.72rem;color:var(--text-muted);">From:</span>
+                    <input type="date" id="rangeFrom" class="header-select" style="padding:4px 8px;font-size:0.8rem;cursor:pointer;"
+                           onchange="onCustomRangeChange()">
+                    <span style="font-size:0.72rem;color:var(--text-muted);">To:</span>
+                    <input type="date" id="rangeTo"   class="header-select" style="padding:4px 8px;font-size:0.8rem;cursor:pointer;"
+                           onchange="onCustomRangeChange()">
+                    <button onclick="applyCustomRange()" style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:0.8rem;font-weight:600;cursor:pointer;">Apply</button>
+                    <button onclick="closeCustomRange()" style="background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:0.8rem;cursor:pointer;">✕</button>
+                </div>
+                <!-- Hidden legacy select (keeps existing JS working via selectedDays) -->
+                <select id="daysSelector" style="display:none;" onchange="onDaysChange()">
+                    <option value="1">Today</option>
                     <option value="7">7 Days</option>
                     <option value="14">14 Days</option>
                     <option value="30" selected>30 Days</option>
                     <option value="60">60 Days</option>
                     <option value="90">90 Days</option>
                     <option value="180">180 Days</option>
+                    <option value="365">1 Year</option>
+                    <option value="730">2 Years</option>
                 </select>
                 <label style="font-size:0.75rem;color:var(--text-muted);font-weight:500;">Mode:</label>
                 <select id="modeFilterSelector" class="header-select" onchange="onModeFilterChange()" title="Quiz mode filter — applies to Overview / Sessions / Retention / Revenue / Quiz / AI / Economy / Monetization">
@@ -2746,6 +2795,131 @@
             if (isAuthenticated) refreshAll();
         }
 
+        // ── Time Range Quick Buttons ────────────────────────────────────
+        // customRangeFrom/To: ISO date strings set by the custom picker,
+        // cleared when a preset button is selected.
+        var customRangeFrom = null;
+        var customRangeTo   = null;
+
+        function setRange(days, btn) {
+            customRangeFrom = null;
+            customRangeTo   = null;
+            closeCustomRange();
+
+            // Sync hidden select so existing code that reads selectedDays still works
+            var sel = document.getElementById('daysSelector');
+            if (sel) {
+                sel.value = days;
+                // Add option dynamically if it doesn't exist
+                if (sel.value != days) {
+                    var opt = document.createElement('option');
+                    opt.value = days; opt.textContent = days + ' Days';
+                    sel.appendChild(opt);
+                    sel.value = days;
+                }
+            }
+            selectedDays = days;
+
+            // Update active state on buttons
+            document.querySelectorAll('.range-btn').forEach(function(b) {
+                b.classList.remove('active');
+            });
+            if (btn) btn.classList.add('active');
+
+            rpcCacheClear();
+            if (isAuthenticated) refreshAll();
+        }
+
+        function openCustomRange(btn) {
+            var picker = document.getElementById('customRangePicker');
+            if (!picker) return;
+            picker.style.display = picker.style.display === 'none' ? 'flex' : 'none';
+
+            // Default: last 30 days
+            var to = new Date();
+            var from = new Date(Date.now() - 30 * 86400000);
+            var toEl   = document.getElementById('rangeTo');
+            var fromEl = document.getElementById('rangeFrom');
+            if (toEl   && !toEl.value)   toEl.value   = to.toISOString().slice(0, 10);
+            if (fromEl && !fromEl.value) fromEl.value = from.toISOString().slice(0, 10);
+
+            // Set max dates to today
+            var todayStr = to.toISOString().slice(0, 10);
+            if (toEl)   toEl.max   = todayStr;
+            if (fromEl) fromEl.max = todayStr;
+            // Min date = 2 years ago (enough history for 1-year view)
+            var minStr = new Date(Date.now() - 730 * 86400000).toISOString().slice(0, 10);
+            if (toEl)   toEl.min   = minStr;
+            if (fromEl) fromEl.min = minStr;
+        }
+
+        function closeCustomRange() {
+            var picker = document.getElementById('customRangePicker');
+            if (picker) picker.style.display = 'none';
+        }
+
+        function onCustomRangeChange() {
+            // Auto-enforce from <= to
+            var fromEl = document.getElementById('rangeFrom');
+            var toEl   = document.getElementById('rangeTo');
+            if (fromEl && toEl && fromEl.value && toEl.value && fromEl.value > toEl.value) {
+                toEl.value = fromEl.value;
+            }
+        }
+
+        function applyCustomRange() {
+            var fromEl = document.getElementById('rangeFrom');
+            var toEl   = document.getElementById('rangeTo');
+            if (!fromEl || !toEl || !fromEl.value || !toEl.value) return;
+
+            customRangeFrom = fromEl.value;  // "YYYY-MM-DD"
+            customRangeTo   = toEl.value;
+
+            // Compute days = today → from_date (so backend query covers the full range)
+            var today   = new Date();
+            var fromDt  = new Date(customRangeFrom + 'T00:00:00Z');
+            var toDt    = new Date(customRangeTo   + 'T00:00:00Z');
+            var daysSinceFrom = Math.max(1, Math.round((today - fromDt) / 86400000));
+            selectedDays = daysSinceFrom;
+
+            // Sync hidden select
+            var sel = document.getElementById('daysSelector');
+            if (sel) {
+                sel.value = daysSinceFrom;
+                if (sel.value != daysSinceFrom) {
+                    var opt = document.createElement('option');
+                    opt.value = daysSinceFrom; opt.textContent = 'Custom';
+                    sel.appendChild(opt);
+                    sel.value = daysSinceFrom;
+                }
+            }
+
+            // Update button state
+            document.querySelectorAll('.range-btn').forEach(function(b) {
+                b.classList.remove('active');
+            });
+            var customBtn = document.getElementById('customRangeBtn');
+            if (customBtn) customBtn.classList.add('active');
+
+            // Show active range label on button
+            var label = customRangeFrom.slice(5) + ' → ' + customRangeTo.slice(5);
+            if (customBtn) customBtn.textContent = '📅 ' + label;
+
+            closeCustomRange();
+            rpcCacheClear();
+            if (isAuthenticated) refreshAll();
+        }
+
+        // Set default active button after page load
+        document.addEventListener('DOMContentLoaded', function() {
+            var defBtn = document.querySelector('.range-btn[data-days="30"]');
+            if (defBtn) {
+                document.querySelectorAll('.range-btn').forEach(function(b) { b.classList.remove('active'); });
+                defBtn.classList.add('active');
+                selectedDays = 30;
+            }
+        });
+
         function onAutoRefreshChange() {
             const secs = parseInt(document.getElementById('autoRefreshSelector').value, 10);
             if (autoRefreshTimer) { clearInterval(autoRefreshTimer); autoRefreshTimer = null; }
@@ -2768,6 +2942,11 @@
             // for overview/sessions/retention/revenue/quiz/AI/economy/monet.
             if (typeof selectedMode === 'string' && selectedMode.length > 0) {
                 out.quiz_mode = selectedMode;
+            }
+            // Inject custom date range when user selected calendar picker
+            if (customRangeFrom) {
+                out.from_date = customRangeFrom;
+                if (customRangeTo) out.to_date = customRangeTo;
             }
             return out;
         }
@@ -3255,7 +3434,13 @@
                         <div class="icon">🗓️</div>
                         <div class="label">MAU</div>
                         <div class="value">${formatNumber(data.mau)}</div>
-                        <div class="trend">Last 30 days</div>
+                        <div class="trend" id="dauRangeLabel">${
+                            customRangeFrom
+                                ? customRangeFrom + ' → ' + (customRangeTo || 'today')
+                                : selectedDays === 1 ? 'Today'
+                                : selectedDays === 7 ? 'Last 7 days'
+                                : 'Last ' + selectedDays + ' days'
+                        }</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🔥</div>
@@ -3280,21 +3465,41 @@
                         <div class="value plain">${formatNumber(data.dau_7d_min || 0)} – ${formatNumber(data.dau_7d_max || 0)}</div>
                         <div class="trend">7-day min/max</div>
                     </div>
+                    <div class="kpi-card">
+                        <div class="icon">🌍</div>
+                        <div class="label">Total Players</div>
+                        <div class="value">${data.total_players ? formatNumber(data.total_players) : '—'}</div>
+                        <div class="trend">${data.total_players_as_of ? 'as of ' + data.total_players_as_of : 'Run rollup to populate'}</div>
+                    </div>
+                    <div class="kpi-card">
+                        <div class="icon">📲</div>
+                        <div class="label">Total Downloads</div>
+                        <div class="value">${data.total_downloads ? formatNumber(data.total_downloads) : '—'}</div>
+                        <div class="trend">iOS: ${formatNumber(data.total_downloads_ios || 0)} · Android: ${formatNumber(data.total_downloads_android || 0)}</div>
+                    </div>
                 `;
-                // DAU sparkline
+                // DAU sparkline — stride-sample for large ranges so the tiny
+                // canvas doesn't try to plot 365 crowded points.
                 if (data.dau_trend && data.dau_trend.length >= 2) {
                     const cvs = document.getElementById('dauSparkline');
                     if (cvs) {
                         if (charts['dauSparkline']) charts['dauSparkline'].destroy();
+                        const SPARKLINE_MAX = 60;
+                        const rawTrend = data.dau_trend;
+                        const dec = decimateSeries(
+                            rawTrend.map(d => d.date.slice(5)),
+                            [{ data: rawTrend.map(d => d.dau) }],
+                            SPARKLINE_MAX
+                        );
                         charts['dauSparkline'] = new Chart(cvs, {
                             type: 'line',
                             data: {
-                                labels: data.dau_trend.map(d => d.date.slice(5)),
+                                labels: dec.labels,
                                 datasets: [{
-                                    data: data.dau_trend.map(d => d.dau),
+                                    data: dec.datasets[0].data,
                                     borderColor: '#6366f1',
                                     borderWidth: 2,
-                                    pointRadius: 0,
+                                    pointRadius: dec.decimated ? 0 : 2,
                                     pointHoverRadius: 4,
                                     tension: 0.4,
                                     fill: true,
@@ -3321,7 +3526,8 @@
                 if (data.top_games && data.top_games.length) {
                     document.getElementById('overviewChartRow').style.display = '';
                     createBarChart('overviewChart',
-                        data.top_games.slice(0, 5).map(g => g.game_id.slice(0, 8) + '...'),
+                        // Use human game_name from backend; fall back to short UUID
+                        data.top_games.slice(0, 5).map(g => g.game_name || (g.game_id || '').slice(0, 8) + '…'),
                         data.top_games.slice(0, 5).map(g => g.dau)
                     );
                 }

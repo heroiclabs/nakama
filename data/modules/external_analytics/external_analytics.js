@@ -470,14 +470,118 @@ function rpcUnityAnalyticsImport(ctx, logger, nk, payload) {
     }
 }
 
+// ─── Google Play Console import ───────────────────────────
+//
+// Google Play Developer Reporting API requires OAuth2 with a service account
+// (RS256-signed JWTs), which Goja cannot compute at runtime. The recommended
+// flow is an external Node.js script (scripts/play_data_fetcher.js) that
+// fetches from the Reporting API and POSTs the result to this import RPC.
+//
+// Alternatively, export a CSV from Play Console → Statistics → Installs,
+// parse it with the same script, and call this RPC with the JSON payload.
+//
+// Stored snapshot keys:
+//   external_analytics / play_quizverse_latest   — latest cumulative snapshot
+//   external_analytics / play_<gameId>_<date>    — per-date snapshots
+//
+// Payload: {
+//   data: {
+//     total_installs?: number,   // cumulative lifetime installs
+//     installs_7d?:   number,    // last 7-day installs
+//     installs?:      number,    // alias for total_installs
+//     active_users?:  number,    // current active install count
+//     rating?:        number,    // avg store rating
+//     ratings_count?: number,    // total rating count
+//     crashes_7d?:    number,    // last 7-day crash count
+//     country_breakdown?: [{country, installs}],
+//     date_range?: { from, to }
+//   },
+//   source?: string,             // "play_data_fetcher" | "manual_csv" | etc.
+//   gameId?: string
+// }
+function rpcPlayConsoleImport(ctx, logger, nk, payload) {
+    try {
+        var input = {};
+        try { input = JSON.parse(payload || '{}'); } catch (e) {
+            return JSON.stringify({ success: false, error: "Invalid JSON" });
+        }
+        if (!input.data) {
+            return JSON.stringify({ success: false, error: "Missing 'data' field. Payload must be { data: { total_installs, installs_7d, ... } }" });
+        }
+
+        var gameId = input.gameId || ctx.env['DEFAULT_GAME_ID'] || "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+        var now    = new Date().toISOString();
+        var today  = now.slice(0, 10);
+
+        var snapshot = {
+            provider:        "play_console",
+            gameId:          gameId,
+            fetched_at:      now,
+            source:          input.source || "manual",
+            total_installs:  input.data.total_installs || input.data.installs || 0,
+            installs_7d:     input.data.installs_7d || 0,
+            active_users:    input.data.active_users || 0,
+            rating:          input.data.rating || 0,
+            ratings_count:   input.data.ratings_count || 0,
+            crashes_7d:      input.data.crashes_7d || 0,
+            country_breakdown: input.data.country_breakdown || [],
+            date_range:      input.data.date_range || { from: today, to: today },
+            raw:             input.data
+        };
+
+        // Write latest + dated snapshot
+        storageWrite(nk, EXTERNAL_ANALYTICS_COLLECTION, "play_quizverse_latest", snapshot);
+        storageWrite(nk, EXTERNAL_ANALYTICS_COLLECTION, "play_" + gameId + "_" + today, snapshot);
+
+        logger.info("[ExternalAnalytics] Play Console import: total=" + snapshot.total_installs + " source=" + snapshot.source);
+        return JSON.stringify({
+            success: true,
+            message: "Google Play Console data imported",
+            total_installs: snapshot.total_installs,
+            keys: ["play_quizverse_latest", "play_" + gameId + "_" + today]
+        });
+    } catch (err) {
+        logger.error("[ExternalAnalytics] Play import error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
+/**
+ * RPC: analytics_play_console
+ * Read cached Play Console data from storage (mirrors analytics_apple_appstore).
+ */
+function rpcAnalyticsPlayConsole(ctx, logger, nk, payload) {
+    try {
+        var cached = storageRead(nk, EXTERNAL_ANALYTICS_COLLECTION, "play_quizverse_latest") ||
+                     storageRead(nk, EXTERNAL_ANALYTICS_COLLECTION, "play_latest");
+        if (!cached) {
+            return JSON.stringify({
+                success: false,
+                error: "No Google Play Console data cached.",
+                how_to_populate: {
+                    option1: "Run: node scripts/play_data_fetcher.js  (fetches via Developer Reporting API)",
+                    option2: "Call RPC: play_console_import with { data: { total_installs, installs_7d, ... } }",
+                    option3: "Export CSV from Play Console → Statistics → Installs, then call play_console_import"
+                }
+            });
+        }
+        return JSON.stringify({ success: true, source: "play_console", data: cached });
+    } catch (err) {
+        logger.error("[ExternalAnalytics] Play Console read error: " + err.message);
+        return JSON.stringify({ success: false, error: err.message });
+    }
+}
+
 // ─── Registration ─────────────────────────────────────────
 // postbuild.js scans for initializer.registerRpc() calls
 
 function InitModule(ctx, logger, nk, initializer) {
-    initializer.registerRpc("analytics_appodeal", rpcAnalyticsAppodeal);
+    initializer.registerRpc("analytics_appodeal",       rpcAnalyticsAppodeal);
     initializer.registerRpc("analytics_apple_appstore", rpcAnalyticsAppleAppstore);
-    initializer.registerRpc("apple_appstore_import", rpcAppleImport);
-    initializer.registerRpc("analytics_unity", rpcAnalyticsUnity);
-    initializer.registerRpc("unity_analytics_import", rpcUnityAnalyticsImport);
-    logger.info("[ExternalAnalytics] Module registered: 5 RPCs (appodeal, apple, apple_import, unity, unity_import)");
+    initializer.registerRpc("apple_appstore_import",    rpcAppleImport);
+    initializer.registerRpc("analytics_unity",          rpcAnalyticsUnity);
+    initializer.registerRpc("unity_analytics_import",   rpcUnityAnalyticsImport);
+    initializer.registerRpc("play_console_import",      rpcPlayConsoleImport);
+    initializer.registerRpc("analytics_play_console",   rpcAnalyticsPlayConsole);
+    logger.info("[ExternalAnalytics] Module registered: 7 RPCs (appodeal, apple, apple_import, unity, unity_import, play_import, play_console)");
 }

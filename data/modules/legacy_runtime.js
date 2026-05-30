@@ -852,6 +852,32 @@ function sanitizeMetadataPayload(meta, logger, requestId) {
         }
     }
 
+    // Progression fields — must be explicit here or buildMergedMetadata silently drops them
+    if (meta.xp !== undefined && meta.xp !== null) {
+        var xpVal = parseInt(meta.xp, 10);
+        if (!isNaN(xpVal) && xpVal >= 0 && xpVal <= 10000000) {
+            sanitized.xp = xpVal;
+        }
+    }
+
+    if (meta.level !== undefined && meta.level !== null) {
+        var levelVal = parseInt(meta.level, 10);
+        if (!isNaN(levelVal) && levelVal >= 1 && levelVal <= 10000) {
+            sanitized.level = levelVal;
+        }
+    }
+
+    // Profile string fields sent by Unity ProfileService (camelCase keys)
+    var profileStringFields = [
+        'displayName', 'avatarUrl', 'bio', 'language', 'favoriteGame'
+    ];
+    for (var pf = 0; pf < profileStringFields.length; pf++) {
+        var pfField = profileStringFields[pf];
+        if (meta.hasOwnProperty(pfField) && meta[pfField] !== null && meta[pfField] !== undefined && meta[pfField] !== "") {
+            sanitized[pfField] = sanitizeString(meta[pfField], 512);
+        }
+    }
+
     return sanitized;
 }
 
@@ -18224,10 +18250,25 @@ function generateEntryToken(userId, gameMode, timestamp) {
 var COLLECTION_COMPATIBILITY_SESSIONS = 'compatibility_sessions';
 
 /**
- * Generate a unique share code from session ID
+ * Generate a unique 6-digit numeric share code for a compatibility session.
+ * Matches the 6-field numeric input in the Unity UI (RoomCodeInput + CompatibilityQuizUIController).
+ * Uses collision checking against existing code_* keys (same pattern as asyncChallengeGenerateShareCode).
  */
-function compatibilityGenerateShareCode(sessionId) {
-    return sessionId.replace(/-/g, '').substring(0, 8).toUpperCase();
+function compatibilityGenerateShareCode(nk) {
+    for (var attempt = 0; attempt < 10; attempt++) {
+        var code = String(100000 + Math.floor(Math.random() * 900000));
+        try {
+            var existing = nk.storageRead([{
+                collection: COLLECTION_COMPATIBILITY_SESSIONS,
+                key: 'code_' + code,
+                userId: '00000000-0000-0000-0000-000000000000'
+            }]);
+            if (!existing || existing.length === 0) return code;
+        } catch (e) {
+            return code;
+        }
+    }
+    return String(100000 + Math.floor(Math.random() * 900000));
 }
 
 /**
@@ -18578,7 +18619,7 @@ function rpcCompatibilityCreateSession(ctx, logger, nk, payload) {
         var quizTitle = request.quizTitle || 'Compatibility Quiz';
         var playerDisplayName = request.playerDisplayName || 'Unknown';
         var sessionId = nk.uuidv4();
-        var shareCode = compatibilityGenerateShareCode(sessionId);
+        var shareCode = compatibilityGenerateShareCode(nk);
         var now = Date.now();
         var expiresAt = now + (48 * 60 * 60 * 1000);
 

@@ -1033,3 +1033,13 @@ function generateActivityId() {
         return r.toString(16);
     }) + '_' + d.toString(36);
 }
+
+/**
+ * InitModule — registers the two RPCs that have no legacy_runtime counterpart.
+ * postbuild.js renames this to __ModuleInit_N and emits the calls verbatim
+ * into its generated InitModule wrapper, so Nakama's AST walker sees them.
+ */
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("get_group_details", rpcGetGroupDetails);
+    initializer.registerRpc("log_group_activity", rpcLogGroupActivity);
+}

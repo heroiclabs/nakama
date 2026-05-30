@@ -1293,26 +1293,63 @@ function grantBadgeRewards(nk, logger, userId, gameId, rewards) {
             }
         }
         
-        // Grant XP (stored in player metadata)
+        // Grant XP — must write to metadata.xp (the field Unity ProfileService reads)
         if (rewards.xp && rewards.xp > 0) {
             try {
                 var account = nk.accountGetId(userId);
                 var metadata = account.user.metadata || {};
-                metadata.total_xp = (metadata.total_xp || 0) + rewards.xp;
-                
+                metadata.xp = (metadata.xp || 0) + rewards.xp;
+                // Keep level in sync with the same curved formula used on the client
+                // Level = floor(sqrt(xp / 100))  (matches ProgressionEventRouter.CalculateLevelFromXP)
+                metadata.level = Math.max(1, Math.floor(Math.sqrt((metadata.xp || 0) / 100)));
                 nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
                 granted.xp = rewards.xp;
+                logger.info("[Badges] Granted " + rewards.xp + " XP to user " + userId +
+                    " (total xp=" + metadata.xp + ", level=" + metadata.level + ")");
             } catch (xpErr) {
                 logger.warn("[Badges] XP grant failed: " + xpErr.message);
             }
         }
         
-        // Grant collectables
+        // Grant collectables — write directly to collectable_inventory storage
         if (rewards.collectables && rewards.collectables.length > 0) {
-            for (var i = 0; i < rewards.collectables.length; i++) {
-                var col = rewards.collectables[i];
-                granted.items.push(col);
+            var inventoryKey = "inventory_" + userId + "_" + gameId;
+            var inventory = {};
+            try {
+                var invRecords = nk.storageRead([{
+                    collection: COLLECTABLE_INVENTORY_COLLECTION,
+                    key: inventoryKey,
+                    userId: userId
+                }]);
+                if (invRecords && invRecords.length > 0 && invRecords[0].value) {
+                    inventory = invRecords[0].value;
+                }
+            } catch (e) { /* new player */ }
+
+            for (var ci = 0; ci < rewards.collectables.length; ci++) {
+                var colId = rewards.collectables[ci];
+                if (!inventory[colId]) {
+                    inventory[colId] = { quantity: 0, acquired_date: null, equipped: false, acquisition_history: [] };
+                }
+                if (inventory[colId].quantity < 1) {
+                    inventory[colId].quantity = 1;
+                    inventory[colId].acquired_date = new Date().toISOString();
+                    inventory[colId].acquisition_history.push({
+                        date: new Date().toISOString(), quantity: 1, source: "badge_reward"
+                    });
+                    granted.items.push(colId);
+                    logger.info("[Badges] Granted collectable '" + colId + "' to user " + userId);
+                }
             }
+
+            nk.storageWrite([{
+                collection: COLLECTABLE_INVENTORY_COLLECTION,
+                key: inventoryKey,
+                userId: userId,
+                value: inventory,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
         }
         
         return granted;
@@ -1321,6 +1358,82 @@ function grantBadgeRewards(nk, logger, userId, gameId, rewards) {
         logger.error("[Badges] Reward grant error: " + err.message);
         return granted;
     }
+}
+
+// ============================================================================
+// STARTUP SEED — runs every Nakama boot, idempotent
+// ============================================================================
+
+/**
+ * Inline badge + collectable definitions for QuizVerse.
+ * Kept here so the server is self-seeding — no manual RPC call needed.
+ * Change target/rewards here, then rebuild + restart Nakama to apply.
+ */
+// QUIZVERSE_BADGE_DEFINITIONS is defined in badge_definitions.js (loaded first alphabetically)
+
+var QUIZVERSE_COLLECTABLE_DEFINITIONS = {
+    game_id: "quizverse",
+    collectables: [
+        { collectable_id: "diamond_frame",        title: "Diamond Frame",         description: "Rare diamond profile frame",              icon_url: "collectables/diamond_frame.png",    category: "frame",       rarity: "legendary", max_quantity: 1, tradeable: false, source: ["purchase", "event"],   metadata: { frame_type: "profile", animation: true } },
+        { collectable_id: "golden_avatar_border", title: "Golden Avatar Border",  description: "Premium golden border for your avatar",   icon_url: "collectables/golden_border.png",    category: "border",      rarity: "epic",      max_quantity: 1, tradeable: false, source: ["achievement"],         metadata: { glow_effect: true } },
+        { collectable_id: "quiz_master_title",    title: "Quiz Master",           description: "Display 'Quiz Master' title on profile",  icon_url: "collectables/quiz_master_title.png", category: "title",      rarity: "rare",      max_quantity: 1, tradeable: false, source: ["badge_reward"],        metadata: { title_text: "Quiz Master" } },
+        { collectable_id: "star_emote",           title: "Star Emote",            description: "Show off with a star animation",          icon_url: "collectables/star_emote.png",       category: "emote",       rarity: "common",    max_quantity: 1, tradeable: false, source: ["daily_reward", "purchase"], metadata: { animation_type: "sparkle" } },
+        { collectable_id: "victory_dance",        title: "Victory Dance",         description: "Celebrate wins with this special animation", icon_url: "collectables/victory_dance.png", category: "celebration", rarity: "rare",      max_quantity: 1, tradeable: false, source: ["purchase"],            metadata: { animation_duration: 3.0 } },
+        { collectable_id: "legendary_frame",      title: "Legendary Frame",       description: "Elite frame for the most dedicated players", icon_url: "collectables/legendary_frame.png", category: "frame",     rarity: "legendary", max_quantity: 1, tradeable: false, source: ["achievement"],         metadata: { frame_type: "profile", animation: true } }
+    ]
+};
+
+/**
+ * Idempotent startup seed: write badge + collectable definitions to Nakama storage
+ * if they don't exist yet. Safe to run on every boot — skips if already seeded.
+ */
+function seedBadgesOnStartup(nk, logger) {
+    try {
+        // ── Badges ──
+        var badgeDefKey = "definitions_quizverse";
+        var existingBadgeDefs = null;
+        try {
+            var badgeRecords = nk.storageRead([{
+                collection: BADGE_COLLECTION,
+                key: badgeDefKey,
+                userId: SYSTEM_USER_ID
+            }]);
+            if (badgeRecords && badgeRecords.length > 0 && badgeRecords[0].value) {
+                existingBadgeDefs = badgeRecords[0].value;
+            }
+        } catch (e) { /* not seeded yet */ }
+
+        // Always reseed so changes to QUIZVERSE_BADGE_DEFINITIONS take effect after rebuild+restart
+        nk.storageWrite([{
+            collection: BADGE_COLLECTION,
+            key: badgeDefKey,
+            userId: SYSTEM_USER_ID,
+            value: { badges: QUIZVERSE_BADGE_DEFINITIONS.badges },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+        logger.info("[Badges] Seeded " + QUIZVERSE_BADGE_DEFINITIONS.badges.length + " badge definitions for quizverse");
+
+        // ── Collectables ──
+        var colDefKey = "definitions_quizverse";
+        nk.storageWrite([{
+            collection: COLLECTABLE_COLLECTION,
+            key: colDefKey,
+            userId: SYSTEM_USER_ID,
+            value: { collectables: QUIZVERSE_COLLECTABLE_DEFINITIONS.collectables },
+            permissionRead: 2,
+            permissionWrite: 0
+        }]);
+        logger.info("[Badges] Seeded " + QUIZVERSE_COLLECTABLE_DEFINITIONS.collectables.length + " collectable definitions for quizverse");
+
+    } catch (err) {
+        logger.error("[Badges] Startup seed failed: " + err.message);
+    }
+}
+
+function InitModule(ctx, logger, nk, initializer) {
+    seedBadgesOnStartup(nk, logger);
+    logger.info("[Badges] Badge module initialized — definitions seeded");
 }
 
 // ============================================================================

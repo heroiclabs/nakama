@@ -2148,7 +2148,10 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         // logger forgot to stamp rpcName).
         function deriveBucketName(ed, ev) {
             if (!ed) ed = {};
-            return ed.rpcName || ed.rpc || ed.function || ed.endpoint ||
+            // Accept both camelCase (rpcName) and snake_case (rpc_name) — Unity sends
+            // rpc_name via AnalyticsParams.RPC_NAME while the original lookup only
+            // checked camelCase, causing all 57+ errors to bucket as "nakama_rpc_error".
+            return ed.rpcName || ed.rpc_name || ed.rpc || ed.function || ed.endpoint ||
                    ed.api || ed.url || ed.source || ed.error_category ||
                    ed.exceptionType || ed.errorType ||
                    ev.eventName || 'unknown';

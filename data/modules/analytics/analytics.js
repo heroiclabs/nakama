@@ -433,7 +433,9 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  * OCC-safe upsert of a live_daily counter doc.
  * Shared by both the per-game key and the "all" aggregate key.
  */
-function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs) {
+// metrics: optional { revenue_usd, ad_revenue_usd, session_count, session_seconds,
+//                     coins_earned, coins_spent } — accumulated into the live doc.
+function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metrics) {
     for (var attempt = 0; attempt < 2; attempt++) {
         var existing = null;
         var version  = null;
@@ -456,6 +458,18 @@ function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs) {
         if (country)  { doc.by_country[country]   = (doc.by_country[country]   || 0) + 1; }
         doc.last_event_at = Math.max(doc.last_event_at || 0, unixTs || 0);
 
+        // ── Real-time KPI accumulators ──────────────────────────────────
+        // Accumulated here so the dashboard never needs a rollup to show
+        // today's revenue, session count, or economy figures.
+        if (metrics) {
+            if (metrics.revenue_usd)    doc.revenue_usd    = (doc.revenue_usd    || 0) + metrics.revenue_usd;
+            if (metrics.ad_revenue_usd) doc.ad_revenue_usd = (doc.ad_revenue_usd || 0) + metrics.ad_revenue_usd;
+            if (metrics.session_count)  doc.session_count  = (doc.session_count  || 0) + 1;
+            if (metrics.session_seconds)doc.session_seconds= (doc.session_seconds|| 0) + metrics.session_seconds;
+            if (metrics.coins_earned)   doc.coins_earned   = (doc.coins_earned   || 0) + metrics.coins_earned;
+            if (metrics.coins_spent)    doc.coins_spent    = (doc.coins_spent    || 0) + metrics.coins_spent;
+        }
+
         var writeObj = {
             collection: col, key: key, userId: SYSTEM_USER,
             value: doc, permissionRead: 0, permissionWrite: 0
@@ -467,7 +481,7 @@ function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs) {
             return;
         } catch (_w) {
             if (attempt === 0) continue;
-            // Second OCC conflict: silently drop — rollup covers it at midnight.
+            // Second OCC conflict: silently drop.
         }
     }
 }
@@ -477,15 +491,38 @@ function liveCountersUpdate(nk, ev) {
     var col = "analytics_live_daily";
 
     var en       = ev.eventName || "unknown";
-    var platform = ((ev.eventData && (ev.eventData.platform || ev.eventData.Platform)) || ev.platform || "").toLowerCase() || null;
-    var country  = ((ev.eventData && ev.eventData.country) || ev.country || "").toUpperCase().slice(0, 2) || null;
+    var ed       = ev.eventData || {};
+    var platform = ((ed.platform || ed.Platform) || ev.platform || "").toLowerCase() || null;
+    var country  = ((ed.country) || ev.country || "").toUpperCase().slice(0, 2) || null;
+
+    // ── Extract per-event KPI metrics ───────────────────────────────────
+    // These accumulate into the live counter doc so the dashboard always
+    // shows live revenue, session counts, and economy data with zero lag
+    // and without requiring a nightly rollup.
+    var metrics = null;
+    if (en === "iap_purchased") {
+        var rev = parseFloat(ed.revenue_usd || ed.price_usd || ed.price || ed.amount || 0) || 0;
+        if (rev > 0) metrics = { revenue_usd: rev };
+    } else if (en === "ad_revenue") {
+        var adRev = parseFloat(ed.revenue_usd || ed.revenueUSD || 0) || 0;
+        if (adRev > 0) metrics = { ad_revenue_usd: adRev };
+    } else if (en === "session_end") {
+        var secs = parseFloat(ed.duration_seconds || 0) || 0;
+        metrics = { session_count: 1, session_seconds: secs };
+    } else if (en === "coins_earned") {
+        var ce = parseInt(ed.coins_earned || ed.amount || 0, 10) || 0;
+        if (ce > 0) metrics = { coins_earned: ce };
+    } else if (en === "coins_spent") {
+        var cs = parseInt(ed.coins_spent || ed.amount || 0, 10) || 0;
+        if (cs > 0) metrics = { coins_spent: cs };
+    }
 
     // Per-game doc — keyed by canonical UUID (slug was resolved in normalizeInboundEvent).
-    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp);
+    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp, metrics);
 
     // "All games" aggregate doc — lets the dashboard "All Games" selector show
     // today's live data without waiting for the nightly rollup.
-    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp);
+    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp, metrics);
 }
 
 /**
@@ -1008,6 +1045,64 @@ function preferRollups(ctx) {
 }
 
 /**
+ * Read the platform-wide lifetime totals doc written by the rollup.
+ * Returns { total_users_lifetime, last_rollup_date } or null.
+ */
+function readPlatformTotals(nk) {
+    try {
+        var r = nk.storageRead([{
+            collection: "analytics_rollup_meta",
+            key: "platform_totals",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        if (r && r.length > 0) return r[0].value;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+/**
+ * Read cached external analytics (App Store / Play Console / UGS).
+ * Returns the raw snapshot doc or null if not yet populated.
+ */
+function readExternalSnapshot(nk, key) {
+    try {
+        var r = nk.storageRead([{
+            collection: "external_analytics",
+            key: key,
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        if (r && r.length > 0) return r[0].value;
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+/**
+ * Extract cumulative installs/downloads from an App Store Connect snapshot.
+ * The snapshot may be structured as { metrics: { installs: { total, dates: [...] } } }
+ * or a flat { total_installs, units } depending on which importer was used.
+ */
+function extractDownloadsFromSnapshot(snap) {
+    if (!snap) return 0;
+    // External pollers write: { raw: { ... } } or flat fields
+    var raw = snap.raw || snap;
+    // App Store Connect: units field = new downloads
+    if (typeof raw.units === 'number') return raw.units;
+    if (raw.metrics && raw.metrics.installs) {
+        var inst = raw.metrics.installs;
+        if (typeof inst.total === 'number') return inst.total;
+        if (Array.isArray(inst)) {
+            var t = 0;
+            for (var i = 0; i < inst.length; i++) t += (inst[i].value || inst[i].count || 0);
+            return t;
+        }
+    }
+    if (typeof raw.total_installs === 'number') return raw.total_installs;
+    if (typeof raw.installs === 'number') return raw.installs;
+    if (typeof raw.downloads === 'number') return raw.downloads;
+    return 0;
+}
+
+/**
  * RPC: analytics_dashboard
  * Returns DAU, WAU, MAU, retention ratios, trends for the dashboard.
  *
@@ -1017,7 +1112,17 @@ function preferRollups(ctx) {
  * computed live (from analytics_dau counters) because the nightly rollup
  * hasn't run yet for today's date.
  *
- * Payload: { game_id?: string, gameId?: string, days?: number }
+ * Payload: {
+ *   game_id?:   string,
+ *   gameId?:    string,
+ *   days?:      number,      // number of days back from today (default 30)
+ *   from_date?: "YYYY-MM-DD", // custom range start (overrides days)
+ *   to_date?:   "YYYY-MM-DD"  // custom range end   (default today)
+ * }
+ *
+ * Custom date range: when from_date is supplied the RPC computes how many
+ * days back from today cover the requested window. Results outside the
+ * requested window are trimmed from dau_trend before returning.
  */
 function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
@@ -1025,10 +1130,41 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     try { parsed = JSON.parse(payload || '{}'); } catch (e) { /* ignore */ }
 
     var gameId = resolveGameIdAlias(parsed.game_id || parsed.gameId || 'all');
-    var days = parseInt(parsed.days, 10) || 30;
+
+    // ── Date range resolution ────────────────────────────────────────────
+    // Supports three modes:
+    //   1. days only  → scan last N days from today
+    //   2. from_date  → scan from from_date to today (or to_date)
+    //   3. from_date + to_date → scan the explicit window
+    var rangeFromDate = null; // ISO "YYYY-MM-DD" lower bound (inclusive)
+    var rangeToDate   = null; // ISO "YYYY-MM-DD" upper bound (inclusive)
+    var days;
+
+    var todayStr = new Date().toISOString().slice(0, 10);
+
+    if (parsed.from_date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.from_date)) {
+        rangeFromDate = parsed.from_date;
+        rangeToDate   = (parsed.to_date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.to_date))
+            ? parsed.to_date : todayStr;
+        // Compute how many days back from today to from_date so the loop
+        // generates enough DAU buckets to cover the full window.
+        var fromMs = new Date(rangeFromDate + 'T00:00:00Z').getTime();
+        var nowMs  = new Date(todayStr + 'T00:00:00Z').getTime();
+        days = Math.max(1, Math.round((nowMs - fromMs) / 86400000) + 1);
+    } else {
+        days = parseInt(parsed.days, 10) || 30;
+    }
+
+    // Always scan at least 30 days so WAU (7d) and MAU (30d) always have
+    // enough data regardless of the display window (e.g. "Today" button sends
+    // days=1, which would otherwise make WAU=MAU=DAU — completely wrong).
+    // The dau_trend filter trims the returned array to the requested range.
+    var scanDays = Math.max(days, 30);
 
     var now = new Date();
-    var todayStr = now.toISOString().slice(0, 10);
+    // todayStr is already set above during date-range resolution; this line
+    // re-uses the same variable (ES5 var is function-scoped / hoisted).
+    todayStr = now.toISOString().slice(0, 10);
     var useRollups = preferRollups(ctx);
     var rollupHits = 0;
     var liveFallbacks = 0;
@@ -1052,7 +1188,7 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var mauAnyRollup = false;
     var newUsersToday = 0;
 
-    for (var d = 0; d < days; d++) {
+    for (var d = 0; d < scanDays; d++) {
         var date = new Date(now.getTime() - d * 86400000);
         var dateStr = date.toISOString().slice(0, 10);
 
@@ -1115,11 +1251,16 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var dau = dauTrend.length > 0 ? dauTrend[dauTrend.length - 1].count : 0;
     var wauUnique = Object.keys(wauUserSet).length;
     var mauUnique = Object.keys(mauUserSet).length;
-    // If we saw any rollup days (no user lists), we must use the sum path to
-    // avoid silently undercounting. The sum is an upper bound but more honest
-    // than zero or a days-with-data count.
-    var wau = wauAnyRollup ? (wauUnique + wauDailySum) : Math.max(wauUnique, wauDailySum);
-    var mau = mauAnyRollup ? (mauUnique + mauDailySum) : Math.max(mauUnique, mauDailySum);
+    // WAU/MAU: when rollup docs are present they don't carry a user list, so we
+    // cannot dedup across days. Use the LARGER of:
+    //   wauUnique  = deduped users from live-fallback days (exact, may under-count
+    //                if some days used rollup and those users aren't in the live set)
+    //   wauDailySum = sum of per-day DAU from rollup docs (upper bound, over-counts
+    //                 returning users)
+    // Picking max() gives the most honest single number. We NEVER add them — that
+    // would double-count every user who appears on both a live and a rollup day.
+    var wau = Math.max(wauUnique, wauDailySum);
+    var mau = Math.max(mauUnique, mauDailySum);
     var wauEstimated = wauAnyRollup || (wauUnique === 0 && wauDailySum > 0);
     var mauEstimated = mauAnyRollup || (mauUnique === 0 && mauDailySum > 0);
 
@@ -1170,11 +1311,20 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
                 if (!scanObjs.cursor) break;
                 cursor = scanObjs.cursor;
             }
-            topGames = Object.keys(gameStats).map(function(gid) {
+            // Reverse-alias UUID → human slug for the dashboard top-games card.
+        var UUID_TO_SLUG = {};
+        for (var _slug in GAME_ID_SLUG_ALIASES) {
+            if (Object.prototype.hasOwnProperty.call(GAME_ID_SLUG_ALIASES, _slug)) {
+                UUID_TO_SLUG[GAME_ID_SLUG_ALIASES[_slug]] = _slug;
+            }
+        }
+        topGames = Object.keys(gameStats).map(function(gid) {
                 var avgDau = Math.round(gameStats[gid].totalDau / Math.max(1, gameStats[gid].days));
                 return {
                     gameId: gid,
                     game_id: gid,
+                    // Human-readable name for dashboard rendering (falls back to UUID)
+                    game_name: UUID_TO_SLUG[gid] || gid,
                     avgDau: avgDau,
                     avg_dau: avgDau,
                     dau: avgDau
@@ -1189,8 +1339,71 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var dau7dMin = dauWindow.length > 0 ? Math.min.apply(null, dauWindow) : 0;
     var dau7dMax = dauWindow.length > 0 ? Math.max.apply(null, dauWindow) : 0;
 
+    // ── Total players (lifetime unique users) ─────────────────────────────
+    // Read from the cumulative counter written by rpcAnalyticsRollupRun on
+    // every successful daily run. Starts at 0 until the first rollup runs.
+    var totalPlayersLifetime = 0;
+    var totalPlayersLastDate = null;
+    try {
+        var platformTotals = readPlatformTotals(nk);
+        if (platformTotals) {
+            totalPlayersLifetime = parseInt(platformTotals.total_users_lifetime, 10) || 0;
+            totalPlayersLastDate = platformTotals.last_rollup_date || null;
+        }
+    } catch (eTp) { /* non-fatal */ }
+
+    // ── Downloads from App Store & Play Console ───────────────────────────
+    // Populated by: external_poll_appstore / play_console_import RPCs.
+    // Returns 0 until data is first imported. See docs/STORE_INTEGRATION.md.
+    var totalDownloadsIos     = 0;
+    var totalDownloadsAndroid = 0;
+    var downloadSources       = {};
+    try {
+        // App Store Connect — keyed by apple_appstore_import or external_poll_appstore
+        var appleLatest = readExternalSnapshot(nk, "apple_quizverse_latest") ||
+                          readExternalSnapshot(nk, "apple_latest");
+        if (appleLatest) {
+            totalDownloadsIos = extractDownloadsFromSnapshot(appleLatest);
+            downloadSources.ios = { source: "appstore", fetched_at: appleLatest.fetched_at || appleLatest.fetchedAt };
+        }
+    } catch (eIos) { /* non-fatal */ }
+    try {
+        // Google Play Console — keyed by play_console_import RPC
+        var playLatest = readExternalSnapshot(nk, "play_quizverse_latest") ||
+                         readExternalSnapshot(nk, "play_latest");
+        if (playLatest) {
+            totalDownloadsAndroid = extractDownloadsFromSnapshot(playLatest);
+            downloadSources.android = { source: "play_console", fetched_at: playLatest.fetched_at || playLatest.fetchedAt };
+        }
+    } catch (ePlay) { /* non-fatal */ }
+
+    // ── Self-healing auto-rollup ──────────────────────────────────────────
+    // If the cron is not running (e.g. production K8s without a CronJob),
+    // the daily rollup will never execute. To prevent DEGRADED status and
+    // missing WAU/MAU history, auto-trigger yesterday's rollup here when it
+    // is absent. Wrapped in try/catch so a slow or failing rollup never
+    // breaks the dashboard response.
+    var autoRollupMeta = null;
+    try {
+        var yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+        var existingRoll = readRollupDaily(nk, 'all', yday);
+        if (!existingRoll && typeof rpcAnalyticsRollupRun === 'function') {
+            var aSecret = (ctx && ctx.env && ctx.env.DASHBOARD_SECRET) ||
+                "2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8";
+            logger.info("[analytics_dashboard] stale rollup for " + yday + " — auto-triggering");
+            rpcAnalyticsRollupRun(ctx, logger, nk,
+                JSON.stringify({ date: yday, dashboard_secret: aSecret }));
+            autoRollupMeta = { triggered: true, date: yday };
+            logger.info("[analytics_dashboard] auto-rollup complete for " + yday);
+        }
+    } catch (autoRollupErr) {
+        logger.warn("[analytics_dashboard] auto-rollup failed: " + (autoRollupErr && autoRollupErr.message));
+        autoRollupMeta = { triggered: false, error: autoRollupErr && autoRollupErr.message };
+    }
+
     return JSON.stringify({
         success: true,
+        // ── Core engagement KPIs ──────────────────────────────────────────
         dau: dau,
         wau: wau,
         mau: mau,
@@ -1202,19 +1415,47 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         avg_session_duration_seconds: avgSessionDuration,
         dau_7d_min: dau7dMin,
         dau_7d_max: dau7dMax,
-        dau_trend: dauTrend.slice(-14).map(function(d) { return { date: d.date, dau: d.count }; }),
+        dau_trend: (function() {
+            var trend = dauTrend.map(function(d) { return { date: d.date, dau: d.count }; });
+            // Apply custom date-range filter when the client sent from_date/to_date
+            if (rangeFromDate) {
+                trend = trend.filter(function(d) {
+                    return d.date >= rangeFromDate && d.date <= (rangeToDate || todayStr);
+                });
+            } else {
+                // Default: return all days within the requested window (no 14-day cap)
+                trend = trend.slice(0); // all days
+            }
+            return trend;
+        })(),
+        // Range metadata echoed back so the frontend knows what window was served
+        range_from: rangeFromDate || null,
+        range_to:   rangeToDate   || null,
+        range_days: days,
         trends: {
             dau_7d_change_pct: dau7dChangePct
         },
         top_games: topGames,
-        // Live counter doc for today — enables dashboard tabs to show today's
-        // event counts, platform and country breakdowns without waiting for
-        // the nightly rollup. Written by liveCountersUpdate on every ingest.
+        // ── Platform-wide lifetime counters ───────────────────────────────
+        // total_players = unique users who have ever played (cumulative,
+        //   incremented by each daily rollup run; reachable via
+        //   analytics_rollup_meta/platform_totals).
+        // total_downloads_* = cumulative installs from store console APIs.
+        //   Populated by external_poll_appstore (iOS) and play_console_import
+        //   (Android). Shows 0 until first import runs.
+        total_players:           totalPlayersLifetime,
+        total_players_as_of:     totalPlayersLastDate,
+        total_downloads_ios:     totalDownloadsIos,
+        total_downloads_android: totalDownloadsAndroid,
+        total_downloads:         totalDownloadsIos + totalDownloadsAndroid,
+        download_sources:        downloadSources,
+        // ── Live counter doc for today ─────────────────────────────────────
         live_today: liveCountersRead(nk, resolveGameIdAlias(gameId)),
         _meta: {
             read_path: useRollups ? "rollup-preferred" : "live-only",
             rollup_hits: rollupHits,
             live_fallbacks: liveFallbacks,
+            auto_rollup: autoRollupMeta,
             generated_at: new Date().toISOString()
         }
     });

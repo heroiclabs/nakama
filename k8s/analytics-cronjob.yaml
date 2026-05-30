@@ -1,0 +1,173 @@
+# Analytics Rollup CronJob for production Kubernetes
+#
+# This is the production equivalent of the docker-compose `analytics_cron` service.
+# It runs two jobs:
+#   1. Daily at 01:15 UTC  → analytics_rollup_run   (yesterday's KPI rollup)
+#   2. Every 6 hours       → external_poll_all       (Appodeal / AppStore / UGS)
+#
+# Prerequisites:
+#   kubectl create secret generic analytics-cron-secrets \
+#     --from-literal=dashboard-secret=<DASHBOARD_SECRET> \
+#     --from-literal=http-key=<HTTP_KEY> \
+#     -n <namespace>
+#
+# Deploy:
+#   kubectl apply -f k8s/analytics-cronjob.yaml -n <namespace>
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: analytics-daily-rollup
+  labels:
+    app: analytics-cron
+    component: rollup
+spec:
+  # 01:15 UTC daily — well after midnight so all day-before events are ingested
+  schedule: "15 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app: analytics-cron
+            component: rollup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: rollup-trigger
+              image: curlimages/curl:8.10.1
+              env:
+                - name: NAKAMA_URL
+                  value: "http://nakama:7350"
+                - name: DASHBOARD_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: analytics-cron-secrets
+                      key: dashboard-secret
+                - name: HTTP_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: analytics-cron-secrets
+                      key: http-key
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  NOW_EPOCH=$(date -u +%s)
+                  YEST_EPOCH=$((NOW_EPOCH - 86400))
+                  YEST=$(date -u -d @${YEST_EPOCH} +%Y-%m-%d 2>/dev/null || date -u -r ${YEST_EPOCH} +%Y-%m-%d)
+                  echo "[rollup-job] triggering rollup for ${YEST}"
+                  ROLLUP_HTTP=$(curl -sS -X POST \
+                    "${NAKAMA_URL}/v2/rpc/analytics_rollup_run?http_key=${HTTP_KEY}&unwrap=true" \
+                    -H "Content-Type: application/json" \
+                    --data-raw "{\"date\":\"${YEST}\",\"dashboard_secret\":\"${DASHBOARD_SECRET}\"}" \
+                    -o /tmp/rollup.json -w "%{http_code}" || echo "000")
+                  echo "[rollup-job] status=${ROLLUP_HTTP}"
+                  cat /tmp/rollup.json 2>/dev/null || true
+                  [ "${ROLLUP_HTTP}" = "200" ] || exit 1
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: analytics-external-poll
+  labels:
+    app: analytics-cron
+    component: external-poll
+spec:
+  # Every 6 hours: 00:00, 06:00, 12:00, 18:00 UTC
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: analytics-cron
+            component: external-poll
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: poll-trigger
+              image: curlimages/curl:8.10.1
+              env:
+                - name: NAKAMA_URL
+                  value: "http://nakama:7350"
+                - name: DASHBOARD_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: analytics-cron-secrets
+                      key: dashboard-secret
+                - name: HTTP_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: analytics-cron-secrets
+                      key: http-key
+              command: ["/bin/sh", "-ec"]
+              args:
+                - |
+                  echo "[poll-job] triggering external_poll_all"
+                  curl -sS -X POST \
+                    "${NAKAMA_URL}/v2/rpc/external_poll_all?http_key=${HTTP_KEY}" \
+                    -H "Content-Type: application/json" \
+                    --data-raw "{\"dashboard_secret\":\"${DASHBOARD_SECRET}\"}" \
+                    -o /tmp/poll.json -w "[poll-job] status=%{http_code}\n"
+                  cat /tmp/poll.json 2>/dev/null || true
+---
+# Bootstrap job — run once after first deploy to backfill 7 days of rollups
+# Usage: kubectl create job --from=cronjob/analytics-daily-rollup analytics-backfill -n <ns>
+# Or apply this directly (runs immediately):
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: analytics-backfill-7d
+  labels:
+    app: analytics-cron
+    component: backfill
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: analytics-cron
+        component: backfill
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: backfill
+          image: curlimages/curl:8.10.1
+          env:
+            - name: NAKAMA_URL
+              value: "http://nakama:7350"
+            - name: DASHBOARD_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: analytics-cron-secrets
+                  key: dashboard-secret
+            - name: HTTP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: analytics-cron-secrets
+                  key: http-key
+            - name: BACKFILL_DAYS
+              value: "7"
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              NOW_EPOCH=$(date -u +%s)
+              FROM_EPOCH=$((NOW_EPOCH - BACKFILL_DAYS * 86400))
+              TO_EPOCH=$((NOW_EPOCH - 86400))
+              FROM_DATE=$(date -u -d @${FROM_EPOCH} +%Y-%m-%d 2>/dev/null || date -u -r ${FROM_EPOCH} +%Y-%m-%d)
+              TO_DATE=$(date -u -d @${TO_EPOCH} +%Y-%m-%d 2>/dev/null || date -u -r ${TO_EPOCH} +%Y-%m-%d)
+              echo "[backfill-job] backfilling ${FROM_DATE} → ${TO_DATE}"
+              curl -sS -X POST \
+                "${NAKAMA_URL}/v2/rpc/analytics_rollup_backfill?http_key=${HTTP_KEY}&unwrap=true" \
+                -H "Content-Type: application/json" \
+                --data-raw "{\"from\":\"${FROM_DATE}\",\"to\":\"${TO_DATE}\",\"dashboard_secret\":\"${DASHBOARD_SECRET}\"}" \
+                -o /tmp/backfill.json -w "[backfill-job] status=%{http_code}\n"
+              cat /tmp/backfill.json 2>/dev/null || true

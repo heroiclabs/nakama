@@ -20,11 +20,25 @@
 
 var CBX_COLLECTION_RATE       = "chatbox_rate";
 var CBX_COLLECTION_GREET_RATE = "chatbox_greeting_rate";
-var CBX_DAILY_MESSAGE_QUOTA   = 60;     // soft cap per UTC day per user (message RPC)
-var CBX_DAILY_GREETING_QUOTA  = 5;      // soft cap per UTC day per user (greeting RPC)
+var CBX_COLLECTION_FREE_QUOTA = "chatbox_free_quota";   // daily free-message bucket
+var CBX_DAILY_MESSAGE_QUOTA   = 60;     // hard rate cap per UTC day per user
+var CBX_DAILY_GREETING_QUOTA  = 5;      // hard rate cap for greeting RPC
+var CBX_FREE_DAILY_MSGS       = 15;     // free AI messages per user per UTC day
 var CBX_DEFAULT_MAX_TOKENS    = 350;
 var CBX_GREETING_MAX_TOKENS   = 180;
 var CBX_DEFAULT_LOCALE        = "en";
+
+// ── Coin costs (charged from Nakama built-in wallet, currency "coins") ────────
+// Research-backed pricing (2026 AI companion market analysis):
+//   • Character.AI Plus = $9.99/mo unlimited → free quota subsidised by quiz play
+//   • CrushOn.ai free = 30 msgs/day after quota, paid tiers $5.99–$19.99/mo
+//   • QuizVerse earns: 50 coins/day from quizzes (10 attempts × 5 coins each)
+//   → 15 free msgs/day + 5 coins/msg after quota = 1 quiz session = 5 AI messages
+//   → LT tools (GPA/predict/school) cost 10 coins = 2 quiz attempts' worth
+var CBX_COIN_COST_STANDARD    = 5;      // coins per standard AI message (after free quota)
+var CBX_COIN_COST_LT_TOOL     = 10;     // coins for learner-toolbelt keyword messages
+var CBX_COIN_COST_DEEP        = 10;     // coins for long / analytical messages (>300 chars)
+var CBX_CURRENCY_KEY          = "coins";
 
 // P1-14: hard cap on KB-triad question arrays to prevent CPU/memory DoS
 // from a malicious client posting a 100k-item batch.
@@ -156,6 +170,135 @@ function cbxCheckRateLimitFor(nk, collection, userId, dailyQuota) {
 // Backwards-compatible wrapper. Existing call sites pass (nk, userId).
 function cbxCheckRateLimit(nk, userId) {
     return cbxCheckRateLimitFor(nk, CBX_COLLECTION_RATE, userId, CBX_DAILY_MESSAGE_QUOTA);
+}
+
+// ============================================================================
+// COIN ECONOMY — free daily quota + per-message wallet deduction
+// ----------------------------------------------------------------------------
+// Model (research-backed, 2026):
+//   • First CBX_FREE_DAILY_MSGS per UTC day: zero cost (subsidised by quiz play)
+//   • After free quota exhausted:
+//       standard message        → CBX_COIN_COST_STANDARD  (5 coins)
+//       learner-tool keyword    → CBX_COIN_COST_LT_TOOL   (10 coins)
+//       long / analytical       → CBX_COIN_COST_DEEP      (10 coins)
+//   • Coin balance is the Nakama built-in wallet, currency "coins"
+//   • We do a CHECK-then-DEDUCT in one walletUpdate call (atomic, OCC-safe)
+//
+// Returns: { free: bool, coins_spent: int, quota_remaining: int,
+//            wallet_balance: int, error?: string }
+// ============================================================================
+
+function cbxClassifyMessageCost(message) {
+    var lower = message.toLowerCase();
+    // Learner toolbelt keywords (must match LocalIntentFallback lt/ routing)
+    var ltKeywords = ["gpa", "grade point", "predictor", "predict score", "exam countdown",
+                      "countdown", "school finder", "find school", "university search",
+                      "college search", "study plan", "exam date", "my exam"];
+    for (var i = 0; i < ltKeywords.length; i++) {
+        if (lower.indexOf(ltKeywords[i]) >= 0) return CBX_COIN_COST_LT_TOOL;
+    }
+    // Deep analysis: long message OR analytical keywords
+    if (message.length > 300) return CBX_COIN_COST_DEEP;
+    var deepKeywords = ["explain why", "compare", "analyze", "analyse", "breakdown",
+                        "difference between", "why did", "how does", "step by step"];
+    for (var j = 0; j < deepKeywords.length; j++) {
+        if (lower.indexOf(deepKeywords[j]) >= 0) return CBX_COIN_COST_DEEP;
+    }
+    return CBX_COIN_COST_STANDARD;
+}
+
+function cbxConsumeFreeQuota(nk, userId) {
+    var key = cbxTodayKey();
+    var maxAttempts = 3;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+        var current = 0;
+        var version = "";
+        try {
+            var recs = nk.storageRead([{ collection: CBX_COLLECTION_FREE_QUOTA, key: key, userId: userId }]);
+            if (recs && recs.length > 0 && recs[0].value) {
+                current = parseInt(recs[0].value.count, 10) || 0;
+                version = recs[0].version || "";
+            }
+        } catch (e) { /* first call today */ }
+
+        if (current >= CBX_FREE_DAILY_MSGS) {
+            return { consumed: false, remaining: 0 };
+        }
+        try {
+            var w = {
+                collection: CBX_COLLECTION_FREE_QUOTA,
+                key: key,
+                userId: userId,
+                value: { count: current + 1, ts: cbxNowUnix() },
+                permissionRead: 1,
+                permissionWrite: 0
+            };
+            if (version) w.version = version;
+            nk.storageWrite([w]);
+            return { consumed: true, remaining: Math.max(0, CBX_FREE_DAILY_MSGS - (current + 1)) };
+        } catch (e) { /* OCC — retry */ }
+    }
+    // Fail-open: if we can't write the quota counter, give the message for free
+    // rather than blocking a legitimate user. The hard rate cap still protects us.
+    return { consumed: true, remaining: CBX_FREE_DAILY_MSGS };
+}
+
+function cbxGetWalletBalance(nk, userId) {
+    try {
+        var account = nk.accountGetId(userId);
+        if (account && account.wallet) {
+            var bal = parseInt(account.wallet[CBX_CURRENCY_KEY], 10);
+            return isNaN(bal) ? 0 : bal;
+        }
+    } catch (e) { /* ignore */ }
+    return 0;
+}
+
+function cbxDeductCoins(nk, logger, userId, amount) {
+    if (!amount || amount <= 0) return { ok: true, balance: cbxGetWalletBalance(nk, userId) };
+    try {
+        // ES5-safe: build changeset object without computed property syntax
+        // (Goja does not support ES6 { [key]: value } notation).
+        var changeset = {};
+        changeset[CBX_CURRENCY_KEY] = -amount;
+        nk.walletUpdate(userId, changeset, { reason: "ai_chat_message" }, false);
+        return { ok: true, balance: cbxGetWalletBalance(nk, userId) };
+    } catch (e) {
+        logger.warn("[ChatBox] walletUpdate failed for " + userId + ": " + (e && e.message ? e.message : e));
+        return { ok: false, balance: 0 };
+    }
+}
+
+// Master entry: returns { free, coins_spent, quota_remaining, wallet_balance, error?, required? }
+function cbxChargeForMessage(nk, logger, userId, message) {
+    // Step 1: try free quota.
+    // Balance read deferred to after quota check — no storage hit on free messages.
+    var quota = cbxConsumeFreeQuota(nk, userId);
+    if (quota.consumed) {
+        // Lazy-fetch balance only if free: client needs it to render the coin HUD.
+        // Wrapped in try so a failing account read never blocks a free message.
+        var freeBalance = 0;
+        try { freeBalance = cbxGetWalletBalance(nk, userId); } catch (e) { /* ignore */ }
+        return { free: true, coins_spent: 0, quota_remaining: quota.remaining, wallet_balance: freeBalance };
+    }
+
+    // Step 2: quota exhausted — one balance read covers both the check and the UI update.
+    var cost = cbxClassifyMessageCost(message);
+    var balance = cbxGetWalletBalance(nk, userId);
+    if (balance < cost) {
+        return { free: false, coins_spent: 0, quota_remaining: 0, wallet_balance: balance, error: "insufficient_coins", required: cost };
+    }
+
+    // Step 3: atomic deduct. walletUpdate throws if balance would go negative
+    // (Nakama runtime guarantee), so a concurrent deduct between the check
+    // and the write is safe: only one succeeds.
+    var deduct = cbxDeductCoins(nk, logger, userId, cost);
+    if (!deduct.ok) {
+        // walletUpdate threw (race/error) — fail-open: let the message through
+        // for free rather than penalising the user for a backend race.
+        return { free: true, coins_spent: 0, quota_remaining: 0, wallet_balance: balance };
+    }
+    return { free: false, coins_spent: cost, quota_remaining: 0, wallet_balance: deduct.balance };
 }
 
 // P0-4: greeting RPC has a much smaller daily cap (greetings are 1-2/day
@@ -658,6 +801,23 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
             });
         }
 
+        // ── COIN ECONOMY CHECK ────────────────────────────────────────────────
+        // First CBX_FREE_DAILY_MSGS messages per day are free.
+        // After quota, complexity-tiered coin deduction from the game wallet.
+        var economy = cbxChargeForMessage(nk, logger, ctx.userId, message);
+        if (economy.error === "insufficient_coins") {
+            return JSON.stringify({
+                success: false,
+                error: "insufficient_coins",
+                required_coins: economy.required || CBX_COIN_COST_STANDARD,
+                wallet_balance: economy.wallet_balance,
+                quota_remaining: 0,
+                coins_spent: 0,
+                reply: "You need " + (economy.required || CBX_COIN_COST_STANDARD) + " coins to send an AI message. Play a quiz to earn more!",
+                suggestions: ["Daily quiz", "Earn coins", "My stats"]
+            });
+        }
+
         var playerCtx = cbxGatherPlayerContext(nk, logger, ctx.userId, "quizverse");
         var kbCtx = req.knowledgeBaseContext || null;
         var userMsg = cbxBuildUserPrompt(message, playerCtx, kbCtx, req.locale || CBX_DEFAULT_LOCALE);
@@ -685,7 +845,10 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
                 facts: kbCtx && kbCtx.facts ? kbCtx.facts : [],
                 repeatPolicy: kbCtx && kbCtx.repeatPolicy ? kbCtx.repeatPolicy : null,
                 suggestions: CBX_DEFAULT_SUGGESTIONS,
-                rate_remaining: Math.max(rate.limit - rate.used, 0)
+                rate_remaining: Math.max(rate.limit - rate.used, 0),
+                coins_spent: economy.coins_spent || 0,
+                quota_remaining: economy.quota_remaining || 0,
+                wallet_balance: economy.wallet_balance || 0
             });
         }
 
@@ -721,16 +884,26 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
             facts: kbCtx && kbCtx.facts ? kbCtx.facts : [],
             repeatPolicy: kbCtx && kbCtx.repeatPolicy ? kbCtx.repeatPolicy : null,
             suggestions: suggestions,
-            rate_remaining: Math.max(rate.limit - rate.used, 0)
+            rate_remaining: Math.max(rate.limit - rate.used, 0),
+            coins_spent: economy.coins_spent || 0,
+            quota_remaining: economy.quota_remaining || 0,
+            wallet_balance: economy.wallet_balance || 0
         });
     } catch (err) {
         // P1-13: do not leak err.message — log server-side only.
         logger.error("[ChatBox] message error: " + (err && err.message ? err.message : err));
+        // Include coin fields if economy ran before the error so the client
+        // HUD reflects any coins that were already deducted. `economy` is
+        // var-hoisted to function scope, so it exists even in the catch block
+        // (it's `undefined` only if the exception happened before cbxChargeForMessage).
         return JSON.stringify({
             success: false,
             error: "internal_error",
             reply: "Something went wrong on my end. Try again in a moment.",
-            suggestions: CBX_DEFAULT_SUGGESTIONS
+            suggestions: CBX_DEFAULT_SUGGESTIONS,
+            coins_spent:     (economy && economy.coins_spent)     || 0,
+            quota_remaining: (economy && economy.quota_remaining) || 0,
+            wallet_balance:  (economy && economy.wallet_balance)  || 0
         });
     }
 }

@@ -511,6 +511,111 @@ function rpcAnalyticsMetrics(ctx, logger, nk, payload) {
     });
 }
 
+// ─── DAU Alert (drop >20% triggers Slack webhook) ─────────────────────────────
+//
+// analytics_dau_alert_check  {}
+//   Reads today's and yesterday's DAU from analytics_live_daily storage.
+//   If today DAU < yesterday DAU * 0.80, sends a Slack webhook alert.
+//   Register as a Nakama CRON (every 2h) or call manually from ops dashboards.
+//   Slack webhook URL comes from ctx.env['SLACK_OPS_WEBHOOK_URL'].
+
+var AO_DAU_THRESHOLD_PCT = 0.80;   // alert when DAU drops below 80% of yesterday
+var AO_DAU_ALERT_COOLDOWN_HOURS = 6; // suppress repeated alerts for 6h
+
+function getDateKey(daysOffset) {
+    var d = new Date();
+    d.setUTCDate(d.getUTCDate() + (daysOffset || 0));
+    return d.toISOString().slice(0, 10);
+}
+
+function rpcAnalyticsDauAlertCheck(ctx, logger, nk, payload) {
+    var data = aoParse(payload);
+    var gate = aoRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return aoErr(gate.reason, 401);
+
+    var todayKey     = getDateKey(0);
+    var yesterdayKey = getDateKey(-1);
+
+    var todayDau = 0, yesterdayDau = 0;
+    try {
+        var t = nk.storageRead([{ collection: "analytics_live_daily", key: todayKey, userId: AO_SYSTEM_USER }]);
+        if (t && t.length > 0 && t[0].value) todayDau = t[0].value.dau || 0;
+    } catch (e) { logger.warn("[dau_alert] Failed to read today DAU: " + e.message); }
+
+    try {
+        var y = nk.storageRead([{ collection: "analytics_live_daily", key: yesterdayKey, userId: AO_SYSTEM_USER }]);
+        if (y && y.length > 0 && y[0].value) yesterdayDau = y[0].value.dau || 0;
+    } catch (e) { logger.warn("[dau_alert] Failed to read yesterday DAU: " + e.message); }
+
+    var dropPct = yesterdayDau > 0 ? (1 - todayDau / yesterdayDau) * 100 : 0;
+    var alertNeeded = yesterdayDau > 0 && todayDau < yesterdayDau * AO_DAU_THRESHOLD_PCT;
+
+    logger.info("[dau_alert] today=" + todayDau + " yesterday=" + yesterdayDau +
+                " drop=" + dropPct.toFixed(1) + "% alert=" + alertNeeded);
+
+    if (!alertNeeded) {
+        return aoOk({ alerted: false, todayDau: todayDau, yesterdayDau: yesterdayDau, dropPct: dropPct });
+    }
+
+    // Check cooldown — suppress if already alerted in the last AO_DAU_ALERT_COOLDOWN_HOURS
+    var cooldownKey = "dau_alert_cooldown_" + todayKey;
+    try {
+        var cool = nk.storageRead([{ collection: "analytics_ops_state", key: cooldownKey, userId: AO_SYSTEM_USER }]);
+        if (cool && cool.length > 0 && cool[0].value) {
+            var lastAlertTs = cool[0].value.alertedAt || 0;
+            var hoursSince = (Date.now() - lastAlertTs) / 3600000;
+            if (hoursSince < AO_DAU_ALERT_COOLDOWN_HOURS) {
+                logger.info("[dau_alert] Cooldown active (" + hoursSince.toFixed(1) + "h < " + AO_DAU_ALERT_COOLDOWN_HOURS + "h). Skipping.");
+                return aoOk({ alerted: false, cooldown: true, todayDau: todayDau, yesterdayDau: yesterdayDau, dropPct: dropPct });
+            }
+        }
+    } catch (e) { /* no cooldown record → proceed */ }
+
+    // Record cooldown
+    try {
+        nk.storageWrite([{
+            collection: "analytics_ops_state", key: cooldownKey, userId: AO_SYSTEM_USER,
+            value: { alertedAt: Date.now(), todayDau: todayDau, yesterdayDau: yesterdayDau, dropPct: dropPct },
+            permissionRead: 0, permissionWrite: 0
+        }]);
+    } catch (e) { /* non-fatal */ }
+
+    // Send Slack webhook
+    var webhookUrl = ctx.env && ctx.env["SLACK_OPS_WEBHOOK_URL"];
+    if (!webhookUrl) {
+        logger.warn("[dau_alert] SLACK_OPS_WEBHOOK_URL not set — alert suppressed. Set it in RUNTIME_ENV_KEYS.");
+        return aoOk({ alerted: false, reason: "no_webhook_url", todayDau: todayDau, yesterdayDau: yesterdayDau, dropPct: dropPct });
+    }
+
+    var slackMsg = JSON.stringify({
+        text: ":rotating_light: *QuizVerse DAU Alert* — " + todayKey,
+        blocks: [{
+            type: "section",
+            text: {
+                type: "mrkdwn",
+                text: ":rotating_light: *DAU dropped >" + (100 - AO_DAU_THRESHOLD_PCT * 100).toFixed(0) +
+                      "%* on *" + todayKey + "*\n" +
+                      ">*Today DAU:* " + todayDau + "\n" +
+                      ">*Yesterday DAU:* " + yesterdayDau + "\n" +
+                      ">*Drop:* " + dropPct.toFixed(1) + "%\n" +
+                      "Check: https://nakama.intelli-verse-x.ai/analytics.html"
+            }
+        }]
+    });
+
+    var slackOk = false;
+    try {
+        var resp = nk.httpRequest(webhookUrl, "post", { "Content-Type": "application/json" }, slackMsg);
+        slackOk = resp.code >= 200 && resp.code < 300;
+        if (!slackOk) logger.warn("[dau_alert] Slack webhook returned HTTP " + resp.code);
+        else          logger.info("[dau_alert] Slack alert sent. drop=" + dropPct.toFixed(1) + "% todayDau=" + todayDau);
+    } catch (e) {
+        logger.error("[dau_alert] Failed to send Slack webhook: " + e.message);
+    }
+
+    return aoOk({ alerted: true, slackOk: slackOk, todayDau: todayDau, yesterdayDau: yesterdayDau, dropPct: dropPct });
+}
+
 // ─── Registration ─────────────────────────────────────────
 
 function InitModule(ctx, logger, nk, initializer) {
@@ -518,5 +623,6 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_backfill_events", rpcAnalyticsBackfillEvents);
     initializer.registerRpc("analytics_feature_flags", rpcAnalyticsFeatureFlags);
     initializer.registerRpc("analytics_metrics", rpcAnalyticsMetrics);
-    logger.info("[analytics_ops] Module registered: 4 RPCs (schema_check, backfill_events, feature_flags, metrics)");
+    initializer.registerRpc("analytics_dau_alert_check", rpcAnalyticsDauAlertCheck);
+    logger.info("[analytics_ops] Module registered: 5 RPCs (schema_check, backfill_events, feature_flags, metrics, dau_alert_check)");
 }

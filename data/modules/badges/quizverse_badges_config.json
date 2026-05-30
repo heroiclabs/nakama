@@ -1,319 +1,363 @@
 {
   "game_id": "quizverse",
+  "version": "2.0.0",
+  "updated_at": "2026-05-29",
+  "base_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse",
   "badges": [
-    {
-      "badge_id": "combat_winner",
-      "title": "Combat Winner",
-      "description": "Win your first combat match",
-      "icon_url": "badges/combat_winner.png",
-      "category": "combat",
-      "rarity": "common",
-      "type": "progressive",
-      "target": 1,
-      "unlock_criteria": { "event": "combat_win", "count": 1 },
-      "rewards": { "coins": 100, "xp": 50 },
-      "points": 10,
-      "order": 1
-    },
-    {
-      "badge_id": "clash_winner",
-      "title": "Clash Winner",
-      "description": "Win a clash tournament",
-      "icon_url": "badges/clash_winner.png",
-      "category": "combat",
-      "rarity": "rare",
-      "type": "progressive",
-      "target": 1,
-      "unlock_criteria": { "event": "clash_win", "count": 1 },
-      "rewards": { "coins": 250, "xp": 100 },
-      "points": 25,
-      "order": 2
-    },
-    {
-      "badge_id": "elite",
-      "title": "Elite",
-      "description": "Reach the Elite rank in any leaderboard",
-      "icon_url": "badges/elite.png",
-      "category": "special",
-      "rarity": "epic",
-      "type": "one_time",
-      "target": 1,
-      "unlock_criteria": { "event": "rank_elite", "count": 1 },
-      "rewards": { "coins": 500, "xp": 200 },
-      "points": 50,
-      "order": 3
-    },
-    {
-      "badge_id": "dashing_debut",
-      "title": "Dashing Debut",
-      "description": "Complete your first quiz",
-      "icon_url": "badges/dashing_debut.png",
-      "category": "quiz",
-      "rarity": "common",
-      "type": "progressive",
-      "target": 1,
-      "unlock_criteria": { "event": "quiz_complete", "count": 1 },
-      "rewards": { "coins": 50, "xp": 25 },
-      "points": 5,
-      "order": 4
-    },
-    {
-      "badge_id": "most_wanted_winner",
-      "title": "Most Wanted Winner",
-      "description": "Be the most wanted player in a match",
-      "icon_url": "badges/most_wanted_winner.png",
-      "category": "combat",
-      "rarity": "rare",
-      "type": "one_time",
-      "target": 1,
-      "unlock_criteria": { "event": "most_wanted_achieved", "count": 1 },
-      "rewards": { "coins": 300, "xp": 150 },
-      "points": 30,
-      "order": 5
-    },
-    {
-      "badge_id": "ultimate_player",
-      "title": "Ultimate Player",
-      "description": "Win 100 matches",
-      "icon_url": "badges/ultimate_player.png",
-      "category": "special",
-      "rarity": "legendary",
-      "type": "progressive",
-      "target": 100,
-      "unlock_criteria": { "event": "match_win", "count": 100 },
-      "rewards": { "coins": 1000, "xp": 500, "collectables": ["legendary_frame"] },
-      "points": 100,
-      "order": 6
-    },
-    {
-      "badge_id": "quiz_warrior",
-      "title": "Quiz Warrior",
-      "description": "Complete 50 quizzes",
-      "icon_url": "badges/quiz_warrior.png",
-      "category": "quiz",
-      "rarity": "epic",
-      "type": "progressive",
-      "target": 50,
-      "unlock_criteria": { "event": "quiz_complete", "count": 50 },
-      "rewards": { "coins": 500, "xp": 250 },
-      "points": 50,
-      "order": 7
-    },
-    {
-      "badge_id": "super_sonic",
-      "title": "Super Sonic",
-      "description": "Answer 10 questions in under 3 seconds each",
-      "icon_url": "badges/super_sonic.png",
-      "category": "quiz",
-      "rarity": "rare",
-      "type": "progressive",
-      "target": 10,
-      "unlock_criteria": { "event": "fast_answer", "count": 10 },
-      "rewards": { "coins": 200, "xp": 100 },
-      "points": 25,
-      "order": 8
-    },
-    {
-      "badge_id": "flashback",
-      "title": "Flashback",
-      "description": "Play quizzes on 7 consecutive days",
-      "icon_url": "badges/flashback.png",
-      "category": "streak",
-      "rarity": "rare",
-      "type": "progressive",
-      "target": 7,
-      "unlock_criteria": { "event": "daily_streak", "count": 7 },
-      "rewards": { "coins": 350, "xp": 175 },
-      "points": 35,
-      "order": 9
-    },
-    {
-      "badge_id": "celebration",
-      "title": "Celebration",
-      "description": "Celebrate a special in-game event",
-      "icon_url": "badges/celebration.png",
-      "category": "seasonal",
-      "rarity": "rare",
-      "type": "one_time",
-      "target": 1,
-      "unlock_criteria": { "event": "event_participate", "count": 1 },
-      "rewards": { "coins": 200, "xp": 100 },
-      "points": 20,
-      "order": 10
-    },
-    {
-      "badge_id": "trophy_hunter",
-      "title": "Trophy Hunter",
-      "description": "Collect 10 trophies",
-      "icon_url": "badges/trophy_hunter.png",
-      "category": "special",
-      "rarity": "epic",
-      "type": "progressive",
-      "target": 10,
-      "unlock_criteria": { "event": "trophy_earned", "count": 10 },
-      "rewards": { "coins": 400, "xp": 200 },
-      "points": 40,
-      "order": 11
-    },
-    {
-      "badge_id": "calendar_master",
-      "title": "Calendar Master",
-      "description": "Log in for 30 consecutive days",
-      "icon_url": "badges/calendar_master.png",
-      "category": "streak",
-      "rarity": "epic",
-      "type": "progressive",
-      "target": 30,
-      "unlock_criteria": { "event": "daily_login_streak", "count": 30 },
-      "rewards": { "coins": 600, "xp": 300 },
-      "points": 60,
-      "order": 12
-    },
-    {
-      "badge_id": "brainiac",
-      "title": "Brainiac",
-      "description": "Answer 500 questions correctly",
-      "icon_url": "badges/brainiac.png",
-      "category": "quiz",
-      "rarity": "epic",
-      "type": "progressive",
-      "target": 500,
-      "unlock_criteria": { "event": "correct_answer", "count": 500 },
-      "rewards": { "coins": 500, "xp": 250 },
-      "points": 50,
-      "order": 13
-    },
-    {
-      "badge_id": "big_thinks",
-      "title": "Big Thinks",
-      "description": "Master 5 different quiz topics",
-      "icon_url": "badges/big_thinks.png",
-      "category": "quiz",
-      "rarity": "rare",
-      "type": "progressive",
-      "target": 5,
-      "unlock_criteria": { "event": "topic_mastered", "count": 5 },
-      "rewards": { "coins": 300, "xp": 150 },
-      "points": 30,
-      "order": 14
-    },
-    {
-      "badge_id": "thirty",
-      "title": "Thirty",
-      "description": "Play quizzes on 30 consecutive days",
-      "icon_url": "badges/thirty.png",
-      "category": "streak",
-      "rarity": "epic",
-      "type": "progressive",
-      "target": 30,
-      "unlock_criteria": { "event": "daily_streak", "count": 30 },
-      "rewards": { "coins": 600, "xp": 300 },
-      "points": 60,
-      "order": 15
-    },
-    {
-      "badge_id": "power_elite",
-      "title": "Power Elite",
-      "description": "Reach the top 10 in any leaderboard",
-      "icon_url": "badges/power_elite.png",
-      "category": "special",
-      "rarity": "legendary",
-      "type": "one_time",
-      "target": 1,
-      "unlock_criteria": { "event": "leaderboard_top_10", "count": 1 },
-      "rewards": { "coins": 1000, "xp": 500, "collectables": ["golden_avatar_border"] },
-      "points": 100,
-      "order": 16
-    },
-    {
-      "badge_id": "sharing_is_caring",
-      "title": "Sharing is Caring",
-      "description": "Invite 5 friends to play",
-      "icon_url": "badges/sharing_is_caring.png",
-      "category": "social",
-      "rarity": "rare",
-      "type": "progressive",
-      "target": 5,
-      "unlock_criteria": { "event": "friend_invited", "count": 5 },
-      "rewards": { "coins": 250, "xp": 125 },
-      "points": 25,
-      "order": 17
-    },
-    {
-      "badge_id": "streak",
-      "title": "Streak",
-      "description": "Maintain a 7-day play streak",
-      "icon_url": "badges/streak.png",
-      "category": "streak",
-      "rarity": "common",
-      "type": "progressive",
-      "target": 7,
-      "unlock_criteria": { "event": "daily_streak", "count": 7 },
-      "rewards": { "coins": 150, "xp": 75 },
-      "points": 15,
-      "order": 18
-    }
+
+    // ══════════════════════════════════════════
+    // VOLUME — quiz_complete / speed_quiz_complete
+    // Bronze earnable Day 0 (first session)
+    // ══════════════════════════════════════════
+
+    { "badge_id": "dashing_debut",       "title": "Dashing Debut",          "description": "Complete your first quiz",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/dashing_debut.png",           "category": "volume",      "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "quiz_complete",          "count": 1    }, "rewards": { "coins": 50,   "xp": 25  }, "points": 5,   "order": 1  },
+    { "badge_id": "beta_tester",         "title": "Beta Tester",            "description": "One of the first players in QuizVerse",               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/beta_tester.png",           "category": "volume",      "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "beta_grant",             "count": 1    }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 2  },
+
+    { "badge_id": "quiz_warrior",        "title": "Quiz Warrior",           "description": "Complete 5 quizzes",                                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/quiz_warrior.png",           "category": "volume",      "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "quiz_complete",          "count": 5    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 3  },
+    { "badge_id": "quiz_warrior_bronze", "title": "Quiz Warrior (Bronze)",  "description": "Complete 10 quizzes",                                 "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/quiz_warrior_bronze.png",    "category": "volume",      "rarity": "common",    "type": "progressive", "target": 10,   "unlock_criteria": { "event": "quiz_complete",          "count": 10   }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 4  },
+    { "badge_id": "quiz_warrior_silver", "title": "Quiz Warrior (Silver)",  "description": "Complete 25 quizzes",                                 "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/quiz_warrior_silver.png",    "category": "volume",      "rarity": "rare",      "type": "progressive", "target": 25,   "unlock_criteria": { "event": "quiz_complete",          "count": 25   }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 5  },
+    { "badge_id": "quiz_warrior_gold",   "title": "Quiz Warrior (Gold)",    "description": "Complete 50 quizzes",                                 "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/quiz_warrior_gold.png",      "category": "volume",      "rarity": "epic",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "quiz_complete",          "count": 50   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 6  },
+    { "badge_id": "quiz_warrior_diamond","title": "Quiz Warrior (Diamond)", "description": "Complete 100 quizzes",                                "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/quiz_warrior_diamond.png",   "category": "volume",      "rarity": "legendary", "type": "progressive", "target": 100,  "unlock_criteria": { "event": "quiz_complete",          "count": 100  }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 7  },
+
+    { "badge_id": "centurion",           "title": "Centurion",              "description": "Complete 100 quizzes",                                "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/centurion.png",              "category": "volume",      "rarity": "common",    "type": "progressive", "target": 100,  "unlock_criteria": { "event": "quiz_complete",          "count": 100  }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 8  },
+    { "badge_id": "centurion_bronze",    "title": "Centurion (Bronze)",     "description": "Complete 250 quizzes",                                "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/centurion_bronze.png",        "category": "volume",      "rarity": "common",    "type": "progressive", "target": 250,  "unlock_criteria": { "event": "quiz_complete",          "count": 250  }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 9  },
+    { "badge_id": "centurion_silver",    "title": "Centurion (Silver)",     "description": "Complete 500 quizzes",                                "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/centurion_silver.png",        "category": "volume",      "rarity": "rare",      "type": "progressive", "target": 500,  "unlock_criteria": { "event": "quiz_complete",          "count": 500  }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 10 },
+    { "badge_id": "centurion_gold",      "title": "Centurion (Gold)",       "description": "Complete 1000 quizzes",                               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/centurion_gold.png",          "category": "volume",      "rarity": "epic",      "type": "progressive", "target": 1000, "unlock_criteria": { "event": "quiz_complete",          "count": 1000 }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 11 },
+    { "badge_id": "centurion_diamond",   "title": "Centurion (Diamond)",    "description": "Complete 2500 quizzes",                               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/centurion_diamond.png",       "category": "volume",      "rarity": "legendary", "type": "progressive", "target": 2500, "unlock_criteria": { "event": "quiz_complete",          "count": 2500 }, "rewards": { "coins": 1500, "xp": 750 }, "points": 150, "order": 12 },
+
+    { "badge_id": "flash_fanatic",       "title": "Flash Fanatic",          "description": "Complete your first Speed Quiz",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/flash_fanatic.png",           "category": "volume",      "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "speed_quiz_complete",    "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 13 },
+    { "badge_id": "flash_fanatic_bronze","title": "Flash Fanatic (Bronze)", "description": "Complete 10 Speed Quizzes",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/flash_fanatic_bronze.png",    "category": "volume",      "rarity": "common",    "type": "progressive", "target": 10,   "unlock_criteria": { "event": "speed_quiz_complete",    "count": 10   }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 14 },
+    { "badge_id": "flash_fanatic_silver","title": "Flash Fanatic (Silver)", "description": "Complete 50 Speed Quizzes",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/flash_fanatic_silver.png",    "category": "volume",      "rarity": "rare",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "speed_quiz_complete",    "count": 50   }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 15 },
+    { "badge_id": "flash_fanatic_gold",  "title": "Flash Fanatic (Gold)",   "description": "Complete 200 Speed Quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/flash_fanatic_gold.png",      "category": "volume",      "rarity": "epic",      "type": "progressive", "target": 200,  "unlock_criteria": { "event": "speed_quiz_complete",    "count": 200  }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 16 },
+    { "badge_id": "flash_fanatic_diamond","title": "Flash Fanatic (Diamond)","description": "Complete 500 Speed Quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/volume/flash_fanatic_diamond.png",   "category": "volume",      "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "speed_quiz_complete",    "count": 500  }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 17 },
+
+    // ══════════════════════════════════════════
+    // ACCURACY — correct_answer / perfect_round
+    // ══════════════════════════════════════════
+
+    { "badge_id": "perfect_round",       "title": "Perfect Round",          "description": "Get 100% on any quiz",                                "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/perfect_round.png",         "category": "accuracy",    "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "perfect_round",          "count": 1    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 20 },
+
+    { "badge_id": "accuracy_engine",     "title": "Accuracy Engine",        "description": "Answer 10 questions correctly in one quiz",           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/accuracy_engine.png",       "category": "accuracy",    "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "accuracy_quiz",          "count": 5    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 21 },
+    { "badge_id": "accuracy_engine_bronze","title": "Accuracy Engine (Bronze)","description": "Complete 20 quizzes with 80%+ accuracy",           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/accuracy_engine_bronze.png", "category": "accuracy",    "rarity": "common",    "type": "progressive", "target": 20,   "unlock_criteria": { "event": "accuracy_quiz",          "count": 20   }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 22 },
+    { "badge_id": "accuracy_engine_silver","title": "Accuracy Engine (Silver)","description": "Complete 100 quizzes with 80%+ accuracy",          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/accuracy_engine_silver.png", "category": "accuracy",    "rarity": "rare",      "type": "progressive", "target": 100,  "unlock_criteria": { "event": "accuracy_quiz",          "count": 100  }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 23 },
+    { "badge_id": "accuracy_engine_gold","title": "Accuracy Engine (Gold)",  "description": "Complete 500 quizzes with 80%+ accuracy",             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/accuracy_engine_gold.png",   "category": "accuracy",    "rarity": "epic",      "type": "progressive", "target": 500,  "unlock_criteria": { "event": "accuracy_quiz",          "count": 500  }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 24 },
+    { "badge_id": "accuracy_engine_diamond","title": "Accuracy Engine (Diamond)","description": "Complete 2000 quizzes with 80%+ accuracy",       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/accuracy_engine_diamond.png","category": "accuracy",    "rarity": "legendary", "type": "progressive", "target": 2000, "unlock_criteria": { "event": "accuracy_quiz",          "count": 2000 }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 25 },
+
+    { "badge_id": "sharp_shooter",       "title": "Sharp Shooter",          "description": "Answer 10 questions correctly",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/sharp_shooter.png",         "category": "accuracy",    "rarity": "common",    "type": "progressive", "target": 10,   "unlock_criteria": { "event": "correct_answer",         "count": 10   }, "rewards": { "coins": 50,   "xp": 25  }, "points": 5,   "order": 26 },
+    { "badge_id": "sharp_shooter_bronze","title": "Sharp Shooter (Bronze)",  "description": "Answer 100 questions correctly",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/sharp_shooter_bronze.png",  "category": "accuracy",    "rarity": "common",    "type": "progressive", "target": 100,  "unlock_criteria": { "event": "correct_answer",         "count": 100  }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 27 },
+    { "badge_id": "sharp_shooter_silver","title": "Sharp Shooter (Silver)",  "description": "Answer 500 questions correctly",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/sharp_shooter_silver.png",  "category": "accuracy",    "rarity": "rare",      "type": "progressive", "target": 500,  "unlock_criteria": { "event": "correct_answer",         "count": 500  }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 28 },
+    { "badge_id": "sharp_shooter_gold",  "title": "Sharp Shooter (Gold)",   "description": "Answer 1000 questions correctly",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/sharp_shooter_gold.png",    "category": "accuracy",    "rarity": "epic",      "type": "progressive", "target": 1000, "unlock_criteria": { "event": "correct_answer",         "count": 1000 }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 29 },
+    { "badge_id": "sharp_shooter_diamond","title": "Sharp Shooter (Diamond)","description": "Answer 5000 questions correctly",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/accuracy/sharp_shooter_diamond.png", "category": "accuracy",    "rarity": "legendary", "type": "progressive", "target": 5000, "unlock_criteria": { "event": "correct_answer",         "count": 5000 }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 30 },
+
+    // ══════════════════════════════════════════
+    // SPEED — fast_answer / speed_quiz_win
+    // ══════════════════════════════════════════
+
+    { "badge_id": "speed_demon",         "title": "Speed Demon",            "description": "Answer 5 questions in under 3 seconds",               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/speed_demon.png",               "category": "speed",       "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "fast_answer",            "count": 5    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 40 },
+    { "badge_id": "speed_demon_bronze",  "title": "Speed Demon (Bronze)",   "description": "Answer 25 questions in under 3 seconds",              "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/speed_demon_bronze.png",         "category": "speed",       "rarity": "common",    "type": "progressive", "target": 25,   "unlock_criteria": { "event": "fast_answer",            "count": 25   }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 41 },
+    { "badge_id": "speed_demon_silver",  "title": "Speed Demon (Silver)",   "description": "Answer 100 questions in under 3 seconds",             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/speed_demon_silver.png",         "category": "speed",       "rarity": "rare",      "type": "progressive", "target": 100,  "unlock_criteria": { "event": "fast_answer",            "count": 100  }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 42 },
+    { "badge_id": "speed_demon_gold",    "title": "Speed Demon (Gold)",     "description": "Answer 500 questions in under 3 seconds",             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/speed_demon_gold.png",           "category": "speed",       "rarity": "epic",      "type": "progressive", "target": 500,  "unlock_criteria": { "event": "fast_answer",            "count": 500  }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 43 },
+    { "badge_id": "speed_demon_diamond", "title": "Speed Demon (Diamond)",  "description": "Answer 2000 questions in under 3 seconds",            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/speed_demon_diamond.png",        "category": "speed",       "rarity": "legendary", "type": "progressive", "target": 2000, "unlock_criteria": { "event": "fast_answer",            "count": 2000 }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 44 },
+
+    { "badge_id": "lightning_round",     "title": "Lightning Round",        "description": "Win your first Speed Quiz match",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/lightning_round.png",             "category": "speed",       "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "speed_quiz_win",         "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 45 },
+    { "badge_id": "lightning_round_bronze","title": "Lightning Round (Bronze)","description": "Win 10 Speed Quiz matches",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/lightning_round_bronze.png",      "category": "speed",       "rarity": "common",    "type": "progressive", "target": 10,   "unlock_criteria": { "event": "speed_quiz_win",         "count": 10   }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 46 },
+    { "badge_id": "lightning_round_silver","title": "Lightning Round (Silver)","description": "Win 50 Speed Quiz matches",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/lightning_round_silver.png",      "category": "speed",       "rarity": "rare",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "speed_quiz_win",         "count": 50   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 47 },
+    { "badge_id": "lightning_round_gold","title": "Lightning Round (Gold)",  "description": "Win 200 Speed Quiz matches",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/lightning_round_gold.png",         "category": "speed",       "rarity": "epic",      "type": "progressive", "target": 200,  "unlock_criteria": { "event": "speed_quiz_win",         "count": 200  }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 48 },
+    { "badge_id": "lightning_round_diamond","title": "Lightning Round (Diamond)","description": "Win 500 Speed Quiz matches",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/speed/lightning_round_diamond.png",      "category": "speed",       "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "speed_quiz_win",         "count": 500  }, "rewards": { "coins": 1000, "xp": 500 }, "points": 100, "order": 49 },
+
+    // ══════════════════════════════════════════
+    // CONSISTENCY — daily_streak / daily_quiz_played / perfect_week
+    // ══════════════════════════════════════════
+
+    { "badge_id": "lucky_7",             "title": "Lucky 7",                "description": "Keep a 7-day quiz streak",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/lucky_7.png",               "category": "consistency", "rarity": "common",    "type": "one_time",    "target": 7,    "unlock_criteria": { "event": "daily_streak",           "count": 7    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 55 },
+    { "badge_id": "early_bird",          "title": "Early Bird",             "description": "Play your first quiz before 9am",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/early_bird.png",              "category": "consistency", "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "early_quiz",             "count": 1    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 56 },
+    { "badge_id": "the_return",          "title": "The Return",             "description": "Come back after a 3+ day absence",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/the_return.png",              "category": "consistency", "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "comeback_quiz",          "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 57 },
+
+    { "badge_id": "streak_keeper",       "title": "Streak Keeper",          "description": "Maintain a 3-day streak",                             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/streak_keeper.png",           "category": "consistency", "rarity": "common",    "type": "progressive", "target": 3,    "unlock_criteria": { "event": "daily_streak",           "count": 3    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 58 },
+    { "badge_id": "streak_keeper_bronze","title": "Streak Keeper (Bronze)", "description": "Maintain a 7-day streak",                             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/streak_keeper_bronze.png",    "category": "consistency", "rarity": "common",    "type": "progressive", "target": 7,    "unlock_criteria": { "event": "daily_streak",           "count": 7    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 59 },
+    { "badge_id": "streak_keeper_silver","title": "Streak Keeper (Silver)", "description": "Maintain a 30-day streak",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/streak_keeper_silver.png",    "category": "consistency", "rarity": "rare",      "type": "progressive", "target": 30,   "unlock_criteria": { "event": "daily_streak",           "count": 30   }, "rewards": { "coins": 350,  "xp": 175 }, "points": 35,  "order": 60 },
+    { "badge_id": "streak_keeper_gold",  "title": "Streak Keeper (Gold)",   "description": "Maintain a 100-day streak",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/streak_keeper_gold.png",      "category": "consistency", "rarity": "epic",      "type": "progressive", "target": 100,  "unlock_criteria": { "event": "daily_streak",           "count": 100  }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 61 },
+    { "badge_id": "streak_keeper_diamond","title": "Streak Keeper (Diamond)","description": "Maintain a 365-day streak",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/streak_keeper_diamond.png",   "category": "consistency", "rarity": "legendary", "type": "progressive", "target": 365,  "unlock_criteria": { "event": "daily_streak",           "count": 365  }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 62 },
+
+    { "badge_id": "daily_grinder",       "title": "Daily Grinder",          "description": "Play quizzes on 7 different days",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/daily_grinder.png",           "category": "consistency", "rarity": "common",    "type": "progressive", "target": 7,    "unlock_criteria": { "event": "daily_quiz_played",      "count": 7    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 63 },
+    { "badge_id": "daily_grinder_bronze","title": "Daily Grinder (Bronze)", "description": "Play quizzes on 14 different days",                   "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/daily_grinder_bronze.png",    "category": "consistency", "rarity": "common",    "type": "progressive", "target": 14,   "unlock_criteria": { "event": "daily_quiz_played",      "count": 14   }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 64 },
+    { "badge_id": "daily_grinder_silver","title": "Daily Grinder (Silver)", "description": "Play quizzes on 30 different days",                   "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/daily_grinder_silver.png",    "category": "consistency", "rarity": "rare",      "type": "progressive", "target": 30,   "unlock_criteria": { "event": "daily_quiz_played",      "count": 30   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 65 },
+    { "badge_id": "daily_grinder_gold",  "title": "Daily Grinder (Gold)",   "description": "Play quizzes on 90 different days",                   "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/daily_grinder_gold.png",      "category": "consistency", "rarity": "epic",      "type": "progressive", "target": 90,   "unlock_criteria": { "event": "daily_quiz_played",      "count": 90   }, "rewards": { "coins": 600,  "xp": 300 }, "points": 60,  "order": 66 },
+    { "badge_id": "daily_grinder_diamond","title": "Daily Grinder (Diamond)","description": "Play quizzes on 365 different days",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/daily_grinder_diamond.png",   "category": "consistency", "rarity": "legendary", "type": "progressive", "target": 365,  "unlock_criteria": { "event": "daily_quiz_played",      "count": 365  }, "rewards": { "coins": 1500, "xp": 750 }, "points": 150, "order": 67 },
+
+    { "badge_id": "perfect_week",        "title": "Perfect Week",           "description": "Play every day for a full week",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/perfect_week.png",             "category": "consistency", "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "perfect_week",           "count": 1    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 68 },
+    { "badge_id": "perfect_week_bronze", "title": "Perfect Week (Bronze)",  "description": "Achieve 4 perfect weeks",                             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/perfect_week_bronze.png",     "category": "consistency", "rarity": "common",    "type": "progressive", "target": 4,    "unlock_criteria": { "event": "perfect_week",           "count": 4    }, "rewards": { "coins": 250,  "xp": 125 }, "points": 25,  "order": 69 },
+    { "badge_id": "perfect_week_silver", "title": "Perfect Week (Silver)",  "description": "Achieve 12 perfect weeks",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/perfect_week_silver.png",     "category": "consistency", "rarity": "rare",      "type": "progressive", "target": 12,   "unlock_criteria": { "event": "perfect_week",           "count": 12   }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 70 },
+    { "badge_id": "perfect_week_gold",   "title": "Perfect Week (Gold)",    "description": "Achieve 26 perfect weeks",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/perfect_week_gold.png",       "category": "consistency", "rarity": "epic",      "type": "progressive", "target": 26,   "unlock_criteria": { "event": "perfect_week",           "count": 26   }, "rewards": { "coins": 800,  "xp": 400 }, "points": 80,  "order": 71 },
+    { "badge_id": "perfect_week_diamond","title": "Perfect Week (Diamond)", "description": "Achieve 52 perfect weeks — one whole year!",          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/consistency/perfect_week_diamond.png",    "category": "consistency", "rarity": "legendary", "type": "progressive", "target": 52,   "unlock_criteria": { "event": "perfect_week",           "count": 52   }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 72 },
+
+    // ══════════════════════════════════════════
+    // LEARNING — smart_review_session / audio_quiz / mastery
+    // ══════════════════════════════════════════
+
+    { "badge_id": "first_listen",        "title": "First Listen",           "description": "Play your first audio quiz",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/first_listen.png",               "category": "learning",    "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "audio_quiz_played",      "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 80 },
+
+    { "badge_id": "review_scholar",      "title": "Review Scholar",         "description": "Complete your first Smart Review session",            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/review_scholar.png",             "category": "learning",    "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "smart_review_session",   "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 81 },
+    { "badge_id": "review_scholar_bronze","title": "Review Scholar (Bronze)","description": "Complete 10 Smart Review sessions",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/review_scholar_bronze.png",     "category": "learning",    "rarity": "common",    "type": "progressive", "target": 10,   "unlock_criteria": { "event": "smart_review_session",   "count": 10   }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 82 },
+    { "badge_id": "review_scholar_silver","title": "Review Scholar (Silver)","description": "Complete 50 Smart Review sessions",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/review_scholar_silver.png",     "category": "learning",    "rarity": "rare",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "smart_review_session",   "count": 50   }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 83 },
+    { "badge_id": "review_scholar_gold", "title": "Review Scholar (Gold)",  "description": "Complete 200 Smart Review sessions",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/review_scholar_gold.png",       "category": "learning",    "rarity": "epic",      "type": "progressive", "target": 200,  "unlock_criteria": { "event": "smart_review_session",   "count": 200  }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 84 },
+    { "badge_id": "review_scholar_diamond","title": "Review Scholar (Diamond)","description": "Complete 500 Smart Review sessions",               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/review_scholar_diamond.png",    "category": "learning",    "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "smart_review_session",   "count": 500  }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 85 },
+
+    { "badge_id": "mastery_chain",       "title": "Mastery Chain",          "description": "Get 5 correct answers in a row in any topic",         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/mastery_chain.png",             "category": "learning",    "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "consecutive_correct",    "count": 5    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 86 },
+    { "badge_id": "mastery_chain_bronze","title": "Mastery Chain (Bronze)", "description": "Get 20 correct answers in a row in any topic",        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/mastery_chain_bronze.png",     "category": "learning",    "rarity": "common",    "type": "progressive", "target": 20,   "unlock_criteria": { "event": "consecutive_correct",    "count": 20   }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 87 },
+    { "badge_id": "mastery_chain_silver","title": "Mastery Chain (Silver)", "description": "Get 50 correct answers in a row in any topic",        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/mastery_chain_silver.png",     "category": "learning",    "rarity": "rare",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "consecutive_correct",    "count": 50   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 88 },
+    { "badge_id": "mastery_chain_gold",  "title": "Mastery Chain (Gold)",   "description": "Get 100 correct answers in a row in any topic",       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/mastery_chain_gold.png",       "category": "learning",    "rarity": "epic",      "type": "progressive", "target": 100,  "unlock_criteria": { "event": "consecutive_correct",    "count": 100  }, "rewards": { "coins": 600,  "xp": 300 }, "points": 60,  "order": 89 },
+    { "badge_id": "mastery_chain_diamond","title": "Mastery Chain (Diamond)","description": "Get 200 correct answers in a row — legendary!",       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/learning/mastery_chain_diamond.png",    "category": "learning",    "rarity": "legendary", "type": "progressive", "target": 200,  "unlock_criteria": { "event": "consecutive_correct",    "count": 200  }, "rewards": { "coins": 1000, "xp": 500 }, "points": 100, "order": 90 },
+
+    // ══════════════════════════════════════════
+    // SOCIAL — friend events / multiplayer
+    // ══════════════════════════════════════════
+
+    { "badge_id": "challenge_accepted",  "title": "Challenge Accepted",     "description": "Accept your first friend challenge",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/challenge_accepted.png",          "category": "social",      "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "friend_challenge_accepted","count": 1  }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 100},
+    { "badge_id": "party_animal",        "title": "Party Animal",           "description": "Play a quiz with 4+ other players",                   "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/party_animal.png",                "category": "social",      "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "group_quiz",             "count": 1    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 101},
+
+    { "badge_id": "social_butterfly",    "title": "Social Butterfly",       "description": "Invite your first friend to QuizVerse",               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/social_butterfly.png",             "category": "social",      "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "friend_invited",         "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 102},
+    { "badge_id": "social_butterfly_bronze","title": "Social Butterfly (Bronze)","description": "Invite 5 friends",                               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/social_butterfly_bronze.png",      "category": "social",      "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "friend_invited",         "count": 5    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 103},
+    { "badge_id": "social_butterfly_silver","title": "Social Butterfly (Silver)","description": "Invite 20 friends",                              "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/social_butterfly_silver.png",      "category": "social",      "rarity": "rare",      "type": "progressive", "target": 20,   "unlock_criteria": { "event": "friend_invited",         "count": 20   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 104},
+    { "badge_id": "social_butterfly_gold","title": "Social Butterfly (Gold)","description": "Invite 50 friends",                                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/social_butterfly_gold.png",        "category": "social",      "rarity": "epic",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "friend_invited",         "count": 50   }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 105},
+    { "badge_id": "social_butterfly_diamond","title": "Social Butterfly (Diamond)","description": "Invite 100 friends",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/social_butterfly_diamond.png",     "category": "social",      "rarity": "legendary", "type": "progressive", "target": 100,  "unlock_criteria": { "event": "friend_invited",         "count": 100  }, "rewards": { "coins": 1000, "xp": 500 }, "points": 100, "order": 106},
+
+    { "badge_id": "friendly_fire",       "title": "Friendly Fire",          "description": "Play your first multiplayer game",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/friendly_fire.png",                "category": "social",      "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "multiplayer_game",       "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 107},
+    { "badge_id": "friendly_fire_bronze","title": "Friendly Fire (Bronze)", "description": "Play 10 multiplayer games",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/friendly_fire_bronze.png",          "category": "social",      "rarity": "common",    "type": "progressive", "target": 10,   "unlock_criteria": { "event": "multiplayer_game",       "count": 10   }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 108},
+    { "badge_id": "friendly_fire_silver","title": "Friendly Fire (Silver)", "description": "Play 50 multiplayer games",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/friendly_fire_silver.png",          "category": "social",      "rarity": "rare",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "multiplayer_game",       "count": 50   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 109},
+    { "badge_id": "friendly_fire_gold",  "title": "Friendly Fire (Gold)",   "description": "Play 200 multiplayer games",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/friendly_fire_gold.png",            "category": "social",      "rarity": "epic",      "type": "progressive", "target": 200,  "unlock_criteria": { "event": "multiplayer_game",       "count": 200  }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 110},
+    { "badge_id": "friendly_fire_diamond","title": "Friendly Fire (Diamond)","description": "Play 500 multiplayer games",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/friendly_fire_diamond.png",         "category": "social",      "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "multiplayer_game",       "count": 500  }, "rewards": { "coins": 1000, "xp": 500 }, "points": 100, "order": 111},
+
+    { "badge_id": "mentor",              "title": "Mentor",                 "description": "Win your first multiplayer match",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/mentor.png",                      "category": "social",      "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "multiplayer_win",        "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 112},
+    { "badge_id": "mentor_bronze",       "title": "Mentor (Bronze)",        "description": "Win 5 multiplayer matches",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/mentor_bronze.png",                "category": "social",      "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "multiplayer_win",        "count": 5    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 113},
+    { "badge_id": "mentor_silver",       "title": "Mentor (Silver)",        "description": "Win 25 multiplayer matches",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/mentor_silver.png",                "category": "social",      "rarity": "rare",      "type": "progressive", "target": 25,   "unlock_criteria": { "event": "multiplayer_win",        "count": 25   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 114},
+    { "badge_id": "mentor_gold",         "title": "Mentor (Gold)",          "description": "Win 100 multiplayer matches",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/mentor_gold.png",                  "category": "social",      "rarity": "epic",      "type": "progressive", "target": 100,  "unlock_criteria": { "event": "multiplayer_win",        "count": 100  }, "rewards": { "coins": 600,  "xp": 300 }, "points": 60,  "order": 115},
+    { "badge_id": "mentor_diamond",      "title": "Mentor (Diamond)",       "description": "Win 500 multiplayer matches",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/social/mentor_diamond.png",               "category": "social",      "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "multiplayer_win",        "count": 500  }, "rewards": { "coins": 1200, "xp": 600 }, "points": 120, "order": 116},
+
+    // ══════════════════════════════════════════
+    // COMPETITION — match events / leaderboard
+    // ══════════════════════════════════════════
+
+    { "badge_id": "combat_winner",       "title": "Combat Winner",          "description": "Win your first combat match",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/combat_winner.png",           "category": "competition", "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "combat_win",             "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 120},
+    { "badge_id": "clash_winner",        "title": "Clash Winner",           "description": "Win a clash tournament",                              "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/clash_winner.png",              "category": "competition", "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "clash_win",              "count": 1    }, "rewards": { "coins": 250,  "xp": 125 }, "points": 25,  "order": 121},
+    { "badge_id": "most_wanted",         "title": "Most Wanted",            "description": "Be the most wanted player in a match",               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/most_wanted.png",               "category": "competition", "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "most_wanted_achieved",   "count": 1    }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 122},
+    { "badge_id": "comeback_king",       "title": "Comeback King",          "description": "Win a match after being in last place",               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/comeback_king.png",             "category": "competition", "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "comeback_win",           "count": 1    }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 123},
+    { "badge_id": "weekly_warrior",      "title": "Weekly Warrior",         "description": "Win the weekly quiz tournament",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/weekly_warrior.png",             "category": "competition", "rarity": "epic",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "weekly_tournament_win",  "count": 1    }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 124},
+    { "badge_id": "daily_champion",      "title": "Daily Champion",         "description": "Reach the top of the daily leaderboard",             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/daily_champion.png",             "category": "competition", "rarity": "epic",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "daily_leaderboard_top",  "count": 1    }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 125},
+    { "badge_id": "rank_rising",         "title": "Rank Rising",            "description": "Move up in the global ranking",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/rank_rising.png",                "category": "competition", "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "rank_increase",          "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 126},
+
+    { "badge_id": "league_climber",      "title": "League Climber",         "description": "Get your first league promotion",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/league_climber.png",             "category": "competition", "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "league_promotion",       "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 127},
+    { "badge_id": "league_climber_bronze","title": "League Climber (Bronze)","description": "Get 3 league promotions",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/league_climber_bronze.png",      "category": "competition", "rarity": "common",    "type": "progressive", "target": 3,    "unlock_criteria": { "event": "league_promotion",       "count": 3    }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 128},
+    { "badge_id": "league_climber_silver","title": "League Climber (Silver)","description": "Get 10 league promotions",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/league_climber_silver.png",      "category": "competition", "rarity": "rare",      "type": "progressive", "target": 10,   "unlock_criteria": { "event": "league_promotion",       "count": 10   }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 129},
+    { "badge_id": "league_climber_gold", "title": "League Climber (Gold)",  "description": "Get 20 league promotions",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/league_climber_gold.png",         "category": "competition", "rarity": "epic",      "type": "progressive", "target": 20,   "unlock_criteria": { "event": "league_promotion",       "count": 20   }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 130},
+    { "badge_id": "league_climber_diamond","title": "League Climber (Diamond)","description": "Get promoted to Elite league",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/league_climber_diamond.png",     "category": "competition", "rarity": "legendary", "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "elite_league_entry",     "count": 1    }, "rewards": { "coins": 1500, "xp": 750 }, "points": 150, "order": 131},
+
+    { "badge_id": "wager_winner",        "title": "Wager Winner",           "description": "Win your first wager",                                "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/wager_winner.png",               "category": "competition", "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "wager_win",              "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 132},
+    { "badge_id": "wager_winner_bronze", "title": "Wager Winner (Bronze)",  "description": "Win 10 wagers",                                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/wager_winner_bronze.png",         "category": "competition", "rarity": "common",    "type": "progressive", "target": 10,   "unlock_criteria": { "event": "wager_win",              "count": 10   }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 133},
+    { "badge_id": "wager_winner_silver", "title": "Wager Winner (Silver)",  "description": "Win 50 wagers",                                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/wager_winner_silver.png",         "category": "competition", "rarity": "rare",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "wager_win",              "count": 50   }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 134},
+    { "badge_id": "wager_winner_gold",   "title": "Wager Winner (Gold)",    "description": "Win 200 wagers",                                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/wager_winner_gold.png",           "category": "competition", "rarity": "epic",      "type": "progressive", "target": 200,  "unlock_criteria": { "event": "wager_win",              "count": 200  }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 135},
+    { "badge_id": "wager_winner_diamond","title": "Wager Winner (Diamond)", "description": "Win 500 wagers",                                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/wager_winner_diamond.png",        "category": "competition", "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "wager_win",              "count": 500  }, "rewards": { "coins": 1500, "xp": 750 }, "points": 150, "order": 136},
+
+    { "badge_id": "leaderboard_regular", "title": "Leaderboard Regular",    "description": "Appear on the leaderboard for the first time",        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/leaderboard_regular.png",        "category": "competition", "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "leaderboard_entry",      "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 137},
+    { "badge_id": "leaderboard_regular_bronze","title": "Leaderboard Regular (Bronze)","description": "Appear on the leaderboard 5 times",         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/leaderboard_regular_bronze.png","category": "competition", "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "leaderboard_entry",      "count": 5    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 138},
+    { "badge_id": "leaderboard_regular_silver","title": "Leaderboard Regular (Silver)","description": "Appear on the leaderboard 20 times",        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/leaderboard_regular_silver.png","category": "competition", "rarity": "rare",      "type": "progressive", "target": 20,   "unlock_criteria": { "event": "leaderboard_entry",      "count": 20   }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 139},
+    { "badge_id": "leaderboard_regular_gold","title": "Leaderboard Regular (Gold)","description": "Appear on the leaderboard 50 times",            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/leaderboard_regular_gold.png",  "category": "competition", "rarity": "epic",      "type": "progressive", "target": 50,   "unlock_criteria": { "event": "leaderboard_entry",      "count": 50   }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 140},
+    { "badge_id": "leaderboard_regular_diamond","title": "Leaderboard Regular (Diamond)","description": "A permanent fixture — appear on leaderboard 100 times","icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/competition/leaderboard_regular_diamond.png","category": "competition","rarity": "legendary","type": "progressive","target": 100,"unlock_criteria": { "event": "leaderboard_entry", "count": 100 },"rewards": { "coins": 1000, "xp": 500 },"points": 100,"order": 141},
+
+    // ══════════════════════════════════════════
+    // EXPLORATION — topic / time-of-day events
+    // ══════════════════════════════════════════
+
+    { "badge_id": "night_owl",           "title": "Night Owl",              "description": "Play a quiz after midnight",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/night_owl.png",                  "category": "exploration", "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "night_quiz",             "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 150},
+    { "badge_id": "badge_hunter",        "title": "Badge Hunter",           "description": "Earn 10 different badges",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/badge_hunter.png",                "category": "exploration", "rarity": "rare",      "type": "one_time",    "target": 10,   "unlock_criteria": { "event": "badge_unlocked",         "count": 10   }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 151},
+
+    { "badge_id": "topic_explorer",      "title": "Topic Explorer",         "description": "Play quizzes in 2 different topics",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/topic_explorer.png",             "category": "exploration", "rarity": "common",    "type": "progressive", "target": 2,    "unlock_criteria": { "event": "unique_topic_played",    "count": 2    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 152},
+    { "badge_id": "topic_explorer_bronze","title": "Topic Explorer (Bronze)","description": "Play quizzes in 5 different topics",                 "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/topic_explorer_bronze.png",      "category": "exploration", "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "unique_topic_played",    "count": 5    }, "rewards": { "coins": 150,  "xp": 75  }, "points": 15,  "order": 153},
+    { "badge_id": "topic_explorer_silver","title": "Topic Explorer (Silver)","description": "Play quizzes in 8 different topics",                 "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/topic_explorer_silver.png",      "category": "exploration", "rarity": "rare",      "type": "progressive", "target": 8,    "unlock_criteria": { "event": "unique_topic_played",    "count": 8    }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 154},
+    { "badge_id": "topic_explorer_gold", "title": "Topic Explorer (Gold)",  "description": "Play quizzes in all 12 topics",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/topic_explorer_gold.png",         "category": "exploration", "rarity": "epic",      "type": "progressive", "target": 12,   "unlock_criteria": { "event": "unique_topic_played",    "count": 12   }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 155},
+    { "badge_id": "topic_explorer_diamond","title": "Topic Explorer (Diamond)","description": "Master all 12 topics at 90%+ accuracy",            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/topic_explorer_diamond.png",     "category": "exploration", "rarity": "legendary", "type": "progressive", "target": 12,   "unlock_criteria": { "event": "topic_mastered",         "count": 12   }, "rewards": { "coins": 1000, "xp": 500 }, "points": 100, "order": 156},
+
+    { "badge_id": "category_conqueror",  "title": "Category Conqueror",     "description": "Master your first topic",                             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/category_conqueror.png",          "category": "exploration", "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "topic_mastered",         "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 157},
+    { "badge_id": "category_conqueror_bronze","title": "Category Conqueror (Bronze)","description": "Master 3 topics",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/category_conqueror_bronze.png",   "category": "exploration", "rarity": "common",    "type": "progressive", "target": 3,    "unlock_criteria": { "event": "topic_mastered",         "count": 3    }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 158},
+    { "badge_id": "category_conqueror_silver","title": "Category Conqueror (Silver)","description": "Master 6 topics",                            "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/category_conqueror_silver.png",   "category": "exploration", "rarity": "rare",      "type": "progressive", "target": 6,    "unlock_criteria": { "event": "topic_mastered",         "count": 6    }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 159},
+    { "badge_id": "category_conqueror_gold","title": "Category Conqueror (Gold)","description": "Master 9 topics",                               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/category_conqueror_gold.png",     "category": "exploration", "rarity": "epic",      "type": "progressive", "target": 9,    "unlock_criteria": { "event": "topic_mastered",         "count": 9    }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 160},
+    { "badge_id": "category_conqueror_diamond","title": "Category Conqueror (Diamond)","description": "Master all 12 topics",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/category_conqueror_diamond.png",  "category": "exploration", "rarity": "legendary", "type": "progressive", "target": 12,   "unlock_criteria": { "event": "topic_mastered",         "count": 12   }, "rewards": { "coins": 1500, "xp": 750 }, "points": 150, "order": 161},
+
+    { "badge_id": "night_studier",       "title": "Night Studier",          "description": "Play your first late-night quiz (11pm-4am)",          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/night_studier.png",              "category": "exploration", "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "night_quiz",             "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 162},
+    { "badge_id": "night_studier_bronze","title": "Night Studier (Bronze)", "description": "Play 5 late-night quizzes",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/night_studier_bronze.png",        "category": "exploration", "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "night_quiz",             "count": 5    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 163},
+    { "badge_id": "night_studier_silver","title": "Night Studier (Silver)", "description": "Play 25 late-night quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/night_studier_silver.png",        "category": "exploration", "rarity": "rare",      "type": "progressive", "target": 25,   "unlock_criteria": { "event": "night_quiz",             "count": 25   }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 164},
+    { "badge_id": "night_studier_gold",  "title": "Night Studier (Gold)",   "description": "Play 100 late-night quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/night_studier_gold.png",          "category": "exploration", "rarity": "epic",      "type": "progressive", "target": 100,  "unlock_criteria": { "event": "night_quiz",             "count": 100  }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 165},
+    { "badge_id": "night_studier_diamond","title": "Night Studier (Diamond)","description": "Play 500 late-night quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/exploration/night_studier_diamond.png",       "category": "exploration", "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "night_quiz",             "count": 500  }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 166},
+
+    // ══════════════════════════════════════════
+    // CREATION — quiz_created / quiz_shared
+    // ══════════════════════════════════════════
+
+    { "badge_id": "link_creator",        "title": "Link Creator",           "description": "Create your first LinkAndPlay quiz",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/link_creator.png",                  "category": "creation",    "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "link_quiz_created",      "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 170},
+    { "badge_id": "image_master",        "title": "Image Master",           "description": "Play your first image quiz",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/image_master.png",                  "category": "creation",    "rarity": "common",    "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "image_quiz_played",      "count": 1    }, "rewards": { "coins": 75,   "xp": 35  }, "points": 8,   "order": 171},
+    { "badge_id": "influencer",          "title": "Influencer",             "description": "Your quiz has been played 100 times",                 "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/influencer.png",                   "category": "creation",    "rarity": "epic",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "quiz_reach_100_plays",   "count": 1    }, "rewards": { "coins": 500,  "xp": 250 }, "points": 50,  "order": 172},
+    { "badge_id": "crowd_pleaser",       "title": "Crowd Pleaser",          "description": "Your quiz receives 10 positive ratings",              "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/crowd_pleaser.png",                "category": "creation",    "rarity": "rare",      "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "quiz_liked",             "count": 1    }, "rewards": { "coins": 300,  "xp": 150 }, "points": 30,  "order": 173},
+
+    { "badge_id": "quiz_creator",        "title": "Quiz Creator",           "description": "Create your first quiz",                              "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/quiz_creator.png",                  "category": "creation",    "rarity": "common",    "type": "progressive", "target": 1,    "unlock_criteria": { "event": "quiz_created",           "count": 1    }, "rewards": { "coins": 100,  "xp": 50  }, "points": 10,  "order": 174},
+    { "badge_id": "quiz_creator_bronze", "title": "Quiz Creator (Bronze)",  "description": "Create 5 quizzes",                                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/quiz_creator_bronze.png",           "category": "creation",    "rarity": "common",    "type": "progressive", "target": 5,    "unlock_criteria": { "event": "quiz_created",           "count": 5    }, "rewards": { "coins": 200,  "xp": 100 }, "points": 20,  "order": 175},
+    { "badge_id": "quiz_creator_silver", "title": "Quiz Creator (Silver)",  "description": "Create 25 quizzes",                                   "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/quiz_creator_silver.png",           "category": "creation",    "rarity": "rare",      "type": "progressive", "target": 25,   "unlock_criteria": { "event": "quiz_created",           "count": 25   }, "rewards": { "coins": 400,  "xp": 200 }, "points": 40,  "order": 176},
+    { "badge_id": "quiz_creator_gold",   "title": "Quiz Creator (Gold)",    "description": "Create 100 quizzes",                                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/quiz_creator_gold.png",             "category": "creation",    "rarity": "epic",      "type": "progressive", "target": 100,  "unlock_criteria": { "event": "quiz_created",           "count": 100  }, "rewards": { "coins": 750,  "xp": 375 }, "points": 75,  "order": 177},
+    { "badge_id": "quiz_creator_diamond","title": "Quiz Creator (Diamond)", "description": "Create 500 quizzes — a true quiz architect!",         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/creation/quiz_creator_diamond.png",        "category": "creation",    "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "quiz_created",           "count": 500  }, "rewards": { "coins": 1500, "xp": 750 }, "points": 150, "order": 178},
+
+    // ══════════════════════════════════════════
+    // LEGENDARY — composite hard achievements
+    // ══════════════════════════════════════════
+
+    { "badge_id": "ultimate_player",     "title": "Ultimate Player",        "description": "Win 500 multiplayer matches",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/ultimate_player.png",            "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "multiplayer_win",        "count": 500  }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 200},
+    { "badge_id": "marathon_player",     "title": "Marathon Player",        "description": "Complete 1000 quizzes",                               "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/marathon_player.png",            "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 1000, "unlock_criteria": { "event": "quiz_complete",          "count": 1000 }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 201},
+    { "badge_id": "veteran",             "title": "Veteran",                "description": "Play QuizVerse for 365 days",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/veteran.png",                    "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 365,  "unlock_criteria": { "event": "days_active",            "count": 365  }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 202},
+    { "badge_id": "immortal",            "title": "Immortal",               "description": "Achieve a 365-day quiz streak",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/immortal.png",                   "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 365,  "unlock_criteria": { "event": "daily_streak",           "count": 365  }, "rewards": { "coins": 5000, "xp": 2500}, "points": 500, "order": 203},
+    { "badge_id": "the_corrector",       "title": "The Corrector",          "description": "Answer 10000 questions correctly",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/the_corrector.png",              "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 10000,"unlock_criteria": { "event": "correct_answer",         "count": 10000}, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 204},
+    { "badge_id": "ride_or_die",         "title": "Ride or Die",            "description": "Play on 500 different days",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/ride_or_die.png",                  "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "daily_quiz_played",      "count": 500  }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 205},
+    { "badge_id": "easter_egg",          "title": "Easter Egg",             "description": "You found a hidden secret — well done!",              "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/easter_egg.png",                  "category": "legendary",   "rarity": "legendary", "type": "one_time",    "target": 1,    "unlock_criteria": { "event": "easter_egg_trigger",     "count": 1    }, "rewards": { "coins": 1000, "xp": 500 }, "points": 100, "hidden": true, "order": 206},
+    { "badge_id": "polymath_legend",     "title": "Polymath Legend",        "description": "Master all 12 quiz topics",                           "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/polymath_legend.png",            "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 12,   "unlock_criteria": { "event": "topic_mastered",         "count": 12   }, "rewards": { "coins": 3000, "xp": 1500}, "points": 300, "order": 207},
+    { "badge_id": "omniscient",          "title": "Omniscient",             "description": "Complete 500 quizzes with 95%+ accuracy",             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/omniscient.png",                 "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 500,  "unlock_criteria": { "event": "high_accuracy_quiz",     "count": 500  }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 208},
+    { "badge_id": "the_oracle",          "title": "The Oracle",             "description": "Get a perfect score 100 times",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/legendary/the_oracle.png",                  "category": "legendary",   "rarity": "legendary", "type": "progressive", "target": 100,  "unlock_criteria": { "event": "perfect_round",          "count": 100  }, "rewards": { "coins": 2000, "xp": 1000}, "points": 200, "order": 209},
+
+    // ══════════════════════════════════════════
+    // SEASONAL — time-limited events
+    // ══════════════════════════════════════════
+
+    { "badge_id": "summer_scholar",      "title": "Summer Scholar",         "description": "Participate in a summer seasonal event",              "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/seasonal/summer_scholar.png",             "category": "seasonal",    "rarity": "rare",      "type": "seasonal",    "target": 1,    "unlock_criteria": { "event": "seasonal_event",         "count": 1,   "season": "summer"      }, "rewards": { "coins": 300, "xp": 150 }, "points": 30,  "order": 220},
+    { "badge_id": "holiday_hero",        "title": "Holiday Hero",           "description": "Participate in a holiday seasonal event",             "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/seasonal/holiday_hero.png",               "category": "seasonal",    "rarity": "rare",      "type": "seasonal",    "target": 1,    "unlock_criteria": { "event": "seasonal_event",         "count": 1,   "season": "holiday"     }, "rewards": { "coins": 300, "xp": 150 }, "points": 30,  "order": 221},
+    { "badge_id": "new_years_resolution","title": "New Year's Resolution",  "description": "Play a quiz on New Year's Day",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/seasonal/new_years_resolution.png",      "category": "seasonal",    "rarity": "rare",      "type": "seasonal",    "target": 1,    "unlock_criteria": { "event": "seasonal_event",         "count": 1,   "season": "new_year"    }, "rewards": { "coins": 300, "xp": 150 }, "points": 30,  "order": 222},
+    { "badge_id": "valentines_quizzer",  "title": "Valentine's Quizzer",    "description": "Play a quiz on Valentine's Day",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/seasonal/valentines_quizzer.png",          "category": "seasonal",    "rarity": "rare",      "type": "seasonal",    "target": 1,    "unlock_criteria": { "event": "seasonal_event",         "count": 1,   "season": "valentines"  }, "rewards": { "coins": 300, "xp": 150 }, "points": 30,  "order": 223},
+    { "badge_id": "april_fool",          "title": "April Fool",             "description": "Play a quiz on April Fool's Day",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/seasonal/april_fool.png",                  "category": "seasonal",    "rarity": "rare",      "type": "seasonal",    "target": 1,    "unlock_criteria": { "event": "seasonal_event",         "count": 1,   "season": "april_fool"  }, "rewards": { "coins": 300, "xp": 150 }, "points": 30,  "order": 224},
+
+    // ══════════════════════════════════════════
+    // SPECIALISATION — 12 topics × 5 tiers = 60
+    // Event: topic_quiz_complete with topic field
+    // Novice=1, Apprentice=10, Expert=50, Master=100, Legend=200
+    // ══════════════════════════════════════════
+
+    { "badge_id": "anime_novice",        "title": "Anime Novice",           "description": "Complete your first Anime quiz",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/anime/novice.png",         "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "anime"    }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 300},
+    { "badge_id": "anime_apprentice",    "title": "Anime Apprentice",       "description": "Complete 10 Anime quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/anime/apprentice.png",    "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "anime"    }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 301},
+    { "badge_id": "anime_expert",        "title": "Anime Expert",           "description": "Complete 50 Anime quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/anime/expert.png",          "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "anime"    }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 302},
+    { "badge_id": "anime_master",        "title": "Anime Master",           "description": "Complete 100 Anime quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/anime/master.png",          "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "anime"    }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 303},
+    { "badge_id": "anime_legend",        "title": "Anime Legend",           "description": "Complete 200 Anime quizzes — the ultimate fan!",     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/anime/legend.png",          "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "anime"    }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 304},
+
+    { "badge_id": "pokemon_novice",      "title": "Pokemon Novice",         "description": "Complete your first Pokemon quiz",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/pokemon/novice.png",       "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "pokemon"  }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 305},
+    { "badge_id": "pokemon_apprentice",  "title": "Pokemon Apprentice",     "description": "Complete 10 Pokemon quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/pokemon/apprentice.png",  "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "pokemon"  }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 306},
+    { "badge_id": "pokemon_expert",      "title": "Pokemon Expert",         "description": "Complete 50 Pokemon quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/pokemon/expert.png",        "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "pokemon"  }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 307},
+    { "badge_id": "pokemon_master",      "title": "Pokemon Master",         "description": "Complete 100 Pokemon quizzes",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/pokemon/master.png",        "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "pokemon"  }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 308},
+    { "badge_id": "pokemon_legend",      "title": "Pokemon Legend",         "description": "Complete 200 Pokemon quizzes — Gotta catch 'em all!", "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/pokemon/legend.png",        "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "pokemon"  }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 309},
+
+    { "badge_id": "gaming_novice",       "title": "Gaming Novice",          "description": "Complete your first Gaming quiz",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/gaming/novice.png",        "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "gaming"   }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 310},
+    { "badge_id": "gaming_apprentice",   "title": "Gaming Apprentice",      "description": "Complete 10 Gaming quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/gaming/apprentice.png",   "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "gaming"   }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 311},
+    { "badge_id": "gaming_expert",       "title": "Gaming Expert",          "description": "Complete 50 Gaming quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/gaming/expert.png",         "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "gaming"   }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 312},
+    { "badge_id": "gaming_master",       "title": "Gaming Master",          "description": "Complete 100 Gaming quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/gaming/master.png",         "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "gaming"   }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 313},
+    { "badge_id": "gaming_legend",       "title": "Gaming Legend",          "description": "Complete 200 Gaming quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/gaming/legend.png",         "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "gaming"   }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 314},
+
+    { "badge_id": "film_tv_novice",      "title": "Film & TV Novice",       "description": "Complete your first Film & TV quiz",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/film_tv/novice.png",       "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "film_tv"  }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 315},
+    { "badge_id": "film_tv_apprentice",  "title": "Film & TV Apprentice",   "description": "Complete 10 Film & TV quizzes",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/film_tv/apprentice.png",   "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "film_tv"  }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 316},
+    { "badge_id": "film_tv_expert",      "title": "Film & TV Expert",       "description": "Complete 50 Film & TV quizzes",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/film_tv/expert.png",         "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "film_tv"  }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 317},
+    { "badge_id": "film_tv_master",      "title": "Film & TV Master",       "description": "Complete 100 Film & TV quizzes",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/film_tv/master.png",         "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "film_tv"  }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 318},
+    { "badge_id": "film_tv_legend",      "title": "Film & TV Legend",       "description": "Complete 200 Film & TV quizzes",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/film_tv/legend.png",         "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "film_tv"  }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 319},
+
+    { "badge_id": "music_novice",        "title": "Music Novice",           "description": "Complete your first Music quiz",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/music/novice.png",         "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "music"    }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 320},
+    { "badge_id": "music_apprentice",    "title": "Music Apprentice",       "description": "Complete 10 Music quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/music/apprentice.png",    "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "music"    }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 321},
+    { "badge_id": "music_expert",        "title": "Music Expert",           "description": "Complete 50 Music quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/music/expert.png",          "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "music"    }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 322},
+    { "badge_id": "music_master",        "title": "Music Master",           "description": "Complete 100 Music quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/music/master.png",          "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "music"    }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 323},
+    { "badge_id": "music_legend",        "title": "Music Legend",           "description": "Complete 200 Music quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/music/legend.png",          "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "music"    }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 324},
+
+    { "badge_id": "ai_tech_novice",      "title": "AI & Tech Novice",       "description": "Complete your first AI & Tech quiz",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/ai_tech/novice.png",       "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "ai_tech"  }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 325},
+    { "badge_id": "ai_tech_apprentice",  "title": "AI & Tech Apprentice",   "description": "Complete 10 AI & Tech quizzes",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/ai_tech/apprentice.png",   "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "ai_tech"  }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 326},
+    { "badge_id": "ai_tech_expert",      "title": "AI & Tech Expert",       "description": "Complete 50 AI & Tech quizzes",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/ai_tech/expert.png",         "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "ai_tech"  }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 327},
+    { "badge_id": "ai_tech_master",      "title": "AI & Tech Master",       "description": "Complete 100 AI & Tech quizzes",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/ai_tech/master.png",         "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "ai_tech"  }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 328},
+    { "badge_id": "ai_tech_legend",      "title": "AI & Tech Legend",       "description": "Complete 200 AI & Tech quizzes",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/ai_tech/legend.png",         "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "ai_tech"  }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 329},
+
+    { "badge_id": "maths_novice",        "title": "Maths Novice",           "description": "Complete your first Maths quiz",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/maths/novice.png",         "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "maths"    }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 330},
+    { "badge_id": "maths_apprentice",    "title": "Maths Apprentice",       "description": "Complete 10 Maths quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/maths/apprentice.png",    "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "maths"    }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 331},
+    { "badge_id": "maths_expert",        "title": "Maths Expert",           "description": "Complete 50 Maths quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/maths/expert.png",          "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "maths"    }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 332},
+    { "badge_id": "maths_master",        "title": "Maths Master",           "description": "Complete 100 Maths quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/maths/master.png",          "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "maths"    }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 333},
+    { "badge_id": "maths_legend",        "title": "Maths Legend",           "description": "Complete 200 Maths quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/maths/legend.png",          "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "maths"    }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 334},
+
+    { "badge_id": "science_novice",      "title": "Science Novice",         "description": "Complete your first Science quiz",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/science/novice.png",       "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "science"  }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 335},
+    { "badge_id": "science_apprentice",  "title": "Science Apprentice",     "description": "Complete 10 Science quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/science/apprentice.png",   "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "science"  }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 336},
+    { "badge_id": "science_expert",      "title": "Science Expert",         "description": "Complete 50 Science quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/science/expert.png",         "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "science"  }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 337},
+    { "badge_id": "science_master",      "title": "Science Master",         "description": "Complete 100 Science quizzes",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/science/master.png",         "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "science"  }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 338},
+    { "badge_id": "science_legend",      "title": "Science Legend",         "description": "Complete 200 Science quizzes",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/science/legend.png",         "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "science"  }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 339},
+
+    { "badge_id": "history_novice",      "title": "History Novice",         "description": "Complete your first History quiz",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/history/novice.png",       "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "history"  }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 340},
+    { "badge_id": "history_apprentice",  "title": "History Apprentice",     "description": "Complete 10 History quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/history/apprentice.png",   "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "history"  }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 341},
+    { "badge_id": "history_expert",      "title": "History Expert",         "description": "Complete 50 History quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/history/expert.png",         "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "history"  }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 342},
+    { "badge_id": "history_master",      "title": "History Master",         "description": "Complete 100 History quizzes",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/history/master.png",         "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "history"  }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 343},
+    { "badge_id": "history_legend",      "title": "History Legend",         "description": "Complete 200 History quizzes",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/history/legend.png",         "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "history"  }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 344},
+
+    { "badge_id": "geography_novice",    "title": "Geography Novice",       "description": "Complete your first Geography quiz",                  "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/geography/novice.png",     "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "geography"}, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 345},
+    { "badge_id": "geography_apprentice","title": "Geography Apprentice",   "description": "Complete 10 Geography quizzes",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/geography/apprentice.png", "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "geography"}, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 346},
+    { "badge_id": "geography_expert",    "title": "Geography Expert",       "description": "Complete 50 Geography quizzes",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/geography/expert.png",       "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "geography"}, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 347},
+    { "badge_id": "geography_master",    "title": "Geography Master",       "description": "Complete 100 Geography quizzes",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/geography/master.png",       "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "geography"}, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 348},
+    { "badge_id": "geography_legend",    "title": "Geography Legend",       "description": "Complete 200 Geography quizzes",                     "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/geography/legend.png",       "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "geography"}, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 349},
+
+    { "badge_id": "sport_novice",        "title": "Sport Novice",           "description": "Complete your first Sport quiz",                      "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/sport/novice.png",         "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "sport"    }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 350},
+    { "badge_id": "sport_apprentice",    "title": "Sport Apprentice",       "description": "Complete 10 Sport quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/sport/apprentice.png",    "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "sport"    }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 351},
+    { "badge_id": "sport_expert",        "title": "Sport Expert",           "description": "Complete 50 Sport quizzes",                          "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/sport/expert.png",          "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "sport"    }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 352},
+    { "badge_id": "sport_master",        "title": "Sport Master",           "description": "Complete 100 Sport quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/sport/master.png",          "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "sport"    }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 353},
+    { "badge_id": "sport_legend",        "title": "Sport Legend",           "description": "Complete 200 Sport quizzes",                         "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/sport/legend.png",          "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "sport"    }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 354},
+
+    { "badge_id": "finance_novice",      "title": "Finance Novice",         "description": "Complete your first Finance quiz",                    "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/finance/novice.png",       "category": "specialisation","rarity": "common",   "type": "progressive", "target": 1,   "unlock_criteria": { "event": "topic_quiz_complete", "count": 1,   "topic": "finance"  }, "rewards": { "coins": 50,  "xp": 25  }, "points": 5,   "order": 355},
+    { "badge_id": "finance_apprentice",  "title": "Finance Apprentice",     "description": "Complete 10 Finance quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/finance/apprentice.png",   "category": "specialisation","rarity": "common",   "type": "progressive", "target": 10,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 10,  "topic": "finance"  }, "rewards": { "coins": 100, "xp": 50  }, "points": 10,  "order": 356},
+    { "badge_id": "finance_expert",      "title": "Finance Expert",         "description": "Complete 50 Finance quizzes",                        "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/finance/expert.png",         "category": "specialisation","rarity": "rare",     "type": "progressive", "target": 50,  "unlock_criteria": { "event": "topic_quiz_complete", "count": 50,  "topic": "finance"  }, "rewards": { "coins": 200, "xp": 100 }, "points": 20,  "order": 357},
+    { "badge_id": "finance_master",      "title": "Finance Master",         "description": "Complete 100 Finance quizzes",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/finance/master.png",         "category": "specialisation","rarity": "epic",     "type": "progressive", "target": 100, "unlock_criteria": { "event": "topic_quiz_complete", "count": 100, "topic": "finance"  }, "rewards": { "coins": 400, "xp": 200 }, "points": 40,  "order": 358},
+    { "badge_id": "finance_legend",      "title": "Finance Legend",         "description": "Complete 200 Finance quizzes",                       "icon_url": "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/agent-assets/games/quiz-verse/badges/specialisation/finance/legend.png",         "category": "specialisation","rarity": "legendary","type": "progressive", "target": 200, "unlock_criteria": { "event": "topic_quiz_complete", "count": 200, "topic": "finance"  }, "rewards": { "coins": 750, "xp": 375 }, "points": 75,  "order": 359}
+
   ],
-  "collectables": [
-    {
-      "collectable_id": "diamond_frame",
-      "title": "Diamond Frame",
-      "description": "Rare diamond profile frame",
-      "icon_url": "collectables/diamond_frame.png",
-      "category": "frame",
-      "rarity": "legendary",
-      "max_quantity": 1,
-      "tradeable": false,
-      "source": ["purchase", "event"],
-      "metadata": { "frame_type": "profile", "animation": true }
-    },
-    {
-      "collectable_id": "golden_avatar_border",
-      "title": "Golden Avatar Border",
-      "description": "Premium golden border for your avatar",
-      "icon_url": "collectables/golden_border.png",
-      "category": "border",
-      "rarity": "epic",
-      "max_quantity": 1,
-      "tradeable": false,
-      "source": ["achievement"],
-      "metadata": { "glow_effect": true }
-    },
-    {
-      "collectable_id": "quiz_master_title",
-      "title": "Quiz Master",
-      "description": "Display 'Quiz Master' title on your profile",
-      "icon_url": "collectables/quiz_master_title.png",
-      "category": "title",
-      "rarity": "rare",
-      "max_quantity": 1,
-      "tradeable": false,
-      "source": ["badge_reward"],
-      "metadata": { "title_text": "Quiz Master" }
-    },
-    {
-      "collectable_id": "star_emote",
-      "title": "Star Emote",
-      "description": "Show off with a star animation",
-      "icon_url": "collectables/star_emote.png",
-      "category": "emote",
-      "rarity": "common",
-      "max_quantity": 1,
-      "tradeable": false,
-      "source": ["daily_reward", "purchase"],
-      "metadata": { "animation_type": "sparkle" }
-    },
-    {
-      "collectable_id": "victory_dance",
-      "title": "Victory Dance",
-      "description": "Celebrate wins with this special animation",
-      "icon_url": "collectables/victory_dance.png",
-      "category": "celebration",
-      "rarity": "rare",
-      "max_quantity": 1,
-      "tradeable": false,
-      "source": ["purchase"],
-      "metadata": { "animation_duration": 3.0 }
+
+  "event_reference": {
+    "note": "Unity must fire these events to Nakama via badges_check_event RPC",
+    "events": {
+      "quiz_complete":           "After any quiz ends (any mode). count=1.",
+      "perfect_round":           "After quiz with 100% accuracy. count=1.",
+      "correct_answer":          "After quiz. count = correctAnswers from that quiz.",
+      "accuracy_quiz":           "After quiz with 80%+ accuracy. count=1.",
+      "high_accuracy_quiz":      "After quiz with 95%+ accuracy. count=1.",
+      "fast_answer":             "Each question answered in <3s. count=1 per fast answer.",
+      "speed_quiz_complete":     "After BrainSprint/SpeedQuiz mode completes. count=1.",
+      "speed_quiz_win":          "After winning a BrainSprint/SpeedQuiz. count=1.",
+      "daily_streak":            "Fired by StreakShieldManager when streak updates. count=currentStreak.",
+      "daily_quiz_played":       "First quiz of each calendar day. count=1.",
+      "perfect_week":            "After completing 7 consecutive daily_quiz_played. count=1.",
+      "early_quiz":              "First quiz played before 9:00am local time. count=1.",
+      "night_quiz":              "Quiz played between 11pm-4am local time. count=1.",
+      "comeback_quiz":           "First quiz after 3+ day absence. count=1.",
+      "smart_review_session":    "After completing a Smart Review session. count=1.",
+      "audio_quiz_played":       "After completing a Music/Audio quiz. count=1.",
+      "consecutive_correct":     "After beating previous best in-a-row correct streak. count=newBest.",
+      "friend_invited":          "When a friend invite is sent/accepted. count=1.",
+      "multiplayer_game":        "After any LiveArena/PhantomArena/LocalBattle game. count=1.",
+      "multiplayer_win":         "After winning a multiplayer game. count=1.",
+      "friend_challenge_accepted":"After accepting a friend challenge. count=1.",
+      "group_quiz":              "After LiveArena game with 4+ players. count=1.",
+      "combat_win":              "After winning a LiveArena combat. count=1.",
+      "clash_win":               "After winning a tournament/clash. count=1.",
+      "most_wanted_achieved":    "After being voted most wanted in a match. count=1.",
+      "comeback_win":            "After winning from last place. count=1.",
+      "weekly_tournament_win":   "After winning weekly tournament. count=1.",
+      "daily_leaderboard_top":   "After reaching #1 on daily leaderboard. count=1.",
+      "rank_increase":           "After rank goes up. count=1.",
+      "league_promotion":        "After league promotion. count=1.",
+      "elite_league_entry":      "After reaching Elite league. count=1.",
+      "wager_win":               "After winning a streak wager. count=1.",
+      "leaderboard_entry":       "After appearing on any leaderboard. count=1.",
+      "unique_topic_played":     "After playing a new topic for first time. count=totalUniqueTopics.",
+      "topic_mastered":          "After mastering a topic (90%+ in 5+ quizzes). count=totalMastered.",
+      "link_quiz_created":       "After creating a LinkAndPlay quiz. count=1.",
+      "image_quiz_played":       "After playing an image/GuessAnime quiz. count=1.",
+      "quiz_reach_100_plays":    "After a created quiz gets 100 plays. count=1.",
+      "quiz_liked":              "After created quiz gets positive ratings. count=1.",
+      "quiz_created":            "After creating any custom quiz. count=1.",
+      "badge_unlocked":          "After any badge unlocks. count=totalBadges.",
+      "topic_quiz_complete":     "After quiz in a specific topic. count=1. Pass event_data.topic.",
+      "days_active":             "Daily login. count=totalDaysActive.",
+      "seasonal_event":          "Admin-fired for seasonal events. Pass event_data.season.",
+      "beta_grant":              "Admin-fired for early users. count=1.",
+      "easter_egg_trigger":      "Secret action (hidden). count=1."
     }
-  ]
+  }
 }
