@@ -223,63 +223,73 @@ function rpcQeCohortExport(ctx, logger, nk, payload) {
   var input = JSON.parse(payload);
   var activeSinceDays = Number(input.active_since_days) || 30;
   var limit = Math.min(Number(input.limit) || 500, 2000);
+  var maxEventsPerUser = Math.min(Number(input.max_events_per_user) || 500, 1000);
 
   try {
-    var rows = nk.sqlQuery(
-      "SELECT user_id, value FROM storage " +
-      "WHERE collection = 'user_sessions' AND key = 'current' " +
+    // ── Source of truth: `analytics_events` (NOT user_sessions/GPA) ──
+    // In production the legacy `user_sessions/current` rows and the
+    // `game_player_analytics` ring buffer are never populated — Unity writes
+    // straight to `analytics_events` via persistNormalizedEvent (analytics.js),
+    // one row per event under SYSTEM_USER with a `dash_<gameId>_<date>_*` key
+    // and `value` = the normalized event { userId, gameId, eventName,
+    // eventData, unixTimestamp, timestamp, ... }. Reading user_sessions/GPA
+    // here always returned count=0 / events=null, which starved the
+    // analytics-knowledge sync. We now derive the active cohort AND each
+    // user's recent events directly from `analytics_events`.
+    //
+    // Step 1 — distinct active learners in the window, most-recent first.
+    var userRows = nk.sqlQuery(
+      "SELECT value->>'userId' AS uid, MAX(update_time) AS last_seen " +
+      "FROM storage " +
+      "WHERE collection = 'analytics_events' " +
       "AND update_time >= (CURRENT_TIMESTAMP - ($1::int * interval '1 day')) " +
-      "ORDER BY update_time DESC LIMIT $2::int",
+      "AND value->>'userId' IS NOT NULL " +
+      "AND value->>'userId' <> '' " +
+      "AND value->>'userId' <> '00000000-0000-0000-0000-000000000000' " +
+      "GROUP BY value->>'userId' " +
+      "ORDER BY last_seen DESC LIMIT $2::int",
       [activeSinceDays, limit]
     );
 
-    // Batch-read game_player_analytics docs (the per-user analytics
-    // ring buffer maintained by analytics/player_analytics_store.js).
-    // Earlier this read `analytics_events`/key=`events` per userId, but
-    // current ingestion writes `dash_*` keys under SYSTEM_USER instead —
-    // the legacy per-user shape is never created so cohort exports
-    // always saw null events. GPA docs are keyed `gameId:userId` and
-    // hold up to 500 most-recent events under `value.events`.
-    //
-    // Without a gameId hint we'd have to know every game the user has
-    // played; instead, list ALL keys with prefix `*:user_id` and pick
-    // the most recent doc. For the cohort export use case (any game
-    // activity is fine), reading the union of every game's most recent
-    // doc is the practical answer.
-    var evMap = {};
-    for (var i = 0; i < rows.length; i++) {
-      var uid = rows[i].user_id;
-      try {
-        var listRes = nk.storageList(uid, 'game_player_analytics', 5, '');
-        if (listRes && listRes.objects) {
-          var combined = [];
-          for (var lo = 0; lo < listRes.objects.length; lo++) {
-            var v = listRes.objects[lo].value || {};
-            if (v.events && v.events.length) {
-              for (var ev = 0; ev < v.events.length; ev++) combined.push(v.events[ev]);
-            }
-          }
-          if (combined.length) {
-            // Sort newest-first; cap at 500 to keep payload bounded.
-            combined.sort(function(a, b) { return (b.t || 0) - (a.t || 0); });
-            if (combined.length > 500) combined.length = 500;
-            evMap[uid] = combined;
-          }
-        }
-      } catch (e) {
-        logger.warn('[QeAnalytics] GPA list failed for ' + uid + ': ' + e);
-      }
-    }
-
     var cohort = [];
-    for (var k = 0; k < rows.length; k++) {
-      var uid = rows[k].user_id;
-      var session = _qeParseMaybeJson(rows[k].value);
-      var events = evMap[uid] || null;
+    for (var k = 0; k < userRows.length; k++) {
+      var uid = userRows[k].uid;
+      if (!uid) continue;
+
+      // Step 2 — that user's recent events (newest-first, bounded). Returned
+      // as the full normalized event objects so the downstream profile
+      // builder can read `eventName` + merged `eventData` directly.
+      var events = [];
+      try {
+        var evRows = nk.sqlQuery(
+          "SELECT value FROM storage " +
+          "WHERE collection = 'analytics_events' " +
+          "AND value->>'userId' = $1 " +
+          "AND update_time >= (CURRENT_TIMESTAMP - ($2::int * interval '1 day')) " +
+          "ORDER BY update_time DESC LIMIT $3::int",
+          [uid, activeSinceDays, maxEventsPerUser]
+        );
+        for (var e = 0; e < evRows.length; e++) {
+          var parsed = _qeParseMaybeJson(evRows[e].value);
+          if (parsed) events.push(parsed);
+        }
+      } catch (eEv) {
+        logger.warn('[QeAnalytics] event fetch failed for ' + uid + ': ' + eEv);
+      }
+
+      // Best-effort session doc — usually absent in prod, but surface it when
+      // present so any consent metadata stored on the session is honoured.
+      var session = null;
+      try {
+        var sRec = nk.storageRead([{ collection: 'user_sessions', key: 'current', userId: uid }]);
+        if (sRec && sRec.length > 0 && sRec[0].value) session = sRec[0].value;
+      } catch (eS) { /* session optional */ }
+
+      var eventsOut = events.length ? events : null;
       cohort.push({
         user_id: uid,
-        session: _qeBuildConsentContext(nk, uid, session, events),
-        events:  events
+        session: _qeBuildConsentContext(nk, uid, session, eventsOut),
+        events:  eventsOut
       });
     }
 
@@ -298,31 +308,41 @@ function rpcQeUserEventSummary(ctx, logger, nk, payload) {
   if (!userId) {
     throw _qeBadRequest('user_id is required');
   }
+  // Optional window (days); 0/absent = all-time. Bounded event cap.
+  var activeSinceDays = Number(input.active_since_days) || 0;
+  var maxEvents = Math.min(Number(input.limit) || 500, 1000);
 
-  // Read ALL game_player_analytics docs for this user (one per game)
-  // and merge the per-game `events` rings into a single newest-first
-  // list. See cohort-export comment above for why we list instead of
-  // a direct storageRead — the legacy shape (key=`events`) was never
-  // populated by the current ingestion path.
+  // Events live in `analytics_events` (value->>'userId' = this user). The
+  // legacy `game_player_analytics` ring buffer is never populated in
+  // production, so we read the durable in-house event store directly and
+  // return the full normalized event objects newest-first.
   try {
-    var listRes = nk.storageList(userId, 'game_player_analytics', 10, '');
-    if (listRes && listRes.objects && listRes.objects.length > 0) {
-      var combined = [];
-      for (var i = 0; i < listRes.objects.length; i++) {
-        var v = listRes.objects[i].value || {};
-        if (v.events && v.events.length) {
-          for (var ev = 0; ev < v.events.length; ev++) combined.push(v.events[ev]);
-        }
-      }
-      if (combined.length) {
-        combined.sort(function(a, b) { return (b.t || 0) - (a.t || 0); });
-        if (combined.length > 500) combined.length = 500;
-        return JSON.stringify({
-          events: combined,
-          found: true,
-          session: _qeBuildConsentContext(nk, userId, null, combined)
-        });
-      }
+    var sql =
+      "SELECT value FROM storage " +
+      "WHERE collection = 'analytics_events' " +
+      "AND value->>'userId' = $1 ";
+    var params;
+    if (activeSinceDays > 0) {
+      sql += "AND update_time >= (CURRENT_TIMESTAMP - ($2::int * interval '1 day')) " +
+             "ORDER BY update_time DESC LIMIT $3::int";
+      params = [userId, activeSinceDays, maxEvents];
+    } else {
+      sql += "ORDER BY update_time DESC LIMIT $2::int";
+      params = [userId, maxEvents];
+    }
+
+    var rows = nk.sqlQuery(sql, params);
+    var events = [];
+    for (var i = 0; i < rows.length; i++) {
+      var parsed = _qeParseMaybeJson(rows[i].value);
+      if (parsed) events.push(parsed);
+    }
+    if (events.length) {
+      return JSON.stringify({
+        events: events,
+        found: true,
+        session: _qeBuildConsentContext(nk, userId, null, events)
+      });
     }
   } catch (e) {
     logger.warn('[QeAnalytics] qe_user_event_summary failed for ' + userId + ': ' + e);

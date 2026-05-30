@@ -917,6 +917,9 @@ declare namespace AccountMerge {
 declare namespace IdentityResolver {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvKbUserDump {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace LearnerToolbelt {
     var MODULE_VERSION: string;
     interface LearnerStateInputs {
@@ -1219,6 +1222,9 @@ declare namespace LegacyPush {
     export function flushPendingRegistrations(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
     export function register(initializer: nkruntime.Initializer): void;
     export {};
+}
+declare namespace QuestEventBridge {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyQuestsEconomyBridge {
     function register(initializer: nkruntime.Initializer): void;
