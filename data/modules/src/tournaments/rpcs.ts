@@ -1573,7 +1573,7 @@ namespace TournamentRpcs {
     }
 
     var cost = TournamentEconomyV2.PICKN_DOUBLEUP_DEFAULT.cost_bc;
-    if (!debitBcForEntry(nk, userId, cost, "tournament_pickn_doubleup:" + slug)) {
+    if (!debitBc(nk, userId, cost, "tournament_pickn_doubleup:" + slug)) {
       return RpcHelpers.errorResponse("insufficient BC", 402);
     }
 
