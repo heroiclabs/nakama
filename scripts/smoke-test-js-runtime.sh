@@ -262,7 +262,9 @@ EOF
         # `set -e` is on at script scope, so we wrap rollout in `set +e`
         # to keep going on failure, then re-enable `set -e` afterwards.
         set +e
-        kubectl rollout status "deployment/$DEPLOY" -n "$NS" --timeout=10m
+        # 14 min: sits inside progressDeadlineSeconds=900s (15 min) so we
+        # always see the Kubernetes error message before kubectl times out.
+        kubectl rollout status "deployment/$DEPLOY" -n "$NS" --timeout=14m
         ROLLOUT_RC=$?
         set -e
         if [ "$ROLLOUT_RC" -ne 0 ]; then

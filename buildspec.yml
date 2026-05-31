@@ -182,7 +182,7 @@ phases:
       # after the image update, Kubernetes triggers two back-to-back full
       # rolling restarts of all 10 replicas — the first for the image, the
       # second for the env — which doubles rollout time and pushes the smoke
-      # test's `kubectl rollout status --timeout=10m` past its deadline
+      # test's `kubectl rollout status --timeout=14m` past its deadline
       # (root cause of the 2026-05-31 auto-rollback, builds #xxx).
       # By applying env changes first, the subsequent `kubectl set image`
       # merges both diffs into one revision and the cluster rolls each pod
