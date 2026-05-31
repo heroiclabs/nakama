@@ -136,12 +136,46 @@ namespace HiroBase {
       return RpcHelpers.errorResponse("IAP validation failed: " + (result.error || "unknown"));
     }
 
+    // ── Post-validation: write to qv_entitlements (v2 products) ──────────
+    //
+    // Subscription products (QV Pro, Pro+, L&P) bypass the Hiro store config
+    // and write directly to the qv_entitlements collection so the Unity client
+    // can read them via quizverse_get_entitlements.
+    //
+    // One-time non-subscription purchases (NoAds, PartyMode, Microphone,
+    // Exam packs, Inventory slots) are written to qv_entitlements.one_time.
+    //
+    // Consumables (coins, AI voice) first try the Hiro store grant path below;
+    // AI voice credits are also mirrored to qv_entitlements.consumables.
+    var productId = data.productId as string;
+
+    var isSubscriptionProduct = isSubscription(productId);
+    var isConsumableProduct   = isConsumable(productId);
+
+    if (isSubscriptionProduct) {
+      // Delegate to QvEntitlements.grantSubscription via rc_sync shape
+      try {
+        var expiresAt: string | null = null;
+        if (data.expiresAt) expiresAt = data.expiresAt as string;
+        QvEntitlements.grantSubscription(nk, logger, userId, productId, data.storeType, expiresAt);
+        logger.info("[IAP] Subscription entitlement written: userId=" + userId + " productId=" + productId);
+      } catch (e: any) {
+        logger.warn("[IAP] grantSubscription error: " + (e && e.message ? e.message : String(e)));
+      }
+      // Subscriptions don't go through HiroStore rewards
+      EventBus.emit(nk, logger, ctx, EventBus.Events.STORE_PURCHASE, {
+        userId: userId, offerId: productId, reward: null, iap: true, price: data.price
+      });
+      return RpcHelpers.successResponse({ valid: true, reward: null, transactionId: result.transactionId });
+    }
+
+    // Non-subscription: try Hiro store config for reward grant
     var storeConfig = HiroStore.getConfig(nk);
     var offer: Hiro.StoreOfferConfig | null = null;
     for (var sectionId in storeConfig.sections) {
       for (var offerId in storeConfig.sections[sectionId].items) {
         var item = storeConfig.sections[sectionId].items[offerId];
-        if (item.cost && item.cost.iapProductId === data.productId) {
+        if (item.cost && item.cost.iapProductId === productId) {
           offer = item;
           break;
         }
@@ -149,18 +183,49 @@ namespace HiroBase {
       if (offer) break;
     }
 
-    if (!offer) {
-      return RpcHelpers.errorResponse("No store item found for product ID: " + data.productId);
+    var reward: any = null;
+    if (offer) {
+      var resolved = RewardEngine.resolveReward(nk, offer.reward);
+      RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+      reward = resolved;
+    } else {
+      // Product not in Hiro store config — handle v2 one-time / consumable products
+      try {
+        if (isConsumableProduct && productId.indexOf("aivoice") !== -1) {
+          var qty = productId.indexOf(".50") !== -1 ? 50
+                  : productId.indexOf(".10") !== -1 ? 10 : 5;
+          QvEntitlements.grantConsumable(nk, logger, userId, productId, qty);
+        } else if (!isConsumableProduct) {
+          // One-time purchase (NoAds, PartyMode, Microphone, ExamPack, Slots)
+          QvEntitlements.grantOneTime(nk, logger, userId, productId);
+        }
+      } catch (e: any) {
+        logger.warn("[IAP] v2 grant error for " + productId + ": " + (e && e.message ? e.message : String(e)));
+      }
     }
 
-    var resolved = RewardEngine.resolveReward(nk, offer.reward);
-    RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
-
     EventBus.emit(nk, logger, ctx, EventBus.Events.STORE_PURCHASE, {
-      userId: userId, offerId: data.productId, reward: resolved, iap: true, price: data.price
+      userId: userId, offerId: productId, reward: reward, iap: true, price: data.price
     });
 
-    return RpcHelpers.successResponse({ valid: true, reward: resolved, transactionId: result.transactionId });
+    return RpcHelpers.successResponse({ valid: true, reward: reward, transactionId: result.transactionId });
+  }
+
+  // ── Product type classifiers (replicated from Unity ShopProductConfig) ──
+
+  function isSubscription(productId: string): boolean {
+    if (!productId) return false;
+    return productId.indexOf(".pro.") !== -1 ||
+           productId.indexOf(".proplus.") !== -1 ||
+           productId === "com.intelliverse.quizverse.aifortune";
+  }
+
+  function isConsumable(productId: string): boolean {
+    if (!productId) return false;
+    return productId.indexOf("coins.") !== -1 ||
+           productId.indexOf("aivoice.") !== -1 ||
+           productId.indexOf(".1week") !== -1 ||
+           productId.indexOf(".3week") !== -1;
   }
 
   function rpcGetPurchaseHistory(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {

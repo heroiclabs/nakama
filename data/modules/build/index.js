@@ -78,6 +78,14 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QuizVerseMigration] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- IAP Entitlements (qv_entitlements collection RPCs) ----
+    try {
+        QvEntitlements.register(initializer);
+        logger.info("[QvEntitlements] quizverse_get_entitlements + quizverse_rc_sync registered");
+    }
+    catch (err) {
+        logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- Legacy System Registration (backward-compatible RPCs) ----
     try {
         logger.info("[Legacy] Registering wallet RPCs...");
@@ -12018,12 +12026,45 @@ var HiroBase;
         if (!result.valid) {
             return RpcHelpers.errorResponse("IAP validation failed: " + (result.error || "unknown"));
         }
+        // ── Post-validation: write to qv_entitlements (v2 products) ──────────
+        //
+        // Subscription products (QV Pro, Pro+, L&P) bypass the Hiro store config
+        // and write directly to the qv_entitlements collection so the Unity client
+        // can read them via quizverse_get_entitlements.
+        //
+        // One-time non-subscription purchases (NoAds, PartyMode, Microphone,
+        // Exam packs, Inventory slots) are written to qv_entitlements.one_time.
+        //
+        // Consumables (coins, AI voice) first try the Hiro store grant path below;
+        // AI voice credits are also mirrored to qv_entitlements.consumables.
+        var productId = data.productId;
+        var isSubscriptionProduct = isSubscription(productId);
+        var isConsumableProduct = isConsumable(productId);
+        if (isSubscriptionProduct) {
+            // Delegate to QvEntitlements.grantSubscription via rc_sync shape
+            try {
+                var expiresAt = null;
+                if (data.expiresAt)
+                    expiresAt = data.expiresAt;
+                QvEntitlements.grantSubscription(nk, logger, userId, productId, data.storeType, expiresAt);
+                logger.info("[IAP] Subscription entitlement written: userId=" + userId + " productId=" + productId);
+            }
+            catch (e) {
+                logger.warn("[IAP] grantSubscription error: " + (e && e.message ? e.message : String(e)));
+            }
+            // Subscriptions don't go through HiroStore rewards
+            EventBus.emit(nk, logger, ctx, EventBus.Events.STORE_PURCHASE, {
+                userId: userId, offerId: productId, reward: null, iap: true, price: data.price
+            });
+            return RpcHelpers.successResponse({ valid: true, reward: null, transactionId: result.transactionId });
+        }
+        // Non-subscription: try Hiro store config for reward grant
         var storeConfig = HiroStore.getConfig(nk);
         var offer = null;
         for (var sectionId in storeConfig.sections) {
             for (var offerId in storeConfig.sections[sectionId].items) {
                 var item = storeConfig.sections[sectionId].items[offerId];
-                if (item.cost && item.cost.iapProductId === data.productId) {
+                if (item.cost && item.cost.iapProductId === productId) {
                     offer = item;
                     break;
                 }
@@ -12031,15 +12072,49 @@ var HiroBase;
             if (offer)
                 break;
         }
-        if (!offer) {
-            return RpcHelpers.errorResponse("No store item found for product ID: " + data.productId);
+        var reward = null;
+        if (offer) {
+            var resolved = RewardEngine.resolveReward(nk, offer.reward);
+            RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+            reward = resolved;
         }
-        var resolved = RewardEngine.resolveReward(nk, offer.reward);
-        RewardEngine.grantReward(nk, logger, ctx, userId, data.gameId || "default", resolved);
+        else {
+            // Product not in Hiro store config — handle v2 one-time / consumable products
+            try {
+                if (isConsumableProduct && productId.indexOf("aivoice") !== -1) {
+                    var qty = productId.indexOf(".50") !== -1 ? 50
+                        : productId.indexOf(".10") !== -1 ? 10 : 5;
+                    QvEntitlements.grantConsumable(nk, logger, userId, productId, qty);
+                }
+                else if (!isConsumableProduct) {
+                    // One-time purchase (NoAds, PartyMode, Microphone, ExamPack, Slots)
+                    QvEntitlements.grantOneTime(nk, logger, userId, productId);
+                }
+            }
+            catch (e) {
+                logger.warn("[IAP] v2 grant error for " + productId + ": " + (e && e.message ? e.message : String(e)));
+            }
+        }
         EventBus.emit(nk, logger, ctx, EventBus.Events.STORE_PURCHASE, {
-            userId: userId, offerId: data.productId, reward: resolved, iap: true, price: data.price
+            userId: userId, offerId: productId, reward: reward, iap: true, price: data.price
         });
-        return RpcHelpers.successResponse({ valid: true, reward: resolved, transactionId: result.transactionId });
+        return RpcHelpers.successResponse({ valid: true, reward: reward, transactionId: result.transactionId });
+    }
+    // ── Product type classifiers (replicated from Unity ShopProductConfig) ──
+    function isSubscription(productId) {
+        if (!productId)
+            return false;
+        return productId.indexOf(".pro.") !== -1 ||
+            productId.indexOf(".proplus.") !== -1 ||
+            productId === "com.intelliverse.quizverse.aifortune";
+    }
+    function isConsumable(productId) {
+        if (!productId)
+            return false;
+        return productId.indexOf("coins.") !== -1 ||
+            productId.indexOf("aivoice.") !== -1 ||
+            productId.indexOf(".1week") !== -1 ||
+            productId.indexOf(".3week") !== -1;
     }
     function rpcGetPurchaseHistory(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -14285,6 +14360,244 @@ var HiroUnlockables;
     }
     HiroUnlockables.register = register;
 })(HiroUnlockables || (HiroUnlockables = {}));
+// ---------------------------------------------------------------------------
+//  entitlements.ts  —  quizverse_get_entitlements + quizverse_rc_sync
+//
+//  Collection: qv_entitlements
+//   key "subscriptions" : { tier, expiresAt?, productId, store }
+//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed }
+//   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
+//                           examPacks[] }
+//
+//  RPCs exposed:
+//   quizverse_get_entitlements  – client reads its own entitlement snapshot
+//   quizverse_rc_sync           – RevenueCat S2S webhook → write entitlement
+// ---------------------------------------------------------------------------
+var QvEntitlements;
+(function (QvEntitlements) {
+    var COLLECTION = "qv_entitlements";
+    var KEY_SUBS = "subscriptions";
+    var KEY_CONS = "consumables";
+    var KEY_ONE = "one_time";
+    // Product ID → tier mapping (must mirror RevenueCatProjectSetup.cs in Unity)
+    function tierForProductId(productId) {
+        if (!productId)
+            return null;
+        if (productId.indexOf("quizverse.proplus") !== -1)
+            return "pro_plus";
+        if (productId.indexOf("quizverse.pro") !== -1)
+            return "pro";
+        if (productId.indexOf("linkplay.proplus") !== -1)
+            return "linkplay_proplus";
+        if (productId.indexOf("linkplay.pro") !== -1)
+            return "linkplay_pro";
+        if (productId === "com.intelliverse.quizverse.aifortune")
+            return "pro"; // legacy
+        return null;
+    }
+    // Resolve subscription expiry from RC event data (ISO-8601 or null for lifetime)
+    function resolveExpiry(data) {
+        // RC webhook events: data.event_timestamp_ms + data.period_type
+        // For "lifetime" products, there is no expiry.
+        if (data && data.expiration_at_ms) {
+            var d = new Date(data.expiration_at_ms);
+            return d.toISOString();
+        }
+        if (data && data.expires_date) {
+            return data.expires_date;
+        }
+        return null; // lifetime
+    }
+    // ── quizverse_get_entitlements ──────────────────────────────────────────
+    function rpcGetEntitlements(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        try {
+            var subs = Storage.readJson(nk, COLLECTION, KEY_SUBS, userId) || {};
+            var cons = Storage.readJson(nk, COLLECTION, KEY_CONS, userId) || {};
+            var oneTime = Storage.readJson(nk, COLLECTION, KEY_ONE, userId) || {};
+            return RpcHelpers.successResponse({
+                subscriptions: subs,
+                consumables: cons,
+                one_time: oneTime
+            });
+        }
+        catch (e) {
+            logger.warn("[QvEntitlements] get error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to read entitlements");
+        }
+    }
+    // ── quizverse_rc_sync ───────────────────────────────────────────────────
+    //
+    //  Called by the RevenueCat S2S webhook (POST) or manually from the
+    //  Unity client after a purchase is confirmed. Payload matches the
+    //  RevenueCat webhook v3 event envelope shape (subset we need):
+    //    {
+    //      "api_version": "1.0",
+    //      "event": {
+    //        "type":            "INITIAL_PURCHASE" | "RENEWAL" | "CANCELLATION" | ...,
+    //        "app_user_id":     "<nakama user id>",
+    //        "product_id":      "com.intelliverse.quizverse.pro.monthly",
+    //        "store":           "APP_STORE" | "PLAY_STORE",
+    //        "expiration_at_ms": 1735689600000,   // null for lifetime
+    //        "expires_date":    "2025-12-31T23:59:59Z"  // ISO, optional
+    //      }
+    //    }
+    //
+    //  Unity client sends a simplified shape:
+    //    {
+    //      "productId": "...",
+    //      "store":     "apple" | "google",
+    //      "transactionId": "..."
+    //    }
+    //  In this case ctx.userId is the Nakama user, so app_user_id is optional.
+    function rpcRCSync(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        // Unwrap RC webhook envelope if present
+        var event = data.event || data;
+        var productId = event.product_id || event.productId || "";
+        var store = event.store || "unknown";
+        var eventType = event.type || "GRANT";
+        var targetUserId = event.app_user_id || userId;
+        // SECURITY: if app_user_id is provided, it MUST match the calling user's
+        // Nakama ID (the identity glue layer). Reject mismatches to prevent
+        // privilege escalation via forged webhook payloads.
+        if (event.app_user_id && event.app_user_id !== userId) {
+            logger.warn("[QvEntitlements] rc_sync user mismatch: caller=" + userId + " event=" + event.app_user_id);
+            return RpcHelpers.errorResponse("user id mismatch");
+        }
+        if (!productId) {
+            return RpcHelpers.errorResponse("productId required");
+        }
+        var tier = tierForProductId(productId);
+        if (!tier) {
+            logger.info("[QvEntitlements] rc_sync: no tier for productId=" + productId + " (consumable or unknown). Ignoring.");
+            return RpcHelpers.successResponse({ ignored: true, reason: "not a subscription product" });
+        }
+        try {
+            var isCancelled = eventType === "CANCELLATION" || eventType === "EXPIRATION";
+            if (isCancelled) {
+                // Remove the subscription record
+                Storage.writeJson(nk, COLLECTION, KEY_SUBS, targetUserId, {
+                    tier: null,
+                    status: "cancelled",
+                    productId: productId,
+                    store: store,
+                    updatedAt: new Date().toISOString()
+                });
+                logger.info("[QvEntitlements] rc_sync: subscription cancelled for user=" + targetUserId + " tier=" + tier);
+                return RpcHelpers.successResponse({ tier: tier, status: "cancelled" });
+            }
+            var expiresAt = resolveExpiry(event);
+            var subRecord = {
+                tier: tier,
+                status: "active",
+                productId: productId,
+                store: store,
+                expiresAt: expiresAt,
+                updatedAt: new Date().toISOString()
+            };
+            Storage.writeJson(nk, COLLECTION, KEY_SUBS, targetUserId, subRecord);
+            // For Pro+ tier, also grant Link & Play Pro+ automatically (per sign-off doc §3)
+            if (tier === "pro_plus") {
+                var existing = Storage.readJson(nk, COLLECTION, KEY_ONE, targetUserId) || {};
+                existing.linkplayProPlus = true;
+                Storage.writeJson(nk, COLLECTION, KEY_ONE, targetUserId, existing);
+            }
+            logger.info("[QvEntitlements] rc_sync: subscription granted for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
+            return RpcHelpers.successResponse({ tier: tier, status: "active", expiresAt: expiresAt });
+        }
+        catch (e) {
+            logger.error("[QvEntitlements] rc_sync write error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to write entitlement");
+        }
+    }
+    // ── grantSubscription ───────────────────────────────────────────────────
+    //  Internal helper — called from hiro_iap_validate after a subscription
+    //  receipt is confirmed valid. Writes to qv_entitlements.subscriptions.
+    function grantSubscription(nk, logger, userId, productId, store, expiresAt) {
+        var tier = tierForProductId(productId);
+        if (!tier) {
+            logger.warn("[QvEntitlements] grantSubscription: no tier for productId=" + productId);
+            return;
+        }
+        var subRecord = {
+            tier: tier,
+            status: "active",
+            productId: productId,
+            store: store,
+            expiresAt: expiresAt,
+            updatedAt: new Date().toISOString()
+        };
+        Storage.writeJson(nk, COLLECTION, KEY_SUBS, userId, subRecord);
+        // Pro+ also includes L&P Pro+
+        if (tier === "pro_plus") {
+            var existing = Storage.readJson(nk, COLLECTION, KEY_ONE, userId) || {};
+            existing.linkplayProPlus = true;
+            Storage.writeJson(nk, COLLECTION, KEY_ONE, userId, existing);
+        }
+        logger.info("[QvEntitlements] grantSubscription: user=" + userId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
+    }
+    QvEntitlements.grantSubscription = grantSubscription;
+    // ── quizverse_grant_consumable ──────────────────────────────────────────
+    //  Internal helper — called from hiro_iap_validate after consumable purchase.
+    //  Grants AI voice credits or inventory slots.
+    function grantConsumable(nk, logger, userId, productId, quantity) {
+        try {
+            var existing = Storage.readJson(nk, COLLECTION, KEY_CONS, userId) || {};
+            if (productId.indexOf("aivoice") !== -1) {
+                existing.aiVoiceCredits = (existing.aiVoiceCredits || 0) + quantity;
+            }
+            Storage.writeJson(nk, COLLECTION, KEY_CONS, userId, existing);
+        }
+        catch (e) {
+            logger.warn("[QvEntitlements] grantConsumable error: " + (e && e.message ? e.message : String(e)));
+        }
+    }
+    QvEntitlements.grantConsumable = grantConsumable;
+    // ── quizverse_grant_one_time ────────────────────────────────────────────
+    //  Internal helper — called from hiro_iap_validate after one-time purchase
+    //  (NoAds, PartyMode, Microphone, Exam packs, Inventory slots).
+    function grantOneTime(nk, logger, userId, productId) {
+        try {
+            var existing = Storage.readJson(nk, COLLECTION, KEY_ONE, userId) || {};
+            if (productId.indexOf("noads") !== -1)
+                existing.noAds = true;
+            if (productId.indexOf("partymode") !== -1)
+                existing.partyMode = true;
+            if (productId.indexOf("microphone") !== -1)
+                existing.microphone = true;
+            if (productId.indexOf("slots") !== -1) {
+                var add = productId.indexOf(".50") !== -1 ? 50
+                    : productId.indexOf(".200") !== -1 ? 200 : 0;
+                if (add > 0)
+                    existing.inventorySlots = (existing.inventorySlots || 0) + add;
+                if (productId.indexOf("unlimited") !== -1)
+                    existing.inventorySlotsUnlimited = true;
+            }
+            if (productId.indexOf("exampack") !== -1) {
+                if (!existing.examPacks)
+                    existing.examPacks = [];
+                var examCode = productId.replace("com.intelliverse.quizverse.exampack.", "");
+                if (existing.examPacks.indexOf(examCode) === -1)
+                    existing.examPacks.push(examCode);
+            }
+            Storage.writeJson(nk, COLLECTION, KEY_ONE, userId, existing);
+        }
+        catch (e) {
+            logger.warn("[QvEntitlements] grantOneTime error: " + (e && e.message ? e.message : String(e)));
+        }
+    }
+    QvEntitlements.grantOneTime = grantOneTime;
+    // ── Register ─────────────────────────────────────────────────────────────
+    function register(initializer) {
+        // IMPORTANT: literal strings required — Nakama Goja AST walker can NOT
+        // resolve namespaced constants at registration time.
+        initializer.registerRpc("quizverse_get_entitlements", rpcGetEntitlements);
+        initializer.registerRpc("quizverse_rc_sync", rpcRCSync);
+    }
+    QvEntitlements.register = register;
+})(QvEntitlements || (QvEntitlements = {}));
 // =============================================================================
 // account_merge.ts — Ghost Nakama user → Cognito user merge
 //

@@ -76,6 +76,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QuizVerseMigration] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- IAP Entitlements (qv_entitlements collection RPCs) ----
+  try {
+    QvEntitlements.register(initializer);
+    logger.info("[QvEntitlements] quizverse_get_entitlements + quizverse_rc_sync registered");
+  } catch (err: any) {
+    logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");
