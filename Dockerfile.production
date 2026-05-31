@@ -78,8 +78,8 @@ COPY . .
 # still abort the build.
 RUN if [ -f web/analytics-dashboard/index.html ]; then \
       cp web/analytics-dashboard/index.html console/ui/dist/analytics.html; \
-      cp web/analytics-dashboard/index.html console/ui/dist/analytics.html1; \
-      echo ">>> Overlaid modern analytics dashboard onto console/ui/dist/analytics.html and analytics.html1"; \
+      cp web/analytics-dashboard/index.html console/ui/dist/analytics2.html; \
+      echo ">>> Overlaid modern analytics dashboard onto console/ui/dist/analytics.html and analytics2.html"; \
     else \
       echo ">>> WARNING: web/analytics-dashboard/index.html missing — embedded dashboard stays on legacy version"; \
     fi
