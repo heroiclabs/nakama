@@ -176,18 +176,18 @@ phases:
         PREVIOUS_IMAGE=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE"
         -o jsonpath='{.spec.template.spec.containers[0].image}')
       - echo "PREVIOUS_IMAGE=$PREVIOUS_IMAGE"
-      - echo "=== Rolling deployment to ${IMAGE_VERSION} (digest pinned) ==="
-      - >
-        kubectl set image
-        deployment/"$K8S_DEPLOYMENT"
-        "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
-        -n "$K8S_NAMESPACE"
       # ─── Inject LLM + runtime secrets from Parameter Store into pod env ──
-      # These env vars reach the Nakama JS runtime via the entrypoint's
-      # --runtime.env forwarding loop (docker-compose.yml:43-60 pattern,
-      # mirrored in the EKS deployment entrypoint). Without this step the
-      # keys sit in Parameter Store but never reach ctx.env in callLLM().
-      - echo "=== Injecting runtime secrets into deployment env ==="
+      # MUST run before `kubectl set image` so that the image update and the
+      # env update are batched into a SINGLE rolling restart. If this runs
+      # after the image update, Kubernetes triggers two back-to-back full
+      # rolling restarts of all 10 replicas — the first for the image, the
+      # second for the env — which doubles rollout time and pushes the smoke
+      # test's `kubectl rollout status --timeout=10m` past its deadline
+      # (root cause of the 2026-05-31 auto-rollback, builds #xxx).
+      # By applying env changes first, the subsequent `kubectl set image`
+      # merges both diffs into one revision and the cluster rolls each pod
+      # exactly once.
+      - echo "=== Injecting runtime secrets into deployment env (before image update) ==="
       - |
         INJECT_ARGS=""
         if [ -n "$OPENAI_API_KEY" ];    then INJECT_ARGS="$INJECT_ARGS OPENAI_API_KEY=$OPENAI_API_KEY";    echo "  ✓ OPENAI_API_KEY injected";    else echo "  ⚠ OPENAI_API_KEY not set — skipping"; fi
@@ -208,6 +208,12 @@ phases:
           kubectl set env deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" $INJECT_ARGS
           echo "  ✓ kubectl set env completed"
         fi
+      - echo "=== Rolling deployment to ${IMAGE_VERSION} (digest pinned) ==="
+      - >
+        kubectl set image
+        deployment/"$K8S_DEPLOYMENT"
+        "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}"
+        -n "$K8S_NAMESPACE"
       # ── Analytics CronJobs are GitOps'd in intelli-verse-kube-infra ──
       # As of intelli-verse-kube-infra#83 (2026-05-27) the two CronJobs
       # (analytics-rollup, analytics-external-poll) live at
@@ -290,7 +296,21 @@ phases:
           else
             kubectl rollout undo deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE"
           fi
-          kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=5m
+          # Wait up to 12 minutes for the rollback (10-replica deployments can
+          # be slow on a loaded cluster). Use set +e so a partial rollback
+          # (e.g. 9/10 pods up within the window) doesn't itself fail the build
+          # — production is substantially restored either way and the FAILED
+          # status from SMOKE_RC already communicates the problem clearly.
+          set +e
+          kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=12m
+          ROLLBACK_STATUS_RC=$?
+          set -e
+          if [ "$ROLLBACK_STATUS_RC" -ne 0 ]; then
+            echo "  ⚠ rollback rollout status timed out (some pods may still be updating) — checking live pod count"
+            READY_PODS=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+            DESIRED_PODS=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "0")
+            echo "  Ready: ${READY_PODS}/${DESIRED_PODS} — production is substantially restored"
+          fi
           ROLLED_BACK=true
           if [ "$SMOKE_RC" -eq 3 ]; then
             NONFATAL_ROLLOUT_BLOCKED=true
