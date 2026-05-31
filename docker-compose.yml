@@ -54,6 +54,8 @@ services:
           GNEWS_API_KEY NEWSAPI_API_KEY
           PUSH_REGISTER_URL PUSH_SEND_URL DEFAULT_FCM_PROJECT_ID
           SLACK_OPS_WEBHOOK_URL
+          DISCORD_QV_OPS_WEBHOOK_URL DISCORD_NAKAMA_WEBHOOK_URL
+          IVX_AI_SVC_BASE_URL IVX_INSIGHTS_SHARED_SECRET IVX_INSIGHTS_BUCKET_MS
         "
         RUNTIME_ENV_FLAGS=""
         for k in $$RUNTIME_ENV_KEYS; do
@@ -142,6 +144,14 @@ services:
       - PUSH_REGISTER_URL=${PUSH_REGISTER_URL:-}
       - PUSH_SEND_URL=${PUSH_SEND_URL:-}
       - DEFAULT_FCM_PROJECT_ID=${DEFAULT_FCM_PROJECT_ID:-}
+      # Ops alert webhooks — Discord channels for #qv-ops and #nakama-alerts
+      - SLACK_OPS_WEBHOOK_URL=${SLACK_OPS_WEBHOOK_URL:-}
+      - DISCORD_QV_OPS_WEBHOOK_URL=${DISCORD_QV_OPS_WEBHOOK_URL:-}
+      - DISCORD_NAKAMA_WEBHOOK_URL=${DISCORD_NAKAMA_WEBHOOK_URL:-}
+      # AI insights service (Phase 2A — InsightsAggregator)
+      - IVX_AI_SVC_BASE_URL=${IVX_AI_SVC_BASE_URL:-}
+      - IVX_INSIGHTS_SHARED_SECRET=${IVX_INSIGHTS_SHARED_SECRET:-}
+      - IVX_INSIGHTS_BUCKET_MS=${IVX_INSIGHTS_BUCKET_MS:-}
       # Geo-aware quiz uses iTunes RSS and Deezer API — both free, no key needed
     volumes:
       - ./:/nakama/data

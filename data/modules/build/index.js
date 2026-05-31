@@ -1935,8 +1935,15 @@ var EventEnricher;
                     eventData.session_id = session.sessionId;
             }
             // Default cohort marker so the analyst doesn't see undefined.
-            if (!eventData.cohort_label)
+            // When the label stays "pending" it means the AI personalization svc
+            // hasn't assigned a cohort yet. We surface this as a synthetic gap
+            // ("cohort_label_pending") so the daily coverage-health embed can
+            // flag a high pending rate — a leading indicator that personalization
+            // is degraded or the AI svc is unreachable.
+            if (!eventData.cohort_label) {
                 eventData.cohort_label = "pending";
+                gaps.push("cohort_label_pending");
+            }
             // Ensure game_id is always present in the eventData payload (the
             // outer record carries it too but the dashboard slices key off
             // eventData).
@@ -2059,15 +2066,42 @@ var EventEnricher;
                 return (idx + 1) + ". `" + g.eventName + "` missing [" + g.gaps.join(", ") +
                     "] — " + g.count + "× across " + g.uniqueHours + "h";
             }).join("\n");
+            // Compute pending-cohort rate. If AI personalization is degraded,
+            // pendingCohortCount will be close to totalGaps (every event unresolved).
+            var pendingRate = summary.totalGaps > 0
+                ? summary.pendingCohortCount / summary.totalGaps
+                : 0;
+            var pendingRatePct = Math.round(pendingRate * 100);
+            var embedColor = summary.totalGaps > 1000 ? 0xe74c3c : 0xf1c40f;
+            // Escalate to red when ≥50% of events are missing cohort assignment —
+            // that means personalization is effectively offline.
+            if (pendingRate >= PENDING_COHORT_WARN_THRESHOLD)
+                embedColor = 0xe74c3c;
+            var fields = [
+                { name: "Total gap rows", value: String(summary.totalGaps), inline: true },
+                { name: "Distinct events", value: String(summary.distinctEvents), inline: true },
+                { name: "Game", value: summary.gameId || "all", inline: true },
+            ];
+            if (pendingRate >= PENDING_COHORT_WARN_THRESHOLD) {
+                fields.push({
+                    name: "⚠️ cohort_label=pending",
+                    value: pendingRatePct + "% of events unresolved — AI personalization svc may be down. "
+                        + "Check IVX_AI_SVC_BASE_URL and InsightsAggregator logs.",
+                    inline: false,
+                });
+            }
+            else if (summary.pendingCohortCount > 0) {
+                fields.push({
+                    name: "cohort_label=pending",
+                    value: pendingRatePct + "% (" + summary.pendingCohortCount + " events) — within normal range",
+                    inline: false,
+                });
+            }
             var embed = {
                 title: "Analytics Coverage Health (24h)",
                 description: top,
-                color: summary.totalGaps > 1000 ? 0xe74c3c : 0xf1c40f,
-                fields: [
-                    { name: "Total gap rows", value: String(summary.totalGaps), inline: true },
-                    { name: "Distinct events", value: String(summary.distinctEvents), inline: true },
-                    { name: "Game", value: summary.gameId || "all", inline: true },
-                ],
+                color: embedColor,
+                fields: fields,
                 footer: { text: "Phase 1A coverage report — see qv-insights-loop plan" },
                 timestamp: new Date().toISOString(),
             };
@@ -2082,6 +2116,8 @@ var EventEnricher;
         }
     }
     EventEnricher.maybePostDailyCoverageHealth = maybePostDailyCoverageHealth;
+    // Fraction of events with cohort_label_pending that triggers a Discord warning.
+    var PENDING_COHORT_WARN_THRESHOLD = 0.5;
     function scanCoverage(nk, logger) {
         try {
             // Bound the scan: 200 most recent rows is enough to surface the
@@ -2089,6 +2125,7 @@ var EventEnricher;
             var listRes = nk.storageList("", EventEnricher.GAP_COLLECTION, 200);
             var entries = (listRes && listRes.objects) || [];
             var totalGaps = 0;
+            var pendingCohortCount = 0;
             var byEventGap = {};
             var anyGameId = null;
             for (var i = 0; i < entries.length; i++) {
@@ -2097,6 +2134,11 @@ var EventEnricher;
                     continue;
                 anyGameId = anyGameId || v.gameId || null;
                 totalGaps += v.count || 0;
+                // Count pending-cohort synthetic gap entries separately so we can
+                // compute the rate and fire a targeted Discord alert.
+                if (v.gaps && v.gaps.indexOf("cohort_label_pending") !== -1) {
+                    pendingCohortCount += v.count || 0;
+                }
                 var k = v.eventName + "::" + (v.gapKey || "");
                 if (!byEventGap[k]) {
                     byEventGap[k] = { eventName: v.eventName, gaps: v.gaps || [], count: 0, hours: {} };
@@ -2120,6 +2162,7 @@ var EventEnricher;
                 distinctEvents: arr.length,
                 gameId: anyGameId,
                 topGaps: arr,
+                pendingCohortCount: pendingCohortCount,
             };
         }
         catch (e) {
@@ -2159,6 +2202,10 @@ var EventEnricher;
 // (`insights_aggregator_tick`) is exposed for ops debugging.
 var InsightsAggregator;
 (function (InsightsAggregator) {
+    // analytics.js writes both analytics_events and analytics_rpc_samples under
+    // SYSTEM_USER (Nakama's "00000000-..." sentinel). storageList must query the
+    // same userId or it returns an empty result set.
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
     InsightsAggregator.EVENTS_COLLECTION = "analytics_events";
     InsightsAggregator.SAMPLE_COLLECTION = "analytics_rpc_samples";
     InsightsAggregator.STATE_KEY = "insights_aggregator_last_run";
@@ -2274,7 +2321,7 @@ var InsightsAggregator;
         // Pull bounded slice of samples written into analytics_rpc_samples.
         var sampleRows = [];
         try {
-            var listRes = nk.storageList("", InsightsAggregator.SAMPLE_COLLECTION, InsightsAggregator.MAX_SAMPLES_PER_BUCKET);
+            var listRes = nk.storageList(SYSTEM_USER, InsightsAggregator.SAMPLE_COLLECTION, InsightsAggregator.MAX_SAMPLES_PER_BUCKET);
             var objs = (listRes && listRes.objects) || [];
             if (objs.length >= InsightsAggregator.MAX_SAMPLES_PER_BUCKET)
                 partial = true;
@@ -2303,7 +2350,7 @@ var InsightsAggregator;
         // counts — the dashboard already does that.
         var eventRows = [];
         try {
-            var elRes = nk.storageList("", InsightsAggregator.EVENTS_COLLECTION, InsightsAggregator.MAX_EVENTS_PER_BUCKET);
+            var elRes = nk.storageList(SYSTEM_USER, InsightsAggregator.EVENTS_COLLECTION, InsightsAggregator.MAX_EVENTS_PER_BUCKET);
             var eObjs = (elRes && elRes.objects) || [];
             if (eObjs.length >= InsightsAggregator.MAX_EVENTS_PER_BUCKET)
                 partial = true;

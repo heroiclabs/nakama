@@ -319,8 +319,11 @@ function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
     }
 
     // Server-authoritative user id.
-    var userId = ctx.userId;
-    if (!userId) return { __invalid: "User not authenticated" };
+    // Allow server-side callers (HTTP-key / cron) whose ctx.userId is empty —
+    // those are internal system calls, not unauthenticated players. Nakama
+    // enforces player auth at the session layer before any RPC reaches here,
+    // so an empty userId here can only come from a trusted --http-key caller.
+    var userId = ctx.userId || SYSTEM_USER;
 
     var unixTs = resolveEventTimestamp(rawEvent);
 

@@ -26,6 +26,11 @@
 
 namespace InsightsAggregator {
 
+  // analytics.js writes both analytics_events and analytics_rpc_samples under
+  // SYSTEM_USER (Nakama's "00000000-..." sentinel). storageList must query the
+  // same userId or it returns an empty result set.
+  var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+
   export var EVENTS_COLLECTION = "analytics_events";
   export var SAMPLE_COLLECTION = "analytics_rpc_samples";
   export var STATE_KEY = "insights_aggregator_last_run";
@@ -269,7 +274,7 @@ namespace InsightsAggregator {
     // Pull bounded slice of samples written into analytics_rpc_samples.
     var sampleRows: SampleRow[] = [];
     try {
-      var listRes = nk.storageList("", SAMPLE_COLLECTION, MAX_SAMPLES_PER_BUCKET);
+      var listRes = nk.storageList(SYSTEM_USER, SAMPLE_COLLECTION, MAX_SAMPLES_PER_BUCKET);
       var objs = (listRes && (listRes as any).objects) || [];
       if (objs.length >= MAX_SAMPLES_PER_BUCKET) partial = true;
       for (var i = 0; i < objs.length; i++) {
@@ -295,7 +300,7 @@ namespace InsightsAggregator {
     // counts — the dashboard already does that.
     var eventRows: any[] = [];
     try {
-      var elRes = nk.storageList("", EVENTS_COLLECTION, MAX_EVENTS_PER_BUCKET);
+      var elRes = nk.storageList(SYSTEM_USER, EVENTS_COLLECTION, MAX_EVENTS_PER_BUCKET);
       var eObjs = (elRes && (elRes as any).objects) || [];
       if (eObjs.length >= MAX_EVENTS_PER_BUCKET) partial = true;
       for (var ei = 0; ei < eObjs.length; ei++) {

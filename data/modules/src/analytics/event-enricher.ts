@@ -260,7 +260,15 @@ namespace EventEnricher {
       }
 
       // Default cohort marker so the analyst doesn't see undefined.
-      if (!eventData.cohort_label) eventData.cohort_label = "pending";
+      // When the label stays "pending" it means the AI personalization svc
+      // hasn't assigned a cohort yet. We surface this as a synthetic gap
+      // ("cohort_label_pending") so the daily coverage-health embed can
+      // flag a high pending rate — a leading indicator that personalization
+      // is degraded or the AI svc is unreachable.
+      if (!eventData.cohort_label) {
+        eventData.cohort_label = "pending";
+        gaps.push("cohort_label_pending");
+      }
 
       // Ensure game_id is always present in the eventData payload (the
       // outer record carries it too but the dashboard slices key off
@@ -388,15 +396,40 @@ namespace EventEnricher {
         return (idx + 1) + ". `" + g.eventName + "` missing [" + g.gaps.join(", ") +
           "] — " + g.count + "× across " + g.uniqueHours + "h";
       }).join("\n");
+      // Compute pending-cohort rate. If AI personalization is degraded,
+      // pendingCohortCount will be close to totalGaps (every event unresolved).
+      var pendingRate = summary.totalGaps > 0
+        ? summary.pendingCohortCount / summary.totalGaps
+        : 0;
+      var pendingRatePct = Math.round(pendingRate * 100);
+      var embedColor = summary.totalGaps > 1000 ? 0xe74c3c : 0xf1c40f;
+      // Escalate to red when ≥50% of events are missing cohort assignment —
+      // that means personalization is effectively offline.
+      if (pendingRate >= PENDING_COHORT_WARN_THRESHOLD) embedColor = 0xe74c3c;
+      var fields: any[] = [
+        { name: "Total gap rows",  value: String(summary.totalGaps),     inline: true },
+        { name: "Distinct events", value: String(summary.distinctEvents), inline: true },
+        { name: "Game",            value: summary.gameId || "all",         inline: true },
+      ];
+      if (pendingRate >= PENDING_COHORT_WARN_THRESHOLD) {
+        fields.push({
+          name: "⚠️ cohort_label=pending",
+          value: pendingRatePct + "% of events unresolved — AI personalization svc may be down. "
+            + "Check IVX_AI_SVC_BASE_URL and InsightsAggregator logs.",
+          inline: false,
+        });
+      } else if (summary.pendingCohortCount > 0) {
+        fields.push({
+          name: "cohort_label=pending",
+          value: pendingRatePct + "% (" + summary.pendingCohortCount + " events) — within normal range",
+          inline: false,
+        });
+      }
       var embed = {
         title: "Analytics Coverage Health (24h)",
         description: top,
-        color: summary.totalGaps > 1000 ? 0xe74c3c : 0xf1c40f,
-        fields: [
-          { name: "Total gap rows",  value: String(summary.totalGaps),     inline: true },
-          { name: "Distinct events", value: String(summary.distinctEvents), inline: true },
-          { name: "Game",            value: summary.gameId || "all",         inline: true },
-        ],
+        color: embedColor,
+        fields: fields,
         footer: { text: "Phase 1A coverage report — see qv-insights-loop plan" },
         timestamp: new Date().toISOString(),
       };
@@ -416,7 +449,13 @@ namespace EventEnricher {
     distinctEvents: number;
     gameId: string | null;
     topGaps: { eventName: string; gaps: string[]; count: number; uniqueHours: number }[];
+    // Synthetic gap counter: events where cohort_label stayed "pending"
+    // (AI personalization svc degraded or unreachable).
+    pendingCohortCount: number;
   }
+
+  // Fraction of events with cohort_label_pending that triggers a Discord warning.
+  var PENDING_COHORT_WARN_THRESHOLD = 0.5;
 
   function scanCoverage(nk: nkruntime.Nakama, logger: nkruntime.Logger): CoverageSummary | null {
     try {
@@ -425,6 +464,7 @@ namespace EventEnricher {
       var listRes = nk.storageList("", GAP_COLLECTION, 200);
       var entries = (listRes && (listRes as any).objects) || [];
       var totalGaps = 0;
+      var pendingCohortCount = 0;
       var byEventGap: { [k: string]: { eventName: string; gaps: string[]; count: number; hours: { [h: string]: boolean } } } = {};
       var anyGameId: string | null = null;
       for (var i = 0; i < entries.length; i++) {
@@ -432,6 +472,11 @@ namespace EventEnricher {
         if (!v || !v.eventName) continue;
         anyGameId = anyGameId || v.gameId || null;
         totalGaps += v.count || 0;
+        // Count pending-cohort synthetic gap entries separately so we can
+        // compute the rate and fire a targeted Discord alert.
+        if (v.gaps && v.gaps.indexOf("cohort_label_pending") !== -1) {
+          pendingCohortCount += v.count || 0;
+        }
         var k = v.eventName + "::" + (v.gapKey || "");
         if (!byEventGap[k]) {
           byEventGap[k] = { eventName: v.eventName, gaps: v.gaps || [], count: 0, hours: {} };
@@ -455,6 +500,7 @@ namespace EventEnricher {
         distinctEvents: arr.length,
         gameId: anyGameId,
         topGaps: arr,
+        pendingCohortCount: pendingCohortCount,
       };
     } catch (e) {
       try {
