@@ -1954,11 +1954,13 @@ function rpcAnalyticsOfferDailyRead(ctx, logger, nk, payload) {
 
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_rollup_run", rpcAnalyticsRollupRun);
+    // Alias: dashboard Admin panel calls analytics_run_rollup; forward to same handler.
+    initializer.registerRpc("analytics_run_rollup", rpcAnalyticsRollupRun);
     initializer.registerRpc("analytics_rollup_backfill", rpcAnalyticsRollupBackfill);
     initializer.registerRpc("analytics_rollup_status", rpcAnalyticsRollupStatus);
     initializer.registerRpc("analytics_modes_daily_read",     rpcAnalyticsModesDailyRead);
     initializer.registerRpc("analytics_dropoff_daily_read",   rpcAnalyticsDropoffDailyRead);
     initializer.registerRpc("analytics_question_daily_read",  rpcAnalyticsQuestionDailyRead);
     initializer.registerRpc("analytics_offer_daily_read",     rpcAnalyticsOfferDailyRead);
-    logger.info("[analytics_rollup] Module registered: 5 RPCs (run, backfill, status, modes_daily_read, dropoff_daily_read)");
+    logger.info("[analytics_rollup] Module registered: 8 RPCs (run, run_alias, backfill, status, modes_daily_read, dropoff_daily_read, question_daily_read, offer_daily_read)");
 }

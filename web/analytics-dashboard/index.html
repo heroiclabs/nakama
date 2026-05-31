@@ -11,30 +11,30 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0a0a0f;
-            --bg-secondary: #12121a;
-            --bg-card: #1a1a24;
-            --bg-card-hover: #22222e;
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2235;
+            --bg-card-hover: #1e2a40;
             --accent: #6366f1;
             --accent-light: #818cf8;
-            --accent-glow: rgba(99, 102, 241, 0.3);
-            --text-primary: #f8fafc;
+            --accent-glow: rgba(99, 102, 241, 0.25);
+            --text-primary: #f1f5f9;
             --text-secondary: #94a3b8;
             --text-muted: #64748b;
             --success: #10b981;
-            --success-bg: rgba(16, 185, 129, 0.15);
+            --success-bg: rgba(16, 185, 129, 0.12);
             --warning: #f59e0b;
-            --warning-bg: rgba(245, 158, 11, 0.15);
+            --warning-bg: rgba(245, 158, 11, 0.12);
             --danger: #ef4444;
-            --danger-bg: rgba(239, 68, 68, 0.15);
-            --border: #2d2d3a;
-            --border-light: #3d3d4a;
+            --danger-bg: rgba(239, 68, 68, 0.12);
+            --border: #1e2d45;
+            --border-light: #162032;
             --gradient-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            --gradient-2: linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%);
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.5);
-            --shadow-glow: 0 0 20px var(--accent-glow);
+            --gradient-2: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5), 0 2px 4px -1px rgba(0,0,0,0.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.6), 0 4px 6px -2px rgba(0,0,0,0.4);
+            --shadow-glow: 0 0 0 3px var(--accent-glow);
         }
 
         * {
@@ -46,9 +46,8 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-primary);
-            background-image:
-                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
-                radial-gradient(ellipse 60% 40% at 100% 100%, rgba(139, 92, 246, 0.1), transparent);
+            background-image: radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.06) 0%, transparent 50%),
+                              radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%);
             color: var(--text-primary);
             min-height: 100vh;
             -webkit-font-smoothing: antialiased;
@@ -62,7 +61,8 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(17, 24, 39, 0.6);
+            backdrop-filter: blur(4px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -202,7 +202,7 @@
         .back-btn:hover {
             border-color: var(--accent);
             color: var(--text-primary);
-            background: rgba(99, 102, 241, 0.1);
+            background: rgba(37, 99, 235, 0.06);
         }
 
         .header h1 {
@@ -419,7 +419,7 @@
 
         /* Highlight cards for most important KPIs (DAU, ARPDAU, Sessions/DAU) */
         .kpi-card.highlight-card {
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.08) 100%);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
             border-color: rgba(99, 102, 241, 0.3);
         }
 
@@ -447,19 +447,19 @@
             transform: translateX(4px);
         }
         .anomaly-alert.critical {
-            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.07) 0%, rgba(220, 38, 38, 0.03) 100%);
             border-left: 4px solid var(--danger);
         }
         .anomaly-alert.warning {
-            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+            background: linear-gradient(135deg, rgba(217, 119, 6, 0.07) 0%, rgba(217, 119, 6, 0.03) 100%);
             border-left: 4px solid var(--warning);
         }
         .anomaly-alert.info {
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.07) 0%, rgba(37, 99, 235, 0.03) 100%);
             border-left: 4px solid var(--info);
         }
         .anomaly-alert.success {
-            background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%);
+            background: linear-gradient(135deg, rgba(5, 150, 105, 0.07) 0%, rgba(5, 150, 105, 0.03) 100%);
             border-left: 4px solid var(--success);
         }
         .anomaly-icon {
@@ -590,7 +590,7 @@
         }
 
         .benchmark-item {
-            background: rgba(15, 23, 42, 0.5);
+            background: var(--bg-card);
             border-radius: 12px;
             padding: 1rem 1.25rem;
             border: 1px solid var(--border);
@@ -608,7 +608,7 @@
         .benchmark-bar-container {
             position: relative;
             height: 24px;
-            background: rgba(30, 41, 59, 0.8);
+            background: var(--border-light);
             border-radius: 6px;
             overflow: visible;
             margin-bottom: 0.5rem;
@@ -668,17 +668,17 @@
         }
 
         .benchmark-value .status.excellent {
-            background: rgba(34, 197, 94, 0.2);
+            background: rgba(5, 150, 105, 0.1);
             color: var(--success);
         }
 
         .benchmark-value .status.good {
-            background: rgba(234, 179, 8, 0.2);
+            background: rgba(217, 119, 6, 0.1);
             color: var(--warning);
         }
 
         .benchmark-value .status.poor {
-            background: rgba(239, 68, 68, 0.2);
+            background: rgba(220, 38, 38, 0.1);
             color: var(--danger);
         }
 
@@ -736,7 +736,7 @@
         }
 
         .data-table tr:hover {
-            background: rgba(255, 255, 255, 0.02);
+            background: var(--bg-card-hover);
         }
 
         .progress-bar {
@@ -842,11 +842,11 @@
             font-weight: 500;
         }
 
-        .score-badge.power_user { background: rgba(34, 197, 94, 0.2); color: var(--success); }
-        .score-badge.engaged { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-        .score-badge.moderate { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
-        .score-badge.at_risk { background: rgba(249, 115, 22, 0.2); color: #f97316; }
-        .score-badge.churning { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .score-badge.power_user { background: var(--success-bg); color: var(--success); }
+        .score-badge.engaged { background: var(--accent-glow); color: var(--accent-light); }
+        .score-badge.moderate { background: var(--warning-bg); color: var(--warning); }
+        .score-badge.at_risk { background: rgba(249, 115, 22, 0.12); color: #f97316; }
+        .score-badge.churning { background: var(--danger-bg); color: var(--danger); }
 
         .empty-state {
             text-align: center;
@@ -980,18 +980,17 @@
         }
         .header-select:hover { border-color: var(--accent); }
         .header-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-        .header-select option { background: #12121a; color: var(--text-primary); }
+        .header-select option { background: #1a2235; color: var(--text-primary); }
         .header-select option:checked,
-        .header-select option:hover { background: #22222e; color: var(--text-primary); }
-        /* Force dark-mode for native select on Chromium/Firefox */
+        .header-select option:hover { background: var(--bg-card-hover); color: var(--text-primary); }
         select { color-scheme: dark; }
         .live-badge {
             display: inline-flex;
             align-items: center;
             gap: 0.35rem;
-            background: rgba(16,185,129,0.15);
+            background: rgba(5, 150, 105, 0.08);
             color: var(--success);
-            border: 1px solid rgba(16,185,129,0.3);
+            border: 1px solid rgba(5, 150, 105, 0.2);
             border-radius: 20px;
             padding: 0.3rem 0.7rem;
             font-size: 0.72rem;
@@ -1072,10 +1071,10 @@
             font-size: 0.75rem;
             font-weight: 600;
         }
-        .plat-ios     { background: rgba(0,122,255,0.15);  color: #007aff; }
-        .plat-android { background: rgba(61,220,132,0.15); color: #3ddc84; }
-        .plat-webgl   { background: rgba(245,158,11,0.15); color: var(--warning); }
-        .plat-windows { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+        .plat-ios     { background: rgba(99,102,241,0.12); color: #818cf8; }
+        .plat-android { background: rgba(16,185,129,0.12); color: #34d399; }
+        .plat-webgl   { background: rgba(217,119,6,0.08); color: var(--warning); }
+        .plat-windows { background: rgba(37,99,235,0.08); color: var(--accent); }
         .plat-other   { background: var(--bg-secondary); color: var(--text-muted); }
 
         /* ── KPI items used inside kpi-grid for sub-tabs (Quiz, AI, Monet) ── */
@@ -1107,8 +1106,29 @@
             letter-spacing: 0.04em;
         }
 
-        /* ══════════════════════════════════════════════════════════════
-           TAB GROUPS
+        /* Filter bar inputs/selects */
+        .filter-input {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .filter-input:focus { border-color: var(--accent); }
+        .filter-select {
+            padding: 0.5rem;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+        }
+        .filter-select:focus { border-color: var(--accent); }
         ══════════════════════════════════════════════════════════════ */
         .tab-groups {
             display: flex;
@@ -1127,7 +1147,7 @@
         }
         .tab-group-row::-webkit-scrollbar { display: none; }
         .tab-group-row + .tab-group-row {
-            border-top: 1px solid rgba(45, 45, 58, 0.55);
+            border-top: 1px solid var(--border);
         }
         .tab-group-label {
             font-size: 0.62rem;
@@ -1160,9 +1180,9 @@
             border-bottom: 2px solid transparent;
         }
         .tab-group-row .tab.active {
-            background: rgba(99,102,241,0.15);
+            background: rgba(37, 99, 235, 0.08);
             border-bottom-color: var(--accent);
-            color: var(--accent-light);
+            color: var(--accent);
         }
 
         /* ══════════════════════════════════════════════════════════════
@@ -1193,9 +1213,9 @@
             flex-shrink: 0;
             position: relative;
         }
-        .health-score-circle.good  { background: rgba(16,185,129,0.18); color: var(--success); box-shadow: 0 0 0 2px rgba(16,185,129,0.35); }
-        .health-score-circle.warn  { background: rgba(245,158,11,0.18);  color: var(--warning);  box-shadow: 0 0 0 2px rgba(245,158,11,0.35); }
-        .health-score-circle.bad   { background: rgba(239,68,68,0.18);   color: var(--danger);   box-shadow: 0 0 0 2px rgba(239,68,68,0.35); }
+        .health-score-circle.good  { background: var(--success-bg);  color: var(--success); box-shadow: 0 0 0 2px rgba(16,185,129,0.3); }
+        .health-score-circle.warn  { background: var(--warning-bg);  color: var(--warning); box-shadow: 0 0 0 2px rgba(245,158,11,0.3); }
+        .health-score-circle.bad   { background: var(--danger-bg);   color: var(--danger);  box-shadow: 0 0 0 2px rgba(239,68,68,0.3); }
         .health-divider { width: 1px; height: 36px; background: var(--border); flex-shrink: 0; }
         .health-metrics { display: flex; gap: 1.25rem; flex-wrap: wrap; flex: 1; }
         .health-metric {
@@ -1288,7 +1308,7 @@
             transition: all 0.18s;
             line-height: 1.4;
         }
-        .card-btn:hover { border-color: var(--accent); color: var(--accent-light); }
+        .card-btn:hover { border-color: var(--accent); color: var(--accent); }
         /* smooth collapse transition */
         .card-body {
             overflow: hidden;
@@ -1313,7 +1333,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.88);
+            background: rgba(0,0,0,0.5);
             z-index: 10000;
             align-items: center;
             justify-content: center;
@@ -1379,7 +1399,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.78);
+            background: rgba(0,0,0,0.5);
             z-index: 10001;
             backdrop-filter: blur(4px);
         }
@@ -1390,7 +1410,7 @@
             width: min(960px, 96vw);
             background: var(--bg-card);
             border-left: 1px solid var(--border-light);
-            box-shadow: -8px 0 32px rgba(0,0,0,0.5);
+            box-shadow: -8px 0 32px rgba(0,0,0,0.12);
             display: flex;
             flex-direction: column;
             transform: translateX(100%);
@@ -1404,7 +1424,7 @@
             align-items: center;
             padding: 1rem 1.25rem;
             border-bottom: 1px solid var(--border);
-            background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, transparent 100%);
+            background: linear-gradient(180deg, rgba(37,99,235,0.05) 0%, transparent 100%);
         }
         .pp-header h2 {
             margin: 0;
@@ -1419,10 +1439,10 @@
             font-family: monospace;
             font-size: 0.78rem;
             color: var(--text-muted);
-            background: #0f172a;
+            background: var(--bg-secondary);
             padding: 2px 8px;
             border-radius: 6px;
-            border: 1px solid #1e293b;
+            border: 1px solid var(--border);
             user-select: all;
         }
         .pp-close {
@@ -1453,7 +1473,7 @@
             letter-spacing: 0.08em;
             color: var(--text-muted);
             padding-bottom: 0.4rem;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid var(--border);
         }
         .pp-kpis {
             display: grid;
@@ -1462,8 +1482,8 @@
             margin-top: 0.5rem;
         }
         .pp-kpi {
-            background: #0f172a;
-            border: 1px solid #1e293b;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 0.6rem 0.75rem;
         }
@@ -1498,33 +1518,33 @@
             word-break: break-word;
         }
         .pp-timeline {
-            border: 1px solid #1e293b;
+            border: 1px solid var(--border);
             border-radius: 8px;
             overflow: hidden;
-            background: #0b1220;
+            background: var(--bg-secondary);
         }
         .pp-tl-row {
             display: grid;
             grid-template-columns: 130px 180px 1fr;
             gap: 0.75rem;
             padding: 0.55rem 0.75rem;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid var(--border);
             font-size: 0.75rem;
             align-items: start;
         }
         .pp-tl-row:last-child { border-bottom: none; }
-        .pp-tl-row:hover      { background: #0f172a; }
-        .pp-tl-row .ts        { color: #94a3b8; font-family: monospace; font-size: 0.7rem; }
+        .pp-tl-row:hover      { background: var(--bg-card-hover); }
+        .pp-tl-row .ts        { color: var(--text-muted); font-family: monospace; font-size: 0.7rem; }
         .pp-tl-row .ev        {
-            background: #0f172a;
-            color: #7dd3fc;
+            background: var(--bg-card);
+            color: var(--accent);
             border-radius: 4px;
             padding: 2px 6px;
             font-family: monospace;
             font-size: 0.72rem;
             justify-self: start;
         }
-        .pp-tl-row .sm        { color: #cbd5e1; }
+        .pp-tl-row .sm        { color: var(--text-secondary); }
         .pp-empty {
             text-align: center;
             color: var(--text-muted);
@@ -1538,7 +1558,7 @@
             font-size: 0.85rem;
         }
         .pp-uid-link {
-            color: #7dd3fc;
+            color: var(--accent);
             cursor: pointer;
             font-family: monospace;
             font-size: 0.78rem;
@@ -1546,7 +1566,7 @@
             border-bottom: 1px dashed transparent;
             transition: border-color 0.15s;
         }
-        .pp-uid-link:hover { border-bottom-color: #7dd3fc; }
+        .pp-uid-link:hover { border-bottom-color: var(--accent); }
     </style>
 </head>
 <body>
@@ -1565,9 +1585,17 @@
                 <input type="password" id="adminPassword" placeholder="Enter password" autocomplete="current-password">
             </div>
             <button onclick="attemptLogin()">Sign In</button>
-            <div id="loginError" class="login-error">Invalid credentials. Please try again.</div>
+            <div id="loginError" class="login-error"></div>
+            <div id="localDevHint" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(37,99,235,0.08);border:1px solid rgba(37,99,235,0.2);font-size:0.78rem;color:var(--text-secondary);line-height:1.5;">
+                <strong style="color:var(--accent);">Local mode</strong> — use admin credentials from <code>analytics_admin.js</code>
+            </div>
         </div>
     </div>
+    <script>
+        if (location.protocol === 'file:') {
+            document.getElementById('localDevHint').style.display = 'block';
+        }
+    </script>
 
     <header class="header">
         <div class="header-left">
@@ -1611,7 +1639,7 @@
                 </select>
                 <span id="liveBadge" class="live-badge hidden">LIVE</span>
             </div>
-            <button id="exportPdfBtn" onclick="exportDashboardPdf()" title="Export dashboard to PDF" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:white;padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;">📄 Export PDF</button>
+            <button id="exportPdfBtn" onclick="exportDashboardPdf()" title="Export dashboard to PDF" style="background:var(--gradient-1);border:none;color:white;padding:0.5rem 1rem;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;">📄 Export PDF</button>
             <button id="refreshBtn" onclick="refreshAll()">🔄 Refresh</button>
             <span id="connectionStatus" class="status disconnected">Disconnected</span>
             <button class="logout-btn" onclick="logout()">🚪 Logout</button>
@@ -1886,32 +1914,32 @@
                     <!-- Filter bar -->
                     <div id="eventsFilterBar" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;align-items:center">
                         <input id="eventsSearch" type="search" placeholder="🔎 search event / user / country / device / value…"
-                               style="flex:2 1 240px;padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem"
+                               class="filter-input" style="flex:2 1 240px;"
                                oninput="renderEventsTable()" />
                         <select id="eventsFilterName" onchange="renderEventsTable()"
-                                style="flex:1 1 160px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                                class="filter-select" style="flex:1 1 160px;">
                             <option value="">All event names</option>
                         </select>
                         <select id="eventsFilterPlatform" onchange="renderEventsTable()"
-                                style="flex:1 1 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                                class="filter-select" style="flex:1 1 120px;">
                             <option value="">All platforms</option>
                         </select>
                         <select id="eventsFilterCountry" onchange="renderEventsTable()"
-                                style="flex:1 1 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                                class="filter-select" style="flex:1 1 120px;">
                             <option value="">All countries</option>
                         </select>
                         <select id="eventsFilterDeviceTier" onchange="renderEventsTable()"
-                                style="flex:1 1 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                                class="filter-select" style="flex:1 1 120px;">
                             <option value="">All device tiers</option>
                         </select>
                         <select id="eventsFilterLimit" onchange="loadEvents()"
-                                style="flex:0 0 110px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                                class="filter-select" style="flex:0 0 110px;">
                             <option value="100">100 rows</option>
                             <option value="250" selected>250 rows</option>
                             <option value="500">500 rows</option>
                         </select>
                         <select id="eventsFilterDays" onchange="loadEvents()"
-                                style="flex:0 0 110px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                                class="filter-select" style="flex:0 0 110px;">
                             <option value="1">Last 1d</option>
                             <option value="7" selected>Last 7d</option>
                             <option value="30">Last 30d</option>
@@ -1965,22 +1993,20 @@
                     <div id="archiveFilterBar" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;align-items:center">
                         <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary)">
                             From
-                            <input id="archiveFrom" type="date"
-                                   style="padding:0.45rem 0.6rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem" />
+                            <input id="archiveFrom" type="date" class="filter-input" />
                         </label>
                         <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-secondary)">
                             To
-                            <input id="archiveTo" type="date"
-                                   style="padding:0.45rem 0.6rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem" />
+                            <input id="archiveTo" type="date" class="filter-input" />
                         </label>
                         <input id="archiveUserId" type="search" placeholder="user_id (optional, exact UUID)"
-                               style="flex:2 1 240px;padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem"
+                               class="filter-input" style="flex:2 1 240px;"
                                onkeydown="if(event.key==='Enter') archiveBrowserSearch(true)" />
                         <input id="archiveEventName" type="search" placeholder="event_name (optional, exact)"
-                               style="flex:1 1 180px;padding:0.5rem 0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem"
+                               class="filter-input" style="flex:1 1 180px;"
                                onkeydown="if(event.key==='Enter') archiveBrowserSearch(true)" />
                         <select id="archiveLimit"
-                                style="flex:0 0 120px;padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:0.85rem">
+                                class="filter-select" style="flex:0 0 120px;">
                             <option value="50" selected>50 / page</option>
                             <option value="100">100 / page</option>
                             <option value="200">200 / page</option>
@@ -2070,7 +2096,7 @@
                         These normally run on the <code>analytics_cron</code> sidecar.
                     </p>
                     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
-                        <button class="card-btn" style="background:#10b981;color:#0a0a0f;font-weight:600;" onclick="adminRunSmokeTest()">✅ Run Smoke Test (end-to-end)</button>
+                        <button class="card-btn" style="background:var(--success);color:var(--bg-primary);font-weight:600;" onclick="adminRunSmokeTest()">✅ Run Smoke Test (end-to-end)</button>
                         <button class="card-btn" onclick="adminSampleEvent()">🧪 Sample Event</button>
                         <button class="card-btn" onclick="adminRunRollup()">📊 Run Rollup</button>
                         <button class="card-btn" onclick="adminBackfillRollup()">⏪ Backfill Rollup</button>
@@ -2249,7 +2275,7 @@
                         <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
                     </div>
                     <div class="chart-container"><canvas id="retentionMilestoneChart" height="180"></canvas></div>
-                    <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.5rem">
+                    <div style="color:var(--text-muted);font-size:0.78rem;margin-top:0.5rem">
                         Counts the canonical <code>retention_d1</code> / <code>retention_d7</code> / <code>retention_d30</code> events fired
                         once per install by <code>RetentionAnalytics.cs</code>. Trend line shows daily milestone fires.
                     </div>
@@ -2265,7 +2291,7 @@
                 <div class="chart-card" style="grid-column: span 2;">
                     <h3>Cohort Heatmap <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
                     <div class="card-body">
-                        <div id="retentionHeatmapNote" style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.5rem;">
+                        <div id="retentionHeatmapNote" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:0.5rem;">
                             Each row is one daily cohort. Cells show % of users from that cohort still active N days later.
                             Empty cells mean the window hasn't elapsed yet.
                         </div>
@@ -3413,6 +3439,38 @@
                 return;
             }
 
+            // ── Local dev bypass ──────────────────────────────────────────
+            // When the file is opened directly (file://) the live Nakama
+            // server is unreachable. Accept the hardcoded fallback credentials
+            // so the dashboard UI can be previewed without a running backend.
+            const isLocalFile = location.protocol === 'file:';
+            if (isLocalFile) {
+                const LOCAL_USER = 'ivx-admin';
+                const LOCAL_PASS = 'bLxIgt83GIZ55kAK';
+                if (username !== LOCAL_USER || password !== LOCAL_PASS) {
+                    errEl.textContent = `Local mode — use ivx-admin / bLxIgt83GIZ55kAK`;
+                    errEl.classList.add('show');
+                    document.getElementById('adminPassword').value = '';
+                    return;
+                }
+                sessionToken    = 'local-dev-token';
+                adminUsername   = username;
+                adminExpiresAt  = null;
+                isAuthenticated = true;
+                sessionStorage.setItem(CONFIG.adminTokenStorageKey, JSON.stringify({
+                    token: sessionToken, username: adminUsername, expiresAt: null
+                }));
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('connectionStatus').className = 'status connected';
+                document.getElementById('connectionStatus').textContent = 'Local Mode';
+                const hdr = document.getElementById('adminBadge');
+                if (hdr) hdr.textContent = adminUsername + ' (local)';
+                refreshAll();
+                onAutoRefreshChange();
+                return;
+            }
+            // ─────────────────────────────────────────────────────────────
+
             // Show loading state so the user knows the click registered
             btn.disabled = true;
             btn.textContent = 'Signing in…';
@@ -3811,6 +3869,13 @@
                 throw new Error('Not authenticated. Please sign in.');
             }
 
+            // Local dev mode — server is unreachable via file://.
+            // Return an empty-success stub so the dashboard renders without
+            // logout-looping or throwing network errors.
+            if (sessionToken === 'local-dev-token') {
+                return {};
+            }
+
             // Cache lookup (skipped for mutations + when bypass=true).
             const cacheable = !options.bypassCache && !RPC_CACHE_BYPASS.has(rpcId);
             const cacheKey = cacheable ? rpcCacheKey(rpcId, payload) : null;
@@ -3924,6 +3989,10 @@
             return { labels: newLabels, datasets: newDatasets, decimated: true, originalCount: labels.length };
         }
 
+        function cssVar(name) {
+            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
         function createLineChart(canvasId, labels, datasets, options = {}) {
             const ctx = document.getElementById(canvasId);
             if (!ctx) return;
@@ -3948,12 +4017,12 @@
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: { labels: { color: '#94a3b8', boxWidth: 12, padding: 14 } },
-                    tooltip: { backgroundColor: '#1a1a24', borderColor: '#2d2d3a', borderWidth: 1, titleColor: '#f8fafc', bodyColor: '#94a3b8' }
+                    legend: { labels: { color: cssVar('--text-muted'), boxWidth: 12, padding: 14 } },
+                    tooltip: { backgroundColor: cssVar('--bg-card'), borderColor: cssVar('--border'), borderWidth: 1, titleColor: cssVar('--text-primary'), bodyColor: cssVar('--text-muted') }
                 },
                 scales: {
-                    x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.4)' } },
-                    y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.4)' } }
+                    x: { ticks: { color: cssVar('--text-muted'), maxRotation: 45 }, grid: { color: cssVar('--border') } },
+                    y: { ticks: { color: cssVar('--text-muted'), callback: v => formatNumber(v) }, grid: { color: cssVar('--border') } }
                 }
             };
             const chart = new Chart(ctx, {
@@ -3983,14 +4052,14 @@
 
             if (prior) prior.destroy();
             // Accept a plain string title OR a Chart.js options object
-            const extraOpts = (typeof titleOrOpts === 'string') ? { plugins: { title: { display: !!titleOrOpts, text: titleOrOpts, color: '#94a3b8', font: { size: 12 } } } } : titleOrOpts;
+            const extraOpts = (typeof titleOrOpts === 'string') ? { plugins: { title: { display: !!titleOrOpts, text: titleOrOpts, color: cssVar('--text-muted'), font: { size: 12 } } } } : titleOrOpts;
             const barDefaults = {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + formatNumber(ctx.parsed.y ?? ctx.parsed.x) } } },
                 scales: {
-                    x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: 'rgba(51,65,85,0.5)' } },
-                    y: { ticks: { color: '#94a3b8', callback: v => formatNumber(v) }, grid: { color: 'rgba(51,65,85,0.5)' } }
+                    x: { ticks: { color: cssVar('--text-muted'), maxRotation: 45 }, grid: { color: cssVar('--border') } },
+                    y: { ticks: { color: cssVar('--text-muted'), callback: v => formatNumber(v) }, grid: { color: cssVar('--border') } }
                 }
             };
             const chart = new Chart(ctx, {
@@ -3999,11 +4068,11 @@
                     labels: decLabels,
                     datasets: [{
                         data: decData,
-                        backgroundColor: 'rgba(99,102,241,0.65)',
-                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(37,99,235,0.65)',
+                        borderColor: cssVar('--accent'),
                         borderWidth: 1,
                         borderRadius: 5,
-                        hoverBackgroundColor: 'rgba(129,140,248,0.85)'
+                        hoverBackgroundColor: 'rgba(59,130,246,0.85)'
                     }]
                 },
                 options: mergeChartOptions(barDefaults, extraOpts)
@@ -4037,7 +4106,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { position: 'right', labels: { color: '#94a3b8', padding: 14, boxWidth: 12, font: { size: 12 } } },
+                        legend: { position: 'right', labels: { color: cssVar('--text-muted'), padding: 14, boxWidth: 12, font: { size: 12 } } },
                         tooltip: { callbacks: {
                             label: ctx => ` ${ctx.label}: ${formatNumber(ctx.parsed)} (${((ctx.parsed / ctx.dataset.data.reduce((a,b)=>a+b,0))*100).toFixed(1)}%)`
                         }}
@@ -4433,24 +4502,23 @@
         // render as a dim "—" to distinguish "no observation yet" from "0%".
 
         function retentionCellColor(pct) {
-            if (pct === null || pct === undefined || isNaN(pct)) return 'background:rgba(148,163,184,0.08);color:#64748b;';
+            if (pct === null || pct === undefined || isNaN(pct)) return 'background:rgba(148,163,184,0.08);color:var(--text-muted);';
             // Clamp to 0–60. Above 60% → full green. Below that → amber → red.
             const p = Math.min(Math.max(Number(pct), 0), 60);
             const hue = Math.round((p / 60) * 120);       // 0 red … 120 green
             const alpha = 0.25 + (p / 60) * 0.35;         // 0.25 → 0.60
-            return `background:hsla(${hue},70%,45%,${alpha});color:#f8fafc;font-weight:600;`;
+            return `background:hsla(${hue},70%,45%,${alpha});color:var(--text-primary);font-weight:600;`;
         }
 
         function renderRetentionHeatmap(cohorts, windows) {
             if (!cohorts || cohorts.length === 0) {
-                return '<div style="color:#94a3b8;padding:1rem;">No cohort data yet. Run a rollup once you have at least one day of events for this game.</div>';
+                return '<div style="color:var(--text-muted);padding:1rem;">No cohort data yet. Run a rollup once you have at least one day of events for this game.</div>';
             }
-            let head = '<tr><th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Cohort date</th><th style="text-align:right;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Size</th>';
-            for (const w of windows) head += `<th style="text-align:center;padding:0.5rem 0.5rem;color:#94a3b8;font-weight:500;">D${w}</th>`;
+            let head = '<tr><th style="text-align:left;padding:0.5rem 0.75rem;color:var(--text-muted);font-weight:500;">Cohort date</th><th style="text-align:right;padding:0.5rem 0.75rem;color:var(--text-muted);font-weight:500;">Size</th>';
+            for (const w of windows) head += `<th style="text-align:center;padding:0.5rem 0.5rem;color:var(--text-muted);font-weight:500;">D${w}</th>`;
             head += '</tr>';
 
             let rows = '';
-            // Newest cohorts first so the eye lands on today's state.
             for (let i = cohorts.length - 1; i >= 0; i--) {
                 const c = cohorts[i];
                 let cells = '';
@@ -4459,10 +4527,10 @@
                     const label = (pct === null || pct === undefined) ? '—' : `${pct}%`;
                     cells += `<td style="text-align:center;padding:0.45rem 0.5rem;${retentionCellColor(pct)}" title="${c.activeByDay && c.activeByDay[w] != null ? c.activeByDay[w] + ' / ' + c.cohortSize : 'not yet observed'}">${label}</td>`;
                 }
-                rows += `<tr><td style="padding:0.45rem 0.75rem;color:#f8fafc;">${c.cohortDate}</td><td style="padding:0.45rem 0.75rem;text-align:right;color:#cbd5e1;">${formatNumber(c.cohortSize)}</td>${cells}</tr>`;
+                rows += `<tr><td style="padding:0.45rem 0.75rem;color:var(--text-primary);">${c.cohortDate}</td><td style="padding:0.45rem 0.75rem;text-align:right;color:var(--text-secondary);">${formatNumber(c.cohortSize)}</td>${cells}</tr>`;
             }
             return `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-                <thead style="border-bottom:1px solid #2d2d3a;">${head}</thead>
+                <thead style="border-bottom:1px solid var(--border);">${head}</thead>
                 <tbody>${rows}</tbody>
             </table>`;
         }
@@ -4485,7 +4553,7 @@
                 if (!gameId) {
                     // Should never happen for QuizVerse-only dashboard.
                     kpis.innerHTML = `<div class="chart-card" style="grid-column: span 4;">
-                        <div class="card-body" style="color:#f59e0b;">
+                        <div class="card-body" style="color:var(--warning);">
                             Select a specific game (top-right selector) to view cohort retention.
                             Retention is computed per-title since cross-game cohorts don't translate.
                         </div></div>`;
@@ -4494,7 +4562,7 @@
                 }
 
                 kpis.innerHTML = skKpi(6);
-                if (heatmap) heatmap.innerHTML = '<div style="color:#94a3b8;padding:1rem;">Loading cohorts…</div>';
+                if (heatmap) heatmap.innerHTML = '<div style="color:var(--text-muted);padding:1rem;">Loading cohorts…</div>';
 
                 const cohortDays = period === '90d' ? 90 : ((period === '1y' || period === 'all') ? 120 : 30);
                 const data = await callRpc('analytics_retention_curves', { gameId, days: cohortDays });
@@ -4537,7 +4605,7 @@
                         tension: 0.35,
                         spanGaps: false
                     }],
-                    { scales: { y: { min: 0, max: 100, ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: 'rgba(51,65,85,0.4)' } } } }
+                    { scales: { y: { min: 0, max: 100, ticks: { color: cssVar('--text-muted'), callback: v => v + '%' }, grid: { color: cssVar('--border') } } } }
                 );
 
                 if (heatmap) heatmap.innerHTML = renderRetentionHeatmap(data.cohorts || [], windows);
@@ -5282,9 +5350,9 @@
                 const cats = data.errors_by_category || [];
                 const catSummary = cats.length
                     ? cats.slice(0, 4).map(c =>
-                        `<span style="display:inline-block;margin-right:8px"><strong style="color:#fbbf24">${formatNumber(c.count)}</strong> <span style="color:#94a3b8;font-size:0.78rem">${c.category}</span></span>`
+                        `<span style="display:inline-block;margin-right:8px"><strong style="color:var(--warning)">${formatNumber(c.count)}</strong> <span style="color:var(--text-muted);font-size:0.78rem">${c.category}</span></span>`
                       ).join('')
-                    : '<span style="color:#94a3b8;font-size:0.78rem">No categorized errors</span>';
+                    : '<span style="color:var(--text-muted);font-size:0.78rem">No categorized errors</span>';
                 document.getElementById('errorKpis').innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">🚨</div>
@@ -5315,11 +5383,11 @@
                         const isUnknown = e.rpc_name === 'unknown';
                         const samples = Array.isArray(e.samples) ? e.samples : [];
                         const hint = isUnknown && samples.length
-                            ? `<div style="font-size:0.7rem;color:#fbbf24;margin-top:4px;">⚠️ upstream client did not stamp <code>rpcName</code>. Sample event: <code>${(samples[0].eventName || '?')}</code> with keys <code>${(samples[0].keys || []).slice(0,6).join(', ') || '∅'}</code></div>`
+                            ? `<div style="font-size:0.7rem;color:var(--warning);margin-top:4px;">⚠️ upstream client did not stamp <code>rpcName</code>. Sample event: <code>${(samples[0].eventName || '?')}</code> with keys <code>${(samples[0].keys || []).slice(0,6).join(', ') || '∅'}</code></div>`
                             : '';
                         return `
                         <tr>
-                            <td>${e.rpc_name}${isUnknown ? ' <span style="color:#fbbf24;font-size:0.7rem;">(unbucketed)</span>' : ''}</td>
+                            <td>${e.rpc_name}${isUnknown ? ' <span style="color:var(--warning);font-size:0.7rem;">(unbucketed)</span>' : ''}</td>
                             <td style="color:var(--danger);">${e.count}</td>
                             <td style="font-size:0.8rem;">${e.last_occurred || '-'}</td>
                             <td style="font-size:0.75rem;max-width:280px;">
@@ -5459,7 +5527,7 @@
                     document.querySelector('#aiFeatureTable tbody').innerHTML = data.features.map(f => {
                         const cat = AI_FEATURE_CATALOG.find(c => c.label === f.feature);
                         const icon = (cat && cat.icon) || f.icon || '🤖';
-                        const bar = `<div style="display:flex;align-items:center;gap:6px"><div style="background:#7c3aed;height:6px;border-radius:3px;width:${Math.min(f.adoption_pct,100)}%;min-width:2px;flex-shrink:0;max-width:80px"></div><span>${f.adoption_pct}%</span></div>`;
+                        const bar = `<div style="display:flex;align-items:center;gap:6px"><div style="background:var(--accent-purple,#7c3aed);height:6px;border-radius:3px;width:${Math.min(f.adoption_pct,100)}%;min-width:2px;flex-shrink:0;max-width:80px"></div><span>${f.adoption_pct}%</span></div>`;
                         return `<tr><td>${icon} ${escapeHtml(f.feature)}</td><td>${formatNumber(f.events)}</td><td>${formatNumber(f.unique_users)}</td><td>${bar}</td></tr>`;
                     }).join('');
                 } else {
@@ -5636,15 +5704,15 @@
                 }
                 if (netHost) {
                     if (netList.length === 0) {
-                        netHost.innerHTML = '<div style="color:#94a3b8">No per-network revenue yet (waiting for ILRD events).</div>';
+                        netHost.innerHTML = '<div style="color:var(--text-muted)">No per-network revenue yet (waiting for ILRD events).</div>';
                     } else {
                         const total = netList.reduce((s, n) => s + (n.revenue_usd || 0), 0) || 1;
-                        netHost.innerHTML = '<div style="font-weight:600;margin-bottom:0.35rem;color:#10b981">Revenue by network</div>' +
+                        netHost.innerHTML = '<div style="font-weight:600;margin-bottom:0.35rem;color:var(--success)">Revenue by network</div>' +
                             netList.map(n => {
                                 const pctOfTotal = ((n.revenue_usd / total) * 100).toFixed(1);
                                 return `<div style="display:flex;justify-content:space-between;border-bottom:1px solid rgba(51,65,85,0.4);padding:2px 0">
                                     <span>${n.network}</span>
-                                    <span><strong>$${n.revenue_usd.toFixed(2)}</strong> <span style="color:#94a3b8">(${pctOfTotal}%)</span></span>
+                                    <span><strong>$${n.revenue_usd.toFixed(2)}</strong> <span style="color:var(--text-muted)">(${pctOfTotal}%)</span></span>
                                 </div>`;
                             }).join('');
                     }
@@ -5714,7 +5782,7 @@
                             <tr>
                                 <td>${l.value}</td>
                                 <td>${formatNumber(l.unique_users || 0)}</td>
-                                <td style="color:#94a3b8">${formatNumber(l.events || 0)}</td>
+                                <td style="color:var(--text-muted)">${formatNumber(l.events || 0)}</td>
                             </tr>`).join('')
                         : '<tr><td colspan="3" class="empty-state">No locale data yet</td></tr>';
                 }
@@ -5926,7 +5994,7 @@
                 container.innerHTML = `
                     <div class="empty-state" style="padding:1.5rem">
                         <h3>No matches</h3>
-                        <p style="color:#94a3b8">No events match the current filters. Showing 0 of ${events.length}.</p>
+                        <p style="color:var(--text-muted)">No events match the current filters. Showing 0 of ${events.length}.</p>
                     </div>`;
                 return;
             }
@@ -5962,7 +6030,7 @@
                     const v = props[f] || (f === 'platform' ? ev.platform : null);
                     if (v) badges += badgeHtml(f, v);
                 });
-                if (!badges) badges = '<span style="color:#64748b;font-size:0.75rem">no context</span>';
+                if (!badges) badges = '<span style="color:var(--text-muted);font-size:0.75rem">no context</span>';
 
                 const inlineSummary = (() => {
                     // Tiny single-line "what happened" summary using a couple of
@@ -5994,8 +6062,8 @@
                         if (props.days_since_install) bits.push(`+${props.days_since_install}d`);
                     }
                     return bits.length
-                        ? `<span style="color:#94a3b8;font-size:0.75rem">${escapeHtml(bits.join(' · '))}</span>`
-                        : '<span style="color:#475569;font-size:0.75rem">—</span>';
+                        ? `<span style="color:var(--text-muted);font-size:0.75rem">${escapeHtml(bits.join(' · '))}</span>`
+                        : '<span style="color:var(--text-muted);font-size:0.75rem">—</span>';
                 })();
 
                 const detailsId = `ev_details_${idx}`;
@@ -6005,17 +6073,17 @@
                             <button class="card-btn" style="padding:2px 6px;font-size:0.7rem"
                                     onclick="document.getElementById('${detailsId}').style.display=document.getElementById('${detailsId}').style.display==='none'?'table-row':'none';this.textContent=this.textContent==='▶'?'▼':'▶'">▶</button>
                         </td>
-                        <td style="white-space:nowrap;font-size:0.78rem;color:#cbd5e1">${escapeHtml(ts)}</td>
-                        <td><code style="background:#0f172a;padding:2px 6px;border-radius:4px;color:#7dd3fc;font-size:0.78rem">${escapeHtml(evName)}</code></td>
+                        <td style="white-space:nowrap;font-size:0.78rem;color:var(--text-secondary)">${escapeHtml(ts)}</td>
+                        <td><code style="background:var(--bg-primary);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:0.78rem">${escapeHtml(evName)}</code></td>
                         <td>${uid && uid !== '-'
                             ? `<a class="pp-uid-link" style="font-size:0.72rem" onclick="openPlayerProfile('${escapeHtml(uid)}')" title="${escapeHtml(uid)} — open Player 360">${escapeHtml(uid.substring(0, 12))}…</a>`
-                            : `<span style="font-family:monospace;font-size:0.72rem;color:#94a3b8">—</span>`}</td>
+                            : `<span style="font-family:monospace;font-size:0.72rem;color:var(--text-muted)">—</span>`}</td>
                         <td>${badges}</td>
                         <td>${inlineSummary}</td>
                     </tr>
-                    <tr id="${detailsId}" style="display:none;background:#0b1220">
+                    <tr id="${detailsId}" style="display:none;background:var(--bg-primary)">
                         <td colspan="6" style="padding:0.75rem 1rem">
-                            <pre style="margin:0;padding:0.75rem;background:#0f172a;border:1px solid #1e293b;border-radius:6px;color:#cbd5e1;font-size:0.75rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto">${escapeHtml(eventBodyJson(props))}</pre>
+                            <pre style="margin:0;padding:0.75rem;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;color:var(--text-secondary);font-size:0.75rem;line-height:1.45;white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto">${escapeHtml(eventBodyJson(props))}</pre>
                         </td>
                     </tr>
                 `;
@@ -6635,11 +6703,11 @@
                 return '<div class="empty-state" style="padding:1rem;color:var(--text-muted)">No events match those filters in the requested window.</div>';
             }
             const head = `<tr>
-                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Timestamp</th>
-                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Event</th>
-                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">User</th>
-                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Game</th>
-                <th style="text-align:left;padding:0.5rem 0.75rem;color:#94a3b8;font-weight:500;">Properties</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:var(--text-muted);font-weight:500;">Timestamp</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:var(--text-muted);font-weight:500;">Event</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:var(--text-muted);font-weight:500;">User</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:var(--text-muted);font-weight:500;">Game</th>
+                <th style="text-align:left;padding:0.5rem 0.75rem;color:var(--text-muted);font-weight:500;">Properties</th>
             </tr>`;
             const rowsHtml = rows.map(ev => {
                 const props = ev.properties || {};
@@ -6647,16 +6715,16 @@
                 const propsCell = propsTrim.length > 220
                     ? propsTrim.slice(0, 220) + '…'
                     : propsTrim;
-                return `<tr style="border-bottom:1px solid #1f2937">
-                    <td style="padding:0.45rem 0.75rem;color:#cbd5e1;font-family:monospace;font-size:0.78rem;white-space:nowrap">${ev.timestamp || '—'}</td>
-                    <td style="padding:0.45rem 0.75rem;color:#f8fafc;font-weight:500">${ev.event_name || '—'}</td>
-                    <td style="padding:0.45rem 0.75rem;color:#94a3b8;font-family:monospace;font-size:0.78rem">${(ev.user_id || '').slice(0, 8)}…</td>
-                    <td style="padding:0.45rem 0.75rem;color:#94a3b8;font-family:monospace;font-size:0.78rem">${(ev.game_id || '').slice(0, 8)}…</td>
-                    <td style="padding:0.45rem 0.75rem;color:#cbd5e1;font-family:monospace;font-size:0.75rem;max-width:520px;overflow:hidden;text-overflow:ellipsis" title="${propsTrim.replace(/"/g,'&quot;')}">${propsCell}</td>
+                return `<tr style="border-bottom:1px solid var(--border)">
+                    <td style="padding:0.45rem 0.75rem;color:var(--text-secondary);font-family:monospace;font-size:0.78rem;white-space:nowrap">${ev.timestamp || '—'}</td>
+                    <td style="padding:0.45rem 0.75rem;color:var(--text-primary);font-weight:500">${ev.event_name || '—'}</td>
+                    <td style="padding:0.45rem 0.75rem;color:var(--text-muted);font-family:monospace;font-size:0.78rem">${(ev.user_id || '').slice(0, 8)}…</td>
+                    <td style="padding:0.45rem 0.75rem;color:var(--text-muted);font-family:monospace;font-size:0.78rem">${(ev.game_id || '').slice(0, 8)}…</td>
+                    <td style="padding:0.45rem 0.75rem;color:var(--text-secondary);font-family:monospace;font-size:0.75rem;max-width:520px;overflow:hidden;text-overflow:ellipsis" title="${propsTrim.replace(/"/g,'&quot;')}">${propsCell}</td>
                 </tr>`;
             }).join('');
             return `<div style="overflow-x:auto;max-height:560px"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-                <thead style="border-bottom:1px solid #2d2d3a;position:sticky;top:0;background:var(--bg-secondary,#0f172a)">${head}</thead>
+                <thead style="border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg-secondary)">${head}</thead>
                 <tbody>${rowsHtml}</tbody>
             </table></div>`;
         }
@@ -6855,7 +6923,7 @@
                         </div>
                     `;
                 } else {
-                    rollupHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">Nightly Rollup</div><div style="color:#f87171">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(rollupRes && rollupRes._error) || 'Module not deployed.'}</div></div>`;
+                    rollupHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">Nightly Rollup</div><div style="color:var(--error)">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(rollupRes && rollupRes._error) || 'Module not deployed.'}</div></div>`;
                 }
 
                 // Render poller status
@@ -6875,15 +6943,15 @@
                         </div>
                     `;
                 } else {
-                    pollerHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">External Pollers</div><div style="color:#f87171">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(pollerRes && pollerRes._error) || 'Module not deployed.'}</div></div>`;
+                    pollerHtml = `<div class="kpi-card" style="margin-bottom:0"><div style="color:var(--text-secondary);font-size:0.85rem;">External Pollers</div><div style="color:var(--error)">❌ RPC unavailable</div><div style="color:var(--text-secondary);font-size:0.8rem">${(pollerRes && pollerRes._error) || 'Module not deployed.'}</div></div>`;
                 }
 
                 const envRows = Object.keys(env).sort().map(k => `
                     <tr>
                         <td><code>${k}</code></td>
                         <td>${env[k]
-                            ? '<span style="color:#4ade80;font-weight:600">✅ SET</span>'
-                            : '<span style="color:#f87171;font-weight:600">❌ MISSING</span>'}</td>
+                            ? '<span style="color:var(--success);font-weight:600">✅ SET</span>'
+                            : '<span style="color:var(--error);font-weight:600">❌ MISSING</span>'}</td>
                     </tr>
                 `).join('');
 
@@ -8888,7 +8956,7 @@
                 : [];
 
             const errBanner = errMsg
-                ? `<div style="background:#7f1d1d;border:1px solid #b91c1c;color:#fecaca;padding:0.6rem 0.8rem;border-radius:8px;margin-bottom:1rem;font-size:0.78rem">⚠ Profile RPC failed: ${escapeHtml(errMsg)} — showing event-derived data only.</div>`
+                ? `<div style="background:rgba(239,68,68,0.12);border:1px solid var(--error);color:var(--error);padding:0.6rem 0.8rem;border-radius:8px;margin-bottom:1rem;font-size:0.78rem">⚠ Profile RPC failed: ${escapeHtml(errMsg)} — showing event-derived data only.</div>`
                 : '';
 
             const tlRows = events.length === 0
@@ -9004,9 +9072,9 @@
                         return `<span style="background:${colors[l]||'#64748b'}22;color:${colors[l]||'#94a3b8'};border:1px solid ${colors[l]||'#94a3b8'}44;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;text-transform:uppercase;">${l}</span>`;
                     };
                     const coverageBar = pct => {
-                        const col = pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444';
+                        const col = pct >= 70 ? 'var(--success)' : pct >= 40 ? 'var(--warning)' : 'var(--error)';
                         return `<div style="display:flex;align-items:center;gap:8px;">
-                            <div style="flex:1;height:6px;background:#2d2d3a;border-radius:3px;overflow:hidden;">
+                            <div style="flex:1;height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;">
                                 <div style="width:${pct}%;height:100%;background:${col};border-radius:3px;transition:width .4s;"></div>
                             </div>
                             <span style="font-size:12px;color:${col};font-weight:700;min-width:32px;">${pct}%</span>
@@ -9019,8 +9087,8 @@
                             <td style="text-align:center;">${c.correct}</td>
                             <td style="text-align:center;">
                                 <div style="display:flex;align-items:center;gap:6px;">
-                                    <div style="width:60px;height:5px;background:#2d2d3a;border-radius:2px;overflow:hidden;">
-                                        <div style="width:${c.accuracy_pct}%;height:100%;background:${c.accuracy_pct>=70?'#10b981':c.accuracy_pct>=40?'#f59e0b':'#ef4444'};border-radius:2px;"></div>
+                                    <div style="width:60px;height:5px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden;">
+                                        <div style="width:${c.accuracy_pct}%;height:100%;background:${c.accuracy_pct>=70?'var(--success)':c.accuracy_pct>=40?'var(--warning)':'var(--error)'};border-radius:2px;"></div>
                                     </div>
                                     <span>${c.accuracy_pct}%</span>
                                 </div>
@@ -9108,8 +9176,8 @@
                 if (p.screen_name) bits.push(p.screen_name);
             }
             return bits.length
-                ? `<span style="color:#94a3b8">${escapeHtml(bits.join(' · '))}</span>`
-                : '<span style="color:#475569">—</span>';
+                ? `<span style="color:var(--text-muted)">${escapeHtml(bits.join(' · '))}</span>`
+                : '<span style="color:var(--text-muted)">—</span>';
         }
 
         // ─────────────────────────────────────────────────────────────────────
