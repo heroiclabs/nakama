@@ -11,29 +11,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #f5f6f8;
-            --bg-secondary: #ffffff;
-            --bg-card: #ffffff;
-            --bg-card-hover: #f8f9fb;
-            --accent: #2563eb;
-            --accent-light: #3b82f6;
-            --accent-glow: rgba(37, 99, 235, 0.15);
-            --text-primary: #111827;
-            --text-secondary: #4b5563;
-            --text-muted: #9ca3af;
-            --success: #059669;
-            --success-bg: rgba(5, 150, 105, 0.08);
-            --warning: #d97706;
-            --warning-bg: rgba(217, 119, 6, 0.08);
-            --danger: #dc2626;
-            --danger-bg: rgba(220, 38, 38, 0.08);
-            --border: #e5e7eb;
-            --border-light: #f3f4f6;
-            --gradient-1: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
-            --gradient-2: linear-gradient(135deg, #0284c7 0%, #0891b2 100%);
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -1px rgba(0,0,0,0.04);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.07), 0 4px 6px -2px rgba(0,0,0,0.04);
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2235;
+            --bg-card-hover: #1e2a40;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --accent-glow: rgba(99, 102, 241, 0.25);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --success: #10b981;
+            --success-bg: rgba(16, 185, 129, 0.12);
+            --warning: #f59e0b;
+            --warning-bg: rgba(245, 158, 11, 0.12);
+            --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.12);
+            --border: #1e2d45;
+            --border-light: #162032;
+            --gradient-1: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            --gradient-2: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5), 0 2px 4px -1px rgba(0,0,0,0.3);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.6), 0 4px 6px -2px rgba(0,0,0,0.4);
             --shadow-glow: 0 0 0 3px var(--accent-glow);
         }
 
@@ -46,6 +46,8 @@
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--bg-primary);
+            background-image: radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.06) 0%, transparent 50%),
+                              radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%);
             color: var(--text-primary);
             min-height: 100vh;
             -webkit-font-smoothing: antialiased;
@@ -417,8 +419,8 @@
 
         /* Highlight cards for most important KPIs (DAU, ARPDAU, Sessions/DAU) */
         .kpi-card.highlight-card {
-            background: linear-gradient(135deg, rgba(37, 99, 235, 0.06) 0%, rgba(79, 70, 229, 0.04) 100%);
-            border-color: rgba(37, 99, 235, 0.2);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+            border-color: rgba(99, 102, 241, 0.3);
         }
 
         .kpi-card.highlight-card::before {
@@ -840,11 +842,11 @@
             font-weight: 500;
         }
 
-        .score-badge.power_user { background: rgba(5, 150, 105, 0.1); color: var(--success); }
-        .score-badge.engaged { background: rgba(37, 99, 235, 0.1); color: var(--accent); }
-        .score-badge.moderate { background: rgba(217, 119, 6, 0.1); color: var(--warning); }
-        .score-badge.at_risk { background: rgba(234, 88, 12, 0.1); color: #ea580c; }
-        .score-badge.churning { background: rgba(220, 38, 38, 0.1); color: var(--danger); }
+        .score-badge.power_user { background: var(--success-bg); color: var(--success); }
+        .score-badge.engaged { background: var(--accent-glow); color: var(--accent-light); }
+        .score-badge.moderate { background: var(--warning-bg); color: var(--warning); }
+        .score-badge.at_risk { background: rgba(249, 115, 22, 0.12); color: #f97316; }
+        .score-badge.churning { background: var(--danger-bg); color: var(--danger); }
 
         .empty-state {
             text-align: center;
@@ -978,11 +980,10 @@
         }
         .header-select:hover { border-color: var(--accent); }
         .header-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-        .header-select option { background: #ffffff; color: var(--text-primary); }
+        .header-select option { background: #1a2235; color: var(--text-primary); }
         .header-select option:checked,
         .header-select option:hover { background: var(--bg-card-hover); color: var(--text-primary); }
-        /* Match light-mode for native select on Chromium/Firefox */
-        select { color-scheme: light; }
+        select { color-scheme: dark; }
         .live-badge {
             display: inline-flex;
             align-items: center;
@@ -1070,8 +1071,8 @@
             font-size: 0.75rem;
             font-weight: 600;
         }
-        .plat-ios     { background: rgba(0,122,255,0.08);  color: #0070e0; }
-        .plat-android { background: rgba(22,163,74,0.08); color: #16a34a; }
+        .plat-ios     { background: rgba(99,102,241,0.12); color: #818cf8; }
+        .plat-android { background: rgba(16,185,129,0.12); color: #34d399; }
         .plat-webgl   { background: rgba(217,119,6,0.08); color: var(--warning); }
         .plat-windows { background: rgba(37,99,235,0.08); color: var(--accent); }
         .plat-other   { background: var(--bg-secondary); color: var(--text-muted); }
@@ -1212,9 +1213,9 @@
             flex-shrink: 0;
             position: relative;
         }
-        .health-score-circle.good  { background: rgba(5,150,105,0.1);  color: var(--success); box-shadow: 0 0 0 2px rgba(5,150,105,0.2); }
-        .health-score-circle.warn  { background: rgba(217,119,6,0.1);  color: var(--warning); box-shadow: 0 0 0 2px rgba(217,119,6,0.2); }
-        .health-score-circle.bad   { background: rgba(220,38,38,0.1);  color: var(--danger);  box-shadow: 0 0 0 2px rgba(220,38,38,0.2); }
+        .health-score-circle.good  { background: var(--success-bg);  color: var(--success); box-shadow: 0 0 0 2px rgba(16,185,129,0.3); }
+        .health-score-circle.warn  { background: var(--warning-bg);  color: var(--warning); box-shadow: 0 0 0 2px rgba(245,158,11,0.3); }
+        .health-score-circle.bad   { background: var(--danger-bg);   color: var(--danger);  box-shadow: 0 0 0 2px rgba(239,68,68,0.3); }
         .health-divider { width: 1px; height: 36px; background: var(--border); flex-shrink: 0; }
         .health-metrics { display: flex; gap: 1.25rem; flex-wrap: wrap; flex: 1; }
         .health-metric {
