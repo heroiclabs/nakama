@@ -187,6 +187,23 @@ phases:
       # By applying env changes first, the subsequent `kubectl set image`
       # merges both diffs into one revision and the cluster rolls each pod
       # exactly once.
+      # ─── Patch deployment rollout strategy (idempotent) ──────────────────
+      # The kube-infra deployment.yaml ships with Kubernetes defaults
+      # (progressDeadlineSeconds=600, maxSurge=25%, maxUnavailable=25%).
+      # With the HPA running at 10 replicas that means ~5 waves of 2 pods
+      # each ≈ 10 min rollout — exactly matching the 600s deadline and
+      # causing every deploy to auto-rollback ("exceeded its progress deadline").
+      # We patch here rather than in kube-infra so this fix ships with the
+      # code, not as a separate infra PR, and is idempotent on re-runs.
+      #   progressDeadlineSeconds: 900  → 15 min deadline, 3 min headroom
+      #   maxSurge: 4                   → 4 pods per wave, 3 waves total (~4-5 min)
+      #   maxUnavailable: 0             → zero traffic loss during rollout
+      - echo "=== Patching deployment rollout strategy (progressDeadline=900s, maxSurge=4) ==="
+      - |
+        kubectl patch deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" \
+          --type=merge \
+          --patch='{"spec":{"progressDeadlineSeconds":900,"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":4,"maxUnavailable":0}}}}'
+        echo "  ✓ rollout strategy patched"
       - echo "=== Injecting runtime secrets into deployment env (before image update) ==="
       - |
         INJECT_ARGS=""
