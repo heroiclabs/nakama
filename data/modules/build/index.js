@@ -14475,9 +14475,16 @@ var QvEntitlements;
             return RpcHelpers.successResponse({ ignored: true, reason: "not a subscription product" });
         }
         try {
-            var isCancelled = eventType === "CANCELLATION" || eventType === "EXPIRATION";
-            if (isCancelled) {
-                // Remove the subscription record
+            // Handle lifecycle events that should revoke access
+            var isRevoked = eventType === "CANCELLATION" || eventType === "EXPIRATION";
+            // BILLING_ISSUE does NOT revoke — user keeps access during grace period
+            var isActive = eventType === "INITIAL_PURCHASE" ||
+                eventType === "RENEWAL" ||
+                eventType === "UNCANCELLATION" ||
+                eventType === "PRODUCT_CHANGE" ||
+                eventType === "GRANT" ||
+                eventType === "TEMPORARY_ENTITLEMENT_GRANT";
+            if (isRevoked) {
                 Storage.writeJson(nk, COLLECTION, KEY_SUBS, targetUserId, {
                     tier: null,
                     status: "cancelled",
@@ -14485,8 +14492,12 @@ var QvEntitlements;
                     store: store,
                     updatedAt: new Date().toISOString()
                 });
-                logger.info("[QvEntitlements] rc_sync: subscription cancelled for user=" + targetUserId + " tier=" + tier);
-                return RpcHelpers.successResponse({ tier: tier, status: "cancelled" });
+                logger.info("[QvEntitlements] rc_sync: subscription revoked for user=" + targetUserId + " tier=" + tier + " event=" + eventType);
+                return RpcHelpers.successResponse({ tier: tier, status: "cancelled", event: eventType });
+            }
+            if (!isActive) {
+                logger.info("[QvEntitlements] rc_sync: ignoring event=" + eventType + " for user=" + targetUserId);
+                return RpcHelpers.successResponse({ ignored: true, reason: "non-actionable event: " + eventType });
             }
             var expiresAt = resolveExpiry(event);
             var subRecord = {

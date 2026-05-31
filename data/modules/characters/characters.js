@@ -12,6 +12,9 @@
 
 // ─── CHARACTER DEFINITIONS ──────────────────────────────────────────────────
 
+// ─── CHARACTER DEFINITIONS (quizverse.gameset.v2 — 15 active characters) ────
+// Removed: Gloop, Chronos, Phoenix, Sage (not in v2 gameset manifest)
+// Added:   Quizzy_v1, Quizzy_v2 (v2 gameset variants)
 var CHARACTER_DEFS = {
     Quizzy: {
         id: 'Quizzy',
@@ -21,6 +24,26 @@ var CHARACTER_DEFS = {
         xpBonus: 0,
         unlockCondition: 'default',
         introVideoPath: 'Characters/Quizzy/intro.mp4',
+        xpRewardOnUnlock: 0
+    },
+    Quizzy_v1: {
+        id: 'Quizzy_v1',
+        name: 'Quizzy V1',
+        description: 'The original classic Quizzy design.',
+        rarity: 'common',
+        xpBonus: 0,
+        unlockCondition: 'default',
+        introVideoPath: 'Characters/Quizzy_v1/intro.mp4',
+        xpRewardOnUnlock: 0
+    },
+    Quizzy_v2: {
+        id: 'Quizzy_v2',
+        name: 'Quizzy V2',
+        description: 'The redesigned Quizzy with a fresh new look.',
+        rarity: 'common',
+        xpBonus: 0,
+        unlockCondition: 'default',
+        introVideoPath: 'Characters/Quizzy_v2/intro.mp4',
         xpRewardOnUnlock: 0
     },
     AUTOcurio: {
@@ -39,7 +62,7 @@ var CHARACTER_DEFS = {
         description: 'The world explorer who loves geography.',
         rarity: 'rare',
         xpBonus: 5,
-        unlockCondition: 'badge_explorer_tier3',
+        unlockCondition: 'calendar_master',
         introVideoPath: 'Characters/Atlas/intro.mp4',
         xpRewardOnUnlock: 100
     },
@@ -49,7 +72,7 @@ var CHARACTER_DEFS = {
         description: 'A science genius from the stars.',
         rarity: 'rare',
         xpBonus: 5,
-        unlockCondition: 'badge_science_tier3',
+        unlockCondition: 'power_elite',
         introVideoPath: 'Characters/Nova/intro.mp4',
         xpRewardOnUnlock: 100
     },
@@ -59,7 +82,7 @@ var CHARACTER_DEFS = {
         description: 'A cute, loyal puppy character with floppy ears and a wagging tail.',
         rarity: 'rare',
         xpBonus: 5,
-        unlockCondition: 'install_donut_disturb',
+        unlockCondition: 'donut_disturb_install',
         introVideoPath: 'Characters/Dog/intro.mp4',
         xpRewardOnUnlock: 100
     },
@@ -69,7 +92,7 @@ var CHARACTER_DEFS = {
         description: 'An energetic lightning-bolt character radiating electric energy.',
         rarity: 'rare',
         xpBonus: 5,
-        unlockCondition: 'badge_speed_demon_gold',
+        unlockCondition: 'super_sonic',
         introVideoPath: 'Characters/Sparky/intro.mp4',
         xpRewardOnUnlock: 100
     },
@@ -79,7 +102,7 @@ var CHARACTER_DEFS = {
         description: 'A musical character with oversized headphones and sound wave aura.',
         rarity: 'rare',
         xpBonus: 5,
-        unlockCondition: 'audio_review_10',
+        unlockCondition: 'brainiac',
         introVideoPath: 'Characters/Echo/intro.mp4',
         xpRewardOnUnlock: 100
     },
@@ -89,7 +112,7 @@ var CHARACTER_DEFS = {
         description: 'A wise owl professor with round glasses and a book.',
         rarity: 'rare',
         xpBonus: 5,
-        unlockCondition: 'smart_review_10',
+        unlockCondition: 'quiz_warrior',
         introVideoPath: 'Characters/Professor/intro.mp4',
         xpRewardOnUnlock: 100
     },
@@ -99,29 +122,9 @@ var CHARACTER_DEFS = {
         description: 'A retro pixel-art character made of visible square pixels.',
         rarity: 'rare',
         xpBonus: 5,
-        unlockCondition: 'badge_social_butterfly_day14',
+        unlockCondition: 'sharing_is_caring',
         introVideoPath: 'Characters/Pixel/intro.mp4',
         xpRewardOnUnlock: 100
-    },
-    Chronos: {
-        id: 'Chronos',
-        name: 'Chronos',
-        description: 'The timekeeper who knows all history.',
-        rarity: 'epic',
-        xpBonus: 10,
-        unlockCondition: 'streak_30',
-        introVideoPath: 'Characters/Chronos/intro.mp4',
-        xpRewardOnUnlock: 250
-    },
-    Phoenix: {
-        id: 'Phoenix',
-        name: 'Phoenix',
-        description: 'Reborn from the ashes of defeat.',
-        rarity: 'epic',
-        xpBonus: 10,
-        unlockCondition: 'league_gold',
-        introVideoPath: 'Characters/Phoenix/intro.mp4',
-        xpRewardOnUnlock: 250
     },
     Bear: {
         id: 'Bear',
@@ -129,7 +132,7 @@ var CHARACTER_DEFS = {
         description: 'A strong, friendly bear character representing dedication.',
         rarity: 'epic',
         xpBonus: 10,
-        unlockCondition: 'donut_disturb_level_25',
+        unlockCondition: 'trophy_hunter',
         introVideoPath: 'Characters/Bear/intro.mp4',
         xpRewardOnUnlock: 250
     },
@@ -139,7 +142,7 @@ var CHARACTER_DEFS = {
         description: 'A cute rubber duck character with a quirky personality.',
         rarity: 'epic',
         xpBonus: 10,
-        unlockCondition: 'donut_disturb_level_10',
+        unlockCondition: 'big_thinks',
         introVideoPath: 'Characters/Duck/intro.mp4',
         xpRewardOnUnlock: 250
     },
@@ -149,19 +152,9 @@ var CHARACTER_DEFS = {
         description: 'A mystical crescent moon character with a starry aura.',
         rarity: 'epic',
         xpBonus: 10,
-        unlockCondition: 'badge_night_owl',
+        unlockCondition: 'flashback',
         introVideoPath: 'Characters/Luna/intro.mp4',
         xpRewardOnUnlock: 250
-    },
-    Sage: {
-        id: 'Sage',
-        name: 'Sage',
-        description: 'The ultimate quiz master.',
-        rarity: 'legendary',
-        xpBonus: 15,
-        unlockCondition: 'league_diamond',
-        introVideoPath: 'Characters/Sage/intro.mp4',
-        xpRewardOnUnlock: 500
     },
     IX: {
         id: 'IX',
@@ -169,19 +162,9 @@ var CHARACTER_DEFS = {
         description: 'IntelliVerse X ultimate character — futuristic AI entity.',
         rarity: 'legendary',
         xpBonus: 15,
-        unlockCondition: 'ecosystem_points_2500',
+        unlockCondition: 'ultimate_player',
         introVideoPath: 'Characters/IX/intro.mp4',
         xpRewardOnUnlock: 500
-    },
-    Gloop: {
-        id: 'Gloop',
-        name: 'Gloop',
-        description: 'A playful, bouncy slime character with a cheerful personality.',
-        rarity: 'rare',
-        xpBonus: 5,
-        unlockCondition: 'quiz_master_tier2',
-        introVideoPath: 'Characters/Gloop/intro.mp4',
-        xpRewardOnUnlock: 100
     }
 };
 
@@ -231,8 +214,10 @@ function initCharacterData(userId) {
     return {
         activeCharacter: 'Quizzy',
         unlockedCharacters: {
-            Quizzy: { unlockedAt: now },
-            AUTOcurio: { unlockedAt: now }
+            Quizzy:     { unlockedAt: now },
+            Quizzy_v1:  { unlockedAt: now },
+            Quizzy_v2:  { unlockedAt: now },
+            AUTOcurio:  { unlockedAt: now }
         },
         totalXpFromUnlocks: 0,
         createdAt: now,
@@ -261,7 +246,8 @@ function rpcCharacterGetState(ctx, logger, nk, payload) {
     var data = charValidatePayload(payload);
     if (data === null) return charErrorResponse('Invalid JSON payload');
 
-    var gameId = data.gameId || 'quizverse';
+    // Accept both camelCase (gameId) and snake_case (game_id) for robustness
+    var gameId = data.gameId || data.game_id || 'quizverse';
     var charData = readCharacterData(nk, logger, ctx.userId, gameId);
 
     if (!charData) {
@@ -324,7 +310,7 @@ function rpcCharacterUnlock(ctx, logger, nk, payload) {
     var data = charValidatePayload(payload);
     if (data === null) return charErrorResponse('Invalid JSON payload');
 
-    var gameId = data.gameId || 'quizverse';
+    var gameId = data.gameId || data.game_id || 'quizverse';
     var characterId = data.characterId;
 
     if (!characterId) return charErrorResponse('Missing required field: characterId');
@@ -412,7 +398,7 @@ function rpcCharacterSetActive(ctx, logger, nk, payload) {
     var data = charValidatePayload(payload);
     if (data === null) return charErrorResponse('Invalid JSON payload');
 
-    var gameId = data.gameId || 'quizverse';
+    var gameId = data.gameId || data.game_id || 'quizverse';
     var characterId = data.characterId;
 
     if (!characterId) return charErrorResponse('Missing required field: characterId');
