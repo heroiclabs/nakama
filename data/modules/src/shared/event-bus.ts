@@ -54,5 +54,7 @@ namespace EventBus {
     EVENT_CANCELLED: "event_cancelled",
     QUIZ_COMPLETED: "quiz_completed",
     PRIZE_FULFILLMENT_REQUESTED: "prize_fulfillment_requested",
+    QUEST_STEP_COMPLETED: "quest_step_completed",
+    QUEST_COMPLETED: "quest_completed",
   };
 }

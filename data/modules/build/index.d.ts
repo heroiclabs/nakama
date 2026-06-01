@@ -1160,9 +1160,6 @@ declare namespace LegacyGroups {
 declare namespace LegacyLeaderboards {
     function register(initializer: nkruntime.Initializer): void;
 }
-declare namespace LegacyMissions {
-    function register(initializer: nkruntime.Initializer): void;
-}
 declare namespace LegacyMultiGame {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3211,6 +3208,9 @@ declare namespace TournamentEconomyV2 {
 declare namespace WalletGuestSync {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QuestEngine {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3443,6 +3443,8 @@ declare namespace EventBus {
         EVENT_CANCELLED: string;
         QUIZ_COMPLETED: string;
         PRIZE_FULFILLMENT_REQUESTED: string;
+        QUEST_STEP_COMPLETED: string;
+        QUEST_COMPLETED: string;
     };
     export {};
 }

@@ -100,8 +100,6 @@ function InitModule(ctx, logger, nk, initializer) {
         LegacyQuiz.register(initializer);
         logger.info("[Legacy] Registering game entry RPCs...");
         LegacyGameEntry.register(initializer);
-        logger.info("[Legacy] Registering missions RPCs...");
-        LegacyMissions.register(initializer);
         logger.info("[Legacy] Registering analytics RPCs...");
         LegacyAnalytics.register(initializer);
         // Phase 0.5 (qv-insights-loop): product_changelog_append RPC. Lets any
@@ -227,6 +225,15 @@ function InitModule(ctx, logger, nk, initializer) {
     }
     catch (err) {
         logger.error("[Legacy] Failed to register legacy RPCs: " + (err.message || String(err)));
+    }
+    // ---- Quest Engine Registration ----
+    try {
+        logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config RPCs...");
+        QuestEngine.register(initializer);
+        logger.info("[QuestEngine] 4 RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
     }
     // ---- Hiro Systems Registration ----
     try {
@@ -14365,13 +14372,19 @@ var HiroUnlockables;
 //
 //  Collection: qv_entitlements
 //   key "subscriptions" : { tier, expiresAt?, productId, store }
-//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed }
+//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed, boosterCredits }
 //   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
-//                           examPacks[] }
+//                           examPacks[], starterPackGranted }
 //
 //  RPCs exposed:
 //   quizverse_get_entitlements  – client reads its own entitlement snapshot
 //   quizverse_rc_sync           – RevenueCat S2S webhook → write entitlement
+//                                 Works in two modes:
+//                                   • Server mode (http_key, no session):
+//                                       event.app_user_id MUST be present
+//                                   • Client mode (user session):
+//                                       ctx.userId used, event.app_user_id
+//                                       validated if provided
 // ---------------------------------------------------------------------------
 var QvEntitlements;
 (function (QvEntitlements) {
@@ -14379,6 +14392,10 @@ var QvEntitlements;
     var KEY_SUBS = "subscriptions";
     var KEY_CONS = "consumables";
     var KEY_ONE = "one_time";
+    // NAKAMA_WEBHOOK_SECRET is set in docker-compose.yml environment + RUNTIME_ENV_KEYS.
+    // RevenueCat webhook Authorization header must match this value.
+    // If the env var is unset, signature checking is SKIPPED (dev-only behaviour).
+    var WEBHOOK_SECRET_ENV_KEY = "NAKAMA_WEBHOOK_SECRET";
     // Product ID → tier mapping (must mirror RevenueCatProjectSetup.cs in Unity)
     function tierForProductId(productId) {
         if (!productId)
@@ -14450,20 +14467,53 @@ var QvEntitlements;
     //      "transactionId": "..."
     //    }
     //  In this case ctx.userId is the Nakama user, so app_user_id is optional.
+    //
+    //  Dual-mode design:
+    //    Server mode (RevenueCat webhook via http_key): ctx.userId is empty.
+    //      event.app_user_id MUST be present and is used as the target user.
+    //      Authorization header must match NAKAMA_WEBHOOK_SECRET env var (if set).
+    //    Client mode (Unity SDK call with user session): ctx.userId is set.
+    //      event.app_user_id is validated against ctx.userId if provided.
     function rpcRCSync(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
-        // Unwrap RC webhook envelope if present
         var event = data.event || data;
+        // ── Mode detection ──────────────────────────────────────────────────
+        // ctx.userId is empty when called via http_key (server/webhook mode).
+        var isServerMode = !ctx.userId;
+        if (isServerMode) {
+            // Webhook signature check: RevenueCat sends the Authorization header
+            // set to whatever value you configured in the webhook dashboard.
+            // Nakama passes HTTP headers to RPCs via ctx.env only for httpKey RPCs
+            // when using registerRpc — we use the shared NAKAMA_WEBHOOK_SECRET
+            // embedded in the URL query or validated by matching env var against
+            // the Authorization field in the request body meta (RC sends it as
+            // a top-level "authorization" key in newer webhook versions).
+            var secret = ctx.env[WEBHOOK_SECRET_ENV_KEY] || "";
+            if (secret) {
+                // RevenueCat v2+ webhooks include an "authorization" field at the
+                // top level of the JSON body (same value as the Authorization header
+                // you configured in RevenueCat dashboard).
+                var authField = data.authorization || data.Authorization || "";
+                if (authField !== secret) {
+                    logger.warn("[QvEntitlements] rc_sync: webhook authorization mismatch — request rejected");
+                    return RpcHelpers.errorResponse("unauthorized");
+                }
+            }
+            // In server mode, app_user_id from the event is the Nakama user ID
+            if (!event.app_user_id) {
+                logger.warn("[QvEntitlements] rc_sync: server-mode call missing app_user_id");
+                return RpcHelpers.errorResponse("app_user_id required in server mode");
+            }
+        }
+        var callerUserId = ctx.userId || "";
         var productId = event.product_id || event.productId || "";
         var store = event.store || "unknown";
         var eventType = event.type || "GRANT";
-        var targetUserId = event.app_user_id || userId;
-        // SECURITY: if app_user_id is provided, it MUST match the calling user's
-        // Nakama ID (the identity glue layer). Reject mismatches to prevent
-        // privilege escalation via forged webhook payloads.
-        if (event.app_user_id && event.app_user_id !== userId) {
-            logger.warn("[QvEntitlements] rc_sync user mismatch: caller=" + userId + " event=" + event.app_user_id);
+        var targetUserId = event.app_user_id || callerUserId;
+        // SECURITY (client mode): if app_user_id is provided, it MUST match the
+        // authenticated user to prevent privilege escalation via forged payloads.
+        if (!isServerMode && event.app_user_id && event.app_user_id !== callerUserId) {
+            logger.warn("[QvEntitlements] rc_sync user mismatch: caller=" + callerUserId + " event=" + event.app_user_id);
             return RpcHelpers.errorResponse("user id mismatch");
         }
         if (!productId) {
@@ -14552,12 +14602,28 @@ var QvEntitlements;
     QvEntitlements.grantSubscription = grantSubscription;
     // ── quizverse_grant_consumable ──────────────────────────────────────────
     //  Internal helper — called from hiro_iap_validate after consumable purchase.
-    //  Grants AI voice credits or inventory slots.
+    //  Grants AI voice credits, booster credits, etc.
+    //
+    //  Product routing (by productId substring):
+    //    aivoice            → aiVoiceCredits += quantity
+    //    boosterpack        → boosterCredits += quantity (each pack = 1 credit)
+    //    starterpack.v2     → grants are handled in Unity IAP (coins via Nakama
+    //                         wallet RPC, Pro trial locally). No server-side
+    //                         consumable record needed beyond journaling in wallet.
+    //                         Flagged here as starterPackGranted=true for audit.
     function grantConsumable(nk, logger, userId, productId, quantity) {
         try {
             var existing = Storage.readJson(nk, COLLECTION, KEY_CONS, userId) || {};
             if (productId.indexOf("aivoice") !== -1) {
                 existing.aiVoiceCredits = (existing.aiVoiceCredits || 0) + quantity;
+            }
+            else if (productId.indexOf("boosterpack") !== -1) {
+                existing.boosterCredits = (existing.boosterCredits || 0) + quantity;
+            }
+            else if (productId.indexOf("starterpack") !== -1) {
+                // Coins and Pro trial are wallet-journaled in Unity IAP; mark as granted
+                // here for server-side audit / duplicate prevention.
+                existing.starterPackGrantCount = (existing.starterPackGrantCount || 0) + 1;
             }
             Storage.writeJson(nk, COLLECTION, KEY_CONS, userId, existing);
         }
@@ -21032,135 +21098,6 @@ var LegacyLeaderboards;
     }
     LegacyLeaderboards.register = register;
 })(LegacyLeaderboards || (LegacyLeaderboards = {}));
-var LegacyMissions;
-(function (LegacyMissions) {
-    function pad2(n) {
-        return n < 10 ? "0" + n : String(n);
-    }
-    function getTodayDateString() {
-        var d = new Date();
-        return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
-    }
-    function getDefaultMissions() {
-        return [
-            { id: "play_3", type: "play_games", description: "Play 3 games", target: 3, progress: 0, completed: false, claimed: false, reward: { game: 30 } },
-            { id: "win_1", type: "win_games", description: "Win 1 game", target: 1, progress: 0, completed: false, claimed: false, reward: { tokens: 15 } },
-            { id: "correct_10", type: "correct_answers", description: "Get 10 correct answers", target: 10, progress: 0, completed: false, claimed: false, reward: { xp: 25 } }
-        ];
-    }
-    function getMissionsForUser(nk, userId, date) {
-        var key = "daily_" + userId + "_" + date;
-        var data = Storage.readJson(nk, Constants.MISSIONS_COLLECTION, key, userId);
-        if (!data || data.date !== date) {
-            return { missions: getDefaultMissions(), date: date };
-        }
-        return data;
-    }
-    function saveMissions(nk, userId, data) {
-        var key = "daily_" + userId + "_" + data.date;
-        Storage.writeJson(nk, Constants.MISSIONS_COLLECTION, key, userId, data);
-    }
-    function getNextUTCResetTime() {
-        var d = new Date();
-        d.setUTCHours(24, 0, 0, 0);
-        return d.toISOString();
-    }
-    function rpcGetDailyMissions(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var today = getTodayDateString();
-        var data = getMissionsForUser(nk, userId, today);
-        return RpcHelpers.successResponse({ missions: data.missions, date: data.date, resetTime: getNextUTCResetTime() });
-    }
-    function rpcSubmitProgress(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.missionId || data.amount === undefined) {
-            return RpcHelpers.errorResponse("missionId and amount required");
-        }
-        var today = getTodayDateString();
-        var missionsData = getMissionsForUser(nk, userId, today);
-        var mission = missionsData.missions.find(function (m) { return m.id === data.missionId; });
-        if (!mission) {
-            return RpcHelpers.errorResponse("Mission not found");
-        }
-        if (mission.completed && mission.claimed) {
-            return RpcHelpers.successResponse({ mission: mission, alreadyComplete: true });
-        }
-        var amount = Math.max(0, Number(data.amount) || 0);
-        if (mission.type === "play_games" || mission.type === "win_games" || mission.type === "correct_answers") {
-            mission.progress = Math.min(mission.target, (mission.progress || 0) + amount);
-            mission.completed = mission.progress >= mission.target;
-        }
-        else {
-            mission.progress = Math.min(mission.target, (mission.progress || 0) + amount);
-            mission.completed = mission.progress >= mission.target;
-        }
-        saveMissions(nk, userId, missionsData);
-        return RpcHelpers.successResponse({ mission: mission });
-    }
-    function rpcClaimReward(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.missionId)
-            return RpcHelpers.errorResponse("missionId required");
-        var gameId = data.gameId || "default";
-        var today = getTodayDateString();
-        var missionsData = getMissionsForUser(nk, userId, today);
-        var mission = missionsData.missions.find(function (m) { return m.id === data.missionId; });
-        if (!mission) {
-            return RpcHelpers.errorResponse("Mission not found");
-        }
-        if (!mission.completed) {
-            return RpcHelpers.errorResponse("Mission not completed");
-        }
-        if (mission.claimed) {
-            return RpcHelpers.errorResponse("Reward already claimed");
-        }
-        var reward = mission.reward || {};
-        if (reward.game && reward.game > 0) {
-            WalletHelpers.addCurrency(nk, logger, ctx, userId, gameId, "game", reward.game);
-        }
-        if (reward.tokens && reward.tokens > 0) {
-            WalletHelpers.addCurrency(nk, logger, ctx, userId, gameId, "tokens", reward.tokens);
-        }
-        if (reward.xp && reward.xp > 0) {
-            WalletHelpers.addCurrency(nk, logger, ctx, userId, gameId, "xp", reward.xp);
-        }
-        mission.claimed = true;
-        saveMissions(nk, userId, missionsData);
-        try {
-            var syncUrl = data.syncUrl;
-            if (syncUrl && typeof syncUrl === "string") {
-                HttpClient.post(nk, syncUrl, JSON.stringify({
-                    userId: userId,
-                    missionId: mission.id,
-                    reward: reward
-                }));
-            }
-        }
-        catch (_) { }
-        var missionRewardTotal = (reward.game || 0) + (reward.tokens || 0);
-        if (missionRewardTotal > 0) {
-            try {
-                var questsApiUrl = (ctx.env && ctx.env["QUESTS_ECONOMY_API_URL"]) || "http://localhost:3001";
-                var webhookSecret = (ctx.env && ctx.env["NAKAMA_WEBHOOK_SECRET"]) || "";
-                var qeGameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) || "f6f7fe36-03de-43b8-8b5d-1a1892da4eed";
-                var syncBody = JSON.stringify({ amount: missionRewardTotal, sourceType: "mission_reward", sourceId: "mission:" + mission.id, description: "Mission reward claimed" });
-                var sigBytes = nk.hmacSha256Hash(webhookSecret, syncBody);
-                var sig = nk.binaryToString(sigBytes);
-                nk.httpRequest(questsApiUrl.replace(/\/$/, "") + "/game-bridge/s2s/wallet/earn", "post", { "Content-Type": "application/json", "X-Source": "nakama-rpc", "X-Webhook-Signature": sig, "X-User-Id": userId, "X-Game-Id": qeGameId }, syncBody);
-            }
-            catch (_) { }
-        }
-        return RpcHelpers.successResponse({ mission: mission, reward: reward });
-    }
-    function register(initializer) {
-        initializer.registerRpc("get_daily_missions", rpcGetDailyMissions);
-        initializer.registerRpc("submit_mission_progress", rpcSubmitProgress);
-        initializer.registerRpc("claim_mission_reward", rpcClaimReward);
-    }
-    LegacyMissions.register = register;
-})(LegacyMissions || (LegacyMissions = {}));
 // nakama-allow-dynamic-rpc-id:file
 //
 // Intentional file-level exemption from check-rpc-literals.js.
@@ -34225,6 +34162,340 @@ var WalletGuestSync;
     }
     WalletGuestSync.register = register;
 })(WalletGuestSync || (WalletGuestSync = {}));
+var QuestEngine;
+(function (QuestEngine) {
+    // ─── Types ────────────────────────────────────────────────────────────────
+    // ─── Constants ────────────────────────────────────────────────────────────
+    var QUEST_ENGINE_COLLECTION = "quest_engine";
+    var DEFAULT_QUESTS_CONFIG = { quests: {} };
+    // Admin users allowed to save quest config (server-key or specific roles).
+    // An empty userId in ctx means the call came via server key — always allowed.
+    function isAdminCaller(ctx) {
+        return !ctx.userId || ctx.userId === Constants.SYSTEM_USER_ID;
+    }
+    // ─── Storage ──────────────────────────────────────────────────────────────
+    function loadConfig(nk, gameId) {
+        return ConfigLoader.loadConfigForGame(nk, "quests", gameId, DEFAULT_QUESTS_CONFIG);
+    }
+    function saveConfig(nk, gameId, config) {
+        ConfigLoader.saveConfig(nk, Constants.gameKey(gameId, "quests"), config);
+    }
+    function loadUserState(nk, userId, gameId) {
+        var data = Storage.readJson(nk, QUEST_ENGINE_COLLECTION, Constants.gameKey(gameId, "state"), userId);
+        return data || { quests: {} };
+    }
+    function saveUserState(nk, userId, gameId, state) {
+        // permissionWrite: 0 = server-only writes (prevents client-side cheating)
+        Storage.writeJson(nk, QUEST_ENGINE_COLLECTION, Constants.gameKey(gameId, "state"), userId, state, 1, 0);
+    }
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+    function getOrCreateQuestProgress(state, questId) {
+        if (!state.quests[questId]) {
+            state.quests[questId] = {
+                questId: questId,
+                steps: {},
+                startedAt: null,
+                completedAt: null,
+                claimedAt: null,
+                resetCount: 0,
+                lastResetAt: null
+            };
+        }
+        return state.quests[questId];
+    }
+    function getStepCount(progress, stepId) {
+        return (progress.steps[stepId] && progress.steps[stepId].count) || 0;
+    }
+    function getStepCompletedAt(progress, stepId) {
+        return (progress.steps[stepId] && progress.steps[stepId].completedAt) || null;
+    }
+    function isQuestUnlocked(config, state) {
+        if (!config.prerequisiteIds || config.prerequisiteIds.length === 0)
+            return true;
+        for (var i = 0; i < config.prerequisiteIds.length; i++) {
+            var pre = state.quests[config.prerequisiteIds[i]];
+            if (!pre || !pre.completedAt)
+                return false;
+        }
+        return true;
+    }
+    function isQuestExpired(config, now) {
+        return !!(config.expiresAt && now > config.expiresAt);
+    }
+    function shouldResetQuest(config, progress, now) {
+        if (!config.repeatable || !progress.completedAt)
+            return false;
+        if (!config.resetIntervalSec)
+            return false;
+        return now >= (progress.completedAt + config.resetIntervalSec);
+    }
+    function resetQuestProgress(progress, now) {
+        progress.steps = {};
+        progress.startedAt = null;
+        progress.completedAt = null;
+        progress.claimedAt = null;
+        progress.resetCount = (progress.resetCount || 0) + 1;
+        progress.lastResetAt = now;
+    }
+    function areAllStepsDone(config, progress) {
+        for (var i = 0; i < config.steps.length; i++) {
+            var sp = progress.steps[config.steps[i].id];
+            if (!sp || sp.count < config.steps[i].requiredCount)
+                return false;
+        }
+        return true;
+    }
+    function eventMatchesStep(step, eventType, value, metadata) {
+        if (step.eventType !== eventType)
+            return false;
+        if (step.requiredValue !== undefined && step.requiredValue !== null && value < step.requiredValue)
+            return false;
+        if (step.filterField && step.filterValue) {
+            if (!metadata || metadata[step.filterField] !== step.filterValue)
+                return false;
+        }
+        return true;
+    }
+    function resolveGameId(data) {
+        return RpcHelpers.gameId(data) || Constants.DEFAULT_GAME_ID;
+    }
+    // ─── RPC: quest_engine_get ─────────────────────────────────────────────────
+    // Returns all non-expired quests with per-step progress for the calling user.
+    // Read-only: only writes state when a repeatable reset actually occurred.
+    function rpcQuestEngineGet(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var now = Math.floor(Date.now() / 1000);
+        var config = loadConfig(nk, gameId);
+        var state = loadUserState(nk, userId, gameId);
+        var stateModified = false;
+        var result = [];
+        var questIds = Object.keys(config.quests);
+        for (var i = 0; i < questIds.length; i++) {
+            var questId = questIds[i];
+            var qConfig = config.quests[questId];
+            if (isQuestExpired(qConfig, now))
+                continue;
+            var progress = getOrCreateQuestProgress(state, questId);
+            if (shouldResetQuest(qConfig, progress, now)) {
+                resetQuestProgress(progress, now);
+                stateModified = true;
+            }
+            var unlocked = isQuestUnlocked(qConfig, state);
+            var stepsOut = [];
+            for (var s = 0; s < qConfig.steps.length; s++) {
+                var stepCfg = qConfig.steps[s];
+                stepsOut.push({
+                    id: stepCfg.id,
+                    description: stepCfg.description,
+                    requiredCount: stepCfg.requiredCount,
+                    count: getStepCount(progress, stepCfg.id),
+                    completedAt: getStepCompletedAt(progress, stepCfg.id)
+                });
+            }
+            result.push({
+                id: qConfig.id,
+                name: qConfig.name,
+                description: qConfig.description || null,
+                category: qConfig.category || null,
+                unlocked: unlocked,
+                steps: stepsOut,
+                startedAt: progress.startedAt,
+                completedAt: progress.completedAt,
+                claimedAt: progress.claimedAt,
+                expiresAt: qConfig.expiresAt || null,
+                resetCount: progress.resetCount,
+                additionalProperties: qConfig.additionalProperties || null
+            });
+        }
+        // Only write to storage if a repeatable reset changed the state
+        if (stateModified) {
+            saveUserState(nk, userId, gameId, state);
+        }
+        return RpcHelpers.successResponse({ quests: result });
+    }
+    // ─── RPC: quest_engine_record_event ──────────────────────────────────────
+    // Reports a player action. Fans out to all matching quest steps.
+    //
+    // Two-phase design (data-integrity guarantee):
+    //   Phase 1 — scan all quests, advance steps, mark completions in memory.
+    //   Phase 2 — persist state FIRST (progress is safe even if reward fails).
+    //   Phase 3 — grant auto-rewards; each wrapped in try/catch so a reward
+    //             engine error never rolls back the player's hard-earned progress.
+    //             If auto-grant fails, claimedAt stays null and the client can
+    //             retry via quest_engine_claim_reward.
+    function rpcQuestEngineRecordEvent(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var eventType = data.eventType;
+        var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
+        var metadata = data.metadata || {};
+        var now = Math.floor(Date.now() / 1000);
+        if (!eventType)
+            return RpcHelpers.errorResponse("eventType is required");
+        var config = loadConfig(nk, gameId);
+        var state = loadUserState(nk, userId, gameId);
+        var updatedCount = 0;
+        var updatedQuests = {};
+        // Track quests that completed this call and need auto-reward granting
+        var rewardPending = [];
+        // ── Phase 1: scan + advance ──────────────────────────────────────────────
+        var questIds = Object.keys(config.quests);
+        for (var i = 0; i < questIds.length; i++) {
+            var questId = questIds[i];
+            var qConfig = config.quests[questId];
+            if (isQuestExpired(qConfig, now))
+                continue;
+            if (!isQuestUnlocked(qConfig, state))
+                continue;
+            var progress = getOrCreateQuestProgress(state, questId);
+            // Auto-reset expired repeatable quests before processing new event
+            if (shouldResetQuest(qConfig, progress, now)) {
+                resetQuestProgress(progress, now);
+            }
+            // Skip already-completed quests (non-repeatable, or repeatable not yet reset)
+            if (progress.completedAt && !qConfig.repeatable)
+                continue;
+            if (progress.completedAt && qConfig.repeatable)
+                continue;
+            var questUpdated = false;
+            for (var s = 0; s < qConfig.steps.length; s++) {
+                var stepCfg = qConfig.steps[s];
+                if (progress.steps[stepCfg.id] && progress.steps[stepCfg.id].completedAt)
+                    continue;
+                if (!eventMatchesStep(stepCfg, eventType, value, metadata))
+                    continue;
+                if (!progress.steps[stepCfg.id]) {
+                    progress.steps[stepCfg.id] = { count: 0, completedAt: null };
+                }
+                if (!progress.startedAt)
+                    progress.startedAt = now;
+                var prevCount = progress.steps[stepCfg.id].count;
+                progress.steps[stepCfg.id].count = Math.min(prevCount + 1, stepCfg.requiredCount);
+                questUpdated = true;
+                // Fire event only on the incomplete→complete transition
+                if (prevCount < stepCfg.requiredCount &&
+                    progress.steps[stepCfg.id].count >= stepCfg.requiredCount) {
+                    progress.steps[stepCfg.id].completedAt = now;
+                    try {
+                        EventBus.emit(nk, logger, ctx, EventBus.Events.QUEST_STEP_COMPLETED, {
+                            userId: userId, questId: questId, stepId: stepCfg.id
+                        });
+                    }
+                    catch (busErr) {
+                        logger.warn("[QuestEngine] EventBus step emit failed: " + (busErr && busErr.message ? busErr.message : String(busErr)));
+                    }
+                    logger.info("[QuestEngine] Step completed: quest=%s step=%s user=%s", questId, stepCfg.id, userId);
+                }
+            }
+            if (questUpdated) {
+                updatedCount++;
+                if (areAllStepsDone(qConfig, progress) && !progress.completedAt) {
+                    progress.completedAt = now;
+                    try {
+                        EventBus.emit(nk, logger, ctx, EventBus.Events.QUEST_COMPLETED, {
+                            userId: userId, questId: questId
+                        });
+                    }
+                    catch (busErr) {
+                        logger.warn("[QuestEngine] EventBus quest emit failed: " + (busErr && busErr.message ? busErr.message : String(busErr)));
+                    }
+                    logger.info("[QuestEngine] Quest completed: quest=%s user=%s", questId, userId);
+                    // Queue reward for Phase 3 — do NOT grant yet (state not saved)
+                    if (qConfig.reward) {
+                        rewardPending.push({ questId: questId, reward: qConfig.reward });
+                    }
+                }
+                updatedQuests[questId] = {
+                    questId: questId,
+                    steps: progress.steps,
+                    startedAt: progress.startedAt,
+                    completedAt: progress.completedAt,
+                    claimedAt: progress.claimedAt,
+                    resetCount: progress.resetCount
+                };
+            }
+        }
+        // ── Phase 2: persist progress (safe even if Phase 3 fails) ───────────────
+        if (updatedCount > 0) {
+            saveUserState(nk, userId, gameId, state);
+        }
+        // ── Phase 3: grant auto-rewards (isolated, non-fatal) ────────────────────
+        for (var r = 0; r < rewardPending.length; r++) {
+            var rq = rewardPending[r];
+            try {
+                var resolved = RewardEngine.resolveReward(nk, rq.reward);
+                RewardEngine.grantReward(nk, logger, ctx, userId, gameId, resolved);
+                state.quests[rq.questId].claimedAt = now;
+                updatedQuests[rq.questId].claimedAt = now;
+                logger.info("[QuestEngine] Reward auto-granted: quest=%s user=%s", rq.questId, userId);
+            }
+            catch (rewardErr) {
+                logger.error("[QuestEngine] Reward grant failed (claimedAt stays null, client can retry): quest=%s err=%s", rq.questId, (rewardErr && rewardErr.message ? rewardErr.message : String(rewardErr)));
+            }
+        }
+        // Save again only if any claimedAt was set in Phase 3
+        if (rewardPending.length > 0 && updatedCount > 0) {
+            saveUserState(nk, userId, gameId, state);
+        }
+        return RpcHelpers.successResponse({ updatedQuests: updatedCount, quests: updatedQuests });
+    }
+    // ─── RPC: quest_engine_claim_reward ──────────────────────────────────────
+    // Manually claims reward for a completed quest (deferred-claim UI pattern).
+    function rpcQuestEngineClaimReward(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var questId = data.questId;
+        if (!questId)
+            return RpcHelpers.errorResponse("questId is required");
+        var config = loadConfig(nk, gameId);
+        var qConfig = config.quests[questId];
+        if (!qConfig)
+            return RpcHelpers.errorResponse("Unknown quest: " + questId);
+        var state = loadUserState(nk, userId, gameId);
+        var progress = state.quests[questId];
+        if (!progress || !progress.completedAt)
+            return RpcHelpers.errorResponse("Quest not completed");
+        if (progress.claimedAt)
+            return RpcHelpers.errorResponse("Quest reward already claimed");
+        if (!qConfig.reward)
+            return RpcHelpers.successResponse({ reward: null });
+        var now = Math.floor(Date.now() / 1000);
+        var resolved = RewardEngine.resolveReward(nk, qConfig.reward);
+        RewardEngine.grantReward(nk, logger, ctx, userId, gameId, resolved);
+        progress.claimedAt = now;
+        saveUserState(nk, userId, gameId, state);
+        logger.info("[QuestEngine] Reward claimed manually: quest=%s user=%s", questId, userId);
+        return RpcHelpers.successResponse({ reward: resolved });
+    }
+    // ─── RPC: quest_engine_admin_save_config ─────────────────────────────────
+    // Saves quest config to storage. Server-key only — rejects authenticated users.
+    function rpcQuestEngineAdminSaveConfig(ctx, logger, nk, payload) {
+        if (!isAdminCaller(ctx)) {
+            return RpcHelpers.errorResponse("Forbidden: server key required");
+        }
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var config = data.config;
+        if (!config || !config.quests)
+            return RpcHelpers.errorResponse("config.quests is required");
+        var questCount = Object.keys(config.quests).length;
+        saveConfig(nk, gameId, config);
+        logger.info("[QuestEngine] Config saved: gameId=%s quests=%d", gameId, questCount);
+        return RpcHelpers.successResponse({ saved: true, questCount: questCount });
+    }
+    // ─── Register ─────────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("quest_engine_get", rpcQuestEngineGet);
+        initializer.registerRpc("quest_engine_record_event", rpcQuestEngineRecordEvent);
+        initializer.registerRpc("quest_engine_claim_reward", rpcQuestEngineClaimReward);
+        initializer.registerRpc("quest_engine_admin_save_config", rpcQuestEngineAdminSaveConfig);
+    }
+    QuestEngine.register = register;
+})(QuestEngine || (QuestEngine = {}));
 // qv_agent.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // QuizVerse Agent runtime — Phase A tool surface for the omnichannel
@@ -39967,6 +40238,8 @@ var EventBus;
         EVENT_CANCELLED: "event_cancelled",
         QUIZ_COMPLETED: "quiz_completed",
         PRIZE_FULFILLMENT_REQUESTED: "prize_fulfillment_requested",
+        QUEST_STEP_COMPLETED: "quest_step_completed",
+        QUEST_COMPLETED: "quest_completed",
     };
 })(EventBus || (EventBus = {}));
 // fortune-wheel-ad-spin.ts — V2

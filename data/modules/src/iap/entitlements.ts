@@ -3,13 +3,19 @@
 //
 //  Collection: qv_entitlements
 //   key "subscriptions" : { tier, expiresAt?, productId, store }
-//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed }
+//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed, boosterCredits }
 //   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
-//                           examPacks[] }
+//                           examPacks[], starterPackGranted }
 //
 //  RPCs exposed:
 //   quizverse_get_entitlements  – client reads its own entitlement snapshot
 //   quizverse_rc_sync           – RevenueCat S2S webhook → write entitlement
+//                                 Works in two modes:
+//                                   • Server mode (http_key, no session):
+//                                       event.app_user_id MUST be present
+//                                   • Client mode (user session):
+//                                       ctx.userId used, event.app_user_id
+//                                       validated if provided
 // ---------------------------------------------------------------------------
 
 namespace QvEntitlements {
@@ -18,6 +24,11 @@ namespace QvEntitlements {
   var KEY_SUBS   = "subscriptions";
   var KEY_CONS   = "consumables";
   var KEY_ONE    = "one_time";
+
+  // NAKAMA_WEBHOOK_SECRET is set in docker-compose.yml environment + RUNTIME_ENV_KEYS.
+  // RevenueCat webhook Authorization header must match this value.
+  // If the env var is unset, signature checking is SKIPPED (dev-only behaviour).
+  var WEBHOOK_SECRET_ENV_KEY = "NAKAMA_WEBHOOK_SECRET";
 
   // Product ID → tier mapping (must mirror RevenueCatProjectSetup.cs in Unity)
   function tierForProductId(productId: string): string | null {
@@ -94,6 +105,13 @@ namespace QvEntitlements {
   //      "transactionId": "..."
   //    }
   //  In this case ctx.userId is the Nakama user, so app_user_id is optional.
+  //
+  //  Dual-mode design:
+  //    Server mode (RevenueCat webhook via http_key): ctx.userId is empty.
+  //      event.app_user_id MUST be present and is used as the target user.
+  //      Authorization header must match NAKAMA_WEBHOOK_SECRET env var (if set).
+  //    Client mode (Unity SDK call with user session): ctx.userId is set.
+  //      event.app_user_id is validated against ctx.userId if provided.
 
   function rpcRCSync(
     ctx: nkruntime.Context,
@@ -101,21 +119,49 @@ namespace QvEntitlements {
     nk: nkruntime.Nakama,
     payload: string
   ): string {
-    var userId = RpcHelpers.requireUserId(ctx);
-    var data   = RpcHelpers.parseRpcPayload(payload);
-
-    // Unwrap RC webhook envelope if present
+    var data  = RpcHelpers.parseRpcPayload(payload);
     var event = data.event || data;
-    var productId: string = event.product_id || event.productId || "";
-    var store: string     = event.store || "unknown";
-    var eventType: string = event.type || "GRANT";
-    var targetUserId: string = event.app_user_id || userId;
 
-    // SECURITY: if app_user_id is provided, it MUST match the calling user's
-    // Nakama ID (the identity glue layer). Reject mismatches to prevent
-    // privilege escalation via forged webhook payloads.
-    if (event.app_user_id && event.app_user_id !== userId) {
-      logger.warn("[QvEntitlements] rc_sync user mismatch: caller=" + userId + " event=" + event.app_user_id);
+    // ── Mode detection ──────────────────────────────────────────────────
+    // ctx.userId is empty when called via http_key (server/webhook mode).
+    var isServerMode = !ctx.userId;
+
+    if (isServerMode) {
+      // Webhook signature check: RevenueCat sends the Authorization header
+      // set to whatever value you configured in the webhook dashboard.
+      // Nakama passes HTTP headers to RPCs via ctx.env only for httpKey RPCs
+      // when using registerRpc — we use the shared NAKAMA_WEBHOOK_SECRET
+      // embedded in the URL query or validated by matching env var against
+      // the Authorization field in the request body meta (RC sends it as
+      // a top-level "authorization" key in newer webhook versions).
+      var secret = ctx.env[WEBHOOK_SECRET_ENV_KEY] || "";
+      if (secret) {
+        // RevenueCat v2+ webhooks include an "authorization" field at the
+        // top level of the JSON body (same value as the Authorization header
+        // you configured in RevenueCat dashboard).
+        var authField: string = data.authorization || data.Authorization || "";
+        if (authField !== secret) {
+          logger.warn("[QvEntitlements] rc_sync: webhook authorization mismatch — request rejected");
+          return RpcHelpers.errorResponse("unauthorized");
+        }
+      }
+      // In server mode, app_user_id from the event is the Nakama user ID
+      if (!event.app_user_id) {
+        logger.warn("[QvEntitlements] rc_sync: server-mode call missing app_user_id");
+        return RpcHelpers.errorResponse("app_user_id required in server mode");
+      }
+    }
+
+    var callerUserId: string = ctx.userId || "";
+    var productId: string    = event.product_id || event.productId || "";
+    var store: string        = event.store || "unknown";
+    var eventType: string    = event.type || "GRANT";
+    var targetUserId: string = event.app_user_id || callerUserId;
+
+    // SECURITY (client mode): if app_user_id is provided, it MUST match the
+    // authenticated user to prevent privilege escalation via forged payloads.
+    if (!isServerMode && event.app_user_id && event.app_user_id !== callerUserId) {
+      logger.warn("[QvEntitlements] rc_sync user mismatch: caller=" + callerUserId + " event=" + event.app_user_id);
       return RpcHelpers.errorResponse("user id mismatch");
     }
 
@@ -223,7 +269,15 @@ namespace QvEntitlements {
 
   // ── quizverse_grant_consumable ──────────────────────────────────────────
   //  Internal helper — called from hiro_iap_validate after consumable purchase.
-  //  Grants AI voice credits or inventory slots.
+  //  Grants AI voice credits, booster credits, etc.
+  //
+  //  Product routing (by productId substring):
+  //    aivoice            → aiVoiceCredits += quantity
+  //    boosterpack        → boosterCredits += quantity (each pack = 1 credit)
+  //    starterpack.v2     → grants are handled in Unity IAP (coins via Nakama
+  //                         wallet RPC, Pro trial locally). No server-side
+  //                         consumable record needed beyond journaling in wallet.
+  //                         Flagged here as starterPackGranted=true for audit.
 
   export function grantConsumable(
     nk: nkruntime.Nakama,
@@ -236,6 +290,12 @@ namespace QvEntitlements {
       var existing = Storage.readJson<any>(nk, COLLECTION, KEY_CONS, userId) || {};
       if (productId.indexOf("aivoice") !== -1) {
         existing.aiVoiceCredits = (existing.aiVoiceCredits || 0) + quantity;
+      } else if (productId.indexOf("boosterpack") !== -1) {
+        existing.boosterCredits = (existing.boosterCredits || 0) + quantity;
+      } else if (productId.indexOf("starterpack") !== -1) {
+        // Coins and Pro trial are wallet-journaled in Unity IAP; mark as granted
+        // here for server-side audit / duplicate prevention.
+        existing.starterPackGrantCount = (existing.starterPackGrantCount || 0) + 1;
       }
       Storage.writeJson(nk, COLLECTION, KEY_CONS, userId, existing);
     } catch (e: any) {

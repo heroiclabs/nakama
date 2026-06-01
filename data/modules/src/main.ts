@@ -104,9 +104,6 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Legacy] Registering game entry RPCs...");
     LegacyGameEntry.register(initializer);
 
-    logger.info("[Legacy] Registering missions RPCs...");
-    LegacyMissions.register(initializer);
-
     logger.info("[Legacy] Registering analytics RPCs...");
     LegacyAnalytics.register(initializer);
 
@@ -254,6 +251,15 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Legacy] All legacy RPCs registered successfully");
   } catch (err: any) {
     logger.error("[Legacy] Failed to register legacy RPCs: " + (err.message || String(err)));
+  }
+
+  // ---- Quest Engine Registration ----
+  try {
+    logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config RPCs...");
+    QuestEngine.register(initializer);
+    logger.info("[QuestEngine] 4 RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
   // ---- Hiro Systems Registration ----
