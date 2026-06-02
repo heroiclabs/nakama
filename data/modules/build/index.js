@@ -14408,6 +14408,12 @@ var QvEntitlements;
             return "linkplay_proplus";
         if (productId.indexOf("linkplay.pro") !== -1)
             return "linkplay_pro";
+        if (productId.indexOf("voyage.yearly") !== -1)
+            return "voyage_yearly";
+        if (productId.indexOf("voyage.monthly") !== -1)
+            return "voyage_monthly";
+        if (productId.indexOf("voyage") !== -1)
+            return "voyage_monthly";
         if (productId === "com.intelliverse.quizverse.aifortune")
             return "pro"; // legacy
         return null;
@@ -14519,6 +14525,37 @@ var QvEntitlements;
         if (!productId) {
             return RpcHelpers.errorResponse("productId required");
         }
+        // ── Consumable path (AI Voice session credits) ───────────────────────
+        // Triggered by web Stripe webhook (store = "web_stripe") or RC consumable
+        // purchases.  productId pattern: *.aivoice.*  or  *.voice_pack.*
+        var isAiVoice = productId.indexOf("aivoice") !== -1 || productId.indexOf("voice_pack") !== -1;
+        if (isAiVoice) {
+            var quantity = Number(event.quantity) || 0;
+            if (quantity <= 0) {
+                // Fallback: derive from productId suffix (e.g. "…aivoice.10")
+                var parts = productId.split(".");
+                var last = Number(parts[parts.length - 1]);
+                quantity = isNaN(last) ? 0 : last;
+            }
+            if (quantity <= 0) {
+                logger.warn("[QvEntitlements] rc_sync: aivoice grant with quantity=0, skipping. productId=" + productId);
+                return RpcHelpers.successResponse({ ignored: true, reason: "aivoice quantity=0" });
+            }
+            try {
+                var existing = Storage.readJson(nk, COLLECTION, KEY_CONS, targetUserId) || {};
+                var prev = Number(existing.aiVoiceCredits) || 0;
+                existing.aiVoiceCredits = prev + quantity;
+                existing.updatedAt = new Date().toISOString();
+                Storage.writeJson(nk, COLLECTION, KEY_CONS, targetUserId, existing);
+                logger.info("[QvEntitlements] rc_sync: aiVoiceCredits+" + quantity + " for user=" + targetUserId + " (prev=" + prev + " now=" + existing.aiVoiceCredits + ")");
+                return RpcHelpers.successResponse({ aiVoiceCredits: existing.aiVoiceCredits, granted: quantity });
+            }
+            catch (e) {
+                logger.error("[QvEntitlements] rc_sync aivoice write error: " + (e && e.message ? e.message : String(e)));
+                return RpcHelpers.errorResponse("Failed to write consumable entitlement");
+            }
+        }
+        // ── Subscription path ────────────────────────────────────────────────
         var tier = tierForProductId(productId);
         if (!tier) {
             logger.info("[QvEntitlements] rc_sync: no tier for productId=" + productId + " (consumable or unknown). Ignoring.");
@@ -34569,10 +34606,8 @@ var QuestEngine;
             if (shouldResetQuest(qConfig, progress, now)) {
                 resetQuestProgress(progress, now);
             }
-            // Skip already-completed quests (non-repeatable, or repeatable not yet reset)
-            if (progress.completedAt && !qConfig.repeatable)
-                continue;
-            if (progress.completedAt && qConfig.repeatable)
+            // Skip quests that are still completed (non-repeatable, or repeatable window not expired yet)
+            if (progress.completedAt)
                 continue;
             var questUpdated = false;
             for (var s = 0; s < qConfig.steps.length; s++) {
@@ -34587,8 +34622,11 @@ var QuestEngine;
                 if (!progress.startedAt)
                     progress.startedAt = now;
                 var prevCount = progress.steps[stepCfg.id].count;
-                // Increment by the event value (e.g. score, minutes, count) — default to 1.
-                var increment = (value && value > 0) ? value : 1;
+                // For count-based steps (requiredValue not set) increment by 1 each event.
+                // For accumulation steps (e.g. "earn 500 XP") increment by the event value.
+                // Either way, never add more than the remaining delta so the count stays
+                // accurate even when the same event fires multiple times in a session.
+                var increment = (stepCfg.requiredValue !== undefined && stepCfg.requiredValue !== null && value > 0) ? value : 1;
                 progress.steps[stepCfg.id].count = Math.min(prevCount + increment, stepCfg.requiredCount);
                 questUpdated = true;
                 // Fire event only on the incomplete→complete transition
@@ -34639,6 +34677,7 @@ var QuestEngine;
             saveUserState(nk, userId, gameId, state);
         }
         // ── Phase 3: grant auto-rewards (isolated, non-fatal) ────────────────────
+        var anyClaimedAt = false;
         for (var r = 0; r < rewardPending.length; r++) {
             var rq = rewardPending[r];
             try {
@@ -34646,14 +34685,15 @@ var QuestEngine;
                 RewardEngine.grantReward(nk, logger, ctx, userId, gameId, resolved);
                 state.quests[rq.questId].claimedAt = now;
                 updatedQuests[rq.questId].claimedAt = now;
+                anyClaimedAt = true;
                 logger.info("[QuestEngine] Reward auto-granted: quest=%s user=%s", rq.questId, userId);
             }
             catch (rewardErr) {
                 logger.error("[QuestEngine] Reward grant failed (claimedAt stays null, client can retry): quest=%s err=%s", rq.questId, (rewardErr && rewardErr.message ? rewardErr.message : String(rewardErr)));
             }
         }
-        // Save again only if any claimedAt was set in Phase 3
-        if (rewardPending.length > 0 && updatedCount > 0) {
+        // Only write again if at least one claimedAt was actually set in Phase 3
+        if (anyClaimedAt) {
             saveUserState(nk, userId, gameId, state);
         }
         return RpcHelpers.successResponse({ updatedQuests: updatedCount, quests: updatedQuests });
@@ -34740,9 +34780,24 @@ var QuestEngine;
     }
     // ─── Register ─────────────────────────────────────────────────────────────
     function register(initializer) {
-        initializer.registerRpc("quest_engine_get", rpcQuestEngineGet);
-        initializer.registerRpc("quest_engine_record_event", rpcQuestEngineRecordEvent);
-        initializer.registerRpc("quest_engine_claim_reward", rpcQuestEngineClaimReward);
+        // withCleanAuthError wraps a handler once at registration time.
+        // When register() is auto-invoked at IIFE scope by the postbuild script,
+        // RpcHelpers may not be initialised yet (it lives in a later IIFE). Use a
+        // lazy wrapper so the actual wrapping is deferred to first-call time.
+        function auth(fn) {
+            var wrapped = null;
+            return function (ctx, logger, nk, payload) {
+                if (!wrapped) {
+                    wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+                        ? RpcHelpers.withCleanAuthError(fn)
+                        : fn;
+                }
+                return wrapped(ctx, logger, nk, payload);
+            };
+        }
+        initializer.registerRpc("quest_engine_get", auth(rpcQuestEngineGet));
+        initializer.registerRpc("quest_engine_record_event", auth(rpcQuestEngineRecordEvent));
+        initializer.registerRpc("quest_engine_claim_reward", auth(rpcQuestEngineClaimReward));
         initializer.registerRpc("quest_engine_admin_save_config", rpcQuestEngineAdminSaveConfig);
         initializer.registerRpc("quest_engine_admin_get_config", rpcQuestEngineAdminGetConfig);
     }
