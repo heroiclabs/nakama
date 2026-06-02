@@ -76,6 +76,17 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QuizVerseMigration] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- QuizVerse Live Banner (quizverse_live_banner_check) ----
+  // Unified RPC that aggregates tournament / creator / satori events into
+  // a single "should banner show + content" response consumed by HomeScreen.
+  // Mounted after QuizVerseMigration so both quizverse_* namespaces are live.
+  try {
+    QuizVerseLiveBanner.register(initializer);
+    logger.info("[LiveBanner] quizverse_live_banner_check registered");
+  } catch (err: any) {
+    logger.error("[LiveBanner] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- IAP Entitlements (qv_entitlements collection RPCs) ----
   try {
     QvEntitlements.register(initializer);

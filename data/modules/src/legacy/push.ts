@@ -1183,9 +1183,18 @@ namespace LegacyPush {
     var to = d.toUserId || d.targetUserId;
     var name = d.fromName || d.name || "Someone";
     if (!to) return RpcHelpers.errorResponse("toUserId required");
+    var pushData: Record<string, string> = {
+      screen: "friends",
+      fromUserId: String(d.fromUserId || ""),
+    };
+    if (d.inviteId) pushData.inviteId = String(d.inviteId);
+    if (d.targetUserId) pushData.targetUserId = String(d.targetUserId);
+    if (d.fromDisplayName) pushData.fromDisplayName = String(d.fromDisplayName);
+    if (d.fromUsername) pushData.fromUsername = String(d.fromUsername);
+
     var ok = sendLocalizedPushToUser(ctx, logger, nk, to, "friend_request",
       "friend_request_title", "friend_request_body", { name: name },
-      { skipQuietHours: true, data: { screen: "friends", fromUserId: d.fromUserId || "" } });
+      { skipQuietHours: true, data: pushData });
     return RpcHelpers.successResponse({ sent: ok });
   }
 

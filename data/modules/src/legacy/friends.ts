@@ -31,12 +31,8 @@
 // Currently these handlers do NOT emit notifications. That is intentional:
 //   - friends_block: silent by product policy (don't tell the blocked user).
 //   - friends_unblock: silent (no user-facing event).
-//   - friends_remove: silent (the removed friend simply no longer sees you
-//     in their list; we deliberately do not notify them — most social apps
-//     follow the same convention).
-// If product wants to change this, add `sendFriendsNotification` calls using
-// `FRIEND_REMOVED` (code 5) / `FRIEND_BLOCKED` (code 6) — both already
-// reserved in friends/notification_codes.js.
+//   - friends_remove: notifies removed user via FRIEND_REMOVED (code 5).
+//   - friends_block: still silent by product policy.
 // ============================================================================
 
 namespace LegacyFriends {
@@ -92,6 +88,28 @@ namespace LegacyFriends {
         return RpcHelpers.errorResponse("ids or usernames required");
       }
       var result = nk.friendsDelete(userId, username, ids, usernames);
+
+      var sendNotif = (globalThis as any).sendFriendsNotification as
+        | ((nk: nkruntime.Nakama, logger: nkruntime.Logger, subjectKey: string,
+            targetUserId: string, payload: object, senderId: string | null) => boolean)
+        | undefined;
+      if (typeof sendNotif === "function") {
+        for (let i = 0; i < ids.length; i++) {
+          const removedId = ids[i];
+          if (!removedId || removedId === userId) continue;
+          try {
+            sendNotif(nk, logger, "FRIEND_REMOVED", removedId, {
+              removedByUserId: userId,
+              friendUserId:    userId,
+            }, userId);
+          } catch (notifyErr: any) {
+            if (logger && logger.warn) {
+              logger.warn("[Friends] friends_remove notify failed: " + (notifyErr.message || notifyErr));
+            }
+          }
+        }
+      }
+
       return RpcHelpers.successResponse({ friends: result.friends || [] });
     } catch (e: any) {
       return RpcHelpers.errorResponse(e.message || "Failed to remove friend");

@@ -231,7 +231,14 @@ namespace LegacyLeaderboards {
       metadata.source = "submit_score_to_time_periods";
 
       var userId = ctx.userId;
-      var username = ctx.username || userId;
+      var username = "";
+      try {
+        var tpUsers = nk.usersGetId([userId]);
+        if (tpUsers && tpUsers.length > 0) {
+          username = (tpUsers[0] as any).displayName || tpUsers[0].username || ctx.username || "";
+        }
+      } catch (_) { }
+      if (!username) username = ctx.username || userId;
       var results: any[] = [];
       var errors: any[] = [];
 
@@ -306,14 +313,18 @@ namespace LegacyLeaderboards {
       var gameId = data.game_id;
       var userId = ctx.userId || deviceId;
 
-      var username = ctx.username || "";
-      if (!username) {
-        try {
-          var users = nk.usersGetId([userId]);
-          if (users && users.length > 0 && users[0].username) username = users[0].username;
-        } catch (_) { }
-      }
-      if (!username) username = userId;
+      // Prefer displayName (human-readable) over the internal Nakama username
+      // which is often a UUID slug for device-auth accounts.  We always call
+      // usersGetId so that device-auth sessions (where ctx.username may also be
+      // a UUID) get the same treatment as fully-registered accounts.
+      var username = "";
+      try {
+        var users = nk.usersGetId([userId]);
+        if (users && users.length > 0) {
+          username = (users[0] as any).displayName || users[0].username || ctx.username || "";
+        }
+      } catch (_) { }
+      if (!username) username = ctx.username || userId;
 
       var updated = writeToAllLeaderboards(nk, logger, userId, username, gameId, score);
       return RpcHelpers.successResponse({

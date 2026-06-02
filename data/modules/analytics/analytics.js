@@ -711,8 +711,8 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     // Accept batch or single.
     var inbound = [];
     if (Array.isArray(data.events) && data.events.length > 0) {
-        if (data.events.length > 200) {
-            return utils.handleError(ctx, null, "Batch too large: max 200 events per call");
+        if (data.events.length > 500) {
+            return utils.handleError(ctx, null, "Batch too large: max 500 events per call");
         }
         inbound = data.events;
     } else {
@@ -1550,10 +1550,48 @@ function rpcAnalyticsDashboardSummary(ctx, logger, nk, payload) {
     return JSON.stringify(doc);
 }
 
+/**
+ * analytics_events_today — lightweight public RPC for E2E testing.
+ *
+ * Returns the live ingest counters for today from analytics_metrics_counters.
+ * No admin auth required — intended for the Unity Analytics E2E test window
+ * to verify that events are actually reaching the server.
+ *
+ * Response: { success, date, events_today_accepted, events_today_rejected,
+ *             events_accepted, events_rejected, log_calls }
+ */
+function rpcAnalyticsEventsToday(ctx, logger, nk, payload) {
+    var today = new Date().toISOString().slice(0, 10);
+    var key = "counter_" + today;
+    var rec = null;
+    try {
+        var docs = nk.storageRead([{ collection: "analytics_metrics_counters", key: key, userId: SYSTEM_USER }]);
+        if (docs && docs.length > 0) {
+            rec = JSON.parse(docs[0].value);
+        }
+    } catch (e) {
+        logger.warn("[analytics_events_today] storageRead failed: " + e.message);
+    }
+    if (!rec) {
+        rec = { events_accepted: 0, events_rejected: 0, log_calls: 0 };
+    }
+    return JSON.stringify({
+        success: true,
+        date: today,
+        events_today_accepted: rec.events_accepted || 0,
+        events_today_rejected: rec.events_rejected || 0,
+        // duplicate fields for backward compat with various client parsers
+        events_accepted:       rec.events_accepted || 0,
+        events_rejected:       rec.events_rejected || 0,
+        log_calls:             rec.log_calls       || 0
+    });
+}
+
 // Registration - postbuild.js scans for this
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_log_event", rpcAnalyticsLogEvent);
     initializer.registerRpc("analytics_dashboard", rpcAnalyticsDashboard);
     initializer.registerRpc("analytics_dashboard_summary", rpcAnalyticsDashboardSummary);
-    logger.info("[Analytics] Module registered: 3 RPCs");
+    initializer.registerRpc("analytics_events_today", rpcAnalyticsEventsToday);
+    logger.info("[Analytics] Module registered: 4 RPCs");
 }

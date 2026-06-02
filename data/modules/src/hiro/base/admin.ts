@@ -2288,10 +2288,57 @@ namespace AdminConsole {
     initializer.registerRpc("hiro_friend_streak_interact",        delegate("__rpc_friend_streak_record_contribution"));
     initializer.registerRpc("hiro_friend_streak_claim_milestone", delegate("__rpc_friend_streak_milestone_reward"));
 
-    // ---- Hiro IAP triggers (extra verbs the server doesn't model) ----
+    // ---- Hiro IAP triggers ----
+    // evaluate: delegates to the Hiro trigger-check RPC.
+    // dismiss:  records user dismissal in storage so the same trigger isn't re-shown
+    //           on the next session (prevents popup spam).
+    // convert:  client handles the real purchase via hiro_iap_validate; this endpoint
+    //           records the conversion event for analytics.
     initializer.registerRpc("hiro_iap_trigger_evaluate", delegate("__rpc_hiro_iap_trigger_check"));
-    initializer.registerRpc("hiro_iap_trigger_dismiss",  softStub({ success: true, dismissed: true }));
-    initializer.registerRpc("hiro_iap_trigger_convert",  softStub({ success: true, converted: false, note: "IAP receipts handled via client SDK" }));
+
+    initializer.registerRpc("hiro_iap_trigger_dismiss", function(ctx, logger, nk, payload) {
+      try {
+        var userId = ctx.userId;
+        if (!userId) return JSON.stringify({ success: false, error: "unauthenticated" });
+        var data: any = {};
+        try { data = JSON.parse(payload || "{}"); } catch (_) {}
+        var triggerId: string = (data && data.triggerId) ? String(data.triggerId) : "unknown";
+        var DISMISS_COLLECTION = "hiro_iap_trigger_dismissals";
+        var existing: any = {};
+        try {
+          var raw = nk.storageRead([{ collection: DISMISS_COLLECTION, key: "dismissed", userId: userId }]);
+          if (raw && raw.length > 0) existing = raw[0].value || {};
+        } catch (_) {}
+        existing[triggerId] = { dismissedAt: new Date().toISOString() };
+        nk.storageWrite([{
+          collection: DISMISS_COLLECTION, key: "dismissed", userId: userId,
+          value: existing,
+          permissionRead: 1, permissionWrite: 0
+        }]);
+        logger.info("[IAPTrigger] dismiss: user=" + userId + " triggerId=" + triggerId);
+        return JSON.stringify({ success: true, dismissed: true, triggerId: triggerId });
+      } catch (e: any) {
+        return JSON.stringify({ success: false, error: e && e.message ? e.message : String(e) });
+      }
+    });
+
+    initializer.registerRpc("hiro_iap_trigger_convert", function(ctx, logger, nk, payload) {
+      try {
+        var userId = ctx.userId;
+        if (!userId) return JSON.stringify({ success: false, error: "unauthenticated" });
+        var data: any = {};
+        try { data = JSON.parse(payload || "{}"); } catch (_) {}
+        var triggerId: string = (data && data.triggerId) ? String(data.triggerId) : "unknown";
+        var productId: string = (data && data.productId) ? String(data.productId) : "";
+        // Record conversion event for analytics; actual purchase is done by the
+        // client via hiro_iap_validate after the Unity IAP dialog completes.
+        logger.info("[IAPTrigger] convert: user=" + userId + " triggerId=" + triggerId + " productId=" + productId);
+        return JSON.stringify({ success: true, converted: true, triggerId: triggerId,
+          note: "Purchase initiated client-side via hiro_iap_validate" });
+      } catch (e: any) {
+        return JSON.stringify({ success: false, error: e && e.message ? e.message : String(e) });
+      }
+    });
 
     // ---- Hiro Offerwall (verb naming drift) ----
     initializer.registerRpc("hiro_offerwall_get",      delegate("__rpc_hiro_offerwall_list"));

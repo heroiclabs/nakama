@@ -24,17 +24,21 @@
 var INBOX_COLLECTION = 'notification_inbox';
 var MAX_INBOX_LIMIT = 100;
 
-// Map Nakama built-in notification codes to event types
-// These codes are used by nk.notificationSend across the codebase
+// Map Nakama built-in notification codes to event types (align with
+// data/modules/friends/notification_codes.js — friend invite lifecycle 1-6).
 var NOTIFICATION_CODE_MAP = {
     1: 'friend_request',
-    2: 'friend_accept',
-    3: 'duel_result',
-    4: 'challenge_received',
-    5: 'match_found',
-    100: 'gift_received',
-    101: 'gift_claimed',
-    // Default for unknown codes
+    2: 'friend_request_accepted',
+    3: 'friend_request_declined',
+    4: 'friend_request_cancelled',
+    5: 'friend_removed',
+    6: 'friend_blocked',
+    100: 'friend_challenge',
+    101: 'friend_challenge_accepted',
+    102: 'friend_challenge_declined',
+    103: 'friend_challenge_cancelled',
+    104: 'friend_challenge_expired',
+    105: 'friend_spectate_request',
     0: 'system'
 };
 
@@ -73,11 +77,15 @@ function mapBuiltinNotification(n) {
         }
     }
 
-    // Determine title/body from Nakama fields
-    var title = n.subject || 'Notification';
-    var body = content.message || content.body || '';
+    // Unity NotificationUI resolves inviteId — alias snake_case keys
+    if (data.inviteId && !data.invite_id) data.invite_id = data.inviteId;
+    if (data.fromUserId && !data.from_user_id) data.from_user_id = data.fromUserId;
 
-    // If content has a type field, use it as the event_type (more specific)
+    // Prefer human-readable title from content; subject is a machine id
+    var title = content.title || n.subject || 'Notification';
+    var body = content.body || content.message || '';
+
+    // content.type is the canonical machine id (friend_request, etc.)
     if (content.type) {
         eventType = content.type;
     }

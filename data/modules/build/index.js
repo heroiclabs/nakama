@@ -78,6 +78,17 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QuizVerseMigration] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- QuizVerse Live Banner (quizverse_live_banner_check) ----
+    // Unified RPC that aggregates tournament / creator / satori events into
+    // a single "should banner show + content" response consumed by HomeScreen.
+    // Mounted after QuizVerseMigration so both quizverse_* namespaces are live.
+    try {
+        QuizVerseLiveBanner.register(initializer);
+        logger.info("[LiveBanner] quizverse_live_banner_check registered");
+    }
+    catch (err) {
+        logger.error("[LiveBanner] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- IAP Entitlements (qv_entitlements collection RPCs) ----
     try {
         QvEntitlements.register(initializer);
@@ -7342,6 +7353,410 @@ var QuizVersePlugin;
     }
     QuizVersePlugin.register = register;
 })(QuizVersePlugin || (QuizVersePlugin = {}));
+// =============================================================================
+// src/games/quizverse/live-banner.ts
+// =============================================================================
+// RPC: quizverse_live_banner_check
+//
+// Single authoritative endpoint that Unity calls on every HomeScreen visit.
+// Aggregates three event sources (Satori live events, creator live events,
+// active tournaments) into ONE banner payload — Unity only needs to check
+// `response.data.show` and render the returned fields.
+//
+// Priority order (highest wins when multiple are active simultaneously):
+//   1. Active tournament   (competitive, high urgency)
+//   2. Creator live event  (curated, time-sensitive)
+//   3. Satori live event   (algorithmic / A-B tested)
+//
+// Per-user server-side 60-second response cache stored in Nakama storage.
+// This prevents thundering-herd on HomeScreen open when many users are
+// active simultaneously (e.g. right after a push notification blast).
+//
+// Response shape (LiveBannerPayload):
+// {
+//   show              : boolean
+//   event_id          : string
+//   event_type        : "tournament" | "creator" | "satori" | "none"
+//   title             : string          — e.g. "🔴 LIVE NOW"
+//   subtitle          : string          — e.g. "Weekly Championship · Ends in 2h"
+//   cta_text          : string          — "JOIN NOW" | "CONTINUE" | "SET REMINDER"
+//   cta_url           : string          — deep link or web URL
+//   starts_at         : number          — Unix epoch (sec)
+//   ends_at           : number          — Unix epoch (sec)
+//   time_remaining_sec: number          — pre-computed for countdown
+//   badge             : "hot"|"new"|"ending_soon"|"upcoming"|""
+//   has_rewards       : boolean
+//   joined            : boolean
+//   participant_count : number
+//   server_time       : number          — epoch sec; Unity uses for clock sync
+// }
+// =============================================================================
+var QuizVerseLiveBanner;
+(function (QuizVerseLiveBanner) {
+    // ── Tunables ─────────────────────────────────────────────────────────────
+    var CACHE_COLLECTION = "qv_live_banner_cache";
+    var CACHE_KEY = "banner";
+    var CACHE_TTL_SEC = 60; // 1 min cache per user (hot path dedup)
+    var NO_EVENT_TTL_SEC = 300; // 5 min cache when show=false (save DB reads)
+    var UPCOMING_WINDOW_SEC = 1800; // Show "upcoming" banner 30 min before start
+    var ENDING_SOON_SEC = 900; // "Ending soon" badge within 15 min of end
+    var LIVE_URL_BASE = "https://live.quizverse.world/player";
+    var QUIZVERSE_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    function readCache(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: CACHE_COLLECTION, key: CACHE_KEY, userId: userId }]);
+            if (!rows || rows.length === 0)
+                return null;
+            var entry = rows[0].value;
+            if (!entry || !entry.cachedAt || !entry.ttl)
+                return null;
+            var age = Math.floor(Date.now() / 1000) - entry.cachedAt;
+            if (age > entry.ttl)
+                return null;
+            return entry.payload;
+        }
+        catch (_) {
+            return null;
+        }
+    }
+    function writeCache(nk, userId, payload, ttl) {
+        try {
+            var entry = { payload: payload, cachedAt: Math.floor(Date.now() / 1000), ttl: ttl };
+            nk.storageWrite([{
+                    collection: CACHE_COLLECTION, key: CACHE_KEY, userId: userId,
+                    value: entry,
+                    permissionRead: 1, permissionWrite: 0
+                }]);
+        }
+        catch (_) { }
+    }
+    // ── Badge computation ─────────────────────────────────────────────────────
+    function computeBadge(now, startsAt, endsAt, status) {
+        if (status === "upcoming")
+            return "upcoming";
+        var remaining = endsAt - now;
+        if (remaining < ENDING_SOON_SEC)
+            return "ending_soon";
+        var age = now - startsAt;
+        if (age < 1800)
+            return "new"; // New in last 30 min
+        return "hot";
+    }
+    // ── Build CTA URL ─────────────────────────────────────────────────────────
+    function buildCtaUrl(eventId, eventType, userId, sessionToken) {
+        return LIVE_URL_BASE
+            + "?event_id=" + encodeURIComponent(eventId)
+            + "&event_type=" + encodeURIComponent(eventType)
+            + "&user=" + encodeURIComponent(userId)
+            + "&mobile=1&view=mobile"
+            + "&parent=true"
+            + "&return_url=" + encodeURIComponent("quizverse://home");
+    }
+    function fetchSatoriCandidate(nk, logger, userId, gameId) {
+        try {
+            var configRaw = nk.storageRead([{
+                    collection: "satori_configs",
+                    key: gameId + "_live_events",
+                    userId: SYSTEM_USER
+                }]);
+            if (!configRaw || configRaw.length === 0)
+                return null;
+            var eventDefs = configRaw[0].value;
+            if (!eventDefs)
+                return null;
+            var now = Math.floor(Date.now() / 1000);
+            var best = null;
+            for (var id in eventDefs) {
+                if (!Object.prototype.hasOwnProperty.call(eventDefs, id))
+                    continue;
+                var def = eventDefs[id];
+                if (!def || !def.startAt || !def.endAt)
+                    continue;
+                // Compute effective window (recurrence-aware)
+                var startAt = def.startAt;
+                var endAt = def.endAt;
+                if (def.recurrenceCron && def.recurrenceIntervalSec) {
+                    var interval = def.recurrenceIntervalSec;
+                    var duration = endAt - startAt;
+                    var elapsed = now - startAt;
+                    if (elapsed >= 0) {
+                        var cycleIdx = Math.floor(elapsed / interval);
+                        startAt = startAt + (cycleIdx * interval);
+                        endAt = startAt + duration;
+                    }
+                }
+                // Status
+                var status = "";
+                if (now < startAt) {
+                    if (startAt - now > UPCOMING_WINDOW_SEC)
+                        continue; // Too far future
+                    status = "upcoming";
+                }
+                else if (now > endAt) {
+                    continue; // Ended
+                }
+                else {
+                    status = "active";
+                }
+                // User state
+                var joined = false;
+                try {
+                    var stateRows = nk.storageRead([{
+                            collection: "satori_configs",
+                            key: gameId + "_live_event_state_" + userId,
+                            userId: userId
+                        }]);
+                    if (stateRows && stateRows.length > 0) {
+                        var states = stateRows[0].value;
+                        if (states && states.events && states.events[id] && states.events[id].joinedAt) {
+                            joined = true;
+                        }
+                    }
+                }
+                catch (_) { }
+                if (!best || status === "active") {
+                    best = {
+                        id: id,
+                        name: def.name || "Live Event",
+                        description: def.description || "",
+                        startsAt: startAt,
+                        endsAt: endAt,
+                        status: status,
+                        joined: joined,
+                        hasRewards: !!(def.reward),
+                        participantCount: 0
+                    };
+                    if (status === "active")
+                        break; // Prefer first active
+                }
+            }
+            return best;
+        }
+        catch (e) {
+            logger.warn("[LiveBanner] fetchSatoriCandidate error: " + (e && e.message ? e.message : String(e)));
+            return null;
+        }
+    }
+    function fetchCreatorCandidate(nk, logger) {
+        try {
+            var page = nk.storageList(SYSTEM_USER, "live_events", 20, "");
+            if (!page || !page.objects || page.objects.length === 0)
+                return null;
+            var now = Math.floor(Date.now() / 1000);
+            var best = null;
+            for (var i = 0; i < page.objects.length; i++) {
+                var ev = page.objects[i].value;
+                if (!ev || !ev.id || !ev.startsAt || !ev.endsAt)
+                    continue;
+                var startAt = ev.startsAt;
+                var endAt = ev.endsAt;
+                var status = "";
+                if (now < startAt) {
+                    if (startAt - now > UPCOMING_WINDOW_SEC)
+                        continue;
+                    status = "upcoming";
+                }
+                else if (now > endAt) {
+                    continue;
+                }
+                else {
+                    status = "active";
+                }
+                // Skip events with 0 or no participant data (ghost events)
+                var participantCount = ev.participantCount || ev.participant_count || 0;
+                if (status === "active" && participantCount === 0 && ev.requiresParticipants)
+                    continue;
+                if (!best || status === "active") {
+                    best = {
+                        id: ev.id,
+                        title: ev.title || ev.name || "Live Event",
+                        description: ev.description || "",
+                        startsAt: startAt,
+                        endsAt: endAt,
+                        status: status,
+                        hasRewards: !!(ev.reward || ev.prize),
+                        participantCount: participantCount,
+                        creatorId: ev.creatorId || ""
+                    };
+                    if (status === "active")
+                        break;
+                }
+            }
+            return best;
+        }
+        catch (e) {
+            logger.warn("[LiveBanner] fetchCreatorCandidate error: " + (e && e.message ? e.message : String(e)));
+            return null;
+        }
+    }
+    function fetchTournamentCandidate(nk, logger, userId) {
+        try {
+            var now = Math.floor(Date.now() / 1000);
+            // Read active tournament list from storage (persisted by tournament module)
+            var page = nk.storageList(SYSTEM_USER, "active_tournaments", 10, "");
+            if (!page || !page.objects || page.objects.length === 0)
+                return null;
+            var best = null;
+            for (var i = 0; i < page.objects.length; i++) {
+                var t = page.objects[i].value;
+                if (!t || !t.id || !t.startAt || !t.endAt)
+                    continue;
+                var startAt = t.startAt;
+                var endAt = t.endAt;
+                var status = "";
+                if (now < startAt) {
+                    if (startAt - now > UPCOMING_WINDOW_SEC)
+                        continue;
+                    status = "upcoming";
+                }
+                else if (now > endAt) {
+                    continue;
+                }
+                else {
+                    status = "active";
+                }
+                if (!best || status === "active") {
+                    best = {
+                        id: t.id,
+                        title: t.title || t.name || "Live Tournament",
+                        description: t.description || "",
+                        startsAt: startAt,
+                        endsAt: endAt,
+                        status: status,
+                        hasRewards: true, // Tournaments always have prizes
+                        participantCount: t.participantCount || 0
+                    };
+                    if (status === "active")
+                        break;
+                }
+            }
+            return best;
+        }
+        catch (e) {
+            logger.warn("[LiveBanner] fetchTournamentCandidate error: " + (e && e.message ? e.message : String(e)));
+            return null;
+        }
+    }
+    // ── Banner assembly ───────────────────────────────────────────────────────
+    function buildBannerPayload(eventId, eventType, title, description, startsAt, endsAt, status, joined, hasRewards, participantCount, userId) {
+        var now = Math.floor(Date.now() / 1000);
+        var timeRemaining = Math.max(0, endsAt - now);
+        var badge = computeBadge(now, startsAt, endsAt, status);
+        var ctaText = "JOIN NOW";
+        if (status === "upcoming")
+            ctaText = "SET REMINDER";
+        else if (joined)
+            ctaText = "CONTINUE";
+        // Build human subtitle
+        var subtitle = description || title;
+        if (status === "upcoming") {
+            var minUntil = Math.floor((startsAt - now) / 60);
+            subtitle = "Starts in " + minUntil + " min · " + title;
+        }
+        else if (timeRemaining < 3600) {
+            var minsLeft = Math.floor(timeRemaining / 60);
+            subtitle = title + " · Ends in " + minsLeft + "m";
+        }
+        else {
+            var hoursLeft = Math.floor(timeRemaining / 3600);
+            subtitle = title + " · Ends in " + hoursLeft + "h";
+        }
+        var ctaUrl = buildCtaUrl(eventId, eventType, userId, "");
+        return {
+            show: true,
+            event_id: eventId,
+            event_type: eventType,
+            title: status === "upcoming" ? "⏰ UPCOMING" : "🔴 LIVE NOW",
+            subtitle: subtitle,
+            cta_text: ctaText,
+            cta_url: ctaUrl,
+            starts_at: startsAt,
+            ends_at: endsAt,
+            time_remaining_sec: timeRemaining,
+            badge: badge,
+            has_rewards: hasRewards,
+            joined: joined,
+            participant_count: participantCount,
+            server_time: now
+        };
+    }
+    // ── RPC Handler ───────────────────────────────────────────────────────────
+    function rpcLiveBannerCheck(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = (data && data.game_id) ? String(data.game_id) : QUIZVERSE_GAME_ID;
+        var forceRefresh = !!(data && data.force_refresh);
+        // ── Serve from cache (skip RPC work on hot path) ──────────────────────
+        if (!forceRefresh) {
+            var cached = readCache(nk, userId);
+            if (cached !== null) {
+                // Recalculate time_remaining_sec from live clock even when cached,
+                // so Unity always gets an accurate countdown without a fresh RPC.
+                if (cached.show && cached.ends_at) {
+                    var nowSec = Math.floor(Date.now() / 1000);
+                    cached.time_remaining_sec = Math.max(0, cached.ends_at - nowSec);
+                    cached.server_time = nowSec;
+                    // Auto-hide if the cached event has ended since we last wrote cache
+                    if (nowSec > cached.ends_at) {
+                        cached.show = false;
+                        cached.event_type = "none";
+                    }
+                }
+                return RpcHelpers.successResponse(cached);
+            }
+        }
+        // ── Fetch all three sources in priority order ──────────────────────────
+        // Tournament → highest urgency
+        var tournament = fetchTournamentCandidate(nk, logger, userId);
+        // Creator event → curated
+        var creator = fetchCreatorCandidate(nk, logger);
+        // Satori event → algorithmic / audience-filtered
+        var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
+        var bannerPayload;
+        var cacheTtl = NO_EVENT_TTL_SEC;
+        if (tournament) {
+            bannerPayload = buildBannerPayload(tournament.id, "tournament", tournament.title, tournament.description, tournament.startsAt, tournament.endsAt, tournament.status, false, tournament.hasRewards, tournament.participantCount, userId);
+            cacheTtl = CACHE_TTL_SEC;
+        }
+        else if (creator) {
+            bannerPayload = buildBannerPayload(creator.id, "creator", creator.title, creator.description, creator.startsAt, creator.endsAt, creator.status, false, creator.hasRewards, creator.participantCount, userId);
+            cacheTtl = CACHE_TTL_SEC;
+        }
+        else if (satori) {
+            bannerPayload = buildBannerPayload(satori.id, "satori", satori.name, satori.description, satori.startsAt, satori.endsAt, satori.status, satori.joined, satori.hasRewards, satori.participantCount, userId);
+            cacheTtl = CACHE_TTL_SEC;
+        }
+        else {
+            // Nothing active or upcoming — hide banner
+            bannerPayload = {
+                show: false,
+                event_id: "",
+                event_type: "none",
+                title: "",
+                subtitle: "",
+                cta_text: "",
+                cta_url: "",
+                starts_at: 0,
+                ends_at: 0,
+                time_remaining_sec: 0,
+                badge: "",
+                has_rewards: false,
+                joined: false,
+                participant_count: 0,
+                server_time: Math.floor(Date.now() / 1000)
+            };
+            cacheTtl = NO_EVENT_TTL_SEC;
+        }
+        writeCache(nk, userId, bannerPayload, cacheTtl);
+        logger.info("[LiveBanner] user=" + userId + " show=" + bannerPayload.show + " type=" + bannerPayload.event_type);
+        return RpcHelpers.successResponse(bannerPayload);
+    }
+    function register(initializer) {
+        initializer.registerRpc("quizverse_live_banner_check", rpcLiveBannerCheck);
+    }
+    QuizVerseLiveBanner.register = register;
+})(QuizVerseLiveBanner || (QuizVerseLiveBanner = {}));
 // QuizVerse Nakama-Only Migration plugin.
 //
 // Single TS module that registers every "v2 / Nakama-only" RPC the
@@ -11869,10 +12284,67 @@ var AdminConsole;
         initializer.registerRpc("hiro_friend_streak_get", delegate("__rpc_friend_streak_get_state"));
         initializer.registerRpc("hiro_friend_streak_interact", delegate("__rpc_friend_streak_record_contribution"));
         initializer.registerRpc("hiro_friend_streak_claim_milestone", delegate("__rpc_friend_streak_milestone_reward"));
-        // ---- Hiro IAP triggers (extra verbs the server doesn't model) ----
+        // ---- Hiro IAP triggers ----
+        // evaluate: delegates to the Hiro trigger-check RPC.
+        // dismiss:  records user dismissal in storage so the same trigger isn't re-shown
+        //           on the next session (prevents popup spam).
+        // convert:  client handles the real purchase via hiro_iap_validate; this endpoint
+        //           records the conversion event for analytics.
         initializer.registerRpc("hiro_iap_trigger_evaluate", delegate("__rpc_hiro_iap_trigger_check"));
-        initializer.registerRpc("hiro_iap_trigger_dismiss", softStub({ success: true, dismissed: true }));
-        initializer.registerRpc("hiro_iap_trigger_convert", softStub({ success: true, converted: false, note: "IAP receipts handled via client SDK" }));
+        initializer.registerRpc("hiro_iap_trigger_dismiss", function (ctx, logger, nk, payload) {
+            try {
+                var userId = ctx.userId;
+                if (!userId)
+                    return JSON.stringify({ success: false, error: "unauthenticated" });
+                var data = {};
+                try {
+                    data = JSON.parse(payload || "{}");
+                }
+                catch (_) { }
+                var triggerId = (data && data.triggerId) ? String(data.triggerId) : "unknown";
+                var DISMISS_COLLECTION = "hiro_iap_trigger_dismissals";
+                var existing = {};
+                try {
+                    var raw = nk.storageRead([{ collection: DISMISS_COLLECTION, key: "dismissed", userId: userId }]);
+                    if (raw && raw.length > 0)
+                        existing = raw[0].value || {};
+                }
+                catch (_) { }
+                existing[triggerId] = { dismissedAt: new Date().toISOString() };
+                nk.storageWrite([{
+                        collection: DISMISS_COLLECTION, key: "dismissed", userId: userId,
+                        value: existing,
+                        permissionRead: 1, permissionWrite: 0
+                    }]);
+                logger.info("[IAPTrigger] dismiss: user=" + userId + " triggerId=" + triggerId);
+                return JSON.stringify({ success: true, dismissed: true, triggerId: triggerId });
+            }
+            catch (e) {
+                return JSON.stringify({ success: false, error: e && e.message ? e.message : String(e) });
+            }
+        });
+        initializer.registerRpc("hiro_iap_trigger_convert", function (ctx, logger, nk, payload) {
+            try {
+                var userId = ctx.userId;
+                if (!userId)
+                    return JSON.stringify({ success: false, error: "unauthenticated" });
+                var data = {};
+                try {
+                    data = JSON.parse(payload || "{}");
+                }
+                catch (_) { }
+                var triggerId = (data && data.triggerId) ? String(data.triggerId) : "unknown";
+                var productId = (data && data.productId) ? String(data.productId) : "";
+                // Record conversion event for analytics; actual purchase is done by the
+                // client via hiro_iap_validate after the Unity IAP dialog completes.
+                logger.info("[IAPTrigger] convert: user=" + userId + " triggerId=" + triggerId + " productId=" + productId);
+                return JSON.stringify({ success: true, converted: true, triggerId: triggerId,
+                    note: "Purchase initiated client-side via hiro_iap_validate" });
+            }
+            catch (e) {
+                return JSON.stringify({ success: false, error: e && e.message ? e.message : String(e) });
+            }
+        });
         // ---- Hiro Offerwall (verb naming drift) ----
         initializer.registerRpc("hiro_offerwall_get", delegate("__rpc_hiro_offerwall_list"));
         initializer.registerRpc("hiro_offerwall_complete", delegate("__rpc_hiro_offerwall_claim"));
@@ -11927,7 +12399,7 @@ var HiroBase;
 (function (HiroBase) {
     // ---- IAP Validation ----
     var IAP_COLLECTION = "hiro_iap_purchases";
-    var allowFakeReceipts = true;
+    var allowFakeReceipts = false;
     function validateReceipt(nk, logger, userId, request) {
         switch (request.storeType) {
             case "apple":
@@ -11995,6 +12467,16 @@ var HiroBase;
         var history = Storage.readJson(nk, IAP_COLLECTION, "history", userId);
         if (!history)
             history = { purchases: [] };
+        // Idempotency: never re-grant the same transaction. Fake receipts generate
+        // uuid-based IDs so they are naturally unique per call, but real store
+        // transactions must never be credited twice.
+        if (transactionId && transactionId.indexOf("fake_") !== 0) {
+            for (var i = 0; i < history.purchases.length; i++) {
+                if (history.purchases[i].transactionId === transactionId) {
+                    return; // already recorded — skip to prevent double-grant
+                }
+            }
+        }
         history.purchases.push({
             transactionId: transactionId,
             productId: productId,
@@ -14374,7 +14856,7 @@ var HiroUnlockables;
 //   key "subscriptions" : { tier, expiresAt?, productId, store }
 //   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed, boosterCredits }
 //   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
-//                           examPacks[], starterPackGranted }
+//                           examPacks[], starterPackGrantCount }
 //
 //  RPCs exposed:
 //   quizverse_get_entitlements  – client reads its own entitlement snapshot
@@ -14432,6 +14914,21 @@ var QvEntitlements;
             var subs = Storage.readJson(nk, COLLECTION, KEY_SUBS, userId) || {};
             var cons = Storage.readJson(nk, COLLECTION, KEY_CONS, userId) || {};
             var oneTime = Storage.readJson(nk, COLLECTION, KEY_ONE, userId) || {};
+            // Server-side expiry enforcement: if the stored subscription has a non-null
+            // expiresAt that is already in the past, clear it on the fly so the client
+            // never reads a stale active subscription. The RC webhook should have fired
+            // a CANCELLATION/EXPIRATION event, but this is a safety net.
+            if (subs && subs.tier && subs.expiresAt) {
+                var nowMs = Date.now();
+                var expMs = new Date(subs.expiresAt).getTime();
+                if (!isNaN(expMs) && expMs < nowMs) {
+                    logger.info("[QvEntitlements] expiry enforcement: clearing expired subscription tier=" + subs.tier +
+                        " expiresAt=" + subs.expiresAt + " for user=" + userId);
+                    subs = { tier: null, status: "expired", productId: subs.productId, store: subs.store,
+                        expiresAt: subs.expiresAt, updatedAt: new Date().toISOString() };
+                    Storage.writeJson(nk, COLLECTION, KEY_SUBS, userId, subs);
+                }
+            }
             return RpcHelpers.successResponse({
                 subscriptions: subs,
                 consumables: cons,
@@ -14521,6 +15018,32 @@ var QvEntitlements;
         }
         var tier = tierForProductId(productId);
         if (!tier) {
+            // Not a subscription — handle consumables / one-time products when RC sends
+            // a GRANT or TEMPORARY_ENTITLEMENT_GRANT event (promotional grants, support
+            // restorations, etc.). Regular purchases always come through hiro_iap_validate;
+            // this path is a safety net for RC-initiated grants only.
+            var isRcGrant = eventType === "GRANT" || eventType === "TEMPORARY_ENTITLEMENT_GRANT";
+            if (isRcGrant && productId) {
+                try {
+                    var isConsumableRc = productId.indexOf("aivoice") !== -1 ||
+                        productId.indexOf("boosterpack") !== -1 ||
+                        productId.indexOf("starterpack") !== -1;
+                    if (isConsumableRc) {
+                        var qty = productId.indexOf(".50") !== -1 ? 50
+                            : productId.indexOf(".10") !== -1 ? 10 : 1;
+                        QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+                        logger.info("[QvEntitlements] rc_sync: RC GRANT consumable productId=" + productId + " qty=" + qty + " user=" + targetUserId);
+                    }
+                    else {
+                        QvEntitlements.grantOneTime(nk, logger, targetUserId, productId);
+                        logger.info("[QvEntitlements] rc_sync: RC GRANT one-time productId=" + productId + " user=" + targetUserId);
+                    }
+                    return RpcHelpers.successResponse({ granted: true, productId: productId, event: eventType });
+                }
+                catch (e) {
+                    logger.warn("[QvEntitlements] rc_sync: non-subscription grant error: " + (e && e.message ? e.message : String(e)));
+                }
+            }
             logger.info("[QvEntitlements] rc_sync: no tier for productId=" + productId + " (consumable or unknown). Ignoring.");
             return RpcHelpers.successResponse({ ignored: true, reason: "not a subscription product" });
         }
@@ -20861,7 +21384,16 @@ var LegacyLeaderboards;
             metadata.gameId = gameId;
             metadata.source = "submit_score_to_time_periods";
             var userId = ctx.userId;
-            var username = ctx.username || userId;
+            var username = "";
+            try {
+                var tpUsers = nk.usersGetId([userId]);
+                if (tpUsers && tpUsers.length > 0) {
+                    username = tpUsers[0].displayName || tpUsers[0].username || ctx.username || "";
+                }
+            }
+            catch (_) { }
+            if (!username)
+                username = ctx.username || userId;
             var results = [];
             var errors = [];
             for (var i = 0; i < PERIODS.length; i++) {
@@ -20935,17 +21467,20 @@ var LegacyLeaderboards;
             var deviceId = data.device_id;
             var gameId = data.game_id;
             var userId = ctx.userId || deviceId;
-            var username = ctx.username || "";
-            if (!username) {
-                try {
-                    var users = nk.usersGetId([userId]);
-                    if (users && users.length > 0 && users[0].username)
-                        username = users[0].username;
+            // Prefer displayName (human-readable) over the internal Nakama username
+            // which is often a UUID slug for device-auth accounts.  We always call
+            // usersGetId so that device-auth sessions (where ctx.username may also be
+            // a UUID) get the same treatment as fully-registered accounts.
+            var username = "";
+            try {
+                var users = nk.usersGetId([userId]);
+                if (users && users.length > 0) {
+                    username = users[0].displayName || users[0].username || ctx.username || "";
                 }
-                catch (_) { }
             }
+            catch (_) { }
             if (!username)
-                username = userId;
+                username = ctx.username || userId;
             var updated = writeToAllLeaderboards(nk, logger, userId, username, gameId, score);
             return RpcHelpers.successResponse({
                 success: true,

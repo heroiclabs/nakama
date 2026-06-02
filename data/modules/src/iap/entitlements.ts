@@ -5,7 +5,7 @@
 //   key "subscriptions" : { tier, expiresAt?, productId, store }
 //   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed, boosterCredits }
 //   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
-//                           examPacks[], starterPackGranted }
+//                           examPacks[], starterPackGrantCount }
 //
 //  RPCs exposed:
 //   quizverse_get_entitlements  – client reads its own entitlement snapshot
@@ -66,9 +66,25 @@ namespace QvEntitlements {
     var userId = RpcHelpers.requireUserId(ctx);
 
     try {
-      var subs   = Storage.readJson<any>(nk, COLLECTION, KEY_SUBS, userId) || {};
-      var cons   = Storage.readJson<any>(nk, COLLECTION, KEY_CONS, userId) || {};
+      var subs    = Storage.readJson<any>(nk, COLLECTION, KEY_SUBS, userId) || {};
+      var cons    = Storage.readJson<any>(nk, COLLECTION, KEY_CONS, userId) || {};
       var oneTime = Storage.readJson<any>(nk, COLLECTION, KEY_ONE, userId) || {};
+
+      // Server-side expiry enforcement: if the stored subscription has a non-null
+      // expiresAt that is already in the past, clear it on the fly so the client
+      // never reads a stale active subscription. The RC webhook should have fired
+      // a CANCELLATION/EXPIRATION event, but this is a safety net.
+      if (subs && subs.tier && subs.expiresAt) {
+        var nowMs = Date.now();
+        var expMs = new Date(subs.expiresAt).getTime();
+        if (!isNaN(expMs) && expMs < nowMs) {
+          logger.info("[QvEntitlements] expiry enforcement: clearing expired subscription tier=" + subs.tier +
+                      " expiresAt=" + subs.expiresAt + " for user=" + userId);
+          subs = { tier: null, status: "expired", productId: subs.productId, store: subs.store,
+                   expiresAt: subs.expiresAt, updatedAt: new Date().toISOString() };
+          Storage.writeJson(nk, COLLECTION, KEY_SUBS, userId, subs);
+        }
+      }
 
       return RpcHelpers.successResponse({
         subscriptions: subs,
@@ -171,6 +187,30 @@ namespace QvEntitlements {
 
     var tier = tierForProductId(productId);
     if (!tier) {
+      // Not a subscription — handle consumables / one-time products when RC sends
+      // a GRANT or TEMPORARY_ENTITLEMENT_GRANT event (promotional grants, support
+      // restorations, etc.). Regular purchases always come through hiro_iap_validate;
+      // this path is a safety net for RC-initiated grants only.
+      var isRcGrant = eventType === "GRANT" || eventType === "TEMPORARY_ENTITLEMENT_GRANT";
+      if (isRcGrant && productId) {
+        try {
+          var isConsumableRc = productId.indexOf("aivoice") !== -1 ||
+                               productId.indexOf("boosterpack") !== -1 ||
+                               productId.indexOf("starterpack") !== -1;
+          if (isConsumableRc) {
+            var qty = productId.indexOf(".50") !== -1 ? 50
+                    : productId.indexOf(".10") !== -1 ? 10 : 1;
+            QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+            logger.info("[QvEntitlements] rc_sync: RC GRANT consumable productId=" + productId + " qty=" + qty + " user=" + targetUserId);
+          } else {
+            QvEntitlements.grantOneTime(nk, logger, targetUserId, productId);
+            logger.info("[QvEntitlements] rc_sync: RC GRANT one-time productId=" + productId + " user=" + targetUserId);
+          }
+          return RpcHelpers.successResponse({ granted: true, productId: productId, event: eventType });
+        } catch (e: any) {
+          logger.warn("[QvEntitlements] rc_sync: non-subscription grant error: " + (e && e.message ? e.message : String(e)));
+        }
+      }
       logger.info("[QvEntitlements] rc_sync: no tier for productId=" + productId + " (consumable or unknown). Ignoring.");
       return RpcHelpers.successResponse({ ignored: true, reason: "not a subscription product" });
     }

@@ -25,7 +25,7 @@ namespace HiroBase {
   }
 
   var IAP_COLLECTION = "hiro_iap_purchases";
-  var allowFakeReceipts = true;
+  var allowFakeReceipts = false;
 
   export function validateReceipt(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, request: IAPValidationRequest): IAPValidationResult {
     switch (request.storeType) {
@@ -93,6 +93,18 @@ namespace HiroBase {
   function recordPurchase(nk: nkruntime.Nakama, userId: string, transactionId: string, productId: string, storeType: string, price?: number): void {
     var history = Storage.readJson<UserPurchaseHistory>(nk, IAP_COLLECTION, "history", userId);
     if (!history) history = { purchases: [] };
+
+    // Idempotency: never re-grant the same transaction. Fake receipts generate
+    // uuid-based IDs so they are naturally unique per call, but real store
+    // transactions must never be credited twice.
+    if (transactionId && transactionId.indexOf("fake_") !== 0) {
+      for (var i = 0; i < history.purchases.length; i++) {
+        if (history.purchases[i].transactionId === transactionId) {
+          return; // already recorded — skip to prevent double-grant
+        }
+      }
+    }
+
     history.purchases.push({
       transactionId: transactionId,
       productId: productId,

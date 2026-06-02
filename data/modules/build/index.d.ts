@@ -653,6 +653,9 @@ declare namespace QuizVersePlugin {
     var RPC_LIST_PACKS: string;
     function register(initializer: nkruntime.Initializer, nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
 }
+declare namespace QuizVerseLiveBanner {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QuizVerseMigration {
     var RPC_GET_PLAYER_CONTEXT: string;
     var RPC_REQUEST_QUESTIONS: string;

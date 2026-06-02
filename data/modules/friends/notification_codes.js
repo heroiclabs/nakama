@@ -106,6 +106,109 @@ var NotifTitle = {
  * @param {string|null} senderId - Optional sender userId (Nakama notification field)
  * @returns {object} A record suitable for nk.notificationsSend([...])
  */
+var FRIEND_INBOX_COLLECTION = 'notification_inbox';
+
+/**
+ * Normalise friend notification payload into string-keyed data for inbox + push.
+ * Always includes inviteId when present so Unity can accept/decline without a lookup.
+ */
+function friendNotifDataFromPayload(payload, senderId) {
+    var p = payload || {};
+    var data = {};
+    if (p.inviteId) data.inviteId = String(p.inviteId);
+    if (p.fromUserId) data.fromUserId = String(p.fromUserId);
+    if (p.targetUserId) data.targetUserId = String(p.targetUserId);
+    if (p.fromUsername) data.fromUsername = String(p.fromUsername);
+    if (p.fromDisplayName) data.fromDisplayName = String(p.fromDisplayName);
+    if (p.acceptedBy) data.acceptedBy = String(p.acceptedBy);
+    if (p.acceptedByDisplayName) data.acceptedByDisplayName = String(p.acceptedByDisplayName);
+    if (p.declinedBy) data.declinedBy = String(p.declinedBy);
+    if (p.cancelledBy) data.cancelledBy = String(p.cancelledBy);
+    if (p.removedByUserId) data.removedByUserId = String(p.removedByUserId);
+    if (p.friendUserId) data.friendUserId = String(p.friendUserId);
+    if (senderId) data.senderId = String(senderId);
+    return data;
+}
+
+/**
+ * Mirror friend notifications into notification_inbox so list_notification_inbox
+ * and FCM resume paths see the same inviteId-rich payload as nk.notificationsSend.
+ */
+function mirrorFriendsNotificationToInbox(nk, logger, subjectKey, userId, payload, senderId) {
+    if (!NotifSubject.hasOwnProperty(subjectKey)) return;
+    try {
+        var subject = NotifSubject[subjectKey];
+        var title = NotifTitle[subjectKey];
+        var data = friendNotifDataFromPayload(payload, senderId);
+        var inboxId = 'inbox_' + (data.inviteId || (subject + '_' + Date.now()));
+        nk.storageWrite([{
+            collection:      FRIEND_INBOX_COLLECTION,
+            key:             inboxId,
+            userId:          userId,
+            value: {
+                notification_id: inboxId,
+                title:           title,
+                body:            '',
+                event_type:      subject,
+                data:            data,
+                template_id:     '',
+                priority:        8,
+                channel:         'both',
+                is_read:         false,
+                sent_at:         Date.now(),
+                created_at:      Date.now()
+            },
+            permissionRead:  1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn('[FriendsNotif] mirrorFriendsNotificationToInbox failed: ' + err.message);
+        }
+    }
+}
+
+/**
+ * Best-effort FCM/APNS bridge for friend lifecycle (push.ts sendLocalizedPushToUser).
+ * No-op when push module is not loaded. Never throws.
+ */
+function sendFriendsPushBridge(nk, logger, subjectKey, userId, payload, senderId) {
+    if (typeof sendLocalizedPushToUser !== 'function') return;
+    var p = payload || {};
+    var data = friendNotifDataFromPayload(payload, senderId);
+    data.screen = 'friends';
+
+    try {
+        if (subjectKey === 'FRIEND_REQUEST') {
+            var reqName = p.fromDisplayName || p.fromUsername || 'Someone';
+            sendLocalizedPushToUser(nk, logger, userId, 'friend_request',
+                'friend_request_title', 'friend_request_body', { name: reqName },
+                { skipQuietHours: true, data: data });
+        } else if (subjectKey === 'FRIEND_REQUEST_ACCEPTED') {
+            var accName = p.acceptedByDisplayName || p.acceptedByUsername || 'Someone';
+            sendLocalizedPushToUser(nk, logger, userId, 'friend_request_accepted',
+                'friend_request_title', 'friend_request_body', { name: accName },
+                { skipQuietHours: true, data: data });
+        } else if (subjectKey === 'FRIEND_REQUEST_DECLINED') {
+            sendLocalizedPushToUser(nk, logger, userId, 'friend_request_declined',
+                'friend_request_title', 'friend_request_body', { name: 'Someone' },
+                { skipQuietHours: true, data: data });
+        } else if (subjectKey === 'FRIEND_REQUEST_CANCELLED') {
+            sendLocalizedPushToUser(nk, logger, userId, 'friend_request_cancelled',
+                'friend_request_title', 'friend_request_body', { name: 'Someone' },
+                { skipQuietHours: true, data: data });
+        } else if (subjectKey === 'FRIEND_REMOVED') {
+            sendLocalizedPushToUser(nk, logger, userId, 'friend_removed',
+                'friend_request_title', 'friend_request_body', { name: 'Someone' },
+                { skipQuietHours: true, data: data });
+        }
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn('[FriendsNotif] sendFriendsPushBridge failed: ' + err.message);
+        }
+    }
+}
+
 function buildFriendsNotification(subjectKey, userId, payload, senderId) {
     if (!NotifSubject.hasOwnProperty(subjectKey)) {
         throw new Error('buildFriendsNotification: unknown subjectKey "' + subjectKey + '"');
@@ -140,6 +243,8 @@ function sendFriendsNotification(nk, logger, subjectKey, userId, payload, sender
     try {
         var rec = buildFriendsNotification(subjectKey, userId, payload, senderId);
         nk.notificationsSend([rec]);
+        mirrorFriendsNotificationToInbox(nk, logger, subjectKey, userId, payload, senderId);
+        sendFriendsPushBridge(nk, logger, subjectKey, userId, payload, senderId);
         return true;
     } catch (err) {
         if (logger && logger.warn) {
