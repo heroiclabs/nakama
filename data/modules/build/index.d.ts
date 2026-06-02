@@ -1226,6 +1226,9 @@ declare namespace LegacyPush {
     export function register(initializer: nkruntime.Initializer): void;
     export {};
 }
+declare namespace QuestEventBridge {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace LegacyQuestsEconomyBridge {
     function register(initializer: nkruntime.Initializer): void;
 }

@@ -255,9 +255,9 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
   // ---- Quest Engine Registration ----
   try {
-    logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config RPCs...");
+    logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config / admin_get_config RPCs...");
     QuestEngine.register(initializer);
-    logger.info("[QuestEngine] 4 RPCs registered successfully");
+    logger.info("[QuestEngine] 5 RPCs registered successfully");
   } catch (err: any) {
     logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
   }

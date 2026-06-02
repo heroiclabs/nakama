@@ -37,6 +37,9 @@ namespace QvEntitlements {
     if (productId.indexOf("quizverse.pro")     !== -1) return "pro";
     if (productId.indexOf("linkplay.proplus")  !== -1) return "linkplay_proplus";
     if (productId.indexOf("linkplay.pro")      !== -1) return "linkplay_pro";
+    if (productId.indexOf("voyage.yearly")     !== -1) return "voyage_yearly";
+    if (productId.indexOf("voyage.monthly")    !== -1) return "voyage_monthly";
+    if (productId.indexOf("voyage")            !== -1) return "voyage_monthly";
     if (productId === "com.intelliverse.quizverse.aifortune") return "pro"; // legacy
     return null;
   }
@@ -169,6 +172,37 @@ namespace QvEntitlements {
       return RpcHelpers.errorResponse("productId required");
     }
 
+    // ── Consumable path (AI Voice session credits) ───────────────────────
+    // Triggered by web Stripe webhook (store = "web_stripe") or RC consumable
+    // purchases.  productId pattern: *.aivoice.*  or  *.voice_pack.*
+    var isAiVoice = productId.indexOf("aivoice") !== -1 || productId.indexOf("voice_pack") !== -1;
+    if (isAiVoice) {
+      var quantity: number = Number(event.quantity) || 0;
+      if (quantity <= 0) {
+        // Fallback: derive from productId suffix (e.g. "…aivoice.10")
+        var parts = productId.split(".");
+        var last  = Number(parts[parts.length - 1]);
+        quantity  = isNaN(last) ? 0 : last;
+      }
+      if (quantity <= 0) {
+        logger.warn("[QvEntitlements] rc_sync: aivoice grant with quantity=0, skipping. productId=" + productId);
+        return RpcHelpers.successResponse({ ignored: true, reason: "aivoice quantity=0" });
+      }
+      try {
+        var existing = Storage.readJson<any>(nk, COLLECTION, KEY_CONS, targetUserId) || {};
+        var prev: number = Number(existing.aiVoiceCredits) || 0;
+        existing.aiVoiceCredits = prev + quantity;
+        existing.updatedAt = new Date().toISOString();
+        Storage.writeJson(nk, COLLECTION, KEY_CONS, targetUserId, existing);
+        logger.info("[QvEntitlements] rc_sync: aiVoiceCredits+" + quantity + " for user=" + targetUserId + " (prev=" + prev + " now=" + existing.aiVoiceCredits + ")");
+        return RpcHelpers.successResponse({ aiVoiceCredits: existing.aiVoiceCredits, granted: quantity });
+      } catch (e: any) {
+        logger.error("[QvEntitlements] rc_sync aivoice write error: " + (e && e.message ? e.message : String(e)));
+        return RpcHelpers.errorResponse("Failed to write consumable entitlement");
+      }
+    }
+
+    // ── Subscription path ────────────────────────────────────────────────
     var tier = tierForProductId(productId);
     if (!tier) {
       logger.info("[QvEntitlements] rc_sync: no tier for productId=" + productId + " (consumable or unknown). Ignoring.");
