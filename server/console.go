@@ -473,7 +473,10 @@ func registerDashboardHandlers(logger *zap.Logger, router *mux.Router) error {
 
 	indexFn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Cache-Control", "no-cache")
-		w.Header().Set("X-Frame-Options", "deny")
+		// w.Header().Set("X-Frame-Options", "deny")
+		// Allow embedding in the IntelliVerse admin hub (and local dev). Do not send
+		// X-Frame-Options: deny — modern browsers honor frame-ancestors instead.
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'self' https://admin.intelli-verse-x.ai http://localhost:3000")
 		_, _ = w.Write(indexBytes)
 	}
 
