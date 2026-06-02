@@ -667,6 +667,7 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
         var isMember = false;
         var isOwner = false;
         var isAdmin = false;
+        var joinRequestPending = false;
 
         try {
             var userGroups = nk.userGroupsList(ctx.userId);
@@ -674,10 +675,16 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
                 for (var i = 0; i < userGroups.userGroups.length; i++) {
                     var ug = userGroups.userGroups[i];
                     if (ug.group && ug.group.id === groupId) {
-                        isMember = true;
                         userRole = ug.state;
-                        isOwner = (ug.state === GROUP_ROLES.OWNER);
-                        isAdmin = (ug.state === GROUP_ROLES.OWNER || ug.state === GROUP_ROLES.ADMIN);
+                        // Nakama: 3 = join request pending (not a full member yet)
+                        if (ug.state === 3) {
+                            joinRequestPending = true;
+                            isMember = false;
+                        } else {
+                            isMember = true;
+                            isOwner = (ug.state === GROUP_ROLES.OWNER);
+                            isAdmin = (ug.state === GROUP_ROLES.OWNER || ug.state === GROUP_ROLES.ADMIN);
+                        }
                         break;
                     }
                 }
@@ -866,6 +873,7 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
             },
             membership: {
                 isMember: isMember,
+                joinRequestPending: joinRequestPending,
                 userRole: userRole,
                 userRoleName: userRole !== null ? getRoleName(userRole) : null,
                 isOwner: isOwner,

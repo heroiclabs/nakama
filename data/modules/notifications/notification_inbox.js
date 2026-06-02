@@ -64,6 +64,29 @@ function inboxParsePayload(payload) {
  * Nakama built-in notification shape:
  *   { id, subject, content (object), code (int), senderId, createTime (RFC3339 string) }
  */
+/**
+ * Collapse duplicate rows (nakama_builtin + notification_inbox mirror) that share
+ * the same friend lifecycle key so Unity badge counts stay accurate.
+ */
+function dedupeInboxNotifications(list) {
+    var seen = {};
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+        var n = list[i];
+        if (!n) continue;
+        var data = n.data || {};
+        var inviteId = data.inviteId || data.invite_id || '';
+        var fromId = data.fromUserId || data.from_user_id || '';
+        var key = (n.event_type || 'system') + '|' + inviteId + '|' + fromId;
+        if (inviteId || fromId) {
+            if (seen[key]) continue;
+            seen[key] = true;
+        }
+        out.push(n);
+    }
+    return out;
+}
+
 function mapBuiltinNotification(n) {
     var code = n.code || 0;
     var eventType = NOTIFICATION_CODE_MAP[code] || 'system';
@@ -233,6 +256,9 @@ function rpcListNotificationInbox(ctx, logger, nk, payload) {
         allNotifications.push(customEntries[j]);
     }
     logger.debug('[NotifInbox] Loaded ' + customEntries.length + ' custom inbox entries');
+
+    // ── Dedup: builtin + mirrored inbox rows for the same friend event ──
+    allNotifications = dedupeInboxNotifications(allNotifications);
 
     // ── Filter ──
     var filtered = [];

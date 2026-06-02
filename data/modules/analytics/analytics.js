@@ -260,6 +260,12 @@ function normalizeInboundEvent(ctx, rawEvent, nk, logger) {
     if (!eventData.session_number && rawEvent.session_number) eventData.session_number = rawEvent.session_number;
     if (!eventData.current_scene && rawEvent.current_scene) eventData.current_scene = rawEvent.current_scene;
     if (!eventData.quiz_mode && rawEvent.quiz_mode) eventData.quiz_mode = rawEvent.quiz_mode;
+    // EventEnricher REQUIRED_FIELDS uses `screen`; Unity sends current_scene.
+    if (!eventData.screen) {
+        if (eventData.current_scene) eventData.screen = eventData.current_scene;
+        else if (eventData.screen_name) eventData.screen = eventData.screen_name;
+        else if (eventData.screen_id) eventData.screen = eventData.screen_id;
+    }
 
     // ── Phase 2: additional dimensional fields (v2 schema) ──
     // quiz_session_id is a per-play-through UUID, distinct from the lobby session_id.

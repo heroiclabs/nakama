@@ -1929,6 +1929,15 @@ var EventEnricher;
     function enrich(nk, logger, eventName, eventData, sessionId, gameId) {
         var gaps = [];
         try {
+            // Unity emits current_scene / screen_id; analyst contract expects `screen`.
+            if (!eventData.screen || eventData.screen === "") {
+                if (eventData.current_scene)
+                    eventData.screen = eventData.current_scene;
+                else if (eventData.screen_name)
+                    eventData.screen = eventData.screen_name;
+                else if (eventData.screen_id)
+                    eventData.screen = eventData.screen_id;
+            }
             var session = sessionId ? getSessionContext(nk, sessionId) : null;
             if (session) {
                 if (!eventData.app_version && session.appVersion)
@@ -20731,6 +20740,8 @@ var LegacyFriends;
             var usernames = data.usernames ? (Array.isArray(data.usernames) ? data.usernames : [data.usernames]) : [];
             if (data.userId)
                 ids.push(data.userId);
+            if (data.friendUserId)
+                ids.push(data.friendUserId);
             if (data.username)
                 usernames.push(data.username);
             if (ids.length === 0 && usernames.length === 0) {

@@ -322,14 +322,27 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
                        targetUserId: targetUserId, alreadySent: true });
     }
     if (callerRel === FR_STATE_INVITE_RECEIVED) {
-        // Target already invited caller. Auto-accept.
+        // Target already invited caller. Auto-accept reciprocal edge.
         try { nk.friendsAdd(fromUserId, ctx.username || fromUserId, [targetUserId], null, {}); }
         catch (e) {
             return _fiErr('Failed to auto-accept reciprocal invite: ' + e.message,
                           'autoaccept_failed');
         }
+        var reciprocalId = _fiInviteId(targetUserId, fromUserId);
+        try {
+            sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_ACCEPTED', targetUserId, {
+                inviteId:               reciprocalId,
+                acceptedBy:             fromUserId,
+                acceptedByUsername:     ctx.username || fromUserId,
+                acceptedByDisplayName:  _fiUserDisplayName(nk, fromUserId, ctx.username)
+            }, fromUserId);
+        } catch (notifyErr) {
+            if (logger && logger.warn) {
+                logger.warn('[FriendInvites] auto-accept notify failed: ' + notifyErr.message);
+            }
+        }
         return _fiOk({ status: INVITE_STATUS_ACCEPTED, autoAccepted: true,
-                       targetUserId: targetUserId });
+                       inviteId: reciprocalId, targetUserId: targetUserId });
     }
 
     // ── Build the canonical invite row ─────────────────────────────────────

@@ -383,7 +383,8 @@ function sdNormalizeEventName(rawName) {
         return "screenViewed";
     }
     if (lower.indexOf("_tapped") !== -1 || lower.indexOf("_selected") !== -1
-        || lower.indexOf("_search_applied") !== -1 || lower.indexOf("_clicked") !== -1) {
+        || lower.indexOf("_search_applied") !== -1 || lower.indexOf("_clicked") !== -1
+        || lower.indexOf("_studied") !== -1 || lower.indexOf("_answered") !== -1) {
         return "levelStepCompleted";
     }
     return name;

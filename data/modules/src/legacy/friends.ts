@@ -83,6 +83,7 @@ namespace LegacyFriends {
       var ids: string[] = data.ids ? (Array.isArray(data.ids) ? data.ids : [data.ids]) : [];
       var usernames: string[] = data.usernames ? (Array.isArray(data.usernames) ? data.usernames : [data.usernames]) : [];
       if (data.userId) ids.push(data.userId);
+      if (data.friendUserId) ids.push(data.friendUserId);
       if (data.username) usernames.push(data.username);
       if (ids.length === 0 && usernames.length === 0) {
         return RpcHelpers.errorResponse("ids or usernames required");

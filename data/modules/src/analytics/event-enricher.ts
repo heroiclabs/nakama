@@ -243,6 +243,13 @@ namespace EventEnricher {
   ): { gaps: string[] } {
     var gaps: string[] = [];
     try {
+      // Unity emits current_scene / screen_id; analyst contract expects `screen`.
+      if (!eventData.screen || eventData.screen === "") {
+        if (eventData.current_scene) eventData.screen = eventData.current_scene;
+        else if (eventData.screen_name) eventData.screen = eventData.screen_name;
+        else if (eventData.screen_id) eventData.screen = eventData.screen_id;
+      }
+
       var session = sessionId ? getSessionContext(nk, sessionId) : null;
       if (session) {
         if (!eventData.app_version && session.appVersion) eventData.app_version = session.appVersion;
