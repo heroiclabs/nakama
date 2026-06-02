@@ -51,8 +51,41 @@ namespace QuestEngine {
 
   // ─── Constants ────────────────────────────────────────────────────────────
 
-  var QUEST_ENGINE_COLLECTION = "quest_engine";
+  // Collection used for per-player state (owner-readable, server-write only)
+  var QUEST_ENGINE_COLLECTION = "qv_quests";
+  // Collection used for admin-managed quest config (public-read, system-write)
+  var QUEST_CONFIG_COLLECTION = "qv_quest_config";
   var DEFAULT_QUESTS_CONFIG: QuestsConfig = { quests: {} };
+
+  // ─── Calendar helpers ────────────────────────────────────────────────────
+  // Returns the next midnight UTC boundary from a given unix timestamp (seconds).
+  function nextMidnightUtc(nowSec: number): number {
+    var ms = nowSec * 1000;
+    var d = new Date(ms);
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return Math.floor(d.getTime() / 1000);
+  }
+
+  // Returns the unix timestamp for the start of the next Monday UTC.
+  function nextMondayMidnightUtc(nowSec: number): number {
+    var ms = nowSec * 1000;
+    var d = new Date(ms);
+    d.setUTCHours(0, 0, 0, 0);
+    var day = d.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+    var daysUntilMonday = day === 1 ? 7 : (8 - day) % 7 || 7;
+    d.setUTCDate(d.getUTCDate() + daysUntilMonday);
+    return Math.floor(d.getTime() / 1000);
+  }
+
+  // Returns the unix timestamp for the 1st day of the next UTC month.
+  function nextMonthStartUtc(nowSec: number): number {
+    var ms = nowSec * 1000;
+    var d = new Date(ms);
+    d.setUTCHours(0, 0, 0, 0);
+    d.setUTCMonth(d.getUTCMonth() + 1, 1);
+    return Math.floor(d.getTime() / 1000);
+  }
 
   // Admin users allowed to save quest config (server-key or specific roles).
   // An empty userId in ctx means the call came via server key — always allowed.
@@ -62,28 +95,70 @@ namespace QuestEngine {
 
   // ─── Storage ──────────────────────────────────────────────────────────────
 
+  // ─── Storage helpers ──────────────────────────────────────────────────────
+
+  // Config key: "{gameId}" — matches KT Section 13.
+  function configKey(gameId: string): string {
+    return gameId;
+  }
+
+  // Player state key: "{gameId}_{userId}" — matches KT Section 13.
+  function stateKey(gameId: string, userId: string): string {
+    return gameId + "_" + userId;
+  }
+
   function loadConfig(nk: nkruntime.Nakama, gameId: string): QuestsConfig {
-    return ConfigLoader.loadConfigForGame<QuestsConfig>(nk, "quests", gameId, DEFAULT_QUESTS_CONFIG);
+    var rows: nkruntime.StorageObject[] = [];
+    try {
+      rows = nk.storageRead([{
+        collection: QUEST_CONFIG_COLLECTION,
+        key: configKey(gameId),
+        userId: Constants.SYSTEM_USER_ID
+      }]);
+    } catch (_) {}
+    if (rows && rows.length > 0 && rows[0].value) {
+      return rows[0].value as QuestsConfig;
+    }
+    return DEFAULT_QUESTS_CONFIG;
   }
 
   function saveConfig(nk: nkruntime.Nakama, gameId: string, config: QuestsConfig): void {
-    ConfigLoader.saveConfig(nk, Constants.gameKey(gameId, "quests"), config);
+    nk.storageWrite([{
+      collection: QUEST_CONFIG_COLLECTION,
+      key: configKey(gameId),
+      userId: Constants.SYSTEM_USER_ID,
+      value: config,
+      permissionRead:  2 as nkruntime.ReadPermissionValues,
+      permissionWrite: 0 as nkruntime.WritePermissionValues
+    }]);
   }
 
   function loadUserState(nk: nkruntime.Nakama, userId: string, gameId: string): UserQuestState {
-    var data = Storage.readJson<UserQuestState>(
-      nk, QUEST_ENGINE_COLLECTION, Constants.gameKey(gameId, "state"), userId
-    );
-    return data || { quests: {} };
+    var rows: nkruntime.StorageObject[] = [];
+    try {
+      rows = nk.storageRead([{
+        collection: QUEST_ENGINE_COLLECTION,
+        key: stateKey(gameId, userId),
+        userId: userId
+      }]);
+    } catch (_) {}
+    if (rows && rows.length > 0 && rows[0].value) {
+      return rows[0].value as UserQuestState;
+    }
+    return { quests: {} };
   }
 
   function saveUserState(nk: nkruntime.Nakama, userId: string, gameId: string, state: UserQuestState): void {
-    // permissionWrite: 0 = server-only writes (prevents client-side cheating)
-    Storage.writeJson(
-      nk, QUEST_ENGINE_COLLECTION, Constants.gameKey(gameId, "state"), userId, state,
-      1 as nkruntime.ReadPermissionValues,
-      0 as nkruntime.WritePermissionValues
-    );
+    // permissionWrite: 0 — server-only writes prevent client-side cheating.
+    // permissionRead: 1 — owner can read their own state.
+    nk.storageWrite([{
+      collection: QUEST_ENGINE_COLLECTION,
+      key: stateKey(gameId, userId),
+      userId: userId,
+      value: state,
+      permissionRead:  1 as nkruntime.ReadPermissionValues,
+      permissionWrite: 0 as nkruntime.WritePermissionValues
+    }]);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -126,8 +201,23 @@ namespace QuestEngine {
 
   function shouldResetQuest(config: QuestConfig, progress: QuestProgress, now: number): boolean {
     if (!config.repeatable || !progress.completedAt) return false;
-    if (!config.resetIntervalSec) return false;
-    return now >= (progress.completedAt + config.resetIntervalSec);
+    // resetIntervalSec takes priority (custom interval).
+    if (config.resetIntervalSec) {
+      return now >= (progress.completedAt + config.resetIntervalSec);
+    }
+    // Calendar-based reset derived from category.
+    // A quest completed in a previous window should reset once the new window starts.
+    var cat = config.category || "";
+    if (cat === "daily") {
+      return now >= nextMidnightUtc(progress.completedAt);
+    }
+    if (cat === "weekly") {
+      return now >= nextMondayMidnightUtc(progress.completedAt);
+    }
+    if (cat === "monthly") {
+      return now >= nextMonthStartUtc(progress.completedAt);
+    }
+    return false;
   }
 
   function resetQuestProgress(progress: QuestProgress, now: number): void {
@@ -283,9 +373,8 @@ namespace QuestEngine {
         resetQuestProgress(progress, now);
       }
 
-      // Skip already-completed quests (non-repeatable, or repeatable not yet reset)
-      if (progress.completedAt && !qConfig.repeatable) continue;
-      if (progress.completedAt && qConfig.repeatable) continue;
+      // Skip quests that are still completed (non-repeatable, or repeatable window not expired yet)
+      if (progress.completedAt) continue;
 
       var questUpdated = false;
 
@@ -301,7 +390,12 @@ namespace QuestEngine {
         if (!progress.startedAt) progress.startedAt = now;
 
         var prevCount = progress.steps[stepCfg.id].count;
-        progress.steps[stepCfg.id].count = Math.min(prevCount + 1, stepCfg.requiredCount);
+        // For count-based steps (requiredValue not set) increment by 1 each event.
+        // For accumulation steps (e.g. "earn 500 XP") increment by the event value.
+        // Either way, never add more than the remaining delta so the count stays
+        // accurate even when the same event fires multiple times in a session.
+        var increment = (stepCfg.requiredValue !== undefined && stepCfg.requiredValue !== null && value > 0) ? value : 1;
+        progress.steps[stepCfg.id].count = Math.min(prevCount + increment, stepCfg.requiredCount);
         questUpdated = true;
 
         // Fire event only on the incomplete→complete transition
@@ -356,6 +450,7 @@ namespace QuestEngine {
     }
 
     // ── Phase 3: grant auto-rewards (isolated, non-fatal) ────────────────────
+    var anyClaimedAt = false;
     for (var r = 0; r < rewardPending.length; r++) {
       var rq = rewardPending[r];
       try {
@@ -363,6 +458,7 @@ namespace QuestEngine {
         RewardEngine.grantReward(nk, logger, ctx, userId, gameId, resolved);
         state.quests[rq.questId].claimedAt = now;
         updatedQuests[rq.questId].claimedAt = now;
+        anyClaimedAt = true;
         logger.info("[QuestEngine] Reward auto-granted: quest=%s user=%s", rq.questId, userId);
       } catch (rewardErr: any) {
         logger.error("[QuestEngine] Reward grant failed (claimedAt stays null, client can retry): quest=%s err=%s",
@@ -370,8 +466,8 @@ namespace QuestEngine {
       }
     }
 
-    // Save again only if any claimedAt was set in Phase 3
-    if (rewardPending.length > 0 && updatedCount > 0) {
+    // Only write again if at least one claimedAt was actually set in Phase 3
+    if (anyClaimedAt) {
       saveUserState(nk, userId, gameId, state);
     }
 
@@ -416,6 +512,11 @@ namespace QuestEngine {
 
   // ─── RPC: quest_engine_admin_save_config ─────────────────────────────────
   // Saves quest config to storage. Server-key only — rejects authenticated users.
+  //
+  // Accepts two equivalent payload shapes (as documented in KT Section 11):
+  //   (a) Keyed-map form:  { "gameId": "...", "config": { "quests": { "q1": {...} } } }
+  //   (b) Array form:      { "gameId": "...", "quests": [ { "id": "q1", ... } ] }
+  // Both are normalised to QuestsConfig internally before saving.
 
   function rpcQuestEngineAdminSaveConfig(
     ctx: nkruntime.Context, logger: nkruntime.Logger,
@@ -427,9 +528,27 @@ namespace QuestEngine {
 
     var data = RpcHelpers.parseRpcPayload(payload);
     var gameId = resolveGameId(data);
-    var config = data.config as QuestsConfig;
 
-    if (!config || !config.quests) return RpcHelpers.errorResponse("config.quests is required");
+    var config: QuestsConfig;
+
+    // Shape (a): { config: { quests: { ... } } }
+    if (data.config && data.config.quests && !Array.isArray(data.config.quests)) {
+      config = data.config as QuestsConfig;
+    }
+    // Shape (b): { quests: [ { id, name, ... } ] }  — KT Section 11 canonical form
+    else if (Array.isArray(data.quests)) {
+      var map: { [questId: string]: QuestConfig } = {};
+      var arr = data.quests as QuestConfig[];
+      for (var qi = 0; qi < arr.length; qi++) {
+        var q = arr[qi];
+        if (!q.id) return RpcHelpers.errorResponse("Each quest in quests[] must have an id field");
+        map[q.id] = q;
+      }
+      config = { quests: map };
+    }
+    else {
+      return RpcHelpers.errorResponse("Payload must contain config.quests (object) or quests (array)");
+    }
 
     var questCount = Object.keys(config.quests).length;
     saveConfig(nk, gameId, config);
@@ -438,12 +557,51 @@ namespace QuestEngine {
     return RpcHelpers.successResponse({ saved: true, questCount: questCount });
   }
 
+  // ─── RPC: quest_engine_admin_get_config ──────────────────────────────────
+  // Returns the stored quest config for a game. Server-key only.
+
+  function rpcQuestEngineAdminGetConfig(
+    ctx: nkruntime.Context, logger: nkruntime.Logger,
+    nk: nkruntime.Nakama, payload: string
+  ): string {
+    if (!isAdminCaller(ctx)) {
+      return RpcHelpers.errorResponse("Forbidden: server key required");
+    }
+
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = resolveGameId(data);
+
+    var config = loadConfig(nk, gameId);
+    var questCount = Object.keys(config.quests).length;
+    logger.info("[QuestEngine] Config retrieved: gameId=%s quests=%d", gameId, questCount);
+
+    return RpcHelpers.successResponse({ config: config, questCount: questCount });
+  }
+
   // ─── Register ─────────────────────────────────────────────────────────────
 
   export function register(initializer: nkruntime.Initializer): void {
-    initializer.registerRpc("quest_engine_get",               rpcQuestEngineGet);
-    initializer.registerRpc("quest_engine_record_event",      rpcQuestEngineRecordEvent);
-    initializer.registerRpc("quest_engine_claim_reward",      rpcQuestEngineClaimReward);
+    // withCleanAuthError wraps a handler once at registration time.
+    // When register() is auto-invoked at IIFE scope by the postbuild script,
+    // RpcHelpers may not be initialised yet (it lives in a later IIFE). Use a
+    // lazy wrapper so the actual wrapping is deferred to first-call time.
+    type StrictRpc = (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string;
+    function auth(fn: nkruntime.RpcFunction): nkruntime.RpcFunction {
+      var wrapped: StrictRpc | null = null;
+      return function(ctx, logger, nk, payload): string {
+        if (!wrapped) {
+          const strictFn = fn as StrictRpc;
+          wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+            ? RpcHelpers.withCleanAuthError(strictFn)
+            : strictFn;
+        }
+        return wrapped(ctx, logger, nk, payload);
+      };
+    }
+    initializer.registerRpc("quest_engine_get",               auth(rpcQuestEngineGet));
+    initializer.registerRpc("quest_engine_record_event",      auth(rpcQuestEngineRecordEvent));
+    initializer.registerRpc("quest_engine_claim_reward",      auth(rpcQuestEngineClaimReward));
     initializer.registerRpc("quest_engine_admin_save_config", rpcQuestEngineAdminSaveConfig);
+    initializer.registerRpc("quest_engine_admin_get_config",  rpcQuestEngineAdminGetConfig);
   }
 }

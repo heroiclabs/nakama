@@ -372,7 +372,21 @@ function sdNormalizeEventName(rawName) {
     // underscore avoids the 400 (the Debugger entry would be confusing).
     if (name.charAt(0) === "_") return "";
     var lower = name.toLowerCase();
-    return SD_EVENT_MAP[lower] || name;
+    if (SD_EVENT_MAP[lower]) return SD_EVENT_MAP[lower];
+    // QuizVerse UI funnel events — map to registered Satori core names so
+    // custom telemetry names don't 400 the fan-out. Original name is preserved
+    // in metadata as internal_event_name inside sdEventsPublish.
+    if (lower.indexOf("_screen_viewed") !== -1 || lower.indexOf("_screen_view") !== -1) {
+        return "screenViewed";
+    }
+    if (lower.indexOf("_zone_opened") !== -1 || lower.indexOf("_panel_opened") !== -1) {
+        return "screenViewed";
+    }
+    if (lower.indexOf("_tapped") !== -1 || lower.indexOf("_selected") !== -1
+        || lower.indexOf("_search_applied") !== -1 || lower.indexOf("_clicked") !== -1) {
+        return "levelStepCompleted";
+    }
+    return name;
 }
 
 // ─── Public API: events ────────────────────────────────────────────────
@@ -435,6 +449,9 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
         // pushed once per identity via sdSendIdentityProperties on the
         // session_start event instead.
         var meta = sdSlimMetadata(e.metadata || {});
+        if (name !== rawName && rawName) {
+            meta.internal_event_name = rawName;
+        }
 
         // Coerce all surviving values to string (Satori's metadata field
         // is string-typed at the wire level — anything non-string gets a

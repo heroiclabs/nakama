@@ -30,7 +30,7 @@ The **Quest Engine** is a unified, server-authoritative quest system that replac
 
 | Layer | What Changed |
 |-------|-------------|
-| Nakama backend | New module `data/modules/src/quests/quest-engine.ts` — full quest lifecycle RPCs |
+| Nakama backend | New module `data/modules/src/quests/quest_engine.ts` — full quest lifecycle RPCs |
 | Unity manager | `QuestEngineManager.cs` — single source of truth for all quest state in the client |
 | Unity UI | 4 UI Toolkit popup controllers, each backed by a UXML + USS file |
 | Scene | 5 new GameObjects wired in `MainQuiz` |
@@ -51,7 +51,7 @@ QuestEngineManager.cs ── debounced (400 ms) ──► LoadQuests() ──►
          │  RPC: quest_engine_record_event
          ▼
 Nakama JS Runtime (Goja ES5)
-  └── quest-engine.ts
+  └── quest_engine.ts
         ├── resolveGameId()  → gameId = "126bf539-dae2-4bcf-964d-316c0fa1f92b"
         ├── getPlayerQuests() ← nk.storageRead (collection: "qv_quests")
         ├── matchEvent()     ← walks quest steps, increments counters
@@ -79,7 +79,7 @@ QuestEngineManager.cs
 ### File Location
 
 ```
-data/modules/src/quests/quest-engine.ts
+data/modules/src/quests/quest_engine.ts
 ```
 
 ### Registered RPCs
@@ -127,17 +127,24 @@ data/modules/src/quests/quest-engine.ts
 
 | Category | Reset Cadence | Notes |
 |----------|--------------|-------|
-| `daily` | Midnight UTC daily | Auto-reset by `expiresAt` check in `quest_engine_get` |
-| `weekly` | Monday midnight UTC | `expiresAt` set to next Monday |
-| `monthly` | 1st of month UTC | `expiresAt` set to next month start |
+| `daily` | Midnight UTC daily | Reset fires when `now >= nextMidnightUtc(completedAt)` — driven by `completedAt`, not `expiresAt` |
+| `weekly` | Monday midnight UTC | Reset fires when `now >= nextMondayMidnightUtc(completedAt)` |
+| `monthly` | 1st of month UTC | Reset fires when `now >= nextMonthStartUtc(completedAt)` |
 | `friend` | Manual / no reset | Social quests unlocked by friend interactions |
 | `onboarding` | Never | One-time tutorial quests |
+
+> **Note:** `expiresAt` is a separate field — it makes a quest fully invisible/skipped after that timestamp. It does **not** trigger a reset. Resets are calendar-based on `completedAt`. If `resetIntervalSec` is set on a quest, it takes priority over the category-based calendar reset.
 
 ### How Events Match Quest Steps
 
 Each quest step has an `eventType` field in the config (e.g. `"quiz_completed"`).
 `quest_engine_record_event` walks every unlocked, incomplete quest, then every step within it.
-If `step.eventType === payload.eventType`, it increments `step.count` by `payload.value` (default 1).
+If `step.eventType === payload.eventType`, the step is advanced using this rule:
+
+- **Count-based step** (`requiredValue` not set in config): always increments `step.count` by **1**, regardless of `payload.value`.
+- **Accumulation step** (`requiredValue` is set in config, e.g. `"earn 500 XP"`): increments `step.count` by `payload.value`.
+
+In both cases `step.count` is capped at `requiredCount` (never over-counts).
 When `step.count >= step.requiredCount`, `step.completedAt` is set.
 When all steps are done, `quest.completedAt` is set.
 
@@ -374,7 +381,7 @@ Assets/_QuizVerse/UI/Quests/
      → RPC "quest_engine_record_event" payload:
         { "gameId": "126bf...", "eventType": "quiz_completed", "value": 850, "metadata": {} }
 
-4. Nakama quest-engine.ts
+4. Nakama quest_engine.ts
      → reads player's quest state from storage
      → finds step { eventType: "quiz_completed", requiredCount: 3 }
      → increments count: 1 → 2
@@ -532,10 +539,10 @@ Quest definitions must be seeded once via the Nakama Console before the system h
 | RPC | Auth Required | Input | Output |
 |-----|-------------|-------|--------|
 | `quest_engine_get` | Yes | `{ gameId }` | `{ success, data: { quests[] } }` |
-| `quest_engine_record_event` | Yes | `{ gameId, eventType, value, metadata }` | `{ success, data: { updatedQuests: N } }` |
-| `quest_engine_claim_reward` | Yes | `{ gameId, questId }` | `{ success }` |
-| `quest_engine_admin_save_config` | Admin | `{ gameId, quests[] }` | `{ success }` |
-| `quest_engine_admin_get_config` | Admin | `{ gameId }` | `{ success, data: { quests[] } }` |
+| `quest_engine_record_event` | Yes | `{ gameId, eventType, value, metadata }` | `{ success, data: { updatedQuests: N, quests: { [questId]: {...} } } }` |
+| `quest_engine_claim_reward` | Yes | `{ gameId, questId }` | `{ success, data: { reward } }` |
+| `quest_engine_admin_save_config` | Admin | `{ gameId, quests[] }` | `{ success, data: { saved: true, questCount: N } }` |
+| `quest_engine_admin_get_config` | Admin | `{ gameId }` | `{ success, data: { config: { quests: { [questId]: {...} } }, questCount: N } }` |
 
 All RPCs follow the project's standard `RpcHelpers.successResponse` envelope:
 ```json
@@ -549,8 +556,8 @@ All RPCs follow the project's standard `RpcHelpers.successResponse` envelope:
 
 | Collection | Key | Value | Permission |
 |-----------|-----|-------|------------|
-| `qv_quest_config` | `{gameId}` | Master quest definitions JSON | Public read, owner write |
-| `qv_quests` | `{gameId}_{userId}` | Player quest state JSON | Owner read/write |
+| `qv_quest_config` | `{gameId}` | Master quest definitions JSON | Public read, server-only write |
+| `qv_quests` | `{gameId}_{userId}` | Player quest state JSON | Owner read, server-only write |
 
 ---
 

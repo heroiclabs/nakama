@@ -39,6 +39,9 @@
 
 namespace EventEnricher {
 
+  // Nakama rejects storage ops with userId "" — use the system sentinel.
+  var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
   export var SESSION_COLLECTION = "game_session_index";
   export var GAP_COLLECTION = "game_coverage_gap_log";
   export var SESSION_TTL_MS = 36 * 60 * 60 * 1000;
@@ -179,7 +182,7 @@ namespace EventEnricher {
       nk.storageWrite([{
         collection: SESSION_COLLECTION,
         key: rec.sessionId,
-        userId: "",
+        userId: SYSTEM_USER_ID,
         value: merged as any,
         permissionRead: 2,
         permissionWrite: 0,
@@ -208,7 +211,7 @@ namespace EventEnricher {
       var rows = nk.storageRead([{
         collection: SESSION_COLLECTION,
         key: sessionId,
-        userId: "",
+        userId: SYSTEM_USER_ID,
       }]);
       if (!rows || rows.length === 0) return null;
       var rec = rows[0].value as SessionRecord;
@@ -322,7 +325,7 @@ namespace EventEnricher {
         var rows = nk.storageRead([{
           collection: GAP_COLLECTION,
           key: key,
-          userId: "",
+          userId: SYSTEM_USER_ID,
         }]);
         if (rows && rows.length > 0) existing = rows[0].value;
       } catch (_) {}
@@ -339,7 +342,7 @@ namespace EventEnricher {
       nk.storageWrite([{
         collection: GAP_COLLECTION,
         key: key,
-        userId: "",
+        userId: SYSTEM_USER_ID,
         value: record,
         permissionRead: 0,
         permissionWrite: 0,

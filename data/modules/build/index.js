@@ -239,9 +239,9 @@ function InitModule(ctx, logger, nk, initializer) {
     }
     // ---- Quest Engine Registration ----
     try {
-        logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config RPCs...");
+        logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config / admin_get_config RPCs...");
         QuestEngine.register(initializer);
-        logger.info("[QuestEngine] 4 RPCs registered successfully");
+        logger.info("[QuestEngine] 5 RPCs registered successfully");
     }
     catch (err) {
         logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
@@ -1762,6 +1762,8 @@ var QvCrossSell;
 //     line of defence against missing fields.
 var EventEnricher;
 (function (EventEnricher) {
+    // Nakama rejects storage ops with userId "" — use the system sentinel.
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
     EventEnricher.SESSION_COLLECTION = "game_session_index";
     EventEnricher.GAP_COLLECTION = "game_coverage_gap_log";
     EventEnricher.SESSION_TTL_MS = 36 * 60 * 60 * 1000;
@@ -1871,7 +1873,7 @@ var EventEnricher;
             nk.storageWrite([{
                     collection: EventEnricher.SESSION_COLLECTION,
                     key: rec.sessionId,
-                    userId: "",
+                    userId: SYSTEM_USER_ID,
                     value: merged,
                     permissionRead: 2,
                     permissionWrite: 0,
@@ -1901,7 +1903,7 @@ var EventEnricher;
             var rows = nk.storageRead([{
                     collection: EventEnricher.SESSION_COLLECTION,
                     key: sessionId,
-                    userId: "",
+                    userId: SYSTEM_USER_ID,
                 }]);
             if (!rows || rows.length === 0)
                 return null;
@@ -2020,7 +2022,7 @@ var EventEnricher;
                 var rows = nk.storageRead([{
                         collection: EventEnricher.GAP_COLLECTION,
                         key: key,
-                        userId: "",
+                        userId: SYSTEM_USER_ID,
                     }]);
                 if (rows && rows.length > 0)
                     existing = rows[0].value;
@@ -2039,7 +2041,7 @@ var EventEnricher;
             nk.storageWrite([{
                     collection: EventEnricher.GAP_COLLECTION,
                     key: key,
-                    userId: "",
+                    userId: SYSTEM_USER_ID,
                     value: record,
                     permissionRead: 0,
                     permissionWrite: 0,
@@ -14890,6 +14892,12 @@ var QvEntitlements;
             return "linkplay_proplus";
         if (productId.indexOf("linkplay.pro") !== -1)
             return "linkplay_pro";
+        if (productId.indexOf("voyage.yearly") !== -1)
+            return "voyage_yearly";
+        if (productId.indexOf("voyage.monthly") !== -1)
+            return "voyage_monthly";
+        if (productId.indexOf("voyage") !== -1)
+            return "voyage_monthly";
         if (productId === "com.intelliverse.quizverse.aifortune")
             return "pro"; // legacy
         return null;
@@ -15016,6 +15024,37 @@ var QvEntitlements;
         if (!productId) {
             return RpcHelpers.errorResponse("productId required");
         }
+        // ── Consumable path (AI Voice session credits) ───────────────────────
+        // Triggered by web Stripe webhook (store = "web_stripe") or RC consumable
+        // purchases.  productId pattern: *.aivoice.*  or  *.voice_pack.*
+        var isAiVoice = productId.indexOf("aivoice") !== -1 || productId.indexOf("voice_pack") !== -1;
+        if (isAiVoice) {
+            var quantity = Number(event.quantity) || 0;
+            if (quantity <= 0) {
+                // Fallback: derive from productId suffix (e.g. "…aivoice.10")
+                var parts = productId.split(".");
+                var last = Number(parts[parts.length - 1]);
+                quantity = isNaN(last) ? 0 : last;
+            }
+            if (quantity <= 0) {
+                logger.warn("[QvEntitlements] rc_sync: aivoice grant with quantity=0, skipping. productId=" + productId);
+                return RpcHelpers.successResponse({ ignored: true, reason: "aivoice quantity=0" });
+            }
+            try {
+                var existing = Storage.readJson(nk, COLLECTION, KEY_CONS, targetUserId) || {};
+                var prev = Number(existing.aiVoiceCredits) || 0;
+                existing.aiVoiceCredits = prev + quantity;
+                existing.updatedAt = new Date().toISOString();
+                Storage.writeJson(nk, COLLECTION, KEY_CONS, targetUserId, existing);
+                logger.info("[QvEntitlements] rc_sync: aiVoiceCredits+" + quantity + " for user=" + targetUserId + " (prev=" + prev + " now=" + existing.aiVoiceCredits + ")");
+                return RpcHelpers.successResponse({ aiVoiceCredits: existing.aiVoiceCredits, granted: quantity });
+            }
+            catch (e) {
+                logger.error("[QvEntitlements] rc_sync aivoice write error: " + (e && e.message ? e.message : String(e)));
+                return RpcHelpers.errorResponse("Failed to write consumable entitlement");
+            }
+        }
+        // ── Subscription path ────────────────────────────────────────────────
         var tier = tierForProductId(productId);
         if (!tier) {
             // Not a subscription — handle consumables / one-time products when RC sends
@@ -20636,12 +20675,8 @@ var LegacyDailyRewards;
 // Currently these handlers do NOT emit notifications. That is intentional:
 //   - friends_block: silent by product policy (don't tell the blocked user).
 //   - friends_unblock: silent (no user-facing event).
-//   - friends_remove: silent (the removed friend simply no longer sees you
-//     in their list; we deliberately do not notify them — most social apps
-//     follow the same convention).
-// If product wants to change this, add `sendFriendsNotification` calls using
-// `FRIEND_REMOVED` (code 5) / `FRIEND_BLOCKED` (code 6) — both already
-// reserved in friends/notification_codes.js.
+//   - friends_remove: notifies removed user via FRIEND_REMOVED (code 5).
+//   - friends_block: still silent by product policy.
 // ============================================================================
 var LegacyFriends;
 (function (LegacyFriends) {
@@ -20702,6 +20737,25 @@ var LegacyFriends;
                 return RpcHelpers.errorResponse("ids or usernames required");
             }
             var result = nk.friendsDelete(userId, username, ids, usernames);
+            var sendNotif = globalThis.sendFriendsNotification;
+            if (typeof sendNotif === "function") {
+                for (var i = 0; i < ids.length; i++) {
+                    var removedId = ids[i];
+                    if (!removedId || removedId === userId)
+                        continue;
+                    try {
+                        sendNotif(nk, logger, "FRIEND_REMOVED", removedId, {
+                            removedByUserId: userId,
+                            friendUserId: userId,
+                        }, userId);
+                    }
+                    catch (notifyErr) {
+                        if (logger && logger.warn) {
+                            logger.warn("[Friends] friends_remove notify failed: " + (notifyErr.message || notifyErr));
+                        }
+                    }
+                }
+            }
             return RpcHelpers.successResponse({ friends: result.friends || [] });
         }
         catch (e) {
@@ -23807,7 +23861,19 @@ var LegacyPush;
         var name = d.fromName || d.name || "Someone";
         if (!to)
             return RpcHelpers.errorResponse("toUserId required");
-        var ok = sendLocalizedPushToUser(ctx, logger, nk, to, "friend_request", "friend_request_title", "friend_request_body", { name: name }, { skipQuietHours: true, data: { screen: "friends", fromUserId: d.fromUserId || "" } });
+        var pushData = {
+            screen: "friends",
+            fromUserId: String(d.fromUserId || ""),
+        };
+        if (d.inviteId)
+            pushData.inviteId = String(d.inviteId);
+        if (d.targetUserId)
+            pushData.targetUserId = String(d.targetUserId);
+        if (d.fromDisplayName)
+            pushData.fromDisplayName = String(d.fromDisplayName);
+        if (d.fromUsername)
+            pushData.fromUsername = String(d.fromUsername);
+        var ok = sendLocalizedPushToUser(ctx, logger, nk, to, "friend_request", "friend_request_title", "friend_request_body", { name: name }, { skipQuietHours: true, data: pushData });
         return RpcHelpers.successResponse({ sent: ok });
     }
     // ─── 7. Friend challenge push (event-driven) ───────────────────────────────
@@ -23987,6 +24053,129 @@ var LegacyPush;
     }
     LegacyPush.register = register;
 })(LegacyPush || (LegacyPush = {}));
+// ============================================================
+// Quest Event Bridge — closes the analytics_log_event gap
+//
+// RPC: quest_game_event
+//
+// Called by game clients (or internally by other RPCs) when a
+// game-play event should trigger quest progress in QuestX.
+//
+// Payload:
+//   { gameId: string, eventName: string, eventData: object }
+//
+// Flow:
+//   game client → Nakama RPC quest_game_event
+//              → maps eventName → QuestX GameEventType
+//              → POST /game-bridge/s2s/quest-event   (HMAC-signed)
+//              → QuestX processNakamaEvent()
+//              → GameQuestProgress updated
+//              → Points awarded when quest completes
+//
+// Environment variables used (resolved from ctx.env):
+//   QUESTS_ECONOMY_API_URL   — e.g. https://quests.intelli-verse-x.ai
+//   NAKAMA_WEBHOOK_SECRET    — shared secret for NakamaS2sGuard
+// ============================================================
+var QuestEventBridge;
+(function (QuestEventBridge) {
+    // ── Analytics event name → QuestX GameEventType ──────────────
+    // Matches the goal-type map in GameBridgeService.getActiveGameQuestsForEvent()
+    var EVENT_MAP = {
+        // Matches / battles
+        "match_complete": "match_result",
+        "multiplayer_win": "match_result",
+        // Scores
+        "score_submit": "score_update",
+        "quiz_complete": "score_update",
+        "quiz_accuracy": "score_update",
+        // Levels / progression
+        "level_up": "level_reached",
+        "season_pass_xp": "level_reached",
+        "collection_unlock": "level_reached",
+        // Achievements
+        "achievement_unlock": "achievement_completed",
+        // Missions / daily engagement
+        "mission_complete": "mission_completed",
+        "daily_login": "mission_completed",
+        "weekly_goal_complete": "mission_completed",
+        // Playtime / streaks
+        "session_end": "playtime_update",
+        "playtime_update": "playtime_update",
+        "streak_continue": "playtime_update",
+        // Purchases
+        "item_purchase": "purchase_made",
+        // Everything else
+        "currency_earn": "custom_event",
+        "friend_challenge": "custom_event",
+        "referral_signup": "custom_event",
+        "ad_watched": "custom_event",
+        "receipt_scanned": "custom_event",
+        "tournament_join": "custom_event",
+        "tournament_win": "custom_event",
+        "weekly_goal_complete_bonus": "custom_event",
+    };
+    function mapEventType(eventName) {
+        return EVENT_MAP[eventName] || "custom_event";
+    }
+    function rpcQuestGameEvent(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var gameId = data.gameId || data.game_id;
+            var eventName = data.eventName || data.event_name || data.name;
+            var eventData = data.eventData || data.event_data || data.data || {};
+            if (!gameId)
+                return RpcHelpers.errorResponse("gameId required");
+            if (!eventName)
+                return RpcHelpers.errorResponse("eventName required");
+            var eventType = mapEventType(eventName);
+            var questsApiUrl = (ctx.env && ctx.env["QUESTS_ECONOMY_API_URL"]) || "http://localhost:3001";
+            var webhookSecret = (ctx.env && ctx.env["NAKAMA_WEBHOOK_SECRET"]) || "";
+            if (!webhookSecret) {
+                logger.warn("[QuestEventBridge] NAKAMA_WEBHOOK_SECRET not set — skipping quest sync");
+                return RpcHelpers.successResponse({ forwarded: false, reason: "webhook_secret_not_configured" });
+            }
+            var body = JSON.stringify({
+                nakamaGameId: gameId,
+                eventType: eventType,
+                eventName: eventName,
+                data: eventData,
+            });
+            // HMAC-SHA256 of the body — matches NakamaS2sGuard expectation
+            var sig = nk.hmacSha256Hash(webhookSecret, body);
+            var url = questsApiUrl.replace(/\/$/, "") + "/game-bridge/s2s/quest-event";
+            try {
+                nk.httpRequest(url, "post", {
+                    "Content-Type": "application/json",
+                    "X-Source": "nakama-rpc",
+                    "X-Webhook-Signature": sig,
+                    "X-User-Id": userId,
+                    "X-Game-Id": gameId,
+                }, body, 5000);
+                logger.debug("[QuestEventBridge] forwarded event=" + eventName + " type=" + eventType + " user=" + userId + " game=" + gameId);
+            }
+            catch (httpErr) {
+                // Non-fatal: quest sync failure must never break the game session
+                logger.warn("[QuestEventBridge] HTTP call failed: " + (httpErr.message || String(httpErr)));
+                return RpcHelpers.successResponse({ forwarded: false, reason: "http_error", error: httpErr.message });
+            }
+            return RpcHelpers.successResponse({
+                forwarded: true,
+                eventType: eventType,
+                eventName: eventName,
+                userId: userId,
+                gameId: gameId,
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("quest_game_event failed: " + (e.message || String(e)));
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("quest_game_event", rpcQuestGameEvent);
+    }
+    QuestEventBridge.register = register;
+})(QuestEventBridge || (QuestEventBridge = {}));
 var LegacyQuestsEconomyBridge;
 (function (LegacyQuestsEconomyBridge) {
     function getBridgeConfig(nk) {
@@ -34701,27 +34890,104 @@ var QuestEngine;
 (function (QuestEngine) {
     // ─── Types ────────────────────────────────────────────────────────────────
     // ─── Constants ────────────────────────────────────────────────────────────
-    var QUEST_ENGINE_COLLECTION = "quest_engine";
+    // Collection used for per-player state (owner-readable, server-write only)
+    var QUEST_ENGINE_COLLECTION = "qv_quests";
+    // Collection used for admin-managed quest config (public-read, system-write)
+    var QUEST_CONFIG_COLLECTION = "qv_quest_config";
     var DEFAULT_QUESTS_CONFIG = { quests: {} };
+    // ─── Calendar helpers ────────────────────────────────────────────────────
+    // Returns the next midnight UTC boundary from a given unix timestamp (seconds).
+    function nextMidnightUtc(nowSec) {
+        var ms = nowSec * 1000;
+        var d = new Date(ms);
+        d.setUTCHours(0, 0, 0, 0);
+        d.setUTCDate(d.getUTCDate() + 1);
+        return Math.floor(d.getTime() / 1000);
+    }
+    // Returns the unix timestamp for the start of the next Monday UTC.
+    function nextMondayMidnightUtc(nowSec) {
+        var ms = nowSec * 1000;
+        var d = new Date(ms);
+        d.setUTCHours(0, 0, 0, 0);
+        var day = d.getUTCDay(); // 0=Sun, 1=Mon … 6=Sat
+        var daysUntilMonday = day === 1 ? 7 : (8 - day) % 7 || 7;
+        d.setUTCDate(d.getUTCDate() + daysUntilMonday);
+        return Math.floor(d.getTime() / 1000);
+    }
+    // Returns the unix timestamp for the 1st day of the next UTC month.
+    function nextMonthStartUtc(nowSec) {
+        var ms = nowSec * 1000;
+        var d = new Date(ms);
+        d.setUTCHours(0, 0, 0, 0);
+        d.setUTCMonth(d.getUTCMonth() + 1, 1);
+        return Math.floor(d.getTime() / 1000);
+    }
     // Admin users allowed to save quest config (server-key or specific roles).
     // An empty userId in ctx means the call came via server key — always allowed.
     function isAdminCaller(ctx) {
         return !ctx.userId || ctx.userId === Constants.SYSTEM_USER_ID;
     }
     // ─── Storage ──────────────────────────────────────────────────────────────
+    // ─── Storage helpers ──────────────────────────────────────────────────────
+    // Config key: "{gameId}" — matches KT Section 13.
+    function configKey(gameId) {
+        return gameId;
+    }
+    // Player state key: "{gameId}_{userId}" — matches KT Section 13.
+    function stateKey(gameId, userId) {
+        return gameId + "_" + userId;
+    }
     function loadConfig(nk, gameId) {
-        return ConfigLoader.loadConfigForGame(nk, "quests", gameId, DEFAULT_QUESTS_CONFIG);
+        var rows = [];
+        try {
+            rows = nk.storageRead([{
+                    collection: QUEST_CONFIG_COLLECTION,
+                    key: configKey(gameId),
+                    userId: Constants.SYSTEM_USER_ID
+                }]);
+        }
+        catch (_) { }
+        if (rows && rows.length > 0 && rows[0].value) {
+            return rows[0].value;
+        }
+        return DEFAULT_QUESTS_CONFIG;
     }
     function saveConfig(nk, gameId, config) {
-        ConfigLoader.saveConfig(nk, Constants.gameKey(gameId, "quests"), config);
+        nk.storageWrite([{
+                collection: QUEST_CONFIG_COLLECTION,
+                key: configKey(gameId),
+                userId: Constants.SYSTEM_USER_ID,
+                value: config,
+                permissionRead: 2,
+                permissionWrite: 0
+            }]);
     }
     function loadUserState(nk, userId, gameId) {
-        var data = Storage.readJson(nk, QUEST_ENGINE_COLLECTION, Constants.gameKey(gameId, "state"), userId);
-        return data || { quests: {} };
+        var rows = [];
+        try {
+            rows = nk.storageRead([{
+                    collection: QUEST_ENGINE_COLLECTION,
+                    key: stateKey(gameId, userId),
+                    userId: userId
+                }]);
+        }
+        catch (_) { }
+        if (rows && rows.length > 0 && rows[0].value) {
+            return rows[0].value;
+        }
+        return { quests: {} };
     }
     function saveUserState(nk, userId, gameId, state) {
-        // permissionWrite: 0 = server-only writes (prevents client-side cheating)
-        Storage.writeJson(nk, QUEST_ENGINE_COLLECTION, Constants.gameKey(gameId, "state"), userId, state, 1, 0);
+        // permissionWrite: 0 — server-only writes prevent client-side cheating.
+        // permissionRead: 1 — owner can read their own state.
+        nk.storageWrite([{
+                collection: QUEST_ENGINE_COLLECTION,
+                key: stateKey(gameId, userId),
+                userId: userId,
+                value: state,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
     }
     // ─── Helpers ──────────────────────────────────────────────────────────────
     function getOrCreateQuestProgress(state, questId) {
@@ -34760,9 +35026,23 @@ var QuestEngine;
     function shouldResetQuest(config, progress, now) {
         if (!config.repeatable || !progress.completedAt)
             return false;
-        if (!config.resetIntervalSec)
-            return false;
-        return now >= (progress.completedAt + config.resetIntervalSec);
+        // resetIntervalSec takes priority (custom interval).
+        if (config.resetIntervalSec) {
+            return now >= (progress.completedAt + config.resetIntervalSec);
+        }
+        // Calendar-based reset derived from category.
+        // A quest completed in a previous window should reset once the new window starts.
+        var cat = config.category || "";
+        if (cat === "daily") {
+            return now >= nextMidnightUtc(progress.completedAt);
+        }
+        if (cat === "weekly") {
+            return now >= nextMondayMidnightUtc(progress.completedAt);
+        }
+        if (cat === "monthly") {
+            return now >= nextMonthStartUtc(progress.completedAt);
+        }
+        return false;
     }
     function resetQuestProgress(progress, now) {
         progress.steps = {};
@@ -34890,10 +35170,8 @@ var QuestEngine;
             if (shouldResetQuest(qConfig, progress, now)) {
                 resetQuestProgress(progress, now);
             }
-            // Skip already-completed quests (non-repeatable, or repeatable not yet reset)
-            if (progress.completedAt && !qConfig.repeatable)
-                continue;
-            if (progress.completedAt && qConfig.repeatable)
+            // Skip quests that are still completed (non-repeatable, or repeatable window not expired yet)
+            if (progress.completedAt)
                 continue;
             var questUpdated = false;
             for (var s = 0; s < qConfig.steps.length; s++) {
@@ -34908,7 +35186,12 @@ var QuestEngine;
                 if (!progress.startedAt)
                     progress.startedAt = now;
                 var prevCount = progress.steps[stepCfg.id].count;
-                progress.steps[stepCfg.id].count = Math.min(prevCount + 1, stepCfg.requiredCount);
+                // For count-based steps (requiredValue not set) increment by 1 each event.
+                // For accumulation steps (e.g. "earn 500 XP") increment by the event value.
+                // Either way, never add more than the remaining delta so the count stays
+                // accurate even when the same event fires multiple times in a session.
+                var increment = (stepCfg.requiredValue !== undefined && stepCfg.requiredValue !== null && value > 0) ? value : 1;
+                progress.steps[stepCfg.id].count = Math.min(prevCount + increment, stepCfg.requiredCount);
                 questUpdated = true;
                 // Fire event only on the incomplete→complete transition
                 if (prevCount < stepCfg.requiredCount &&
@@ -34958,6 +35241,7 @@ var QuestEngine;
             saveUserState(nk, userId, gameId, state);
         }
         // ── Phase 3: grant auto-rewards (isolated, non-fatal) ────────────────────
+        var anyClaimedAt = false;
         for (var r = 0; r < rewardPending.length; r++) {
             var rq = rewardPending[r];
             try {
@@ -34965,14 +35249,15 @@ var QuestEngine;
                 RewardEngine.grantReward(nk, logger, ctx, userId, gameId, resolved);
                 state.quests[rq.questId].claimedAt = now;
                 updatedQuests[rq.questId].claimedAt = now;
+                anyClaimedAt = true;
                 logger.info("[QuestEngine] Reward auto-granted: quest=%s user=%s", rq.questId, userId);
             }
             catch (rewardErr) {
                 logger.error("[QuestEngine] Reward grant failed (claimedAt stays null, client can retry): quest=%s err=%s", rq.questId, (rewardErr && rewardErr.message ? rewardErr.message : String(rewardErr)));
             }
         }
-        // Save again only if any claimedAt was set in Phase 3
-        if (rewardPending.length > 0 && updatedCount > 0) {
+        // Only write again if at least one claimedAt was actually set in Phase 3
+        if (anyClaimedAt) {
             saveUserState(nk, userId, gameId, state);
         }
         return RpcHelpers.successResponse({ updatedQuests: updatedCount, quests: updatedQuests });
@@ -35008,26 +35293,74 @@ var QuestEngine;
     }
     // ─── RPC: quest_engine_admin_save_config ─────────────────────────────────
     // Saves quest config to storage. Server-key only — rejects authenticated users.
+    //
+    // Accepts two equivalent payload shapes (as documented in KT Section 11):
+    //   (a) Keyed-map form:  { "gameId": "...", "config": { "quests": { "q1": {...} } } }
+    //   (b) Array form:      { "gameId": "...", "quests": [ { "id": "q1", ... } ] }
+    // Both are normalised to QuestsConfig internally before saving.
     function rpcQuestEngineAdminSaveConfig(ctx, logger, nk, payload) {
         if (!isAdminCaller(ctx)) {
             return RpcHelpers.errorResponse("Forbidden: server key required");
         }
         var data = RpcHelpers.parseRpcPayload(payload);
         var gameId = resolveGameId(data);
-        var config = data.config;
-        if (!config || !config.quests)
-            return RpcHelpers.errorResponse("config.quests is required");
+        var config;
+        // Shape (a): { config: { quests: { ... } } }
+        if (data.config && data.config.quests && !Array.isArray(data.config.quests)) {
+            config = data.config;
+        }
+        // Shape (b): { quests: [ { id, name, ... } ] }  — KT Section 11 canonical form
+        else if (Array.isArray(data.quests)) {
+            var map = {};
+            var arr = data.quests;
+            for (var qi = 0; qi < arr.length; qi++) {
+                var q = arr[qi];
+                if (!q.id)
+                    return RpcHelpers.errorResponse("Each quest in quests[] must have an id field");
+                map[q.id] = q;
+            }
+            config = { quests: map };
+        }
+        else {
+            return RpcHelpers.errorResponse("Payload must contain config.quests (object) or quests (array)");
+        }
         var questCount = Object.keys(config.quests).length;
         saveConfig(nk, gameId, config);
         logger.info("[QuestEngine] Config saved: gameId=%s quests=%d", gameId, questCount);
         return RpcHelpers.successResponse({ saved: true, questCount: questCount });
     }
+    // ─── RPC: quest_engine_admin_get_config ──────────────────────────────────
+    // Returns the stored quest config for a game. Server-key only.
+    function rpcQuestEngineAdminGetConfig(ctx, logger, nk, payload) {
+        if (!isAdminCaller(ctx)) {
+            return RpcHelpers.errorResponse("Forbidden: server key required");
+        }
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var config = loadConfig(nk, gameId);
+        var questCount = Object.keys(config.quests).length;
+        logger.info("[QuestEngine] Config retrieved: gameId=%s quests=%d", gameId, questCount);
+        return RpcHelpers.successResponse({ config: config, questCount: questCount });
+    }
     // ─── Register ─────────────────────────────────────────────────────────────
     function register(initializer) {
-        initializer.registerRpc("quest_engine_get", rpcQuestEngineGet);
-        initializer.registerRpc("quest_engine_record_event", rpcQuestEngineRecordEvent);
-        initializer.registerRpc("quest_engine_claim_reward", rpcQuestEngineClaimReward);
+        function auth(fn) {
+            var wrapped = null;
+            return function (ctx, logger, nk, payload) {
+                if (!wrapped) {
+                    var strictFn = fn;
+                    wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+                        ? RpcHelpers.withCleanAuthError(strictFn)
+                        : strictFn;
+                }
+                return wrapped(ctx, logger, nk, payload);
+            };
+        }
+        initializer.registerRpc("quest_engine_get", auth(rpcQuestEngineGet));
+        initializer.registerRpc("quest_engine_record_event", auth(rpcQuestEngineRecordEvent));
+        initializer.registerRpc("quest_engine_claim_reward", auth(rpcQuestEngineClaimReward));
         initializer.registerRpc("quest_engine_admin_save_config", rpcQuestEngineAdminSaveConfig);
+        initializer.registerRpc("quest_engine_admin_get_config", rpcQuestEngineAdminGetConfig);
     }
     QuestEngine.register = register;
 })(QuestEngine || (QuestEngine = {}));
