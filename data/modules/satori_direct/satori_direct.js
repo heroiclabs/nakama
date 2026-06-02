@@ -438,9 +438,16 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
         var ts = (typeof e.timestamp === "number") ? Math.floor(e.timestamp) : Math.floor(Date.now() / 1000);
         var rawName = e.name || "";
 
-        // All events are forwarded to Satori — allowlist removed so every
-        // QuizVerse event reaches Satori segments, flags, and live-ops.
-        // Synthetic events (_sessionStart etc.) are still stripped below.
+        // Only allowlisted events go to Satori. Non-allowlisted internal events
+        // (ui_idle_detected, screen_time_*, etc.) are stored in the in-house
+        // dash_* collection (the authoritative source) but must NOT be forwarded
+        // to Satori — Satori rejects any event name not registered in its taxonomy
+        // (code 3: "Event batch contained invalid events") and the 400 pollutes
+        // the log with noise for every internal tracking event. The allowlist
+        // maps to exactly the events pre-registered in the Satori Console taxonomy.
+        // To expose a new event to Satori: add its name to SD_EVENT_ALLOWLIST
+        // AND register it in Satori Settings → Taxonomy → Events.
+        if (!sdIsAllowlisted(rawName)) { filteredOut++; continue; }
 
         var name = sdNormalizeEventName(rawName);
         if (!name) { dropped++; continue; }  // synthetic events stripped

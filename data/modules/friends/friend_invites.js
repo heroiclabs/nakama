@@ -308,7 +308,10 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
             // Don't reveal — generic error
             return _fiErr('Unable to send invite at this time', 'send_blocked');
         }
-    } catch (_) { /* fail-open on block lookup */ }
+    } catch (blockErr) {
+        logger.warn('[FriendInvites] block lookup failed (fail-closed): ' + (blockErr.message || blockErr));
+        return _fiErr('Unable to verify block status. Try again.', 'block_check_failed');
+    }
 
     // ── Already-friends / already-pending short-circuits ───────────────────
     if (callerRel === FR_STATE_FRIEND) {
@@ -466,6 +469,33 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     if (invite.status !== INVITE_STATUS_PENDING) {
         return _fiErr('This invite has already been ' + invite.status,
                       'invite_not_pending', { currentStatus: invite.status });
+    }
+
+    // Graph is source of truth — reconcile storage when already friends/blocked.
+    var acceptRel = _fiNakamaRelation(nk, userId, invite.fromUserId);
+    if (acceptRel === FR_STATE_BLOCKED) {
+        return _fiErr('You cannot accept an invite from a blocked user', 'caller_blocked_target');
+    }
+    if (acceptRel === FR_STATE_FRIEND) {
+        invite.status     = INVITE_STATUS_ACCEPTED;
+        invite.acceptedAt = invite.acceptedAt || _fiNowIso();
+        invite.updatedAt  = _fiNowIso();
+        try {
+            nk.storageWrite([{
+                collection:      FRIEND_INVITES_COLLECTION,
+                key:             inviteId,
+                userId:          userId,
+                value:           invite,
+                version:         rowVersion || undefined,
+                permissionRead:  1,
+                permissionWrite: 0
+            }]);
+        } catch (reconcileErr) {
+            logger.warn('[FriendInvites] accept reconcile storageWrite: ' + reconcileErr.message);
+        }
+        return _fiOk({ inviteId: inviteId, alreadyFriends: true,
+                       friendUserId: invite.fromUserId,
+                       friendDisplayName: invite.fromDisplayName });
     }
 
     // Add the reciprocal friend edge. Combined with the INVITE_SENT
@@ -732,6 +762,9 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
             if (!o || !o.value) continue;
             if (o.value.status !== INVITE_STATUS_PENDING) continue;
             if (o.value.targetUserId !== userId) continue; // safety
+            // Drop stale rows when Nakama graph already shows mutual friend or block.
+            var inRel = _fiNakamaRelation(nk, userId, o.value.fromUserId);
+            if (inRel === FR_STATE_FRIEND || inRel === FR_STATE_BLOCKED) continue;
             incoming.push({
                 inviteId:        o.value.inviteId,
                 fromUserId:      o.value.fromUserId,

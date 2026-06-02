@@ -94,6 +94,150 @@ function _qeBuildConsentContext(nk, userId, session, events) {
   return out;
 }
 
+var _QE_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+var _QE_GPA_COLLECTION = "game_player_analytics";
+
+/** Expand a GPA ring-buffer tuple {n,t,d} into a normalized analytics event. */
+function _qeExpandGpaEvent(doc, ev) {
+  var unixSec = parseInt(ev.t, 10) || 0;
+  var ed = ev.d || {};
+  return {
+    eventName: String(ev.n || "unknown"),
+    eventData: ed,
+    userId: doc.user_id || "",
+    gameId: doc.game_id || "",
+    platform: doc.platform || "unknown",
+    unixTimestamp: unixSec,
+    timestamp: unixSec,
+    sessionId: ed.session_id ? String(ed.session_id) : ""
+  };
+}
+
+/**
+ * O(1) read from game_player_analytics (per-player docs). Returns [] when
+ * the user has no GPA doc; null when storage read failed (caller may SQL-fallback).
+ */
+function _qeLoadEventsFromGpa(nk, userId, activeSinceDays, maxEvents, gameId) {
+  var cutoffSec = activeSinceDays > 0
+    ? Math.floor(Date.now() / 1000) - (activeSinceDays * 86400)
+    : 0;
+  var docs = [];
+  try {
+    if (gameId) {
+      var keyed = nk.storageRead([{
+        collection: _QE_GPA_COLLECTION,
+        key: gameId + ":" + userId,
+        userId: userId
+      }]);
+      if (keyed && keyed.length > 0 && keyed[0].value) docs.push(keyed[0].value);
+    } else {
+      var cursor = "";
+      var pages = 0;
+      do {
+        var page = nk.storageList(userId, _QE_GPA_COLLECTION, 25, cursor);
+        if (!page || !page.objects || page.objects.length === 0) break;
+        for (var pi = 0; pi < page.objects.length; pi++) {
+          if (page.objects[pi].value) docs.push(page.objects[pi].value);
+        }
+        cursor = page.cursor || "";
+        pages++;
+      } while (cursor && pages < 20);
+    }
+  } catch (e) {
+    return null;
+  }
+
+  var out = [];
+  for (var di = 0; di < docs.length; di++) {
+    var doc = docs[di] || {};
+    var buf = doc.events || [];
+    for (var ei = 0; ei < buf.length; ei++) {
+      var expanded = _qeExpandGpaEvent(doc, buf[ei]);
+      if (cutoffSec > 0 && expanded.unixTimestamp < cutoffSec) continue;
+      out.push(expanded);
+    }
+  }
+  out.sort(function (a, b) {
+    return (b.unixTimestamp || 0) - (a.unixTimestamp || 0);
+  });
+  if (out.length > maxEvents) out = out.slice(0, maxEvents);
+  return out;
+}
+
+/** Slow fallback: full-table scan on analytics_events JSON userId. */
+function _qeLoadEventsFromAnalyticsSql(nk, userId, activeSinceDays, maxEvents) {
+  var sql =
+    "SELECT value FROM storage " +
+    "WHERE collection = 'analytics_events' " +
+    "AND value->>'userId' = $1 ";
+  var params;
+  if (activeSinceDays > 0) {
+    sql += "AND update_time >= (CURRENT_TIMESTAMP - ($2::int * interval '1 day')) " +
+           "ORDER BY update_time DESC LIMIT $3::int";
+    params = [userId, activeSinceDays, maxEvents];
+  } else {
+    sql += "ORDER BY update_time DESC LIMIT $2::int";
+    params = [userId, maxEvents];
+  }
+  var rows = nk.sqlQuery(sql, params);
+  var events = [];
+  for (var i = 0; i < rows.length; i++) {
+    var parsed = _qeDecodeJson(rows[i].value);
+    if (parsed) events.push(parsed);
+  }
+  return events;
+}
+
+/** Prefer GPA ring buffer; SQL-scan only when GPA is empty or unreadable. */
+function _qeLoadEventsForUser(nk, logger, userId, activeSinceDays, maxEvents, gameId) {
+  var fromGpa = _qeLoadEventsFromGpa(nk, userId, activeSinceDays, maxEvents, gameId);
+  if (fromGpa !== null && fromGpa.length > 0) return fromGpa;
+  try {
+    return _qeLoadEventsFromAnalyticsSql(nk, userId, activeSinceDays, maxEvents);
+  } catch (e) {
+    if (logger && logger.warn) {
+      logger.warn("[QeAnalytics] analytics_events SQL fallback failed for " +
+        userId + ": " + (e.message || e));
+    }
+    return fromGpa || [];
+  }
+}
+
+/** Active cohort from GPA (indexed user_id); falls back to analytics_events JSON scan. */
+function _qeLoadActiveCohortUserIds(nk, logger, activeSinceDays, limit) {
+  try {
+    var gpaRows = nk.sqlQuery(
+      "SELECT user_id::text AS uid, MAX(update_time) AS last_seen " +
+      "FROM storage " +
+      "WHERE collection = $1 " +
+      "AND update_time >= (CURRENT_TIMESTAMP - ($2::int * interval '1 day')) " +
+      "AND user_id IS NOT NULL " +
+      "AND user_id <> $3 " +
+      "GROUP BY user_id " +
+      "ORDER BY last_seen DESC LIMIT $4::int",
+      [_QE_GPA_COLLECTION, activeSinceDays, _QE_SYSTEM_USER_ID, limit]
+    );
+    if (gpaRows && gpaRows.length > 0) return gpaRows;
+  } catch (eGpa) {
+    if (logger && logger.warn) {
+      logger.warn("[QeAnalytics] GPA cohort query failed, falling back: " +
+        (eGpa.message || eGpa));
+    }
+  }
+  return nk.sqlQuery(
+    "SELECT value->>'userId' AS uid, MAX(update_time) AS last_seen " +
+    "FROM storage " +
+    "WHERE collection = 'analytics_events' " +
+    "AND update_time >= (CURRENT_TIMESTAMP - ($1::int * interval '1 day')) " +
+    "AND value->>'userId' IS NOT NULL " +
+    "AND value->>'userId' <> '' " +
+    "AND value->>'userId' <> $2 " +
+    "GROUP BY value->>'userId' " +
+    "ORDER BY last_seen DESC LIMIT $3::int",
+    [activeSinceDays, _QE_SYSTEM_USER_ID, limit]
+  );
+}
+
 // 2026-04 polish — return HTTP 400 (not generic 500) when callers send a
 // malformed payload or omit a required field. Nakama's JS runtime expects
 // the thrown `code` field to be a **gRPC status code** (0-16), NOT an HTTP
@@ -248,55 +392,22 @@ function rpcQeCohortExport(ctx, logger, nk, payload) {
   var activeSinceDays = Number(input.active_since_days) || 30;
   var limit = Math.min(Number(input.limit) || 500, 2000);
   var maxEventsPerUser = Math.min(Number(input.max_events_per_user) || 500, 1000);
+  var gameId = input.game_id || input.gameId || null;
 
   try {
-    // ── Source of truth: `analytics_events` (NOT user_sessions/GPA) ──
-    // In production the legacy `user_sessions/current` rows and the
-    // `game_player_analytics` ring buffer are never populated — Unity writes
-    // straight to `analytics_events` via persistNormalizedEvent (analytics.js),
-    // one row per event under SYSTEM_USER with a `dash_<gameId>_<date>_*` key
-    // and `value` = the normalized event { userId, gameId, eventName,
-    // eventData, unixTimestamp, timestamp, ... }. Reading user_sessions/GPA
-    // here always returned count=0 / events=null, which starved the
-    // analytics-knowledge sync. We now derive the active cohort AND each
-    // user's recent events directly from `analytics_events`.
-    //
-    // Step 1 — distinct active learners in the window, most-recent first.
-    var userRows = nk.sqlQuery(
-      "SELECT value->>'userId' AS uid, MAX(update_time) AS last_seen " +
-      "FROM storage " +
-      "WHERE collection = 'analytics_events' " +
-      "AND update_time >= (CURRENT_TIMESTAMP - ($1::int * interval '1 day')) " +
-      "AND value->>'userId' IS NOT NULL " +
-      "AND value->>'userId' <> '' " +
-      "AND value->>'userId' <> '00000000-0000-0000-0000-000000000000' " +
-      "GROUP BY value->>'userId' " +
-      "ORDER BY last_seen DESC LIMIT $2::int",
-      [activeSinceDays, limit]
-    );
+    // Step 1 — active learners (GPA fast path uses indexed storage.user_id).
+    var userRows = _qeLoadActiveCohortUserIds(nk, logger, activeSinceDays, limit);
 
     var cohort = [];
     for (var k = 0; k < userRows.length; k++) {
       var uid = userRows[k].uid;
       if (!uid) continue;
 
-      // Step 2 — that user's recent events (newest-first, bounded). Returned
-      // as the full normalized event objects so the downstream profile
-      // builder can read `eventName` + merged `eventData` directly.
       var events = [];
       try {
-        var evRows = nk.sqlQuery(
-          "SELECT value FROM storage " +
-          "WHERE collection = 'analytics_events' " +
-          "AND value->>'userId' = $1 " +
-          "AND update_time >= (CURRENT_TIMESTAMP - ($2::int * interval '1 day')) " +
-          "ORDER BY update_time DESC LIMIT $3::int",
-          [uid, activeSinceDays, maxEventsPerUser]
+        events = _qeLoadEventsForUser(
+          nk, logger, uid, activeSinceDays, maxEventsPerUser, gameId
         );
-        for (var e = 0; e < evRows.length; e++) {
-          var parsed = _qeDecodeJson(evRows[e].value);
-          if (parsed) events.push(parsed);
-        }
       } catch (eEv) {
         logger.warn('[QeAnalytics] event fetch failed for ' + uid + ': ' + eEv);
       }
@@ -335,32 +446,12 @@ function rpcQeUserEventSummary(ctx, logger, nk, payload) {
   // Optional window (days); 0/absent = all-time. Bounded event cap.
   var activeSinceDays = Number(input.active_since_days) || 0;
   var maxEvents = Math.min(Number(input.limit) || 500, 1000);
+  var gameId = input.game_id || input.gameId || null;
 
-  // Events live in `analytics_events` (value->>'userId' = this user). The
-  // legacy `game_player_analytics` ring buffer is never populated in
-  // production, so we read the durable in-house event store directly and
-  // return the full normalized event objects newest-first.
   try {
-    var sql =
-      "SELECT value FROM storage " +
-      "WHERE collection = 'analytics_events' " +
-      "AND value->>'userId' = $1 ";
-    var params;
-    if (activeSinceDays > 0) {
-      sql += "AND update_time >= (CURRENT_TIMESTAMP - ($2::int * interval '1 day')) " +
-             "ORDER BY update_time DESC LIMIT $3::int";
-      params = [userId, activeSinceDays, maxEvents];
-    } else {
-      sql += "ORDER BY update_time DESC LIMIT $2::int";
-      params = [userId, maxEvents];
-    }
-
-    var rows = nk.sqlQuery(sql, params);
-    var events = [];
-    for (var i = 0; i < rows.length; i++) {
-      var parsed = _qeDecodeJson(rows[i].value);
-      if (parsed) events.push(parsed);
-    }
+    var events = _qeLoadEventsForUser(
+      nk, logger, userId, activeSinceDays, maxEvents, gameId
+    );
     if (events.length) {
       return JSON.stringify({
         events: events,

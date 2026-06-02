@@ -1573,7 +1573,10 @@ function rpcAnalyticsEventsToday(ctx, logger, nk, payload) {
     try {
         var docs = nk.storageRead([{ collection: "analytics_metrics_counters", key: key, userId: SYSTEM_USER }]);
         if (docs && docs.length > 0) {
-            rec = JSON.parse(docs[0].value);
+            // docs[0].value is already a parsed JS object (nk.storageRead deserialises JSON);
+            // JSON.parse on an object would throw — handle both forms safely.
+            var raw = docs[0].value;
+            rec = (raw && typeof raw === "object") ? raw : JSON.parse(raw);
         }
     } catch (e) {
         logger.warn("[analytics_events_today] storageRead failed: " + e.message);

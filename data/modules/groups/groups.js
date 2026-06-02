@@ -693,10 +693,13 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
             logger.warn("[Groups] Failed to check user membership: " + err.message);
         }
 
+        // Non-members (and non-pending joiners) only receive a public summary.
+        var canViewPrivateDetails = isMember || joinRequestPending;
+
         // 3. Get group members if requested
         var members = [];
         var memberCount = Math.max(0, group.edgeCount || 0);
-        if (includeMembers) {
+        if (includeMembers && canViewPrivateDetails) {
             try {
                 var groupMembers = nk.groupUsersList(groupId, memberLimit, null, "");
                 if (groupMembers && groupMembers.groupUsers) {
@@ -730,7 +733,7 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
 
         // 4. Get group activity feed if requested
         var activity = [];
-        if (includeActivity) {
+        if (includeActivity && canViewPrivateDetails) {
             try {
                 var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
                 var activityRecords = nk.storageList(SYSTEM_USER_ID, "group_activity", activityLimit, "");
@@ -775,9 +778,9 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
             }
         }
 
-        // 5. Get group wallet balance
+        // 5. Get group wallet balance (members only)
         var wallet = null;
-        try {
+        if (canViewPrivateDetails) try {
             var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
             var walletKey = "group_wallet_" + groupId;
             var walletRecords = nk.storageRead([{
@@ -807,9 +810,9 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
             // Leaderboard may not exist, that's okay
         }
 
-        // 7. Get active group quests
+        // 7. Get active group quests (members only)
         var activeQuests = [];
-        try {
+        if (canViewPrivateDetails) try {
             var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
             var questRecords = nk.storageList(SYSTEM_USER_ID, "group_quests", 50, "");
             
@@ -845,6 +848,40 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
         }
 
         logger.info("[Groups] Retrieved details for group: " + groupId);
+
+        if (!canViewPrivateDetails) {
+            return JSON.stringify({
+                success: true,
+                group: {
+                    id: group.id,
+                    name: group.name,
+                    description: group.description || "",
+                    avatarUrl: group.avatarUrl || "",
+                    langTag: group.langTag || "en",
+                    open: group.open,
+                    memberCount: memberCount,
+                    maxCount: group.maxCount
+                },
+                stats: {
+                    level: currentLevel,
+                    memberCount: memberCount
+                },
+                membership: {
+                    isMember: false,
+                    joinRequestPending: joinRequestPending,
+                    userRole: userRole,
+                    userRoleName: userRole !== null ? getRoleName(userRole) : null,
+                    isOwner: false,
+                    isAdmin: false
+                },
+                members: [],
+                activity: [],
+                wallet: null,
+                quests: [],
+                metadata: {},
+                timestamp: new Date().toISOString()
+            });
+        }
 
         return JSON.stringify({
             success: true,
