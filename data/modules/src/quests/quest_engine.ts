@@ -585,13 +585,15 @@ namespace QuestEngine {
     // When register() is auto-invoked at IIFE scope by the postbuild script,
     // RpcHelpers may not be initialised yet (it lives in a later IIFE). Use a
     // lazy wrapper so the actual wrapping is deferred to first-call time.
+    type StrictRpc = (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string;
     function auth(fn: nkruntime.RpcFunction): nkruntime.RpcFunction {
-      var wrapped: nkruntime.RpcFunction | null = null;
-      return function(ctx, logger, nk, payload) {
+      var wrapped: StrictRpc | null = null;
+      return function(ctx, logger, nk, payload): string {
         if (!wrapped) {
+          const strictFn = fn as StrictRpc;
           wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
-            ? RpcHelpers.withCleanAuthError(fn)
-            : fn;
+            ? RpcHelpers.withCleanAuthError(strictFn)
+            : strictFn;
         }
         return wrapped(ctx, logger, nk, payload);
       };
