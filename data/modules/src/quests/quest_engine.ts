@@ -581,7 +581,21 @@ namespace QuestEngine {
   // ─── Register ─────────────────────────────────────────────────────────────
 
   export function register(initializer: nkruntime.Initializer): void {
-    var auth = RpcHelpers.withCleanAuthError;
+    // withCleanAuthError wraps a handler once at registration time.
+    // When register() is auto-invoked at IIFE scope by the postbuild script,
+    // RpcHelpers may not be initialised yet (it lives in a later IIFE). Use a
+    // lazy wrapper so the actual wrapping is deferred to first-call time.
+    function auth(fn: nkruntime.RpcFunction): nkruntime.RpcFunction {
+      var wrapped: nkruntime.RpcFunction | null = null;
+      return function(ctx, logger, nk, payload) {
+        if (!wrapped) {
+          wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+            ? RpcHelpers.withCleanAuthError(fn)
+            : fn;
+        }
+        return wrapped(ctx, logger, nk, payload);
+      };
+    }
     initializer.registerRpc("quest_engine_get",               auth(rpcQuestEngineGet));
     initializer.registerRpc("quest_engine_record_event",      auth(rpcQuestEngineRecordEvent));
     initializer.registerRpc("quest_engine_claim_reward",      auth(rpcQuestEngineClaimReward));
