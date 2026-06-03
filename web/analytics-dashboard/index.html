@@ -2106,6 +2106,7 @@
                         <button class="card-btn" onclick="adminMetrics()">📈 Metrics Snapshot</button>
                         <button class="card-btn" onclick="adminFeatureFlags()">🚩 Feature Flags</button>
                         <button class="card-btn" onclick="adminRetentionPreview()">👥 Retention Preview</button>
+                        <button class="card-btn" style="background:#7c3aed;color:#fff;font-weight:600;" onclick="adminRegisterTaxonomy()">🏷️ Register Satori Taxonomy</button>
                     </div>
                     <div id="adminActionContent" style="color:var(--text-secondary);font-family:monospace;font-size:0.85rem;white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--bg-secondary);border-radius:8px;padding:0.75rem;">Action output will appear here.</div>
                 </div>
@@ -7488,6 +7489,27 @@
                 appendAdminOutput(`Retention Preview (${gameId}, 14d) →`, data);
             } catch (e) {
                 appendAdminOutput('Retention Preview FAILED', { error: e.message });
+            }
+        }
+
+        async function adminRegisterTaxonomy() {
+            appendAdminOutput('Registering Satori taxonomy — this may take 10–30s…', {});
+            try {
+                const data = await callRpc('satori_register_taxonomy', { gameId: QV_GAME_ID }, { bypassCache: true });
+                const registered = data.registered || 0;
+                const failed     = data.failed     || 0;
+                const skipped    = data.skipped    || 0;
+                appendAdminOutput(
+                    `Satori Taxonomy → ${registered} registered, ${skipped} skipped, ${failed} failed`,
+                    data
+                );
+                if (failed > 0) {
+                    appendAdminOutput('⚠️ Some names still failing — check Satori console → Taxonomy for conflicts.', {});
+                } else {
+                    appendAdminOutput('✅ Taxonomy up to date. Satori will now accept all mapped event names.', {});
+                }
+            } catch (e) {
+                appendAdminOutput('Register Taxonomy FAILED', { error: e.message });
             }
         }
 
