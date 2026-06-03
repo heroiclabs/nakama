@@ -68,7 +68,7 @@ var SI_SYSTEM_USER      = "00000000-0000-0000-0000-000000000000";
 var SI_ADMIN_COLLECTION = "admin_users";
 var SI_GPA_COLLECTION   = "game_player_analytics";
 var SI_STATE_COLLECTION = "analytics_satori_id_state";
-var SI_DEFAULT_GAME_ID  = "default";
+var SI_DEFAULT_GAME_ID  = "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse
 
 // Minimum seconds between re-syncs for the same user. The batch RPC
 // skips anyone synced more recently than this threshold so a single

@@ -187,10 +187,7 @@ function rpcExternalPollAppodeal(ctx, logger, nk, payload) {
         return epOk({ skipped: true, reason: rate.reason, seconds_until_next: rate.secondsUntilNext, last_poll: rate.lastPoll });
     }
 
-    if (!epEnv(ctx, "APPODEAL_API_KEY") || !epEnv(ctx, "APPODEAL_USER_ID")) {
-        epRecordPoll(nk, "appodeal", false, { error: "APPODEAL credentials missing" });
-        return epErr("APPODEAL_API_KEY / APPODEAL_USER_ID not set in runtime env", 503);
-    }
+    // Credentials are hardcoded in external_analytics.js — no env-var guard needed.
 
     var gameId = data.gameId || epDefaultGameId(ctx);
     var dateStr = data.date || epYesterday();
@@ -295,10 +292,7 @@ function rpcExternalPollUgs(ctx, logger, nk, payload) {
         return epOk({ skipped: true, reason: rate.reason, seconds_until_next: rate.secondsUntilNext, last_poll: rate.lastPoll });
     }
 
-    if (!epEnv(ctx, "UNITY_KEY_ID") || !epEnv(ctx, "UNITY_SECRET_KEY")) {
-        epRecordPoll(nk, "ugs", false, { error: "Unity credentials missing" });
-        return epErr("UNITY_KEY_ID / UNITY_SECRET_KEY not set", 503);
-    }
+    // LevelPlay / Unity credentials hardcoded in external_analytics.js (UNITY_KEY_ID_HC).
 
     var gameId = data.gameId || epDefaultGameId(ctx);
     var dateStr = data.date || epYesterday();

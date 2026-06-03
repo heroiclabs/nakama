@@ -179,12 +179,18 @@ function ahFreshnessStatus(stage, lastSec) {
  * Reports pipeline freshness for each stage.
  * Payload: { game_id? } — optional game_id for rollup-specific check.
  */
+function ahResolveGameId(gameId) {
+    if (!gameId || gameId === "all") return gameId;
+    try { if (typeof resolveGameIdAlias === 'function') return resolveGameIdAlias(gameId); } catch (e) {}
+    return gameId;
+}
+
 function rpcAnalyticsFreshnessCheck(ctx, logger, nk, payload) {
     var data = ahParse(payload);
     var gate = ahRequireAdmin(ctx, nk, data);
     if (!gate.ok) return ahErr(gate.reason, 401);
 
-    var gameId = data.game_id || data.gameId || "all";
+    var gameId = ahResolveGameId(data.game_id || data.gameId || "all");
     var stages = {};
 
     // ── 1. Event ingest — last event ingested today (any game). ─────────
@@ -482,8 +488,11 @@ function rpcAnalyticsEnforcementStatus(ctx, logger, nk, payload) {
                          "Safe to set ANALYTICS_ENFORCE_SCHEMA=true.";
     } else if (v2Warnings > 0) {
         recommendation = "Found " + v2Warnings + " v2 schema warnings today " +
-                         "(" + warningDensityPct + "% of v2 events). Fix client-side before enabling enforcement. " +
-                         "Most common cause: missing client_event_id or event_time in schema_version=2 events.";
+                         "(" + warningDensityPct + "% of v2 events). Call analytics_data_quality RPC to see " +
+                         "top_v2_warning_types. Common causes: (1) v2_event_time_out_of_range — client sends ISO-8601 " +
+                         "event_time which was incorrectly parsed (fixed in server v2.1+); " +
+                         "(2) v2_recommended_missing:session_id — session not yet initialised when event fired; " +
+                         "(3) v2_required_missing:client_event_id — client not on schema v2 yet.";
     } else {
         recommendation = "No v2 events seen today — make sure Unity clients send schema_version=2 first.";
     }

@@ -528,23 +528,35 @@ function getDateKey(daysOffset) {
     return d.toISOString().slice(0, 10);
 }
 
+function aoResolveGameId(gameId) {
+    if (!gameId) return gameId;
+    try { if (typeof resolveGameIdAlias === 'function') return resolveGameIdAlias(gameId); } catch (e) {}
+    return gameId;
+}
+
 function rpcAnalyticsDauAlertCheck(ctx, logger, nk, payload) {
     var data = aoParse(payload);
     var gate = aoRequireAdmin(ctx, nk, data);
     if (!gate.ok) return aoErr(gate.reason, 401);
 
-    var todayKey     = getDateKey(0);
-    var yesterdayKey = getDateKey(-1);
+    // DAU is stored in analytics_dau, not analytics_live_daily.
+    // Keys: dau_{gameId}_{YYYY-MM-DD}  (per-game)  or  dau_platform_{YYYY-MM-DD}  (all)
+    // analytics_live_daily keys are live_{gameId}_{date} — different collection/key.
+    var gameId = aoResolveGameId(data.game_id || data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b");
+    var todayDate     = getDateKey(0);
+    var yesterdayDate = getDateKey(-1);
+    var todayDauKey     = "dau_" + gameId + "_" + todayDate;
+    var yesterdayDauKey = "dau_" + gameId + "_" + yesterdayDate;
 
     var todayDau = 0, yesterdayDau = 0;
     try {
-        var t = nk.storageRead([{ collection: "analytics_live_daily", key: todayKey, userId: AO_SYSTEM_USER }]);
-        if (t && t.length > 0 && t[0].value) todayDau = t[0].value.dau || 0;
+        var t = nk.storageRead([{ collection: "analytics_dau", key: todayDauKey, userId: AO_SYSTEM_USER }]);
+        if (t && t.length > 0 && t[0].value) todayDau = t[0].value.unique_users || t[0].value.count || 0;
     } catch (e) { logger.warn("[dau_alert] Failed to read today DAU: " + e.message); }
 
     try {
-        var y = nk.storageRead([{ collection: "analytics_live_daily", key: yesterdayKey, userId: AO_SYSTEM_USER }]);
-        if (y && y.length > 0 && y[0].value) yesterdayDau = y[0].value.dau || 0;
+        var y = nk.storageRead([{ collection: "analytics_dau", key: yesterdayDauKey, userId: AO_SYSTEM_USER }]);
+        if (y && y.length > 0 && y[0].value) yesterdayDau = y[0].value.unique_users || y[0].value.count || 0;
     } catch (e) { logger.warn("[dau_alert] Failed to read yesterday DAU: " + e.message); }
 
     var dropPct = yesterdayDau > 0 ? (1 - todayDau / yesterdayDau) * 100 : 0;

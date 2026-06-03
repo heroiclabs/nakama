@@ -143,7 +143,7 @@ function afterAuthHook(ctx, logger, nk, data, request) {
 function trackDAUOnAuth(nk, logger, userId, isNewUser) {
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
     var today = new Date().toISOString().split("T")[0];
-    var gameId = typeof DEFAULT_GAME_ID !== "undefined" ? DEFAULT_GAME_ID : "f6f7fe36-03de-43b8-8b5d-1a1892da4eed";
+    var gameId = typeof DEFAULT_GAME_ID !== "undefined" ? DEFAULT_GAME_ID : "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse
     var collection = "analytics_dau";
 
     // Write both game-specific and platform-level DAU

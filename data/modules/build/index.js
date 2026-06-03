@@ -20631,7 +20631,7 @@ var LegacyDailyRewards;
             try {
                 var questsApiUrl = (ctx.env && ctx.env["QUESTS_ECONOMY_API_URL"]) || "http://localhost:3001";
                 var webhookSecret = (ctx.env && ctx.env["NAKAMA_WEBHOOK_SECRET"]) || "";
-                var qeGameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) || "f6f7fe36-03de-43b8-8b5d-1a1892da4eed";
+                var qeGameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) || "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse
                 var syncBody = JSON.stringify({ amount: rewardAmount, sourceType: "daily_reward", sourceId: "daily:day_" + status.day, description: "Daily reward day " + status.day });
                 var sigBytes = nk.hmacSha256Hash(webhookSecret, syncBody);
                 var sig = nk.binaryToString(sigBytes);

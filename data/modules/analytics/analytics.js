@@ -731,13 +731,15 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
     var v2EventsCount   = 0;
     var v2WarningsCount = 0;
     var errors = [];
+    var acceptedEventNames = [];
+    var resolvedGameId = null;
 
     for (var i = 0; i < inbound.length; i++) {
         var normalized = normalizeInboundEvent(ctx, inbound[i], nk, logger);
         if (!normalized || normalized.__invalid) {
             rejected++;
             var rejReason = (normalized && normalized.__invalid) || "Invalid event";
-            errors.push({ index: i, reason: rejReason });
+            errors.push({ index: i, event_name: (inbound[i] && inbound[i].eventName) || null, reason: rejReason });
             // Persist to ring buffer so the dashboard's Pipeline tab can show it.
             recordFailedEvent(nk, logger, ctx, inbound[i], rejReason);
             continue;
@@ -745,7 +747,7 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         var err = persistNormalizedEvent(nk, logger, normalized);
         if (err) {
             rejected++;
-            errors.push({ index: i, reason: err });
+            errors.push({ index: i, event_name: (inbound[i] && inbound[i].eventName) || null, reason: err });
             recordFailedEvent(nk, logger, ctx, inbound[i], err);
         } else {
             if (normalized.canonicalized) aliasNormalized++;
@@ -754,6 +756,9 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
                 v2WarningsCount += (normalized.v2Warnings && normalized.v2Warnings.length) || 0;
             }
             accepted++;
+            acceptedEventNames.push(normalized.eventName || (inbound[i] && inbound[i].eventName) || "unknown");
+            // Capture the resolved (canonical UUID) gameId from the first accepted event
+            if (!resolvedGameId && normalized.gameId) resolvedGameId = normalized.gameId;
         }
     }
 
@@ -799,8 +804,12 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         success:          accepted > 0 || rejected === 0,
         accepted:         accepted,
         rejected:         rejected,
+        batch_size:       inbound.length,
+        game_id:          resolvedGameId,
+        server_ts:        Math.floor(Date.now() / 1000),
         alias_normalized: aliasNormalized,
-        schema_v2_events: v2EventsCount
+        schema_v2_events: v2EventsCount,
+        event_names:      acceptedEventNames
     };
     if (v2WarningsCount > 0) resp.v2_warnings_total = v2WarningsCount;
     if (errors.length > 0)   resp.errors = errors.slice(0, 20);

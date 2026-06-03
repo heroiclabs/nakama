@@ -68,62 +68,21 @@ var SD_AUTH_CACHE   = {};       // in-memory per-identity cache (process-local; 
 
 // ─── Phase 3 (2026-05): batching, filtering, identity ──────────────────
 //
-// Q3=B (medium filter) — only canonical events flow to Satori. The other
-// ~250 events still land in the in-house dashboard but never burn Satori
-// quota. Add/remove names here; lower-cased for the same-key lookup as
-// SD_EVENT_MAP.
-var SD_EVENT_ALLOWLIST = {
-    // Lifecycle
-    "session_start": true, "session_end": true, "app_open": true,
-    "app_launched": true, "first_open": true,
-    // Auth
-    "registration_completed": true, "registration_complete": true,
-    "login_success": true,
-    // Onboarding
-    "onboarding_started": true, "onboarding_complete": true,
-    "onboarding_completed": true, "onboarding_abandoned": true,
-    // Quiz core (the big retention drivers)
-    "quiz_start": true, "quiz_started": true,
-    "quiz_complete": true, "quiz_completed": true,
-    "quiz_abandoned": true,
-    "answer_submitted": true,
-    // Monetization (high-signal — every event powers ARPU / paywall A/B)
-    "iap_clicked": true, "iap_purchased": true,
-    "purchase_started": true, "purchase_completed": true,
-    "purchase_failed": true, "iap_impression": true, "iap_failed": true,
-    "ad_requested": true, "ad_shown": true, "ad_impression": true,
-    "ad_completed": true, "ad_load_failed": true, "ad_revenue": true,
-    "paywall_shown": true, "paywall_converted": true,
-    "paywall_dismissed": true, "premium_conversion": true,
-    "store_opened": true,
-    // Retention beats
-    "retention_day_1": true, "retention_day_7": true, "retention_day_30": true,
-    "user_returned": true,
-    // Multiplayer milestones
-    "mp_game_started": true, "mp_game_completed": true,
-    "milestone_first_multiplayer": true,
-    // Errors (high priority — feed Satori segments for alerting)
-    "error_logged": true, "auth_failure": true,
-    // Phase 5 — Satori personalization exposure events.
-    // Fired when Unity fetches flags/experiments so A/B test coverage
-    // is visible in the Satori console and can be sliced by segment.
-    // Also includes identity sync markers so ops can confirm when traits
-    // were last pushed (useful in debugging misfired offers/experiments).
-    "flag_exposure": true, "experiment_exposure": true,
-    "satori_identity_synced": true,
-    // Offer lifecycle (Phase 6 offer engine — allowlisted early so Satori
-    // auto-registers the taxonomy before we start sending production volume).
-    "offer_eligible": true, "offer_assigned": true, "offer_viewed": true,
-    "offer_clicked": true, "offer_purchased": true,
-    "offer_dismissed": true, "offer_cooldown_blocked": true,
-    // Backfill marker — synthesised by analytics_backfill.js for days
-    // where there's no real event to attribute DAU to. Keeps the Satori
-    // dashboard non-empty for cold-start projects.
-    "dau_synthetic": true
-};
+// ALL events now flow to Satori — no allowlist gate. Every QuizVerse event
+// is either mapped to a Satori core taxonomy name via SD_EVENT_MAP, or sent
+// with its raw name (one-at-a-time so a 400 on an unregistered name never
+// kills the whole batch). Run the satori_register_taxonomy RPC after deploy
+// to auto-register any new raw names in the Satori Taxonomy → Events tab.
+//
+// The original per-event allowlist (Q3=B) is replaced here. SD_EVENT_MAP
+// now covers every known QuizVerse event. Anything not in the map gets its
+// raw name sent individually — operators can register it in one click via
+// Satori Console → Settings → Taxonomy → Debugger.
+var SD_EVENT_ALLOWLIST = {}; // unused — kept only so sdIsAllowlisted references compile
 function sdIsAllowlisted(rawName) {
-    if (!rawName) return false;
-    return !!SD_EVENT_ALLOWLIST[String(rawName).toLowerCase()];
+    // All events pass — no allowlist filtering. The original filter was causing
+    // 1,700+ events per batch to be silently dropped before reaching Satori.
+    return !!rawName;
 }
 
 // Q6=C (hybrid identity) — fields that describe the IDENTITY rather than
@@ -348,6 +307,9 @@ var SD_EVENT_MAP = {
     "quiz_abandoned":       "levelFailed",
     "quiz_session_abandoned":"levelFailed",
     "answer_submitted":     "levelStepCompleted",
+    "question_answered":    "levelStepCompleted",
+    "question_displayed":   "levelStepCompleted",
+    "quiz_mode_selected":   "levelStarted",
     "onboarding_started":   "tutorialStarted",
     "onboarding_complete":  "tutorialCompleted",
     "onboarding_completed": "tutorialCompleted",
@@ -357,12 +319,89 @@ var SD_EVENT_MAP = {
     "retention_day_30":     "retentionDay30",
     "user_returned":        "playerReturned",
     "error_logged":         "clientError",
+    "app_crash":            "clientError",
     "auth_failure":         "authFailure",
+    "login_started":        "tutorialStarted",
+    "login_success":        "tutorialCompleted",
+    "registration_completed":"tutorialCompleted",
+    "registration_complete":"tutorialCompleted",
     "mp_game_started":      "matchStarted",
     "mp_game_completed":    "matchCompleted",
+    "multiplayer_game_started":"matchStarted",
+    "multiplayer_game_ended":  "matchCompleted",
+    "room_joined":          "matchStarted",
     "paywall_shown":        "paywallImpression",
     "paywall_converted":    "purchaseCompleted",
-    "paywall_dismissed":    "paywallDismissed"
+    "paywall_dismissed":    "paywallDismissed",
+    "premium_conversion":   "purchaseCompleted",
+    "store_opened":         "screenViewed",
+    "shop_item_viewed":     "purchaseIntent",
+    // App lifecycle
+    "app_foreground":       "gameStarted",
+    "app_background":       "gameFinished",
+    "app_boot_complete":    "appLaunched",
+    "cold_start_no_quiz":   "appLaunched",
+    "first_open":           "appLaunched",
+    // Screens & navigation
+    "ui_screen_view":       "screenViewed",
+    "home_viewed":          "screenViewed",
+    "profile_viewed":       "screenViewed",
+    "quiz_modes_screen_viewed": "screenViewed",
+    "screen_left":          "gameFinished",
+    // Media quiz
+    "media_question_started":   "levelStarted",
+    "media_question_completed": "levelStepCompleted",
+    "media_question_load_failed":"clientError",
+    // Offers / A-B
+    "offer_eligible":       "purchaseIntent",
+    "offer_assigned":       "purchaseIntent",
+    "offer_viewed":         "paywallImpression",
+    "offer_clicked":        "purchaseIntent",
+    "offer_purchased":      "purchaseCompleted",
+    "offer_dismissed":      "paywallDismissed",
+    "offer_cooldown_blocked":"paywallDismissed",
+    // Flags / experiments
+    "flag_exposure":        "screenViewed",
+    "experiment_exposure":  "screenViewed",
+    "satori_identity_synced":"statUpdated",
+    // Push / notifications
+    "push_soft_prompt_accepted": "tutorialCompleted",
+    // Economy
+    "coins_earned":         "currencyGranted",
+    "coins_used":           "currencySpent",
+    // Chat
+    "chat_opened":          "screenViewed",
+    "chat_closed":          "gameFinished",
+    "chat_history_restored":"screenViewed",
+    // UI interaction
+    "ui_first_interaction": "levelStepCompleted",
+    "ui_element_tapped":    "levelStepCompleted",
+    "home_first_action":    "levelStepCompleted",
+    "home_mode_tapped":     "levelStepCompleted",
+    "home_button_tapped":   "levelStepCompleted",
+    "home_settings_tapped": "levelStepCompleted",
+    "home_coming_soon_shown":"screenViewed",
+    // Popups / UI state
+    "popup_shown":          "screenViewed",
+    "popup_dismissed":      "paywallDismissed",
+    "popup_stack_depth_changed":"screenViewed",
+    // Performance / diagnostics
+    "scene_load_time":      "statUpdated",
+    "fps_bucket":           "statUpdated",
+    "memory_warning":       "clientError",
+    "screen_time_spent":    "statUpdated",
+    "home_dwell_time":      "statUpdated",
+    // Privacy / consent
+    "gdpr_consent_result":  "tutorialCompleted",
+    // Ads (additional)
+    "ad_started":           "adStarted",
+    "ad_start":             "adStarted",
+    "banner_ad_hidden":     "adPlacementFailed",
+    "ab_ads_primary_network":"statUpdated",
+    // Milestone
+    "milestone_first_multiplayer": "matchStarted",
+    // Backfill marker
+    "dau_synthetic":        "gameStarted"
 };
 function sdNormalizeEventName(rawName) {
     if (!rawName) return "";
@@ -438,15 +477,10 @@ function sdEventsPublish(ctx, nk, logger, identifier, events) {
         var ts = (typeof e.timestamp === "number") ? Math.floor(e.timestamp) : Math.floor(Date.now() / 1000);
         var rawName = e.name || "";
 
-        // Only allowlisted events go to Satori. Non-allowlisted internal events
-        // (ui_idle_detected, screen_time_*, etc.) are stored in the in-house
-        // dash_* collection (the authoritative source) but must NOT be forwarded
-        // to Satori — Satori rejects any event name not registered in its taxonomy
-        // (code 3: "Event batch contained invalid events") and the 400 pollutes
-        // the log with noise for every internal tracking event. The allowlist
-        // maps to exactly the events pre-registered in the Satori Console taxonomy.
-        // To expose a new event to Satori: add its name to SD_EVENT_ALLOWLIST
-        // AND register it in Satori Settings → Taxonomy → Events.
+        // All events flow to Satori. Events mapped in SD_EVENT_MAP are batched
+        // together (guaranteed-registered names). Events not in the map are sent
+        // one-at-a-time so a 400 on one unregistered name never kills the batch.
+        // Run satori_register_taxonomy after deploy to register new raw names.
         if (!sdIsAllowlisted(rawName)) { filteredOut++; continue; }
 
         var name = sdNormalizeEventName(rawName);

@@ -1409,22 +1409,13 @@
             <a href="https://nakama-rest.intelli-verse-x.ai" class="back-btn" title="Back to Nakama Console">
                 <span>←</span> Nakama
             </a>
-            <h1><span class="logo">📊</span> Analytics Dashboard</h1>
+            <h1><span class="logo">🧠</span> QuizVerse Analytics</h1>
         </div>
         <div class="config-panel">
             <div class="game-selector">
-                <label>Game:</label>
-                <select id="gameSelector" onchange="onGameChange()">
-                    <option value="all">🌐 All Games</option>
-                    <option value="126bf539-dae2-4bcf-964d-316c0fa1f92b" data-name="QuizVerse" selected>🧠 QuizVerse</option>
-                    <option value="lasttolive" data-name="Last To Live">🎮 Last To Live</option>
-                    <option value="cricketvr" data-name="Cricket VR">🏏 Cricket VR</option>
-                    <optgroup label="── Arcade ──">
-                    <option value="5c68cf9d-b738-4cca-bbb0-0ce80748239e" data-name="Chess Puzzles">♟️ Chess Puzzles</option>
-                    <option value="650636ba-7fa7-4441-9223-08ecd79677ae" data-name="Crystal 2048">🔢 Crystal 2048</option>
-                    <option value="02290eb7-bdd5-4dc2-b5d3-619127eeaa99" data-name="Hex 2248">⬡ Hex 2248</option>
-                    </optgroup>
-                </select>
+                <span id="gameSelector" style="display:inline-flex;align-items:center;gap:0.4rem;background:#1e293b;border:1px solid #334155;border-radius:6px;padding:0.4rem 0.9rem;font-size:0.9rem;font-weight:600;color:#e2e8f0;cursor:default;user-select:none;">
+                    🧠 QuizVerse
+                </span>
             </div>
             <div class="header-controls">
                 <!-- ── Time Range Quick Buttons ─────────────────────────── -->
@@ -1804,6 +1795,7 @@
                         <button class="card-btn" onclick="adminMetrics()">📈 Metrics Snapshot</button>
                         <button class="card-btn" onclick="adminFeatureFlags()">🚩 Feature Flags</button>
                         <button class="card-btn" onclick="adminRetentionPreview()">👥 Retention Preview</button>
+                        <button class="card-btn" style="background:#7c3aed;color:#fff;font-weight:600;" onclick="adminRegisterTaxonomy()">🏷️ Register Satori Taxonomy</button>
                     </div>
                     <div id="adminActionContent" style="color:var(--text-secondary);font-family:monospace;font-size:0.85rem;white-space:pre-wrap;max-height:300px;overflow:auto;background:var(--bg-secondary);border-radius:8px;padding:0.75rem;">Action output will appear here.</div>
                 </div>
@@ -2567,9 +2559,9 @@
         <div class="footer-content">
             <span id="lastUpdated">Last updated: —</span>
             <span class="footer-divider">|</span>
-            <span id="selectedGameLabel">🌐 All Games</span>
+            <span id="selectedGameLabel">🧠 QuizVerse</span>
             <span class="footer-divider">|</span>
-            <span>IntelliVerseX Analytics v2.0</span>
+            <span>QuizVerse Analytics v2.0</span>
         </div>
     </footer>
 
@@ -2624,17 +2616,15 @@
         // lockstep with --runtime.http_key even when ops rotate the secret.
         // For local dev (docker-compose), the runtime is set to the placeholder
         // value explicitly, so the file works as-is without patching.
+        const QUIZVERSE_GAME_ID = '126bf539-dae2-4bcf-964d-316c0fa1f92b';
+
         const CONFIG = {
             serverUrl: 'https://nakama-rest.intelli-verse-x.ai',
             serverKey: 'defaultkey',
             nakamaConsoleUrl: 'https://nakama-rest.intelli-verse-x.ai',
             adminTokenStorageKey: 'ivx_admin_token_v2',
-            // Known games with their IDs and names
             games: {
-                'all': { name: 'All Games', icon: '🌐' },
-                '126bf539-dae2-4bcf-964d-316c0fa1f92b': { name: 'QuizVerse', icon: '🧠' },
-                'f6f7fe36-03de-43b8-8b5d-1a1892da4eed': { name: 'Last To Live', icon: '🎮' },
-                'cricketvr': { name: 'Cricket VR', icon: '🏏' }
+                [QUIZVERSE_GAME_ID]: { name: 'QuizVerse', icon: '🧠' }
             }
         };
 
@@ -2643,7 +2633,7 @@
         let adminUsername = null;     // For display only
         let adminExpiresAt = null;    // Unix seconds
         let isAuthenticated = false;
-        let selectedGameId = 'all';
+        const selectedGameId = QUIZVERSE_GAME_ID; // QuizVerse-only dashboard — never changes
         let selectedDays = 30;
         let selectedMode = '';
         let autoRefreshTimer = null;
@@ -2782,11 +2772,7 @@
         // ─────────────────────────────────────────────────────────────────────
 
         function onGameChange() {
-            selectedGameId = document.getElementById('gameSelector').value;
-            const game = CONFIG.games[selectedGameId];
-            console.log(`Switched to: ${game.icon} ${game.name}`);
-            rpcCacheClear();
-            refreshAll();
+            // QuizVerse-only dashboard — game selection is locked to QuizVerse.
         }
 
         function onDaysChange() {
@@ -2934,16 +2920,11 @@
         }
 
         function getGamePayload() {
-            const out = {};
-            if (selectedGameId !== 'all') out.gameId = selectedGameId;
-            // Global quiz-mode filter (added 2026-05). Empty string = all modes.
-            // RPCs that don't honour quiz_mode simply ignore the extra field —
-            // the analytics_extended.js extMatchesModeFilter helper picks it up
-            // for overview/sessions/retention/revenue/quiz/AI/economy/monet.
+            // QuizVerse-only dashboard — always filter by the QuizVerse UUID.
+            const out = { gameId: QUIZVERSE_GAME_ID };
             if (typeof selectedMode === 'string' && selectedMode.length > 0) {
                 out.quiz_mode = selectedMode;
             }
-            // Inject custom date range when user selected calendar picker
             if (customRangeFrom) {
                 out.from_date = customRangeFrom;
                 if (customRangeTo) out.to_date = customRangeTo;
@@ -3413,7 +3394,7 @@
                     document.getElementById('overviewKpis').innerHTML = `<div class="error">${data.error}</div>`;
                     return;
                 }
-                const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
+                const gameLabel = ' (QuizVerse)';
                 const dauMauHealth = data.dau_mau_ratio > 0.15 ? 'positive' : data.dau_mau_ratio > 0.05 ? '' : 'negative';
                 const dau7chg = data.trends?.dau_7d_change_pct || 0;
                 document.getElementById('overviewKpis').innerHTML = `
@@ -3543,7 +3524,7 @@
                 });
             } catch (e) {
                 console.error('Overview error:', e);
-                const gameLabel = selectedGameId === 'all' ? '' : ` (${CONFIG.games[selectedGameId]?.name || selectedGameId})`;
+                const gameLabel = ' (QuizVerse)';
                 document.getElementById('overviewKpis').innerHTML = `
                     <div class="kpi-card" style="grid-column: span 2;">
                         <div class="icon">⚠️</div>
@@ -3712,10 +3693,8 @@
             const kpis = document.getElementById('retentionKpis');
             const heatmap = document.getElementById('retentionHeatmap');
             try {
-                const gameId = (selectedGameId && selectedGameId !== 'all')
-                    ? selectedGameId
-                    : (document.getElementById('gameSelector')?.value || 'all');
-                if (!gameId || gameId === 'all') {
+                const gameId = QUIZVERSE_GAME_ID;
+                if (!gameId) {
                     // Per-game constraint is enforced server-side — surface it clearly
                     // rather than letting the RPC bounce back a 400.
                     kpis.innerHTML = `<div class="chart-card" style="grid-column: span 4;">
@@ -5799,10 +5778,7 @@
         async function adminSampleEvent() {
             appendAdminOutput('Sample Event — sending…', { note: 'Firing synthetic admin_diag event' });
             try {
-                // analytics_log_event requires a gameId; use selected or QuizVerse default.
-                const gameId = (selectedGameId && selectedGameId !== 'all')
-                    ? selectedGameId
-                    : '126bf539-dae2-4bcf-964d-316c0fa1f92b';
+                const gameId = QUIZVERSE_GAME_ID;
                 const data = await callRpc('analytics_log_event', {
                     gameId: gameId,
                     eventName: 'admin_diag',
@@ -5914,12 +5890,7 @@
         }
 
         async function adminRetentionPreview() {
-            const sel = document.getElementById('gameSelector');
-            const gameId = sel && sel.value !== 'all' ? sel.value : null;
-            if (!gameId) {
-                appendAdminOutput('Retention Preview — select a specific game first', {});
-                return;
-            }
+            const gameId = QUIZVERSE_GAME_ID;
             try {
                 // bypassCache: retention curves is cacheable in callRpc but a
                 // "preview" button must always reflect live storage state.
@@ -5927,6 +5898,30 @@
                 appendAdminOutput(`Retention Preview (${gameId}, 14d) →`, data);
             } catch (e) {
                 appendAdminOutput('Retention Preview FAILED', { error: e.message });
+            }
+        }
+
+        async function adminRegisterTaxonomy() {
+            // Registers (or re-registers) all QuizVerse event names in the Satori
+            // taxonomy so Satori stops rejecting them as "unknown event type".
+            // Run this once after every deploy that adds new event names.
+            appendAdminOutput('Registering Satori taxonomy — this may take 10–30s…', {});
+            try {
+                const data = await callRpc('satori_register_taxonomy', { gameId: QUIZVERSE_GAME_ID }, { bypassCache: true });
+                const registered = data.registered || 0;
+                const failed     = data.failed     || 0;
+                const skipped    = data.skipped    || 0;
+                appendAdminOutput(
+                    `Satori Taxonomy → ${registered} registered, ${skipped} skipped, ${failed} failed`,
+                    data
+                );
+                if (failed > 0) {
+                    appendAdminOutput('⚠️ Some names still failing — check Satori console → Taxonomy for conflicts.', {});
+                } else {
+                    appendAdminOutput('✅ Taxonomy up to date. Satori will now accept all mapped event names.', {});
+                }
+            } catch (e) {
+                appendAdminOutput('Register Taxonomy FAILED', { error: e.message });
             }
         }
 
@@ -5949,10 +5944,7 @@
         // Each step writes a line to the admin output console. At the end,
         // a summary banner reports pass count and any red flags.
         async function adminRunSmokeTest() {
-            const sel = document.getElementById('gameSelector');
-            const gameId = (sel && sel.value !== 'all')
-                ? sel.value
-                : '126bf539-dae2-4bcf-964d-316c0fa1f92b'; // QuizVerse default
+            const gameId = QUIZVERSE_GAME_ID;
             const todayISO = new Date().toISOString().slice(0, 10);
             const out = document.getElementById('adminActionContent');
             if (out) out.textContent = ''; // clear console for a fresh run
@@ -7589,9 +7581,8 @@
             btn.disabled = true;
             btn.textContent = '⏳ Loading...';
 
-            // Update game label in footer
-            const game = CONFIG.games[selectedGameId];
-            document.getElementById('selectedGameLabel').textContent = `${game.icon} ${game.name}`;
+            // Footer label is always QuizVerse (game-locked dashboard)
+            document.getElementById('selectedGameLabel').textContent = '🧠 QuizVerse';
 
             try {
                 // Mark all tabs stale — they will reload on next click (lazy)

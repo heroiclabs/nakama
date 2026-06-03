@@ -13,10 +13,14 @@
  *   Android: 7a1ba193e83636aea003883115a8e95a34308e9eb77ade1e
  *   iOS:     515538dba6c331557f2822d821f99230ddbe539f75e90b88
  *
+ * QuizVerse App Keys (LevelPlay / ironSource — live in store):
+ *   Android (Play Store): 23ed37fb5
+ *   iOS (App Store):      23edc7cf5
+ *
  * Unity Project ID: 3a1d54d0-7210-4cbc-9def-e741210d9f21
  *
- * Environment variables (docker-compose):
- *   APPODEAL_API_KEY, APPODEAL_USER_ID, APPODEAL_QUIZVERSE_APP_KEY,
+ * Appodeal credentials: hardcoded in APPODEAL_API_KEY / APPODEAL_USER_ID_HC constants below.
+ * Environment variables (docker-compose) — still checked as fallback for CI overrides:
  *   APPLE_KEY_ID, APPLE_ISSUER_ID, APPLE_PRIVATE_KEY, APPLE_QUIZVERSE_BUNDLE_ID,
  *   UNITY_QUIZVERSE_PROJECT_ID
  */
@@ -24,11 +28,44 @@
 var EXTERNAL_ANALYTICS_COLLECTION = "external_analytics";
 var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+// Appodeal account credentials — hardcoded (env vars ignored for these).
+// Rotate by updating the constants below and deploying a new image.
+// Source: https://www.appodeal.com/profile/api_credentials
+var APPODEAL_API_KEY  = "1aceafb63925dc486780d74992776004";
+var APPODEAL_USER_ID_HC = "258307";
+
 // QuizVerse Appodeal app keys (both platforms)
 var QUIZVERSE_APPODEAL_KEYS = {
     android: "7a1ba193e83636aea003883115a8e95a34308e9eb77ade1e",
     ios: "515538dba6c331557f2822d821f99230ddbe539f75e90b88"
 };
+
+// LevelPlay (Unity ironSource) — account API + QuizVerse app keys (hardcoded).
+// Source: LevelPlay dashboard → Account → API Keys + Apps (QuizVerse, live in store).
+// Used by server-side Monetization API pollers; Unity client uses app keys only.
+var LEVELPLAY_ACCESS_KEY          = "0c7d17ec79d1";
+var LEVELPLAY_SECRET_KEY          = "9e62ad180b67f450621c8e090591a339";
+var LEVELPLAY_REFRESH_TOKEN       = "809d43d8339272bb9f43a3385b461a79";
+var LEVELPLAY_ADVERTISER_ID       = "397333";
+var LEVELPLAY_ADVERTISER_PASSWORD = "2dde63ba";
+var LEVELPLAY_PUBLISHER_ID        = "631361";
+var QUIZVERSE_LEVELPLAY_KEYS = {
+    android: "23ed37fb5",  // Play Store — QuizVerse
+    ios:     "23edc7cf5"   // App Store — QuizVerse
+};
+// Legacy env names used by external_poll_ugs guard — map to LevelPlay API keys.
+var UNITY_KEY_ID_HC     = LEVELPLAY_ACCESS_KEY;
+var UNITY_SECRET_KEY_HC = LEVELPLAY_SECRET_KEY;
+
+function levelPlayResolveCreds(ctx) {
+    return {
+        accessKey: LEVELPLAY_ACCESS_KEY || (ctx && ctx.env && ctx.env["LEVELPLAY_ACCESS_KEY"]) || (ctx && ctx.env && ctx.env["UNITY_KEY_ID"]) || "",
+        secretKey: LEVELPLAY_SECRET_KEY || (ctx && ctx.env && ctx.env["LEVELPLAY_SECRET_KEY"]) || (ctx && ctx.env && ctx.env["UNITY_SECRET_KEY"]) || "",
+        refreshToken: LEVELPLAY_REFRESH_TOKEN,
+        advertiserId: LEVELPLAY_ADVERTISER_ID,
+        publisherId: LEVELPLAY_PUBLISHER_ID
+    };
+}
 
 // ─── Helpers ──────────────────────────────────────────────
 
@@ -171,17 +208,13 @@ function appodealFetchStats(nk, logger, apiKey, userId, dateFrom, dateTo, appKey
  */
 function rpcAnalyticsAppodeal(ctx, logger, nk, payload) {
     try {
-        var apiKey = ctx.env['APPODEAL_API_KEY'] || '';
-        var userId = ctx.env['APPODEAL_USER_ID'] || '';
+        // Prefer hardcoded constants; fall back to env vars for CI/local overrides.
+        var apiKey = APPODEAL_API_KEY || ctx.env['APPODEAL_API_KEY'] || '';
+        var userId = APPODEAL_USER_ID_HC || ctx.env['APPODEAL_USER_ID'] || '';
         if (!apiKey || !userId) {
             return JSON.stringify({
                 success: false,
-                error: "Appodeal credentials not configured. Set APPODEAL_API_KEY and APPODEAL_USER_ID in .env file.",
-                setup: {
-                    step1: "Open https://www.appodeal.com/profile/api_credentials",
-                    step2: "Copy API Key and User ID",
-                    step3: "Set in .env: APPODEAL_API_KEY=xxx, APPODEAL_USER_ID=xxx"
-                }
+                error: "Appodeal credentials not configured."
             });
         }
 

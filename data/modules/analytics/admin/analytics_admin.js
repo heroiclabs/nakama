@@ -105,14 +105,33 @@ function aaEnv(ctx, key) {
     // env vars are IGNORED for them. To rotate, edit the AA_FALLBACK_*
     // constants and ship a new image.
     //
-    // Everything else (APPLE_*, APPODEAL_*, ROLLUP_ENABLED, etc.) keeps
-    // the normal env-first behaviour because those legitimately come from
-    // the cluster Secret.
+    // Hardcoded in source (no Docker env required) — see external_analytics.js.
     if (key === "ADMIN_USERNAME")      return AA_FALLBACK_ADMIN_USERNAME;
     if (key === "ADMIN_PASSWORD")      return AA_FALLBACK_ADMIN_PASSWORD;
     if (key === "ADMIN_PASSWORD_HASH") return AA_FALLBACK_ADMIN_PASSWORD_HASH;
     if (key === "DASHBOARD_SECRET")    return AA_FALLBACK_DASHBOARD_SECRET;
+    if (key === "DEFAULT_GAME_ID")     return "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    if (key === "APPODEAL_API_KEY") {
+        try { if (typeof APPODEAL_API_KEY !== "undefined" && APPODEAL_API_KEY) return APPODEAL_API_KEY; } catch (e) {}
+    }
+    if (key === "APPODEAL_USER_ID") {
+        try { if (typeof APPODEAL_USER_ID_HC !== "undefined" && APPODEAL_USER_ID_HC) return APPODEAL_USER_ID_HC; } catch (e) {}
+    }
+    // UNITY_* env names map to LevelPlay Monetization API access/secret (hardcoded).
+    if (key === "UNITY_KEY_ID") {
+        try {
+            if (typeof UNITY_KEY_ID_HC !== "undefined" && UNITY_KEY_ID_HC) return UNITY_KEY_ID_HC;
+            if (typeof LEVELPLAY_ACCESS_KEY !== "undefined" && LEVELPLAY_ACCESS_KEY) return LEVELPLAY_ACCESS_KEY;
+        } catch (e) {}
+    }
+    if (key === "UNITY_SECRET_KEY") {
+        try {
+            if (typeof UNITY_SECRET_KEY_HC !== "undefined" && UNITY_SECRET_KEY_HC) return UNITY_SECRET_KEY_HC;
+            if (typeof LEVELPLAY_SECRET_KEY !== "undefined" && LEVELPLAY_SECRET_KEY) return LEVELPLAY_SECRET_KEY;
+        } catch (e) {}
+    }
 
+    // Everything else (APPLE_*, etc.) uses env-first from cluster Secret.
     if (ctx && ctx.env && ctx.env[key] !== undefined && ctx.env[key] !== null) {
         var v = String(ctx.env[key]);
         if (v.length > 0) return v;
@@ -626,32 +645,52 @@ function rpcDashboardStorageList(ctx, logger, nk, payload) {
     var userId = data.userId || AA_SYSTEM_USER;
     var cursor = data.cursor || null;
 
-    var page;
+    // Optional gameId key-prefix filter (resolves slugs → canonical UUID).
+    // Applied when collection is analytics_events (keys start with dash_{gameId}_).
+    var gameIdFilter = data.gameId || data.game_id || null;
+    if (gameIdFilter === "all") gameIdFilter = null;
+    if (gameIdFilter) gameIdFilter = aaResolveGameId(gameIdFilter);
+    var keyPrefixFilter = (gameIdFilter && collection === 'analytics_events')
+        ? ("dash_" + gameIdFilter + "_")
+        : null;
+
+    var objects = [];
+    var scanCursor = cursor;
+    var maxPages = 50; // guard against infinite loop
+    var pagesScanned = 0;
+
     try {
-        page = nk.storageList(userId, collection, limit, cursor);
+        while (objects.length < limit && pagesScanned < maxPages) {
+            var page = nk.storageList(userId, collection, 200, scanCursor);
+            if (!page || !page.objects || page.objects.length === 0) break;
+            pagesScanned++;
+
+            for (var i = 0; i < page.objects.length && objects.length < limit; i++) {
+                var obj = page.objects[i];
+                // Apply key-prefix filter when scanning analytics_events for a specific game.
+                if (keyPrefixFilter && obj.key && obj.key.indexOf(keyPrefixFilter) !== 0) continue;
+
+                var previewStr = "";
+                try { previewStr = JSON.stringify(obj.value || {}).substring(0, 300); }
+                catch (e) { previewStr = String(obj.value || "").substring(0, 300); }
+
+                objects.push({
+                    collection: obj.collection || collection,
+                    key: obj.key,
+                    user_id: obj.userId || userId,
+                    version: obj.version,
+                    create_time: obj.createTime || null,
+                    update_time: obj.updateTime || null,
+                    value_preview: previewStr
+                });
+            }
+
+            if (!page.cursor) break;
+            scanCursor = page.cursor;
+        }
     } catch (e) {
         logger.error("[analytics_admin] dashboard_storage_list failed: " + e.message);
         return aaErr("Storage list failed: " + e.message, 500);
-    }
-
-    var objects = [];
-    if (page && page.objects) {
-        for (var i = 0; i < page.objects.length; i++) {
-            var obj = page.objects[i];
-            var previewStr = "";
-            try { previewStr = JSON.stringify(obj.value || {}).substring(0, 300); }
-            catch (e) { previewStr = String(obj.value || "").substring(0, 300); }
-
-            objects.push({
-                collection: obj.collection || collection,
-                key: obj.key,
-                user_id: obj.userId || userId,
-                version: obj.version,
-                create_time: obj.createTime || null,
-                update_time: obj.updateTime || null,
-                value_preview: previewStr
-            });
-        }
     }
 
     return aaOk({
@@ -659,7 +698,7 @@ function rpcDashboardStorageList(ctx, logger, nk, payload) {
         user_id: userId,
         objects: objects,
         count: objects.length,
-        nextCursor: (page && page.cursor) ? page.cursor : null
+        nextCursor: scanCursor || null
     });
 }
 

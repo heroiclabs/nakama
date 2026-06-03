@@ -179,7 +179,10 @@ function tpValidateV2(rawEvent, eventName, eventData) {
         warnings.push("v2_client_event_id_too_short");
     }
 
-    // event_time must be parseable as unix-seconds or ISO-8601.
+    // event_time must be parseable as unix-seconds (number or numeric string) or ISO-8601.
+    // FIX: parseFloat("2026-06-03T...") returns 2026 (just the year prefix) which then
+    // falsely triggers v2_event_time_out_of_range on every ISO-8601 value. Always try
+    // ISO-8601 parsing first for strings; only treat as unix-seconds if purely numeric.
     var et = raw.event_time || ed.event_time;
     if (et !== undefined && et !== null && et !== "") {
         if (typeof et === "number") {
@@ -188,12 +191,19 @@ function tpValidateV2(rawEvent, eventName, eventData) {
                 warnings.push("v2_event_time_out_of_range");
             }
         } else if (typeof et === "string") {
-            var ts = parseFloat(et);
-            if (!isNaN(ts)) {
-                if (ts < 978307200 || ts > 4102444800) warnings.push("v2_event_time_out_of_range");
+            // Purely numeric string (e.g. "1748935200") → treat as unix seconds.
+            // ISO-8601 strings (e.g. "2026-06-03T08:51:26Z") are NOT purely numeric.
+            if (/^\d+(\.\d+)?$/.test(et)) {
+                var tsSec = parseFloat(et);
+                if (tsSec < 978307200 || tsSec > 4102444800) warnings.push("v2_event_time_out_of_range");
             } else {
                 var d = new Date(et);
-                if (isNaN(d.getTime())) warnings.push("v2_event_time_invalid");
+                if (isNaN(d.getTime())) {
+                    warnings.push("v2_event_time_invalid");
+                } else {
+                    var tsFromIso = d.getTime() / 1000;
+                    if (tsFromIso < 978307200 || tsFromIso > 4102444800) warnings.push("v2_event_time_out_of_range");
+                }
             }
         } else {
             warnings.push("v2_event_time_invalid");

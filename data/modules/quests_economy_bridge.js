@@ -17,7 +17,7 @@
 
 var QUESTS_API_URL = '';
 var WEBHOOK_SECRET = '';
-var DEFAULT_GAME_ID = 'f6f7fe36-03de-43b8-8b5d-1a1892da4eed';
+var DEFAULT_GAME_ID = '126bf539-dae2-4bcf-964d-316c0fa1f92b'; // QuizVerse
 var _bridgeEnvInitialized = false;
 
 var GAME_CONVERSION_RATIOS = {};

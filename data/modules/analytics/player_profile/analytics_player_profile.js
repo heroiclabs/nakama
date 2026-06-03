@@ -34,7 +34,7 @@ var FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
 // Removed unused `analytics_event_count_user` declaration — never read or
 // written; the per-user event count is now derived from the GPA doc's
 // `events` ring buffer in analytics_player_profile.js drill-down RPCs.
-var DEFAULT_GAME_ID = "default";
+var DEFAULT_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse
 
 // Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
 // Delegates to the bundled global resolveGameIdAlias when available so the
