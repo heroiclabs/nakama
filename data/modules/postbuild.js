@@ -713,6 +713,25 @@ var registrationLines = rpcEntries.map(function(e) {
 //   1. Declare the 7 wrapper functions at file scope in a `.js` module
 //      that postbuild's `discoverModuleFiles` picks up,
 //   2. Append an entry to MATCH_HANDLERS below.
+// The six non-init MpKernel hooks are shared across every template (they
+// resolve the template back off kernel state); only matchInit is per-template
+// (the match name == templateId, hard-coded in its init wrapper). Wrappers
+// live in data/modules/zz_mp_kernel_handlers.js.
+function mpKernelTemplate(matchName, initFn) {
+  return {
+    matchName: matchName,
+    handlers: {
+      matchInit:        initFn,
+      matchJoinAttempt: 'mpKernelMatchJoinAttempt',
+      matchJoin:        'mpKernelMatchJoin',
+      matchLeave:       'mpKernelMatchLeave',
+      matchLoop:        'mpKernelMatchLoop',
+      matchSignal:      'mpKernelMatchSignal',
+      matchTerminate:   'mpKernelMatchTerminate'
+    }
+  };
+}
+
 var MATCH_HANDLERS = [
   {
     matchName: 'notif_scheduler_v1',
@@ -725,7 +744,17 @@ var MATCH_HANDLERS = [
       matchSignal:      'notifSchedulerMatchSignal',
       matchTerminate:   'notifSchedulerMatchTerminate'
     }
-  }
+  },
+  // IVX Multiplayer Kernel templates. All seven handler functions are
+  // top-level wrappers in zz_mp_kernel_handlers.js → MpKernelMatch.*Impl.
+  mpKernelTemplate('sync-turn-v1',            'mpSyncTurnMatchInit'),
+  mpKernelTemplate('async-turn-v1',           'mpAsyncTurnMatchInit'),
+  mpKernelTemplate('lobby-handoff-v1',        'mpLobbyHandoffMatchInit'),
+  mpKernelTemplate('tournament-v1',           'mpTournamentMatchInit'),
+  mpKernelTemplate('live-event-v1',           'mpLiveEventMatchInit'),
+  mpKernelTemplate('persistent-party-v1',     'mpPersistentPartyMatchInit'),
+  mpKernelTemplate('conversational-party-v1', 'mpConversationalPartyMatchInit'),
+  mpKernelTemplate('mixed-reality-anchor-v1', 'mpMrAnchorMatchInit')
 ];
 
 var matchRegistrationLines = MATCH_HANDLERS.map(function(m) {
