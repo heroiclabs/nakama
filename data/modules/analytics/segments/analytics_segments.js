@@ -221,7 +221,7 @@ function rpcSatoriRegisterTaxonomy(ctx, logger, nk, payload) {
     }
 
     var nowSec = segNowUtc();
-    var sent = 0, failed = 0;
+    var sent = 0, failed = 0, skipped = 0;
     var failures = [];
 
     for (var i = 0; i < SEG_TAXONOMY_EVENTS.length; i++) {
@@ -238,8 +238,15 @@ function rpcSatoriRegisterTaxonomy(ctx, logger, nk, payload) {
         try {
             var res = sdEventsPublish(ctx, nk, logger, SEG_TAXONOMY_IDENTITY, [ev]);
             if (res && res.ok === false) {
-                failed++;
-                failures.push({ name: name, code: res.code, body: res.body });
+                // Code 3 (INVALID_ARGUMENT) means Satori already has this event
+                // registered from real user events with a richer metadata schema.
+                // Treat as "already registered / skipped" — not a real failure.
+                if (res.code === 400 || res.code === 3) {
+                    skipped++;
+                } else {
+                    failed++;
+                    failures.push({ name: name, code: res.code, body: res.body });
+                }
             } else {
                 sent++;
             }
@@ -251,15 +258,16 @@ function rpcSatoriRegisterTaxonomy(ctx, logger, nk, payload) {
 
     var summary = {
         registered: sent,
+        skipped: skipped,
         failed: failed,
         total: SEG_TAXONOMY_EVENTS.length,
         completed_at: new Date().toISOString(),
-        bypass: gate.bypass,
-        failures: failures.slice(0, 10)  // cap so the response stays small
+        bypass: gate.bypass
     };
+    if (failures.length > 0) summary.failures = failures.slice(0, 10);
     if (logger && logger.info) {
-        logger.info("[segments] taxonomy registered: " + sent + "/" +
-            SEG_TAXONOMY_EVENTS.length + " events (failed=" + failed + ")");
+        logger.info("[segments] taxonomy: registered=" + sent + " skipped(already-exists)=" +
+            skipped + " failed=" + failed + " total=" + SEG_TAXONOMY_EVENTS.length);
     }
     return segOk(summary);
 }

@@ -7504,7 +7504,9 @@
                     data
                 );
                 if (failed > 0) {
-                    appendAdminOutput('⚠️ Some names still failing — check Satori console → Taxonomy for conflicts.', {});
+                    appendAdminOutput('⚠️ ' + failed + ' names failed — check Satori console → Taxonomy for conflicts.', {});
+                } else if (skipped > 0) {
+                    appendAdminOutput('✅ Taxonomy up to date. ' + skipped + ' events already registered by real users (skipped). ' + registered + ' new names registered.', {});
                 } else {
                     appendAdminOutput('✅ Taxonomy up to date. Satori will now accept all mapped event names.', {});
                 }
