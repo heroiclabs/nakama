@@ -3418,6 +3418,7 @@
         let isAuthenticated = false;
         let selectedGameId = QV_GAME_ID; // Locked to QuizVerse
         let selectedDays = 30;
+        let revenuePeriod = '30d';
         let selectedMode = '';
         let autoRefreshTimer = null;
 
@@ -3676,6 +3677,47 @@
             }
         }
 
+        function hasCustomDateRange() {
+            return !!(window.customDateStart && window.customDateEnd);
+        }
+
+        function getSelectedRangeDays() {
+            if (!hasCustomDateRange()) return selectedDays || 30;
+            const start = new Date(window.customDateStart + 'T00:00:00');
+            const end = new Date(window.customDateEnd + 'T00:00:00');
+            return Math.max(1, Math.ceil(Math.abs(end - start) / 86400000) + 1);
+        }
+
+        function getRangeCaption() {
+            if (!hasCustomDateRange()) return null;
+            return `${window.customDateStart} → ${window.customDateEnd}`;
+        }
+
+        function arpuPeriodForSelectedDays() {
+            const d = getSelectedRangeDays();
+            if (d <= 7) return '7d';
+            if (d <= 30) return '30d';
+            return '90d';
+        }
+
+        function getRevenuePeriodLabel() {
+            if (hasCustomDateRange()) return getRangeCaption();
+            if (revenuePeriod === '7d') return '7 Days';
+            if (revenuePeriod === '90d') return '90 Days';
+            if (revenuePeriod === '1y') return '1 Year';
+            if (revenuePeriod === 'all') return 'All-time';
+            return '30 Days';
+        }
+
+        function loadRevenueForCurrentRange() {
+            if (hasCustomDateRange()) {
+                const d = getSelectedRangeDays();
+                const period = d <= 7 ? '7d' : d <= 30 ? '30d' : '90d';
+                return loadRevenue(period, true);
+            }
+            return loadRevenue(revenuePeriod, false);
+        }
+
         function getGamePayload() {
             const out = {};
             out.gameId = QV_GAME_ID; // Always QuizVerse
@@ -3686,10 +3728,10 @@
             if (typeof selectedMode === 'string' && selectedMode.length > 0) {
                 out.quiz_mode = selectedMode;
             }
-            // Custom date range support
-            if (window.customDateStart && window.customDateEnd) {
-                out.startDate = window.customDateStart;
-                out.endDate = window.customDateEnd;
+            // Custom date range — backend reads from_date / to_date (YYYY-MM-DD).
+            if (hasCustomDateRange()) {
+                out.from_date = window.customDateStart;
+                out.to_date = window.customDateEnd;
             }
             return out;
         }
@@ -3744,7 +3786,7 @@
         // Maps tab name → its loader function (called on first click)
         const TAB_LOADERS = {
             overview:  () => loadOverview(),
-            revenue:   () => loadRevenue('30d'),
+            revenue:   () => loadRevenueForCurrentRange(),
             retention: () => loadRetention(),
             events:    () => loadEvents(),
             storage:   () => loadStorage(),
@@ -4163,10 +4205,13 @@
                 loadLifetimeStrip().catch(() => { /* swallow — non-fatal */ });
                 
                 // Fetch multiple data sources in parallel for comprehensive KPIs
-                const payload = { days: selectedDays, ...getGamePayload() };
+                const rangeDays = getSelectedRangeDays();
+                const payload = { days: rangeDays, ...getGamePayload() };
+                const rangeCaption = getRangeCaption();
+                const arpuPeriod = arpuPeriodForSelectedDays();
                 const [data, revenueData, sessionData] = await Promise.all([
                     callRpc('analytics_dashboard', payload),
-                    callRpc('analytics_arpu', { period: '7d', ...getGamePayload() }).catch(() => ({})),
+                    callRpc('analytics_arpu', { period: arpuPeriod, ...getGamePayload() }).catch(() => ({})),
                     callRpc('analytics_session_stats', payload).catch(() => ({}))
                 ]);
                 
@@ -4180,15 +4225,16 @@
                 const dau7chg = data.trends?.dau_7d_change_pct || 0;
                 
                 // Calculate ARPDAU (Average Revenue Per Daily Active User)
+                const revenueDays = revenueData.daysBack || revenueData.days_back || rangeDays || 7;
                 const totalRevenue7d = revenueData.totalRevenue || 0;
                 const avgDau7d = revenueData.avgDau || data.dau || 1;
-                const arpdau = avgDau7d > 0 ? (totalRevenue7d / 7 / avgDau7d) : 0;
+                const arpdau = avgDau7d > 0 ? (totalRevenue7d / revenueDays / avgDau7d) : 0;
                 const arpdauHealth = arpdau >= 0.12 ? 'positive' : arpdau >= 0.04 ? '' : 'negative';
                 const arpdauBenchmark = arpdau >= 0.12 ? '🟢 Top 25%' : arpdau >= 0.04 ? '🟡 Median' : '🔴 Below avg';
                 
                 // Calculate Sessions/DAU
                 const totalSessions = sessionData.total_sessions || 0;
-                const sessionDays = selectedDays || 30;
+                const sessionDays = rangeDays;
                 const avgSessionsPerDay = sessionDays > 0 ? totalSessions / sessionDays : 0;
                 const sessionsPerDau = data.dau > 0 ? (avgSessionsPerDay / data.dau).toFixed(2) : 0;
                 const sessionsPerDauNum = parseFloat(sessionsPerDau);
@@ -4205,7 +4251,7 @@
                         <div class="icon">📅</div>
                         <div class="label">DAU${gameLabel}</div>
                         <div class="value">${formatNumber(data.dau)}</div>
-                        <div class="trend ${dau7chg >= 0 ? 'positive' : 'negative'}">${dau7chg >= 0 ? '▲' : '▼'} ${Math.abs(dau7chg).toFixed(1)}% vs 7d ago</div>
+                        <div class="trend ${dau7chg >= 0 ? 'positive' : 'negative'}">${rangeCaption ? rangeCaption : ((dau7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(dau7chg).toFixed(1) + '% vs 7d ago')}</div>
                         ${data.dau_trend && data.dau_trend.length >= 2 ? '<div class="kpi-sparkline"><canvas id="dauSparkline"></canvas></div>' : ''}
                     </div>
                     <div class="kpi-card highlight-card">
@@ -4224,13 +4270,13 @@
                         <div class="icon">📆</div>
                         <div class="label">WAU</div>
                         <div class="value">${formatNumber(data.wau)}</div>
-                        <div class="trend ${wau7chg >= 0 ? 'positive' : 'negative'}">${wau7chg !== 0 ? ((wau7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(wau7chg).toFixed(1) + '%') : 'Last 7 days'}</div>
+                        <div class="trend ${wau7chg >= 0 ? 'positive' : 'negative'}">${rangeCaption ? (rangeDays === 1 ? 'Selected day' : rangeCaption) : (wau7chg !== 0 ? ((wau7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(wau7chg).toFixed(1) + '%') : 'Last 7 days')}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🗓️</div>
                         <div class="label">MAU</div>
                         <div class="value">${formatNumber(data.mau)}</div>
-                        <div class="trend ${mau7chg >= 0 ? 'positive' : 'negative'}">${mau7chg !== 0 ? ((mau7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(mau7chg).toFixed(1) + '%') : 'Last 30 days'}</div>
+                        <div class="trend ${mau7chg >= 0 ? 'positive' : 'negative'}">${rangeCaption ? (rangeDays === 1 ? 'Same as DAU' : rangeCaption) : (mau7chg !== 0 ? ((mau7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(mau7chg).toFixed(1) + '%') : 'Last 30 days')}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🔥</div>
@@ -4241,26 +4287,26 @@
                     <div class="kpi-card">
                         <div class="icon">⏱️</div>
                         <div class="label">Avg Session</div>
-                        <div class="value plain">${formatDuration(data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0)}</div>
-                        <div class="trend">${(data.avg_session_duration_seconds || sessionData.avg_duration_seconds || 0) >= 420 ? '🟢 Good (7m+)' : '🟡 Can improve'}</div>
+                        <div class="value plain">${formatDuration(sessionData.avg_duration_seconds || data.avg_session_duration_seconds || 0)}</div>
+                        <div class="trend">${(sessionData.avg_duration_seconds || data.avg_session_duration_seconds || 0) >= 420 ? '🟢 Good (7m+)' : '🟡 Can improve'}${rangeCaption ? ' · ' + rangeCaption : ''}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">💰</div>
-                        <div class="label">Revenue (7d)</div>
+                        <div class="label">Revenue (${rangeCaption ? rangeDays + 'd window' : arpuPeriod})</div>
                         <div class="value currency">${formatNumber(totalRevenue7d)}</div>
-                        <div class="trend ${revenue7chg >= 0 ? 'positive' : 'negative'}">${revenue7chg !== 0 ? ((revenue7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(revenue7chg).toFixed(1) + '% vs prior') : 'Last 7 days'}</div>
+                        <div class="trend ${revenue7chg >= 0 ? 'positive' : 'negative'}">${rangeCaption ? rangeCaption : (revenue7chg !== 0 ? ((revenue7chg >= 0 ? '▲' : '▼') + ' ' + Math.abs(revenue7chg).toFixed(1) + '% vs prior') : 'Last ' + revenueDays + ' days')}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🆕</div>
                         <div class="label">New vs Returning</div>
                         <div class="value plain">${formatNumber(data.new_users_today)} / ${formatNumber(data.returning_users_today)}</div>
-                        <div class="trend">Today · ${data.new_users_today > data.returning_users_today ? '🚀 Growth' : '🔁 Retention'}</div>
+                        <div class="trend">${rangeCaption ? rangeCaption : 'Today'} · ${data.new_users_today > data.returning_users_today ? '🚀 Growth' : '🔁 Retention'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
-                        <div class="label">DAU Range (7d)</div>
+                        <div class="label">DAU Range${rangeCaption ? '' : ' (7d)'}</div>
                         <div class="value plain">${formatNumber(data.dau_7d_min || 0)} – ${formatNumber(data.dau_7d_max || 0)}</div>
-                        <div class="trend">Min/Max · Volatility ${data.dau_7d_max && data.dau_7d_min ? Math.round((data.dau_7d_max - data.dau_7d_min) / ((data.dau_7d_max + data.dau_7d_min) / 2) * 100) : 0}%</div>
+                        <div class="trend">${rangeCaption ? rangeCaption : 'Min/Max'} · Volatility ${data.dau_7d_max && data.dau_7d_min ? Math.round((data.dau_7d_max - data.dau_7d_min) / ((data.dau_7d_max + data.dau_7d_min) / 2) * 100) : 0}%</div>
                     </div>
                 `;
                 // DAU sparkline
@@ -4366,12 +4412,17 @@
             }
         }
 
-        async function loadRevenue(period = '30d') {
+        async function loadRevenue(period = '30d', fromCustomRange = false) {
             try {
+                if (!fromCustomRange) revenuePeriod = period;
+                const rangeCaption = getRangeCaption();
+                const rangeDays = getSelectedRangeDays();
+                const periodLabel = getRevenuePeriodLabel();
+
                 // Update period selector UI (only revenue-tab buttons — other tabs
                 // also have .period-btn elements so we scope to #revenue).
                 document.querySelectorAll('#revenue .period-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.dataset.period === period);
+                    btn.classList.toggle('active', !hasCustomDateRange() && btn.dataset.period === period);
                 });
                 document.getElementById('revenueKpis').innerHTML = skKpi(4);
 
@@ -4379,12 +4430,19 @@
                 // tier instead of the live-aggregated analytics_arpu RPC. The
                 // analytics_history_monthly_read RPC returns up to 60 monthly
                 // buckets each carrying revenue.usd / iap_count / paywall_*.
-                if (period === '1y' || period === 'all') {
+                if (!hasCustomDateRange() && (period === '1y' || period === 'all')) {
                     return await loadRevenueLongTail(period);
                 }
 
-                const payload = { period: period, ...getGamePayload() };
-                const data = await callRpc('analytics_arpu', payload);
+                const payload = {
+                    period: period,
+                    days: rangeDays,
+                    ...getGamePayload()
+                };
+                const [data, overviewData] = await Promise.all([
+                    callRpc('analytics_arpu', payload),
+                    callRpc('analytics_dashboard', { days: rangeDays, ...getGamePayload() }).catch(() => ({}))
+                ]);
 
                 if (data.error) {
                     document.getElementById('revenueKpis').innerHTML = `<div class="error">${data.error}</div>`;
@@ -4392,15 +4450,15 @@
                 }
 
                 const arppuHealth = data.arppu > 5 ? 'positive' : data.arppu < 1 ? 'negative' : '';
-                const convRateNum = parseFloat(data.conversionRate) || 0;
+                const convRateNum = parseFloat(String(data.conversionRate || '0').replace('%', '')) || 0;
                 const convHealth = convRateNum > 3 ? 'positive' : convRateNum < 1 ? 'negative' : '';
 
                 const totalPurchases = data.totalPurchases ?? data.total_purchases ?? data.iap_count ?? 0;
-                const daysBack       = data.daysBack       ?? data.days_back       ?? data.days       ?? selectedDays ?? 7;
+                const daysBack = data.daysBack ?? data.days_back ?? rangeDays ?? 7;
                 
-                // Calculate ARPDAU
-                const avgDau = data.avgDau || 1;
-                const periodDays = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 7;
+                // Calculate ARPDAU for the active window (not a hardcoded 30d).
+                const avgDau = data.avgDau || overviewData.dau || 0;
+                const periodDays = daysBack > 0 ? daysBack : 1;
                 const arpdau = avgDau > 0 ? ((data.totalRevenue || 0) / periodDays / avgDau) : 0;
                 const arpdauHealth = arpdau >= 0.12 ? 'positive' : arpdau >= 0.04 ? '' : 'negative';
                 const arpdauBenchmark = arpdau >= 0.12 ? '🟢 Top 25%' : arpdau >= 0.04 ? '🟡 Median' : '🔴 Below avg';
@@ -4409,17 +4467,20 @@
                 // LTV = ARPDAU × (1 / (1 - D7_retention_rate)) × multiplier
                 // For casual games, typical multiplier is ~30 days effective lifetime
                 // We'll use a conservative estimate based on industry benchmarks
-                const estLifetimeDays = 30; // Conservative estimate for casual games
+                const estLifetimeDays = hasCustomDateRange() ? periodDays : 30;
                 const ltv = arpdau * estLifetimeDays;
                 const ltvHealth = ltv >= 3 ? 'positive' : ltv >= 1 ? '' : 'negative';
                 const ltvBenchmark = ltv >= 3 ? '🟢 Top tier' : ltv >= 1 ? '🟡 Average' : '🔴 Below avg';
+                const zeroRevenueHint = (data.totalRevenue || 0) === 0 && hasCustomDateRange()
+                    ? ' · No IAPs in selected range (lifetime totals are on Overview)'
+                    : '';
                 
                 document.getElementById('revenueKpis').innerHTML = `
                     <div class="kpi-card highlight-card">
                         <div class="icon">💰</div>
-                        <div class="label">Total Revenue (${period})</div>
+                        <div class="label">Total Revenue${rangeCaption ? '' : ` (${periodLabel})`}</div>
                         <div class="value currency">${formatNumber(data.totalRevenue || 0)}</div>
-                        <div class="trend">${formatNumber(totalPurchases)} purchases</div>
+                        <div class="trend">${rangeCaption || formatNumber(totalPurchases) + ' purchases'}${zeroRevenueHint}</div>
                     </div>
                     <div class="kpi-card highlight-card">
                         <div class="icon">💵</div>
@@ -4431,7 +4492,7 @@
                         <div class="icon">💎</div>
                         <div class="label">Est. LTV</div>
                         <div class="value currency ${ltvHealth}">${ltv.toFixed(2)}</div>
-                        <div class="trend">${ltvBenchmark} · ARPDAU × ${estLifetimeDays}d</div>
+                        <div class="trend">${ltvBenchmark} · ARPDAU × ${estLifetimeDays}d${rangeCaption ? ' · window' : ''}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📈</div>
@@ -4461,7 +4522,7 @@
                         <div class="icon">👥</div>
                         <div class="label">Avg DAU</div>
                         <div class="value">${formatNumber(data.avgDau || 0)}</div>
-                        <div class="trend">Over ${daysBack} days</div>
+                        <div class="trend">${rangeCaption || ('Over ' + daysBack + ' days')}</div>
                     </div>
                 `;
 
@@ -4472,15 +4533,15 @@
                 );
 
                 // Conversion funnel (doughnut)
-                const nonPaying = data.avgDau - data.uniquePayingUsers;
+                const nonPaying = Math.max(0, avgDau - (data.uniquePayingUsers || 0));
                 createDoughnutChart('conversionChart',
                     ['Paying Users', 'Non-Paying Users'],
                     [data.uniquePayingUsers, nonPaying > 0 ? nonPaying : 0],
                     ['rgba(34, 197, 94, 0.8)', 'rgba(100, 116, 139, 0.5)']
                 );
 
-                // Update LTV analysis section
-                updateLtvAnalysis(arpdau);
+                // Update LTV analysis section (cohort retention, not industry defaults)
+                updateLtvAnalysis(arpdau, { rangeCaption, periodDays, totalRevenue: data.totalRevenue || 0 });
 
             } catch (e) {
                 console.error('Revenue error:', e);
@@ -4620,7 +4681,9 @@
         async function loadSessions() {
             try {
                 document.getElementById('sessionKpis').innerHTML = skKpi(6);
-                const payload = { days: selectedDays, ...getGamePayload() };
+                const rangeDays = getSelectedRangeDays();
+                const rangeCaption = getRangeCaption();
+                const payload = { days: rangeDays, ...getGamePayload() };
                 
                 // Fetch session and overview data in parallel for Sessions/DAU calculation
                 const [data, overviewData] = await Promise.all([
@@ -4633,11 +4696,12 @@
                     return;
                 }
 
-                // Calculate Sessions/DAU
+                // Calculate Sessions/DAU (same date window as Overview)
                 const avgDau = overviewData.dau || 1;
-                const sessionDays = selectedDays || 30;
+                const sessionDays = data.range_days || rangeDays || 1;
                 const avgSessionsPerDay = sessionDays > 0 ? (data.total_sessions / sessionDays) : 0;
                 const sessionsPerDau = avgDau > 0 ? (avgSessionsPerDay / avgDau).toFixed(2) : 0;
+                const hasRealDurationSamples = (data.duration_sample_count || 0) >= 2;
                 const sessionsPerDauNum = parseFloat(sessionsPerDau);
                 const sessionsHealth = sessionsPerDauNum >= 3.5 ? 'positive' : sessionsPerDauNum >= 2.2 ? '' : 'negative';
                 const sessionsBenchmark = sessionsPerDauNum >= 3.5 ? '🟢 Top 25%' : sessionsPerDauNum >= 2.2 ? '🟡 Median' : '🔴 Below avg';
@@ -4652,37 +4716,37 @@
                         <div class="icon">🔄</div>
                         <div class="label">Sessions/DAU</div>
                         <div class="value plain ${sessionsHealth}">${sessionsPerDau}</div>
-                        <div class="trend">${sessionsBenchmark} · Industry: 2.2-3.5</div>
+                        <div class="trend">${sessionsBenchmark} · Industry: 2.2-3.5${rangeCaption ? ' · DAU ' + formatNumber(avgDau) : ''}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
-                        <div class="label">Total Sessions (${selectedDays}d)</div>
+                        <div class="label">Total Sessions${rangeCaption ? '' : ` (${sessionDays}d)`}</div>
                         <div class="value">${formatNumber(data.total_sessions)}</div>
-                        <div class="trend">${formatNumber(Math.round(avgSessionsPerDay))} sessions/day avg</div>
+                        <div class="trend">${rangeCaption || (formatNumber(Math.round(avgSessionsPerDay)) + ' sessions/day avg')}</div>
                     </div>
                     <div class="kpi-card highlight-card">
                         <div class="icon">⏱️</div>
                         <div class="label">Avg Duration</div>
                         <div class="value plain ${durationHealth}">${formatDuration(data.avg_duration_seconds)}</div>
-                        <div class="trend">${durationBenchmark} · Target: 7min+</div>
+                        <div class="trend">${durationBenchmark} · Target: 7min+${rangeCaption ? ' · ' + rangeCaption : ''}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📈</div>
                         <div class="label">Median Duration</div>
                         <div class="value plain">${formatDuration(data.median_duration_seconds)}</div>
-                        <div class="trend">50th percentile</div>
+                        <div class="trend">${hasRealDurationSamples ? '50th percentile' : 'Estimated (no per-session samples)'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">🚀</div>
                         <div class="label">P95 Duration</div>
                         <div class="value plain">${formatDuration(data.p95_duration_seconds)}</div>
-                        <div class="trend">Power users (top 5%)</div>
+                        <div class="trend">${hasRealDurationSamples ? 'Power users (top 5%)' : 'Estimated (no per-session samples)'}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📅</div>
                         <div class="label">Sessions/Day Avg</div>
                         <div class="value">${data.sessions_per_day_avg || formatNumber(Math.round(avgSessionsPerDay))}</div>
-                        <div class="trend">Daily average over ${selectedDays}d</div>
+                        <div class="trend">${rangeCaption || ('Daily average over ' + sessionDays + 'd')}</div>
                     </div>
                 `;
 
@@ -5619,8 +5683,18 @@
         // ─────────────────────────────────────────────────────────────────────
         async function loadMonetizationDetail() {
             try {
-                const data = await callRpc('analytics_monetization_detail', { days: selectedDays, ...getGamePayload() });
+                const rangeDays = getSelectedRangeDays();
+                const rangeCaption = getRangeCaption();
+                const data = await callRpc('analytics_monetization_detail', {
+                    days: rangeDays,
+                    ...getGamePayload()
+                });
                 if (data.error) { document.getElementById('monetKpis').innerHTML = `<p class="empty-state">${data.error}</p>`; return; }
+                const rangeBanner = rangeCaption
+                    ? `<div style="grid-column:1/-1;padding:0.5rem 0.75rem;margin-bottom:0.35rem;font-size:0.78rem;color:#94a3b8;border:1px dashed rgba(148,163,184,0.35);border-radius:6px">` +
+                      `Monetization window: <strong>${rangeCaption}</strong> (${data.range_days || rangeDays}d) · ` +
+                      `counts are for this range only, not lifetime</div>`
+                    : '';
                 // 2026-04 hardening — render the full ad funnel + IAP KPIs.
                 // Server now returns: ad_requests, ad_load_failures, ad_skips,
                 // ad_clicks, ad_completion_rate_pct, ad_ecpm_usd, ad_revenue_by_network.
@@ -5643,7 +5717,7 @@
                 // mistake a fallback estimate for a real request-based metric.
                 const requestsTracked = (data.ad_requests || 0) > 0;
                 const fillSuffix = requestsTracked ? '' : ' *';
-                document.getElementById('monetKpis').innerHTML = [
+                document.getElementById('monetKpis').innerHTML = rangeBanner + [
                     // Ad funnel
                     { label: 'Ad Requests' + (requestsTracked ? '' : ' (not tracked)'), value: num(data.ad_requests), group: 'ads' },
                     { label: 'Ad Impressions',    value: num(data.ad_impressions),    group: 'ads' },
@@ -6410,9 +6484,13 @@
                 const d = data.doc;
                 const rev = d.revenue || {};
                 if (range) {
-                    range.textContent = (d.range_start && d.range_end)
-                        ? `${d.range_start} → ${d.range_end} · ${formatNumber(d.days_folded || 0)} days`
-                        : 'computed';
+                    if (hasCustomDateRange()) {
+                        range.textContent = 'All-time · not filtered by date picker above';
+                    } else if (d.range_start && d.range_end) {
+                        range.textContent = `${d.range_start} → ${d.range_end} · ${formatNumber(d.days_folded || 0)} days folded`;
+                    } else {
+                        range.textContent = 'computed';
+                    }
                 }
                 host.innerHTML = `
                     <div class="kpi-card">
@@ -9302,18 +9380,38 @@
         // LTV Analysis Update
         // ─────────────────────────────────────────────────────────────────────
 
-        async function updateLtvAnalysis(arpdau) {
+        async function updateLtvAnalysis(arpdau, opts = {}) {
             try {
-                // Try to fetch retention data for accurate LTV calculation
-                let d1Ret = 0.24, d7Ret = 0.09, d30Ret = 0.04; // Industry defaults
+                const rangeCaption = opts.rangeCaption || getRangeCaption();
+                const periodDays = opts.periodDays || getSelectedRangeDays();
+                let d1Ret = null;
+                let d7Ret = null;
+                let d30Ret = null;
+                let retentionSource = 'cohort curves';
                 try {
-                    const retData = await callRpc('analytics_retention_curves', { gameId: QV_GAME_ID !== 'all' ? selectedGameId : 'quiz-verse', days: 30 });
-                    if (retData && retData.curve && retData.curve.length > 0) {
-                        d1Ret = (retData.curve[1] || 24) / 100;
-                        d7Ret = (retData.curve[7] || 9) / 100;
-                        d30Ret = (retData.curve[30] || retData.curve[retData.curve.length - 1] || 4) / 100;
+                    const retData = await callRpc('analytics_retention_curves', {
+                        gameId: QV_GAME_ID,
+                        days: 30,
+                        ...getGamePayload()
+                    });
+                    if (retData && retData.summary) {
+                        const s = retData.summary;
+                        if (typeof s.avg_d1_pct === 'number') d1Ret = s.avg_d1_pct / 100;
+                        if (typeof s.avg_d7_pct === 'number') d7Ret = s.avg_d7_pct / 100;
+                        if (typeof s.avg_d30_pct === 'number') d30Ret = s.avg_d30_pct / 100;
+                    } else if (retData && retData.curve && retData.curve.length > 0) {
+                        const c = retData.curve;
+                        if (typeof c[1] === 'number') d1Ret = c[1] / 100;
+                        if (typeof c[7] === 'number') d7Ret = c[7] / 100;
+                        const d30 = c[30] != null ? c[30] : c[c.length - 1];
+                        if (typeof d30 === 'number') d30Ret = d30 / 100;
                     }
-                } catch(e) { /* use defaults */ }
+                } catch (e) {
+                    retentionSource = 'unavailable';
+                }
+                if (d1Ret == null) d1Ret = 0;
+                if (d7Ret == null) d7Ret = 0;
+                if (d30Ret == null) d30Ret = 0;
 
                 // Calculate LTV at different milestones
                 // LTV = ARPDAU * cumulative retention days
@@ -9334,14 +9432,22 @@
                 document.getElementById('ltvProjected').textContent = formatCurrency(ltvProjected);
 
                 // Update breakdown text
+                const rangeNote = rangeCaption
+                    ? `<div style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.5rem;">Revenue window: <strong>${rangeCaption}</strong> (${periodDays}d) · LTV retention from ${retentionSource}</div>`
+                    : '';
+                const revenueNote = (opts.totalRevenue === 0 && rangeCaption)
+                    ? '<div style="color:var(--text-muted);font-size:0.8rem;">$0 in this window does not mean $0 lifetime — see Overview all-time strip.</div>'
+                    : '';
                 document.getElementById('ltvBreakdown').innerHTML = `
+                    ${rangeNote}
+                    ${revenueNote}
                     <div style="margin-bottom:0.5rem;"><strong>Your Metrics:</strong></div>
                     <div>ARPDAU: <span style="color:var(--success)">$${arpdau.toFixed(4)}</span></div>
                     <div>D1 Retention: <span style="color:var(--accent)">${(d1Ret * 100).toFixed(1)}%</span></div>
                     <div>D7 Retention: <span style="color:var(--accent)">${(d7Ret * 100).toFixed(1)}%</span></div>
                     <div>D30 Retention: <span style="color:var(--accent)">${(d30Ret * 100).toFixed(1)}%</span></div>
                     <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);">
-                        <strong>CPI Target:</strong> < $${(ltvProjected * 0.6).toFixed(2)} for profitability
+                        <strong>CPI Target:</strong> &lt; $${(ltvProjected * 0.6).toFixed(2)} for profitability
                     </div>
                 `;
 

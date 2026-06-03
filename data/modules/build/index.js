@@ -19952,6 +19952,22 @@ var LegacyAnalyticsRetention;
     function arpuReadRollup(nk, gameId, dayStr) {
         return readAggStorage(nk, "analytics_rollup_daily", "rollup_" + (gameId || "all") + "_" + dayStr);
     }
+    function arpuReadLiveCounters(nk, gameId, dayStr, todayStr) {
+        if (dayStr !== todayStr)
+            return null;
+        try {
+            var key = "live_" + (gameId || "all") + "_" + dayStr;
+            var recs = nk.storageRead([{
+                    collection: "analytics_live_daily",
+                    key: key,
+                    userId: Constants.SYSTEM_USER_ID
+                }]);
+            return (recs && recs.length > 0) ? recs[0].value : null;
+        }
+        catch (_) {
+            return null;
+        }
+    }
     function arpuEventData(ev) {
         return (ev && (ev.eventData || ev.properties || ev.data)) || {};
     }
@@ -20036,8 +20052,9 @@ var LegacyAnalyticsRetention;
             name === "product_purchased" ||
             name === "store_purchase";
     }
-    function arpuScanRevenueEvents(nk, gameId, daysBack, now) {
-        var cutoffDate = new Date(now - (daysBack - 1) * 86400000).toISOString().split("T")[0];
+    function arpuScanRevenueEvents(nk, gameId, daysBack, now, cutoffDate, endDate) {
+        var cutoff = cutoffDate || new Date(now - (daysBack - 1) * 86400000).toISOString().split("T")[0];
+        var end = endDate || "";
         var out = { revenue: 0, purchases: 0, payingUsers: {}, activeUsers: {} };
         var cursor = null;
         var pages = 0;
@@ -20050,7 +20067,9 @@ var LegacyAnalyticsRetention;
                     var obj = page.objects[i];
                     var value = obj.value || {};
                     var eventDate = arpuEventDate(value, obj.key);
-                    if (!eventDate || eventDate < cutoffDate)
+                    if (!eventDate || eventDate < cutoff)
+                        continue;
+                    if (end && eventDate > end)
                         continue;
                     var eventGameId = arpuEventGameId(value, obj.key);
                     if (gameId && eventGameId !== gameId)
@@ -20078,24 +20097,56 @@ var LegacyAnalyticsRetention;
         var data = RpcHelpers.parseRpcPayload(payload);
         var period = data.period || "30d";
         var gameId = arpuResolveGameId(data.gameId || data.game_id || null);
-        var daysBack = period === "7d" ? 7 : period === "90d" ? 90 : 30;
         var now = Date.now();
+        var todayStr = new Date(now).toISOString().split("T")[0];
+        var rangeFrom = null;
+        var rangeTo = null;
+        var dateList = [];
+        var daysBack = period === "7d" ? 7 : period === "90d" ? 90 : 30;
+        var parsedDays = parseInt(data.days, 10);
+        if (isFinite(parsedDays) && parsedDays > 0 && parsedDays <= 365)
+            daysBack = parsedDays;
+        if (data.from_date && /^\d{4}-\d{2}-\d{2}$/.test(data.from_date)) {
+            rangeFrom = data.from_date;
+            rangeTo = (data.to_date && /^\d{4}-\d{2}-\d{2}$/.test(data.to_date)) ? data.to_date : todayStr;
+            var fromMs = new Date(rangeFrom + "T00:00:00Z").getTime();
+            var toMs = new Date(rangeTo + "T00:00:00Z").getTime();
+            if (toMs < fromMs) {
+                var swap = rangeTo;
+                rangeTo = rangeFrom;
+                rangeFrom = swap;
+                fromMs = new Date(rangeFrom + "T00:00:00Z").getTime();
+                toMs = new Date(rangeTo + "T00:00:00Z").getTime();
+            }
+            for (var ms = fromMs; ms <= toMs; ms += 86400000) {
+                dateList.push(new Date(ms).toISOString().split("T")[0]);
+            }
+            daysBack = dateList.length;
+            period = daysBack + "d";
+        }
+        else {
+            for (var d = 0; d < daysBack; d++) {
+                dateList.push(new Date(now - d * 86400000).toISOString().split("T")[0]);
+            }
+        }
         var totalRevenue = 0;
         var totalPurchases = 0;
         var uniquePayingUsers = [];
         var uniquePayingUserMap = {};
-        var totalActiveUsers = 0;
+        var dauSum = 0;
+        var dauDaysWithData = 0;
         var rollupDays = 0;
         var legacyRevenueDays = 0;
-        for (var d = 0; d < daysBack; d++) {
-            var dayStr = new Date(now - d * 86400000).toISOString().split("T")[0];
+        for (var di = 0; di < dateList.length; di++) {
+            var dayStr = dateList[di];
+            var dayDau = 0;
             var rollup = arpuReadRollup(nk, gameId, dayStr);
             if (rollup) {
                 var r = rollup.revenue || {};
                 totalRevenue += parseFloat(r.usd || r.iap_revenue_usd || 0) || 0;
                 totalPurchases += parseInt(r.iap_count || r.purchaseCount || 0, 10) || 0;
                 if (typeof rollup.dau === "number")
-                    totalActiveUsers += rollup.dau;
+                    dayDau = rollup.dau;
                 rollupDays++;
             }
             else {
@@ -20112,11 +20163,31 @@ var LegacyAnalyticsRetention;
                 }
                 var dauKey = gameId ? "dau_" + gameId + "_" + dayStr : "dau_platform_" + dayStr;
                 var dauData = readAggStorage(nk, "analytics_dau", dauKey);
-                if (dauData && dauData.count)
-                    totalActiveUsers += dauData.count;
+                if (dauData) {
+                    dayDau = parseInt(dauData.count, 10) || 0;
+                    if (!dayDau && dauData.uniqueUsers && dauData.uniqueUsers.length) {
+                        dayDau = dauData.uniqueUsers.length;
+                    }
+                }
+            }
+            // Same-day live counters when rollup is cold (common for "today").
+            if (!rollup) {
+                var liveDoc = arpuReadLiveCounters(nk, gameId, dayStr, todayStr);
+                if (liveDoc) {
+                    var liveRev = parseFloat(liveDoc.revenue_usd || 0) || 0;
+                    var liveIap = parseInt(liveDoc.iap_count || liveDoc.purchase_count || 0, 10) || 0;
+                    if (liveRev > 0)
+                        totalRevenue += liveRev;
+                    if (liveIap > 0)
+                        totalPurchases += liveIap;
+                }
+            }
+            if (dayDau > 0) {
+                dauSum += dayDau;
+                dauDaysWithData++;
             }
         }
-        var scanned = arpuScanRevenueEvents(nk, gameId, daysBack, now);
+        var scanned = arpuScanRevenueEvents(nk, gameId, daysBack, now, rangeFrom || dateList[dateList.length - 1], rangeTo || todayStr);
         for (var payer in scanned.payingUsers) {
             if (scanned.payingUsers.hasOwnProperty(payer))
                 uniquePayingUserMap[payer] = true;
@@ -20130,18 +20201,22 @@ var LegacyAnalyticsRetention;
         if (totalRevenue === 0 && scanned.revenue > 0)
             totalRevenue = scanned.revenue;
         var scannedActiveUsers = Object.keys(scanned.activeUsers).length;
-        if (totalActiveUsers === 0 && scannedActiveUsers > 0)
-            totalActiveUsers = scannedActiveUsers;
-        var avgDau = daysBack > 0 ? Math.round((totalActiveUsers / daysBack) * 100) / 100 : 0;
+        if (dauDaysWithData === 0 && scannedActiveUsers > 0) {
+            dauSum = scannedActiveUsers;
+            dauDaysWithData = 1;
+        }
+        var avgDau = dauDaysWithData > 0 ? Math.round((dauSum / dauDaysWithData) * 100) / 100 : 0;
         var arpu = avgDau > 0 ? (totalRevenue / avgDau).toFixed(2) : "0.00";
         var arppu = uniquePayingUsers.length > 0 ? (totalRevenue / uniquePayingUsers.length).toFixed(2) : "0.00";
-        var conversionBase = scannedActiveUsers > 0 ? scannedActiveUsers : totalActiveUsers;
+        var conversionBase = scannedActiveUsers > 0 ? scannedActiveUsers : Math.round(dauSum);
         return RpcHelpers.successResponse({
             period: period, daysBack: daysBack, totalRevenue: totalRevenue,
             totalPurchases: totalPurchases, uniquePayingUsers: uniquePayingUsers.length,
             avgDau: avgDau, arpu: parseFloat(arpu), arppu: parseFloat(arppu),
             conversionRate: conversionBase > 0 ? ((uniquePayingUsers.length / conversionBase) * 100).toFixed(2) + "%" : "0%",
             gameId: gameId,
+            range_from: rangeFrom,
+            range_to: rangeTo,
             meta: {
                 rollupDays: rollupDays,
                 legacyRevenueDays: legacyRevenueDays,

@@ -9,6 +9,12 @@
 // global naming collisions in the concatenated Nakama bundle.
 
 var GPA_COLLECTION       = "game_player_analytics";
+// Nakama system/root user. Each GPA doc is authoritative under the PLAYER's
+// userId, but we also mirror a full copy under this system owner on every
+// upsert so operator-facing readers that list by the system user (Nakama
+// console, dashboard_storage_list, the Satori identity/events backfill) see
+// the complete content instead of an empty collection.
+var GPA_SYSTEM_USER      = "00000000-0000-0000-0000-000000000000";
 var GPA_MAX_EVENTS       = 500;
 var GPA_MAX_SESSIONS     = 10;
 var GPA_MAX_CRASHES      = 5;
@@ -171,6 +177,16 @@ function gpaCasUpsert(nk, logger, gameId, userId, mutateFn) {
                 permissionWrite: 0,
                 version: isCreate ? "*" : version
             }]);
+
+            // ── System-owned mirror (visibility) ─────────────────────────
+            // The authoritative write above is owned by the player, so tools
+            // that list game_player_analytics under the SYSTEM user see an
+            // empty collection. Mirror the full doc under the system owner
+            // with the same key so every system-scoped reader sees the
+            // complete content. Best-effort: a mirror failure must NEVER fail
+            // the authoritative player write (no version → last-write-wins).
+            gpaWriteSystemMirror(nk, logger, key, modified);
+
             return true;
         } catch (e) {
             if (attempt === GPA_CAS_MAX_RETRIES - 1 && logger && logger.warn) {
@@ -180,6 +196,30 @@ function gpaCasUpsert(nk, logger, gameId, userId, mutateFn) {
         }
     }
     return false;
+}
+
+// ─── System-owned mirror writer ───────────────────────────────────
+// Writes a full copy of the player doc under the system user so operator
+// tools (Nakama console, dashboard_storage_list, Satori backfill) that list
+// the collection by the system user see the complete content. Last-write-wins
+// (no version) and fully swallowed on error — the player doc is the source of
+// truth and must not be impacted by a mirror failure.
+function gpaWriteSystemMirror(nk, logger, key, doc) {
+    try {
+        nk.storageWrite([{
+            collection: GPA_COLLECTION,
+            key: key,
+            userId: GPA_SYSTEM_USER,
+            value: doc,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (mirrorErr) {
+        if (logger && logger.warn) {
+            logger.warn("[game_player_analytics] system mirror write failed for " +
+                key + " (" + (mirrorErr.message || mirrorErr) + ") — player doc is intact");
+        }
+    }
 }
 
 // ─── Event buffer append ──────────────────────────────────────────
@@ -612,6 +652,12 @@ function gpaPurgePlayer(nk, logger, userId) {
                     collection: GPA_COLLECTION,
                     key: list.objects[i].key,
                     userId: userId
+                });
+                // Also remove the system-owned mirror copy (GDPR: no residual PII).
+                deletes.push({
+                    collection: GPA_COLLECTION,
+                    key: list.objects[i].key,
+                    userId: GPA_SYSTEM_USER
                 });
             }
             nk.storageDelete(deletes);

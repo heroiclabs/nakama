@@ -292,6 +292,71 @@ function extDaysAgo(days) {
 }
 
 /**
+ * Resolve inclusive UTC date list for dashboard RPCs.
+ * Honors from_date/to_date when present; otherwise last N days ending today.
+ */
+function extResolveDateWindow(data) {
+    var days = parseInt(data.days, 10) || 7;
+    if (days < 1) days = 7;
+    if (days > 365) days = 365;
+    var dates = [];
+    var cutoffDate = extDaysAgo(Math.max(0, days - 1));
+
+    if (data.from_date && /^\d{4}-\d{2}-\d{2}$/.test(data.from_date)) {
+        var toDate = (data.to_date && /^\d{4}-\d{2}-\d{2}$/.test(data.to_date))
+            ? data.to_date
+            : new Date().toISOString().slice(0, 10);
+        var fromMs = new Date(data.from_date + 'T00:00:00Z').getTime();
+        var toMs = new Date(toDate + 'T00:00:00Z').getTime();
+        if (toMs < fromMs) {
+            var swap = toDate;
+            toDate = data.from_date;
+            data.from_date = swap;
+            fromMs = new Date(data.from_date + 'T00:00:00Z').getTime();
+            toMs = new Date(toDate + 'T00:00:00Z').getTime();
+        }
+        for (var ms = fromMs; ms <= toMs; ms += 86400000) {
+            dates.push(new Date(ms).toISOString().slice(0, 10));
+        }
+        days = dates.length;
+        cutoffDate = data.from_date;
+    } else {
+        for (var d = 0; d < days; d++) {
+            dates.push(extDaysAgo(d));
+        }
+    }
+
+    var rangeTo = dates.length > 0 ? dates[dates.length - 1] : cutoffDate;
+    if (data.from_date && /^\d{4}-\d{2}-\d{2}$/.test(data.from_date)) {
+        rangeTo = (data.to_date && /^\d{4}-\d{2}-\d{2}$/.test(data.to_date))
+            ? data.to_date
+            : new Date().toISOString().slice(0, 10);
+    } else if (dates.length > 0) {
+        rangeTo = dates[0];
+    }
+
+    return { days: days, dates: dates, cutoffDate: cutoffDate, rangeTo: rangeTo };
+}
+
+/** Rollup docs for each day in extResolveDateWindow (respects from_date/to_date). */
+function extReadRollupRangeForWindow(nk, gameId, data) {
+    var window = extResolveDateWindow(data || { days: 7 });
+    var out = [];
+    var resolvedGid = gameId || 'all';
+    for (var i = 0; i < window.dates.length; i++) {
+        var dateStr = window.dates[i];
+        var doc = null;
+        try {
+            if (typeof readRollupDaily === 'function') {
+                doc = readRollupDaily(nk, resolvedGid, dateStr);
+            }
+        } catch (e) { /* swallow */ }
+        out.push({ date: dateStr, doc: doc, missing: !doc });
+    }
+    return out;
+}
+
+/**
  * Resolve a gameId slug ("quizverse", "lasttolive", …) to its canonical UUID.
  * Delegates to resolveGameIdAlias (defined in analytics.js, globally available
  * inside the bundled runtime). Falls back to identity when the helper or the
@@ -335,9 +400,10 @@ var EVENT_COLLECTIONS = ['analytics_events', 'analytics_error_events'];
  * @param {function} filter - Custom filter function
  * @param {string} gameId - Optional gameId to filter (null = all games)
  */
-function extScanEvents(nk, logger, collection, days, filter, gameId) {
+function extScanEvents(nk, logger, collection, days, filter, gameId, cutoffDateOverride, endDateOverride) {
     var events = [];
-    var cutoffDate = extDaysAgo(days);
+    var cutoffDate = cutoffDateOverride || extDaysAgo(Math.max(0, (parseInt(days, 10) || 7) - 1));
+    var endDate = endDateOverride || '';
 
     // Canonicalize the requested gameId once: callers may pass a slug
     // ("quizverse") and stored events may carry either the slug (legacy)
@@ -374,6 +440,7 @@ function extScanEvents(nk, logger, collection, days, filter, gameId) {
                     // Date filter
                     var eventDate = val.date || extIsoDate(val.timestamp) || obj.key.slice(-10);
                     if (eventDate && eventDate < cutoffDate) continue;
+                    if (endDate && eventDate > endDate) continue;
 
                     // Custom filter
                     if (filter && !filter(val, obj)) continue;
@@ -609,11 +676,18 @@ function extAddDurationSamples(durations, value, count) {
     for (var i = 0; i < limit; i++) durations.push(value);
 }
 
-function extBuildSessionStatsFromEvents(events, days) {
+function extBuildSessionStatsFromEvents(events, days, dateList) {
     var dailyMap = {};
     var dailyStats = [];
-    for (var d = 0; d < days; d++) {
-        var dateStr = extDaysAgo(d);
+    var dates = dateList;
+    if (!dates || dates.length === 0) {
+        dates = [];
+        for (var d = 0; d < days; d++) {
+            dates.push(extDaysAgo(d));
+        }
+    }
+    for (var di = 0; di < dates.length; di++) {
+        var dateStr = dates[di];
         dailyMap[dateStr] = { date: dateStr, sessions: 0, durationTotal: 0, durationCount: 0 };
     }
 
@@ -701,8 +775,8 @@ function extBuildSessionStatsFromEvents(events, days) {
         }
     }
 
-    for (var r = days - 1; r >= 0; r--) {
-        var dayStr = extDaysAgo(r);
+    for (var ri = 0; ri < dates.length; ri++) {
+        var dayStr = dates[ri];
         var b = dailyMap[dayStr] || { date: dayStr, sessions: 0, durationTotal: 0, durationCount: 0 };
         dailyStats.push({
             date: dayStr,
@@ -724,9 +798,9 @@ function extBuildSessionStatsFromEvents(events, days) {
 function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var days = parseInt(data.days, 10) || 7;
-        if (days < 1) days = 7;
-        if (days > 365) days = 365;
+        var window = extResolveDateWindow(data);
+        var days = window.days;
+        var dateList = window.dates;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
 
         var totalSessions = 0;
@@ -735,12 +809,14 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
         var dailyStats = [];
         var rollupReadDays = 0;
         var aggregateReadDays = 0;
+        var durationWeightSum = 0;
+        var durationWeightCount = 0;
 
         // Prefer daily rollups, then legacy session aggregates. If both are cold,
         // derive counts directly from analytics_events so the dashboard does not
         // show zero while the raw activity log has usable session evidence.
-        for (var d = 0; d < days; d++) {
-            var dateStr = extDaysAgo(d);
+        for (var di = 0; di < dateList.length; di++) {
+            var dateStr = dateList[di];
             var daySessions = 0;
             var dayAvgDuration = 0;
             var addedRawDurations = false;
@@ -799,11 +875,12 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
             if (daySessions > 0) {
                 totalSessions += daySessions;
                 if (!addedRawDurations && dayAvgDuration > 0) {
-                    extAddDurationSamples(durations, dayAvgDuration, daySessions);
+                    durationWeightSum += dayAvgDuration * daySessions;
+                    durationWeightCount += daySessions;
                 }
             }
 
-            dailyStats.unshift({
+            dailyStats.push({
                 date: dateStr,
                 sessions: daySessions,
                 avg_duration: Math.round(dayAvgDuration)
@@ -817,8 +894,8 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
                 var n = extEventName(v);
                 if (n.indexOf('error') !== -1 || n === 'exception') return false;
                 return extMatchesModeFilter(data, v);
-            }, gameId);
-            var liveStats = extBuildSessionStatsFromEvents(liveEvents, days);
+            }, gameId, window.cutoffDate);
+            var liveStats = extBuildSessionStatsFromEvents(liveEvents, days, dateList);
             if (liveStats.totalSessions > 0) {
                 if (totalSessions === 0) {
                     totalSessions = liveStats.totalSessions;
@@ -834,10 +911,19 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
             }
         }
 
-        // Calculate metrics
-        var avgDuration = durations.length > 0 ? Math.round(durations.reduce(function(a, b) { return a + b; }, 0) / durations.length) : 0;
-        var medianDuration = Math.round(extMedian(durations));
-        var p95Duration = Math.round(extPercentile(durations, 95));
+        // Calculate metrics — percentiles only from real per-session samples.
+        var avgDuration = durations.length > 0
+            ? Math.round(durations.reduce(function(a, b) { return a + b; }, 0) / durations.length)
+            : (durationWeightCount > 0 ? Math.round(durationWeightSum / durationWeightCount) : 0);
+        var medianDuration = durations.length >= 2
+            ? Math.round(extMedian(durations))
+            : (durations.length === 1 ? Math.round(durations[0]) : avgDuration);
+        var p95Duration = durations.length >= 5
+            ? Math.round(extPercentile(durations, 95))
+            : (durations.length > 0 ? Math.round(Math.max.apply(null, durations)) : avgDuration);
+        if (avgDuration > 14400) avgDuration = 14400;
+        if (medianDuration > 14400) medianDuration = 14400;
+        if (p95Duration > 14400) p95Duration = 14400;
         var sessionsPerDayAvg = days > 0 ? Math.round(totalSessions / days) : 0;
 
         // Peak hours
@@ -858,6 +944,10 @@ function rpcAnalyticsSessionStats(ctx, logger, nk, payload) {
             sessions_per_day_avg: sessionsPerDayAvg,
             peak_hours: peakHours,
             daily_breakdown: dailyStats,
+            range_from: data.from_date || null,
+            range_to: data.to_date || null,
+            range_days: days,
+            duration_sample_count: durations.length,
             _meta: {
                 source: usedLiveEvents && totalSessions > 0 && rollupReadDays === 0 && aggregateReadDays === 0 ? 'analytics_events' : 'rollup_or_aggregate',
                 rollup_days: rollupReadDays,
@@ -1573,8 +1663,13 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
 function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var days = parseInt(data.days, 10) || 7;
+        var window = extResolveDateWindow(data);
+        var days = window.days;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
+        var dateSet = {};
+        for (var dsi = 0; dsi < window.dates.length; dsi++) {
+            dateSet[window.dates[dsi]] = true;
+        }
 
         var adImpressions = 0;
         var adCompleted = 0;
@@ -1603,12 +1698,18 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         // day, vs the legacy live-scan path that re-walked thousands of
         // events on every dashboard load. We still fall back to the live
         // scan for cold-start days (no rollup yet).
-        var rollupRange = extReadRollupRange(nk, gameId, days);
+        // Fallback: scan events (with gameId filter). Triggers when NO day
+        // in the range had a rollup doc (cold-start project) or when the
+        // operator forces it via DASHBOARD_PREFER_ROLLUPS=false. Partial
+        // ranges (some days missing) are intentionally NOT live-scanned
+        // here — running an event scan per missing day defeats the whole
+        // point of the rollup. Operators with stale ranges can re-run
+        // analytics_rollup_backfill to fill the gaps cheaply.
+        var rollupRange = extReadRollupRangeForWindow(nk, gameId, data);
         var rollupServed = extRollupHasAny(rollupRange);
         var readPath = rollupServed ? "rollup-preferred" : "live-scan";
         var rollupHits = 0;
         var liveFallbacks = 0;
-
         if (rollupServed) {
             for (var ri = 0; ri < rollupRange.length; ri++) {
                 var entry = rollupRange[ri];
@@ -1648,19 +1749,12 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                     }
                     rollupHits++;
                 } else {
-                    liveFallbacks++;  // missing day in the range
+                    liveFallbacks++;
                 }
-                dailyAdRevenue.unshift({ date: entry.date, revenue: dayRev });
+                dailyAdRevenue.push({ date: entry.date, revenue: dayRev });
             }
         }
 
-        // Fallback: scan events (with gameId filter). Triggers when NO day
-        // in the range had a rollup doc (cold-start project) or when the
-        // operator forces it via DASHBOARD_PREFER_ROLLUPS=false. Partial
-        // ranges (some days missing) are intentionally NOT live-scanned
-        // here — running an event scan per missing day defeats the whole
-        // point of the rollup. Operators with stale ranges can re-run
-        // analytics_rollup_backfill to fill the gaps cheaply.
         if (!rollupServed && adImpressions === 0) {
             readPath = "live-scan";
             // Reset dailyAdRevenue (rollup loop above may have pushed
@@ -1674,10 +1768,17 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                        evName.indexOf('paywall') !== -1;
                 if (!match) return false;
                 return extMatchesModeFilter(data, val);
-            }, gameId);
+            }, gameId, window.cutoffDate, window.rangeTo);
+
+            var dailyRevMap = {};
+            for (var dri = 0; dri < window.dates.length; dri++) {
+                dailyRevMap[window.dates[dri]] = 0;
+            }
 
             for (var i = 0; i < events.length; i++) {
                 var ev = events[i];
+                var evDay = extEventDate(ev);
+                if (!evDay || !dateSet[evDay]) continue;
                 var evName = (ev.eventName || '').toLowerCase();
                 var evData = ev.eventData || {};
 
@@ -1721,6 +1822,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                 if (addedRev > 0) {
                     var net = evData.ad_network || evData.adNetwork || 'unknown';
                     adRevenueByNetwork[net] = (adRevenueByNetwork[net] || 0) + addedRev;
+                    dailyRevMap[evDay] = (dailyRevMap[evDay] || 0) + addedRev;
                 }
 
                 // ── Full ad funnel (2026-04 hardened taxonomy) ──
@@ -1747,6 +1849,11 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                 // `product_id` from AnalyticsParams.PRODUCT_ID.
                 var prodId = evData.productId || evData.product_id || null;
                 if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
+            }
+            dailyAdRevenue = [];
+            for (var dmi = 0; dmi < window.dates.length; dmi++) {
+                var dmDay = window.dates[dmi];
+                dailyAdRevenue.push({ date: dmDay, revenue: Math.round((dailyRevMap[dmDay] || 0) * 100) / 100 });
             }
         }
 
@@ -1789,6 +1896,9 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
 
         return JSON.stringify({
             game_id: gameId || 'all',
+            range_from: data.from_date || null,
+            range_to: data.to_date || window.rangeTo || null,
+            range_days: days,
             ad_impressions: adImpressions,
             ad_completed: adCompleted,
             ad_fill_rate_pct: adFillRate,

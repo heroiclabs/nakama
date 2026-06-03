@@ -134,6 +134,8 @@ function abModeIdentity(ctx, logger, nk, opts) {
     var satori = (opts.to_satori === false) ? null : abGetSatoriOrNull(nk, logger);
     var limit = Math.min(opts.limit || AB_DEFAULT_LIMIT, AB_MAX_LIMIT);
 
+    // GPA docs are mirrored under the system user by gpaWriteSystemMirror,
+    // so a system-user scan returns exactly one doc per player.
     var page = abListPage(nk, AB_GPA_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
     var processed = 0, skipped = 0, satoriCalls = 0;
     var errors = [];
@@ -211,6 +213,8 @@ function abModeEventsReplay(ctx, logger, nk, opts) {
     var writeDash = (opts.to_dashboard !== false);
     var limit = Math.min(opts.limit || AB_DEFAULT_LIMIT, AB_MAX_LIMIT);
 
+    // GPA docs are mirrored under the system user by gpaWriteSystemMirror,
+    // so a system-user scan returns exactly one doc per player.
     var page = abListPage(nk, AB_GPA_COLLECTION, AB_SYSTEM_USER, limit, opts.cursor);
     var docsProcessed = 0, eventsPushed = 0, dashWrites = 0, satoriCalls = 0;
     var errors = [];

@@ -1028,9 +1028,16 @@ function aggregateSessionStats(nk, logger, durationSeconds, gameId) {
                 if (!stats) {
                     stats = { date: today, gameId: gameId || null, totalSessions: 0, totalDuration: 0, avgDuration: 0 };
                 }
+                var dur = parseFloat(durationSeconds) || 0;
+                if (dur < 0) dur = 0;
+                // Cap per-session contribution so a bad client timestamp cannot
+                // poison dashboard avg (e.g. 3h+ from millis treated as seconds).
+                if (dur > 14400) dur = 14400;
                 stats.totalSessions++;
-                stats.totalDuration += (durationSeconds || 0);
+                stats.totalDuration += dur;
                 stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
+                if (!stats.durations) stats.durations = [];
+                if (stats.durations.length < 5000) stats.durations.push(dur);
                 return stats;
             });
         })(keys[k]);
@@ -1164,20 +1171,20 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         rangeFromDate = parsed.from_date;
         rangeToDate   = (parsed.to_date && /^\d{4}-\d{2}-\d{2}$/.test(parsed.to_date))
             ? parsed.to_date : todayStr;
-        // Compute how many days back from today to from_date so the loop
-        // generates enough DAU buckets to cover the full window.
+        // Inclusive day count inside the requested window (not always through today).
         var fromMs = new Date(rangeFromDate + 'T00:00:00Z').getTime();
-        var nowMs  = new Date(todayStr + 'T00:00:00Z').getTime();
-        days = Math.max(1, Math.round((nowMs - fromMs) / 86400000) + 1);
+        var toMs   = new Date(rangeToDate + 'T00:00:00Z').getTime();
+        days = Math.max(1, Math.round((toMs - fromMs) / 86400000) + 1);
     } else {
         days = parseInt(parsed.days, 10) || 30;
     }
 
-    // Always scan at least 30 days so WAU (7d) and MAU (30d) always have
-    // enough data regardless of the display window (e.g. "Today" button sends
-    // days=1, which would otherwise make WAU=MAU=DAU — completely wrong).
-    // The dau_trend filter trims the returned array to the requested range.
-    var scanDays = Math.max(days, 30);
+    // Scan back far enough to include the whole custom window (and at least
+    // 30 days for default rolling WAU/MAU when no custom range is set).
+    var scanDays = rangeFromDate
+        ? Math.max(days, 30, Math.round((new Date(todayStr + 'T00:00:00Z').getTime() -
+            new Date(rangeFromDate + 'T00:00:00Z').getTime()) / 86400000) + 1)
+        : Math.max(days, 30);
 
     var now = new Date();
     // todayStr is already set above during date-range resolution; this line
@@ -1298,7 +1305,19 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         if (sessObjs && sessObjs.length > 0) sessionStats = sessObjs[0].value;
     } catch (e) { /* no data */ }
 
-    var avgSessionDuration = sessionStats ? sessionStats.avgDuration : 0;
+    var avgSessionDuration = 0;
+    if (sessionStats) {
+        if (sessionStats.durations && sessionStats.durations.length > 0) {
+            var sSum = 0;
+            for (var si = 0; si < sessionStats.durations.length; si++) {
+                sSum += parseFloat(sessionStats.durations[si]) || 0;
+            }
+            avgSessionDuration = Math.round(sSum / sessionStats.durations.length);
+        } else {
+            avgSessionDuration = sessionStats.avgDuration || 0;
+        }
+        if (avgSessionDuration > 14400) avgSessionDuration = 14400;
+    }
 
     // Top games (if platform-wide). Paginate up to 10 pages * 100 = 1000
     // DAU records so active games beyond the first page aren't silently
@@ -1356,6 +1375,65 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var dauWindow = dauTrend.slice(-7).map(function(day) { return day.count || 0; });
     var dau7dMin = dauWindow.length > 0 ? Math.min.apply(null, dauWindow) : 0;
     var dau7dMax = dauWindow.length > 0 ? Math.max.apply(null, dauWindow) : 0;
+
+    // When the client sent from_date/to_date, headline KPIs should describe
+    // that window (e.g. "today only"), not rolling calendar WAU/MAU on today.
+    var metricsWindowMode = 'rolling';
+    if (rangeFromDate) {
+        metricsWindowMode = 'custom';
+        var windowTrend = [];
+        for (var wt = 0; wt < dauTrend.length; wt++) {
+            var wDay = dauTrend[wt];
+            if (wDay.date >= rangeFromDate && wDay.date <= (rangeToDate || todayStr)) {
+                windowTrend.push(wDay);
+            }
+        }
+        if (windowTrend.length > 0) {
+            var lastInWindow = windowTrend[windowTrend.length - 1];
+            dau = lastInWindow.count || 0;
+            newUsersToday = lastInWindow.newUsers || 0;
+            var windowCounts = windowTrend.map(function(wd) { return wd.count || 0; });
+            dau7dMin = Math.min.apply(null, windowCounts);
+            dau7dMax = Math.max.apply(null, windowCounts);
+            if (windowTrend.length === 1) {
+                wau = dau;
+                mau = dau;
+                wauEstimated = false;
+                mauEstimated = false;
+            } else if (windowTrend.length <= 7) {
+                wau = Math.max.apply(null, windowCounts);
+                wauEstimated = true;
+                mau = windowTrend.length <= 30 ? Math.max.apply(null, windowCounts) : mau;
+                mauEstimated = windowTrend.length < 30;
+            }
+            dauMauRatio = mau > 0 ? dau / mau : 0;
+
+            var rangeEnd = rangeToDate || todayStr;
+            var rangeSessionKey = gameId === 'all'
+                ? 'session_stats_' + rangeEnd
+                : 'session_stats_' + gameId + '_' + rangeEnd;
+            try {
+                var rangeSessObjs = nk.storageRead([{
+                    collection: 'analytics_sessions',
+                    key: rangeSessionKey,
+                    userId: SYSTEM_USER
+                }]);
+                if (rangeSessObjs && rangeSessObjs.length > 0 && rangeSessObjs[0].value) {
+                    var rv = rangeSessObjs[0].value;
+                    if (rv.durations && rv.durations.length > 0) {
+                        var rSum = 0;
+                        for (var rdi = 0; rdi < rv.durations.length; rdi++) {
+                            rSum += parseFloat(rv.durations[rdi]) || 0;
+                        }
+                        avgSessionDuration = Math.round(rSum / rv.durations.length);
+                    } else {
+                        avgSessionDuration = rv.avgDuration || avgSessionDuration;
+                    }
+                    if (avgSessionDuration > 14400) avgSessionDuration = 14400;
+                }
+            } catch (eRangeSess) { /* non-fatal */ }
+        }
+    }
 
     // ── Total players (lifetime unique users) ─────────────────────────────
     // Read from the cumulative counter written by rpcAnalyticsRollupRun on
@@ -1450,6 +1528,7 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         range_from: rangeFromDate || null,
         range_to:   rangeToDate   || null,
         range_days: days,
+        metrics_window: metricsWindowMode,
         trends: {
             dau_7d_change_pct: dau7dChangePct
         },
