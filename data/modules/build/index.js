@@ -7802,6 +7802,8 @@ var QuizVerseLiveBanner;
         var ctaUrl = buildCtaUrl(eventId, eventType, userId, "");
         return {
             show: true,
+            // Unity ignores this today; signals "must show" while the event is in the live window.
+            force_live: status === "active",
             event_id: eventId,
             event_type: eventType,
             title: status === "upcoming" ? "⏰ UPCOMING" : "🔴 LIVE NOW",
@@ -7818,6 +7820,37 @@ var QuizVerseLiveBanner;
             server_time: now
         };
     }
+    /** True when an event is in the live window right now (not just upcoming). */
+    function isLiveWindowActive(nk, logger, userId, gameId) {
+        var tournament = fetchTournamentCandidate(nk, logger, userId);
+        if (tournament && tournament.status === "active")
+            return true;
+        var creator = fetchCreatorCandidate(nk, logger);
+        if (creator && creator.status === "active")
+            return true;
+        var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
+        if (satori && satori.status === "active")
+            return true;
+        return false;
+    }
+    function refreshCachedPayloadTimes(cached) {
+        if (!cached || !cached.show || !cached.ends_at)
+            return;
+        var nowSec = Math.floor(Date.now() / 1000);
+        cached.time_remaining_sec = Math.max(0, cached.ends_at - nowSec);
+        cached.server_time = nowSec;
+        if (nowSec > cached.ends_at) {
+            cached.show = false;
+            cached.event_type = "none";
+            cached.force_live = false;
+            return;
+        }
+        // Re-assert live force while still inside the window (Unity only reads show today).
+        if (nowSec >= (cached.starts_at || 0) && cached.badge !== "upcoming") {
+            cached.force_live = true;
+            cached.show = true;
+        }
+    }
     // ── RPC Handler ───────────────────────────────────────────────────────────
     function rpcLiveBannerCheck(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -7828,19 +7861,15 @@ var QuizVerseLiveBanner;
         if (!forceRefresh) {
             var cached = readCache(nk, userId);
             if (cached !== null) {
-                // Recalculate time_remaining_sec from live clock even when cached,
-                // so Unity always gets an accurate countdown without a fresh RPC.
-                if (cached.show && cached.ends_at) {
-                    var nowSec = Math.floor(Date.now() / 1000);
-                    cached.time_remaining_sec = Math.max(0, cached.ends_at - nowSec);
-                    cached.server_time = nowSec;
-                    // Auto-hide if the cached event has ended since we last wrote cache
-                    if (nowSec > cached.ends_at) {
-                        cached.show = false;
-                        cached.event_type = "none";
-                    }
+                // Stale no-banner cache: if an event went live after we cached false, rebuild now.
+                if (!cached.show && isLiveWindowActive(nk, logger, userId, gameId)) {
+                    logger.info("[LiveBanner] user=" + userId + " busting show=false cache — live event active");
+                    cached = null;
                 }
-                return RpcHelpers.successResponse(cached);
+                else {
+                    refreshCachedPayloadTimes(cached);
+                    return RpcHelpers.successResponse(cached);
+                }
             }
         }
         // ── Fetch all three sources in priority order ──────────────────────────
@@ -7868,6 +7897,7 @@ var QuizVerseLiveBanner;
             // Nothing active or upcoming — hide banner
             bannerPayload = {
                 show: false,
+                force_live: false,
                 event_id: "",
                 event_type: "none",
                 title: "",
@@ -7886,7 +7916,7 @@ var QuizVerseLiveBanner;
             cacheTtl = NO_EVENT_TTL_SEC;
         }
         writeCache(nk, userId, bannerPayload, cacheTtl);
-        logger.info("[LiveBanner] user=" + userId + " show=" + bannerPayload.show + " type=" + bannerPayload.event_type);
+        logger.info("[LiveBanner] user=" + userId + " show=" + bannerPayload.show + " force_live=" + !!bannerPayload.force_live + " type=" + bannerPayload.event_type);
         return RpcHelpers.successResponse(bannerPayload);
     }
     function register(initializer) {
