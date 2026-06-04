@@ -539,6 +539,19 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
   }
 
+  // ---- TutorX Progress (server-authoritative XP + streak/freeze + quests) ----
+  // Replaces the client-only (localStorage) gamification in the TutorX web SPA.
+  // register() is single-arg on purpose so postbuild's autoInvokeRegister
+  // re-runs it on every pooled Goja VM (populating the __rpc_tutorx_* stubs
+  // there — otherwise they're undefined on the VMs serving traffic → HTTP 500).
+  try {
+    logger.info("[TutorXProgress] Registering tutorx_xp_get / xp_add / streak_touch / quest_claim RPCs...");
+    TutorXProgress.register(initializer);
+    logger.info("[TutorXProgress] TutorX progress RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[TutorXProgress] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Fantasy Cricket RPCs ----
   try {
     logger.info("[Fantasy] Registering Team RPCs...");
