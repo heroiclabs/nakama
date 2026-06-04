@@ -7374,6 +7374,13 @@ var QuizVersePlugin;
 // active tournaments) into ONE banner payload — Unity only needs to check
 // `response.data.show` and render the returned fields.
 //
+// Creator events are resolved from all publish paths (no Unity changes):
+//   • `creator_event_publish` → satori_creator_events + events_index
+//   • `creator_live_event_publish` / SPA → live_events (system or user-scoped)
+//   • Legacy records with startsAt/endsAt on live_events (SYSTEM user)
+// Window: scheduledAt + duration (minutes, per creator_event_live) or
+//         startsAt/endsAt when present.
+//
 // Priority order (highest wins when multiple are active simultaneously):
 //   1. Active tournament   (competitive, high urgency)
 //   2. Creator live event  (curated, time-sensitive)
@@ -7414,6 +7421,9 @@ var QuizVerseLiveBanner;
     var LIVE_URL_BASE = "https://live.quizverse.world/player";
     var QUIZVERSE_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var CREATOR_EVENTS_COLLECTION = "satori_creator_events";
+    var CREATOR_EVENTS_INDEX_KEY = "events_index";
+    var LIVE_EVENTS_COLLECTION = "live_events";
     function readCache(nk, userId) {
         try {
             var rows = nk.storageRead([{ collection: CACHE_COLLECTION, key: CACHE_KEY, userId: userId }]);
@@ -7549,52 +7559,168 @@ var QuizVerseLiveBanner;
             return null;
         }
     }
+    function numericField(v, fallback) {
+        if (typeof v === "number" && !isNaN(v))
+            return v;
+        if (typeof v === "string" && v.trim() !== "") {
+            var parsed = parseFloat(v);
+            if (!isNaN(parsed))
+                return parsed;
+        }
+        return fallback;
+    }
+    /** Aligns with creator-event-live: duration is minutes unless durationSec is set. */
+    function resolveCreatorEventWindow(ev) {
+        if (!ev)
+            return null;
+        var startAt = Math.floor(numericField(ev.startsAt || ev.start_at || ev.scheduledAt || ev.scheduled_at, 0));
+        var endAt = Math.floor(numericField(ev.endsAt || ev.end_at, 0));
+        if (startAt > 0 && endAt > startAt) {
+            return { startAt: startAt, endAt: endAt };
+        }
+        if (startAt <= 0)
+            return null;
+        var durationSec;
+        if (typeof ev.durationSec === "number") {
+            durationSec = Math.max(1, Math.floor(ev.durationSec));
+        }
+        else if (typeof ev.duration_seconds === "number") {
+            durationSec = Math.max(1, Math.floor(ev.duration_seconds));
+        }
+        else {
+            var duration = numericField(ev.duration, 30);
+            // creator_event_create default: 30 minutes; SPA may send small second values
+            if (duration > 0 && duration < 10) {
+                durationSec = Math.max(1, Math.floor(duration));
+            }
+            else {
+                durationSec = Math.max(60, Math.floor(duration * 60));
+            }
+        }
+        return { startAt: startAt, endAt: startAt + durationSec };
+    }
+    function isBannerEligibleCreatorRecord(ev) {
+        if (!ev || !ev.id)
+            return false;
+        var recordStatus = String(ev.status || "published").toLowerCase();
+        if (recordStatus === "draft" || recordStatus === "cancelled" ||
+            recordStatus === "distributed" || recordStatus === "funded" ||
+            recordStatus === "ended") {
+            return false;
+        }
+        if (ev.visibility && String(ev.visibility).toLowerCase() === "private") {
+            return false;
+        }
+        var gameId = ev.gameId || ev.game_id;
+        if (gameId && String(gameId) !== QUIZVERSE_GAME_ID)
+            return false;
+        return true;
+    }
+    function classifyBannerTimeStatus(now, startAt, endAt) {
+        if (now < startAt) {
+            if (startAt - now > UPCOMING_WINDOW_SEC)
+                return null;
+            return "upcoming";
+        }
+        if (now > endAt)
+            return null;
+        return "active";
+    }
+    function creatorCandidateFromRecord(ev, now) {
+        if (!isBannerEligibleCreatorRecord(ev))
+            return null;
+        var window = resolveCreatorEventWindow(ev);
+        if (!window)
+            return null;
+        var timeStatus = classifyBannerTimeStatus(now, window.startAt, window.endAt);
+        if (!timeStatus)
+            return null;
+        var participantCount = numericField(ev.participantCount || ev.participant_count, 0);
+        if (timeStatus === "active" && participantCount === 0 && ev.requiresParticipants) {
+            return null;
+        }
+        return {
+            id: String(ev.id),
+            title: ev.title || ev.name || "Live Event",
+            description: ev.description || "",
+            startsAt: window.startAt,
+            endsAt: window.endAt,
+            status: timeStatus,
+            hasRewards: !!(ev.prizePool || ev.prize_pool ||
+                (ev.prizes && ev.prizes.length) ||
+                ev.giftCardPrizes || ev.gift_card_prizes ||
+                ev.reward || ev.prize),
+            participantCount: participantCount,
+            creatorId: ev.creatorId || ev.creator_id || ""
+        };
+    }
+    function pickBestCreatorCandidate(candidates) {
+        var best = null;
+        for (var i = 0; i < candidates.length; i++) {
+            var c = candidates[i];
+            if (!c)
+                continue;
+            if (!best || c.status === "active") {
+                best = c;
+                if (c.status === "active")
+                    break;
+            }
+        }
+        return best;
+    }
+    function collectLiveEventsFromStorageList(nk, userId, maxPages, seen, out) {
+        var cursor = "";
+        for (var page = 0; page < maxPages; page++) {
+            var result = nk.storageList(userId, LIVE_EVENTS_COLLECTION, 50, cursor);
+            var objects = (result && result.objects) ? result.objects : [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj || !obj.value || !obj.value.id)
+                    continue;
+                var id = String(obj.value.id);
+                if (seen[id])
+                    continue;
+                seen[id] = true;
+                out.push(obj.value);
+            }
+            cursor = (result && result.cursor) ? result.cursor : "";
+            if (!cursor)
+                break;
+        }
+    }
+    function collectSatoriCreatorEvents(nk, seen, out) {
+        var index = Storage.readSystemJson(nk, CREATOR_EVENTS_COLLECTION, CREATOR_EVENTS_INDEX_KEY);
+        if (!index || !index.eventIds || index.eventIds.length === 0)
+            return;
+        for (var i = 0; i < index.eventIds.length; i++) {
+            var eventId = index.eventIds[i];
+            if (!eventId || seen[eventId])
+                continue;
+            var def = Storage.readSystemJson(nk, CREATOR_EVENTS_COLLECTION, eventId);
+            if (!def || !def.id)
+                continue;
+            seen[String(def.id)] = true;
+            out.push(def);
+        }
+    }
     function fetchCreatorCandidate(nk, logger) {
         try {
-            var page = nk.storageList(SYSTEM_USER, "live_events", 20, "");
-            if (!page || !page.objects || page.objects.length === 0)
-                return null;
             var now = Math.floor(Date.now() / 1000);
-            var best = null;
-            for (var i = 0; i < page.objects.length; i++) {
-                var ev = page.objects[i].value;
-                if (!ev || !ev.id || !ev.startsAt || !ev.endsAt)
-                    continue;
-                var startAt = ev.startsAt;
-                var endAt = ev.endsAt;
-                var status = "";
-                if (now < startAt) {
-                    if (startAt - now > UPCOMING_WINDOW_SEC)
-                        continue;
-                    status = "upcoming";
-                }
-                else if (now > endAt) {
-                    continue;
-                }
-                else {
-                    status = "active";
-                }
-                // Skip events with 0 or no participant data (ghost events)
-                var participantCount = ev.participantCount || ev.participant_count || 0;
-                if (status === "active" && participantCount === 0 && ev.requiresParticipants)
-                    continue;
-                if (!best || status === "active") {
-                    best = {
-                        id: ev.id,
-                        title: ev.title || ev.name || "Live Event",
-                        description: ev.description || "",
-                        startsAt: startAt,
-                        endsAt: endAt,
-                        status: status,
-                        hasRewards: !!(ev.reward || ev.prize),
-                        participantCount: participantCount,
-                        creatorId: ev.creatorId || ""
-                    };
-                    if (status === "active")
-                        break;
-                }
+            var seen = {};
+            var records = [];
+            // 1) creator_event_publish — satori_creator_events (system index)
+            collectSatoriCreatorEvents(nk, seen, records);
+            // 2) creator_live_event_publish — live_events under SYSTEM
+            collectLiveEventsFromStorageList(nk, SYSTEM_USER, 2, seen, records);
+            // 3) SPA direct PUT — user-scoped live_events (public read)
+            collectLiveEventsFromStorageList(nk, "", 3, seen, records);
+            var candidates = [];
+            for (var r = 0; r < records.length; r++) {
+                var candidate = creatorCandidateFromRecord(records[r], now);
+                if (candidate)
+                    candidates.push(candidate);
             }
-            return best;
+            return pickBestCreatorCandidate(candidates);
         }
         catch (e) {
             logger.warn("[LiveBanner] fetchCreatorCandidate error: " + (e && e.message ? e.message : String(e)));
