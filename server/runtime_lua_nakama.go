@@ -45,6 +45,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/api"
+	"github.com/jackc/pgx/v5"
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
@@ -93,6 +94,8 @@ type RuntimeLuaNakamaModule struct {
 	eventFn       RuntimeEventCustomFunction
 
 	satori runtime.Satori
+
+	openTxs sync.Map
 }
 
 func NewRuntimeLuaNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, version string, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, once *sync.Once, localCache *RuntimeLuaLocalCache, storageIndex StorageIndex, satoriClient runtime.Satori, matchCreateFn RuntimeMatchCreateFunction, eventFn RuntimeEventCustomFunction, registerCallbackFn func(RuntimeExecutionMode, string, *lua.LFunction), announceCallbackFn func(RuntimeExecutionMode, string)) *RuntimeLuaNakamaModule {
@@ -263,6 +266,9 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"storage_write":                      n.storageWrite,
 		"storage_write_retry":                n.storageWriteRetry,
 		"storage_delete":                     n.storageDelete,
+		"tx_begin":                           n.txBegin,
+		"tx_commit":                          n.txCommit,
+		"tx_rollback":                        n.txRollback,
 		"multi_update":                       n.multiUpdate,
 		"leaderboard_create":                 n.leaderboardCreate,
 		"leaderboard_delete":                 n.leaderboardDelete,
@@ -6197,6 +6203,7 @@ func (n *RuntimeLuaNakamaModule) storageList(l *lua.LState) int {
 // @group storage
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param keys(type=table) A table of object identifiers to be fetched.
+// @param tx(type=string, optional=true) An optional transaction handle from tx_begin.
 // @return objects(table) A list of storage objects matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) storageRead(l *lua.LState) int {
@@ -6298,7 +6305,17 @@ func (n *RuntimeLuaNakamaModule) storageRead(l *lua.LState) int {
 		return 0
 	}
 
-	objects, err := StorageReadObjects(l.Context(), n.logger, n.db, uuid.Nil, objectIDs)
+	var pgxTx pgx.Tx
+	if txID := l.OptString(2, ""); txID != "" {
+		var ok bool
+		pgxTx, ok = getTx(&runtime.StorageTx{ID: txID}, &n.openTxs)
+		if !ok {
+			l.RaiseError("transaction not found or already closed")
+			return 0
+		}
+	}
+
+	objects, err := StorageReadObjects(l.Context(), n.logger, n.db, uuid.Nil, objectIDs, pgxTx)
 	if err != nil {
 		l.RaiseError("failed to read storage objects: %s", err.Error())
 		return 0
@@ -6338,6 +6355,7 @@ func (n *RuntimeLuaNakamaModule) storageRead(l *lua.LState) int {
 // @group storage
 // @summary Write one or more objects by their collection/keyname and optional user.
 // @param keys(type=table) A table of object identifiers to be written.
+// @param tx(type=string, optional=true) An optional transaction handle from tx_begin.
 // @return acks(table) A list of acks with the version of the written objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
@@ -6358,7 +6376,17 @@ func (n *RuntimeLuaNakamaModule) storageWrite(l *lua.LState) int {
 		return 0
 	}
 
-	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, n.metrics, n.storageIndex, true, ops)
+	var pgxTx pgx.Tx
+	if txID := l.OptString(2, ""); txID != "" {
+		var ok bool
+		pgxTx, ok = getTx(&runtime.StorageTx{ID: txID}, &n.openTxs)
+		if !ok {
+			l.RaiseError("transaction not found or already closed")
+			return 0
+		}
+	}
+
+	acks, _, err := StorageWriteObjects(l.Context(), n.logger, n.db, n.metrics, n.storageIndex, true, ops, pgxTx)
 	if err != nil {
 		l.RaiseError("failed to write storage objects: %s", err.Error())
 		return 0
@@ -6853,6 +6881,7 @@ func tableToStorageOpWrites(l *lua.LState, dataTable *lua.LTable) (StorageOpWrit
 // @group storage
 // @summary Remove one or more objects by their collection/keyname and optional user.
 // @param keys(type=table) A list of object identifiers to be deleted.
+// @param tx(type=string, optional=true) An optional transaction handle from tx_begin.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 	keys := l.CheckTable(1)
@@ -6962,10 +6991,66 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 		return 0
 	}
 
-	if _, err := StorageDeleteObjects(l.Context(), n.logger, n.db, n.storageIndex, true, ops); err != nil {
+	var pgxTx pgx.Tx
+	if txID := l.OptString(2, ""); txID != "" {
+		var ok bool
+		pgxTx, ok = getTx(&runtime.StorageTx{ID: txID}, &n.openTxs)
+		if !ok {
+			l.RaiseError("transaction not found or already closed")
+			return 0
+		}
+	}
+
+	if _, err := StorageDeleteObjects(l.Context(), n.logger, n.db, n.storageIndex, true, ops, pgxTx); err != nil {
 		l.RaiseError("failed to remove storage: %s", err.Error())
 	}
 
+	return 0
+}
+
+// @group storage
+// @summary Begin a database transaction for use with storage tx functions. The transaction is automatically rolled back if the RPC ends without a commit.
+// @return tx(string) A transaction handle to pass to storage_read_tx, storage_write_tx, storage_delete_tx, tx_commit, or tx_rollback.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) txBegin(l *lua.LState) int {
+	tx, err := txBegin(l.Context(), n.db, &n.openTxs)
+	if err != nil {
+		l.RaiseError("failed to begin transaction: %s", err.Error())
+		return 0
+	}
+	l.Push(lua.LString(tx.ID))
+	return 1
+}
+
+// @group storage
+// @summary Commit an open database transaction.
+// @param tx(type=string) The transaction handle returned by tx_begin.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) txCommit(l *lua.LState) int {
+	txID := l.CheckString(1)
+	if txID == "" {
+		l.ArgError(1, "expects a transaction id")
+		return 0
+	}
+	if err := txCommit(l.Context(), &runtime.StorageTx{ID: txID}, &n.openTxs); err != nil {
+		l.RaiseError("failed to commit transaction: %s", err.Error())
+	}
+	return 0
+}
+
+// @group storage
+// @summary Roll back an open database transaction.
+// @param tx(type=string) The transaction handle returned by tx_begin.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) txRollback(l *lua.LState) int {
+	txID := l.CheckString(1)
+	if txID == "" {
+		l.ArgError(1, "expects a transaction id")
+		return 0
+	}
+	if err := txRollback(l.Context(), &runtime.StorageTx{ID: txID}, &n.openTxs); err != nil {
+		l.RaiseError("failed to rollback transaction: %s", err.Error())
+	}
 	return 0
 }
 
