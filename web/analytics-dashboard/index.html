@@ -2904,6 +2904,14 @@
 
         <!-- Monetization Detail Tab -->
         <div id="monet" class="tab-content">
+            <div class="chart-card" style="margin-bottom:1rem">
+                <h3>Revenue Flows <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                <div class="card-body">
+                    <div id="monetFlowStrip" style="font-size:0.82rem;color:var(--text-muted);line-height:1.7">
+                        <div class="loading">Loading monetization flows...</div>
+                    </div>
+                </div>
+            </div>
             <div class="chart-grid">
                 <div class="chart-card">
                     <h3>Ad Performance <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
@@ -5681,15 +5689,81 @@
         // ─────────────────────────────────────────────────────────────────────
         // Monetization Detail
         // ─────────────────────────────────────────────────────────────────────
+        function renderMonetFlowStrip(data, purchaseFunnel) {
+            const host = document.getElementById('monetFlowStrip');
+            if (!host) return;
+            const num = (v) => formatNumber(v || 0);
+            const pct = (v) => (v == null || !isFinite(Number(v))) ? '—' : Number(v).toFixed(1) + '%';
+            const subs = data.subscriptions || {};
+            const pf = purchaseFunnel || [];
+            const pfCount = (name) => {
+                const step = pf.find(s => s.name === name || (s.name && s.name.indexOf(name) !== -1));
+                return step ? (step.count || 0) : null;
+            };
+            const stepBadge = (label, count, accent) => {
+                const c = count == null ? '—' : num(count);
+                const color = accent || 'var(--accent)';
+                return `<span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.2rem 0.55rem;border-radius:999px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.25);color:var(--text-primary);white-space:nowrap">` +
+                    `<span style="font-weight:600;color:${color}">${c}</span><span>${label}</span></span>`;
+            };
+            const arrow = `<span style="color:var(--text-muted);margin:0 0.25rem">→</span>`;
+            const row = (title, body) =>
+                `<div style="margin-bottom:0.85rem"><div style="font-weight:600;color:var(--text-primary);margin-bottom:0.35rem;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.04em">${title}</div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.35rem">${body}</div></div>`;
+
+            host.innerHTML =
+                row('Ad funnel', [
+                    stepBadge('Requests', data.ad_requests, '#38bdf8'),
+                    arrow,
+                    stepBadge('Impressions', data.ad_impressions, '#38bdf8'),
+                    arrow,
+                    stepBadge('Completed', data.ad_completed, '#38bdf8'),
+                    arrow,
+                    stepBadge('Revenue $', (data.ad_revenue_total || 0).toFixed(2), '#10b981'),
+                    `<span style="margin-left:0.5rem;color:var(--text-muted)">Fill ${pct(data.ad_fill_rate_pct)} · Completion ${pct(data.ad_completion_rate_pct)}</span>`
+                ].join('')) +
+                row('IAP purchase funnel', [
+                    stepBadge('Store opened', pfCount('store_opened') != null ? pfCount('store_opened') : data.store_opens, '#a78bfa'),
+                    arrow,
+                    stepBadge('IAP impression', pfCount('iap_impression'), '#a78bfa'),
+                    arrow,
+                    stepBadge('IAP clicked', pfCount('iap_clicked'), '#a78bfa'),
+                    arrow,
+                    stepBadge('IAP purchased', pfCount('iap_purchased') != null ? pfCount('iap_purchased') : data.iap_completed, '#10b981')
+                ].join('')) +
+                row('Paywall', [
+                    stepBadge('Paywall shown', data.paywall_shown, '#f59e0b'),
+                    arrow,
+                    stepBadge('Converted', data.paywall_converted, '#10b981'),
+                    `<span style="margin-left:0.5rem;color:var(--text-muted)">CVR ${pct(data.paywall_conversion_rate_pct)}</span>`
+                ].join('')) +
+                row('Subscription lifecycle', [
+                    stepBadge('Trial starts', subs.trials, '#22d3ee'),
+                    arrow,
+                    stepBadge('Sub changed', subs.renewed, '#22d3ee'),
+                    `<span style="margin:0 0.15rem;color:var(--text-muted)">|</span>`,
+                    stepBadge('Cancelled', subs.cancelled, '#f87171'),
+                    stepBadge('Trial expired', subs.trial_expired, '#f87171')
+                ].join('')) +
+                `<div style="font-size:0.72rem;color:var(--text-muted);border-top:1px dashed rgba(148,163,184,0.3);padding-top:0.5rem">` +
+                `Unity → <code>analytics_log_event</code> → Nakama <code>analytics_events</code> → rollup or live scan → <code>analytics_monetization_detail</code> + purchase funnel RPC</div>`;
+        }
+
         async function loadMonetizationDetail() {
             try {
                 const rangeDays = getSelectedRangeDays();
                 const rangeCaption = getRangeCaption();
-                const data = await callRpc('analytics_monetization_detail', {
-                    days: rangeDays,
-                    ...getGamePayload()
-                });
-                if (data.error) { document.getElementById('monetKpis').innerHTML = `<p class="empty-state">${data.error}</p>`; return; }
+                const gamePayload = getGamePayload();
+                const [data, purchaseFunnelData] = await Promise.all([
+                    callRpc('analytics_monetization_detail', { days: rangeDays, ...gamePayload }),
+                    callRpc('analytics_funnel', { days: rangeDays, funnel: 'purchase', ...gamePayload }).catch(() => null)
+                ]);
+                if (data.error) {
+                    document.getElementById('monetKpis').innerHTML = `<p class="empty-state">${data.error}</p>`;
+                    const flowHost = document.getElementById('monetFlowStrip');
+                    if (flowHost) flowHost.innerHTML = `<p class="empty-state">${data.error}</p>`;
+                    return;
+                }
+                renderMonetFlowStrip(data, purchaseFunnelData && purchaseFunnelData.steps ? purchaseFunnelData.steps : []);
                 const rangeBanner = rangeCaption
                     ? `<div style="grid-column:1/-1;padding:0.5rem 0.75rem;margin-bottom:0.35rem;font-size:0.78rem;color:#94a3b8;border:1px dashed rgba(148,163,184,0.35);border-radius:6px">` +
                       `Monetization window: <strong>${rangeCaption}</strong> (${data.range_days || rangeDays}d) · ` +
@@ -5735,7 +5809,12 @@
                     { label: 'IAP Purchases',     value: num(data.iap_completed),    group: 'iap' },
                     { label: 'Paywall Shown',     value: num(data.paywall_shown),    group: 'iap' },
                     { label: 'Conversion %',      value: pct(data.paywall_conversion_rate_pct), group: 'iap' },
-                    { label: 'Store Opens',       value: num(data.store_opens),      group: 'iap' }
+                    { label: 'Store Opens',       value: num(data.store_opens),      group: 'iap' },
+                    // Subscription lifecycle (live-scan path; rollup does not bucket these yet)
+                    { label: 'Trial Starts',      value: num((data.subscriptions || {}).trials),        group: 'subs' },
+                    { label: 'Trial Expired',     value: num((data.subscriptions || {}).trial_expired), group: 'subs' },
+                    { label: 'Sub Changed',       value: num((data.subscriptions || {}).renewed),     group: 'subs' },
+                    { label: 'Sub Cancelled',     value: num((data.subscriptions || {}).cancelled),   group: 'subs' }
                 ].map(k => `<div class="kpi-item"><div class="kpi-value">${k.value}</div><div class="kpi-label">${k.label}</div></div>`).join('') +
                 (requestsTracked ? '' :
                     `<div style="grid-column: 1 / -1; padding: 0.5rem 0.75rem; margin-top: 0.5rem; ` +

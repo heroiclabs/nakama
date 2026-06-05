@@ -307,7 +307,7 @@ function rpcAnalyticsChurnSignals(ctx, logger, nk, payload) {
             return n === 'session_start' || n === 'app_open' || n === 'first_open' ||
                    AD_QUIZ_STARTED_NAMES[n] || AD_QUIZ_COMPLETED_NAMES[n] ||
                    n === 'streak_broken' || n === 'paywall_shown' || n === 'paywall_converted' ||
-                   n === 'purchase_completed';
+                   n === 'purchase_completed' || n === 'iap_purchased';
         }, gameId);
 
         // user → flags
@@ -345,7 +345,7 @@ function rpcAnalyticsChurnSignals(ctx, logger, nk, payload) {
             }
             else if (n === 'paywall_shown') flag(u, 'paywallShown');
             else if (n === 'paywall_converted') flag(u, 'paywallConverted');
-            else if (n === 'purchase_completed') flag(u, 'purchases');
+            else if (n === 'purchase_completed' || n === 'iap_purchased') flag(u, 'purchases');
         }
 
         var buckets = {

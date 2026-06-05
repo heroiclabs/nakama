@@ -80,6 +80,7 @@ var AR_EVENT_ALIASES = {
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
     "paywall_viewed": "paywall_shown",
+    "paywall_view": "paywall_shown",
     // ── 2026-04 Unity analytics-hardening additions (mirror analytics.js) ──
     "ad_failed": "ad_load_failed",
     "purchase_failed": "iap_failed",

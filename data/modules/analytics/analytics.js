@@ -59,6 +59,7 @@ var EVENT_ALIASES = {
     "onboarding_complete": "onboarded",
     "registration_completed": "registration_complete",
     "paywall_viewed": "paywall_shown",
+    "paywall_view": "paywall_shown",
     // ── 2026-04 Unity analytics-hardening additions ──
     // Normalize legacy ad-failure event names emitted by older clients /
     // adapters so the rollup / monetization dashboards see a single canonical

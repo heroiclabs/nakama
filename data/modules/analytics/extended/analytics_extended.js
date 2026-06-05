@@ -1042,7 +1042,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
                 for (var li = 0; li < STARTED_LIVE.length; li++)   quizStarted   += bn[STARTED_LIVE[li]]   || 0;
                 for (var li = 0; li < COMPLETED_LIVE.length; li++) quizCompleted += bn[COMPLETED_LIVE[li]] || 0;
                 for (var li = 0; li < ABANDONED_LIVE.length; li++) quizAbandoned += bn[ABANDONED_LIVE[li]] || 0;
-                hintsUsed += (bn['hint_used'] || bn['hintused'] || 0);
+                hintsUsed += (bn['hint_used'] || bn['hintused'] || bn['question_hint_used'] || 0);
                 dailyCompleted += (bn['daily_quiz_completed'] || bn['dailyquizcompleted'] || 0);
             }
         } catch (_ld_err) { /* live_daily read failure must not break the RPC */ }
@@ -1061,7 +1061,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
             // alias, the Quiz panel shows zero even when 30+ session events
             // exist in the collection.
             var STARTED_NAMES = {
-                'quiz_started': 1, 'quizstarted': 1,
+                'quiz_start': 1, 'quiz_started': 1, 'quizstarted': 1,
                 'quiz_session_started': 1, 'quiz_session_start': 1
             };
             var COMPLETED_NAMES = {
@@ -1092,7 +1092,7 @@ function rpcAnalyticsQuizPerformance(ctx, logger, nk, payload) {
                     }
                 }
                 if (ABANDONED_NAMES[evName]) quizAbandoned++;
-                if (evName === 'hint_used' || evName === 'hintused') hintsUsed++;
+                if (evName === 'hint_used' || evName === 'hintused' || evName === 'question_hint_used') hintsUsed++;
                 if (evName === 'daily_quiz_completed' || evName === 'dailyquizcompleted') dailyCompleted++;
             }
         }
@@ -1150,11 +1150,13 @@ function rpcAnalyticsFunnel(ctx, logger, nk, payload) {
         // types (onboarding/quiz/purchase) still scan events because the
         // rollup doesn't bucket them separately.
         if (funnelType === 'onboarding') {
-            stepOrder = ['app_open', 'onboarding_start', 'name_entered', 'avatar_selected', 'tutorial_completed', 'first_quiz_completed'];
+            // Unity emits onboarding_started/step; onboarding_complete is aliased
+            // to onboarded at ingest — use the stored canonical name for the last step.
+            stepOrder = ['app_open', 'onboarding_started', 'onboarding_step', 'onboarded'];
         } else if (funnelType === 'quiz') {
-            stepOrder = ['quiz_view', 'quiz_started', 'first_answer', 'quiz_completed'];
+            stepOrder = ['quiz_start', 'question_answered', 'quiz_complete'];
         } else if (funnelType === 'purchase') {
-            stepOrder = ['store_opened', 'product_viewed', 'purchase_started', 'purchase_completed'];
+            stepOrder = ['store_opened', 'iap_impression', 'iap_clicked', 'iap_purchased'];
         } else if (funnelType === 'canonical' || funnelType === 'default') {
             // The canonical AR_FUNNEL_STEPS used by analytics_rollup.js.
             stepOrder = ['app_open', 'onboarded', 'login_success', 'session_start',
@@ -1327,6 +1329,7 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
         //   • events whose name BEGINS with "ai_" (ai_assist, ai_voice_*,
         //     ai_trivia_*, ai_question_*)
         //   • events that BEGIN with "voice_" (voice_input, voice_answer)
+        //   • events that BEGIN with "mic_" (mic_listening_started, mic_error)
         //   • events that BEGIN with "gemini_"
         //   • events that BEGIN with "trivia_ai_"
         //   • exact name "trivia_generated"
@@ -1337,6 +1340,7 @@ function rpcAnalyticsAIFeatures(ctx, logger, nk, payload) {
             if (n.indexOf('voice_') === 0) return true;
             if (n.indexOf('gemini_') === 0) return true;
             if (n.indexOf('trivia_ai_') === 0) return true;
+            if (n.indexOf('mic_') === 0) return true;
             if (n === 'trivia_generated') return true;
             return false;
         };
@@ -1414,18 +1418,34 @@ function rpcAnalyticsFeatureAdoption(ctx, logger, nk, payload) {
         var days = parseInt(data.days, 10) || 7;
         var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
 
-        // Define features to track
+        // Define features to track — eventName is a substring match against
+        // stored canonical names. Avoid broad tokens like 'streak' that also
+        // match notification events (streak_at_risk, streak_saved, etc.).
         var featureDefs = [
             { name: 'Daily Quiz', collection: 'daily_quiz', eventName: 'daily_quiz' },
             { name: 'Multiplayer', collection: 'multiplayer', eventName: 'multiplayer' },
+            { name: 'MP Matches', collection: 'mp_matches', eventName: 'mp_' },
             { name: 'Leaderboard', collection: 'leaderboard', eventName: 'leaderboard' },
             { name: 'Profile Customization', collection: 'profiles', eventName: 'profile' },
             { name: 'Achievements', collection: 'achievements', eventName: 'achievement' },
-            { name: 'Friend Quests', collection: 'friend_quests', eventName: 'friend_quest' },
+            { name: 'Friends', collection: 'friends', eventName: 'friend' },
+            { name: 'Notifications', collection: 'notifications', eventName: 'notification' },
+            { name: 'Link & Play', collection: 'link_play', eventName: 'link_' },
+            { name: 'Badges', collection: 'badges', eventName: 'badge' },
+            { name: 'Cosmetics', collection: 'cosmetics', eventName: 'cosmetic' },
+            { name: 'Clans', collection: 'clans', eventName: 'clan' },
+            { name: 'Leagues', collection: 'leagues', eventName: 'league' },
+            { name: 'Quests', collection: 'quests', eventName: 'quest' },
+            { name: 'Smart Review', collection: 'smart_review', eventName: 'smart_review' },
+            { name: 'Compatibility', collection: 'compatibility', eventName: 'compatibility' },
+            { name: 'Characters', collection: 'characters', eventName: 'character' },
+            { name: 'Arcade', collection: 'arcade', eventName: 'arcade' },
             { name: 'Store', collection: 'store', eventName: 'store' },
             { name: 'Voice Answers', collection: 'voice', eventName: 'voice' },
             { name: 'AI Trivia', collection: 'ai_trivia', eventName: 'ai_trivia' },
-            { name: 'Streaks', collection: 'streaks', eventName: 'streak' }
+            { name: 'Streaks', collection: 'streaks', eventName: 'streak_updated' },
+            { name: 'Streak Wagers', collection: 'streak_wagers', eventName: 'streak_wager' },
+            { name: 'Streak Repair', collection: 'streak_repair', eventName: 'streak_repair' }
         ];
 
         // Get total active users (game-specific if filtered)
@@ -1530,7 +1550,7 @@ function rpcAnalyticsEconomyHealth(ctx, logger, nk, payload) {
                 if (!evName) return false;
                 var match = evName.indexOf('coin') === 0 ||
                        evName.indexOf('wallet_') === 0 ||
-                       evName === 'purchase_completed' ||
+                       evName === 'purchase_completed' || evName === 'iap_purchased' ||
                        evName === 'currency_granted' ||
                        evName === 'currency_spent' ||
                        evName === 'balance_snapshot' ||
@@ -1690,6 +1710,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
         var adSkips = 0;
         var adClicks = 0;
         var adRevenueByNetwork = {};
+        var subscriptions = { cancelled: 0, renewed: 0, trials: 0, trial_expired: 0 };
 
         // Phase 4 (2026-05) — read analytics_rollup_daily first. The Phase 4
         // rollup compute writes every monetization KPI we need (revenue,
@@ -1765,7 +1786,8 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
                 var evName = (val.eventName || '').toLowerCase();
                 var match = evName.indexOf('ad') !== -1 || evName.indexOf('purchase') !== -1 ||
                        evName.indexOf('iap') !== -1 || evName.indexOf('store') !== -1 ||
-                       evName.indexOf('paywall') !== -1;
+                       evName.indexOf('paywall') !== -1 ||
+                       evName.indexOf('subscription') !== -1 || evName.indexOf('trial') !== -1;
                 if (!match) return false;
                 return extMatchesModeFilter(data, val);
             }, gameId, window.cutoffDate, window.rangeTo);
@@ -1836,9 +1858,19 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
 
                 // ── IAP / paywall / store ──
                 if (evName.indexOf('iap') !== -1 || evName === 'purchase_completed') iapCompleted++;
-                if (evName === 'paywall_shown' || evName === 'paywallshown') paywallShown++;
+                if (evName === 'paywall_shown' || evName === 'paywallshown' || evName === 'paywall_view') paywallShown++;
                 if (evName === 'paywall_converted') paywallConverted++;
                 if (evName === 'store_opened' || evName === 'storeopened' || evName === 'store_open') storeOpens++;
+
+                if (evName === 'subscription_cancelled') {
+                    subscriptions.cancelled++;
+                } else if (evName === 'subscription_changed') {
+                    subscriptions.renewed++;
+                } else if (evName === 'trial_start') {
+                    subscriptions.trials++;
+                } else if (evName === 'trial_expired') {
+                    subscriptions.trial_expired++;
+                }
 
                 // Ad-type breakdown — accept both legacy `adType` and the new
                 // canonical `ad_type` field name from AnalyticsParams.AD_TYPE.
@@ -1918,6 +1950,7 @@ function rpcAnalyticsMonetizationDetail(ctx, logger, nk, payload) {
             ad_completion_rate_pct: adCompletionRate,
             ad_ecpm_usd: adECPM,
             ad_revenue_by_network: adRevenueNetworkArr,
+            subscriptions: subscriptions,
             _meta: {
                 read_path: readPath,
                 rollup_hits: rollupHits,
@@ -2238,7 +2271,8 @@ function rpcAnalyticsErrorLog(ctx, logger, nk, payload) {
         // so timeout_event from QVAnalyticsService finally shows up.
         var canonicalErrorEvents = {
             'error_logged': 1, 'api_failure': 1, 'auth_failure': 1,
-            'nakama_rpc_error': 1, 'timeout_event': 1, 'crash_safe_log': 1
+            'nakama_rpc_error': 1, 'timeout_event': 1, 'crash_safe_log': 1,
+            'scene_load_time': 1, 'fps_bucket': 1, 'memory_warning': 1
         };
         var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
             var evName = (val.eventName || '').toLowerCase();

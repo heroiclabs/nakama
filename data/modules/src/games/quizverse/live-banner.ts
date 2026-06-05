@@ -60,6 +60,33 @@ namespace QuizVerseLiveBanner {
   var CREATOR_EVENTS_INDEX_KEY  = "events_index";
   var LIVE_EVENTS_COLLECTION    = "live_events";
 
+  /**
+   * Dev kill-switch — when true, RPC always returns show=false / force_live=false.
+   * Flip to false when public live events should drive the home banner.
+   */
+  var FORCE_LIVE_BANNER_OFF = false;
+
+  function emptyBannerPayload(): any {
+    return {
+      show: false,
+      force_live: false,
+      event_id: "",
+      event_type: "none",
+      title: "",
+      subtitle: "",
+      cta_text: "",
+      cta_url: "",
+      starts_at: 0,
+      ends_at: 0,
+      time_remaining_sec: 0,
+      badge: "",
+      has_rewards: false,
+      joined: false,
+      participant_count: 0,
+      server_time: Math.floor(Date.now() / 1000)
+    };
+  }
+
   // ── Cache helpers ─────────────────────────────────────────────────────────
 
   interface CacheEntry {
@@ -564,6 +591,13 @@ namespace QuizVerseLiveBanner {
     var data = RpcHelpers.parseRpcPayload(payload);
     var gameId = (data && data.game_id) ? String(data.game_id) : QUIZVERSE_GAME_ID;
     var forceRefresh = !!(data && data.force_refresh);
+
+    if (FORCE_LIVE_BANNER_OFF) {
+      var disabledPayload = emptyBannerPayload();
+      writeCache(nk, userId, disabledPayload, NO_EVENT_TTL_SEC);
+      logger.info("[LiveBanner] user=" + userId + " FORCE_LIVE_BANNER_OFF — show=false force_live=false");
+      return RpcHelpers.successResponse(disabledPayload);
+    }
 
     // ── Serve from cache (skip RPC work on hot path) ──────────────────────
     if (!forceRefresh) {
