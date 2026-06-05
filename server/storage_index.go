@@ -364,7 +364,7 @@ func (si *LocalStorageIndex) List(ctx context.Context, callerID uuid.UUID, index
 		})
 	}
 
-	objects, err := StorageReadObjects(ctx, si.logger, si.db, callerID, storageReads)
+	objects, err := StorageReadObjects(ctx, si.logger, si.db, callerID, storageReads, nil)
 	if err != nil {
 		return nil, "", err
 	}

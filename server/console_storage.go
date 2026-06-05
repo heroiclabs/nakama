@@ -77,7 +77,7 @@ func (s *ConsoleServer) DeleteStorageObject(ctx context.Context, in *console.Del
 				Version:    in.Version,
 			},
 		},
-	})
+	}, nil)
 
 	if err != nil {
 		if code == codes.Internal {
@@ -105,7 +105,7 @@ func (s *ConsoleServer) GetStorage(ctx context.Context, in *api.ReadStorageObjec
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
 
-	objects, err := StorageReadObjects(ctx, logger, s.db, uuid.Nil, []*api.ReadStorageObjectId{in})
+	objects, err := StorageReadObjects(ctx, logger, s.db, uuid.Nil, []*api.ReadStorageObjectId{in}, nil)
 	if err != nil {
 		// Errors already logged in function above.
 		return nil, status.Error(codes.Internal, "An error occurred while reading storage object.")
@@ -375,7 +375,7 @@ func (s *ConsoleServer) WriteStorageObject(ctx context.Context, in *console.Writ
 				PermissionWrite: in.PermissionWrite,
 			},
 		},
-	})
+	}, nil)
 
 	if err != nil {
 		if code == codes.Internal {
