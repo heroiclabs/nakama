@@ -38,11 +38,13 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/dop251/goja"
 	"github.com/gofrs/uuid/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/rtapi"
@@ -86,7 +88,8 @@ type RuntimeJavascriptNakamaModule struct {
 	matchCreateFn RuntimeMatchCreateFunction
 	eventFn       RuntimeEventCustomFunction
 
-	satori runtime.Satori
+	satori  runtime.Satori
+	openTxs sync.Map
 }
 
 func NewRuntimeJavascriptNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, protojsonUnmarshaler *protojson.UnmarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, rankCache LeaderboardRankCache, storageIndex StorageIndex, localCache *RuntimeJavascriptLocalCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, satoriClient runtime.Satori, eventFn RuntimeEventCustomFunction, matchCreateFn RuntimeMatchCreateFunction) *RuntimeJavascriptNakamaModule {
@@ -247,6 +250,9 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"storageWrite":                         n.storageWrite(r),
 		"storageWriteRetry":                    n.storageWriteRetry(r),
 		"storageDelete":                        n.storageDelete(r),
+		"txBegin":                              n.txBegin(r),
+		"txCommit":                             n.txCommit(r),
+		"txRollback":                           n.txRollback(r),
 		"multiUpdate":                          n.multiUpdate(r),
 		"leaderboardCreate":                    n.leaderboardCreate(r),
 		"leaderboardDelete":                    n.leaderboardDelete(r),
@@ -4925,7 +4931,19 @@ func (n *RuntimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 			objectIDsMap = append(objectIDsMap, objectID)
 		}
 
-		objects, err := StorageReadObjects(n.ctx, n.logger, n.db, uuid.Nil, objectIDsMap)
+		var pgxTx pgx.Tx
+		if txArg := f.Argument(1); txArg != goja.Undefined() && txArg != goja.Null() {
+			txID, ok := txArg.Export().(string)
+			if !ok || txID == "" {
+				panic(r.NewTypeError("expects tx to be a string"))
+			}
+			pgxTx, ok = getTx(&runtime.StorageTx{ID: txID}, &n.openTxs)
+			if !ok {
+				panic(r.NewGoError(fmt.Errorf("transaction not found or already closed")))
+			}
+		}
+
+		objects, err := StorageReadObjects(n.ctx, n.logger, n.db, uuid.Nil, objectIDsMap, pgxTx)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to read storage objects: %s", err.Error())))
 		}
@@ -4984,7 +5002,19 @@ func (n *RuntimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.
 			panic(r.NewTypeError(err.Error()))
 		}
 
-		acks, _, err := StorageWriteObjects(n.ctx, n.logger, n.db, n.metrics, n.storageIndex, true, ops)
+		var pgxTx pgx.Tx
+		if txArg := f.Argument(1); txArg != goja.Undefined() && txArg != goja.Null() {
+			txID, ok := txArg.Export().(string)
+			if !ok || txID == "" {
+				panic(r.NewTypeError("expects tx to be a string"))
+			}
+			pgxTx, ok = getTx(&runtime.StorageTx{ID: txID}, &n.openTxs)
+			if !ok {
+				panic(r.NewGoError(fmt.Errorf("transaction not found or already closed")))
+			}
+		}
+
+		acks, _, err := StorageWriteObjects(n.ctx, n.logger, n.db, n.metrics, n.storageIndex, true, ops, pgxTx)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to write storage objects: %s", err.Error())))
 		}
@@ -5433,10 +5463,78 @@ func (n *RuntimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 			})
 		}
 
-		if _, err := StorageDeleteObjects(n.ctx, n.logger, n.db, n.storageIndex, true, ops); err != nil {
+		var pgxTx pgx.Tx
+		if txArg := f.Argument(1); txArg != goja.Undefined() && txArg != goja.Null() {
+			txID, ok := txArg.Export().(string)
+			if !ok || txID == "" {
+				panic(r.NewTypeError("expects tx to be a string"))
+			}
+			pgxTx, ok = getTx(&runtime.StorageTx{ID: txID}, &n.openTxs)
+			if !ok {
+				panic(r.NewGoError(fmt.Errorf("transaction not found or already closed")))
+			}
+		}
+
+		if _, err := StorageDeleteObjects(n.ctx, n.logger, n.db, n.storageIndex, true, ops, pgxTx); err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to remove storage: %s", err.Error())))
 		}
 
+		return goja.Undefined()
+	}
+}
+
+// @group storage
+// @summary Begin a new database transaction for use with storage operations.
+// @return tx(type=string) A transaction handle to pass to storageRead, storageWrite, storageDelete, txCommit, or txRollback.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) txBegin(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		tx, err := txBegin(n.ctx, n.db, &n.openTxs)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to begin transaction: %s", err.Error())))
+		}
+		return r.ToValue(tx.ID)
+	}
+}
+
+// @group storage
+// @summary Commit an open database transaction.
+// @param tx(type=string) The transaction handle returned by txBegin.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) txCommit(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		txArg := f.Argument(0)
+		if txArg == goja.Undefined() || txArg == goja.Null() {
+			panic(r.NewTypeError("expects a transaction id"))
+		}
+		txID, ok := txArg.Export().(string)
+		if !ok || txID == "" {
+			panic(r.NewTypeError("expects tx to be a non-empty string"))
+		}
+		if err := txCommit(n.ctx, &runtime.StorageTx{ID: txID}, &n.openTxs); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to commit transaction: %s", err.Error())))
+		}
+		return goja.Undefined()
+	}
+}
+
+// @group storage
+// @summary Roll back an open database transaction.
+// @param tx(type=string) The transaction handle returned by txBegin.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) txRollback(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		txArg := f.Argument(0)
+		if txArg == goja.Undefined() || txArg == goja.Null() {
+			panic(r.NewTypeError("expects a transaction id"))
+		}
+		txID, ok := txArg.Export().(string)
+		if !ok || txID == "" {
+			panic(r.NewTypeError("expects tx to be a non-empty string"))
+		}
+		if err := txRollback(n.ctx, &runtime.StorageTx{ID: txID}, &n.openTxs); err != nil {
+			panic(r.NewGoError(fmt.Errorf("failed to rollback transaction: %s", err.Error())))
+		}
 		return goja.Undefined()
 	}
 }
