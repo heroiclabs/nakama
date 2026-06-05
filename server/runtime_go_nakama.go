@@ -33,6 +33,7 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
+	"github.com/jackc/pgx/v5"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/social"
 	"go.uber.org/zap"
@@ -66,6 +67,7 @@ type RuntimeGoNakamaModule struct {
 	satori               runtime.Satori
 	fleetManager         runtime.FleetManager
 	storageIndex         StorageIndex
+	openTxs              sync.Map
 }
 
 func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {
@@ -2152,7 +2154,7 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, callerID, userI
 // @param objectIDs(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
 // @return objects([]*api.StorageObject) A list of storage objects matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*runtime.StorageRead) ([]*api.StorageObject, error) {
+func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*runtime.StorageRead, tx ...*runtime.StorageTx) ([]*api.StorageObject, error) {
 	size := len(objectIDs)
 	if size == 0 {
 		return make([]*api.StorageObject, 0), nil
@@ -2182,7 +2184,16 @@ func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*ru
 		}
 	}
 
-	objects, err := StorageReadObjects(ctx, n.logger, n.db, uuid.Nil, reads)
+	var pgxTx pgx.Tx
+	if len(tx) > 0 {
+		var ok bool
+		pgxTx, ok = getTx(tx[0], &n.openTxs)
+		if !ok {
+			return nil, errors.New("transaction not found or already closed")
+		}
+	}
+
+	objects, err := StorageReadObjects(ctx, n.logger, n.db, uuid.Nil, reads, pgxTx)
 	if err != nil {
 		return nil, err
 	}
@@ -2196,7 +2207,7 @@ func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*ru
 // @param objectIDs(type=[]*runtime.StorageWrite) An array of object identifiers to be written.
 // @return acks([]*api.StorageObjectAck) A list of acks with the version of the written objects.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*runtime.StorageWrite) ([]*api.StorageObjectAck, error) {
+func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*runtime.StorageWrite, tx ...*runtime.StorageTx) ([]*api.StorageObjectAck, error) {
 	size := len(objectIDs)
 	if size == 0 {
 		return make([]*api.StorageObjectAck, 0), nil
@@ -2239,7 +2250,16 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*r
 		ops = append(ops, op)
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, n.metrics, n.storageIndex, true, ops)
+	var pgxTx pgx.Tx
+	if len(tx) > 0 {
+		var ok bool
+		pgxTx, ok = getTx(tx[0], &n.openTxs)
+		if !ok {
+			return nil, errors.New("transaction not found or already closed")
+		}
+	}
+
+	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, n.metrics, n.storageIndex, true, ops, pgxTx)
 	if err != nil {
 		return nil, err
 	}
@@ -2297,7 +2317,7 @@ func (n *RuntimeGoNakamaModule) StorageWriteRetry(ctx context.Context, objectIDs
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageDelete) An array of object identifiers to be deleted.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*runtime.StorageDelete) error {
+func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*runtime.StorageDelete, tx ...*runtime.StorageTx) error {
 	size := len(objectIDs)
 	if size == 0 {
 		return nil
@@ -2334,7 +2354,16 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*
 		ops = append(ops, op)
 	}
 
-	_, err := StorageDeleteObjects(ctx, n.logger, n.db, n.storageIndex, true, ops)
+	var pgxTx pgx.Tx
+	if len(tx) > 0 {
+		var ok bool
+		pgxTx, ok = getTx(tx[0], &n.openTxs)
+		if !ok {
+			return errors.New("transaction not found or already closed")
+		}
+	}
+
+	_, err := StorageDeleteObjects(ctx, n.logger, n.db, n.storageIndex, true, ops, pgxTx)
 
 	return err
 }
@@ -4569,4 +4598,16 @@ func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
 // @return fleetManager(runtime.FleetManager) The Fleet Manager client.
 func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 	return n.fleetManager
+}
+
+func (n *RuntimeGoNakamaModule) TxBegin(ctx context.Context) (*runtime.StorageTx, error) {
+	return txBegin(ctx, n.db, &n.openTxs)
+}
+
+func (n *RuntimeGoNakamaModule) TxCommit(ctx context.Context, tx *runtime.StorageTx) error {
+	return txCommit(ctx, tx, &n.openTxs)
+}
+
+func (n *RuntimeGoNakamaModule) TxRollback(ctx context.Context, tx *runtime.StorageTx) error {
+	return txRollback(ctx, tx, &n.openTxs)
 }
