@@ -4,6 +4,9 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Add `txBegin`, `txCommit`, `txRollback` runtime functions across Go, Lua, and JavaScript runtimes to allow callers to manage database transaction lifecycle explicitly.
+- Add optional transaction parameter to `storageRead`, `storageWrite`, and `storageDelete` runtime functions so multiple storage operations can be executed within a single atomic transaction.
 
 ## [3.39.0] - 2026-05-20
 ### Added

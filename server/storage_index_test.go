@@ -135,7 +135,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 
 		writeOps := StorageOpWrites{so1, so2, so3, so4, so5, so6}
 
-		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -161,7 +161,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 				},
 			})
 		}
-		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps, nil); err != nil {
 			t.Fatalf("Failed to teardown: %s", err.Error())
 		}
 	})
@@ -182,7 +182,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 			},
 		}
 
-		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, StorageOpWrites{so1}); err != nil {
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, StorageOpWrites{so1}, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -201,7 +201,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 				},
 			},
 		}
-		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, deletes); err != nil {
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, deletes, nil); err != nil {
 			t.Fatalf("Failed to teardown: %s", err.Error())
 		}
 	})
@@ -285,7 +285,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 
 		writeOps := StorageOpWrites{so1, so2, so3, so4}
 
-		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -309,7 +309,7 @@ func TestLocalStorageIndex_Write(t *testing.T) {
 				},
 			})
 		}
-		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps, nil); err != nil {
 			t.Fatalf("Failed to teardown: %s", err.Error())
 		}
 	})
@@ -381,7 +381,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 
 		writeOps := StorageOpWrites{so1, so2, so3}
 
-		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -419,7 +419,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 				},
 			})
 		}
-		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps, nil); err != nil {
 			t.Fatalf("Failed to teardown: %s", err.Error())
 		}
 	})
@@ -489,7 +489,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 
 		writeOps := StorageOpWrites{so1, so2, so3}
 
-		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -512,7 +512,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 				},
 			})
 		}
-		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps, nil); err != nil {
 			t.Fatalf("Failed to teardown: %s", err.Error())
 		}
 	})
@@ -585,7 +585,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 
 		writeOps := StorageOpWrites{so1, so2, so3}
 
-		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+		if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps, nil); err != nil {
 			t.Fatal(err.Error())
 		}
 
@@ -624,7 +624,7 @@ func TestLocalStorageIndex_List(t *testing.T) {
 				},
 			})
 		}
-		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+		if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps, nil); err != nil {
 			t.Fatalf("Failed to teardown: %s", err.Error())
 		}
 	})
@@ -677,7 +677,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 
 	writeOps := StorageOpWrites{so1, so2}
 
-	if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps); err != nil {
+	if _, _, err := StorageWriteObjects(context.Background(), logger, db, metrics, storageIdx, true, writeOps, nil); err != nil {
 		t.Fatal(err.Error())
 	}
 
@@ -694,7 +694,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 			Key:        "key2",
 		},
 	}
-	if _, err := StorageDeleteObjects(context.Background(), logger, db, storageIdx, true, StorageOpDeletes{delOp}); err != nil {
+	if _, err := StorageDeleteObjects(context.Background(), logger, db, storageIdx, true, StorageOpDeletes{delOp}, nil); err != nil {
 		t.Fatal(err.Error())
 	}
 
@@ -715,7 +715,7 @@ func TestLocalStorageIndex_Delete(t *testing.T) {
 			},
 		})
 	}
-	if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps); err != nil {
+	if _, err = StorageDeleteObjects(ctx, logger, db, storageIdx, true, delOps, nil); err != nil {
 		t.Fatalf("Failed to teardown: %s", err.Error())
 	}
 }
