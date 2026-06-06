@@ -459,6 +459,45 @@ function extScanEvents(nk, logger, collection, days, filter, gameId, cutoffDateO
     return events;
 }
 
+function extScanEventsCapped(nk, logger, collection, days, gameId, maxPages) {
+    // Fallback-only scanner capped at maxPages (default 10 × 200 = 2k objects).
+    // Use this instead of extScanEvents when you need a rough result quickly
+    // without risking a full 50k-object scan on hot paths.
+    var events = [];
+    var cutoffDate = extDaysAgo(Math.max(0, (parseInt(days, 10) || 7) - 1));
+    var canonicalGameId = extResolveGameId(gameId);
+    var collectionsToScan = (collection === 'analytics_events') ? EVENT_COLLECTIONS : [collection];
+    var pageLimit = maxPages || 10;
+
+    for (var c = 0; c < collectionsToScan.length; c++) {
+        try {
+            var cursor = null;
+            var iterations = 0;
+            do {
+                var result = nk.storageList(SYSTEM_USER_ID, collectionsToScan[c], 200, cursor);
+                if (!result || !result.objects) break;
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    var val = extNormalizeEvent(obj.value, obj.key);
+                    if (!val) continue;
+                    if (canonicalGameId) {
+                        var evGid = extResolveGameId(val.gameId || extractGameIdFromKey(obj.key));
+                        if (evGid !== canonicalGameId) continue;
+                    }
+                    var eventDate = val.date || extIsoDate(val.timestamp) || obj.key.slice(-10);
+                    if (eventDate && eventDate < cutoffDate) continue;
+                    events.push(val);
+                }
+                cursor = result.cursor;
+                iterations++;
+            } while (cursor && iterations < pageLimit);
+        } catch (e) {
+            logger.warn('[AnalyticsExtended] CappedScan error (' + collectionsToScan[c] + '): ' + e.message);
+        }
+    }
+    return events;
+}
+
 /**
  * Extract gameId from a storage key.
  *
@@ -2146,100 +2185,124 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
 function rpcAnalyticsTopPlayers(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var days = parseInt(data.days, 10) || 7;
-        var limit = parseInt(data.limit, 10) || 50;
-        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Filter by specific game — alias slugs to canonical UUIDs
+        var days = Math.min(parseInt(data.days, 10) || 7, 90);
+        var limit = Math.min(parseInt(data.limit, 10) || 50, 200);
+        var gameId = extResolveGameId(data.game_id || data.gameId || null);
+        var scope = gameId || 'all';
 
+        // Read pre-computed daily top-player docs (one storageRead per day,
+        // not a 50k-object storageList scan). The rollup job writes these
+        // during its nightly run. Fall back to the legacy event scan only
+        // when NO rollup doc exists for ANY of the requested days.
         var playerStats = {};
+        var rollupHits = 0;
+        var now = new Date();
 
-        // Scan events and aggregate by user (with optional game filter) - use extScanEvents with gameId
-        var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
+        for (var d = 0; d < days; d++) {
+            var date = new Date(now.getTime() - d * 86400000);
+            var dateStr = date.toISOString().slice(0, 10);
+            var key = 'top_players_' + scope + '_' + dateStr;
+            var doc = extStorageRead(nk, 'analytics_top_players_daily', key, SYSTEM_USER_ID);
+            if (!doc || !doc.players) continue;
+            rollupHits++;
 
-        for (var i = 0; i < events.length; i++) {
-            var ev = events[i];
-            var userId = ev.userId;
-            if (!userId) continue;
+            for (var pi = 0; pi < doc.players.length; pi++) {
+                var p = doc.players[pi];
+                var uid = p.user_id;
+                if (!uid) continue;
 
-            if (!playerStats[userId]) {
-                playerStats[userId] = {
-                    user_id: userId,
-                    display_name: '',
-                    total_events: 0,
-                    quiz_completed: 0,
-                    daily_quizzes: 0,
-                    ai_events: 0,
-                    sessions: 0,
-                    purchases: 0,
-                    total_score: 0,
-                    last_active: ev.timestamp || '',
-                    game_id: ev.gameId || gameId || 'all'
-                };
-            }
-
-            var ps = playerStats[userId];
-            ps.total_events++;
-
-            var evName = (ev.eventName || '').toLowerCase();
-            var evData = ev.eventData || {};
-
-            if (evName.indexOf('quiz_completed') !== -1 || evName.indexOf('quizcompleted') !== -1) {
-                ps.quiz_completed++;
-                ps.total_score += evData.score || 0;
-            }
-            if (evName.indexOf('daily') !== -1) {
-                ps.daily_quizzes++;
-            }
-            if (evName.indexOf('ai') !== -1 || evName.indexOf('voice') !== -1) {
-                ps.ai_events++;
-            }
-            if (evName.indexOf('session') !== -1) {
-                ps.sessions++;
-            }
-            if (evName.indexOf('purchase') !== -1 || evName.indexOf('iap') !== -1) {
-                ps.purchases++;
-            }
-
-            if (ev.timestamp && ev.timestamp > ps.last_active) {
-                ps.last_active = ev.timestamp;
-            }
-        }
-
-        // Try to fetch display names for top players
-        var userIds = Object.keys(playerStats).slice(0, limit);
-        if (userIds.length > 0) {
-            try {
-                var users = nk.usersGetId(userIds);
-                if (users) {
-                    for (var u = 0; u < users.length; u++) {
-                        var user = users[u];
-                        if (playerStats[user.userId]) {
-                            playerStats[user.userId].display_name = user.displayName || user.username || '';
-                        }
-                    }
+                if (!playerStats[uid]) {
+                    playerStats[uid] = {
+                        user_id: uid,
+                        display_name: '',
+                        total_events:  0,
+                        quiz_completed: 0,
+                        daily_quizzes: 0,
+                        ai_events:     0,
+                        sessions:      0,
+                        purchases:     0,
+                        total_score:   0,
+                        last_active:   p.last_active || dateStr,
+                        game_id:       scope
+                    };
                 }
-            } catch (e) {
-                logger.warn('[AnalyticsExtended] Could not fetch user names: ' + e.message);
+
+                var ps = playerStats[uid];
+                ps.total_events   += p.total_events   || 0;
+                ps.quiz_completed += p.quiz_completed || 0;
+                ps.daily_quizzes  += p.daily_quizzes  || 0;
+                ps.ai_events      += p.ai_events      || 0;
+                ps.sessions       += p.sessions       || 0;
+                ps.purchases      += p.purchases      || 0;
+                ps.total_score    += p.total_score     || 0;
+                if (p.last_active && p.last_active > ps.last_active) {
+                    ps.last_active = p.last_active;
+                }
             }
         }
 
-        // Convert to array and sort by total events
+        // Fallback: if no rollup docs exist yet (first run before the cron
+        // has executed), do a limited live scan capped at 5k objects so the
+        // dashboard at least shows something while the rollup warms up.
+        if (rollupHits === 0) {
+            logger.warn('[AnalyticsExtended] top_players: no rollup docs found, using limited live scan (days=' + days + ')');
+            var fallbackEvents = extScanEventsCapped(nk, logger, 'analytics_events', days, gameId, 25);
+            for (var fi = 0; fi < fallbackEvents.length; fi++) {
+                var ev = fallbackEvents[fi];
+                var userId = ev.userId;
+                if (!userId) continue;
+                if (!playerStats[userId]) {
+                    playerStats[userId] = {
+                        user_id: userId, display_name: '', total_events: 0,
+                        quiz_completed: 0, daily_quizzes: 0, ai_events: 0,
+                        sessions: 0, purchases: 0, total_score: 0,
+                        last_active: ev.timestamp || '', game_id: scope
+                    };
+                }
+                var fps = playerStats[userId];
+                fps.total_events++;
+                var evName = (ev.eventName || '').toLowerCase();
+                if (evName.indexOf('quiz_completed') !== -1) { fps.quiz_completed++; fps.total_score += (ev.eventData || {}).score || 0; }
+                if (evName.indexOf('daily') !== -1) fps.daily_quizzes++;
+                if (evName.indexOf('ai') !== -1 || evName.indexOf('voice') !== -1) fps.ai_events++;
+                if (evName.indexOf('session') !== -1) fps.sessions++;
+                if (evName.indexOf('purchase') !== -1 || evName.indexOf('iap') !== -1) fps.purchases++;
+                if (ev.timestamp && ev.timestamp > fps.last_active) fps.last_active = ev.timestamp;
+            }
+        }
+
         var players = [];
-        for (var uid in playerStats) {
-            players.push(playerStats[uid]);
+        for (var uid2 in playerStats) {
+            if (playerStats.hasOwnProperty(uid2)) players.push(playerStats[uid2]);
         }
         players.sort(function(a, b) { return b.total_events - a.total_events; });
         players = players.slice(0, limit);
 
-        // Get DAU for total active users count (game-specific if filtered)
-        var dauKey = gameId ? 'dau_' + gameId + '_' + extDaysAgo(0) : 'dau_platform_' + extDaysAgo(0);
-        var todayDau = extStorageRead(nk, 'analytics_dau', dauKey, SYSTEM_USER_ID);
-        var totalActiveUsers = (todayDau && todayDau.count) ? todayDau.count : Object.keys(playerStats).length;
+        // Fetch display names only for the final top-N (at most `limit` lookups)
+        var lookupIds = players.map(function(p) { return p.user_id; });
+        if (lookupIds.length > 0) {
+            try {
+                var users = nk.usersGetId(lookupIds);
+                if (users) {
+                    var nameMap = {};
+                    for (var u = 0; u < users.length; u++) {
+                        nameMap[users[u].userId] = users[u].displayName || users[u].username || '';
+                    }
+                    for (var pi2 = 0; pi2 < players.length; pi2++) {
+                        players[pi2].display_name = nameMap[players[pi2].user_id] || '';
+                    }
+                }
+            } catch (eU) {
+                logger.warn('[AnalyticsExtended] Could not fetch user names: ' + eU.message);
+            }
+        }
 
         return JSON.stringify({
-            total_active_users: totalActiveUsers,
+            total_active_users: players.length,
             users_sampled: Object.keys(playerStats).length,
             days: days,
-            game_id: gameId || 'all',
+            game_id: scope,
+            rollup_hits: rollupHits,
             players: players
         });
     } catch (e) {
