@@ -35,6 +35,9 @@ var AR_FUNNEL_COLLECTION = "analytics_funnel_daily";
 var AR_META_COLLECTION = "analytics_rollup_meta";
 var AR_EVENTS_COLLECTION = "analytics_events";
 var AR_FIRST_SEEN_COLLECTION = "analytics_user_first_seen";
+// Stores one doc per game per day: top 200 players ranked by event count.
+// Read by rpcAnalyticsTopPlayers to avoid scanning raw events at request time.
+var AR_TOP_PLAYERS_COLLECTION = "analytics_top_players_daily";
 
 // Phase 4 (2026-05) — pre-aggregated rollups for the new dashboard tabs.
 // Both are written by rpcAnalyticsRollupRun in the same scan-pass as the
@@ -771,6 +774,75 @@ function arTopN(map, n, keyName, valueName) {
     return arr.slice(0, n);
 }
 
+/**
+ * Compute top-players leaderboard from a single day's events.
+ * Called inside the rollup run so it piggy-backs the existing event scan
+ * and avoids any additional storageList calls at read time.
+ *
+ * The result is written to AR_TOP_PLAYERS_COLLECTION as
+ *   "top_players_<gameId>_<dateStr>"
+ * and the RPC merges N days of these docs to produce the final ranking.
+ */
+function arComputeTopPlayers(events, gameId, dateStr) {
+    gameId = arResolveGameId(gameId);
+    var playerStats = {};
+
+    for (var i = 0; i < events.length; i++) {
+        var ev = events[i];
+        if (gameId && gameId !== "all" && ev.gameId !== gameId) continue;
+
+        var userId = ev.userId;
+        if (!userId) continue;
+
+        if (!playerStats[userId]) {
+            playerStats[userId] = {
+                user_id: userId,
+                total_events: 0,
+                quiz_completed: 0,
+                daily_quizzes: 0,
+                ai_events: 0,
+                sessions: 0,
+                purchases: 0,
+                total_score: 0,
+                last_active: ev.timestamp || dateStr,
+                game_id: gameId
+            };
+        }
+
+        var ps = playerStats[userId];
+        ps.total_events++;
+
+        var evName = (ev.eventName || "").toLowerCase();
+        var evData = ev.eventData || {};
+
+        if (evName.indexOf("quiz_completed") !== -1 || evName.indexOf("quizcompleted") !== -1) {
+            ps.quiz_completed++;
+            ps.total_score += evData.score || 0;
+        }
+        if (evName.indexOf("daily") !== -1) ps.daily_quizzes++;
+        if (evName.indexOf("ai") !== -1 || evName.indexOf("voice") !== -1) ps.ai_events++;
+        if (evName.indexOf("session") !== -1) ps.sessions++;
+        if (evName.indexOf("purchase") !== -1 || evName.indexOf("iap") !== -1) ps.purchases++;
+
+        if (ev.timestamp && ev.timestamp > ps.last_active) {
+            ps.last_active = ev.timestamp;
+        }
+    }
+
+    var players = [];
+    for (var uid in playerStats) {
+        if (playerStats.hasOwnProperty(uid)) players.push(playerStats[uid]);
+    }
+    players.sort(function(a, b) { return b.total_events - a.total_events; });
+
+    return {
+        gameId: gameId || "all",
+        date: dateStr,
+        players: players.slice(0, 200),
+        computed_at: new Date().toISOString()
+    };
+}
+
 function arMaterializeAud(dimSlot, topN) {
     var arr = [];
     for (var k in dimSlot) {
@@ -1175,6 +1247,12 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
             var offerDoc = arComputeOfferPerformance(events, gameId, dateStr);
             arWriteOne(nk, AR_OFFER_COLLECTION, "offer_" + gameId + "_" + dateStr, AR_SYSTEM_USER, offerDoc);
         } catch (eO) { logger.warn("[analytics_rollup] offer perf failed for " + gameId + ": " + eO.message); }
+        // Pre-compute top-200 players for this game+day so the RPC can read
+        // N daily docs instead of scanning 50k raw events on every request.
+        try {
+            var tpDoc = arComputeTopPlayers(events, gameId, dateStr);
+            arWriteOne(nk, AR_TOP_PLAYERS_COLLECTION, "top_players_" + gameId + "_" + dateStr, AR_SYSTEM_USER, tpDoc);
+        } catch (eTP) { logger.warn("[analytics_rollup] top players failed for " + gameId + ": " + eTP.message); }
 
         written.push({ scope: gameId, date: dateStr, dau: roll.dau, events: roll.event_count, new_users: roll.new_users });
 
@@ -1220,6 +1298,11 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         var offerAllDoc = arComputeOfferPerformance(events, "all", dateStr);
         arWriteOne(nk, AR_OFFER_COLLECTION, "offer_all_" + dateStr, AR_SYSTEM_USER, offerAllDoc);
     } catch (eOa) { logger.warn("[analytics_rollup] offer perf failed for all: " + eOa.message); }
+    // Platform-wide top-players doc (scope = "all").
+    try {
+        var tpAllDoc = arComputeTopPlayers(events, "all", dateStr);
+        arWriteOne(nk, AR_TOP_PLAYERS_COLLECTION, "top_players_all_" + dateStr, AR_SYSTEM_USER, tpAllDoc);
+    } catch (eTPa) { logger.warn("[analytics_rollup] top players failed for all: " + eTPa.message); }
     written.unshift({ scope: "all", date: dateStr, dau: allRollup.dau, events: allRollup.event_count, new_users: allRollup.new_users });
 
     // Phase 6 — bump the monthly/yearly/lifetime tiers for every game we

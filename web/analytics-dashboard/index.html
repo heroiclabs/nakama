@@ -3407,6 +3407,10 @@
         // lockstep with --runtime.http_key even when ops rotate the secret.
         // For local dev (docker-compose), the runtime is set to the placeholder
         // value explicitly, so the file works as-is without patching.
+        // serverUrl is cross-origin (page: nakama.*, API: nakama-rest.*). Nakama
+        // returns Access-Control-Allow-Origin on normal responses; browser
+        // "CORS blocked" errors usually mean the gateway timed out (502) before
+        // Nakama could respond — fix slow RPCs server-side, not CORS headers here.
         const CONFIG = {
             serverUrl: 'https://nakama-rest.intelli-verse-x.ai',
             serverKey: 'defaultkey',
@@ -3869,6 +3873,7 @@
         // sessionStorage response cache: 30-second TTL per (rpcId, payload).
         // Keeps tab-switching instant without staleness on long-dwell sessions.
         const RPC_CACHE_TTL_MS = 30 * 1000;
+        const RPC_TIMEOUT_MS = 30 * 1000; // fail fast; avoids hanging until LB 502 → bogus CORS error
         const RPC_CACHE_BYPASS = new Set([
             'analytics_log_event',
             'analytics_rollup_run',
@@ -3935,14 +3940,28 @@
                 if (cached) return cached;
             }
 
-            const response = await fetch(`${CONFIG.serverUrl}/v2/rpc/${rpcId}`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'Bearer ' + sessionToken,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(JSON.stringify(payload))
-            });
+            const controller = new AbortController();
+            const timeoutMs = options.timeoutMs || RPC_TIMEOUT_MS;
+            const timer = setTimeout(function() { controller.abort(); }, timeoutMs);
+            let response;
+            try {
+                response = await fetch(`${CONFIG.serverUrl}/v2/rpc/${rpcId}`, {
+                    method: 'POST',
+                    signal: controller.signal,
+                    headers: {
+                        'Authorization': 'Bearer ' + sessionToken,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(JSON.stringify(payload))
+                });
+            } catch (fetchErr) {
+                if (fetchErr && fetchErr.name === 'AbortError') {
+                    throw new Error('RPC ' + rpcId + ' timed out after ' + (timeoutMs / 1000) + 's. The server handler may be too slow (gateway 502 often shows as a CORS error in DevTools).');
+                }
+                throw new Error('RPC ' + rpcId + ' network error: ' + (fetchErr.message || fetchErr) + '. If DevTools shows CORS, the gateway likely timed out before Nakama responded.');
+            } finally {
+                clearTimeout(timer);
+            }
 
             if (!response.ok) {
                 if (response.status === 401 || response.status === 403) {
