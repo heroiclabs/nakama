@@ -284,6 +284,7 @@ function rpcQePlayerFullProfile(ctx, logger, nk, payload) {
   if (!userId) {
     throw _qeBadRequest('user_id is required');
   }
+  var gameId = input.game_id || input.gameId || '126bf539-dae2-4bcf-964d-316c0fa1f92b';
 
   var profile = {};
   var gameStats = {};
@@ -311,6 +312,38 @@ function rpcQePlayerFullProfile(ctx, logger, nk, payload) {
     }
   } catch (e) {
     logger.warn('[QeAnalytics] storageRead failed for ' + userId + ': ' + e);
+  }
+
+  // GPA doc — primary source of truth for all live player KPIs.
+  // Canonical key is {gameId}:{userId}; stored under the player's userId.
+  var gpaDoc = null;
+  try {
+    var gpaKey = gameId + ':' + userId;
+    var gpaRecs = nk.storageRead([{
+      collection: _QE_GPA_COLLECTION, key: gpaKey, userId: userId
+    }]);
+    if (gpaRecs && gpaRecs.length > 0 && gpaRecs[0].value) {
+      gpaDoc = gpaRecs[0].value;
+    }
+  } catch (eGpa) {
+    logger.warn('[QeAnalytics] GPA read failed for ' + userId + ': ' + eGpa);
+  }
+
+  // When legacy user_metadata is empty, backfill from the GPA doc so callers
+  // that key off profile.display_name / analytics.last_active_utc etc. still
+  // get real data without needing a separate code change on their end.
+  if (gpaDoc) {
+    if (!profile.display_name && gpaDoc.display_name) profile.display_name = gpaDoc.display_name;
+    if (!profile.avatar_url   && gpaDoc.avatar_url)   profile.avatar_url   = gpaDoc.avatar_url;
+    if (!profile.platform     && gpaDoc.platform)     profile.platform     = gpaDoc.platform;
+    if (!profile.country      && gpaDoc.country)      profile.country      = gpaDoc.country;
+    if (!analytics.last_active_utc && gpaDoc.last_active_utc) analytics.last_active_utc = gpaDoc.last_active_utc;
+    if (!analytics.first_seen_utc  && gpaDoc.first_seen_utc)  analytics.first_seen_utc  = gpaDoc.first_seen_utc;
+    if (!analytics.lt_events       && gpaDoc.lt_events)       analytics.lt_events       = gpaDoc.lt_events;
+    if (!analytics.lt_sessions     && gpaDoc.lt_sessions)     analytics.lt_sessions     = gpaDoc.lt_sessions;
+    if (!analytics.lt_quiz_plays   && gpaDoc.lt_quiz_plays)   analytics.lt_quiz_plays   = gpaDoc.lt_quiz_plays;
+    if (!gameStats.fav_mode        && gpaDoc.fav_mode)        gameStats.fav_mode        = gpaDoc.fav_mode;
+    if (gameStats.fav_mode_n === undefined && gpaDoc.fav_mode_n) gameStats.fav_mode_n   = gpaDoc.fav_mode_n;
   }
 
   var userRow = null;
@@ -349,6 +382,7 @@ function rpcQePlayerFullProfile(ctx, logger, nk, payload) {
     game_stats:        gameStats,
     analytics:         analytics,
     quest_analytics:   questAnalytics,
+    gpa:               gpaDoc,
     user:              userRow,
     leaderboard_count: leaderboardCount
   });
