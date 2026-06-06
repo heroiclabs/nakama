@@ -48,7 +48,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // and Hiro registrations so QuizVerse + future game plugins can call
     // MpKernelSyncTurn.registerGenerator(...) during their own register().
     try {
-        MpKernelModule.register(initializer, logger);
+        MpKernelModule.mount(initializer, logger);
     }
     catch (err) {
         logger.error("[MpKernel] failed to mount: " + (err && err.message ? err.message : String(err)));
@@ -59,7 +59,14 @@ function InitModule(ctx, logger, nk, initializer) {
     // and BEFORE the legacy bridge so QuizVerse rpc IDs are pinned in
     // _tsRpcList and the legacy_runtime.js stub cannot shadow them.
     try {
-        QuizVersePlugin.register(initializer, nk, logger);
+        // register(initializer) is single-arg on purpose so postbuild's
+        // autoInvokeRegister re-runs it on every pooled Goja VM (populating the
+        // quizverse_* __rpc_ stubs there — otherwise they're undefined on the
+        // VMs that serve traffic → HTTP 500). Generators are registered lazily
+        // at match-init time (see zz_mp_kernel_handlers.js) since they need `nk`
+        // and the QuizVerseGame/Generator namespaces, which aren't safe to touch
+        // at IIFE-eval time. This explicit call covers the initial VM.
+        QuizVersePlugin.register(initializer);
     }
     catch (err) {
         logger.error("[QuizVerse] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
@@ -495,6 +502,30 @@ function InitModule(ctx, logger, nk, initializer) {
     }
     catch (err) {
         logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
+    }
+    // ---- TutorX Progress (server-authoritative XP + streak/freeze + quests) ----
+    // Replaces the client-only (localStorage) gamification in the TutorX web SPA.
+    // register() is single-arg on purpose so postbuild's autoInvokeRegister
+    // re-runs it on every pooled Goja VM (populating the __rpc_tutorx_* stubs
+    // there — otherwise they're undefined on the VMs serving traffic → HTTP 500).
+    try {
+        logger.info("[TutorXProgress] Registering tutorx_xp_get / xp_add / streak_touch / quest_claim RPCs...");
+        TutorXProgress.register(initializer);
+        logger.info("[TutorXProgress] TutorX progress RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[TutorXProgress] Failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- TutorX Study Plan (server-authoritative checklist completion state) ----
+    // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+    // pooled Goja VM (same rationale as TutorXProgress above).
+    try {
+        logger.info("[TutorXStudyPlan] Registering tutorx_studyplan_get / toggle RPCs...");
+        TutorXStudyPlan.register(initializer);
+        logger.info("[TutorXStudyPlan] TutorX study-plan RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[TutorXStudyPlan] Failed to register: " + (err && err.message ? err.message : String(err)));
     }
     // ---- Fantasy Cricket RPCs ----
     try {
@@ -7344,25 +7375,44 @@ var QuizVersePlugin;
         }
         return JSON.stringify({ packs: out });
     }
-    function register(initializer, nk, logger) {
-        QuizVerseGenerator.registerNk(nk);
+    // SINGLE-parameter `register(initializer)` on purpose. postbuild.js's
+    // autoInvokeRegister only re-invokes zero/one-arg register() functions at
+    // IIFE scope on every pooled Goja VM — and that IIFE-scope replay is the
+    // ONLY thing that populates the `__rpc_quizverse_*` stubs on the VMs that
+    // actually serve RPC traffic (pooled VMs never run InitModule). The old
+    // three-arg `register(initializer, nk, logger)` was skipped, so
+    // quizverse_create_match resolved to `undefined` on pooled VMs → HTTP 500
+    // "Could not run Rpc function." The literal-string RPC ids are still
+    // REQUIRED (Goja's AST walker only extracts string-literal ids); the
+    // RPC_CREATE_MATCH/etc. constants remain for external reference only —
+    // see PRs #94/#97/#100. Body must contain ONLY registerRpc calls so
+    // autoInvokeRegister considers it safe to replay.
+    function register(initializer) {
+        initializer.registerRpc("quizverse_create_match", rpcCreateMatch);
+        initializer.registerRpc("quizverse_load_pack", rpcLoadPack);
+        initializer.registerRpc("quizverse_list_packs", rpcListPacks);
+    }
+    QuizVersePlugin.register = register;
+    // Build + register the QuizVerse turn generators into the SyncTurn
+    // registry. Invoked LAZILY at match-init time (data/modules/
+    // zz_mp_kernel_handlers.js) rather than from InitModule, because:
+    //   (a) match handlers run on pooled VMs that never ran InitModule, so the
+    //       generator map must be (re)populated on whichever VM hosts the match;
+    //   (b) it needs the live `nk` (for custom packs; falls back to SEED_PACK
+    //       when absent) which is only available inside match/RPC callbacks; and
+    //   (c) QuizVerseGenerator.buildAll() touches QuizVerseGame.*, whose
+    //       namespace IIFE evaluates AFTER QuizVersePlugin's — so an eager
+    //       eval-time call would throw (build #217 regression).
+    // Idempotent: registerGenerator just overwrites the map entry by id.
+    function registerGenerators(nk) {
+        if (nk)
+            QuizVerseGenerator.registerNk(nk);
         var gens = QuizVerseGenerator.buildAll();
         for (var i = 0; i < gens.length; i++) {
             MpKernelSyncTurn.registerGenerator(gens[i]);
         }
-        // Literal-string registrations REQUIRED — Goja's AST walker only
-        // extracts RPC ids that appear as string literals at the call site.
-        // The RPC_CREATE_MATCH / RPC_LOAD_PACK / RPC_LIST_PACKS constants
-        // above remain for export so external callers can reference them
-        // by name; do not replace these literals with the constants.
-        // See PRs #94 and #100 for the live regression that motivated this,
-        // and PR #97 for the build-time linter that enforces it going forward.
-        initializer.registerRpc("quizverse_create_match", rpcCreateMatch);
-        initializer.registerRpc("quizverse_load_pack", rpcLoadPack);
-        initializer.registerRpc("quizverse_list_packs", rpcListPacks);
-        logger.info("[QuizVerse] plugin registered; generators=" + gens.length + " modes=classic|friend_battle|link_and_play");
     }
-    QuizVersePlugin.register = register;
+    QuizVersePlugin.registerGenerators = registerGenerators;
 })(QuizVersePlugin || (QuizVersePlugin = {}));
 // =============================================================================
 // src/games/quizverse/live-banner.ts
@@ -7428,7 +7478,7 @@ var QuizVerseLiveBanner;
      * Dev kill-switch — when true, RPC always returns show=false / force_live=false.
      * Flip to false when public live events should drive the home banner.
      */
-    var FORCE_LIVE_BANNER_OFF = true;
+    var FORCE_LIVE_BANNER_OFF = false;
     function emptyBannerPayload() {
         return {
             show: false,
@@ -26819,11 +26869,29 @@ var MpKernelClock;
 var MpKernelCodeRegistry;
 (function (MpKernelCodeRegistry) {
     var owners = [];
-    function register(owner) {
+    // NOTE: deliberately NOT named `register`. postbuild.js's autoInvokeRegister
+    // auto-invokes any zero/one-arg `Namespace.register = register;` at IIFE
+    // scope on every Goja VM to populate __rpc_ stubs. A 1-arg `register(owner)`
+    // here matched that heuristic and got called with `owner === undefined`,
+    // pushing `undefined` into `owners` — which then made every subsequent
+    // reserve()/bootstrap throw "Cannot read property 'name' of undefined"
+    // (the original 2026-05 MpKernel mount-failure signature). Keep this name
+    // distinct from `register` so the heuristic can never fire on it.
+    function reserve(owner) {
         for (var i = 0; i < owners.length; i++) {
             var o = owners[i];
             if (o.name === owner.name) {
                 // Idempotent re-registration (e.g. test reload): replace.
+                owners[i] = owner;
+                return;
+            }
+            // Exact-range adoption: some templates intentionally live inside a
+            // pre-claimed service band (e.g. conversational-party-v1 uses the
+            // 0x1000-0x1FFF "social-conversational" band). When a template claims a
+            // range that is byte-for-byte identical to an existing placeholder, the
+            // template "adopts" the band — replace the placeholder rather than
+            // flagging a (false-positive) overlap. Partial overlaps remain errors.
+            if (o.from === owner.from && o.to === owner.to) {
                 owners[i] = owner;
                 return;
             }
@@ -26836,7 +26904,7 @@ var MpKernelCodeRegistry;
         }
         owners.push(owner);
     }
-    MpKernelCodeRegistry.register = register;
+    MpKernelCodeRegistry.reserve = reserve;
     function rangesOverlap(a, b) {
         return a.from <= b.to && b.from <= a.to;
     }
@@ -26864,12 +26932,12 @@ var MpKernelCodeRegistry;
         // schemas/multiplayer/opcodes.proto. Template ranges register
         // themselves on registerTemplate; ranges below are pre-claimed so
         // any accidental overlap fails fast at module init.
-        register({ name: "kernel-control", from: 0x0000, to: 0x0FFF });
-        register({ name: "social-conversational", from: 0x1000, to: 0x1FFF });
-        register({ name: "agents", from: 0x2000, to: 0x2FFF });
-        register({ name: "moderation", from: 0x3000, to: 0x3FFF });
-        register({ name: "game-defined", from: 0xC000, to: 0xCFFF });
-        register({ name: "xr-pose-fast-path", from: 0xF000, to: 0xFFFF });
+        reserve({ name: "kernel-control", from: 0x0000, to: 0x0FFF });
+        reserve({ name: "social-conversational", from: 0x1000, to: 0x1FFF });
+        reserve({ name: "agents", from: 0x2000, to: 0x2FFF });
+        reserve({ name: "moderation", from: 0x3000, to: 0x3FFF });
+        reserve({ name: "game-defined", from: 0xC000, to: 0xCFFF });
+        reserve({ name: "xr-pose-fast-path", from: 0xF000, to: 0xFFFF });
     }
     MpKernelCodeRegistry.bootstrapKernelRanges = bootstrapKernelRanges;
 })(MpKernelCodeRegistry || (MpKernelCodeRegistry = {}));
@@ -27104,18 +27172,31 @@ var MpKernelModule;
     // List the registered templates so the JS adapter can validate
     // template_ids client-side at compile-time codegen.
     function rpcListTemplates(_ctx, _logger, _nk, _payload) {
-        var owners = MpKernelCodeRegistry.listAll();
+        // Source of truth is `registeredTemplateIds`, populated by the
+        // single-arg, auto-invoked register(initializer) so it is present on
+        // EVERY pooled Goja VM (the code registry's opcode ranges are only
+        // reserved on the InitModule VM via mount(), so we can't rely on
+        // listAll() here without returning an empty set on pooled VMs).
+        var ranges = {};
+        try {
+            var owners = MpKernelCodeRegistry.listAll();
+            for (var i = 0; i < owners.length; i++) {
+                if (owners[i].template_id) {
+                    ranges[owners[i].template_id] = { from: owners[i].from, to: owners[i].to };
+                }
+            }
+        }
+        catch (_e) { /* registry not bootstrapped on this VM — ranges optional */ }
         var out = {
             templates: []
         };
-        for (var i = 0; i < owners.length; i++) {
-            if (owners[i].template_id) {
-                out.templates.push({
-                    id: owners[i].template_id,
-                    from: owners[i].from,
-                    to: owners[i].to
-                });
-            }
+        for (var id in registeredTemplateIds) {
+            if (!registeredTemplateIds.hasOwnProperty(id))
+                continue;
+            if (registeredTemplateIds[id] !== true)
+                continue;
+            var r = ranges[id] || { from: 0, to: 0 };
+            out.templates.push({ id: id, from: r.from, to: r.to });
         }
         return JSON.stringify(out);
     }
@@ -27207,41 +27288,80 @@ var MpKernelModule;
             };
         }
     };
-    // Single boot path: registers all built-in templates + RPCs.
-    //
-    // Per-template registration is wrapped in a try/catch + null-check so a
-    // single broken template (e.g. an undefined `template` from a TS-bundle
-    // load-order issue, or a missing `template.opRange`/`template.templateId`)
-    // can't take down the entire kernel mount. Symptom in prod (EKS,
-    // 2026-05-27): "[MpKernel] failed to mount: Cannot read property 'name'
-    // of undefined" caused every match-create + every fantasy_event_leaderboard
-    // / fantasy_scoring_process RPC to fail across all 4 pods after rollout.
-    // The defensive guards here keep healthy templates registering and emit a
-    // pinpoint log for the broken one(s).
-    function safeRegisterTemplate(initializer, logger, label, template, afterRegister) {
-        try {
-            if (!template || typeof template !== "object") {
-                logger.error("[MpKernel] template '" + label + "' is undefined at boot — skipping (check TS bundle load order)");
-                return;
-            }
-            if (!template.templateId || !template.opRange ||
-                typeof template.opRange.from !== "number" ||
-                typeof template.opRange.to !== "number") {
-                logger.error("[MpKernel] template '" + label + "' missing required fields (templateId/opRange) — skipping");
-                return;
-            }
-            MpKernelMatch.registerTemplate(initializer, template, logger);
-            registerTemplateId(template.templateId);
-            if (afterRegister)
-                afterRegister();
-        }
-        catch (err) {
-            logger.error("[MpKernel] template '" + label + "' register failed: " +
-                (err && err.message ? err.message : String(err)) +
-                " — kernel boot continues with remaining templates");
-        }
+    // All in-tree JS templates, keyed by their stable templateId. The order
+    // here is the registration order. Native Go templates (realtime-tick,
+    // avatar-replication) are id-only — their match handler is mounted by the
+    // Go plugin's own InitModule.
+    var JS_TEMPLATE_IDS = [
+        MpKernelModule.TEMPLATE_IDS.SYNC_TURN_V1,
+        MpKernelModule.TEMPLATE_IDS.ASYNC_TURN_V1,
+        MpKernelModule.TEMPLATE_IDS.LOBBY_HANDOFF_V1,
+        MpKernelModule.TEMPLATE_IDS.TOURNAMENT_V1,
+        MpKernelModule.TEMPLATE_IDS.LIVE_EVENT_V1,
+        MpKernelModule.TEMPLATE_IDS.PERSISTENT_PARTY_V1,
+        MpKernelModule.TEMPLATE_IDS.CONVERSATIONAL_PARTY_V1,
+        MpKernelModule.TEMPLATE_IDS.MR_ANCHOR_V1
+    ];
+    // Resolve a template object by id. Only called from mount() (InitModule
+    // VM, after every namespace IIFE has evaluated) so the references are safe.
+    function templateById(id) {
+        return MpKernelMatch.getTemplate(id);
     }
-    function register(initializer, logger) {
+    // Register the built-in echo generators used by the SDK conformance suite
+    // and any game that doesn't ship its own generator. Pure (no initializer /
+    // nk / logger) and idempotent, so it is safe to call lazily on EVERY pooled
+    // Goja VM at match-init time (see data/modules/zz_mp_kernel_handlers.js).
+    // It must NOT run at namespace-IIFE-eval time: MpKernelSyncTurn /
+    // MpKernelAsyncTurn evaluate AFTER MpKernelModule in the bundle, so an
+    // eager call would hit an undefined namespace.
+    function registerBuiltinGenerators() {
+        try {
+            MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
+        }
+        catch (_e) { }
+        try {
+            MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
+        }
+        catch (_e) { }
+    }
+    MpKernelModule.registerBuiltinGenerators = registerBuiltinGenerators;
+    // VM-pool-safe registration. This is a SINGLE-parameter `register(initializer)`
+    // on purpose: postbuild.js's autoInvokeRegister re-invokes zero/one-arg
+    // register() functions at IIFE scope on EVERY Goja VM (not just the initial
+    // VM that runs InitModule), which is the only way the `__rpc_*` stubs get
+    // populated on the pooled VMs that actually serve RPC traffic. The previous
+    // two-arg `register(initializer, logger)` was skipped by autoInvokeRegister,
+    // so mp_create_match / mp_list_templates / mp_read_match_result resolved to
+    // `undefined` on pooled VMs → HTTP 500 "Could not run Rpc function".
+    //
+    // CRITICAL: this body must only touch MpKernelModule-internal symbols and
+    // must NOT call any `initializer.<x>()` other than registerRpc — both are
+    // requirements for autoInvokeRegister to treat it as safe, and the function
+    // runs at MpKernelModule's IIFE-end (before the template namespaces have
+    // evaluated). Template-object wiring + opcode-range reservation that needs
+    // those later namespaces lives in mount(), called from InitModule.
+    function register(initializer) {
+        // Whitelist every template id so `mp_create_match` (isKnownTemplate) and
+        // `mp_list_templates` work on every VM. Pure literal-id calls only.
+        for (var i = 0; i < JS_TEMPLATE_IDS.length; i++) {
+            registerTemplateId(JS_TEMPLATE_IDS[i]);
+        }
+        registerTemplateId(MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1);
+        registerTemplateId(MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1);
+        initializer.registerRpc("mp_create_match", rpcCreateMatch);
+        initializer.registerRpc("mp_read_match_result", rpcReadMatchResult);
+        initializer.registerRpc("mp_list_templates", rpcListTemplates);
+    }
+    MpKernelModule.register = register;
+    // Full boot path — invoked once from src/main.ts InitModule, AFTER every
+    // namespace IIFE has evaluated (so template objects are resolvable). Does
+    // the opcode-range reservation + the runtime services (voice / agents /
+    // moderation / interest). Match handlers themselves are mounted by
+    // postbuild.js section 5b (direct registerMatch in the InitModule wrapper);
+    // generators are registered lazily at match-init time. This is also where
+    // we (re-)run register() so the RPCs are registered on the initial VM.
+    function mount(initializer, logger) {
+        register(initializer);
         try {
             MpKernelCodeRegistry.bootstrapKernelRanges();
         }
@@ -27250,55 +27370,38 @@ var MpKernelModule;
                 (err && err.message ? err.message : String(err)) +
                 " — kernel boot continues; opcode-range overlap detection disabled");
         }
-        // Templates ship one-by-one; P1 ships SyncTurnMatch, P5 adds
-        // AsyncTurnMatch + LobbyHandoffMatch.
-        safeRegisterTemplate(initializer, logger, "sync-turn-v1", MpKernelSyncTurn && MpKernelSyncTurn.template, function () {
-            MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
-        });
-        safeRegisterTemplate(initializer, logger, "async-turn-v1", MpKernelAsyncTurn && MpKernelAsyncTurn.template, function () {
-            MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
-        });
-        safeRegisterTemplate(initializer, logger, "lobby-handoff-v1", MpKernelLobbyHandoff && MpKernelLobbyHandoff.template);
-        safeRegisterTemplate(initializer, logger, "tournament-v1", MpKernelTournament && MpKernelTournament.template);
-        safeRegisterTemplate(initializer, logger, "live-event-v1", MpKernelLiveEvent && MpKernelLiveEvent.template);
-        safeRegisterTemplate(initializer, logger, "persistent-party-v1", MpKernelPersistentParty && MpKernelPersistentParty.template);
-        safeRegisterTemplate(initializer, logger, "conversational-party-v1", MpKernelConvParty && MpKernelConvParty.template);
-        safeRegisterTemplate(initializer, logger, "mixed-reality-anchor-v1", MpKernelMrAnchor && MpKernelMrAnchor.template);
-        // RealtimeTickMatch lives in a native Go plugin (data/modules/realtime_tick.so)
-        // so it can run at 10–30 Hz without paying the Goja per-tick cost. The Go
-        // plugin registers the match handler under "realtime-tick-v1" at boot via
-        // its own InitModule. Here we ONLY whitelist the template_id so
-        // `mp_create_match` will accept it — without this guard the RPC returns
-        // NOT_FOUND even though the Go side is ready. Also reserve the opcode
-        // range so other JS templates can't collide with realtime-tick wires.
-        registerTemplateId(MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1);
+        // Reserve each JS template's opcode range in the code registry. Wrapped
+        // per-template so a single missing namespace can't abort the rest.
+        for (var i = 0; i < JS_TEMPLATE_IDS.length; i++) {
+            var id = JS_TEMPLATE_IDS[i];
+            try {
+                var tmpl = templateById(id);
+                if (!tmpl || !tmpl.opRange || typeof tmpl.opRange.from !== "number" || typeof tmpl.opRange.to !== "number") {
+                    logger.error("[MpKernel] template '" + id + "' missing/invalid at mount — opcode range not reserved (handler still mounts via postbuild)");
+                    continue;
+                }
+                MpKernelMatch.registerTemplate(tmpl);
+            }
+            catch (err) {
+                logger.error("[MpKernel] template '" + id + "' range reserve failed: " +
+                    (err && err.message ? err.message : String(err)) + " — continuing");
+            }
+        }
+        // Native Go templates: id already whitelisted in register(); reserve their
+        // opcode ranges here so JS templates can't collide with their wires.
         try {
-            MpKernelCodeRegistry.register({
-                name: MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1,
-                from: 0x6000,
-                to: 0x6FFF,
+            MpKernelCodeRegistry.reserve({
+                name: MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1, from: 0x6000, to: 0x6FFF,
                 template_id: MpKernelModule.TEMPLATE_IDS.REALTIME_TICK_V1
             });
         }
         catch (e) {
-            // Range already reserved (re-register on hot reload). Idempotent.
             logger.debug("[MpKernel] realtime-tick range already reserved: " +
                 ((e && e.message) ? e.message : String(e)));
         }
-        // AvatarReplicationMatch lives in a native Go plugin
-        // (data/modules/avatar_replication/main.go → avatar_replication.so) so it
-        // can sustain 60–90 Hz pose tick with delta + quantization + AOI without
-        // paying the Goja per-tick cost. The Go plugin registers the match
-        // handler under "avatar-replication-v1" at boot via its own InitModule.
-        // Here we whitelist the template_id so `mp_create_match` accepts it and
-        // reserve opcode range 0xF000–0xFFFF (XR pose fast-path) so other JS
-        // templates can't collide with XR wires.
-        registerTemplateId(MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1);
         try {
-            MpKernelCodeRegistry.register({
-                name: MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1,
-                from: 0xF000,
-                to: 0xFFFF,
+            MpKernelCodeRegistry.reserve({
+                name: MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1, from: 0xF000, to: 0xFFFF,
                 template_id: MpKernelModule.TEMPLATE_IDS.AVATAR_REPLICATION_V1
             });
         }
@@ -27306,9 +27409,6 @@ var MpKernelModule;
             logger.debug("[MpKernel] avatar-replication range already reserved: " +
                 ((e && e.message) ? e.message : String(e)));
         }
-        initializer.registerRpc("mp_create_match", rpcCreateMatch);
-        initializer.registerRpc("mp_read_match_result", rpcReadMatchResult);
-        initializer.registerRpc("mp_list_templates", rpcListTemplates);
         // Voice-provider plumbing: register the `mp_voice_token` RPC. The
         // active LiveKit minter is constructed lazily on first RPC call
         // (config from storage `ivx_runtime_configs / mp_voice_livekit`,
@@ -27364,7 +27464,7 @@ var MpKernelModule;
         }
         logger.info("[MpKernel] kernel registered; templates=%d generators=echo", MpKernelCodeRegistry.listAll().length);
     }
-    MpKernelModule.register = register;
+    MpKernelModule.mount = mount;
 })(MpKernelModule || (MpKernelModule = {}));
 // IVX Multiplayer Kernel — server-side interest management.
 //
@@ -27626,251 +27726,289 @@ var MpKernelMatch;
         }
     }
     MpKernelMatch.broadcastKernel = broadcastKernel;
-    // ------- match handler factory -------
-    function makeHandler(template) {
+    // ------- template resolution (VM-pool safe) -------
+    //
+    // Match handlers run on POOLED Goja VMs that never execute InitModule, so
+    // anything populated only inside InitModule/register() (a template-object
+    // registry, generator maps, etc.) is absent when a match actually runs.
+    // We therefore resolve the template object directly from its owning
+    // namespace by id. `getTemplate` is only ever CALLED at match time — long
+    // after every namespace IIFE has evaluated — so the forward references
+    // below resolve cleanly on every VM regardless of namespace eval order.
+    function getTemplate(templateId) {
+        switch (templateId) {
+            case "sync-turn-v1": return MpKernelSyncTurn.template;
+            case "async-turn-v1": return MpKernelAsyncTurn.template;
+            case "lobby-handoff-v1": return MpKernelLobbyHandoff.template;
+            case "tournament-v1": return MpKernelTournament.template;
+            case "live-event-v1": return MpKernelLiveEvent.template;
+            case "persistent-party-v1": return MpKernelPersistentParty.template;
+            case "conversational-party-v1": return MpKernelConvParty.template;
+            case "mixed-reality-anchor-v1": return MpKernelMrAnchor.template;
+            default: return null;
+        }
+    }
+    MpKernelMatch.getTemplate = getTemplate;
+    // ------- match handler lifecycle impls -------
+    //
+    // These are the real handler bodies. The seven Nakama lifecycle hooks are
+    // registered via top-level global wrapper functions (data/modules/
+    // zz_mp_kernel_handlers.js) that postbuild.js injects into the InitModule
+    // wrapper with a direct `initializer.registerMatch(...)` call — the only
+    // shape Nakama's Goja AST walker can extract handler keys from. The
+    // wrappers delegate here. matchInit takes the templateId explicitly (the
+    // match-name = templateId, hard-coded per-template in its init wrapper);
+    // the remaining hooks read the resolved template back off kernel state.
+    function matchInitImpl(templateId, ctx, logger, nk, params) {
+        var template = getTemplate(templateId);
+        if (!template) {
+            throw new Error("[MpKernel] unknown template_id at matchInit: " + templateId);
+        }
+        var args = {
+            template_id: template.templateId,
+            game_id: (params && params.game_id) ? String(params.game_id) : "",
+            region: (params && params.region) ? String(params.region) : "",
+            template_init: (params && params.template_init) ? params.template_init : template.defaultInit,
+            creator_user_id: (params && params.creator_user_id) ? String(params.creator_user_id) : "",
+            flags: {}
+        };
+        var inner = template.initState(ctx, logger, nk, args);
+        // Determine reconnect grace from template_init or default.
+        var graceMs = MpKernelPresence.DEFAULT_GRACE_MS;
+        var ti = args.template_init;
+        if (ti && typeof ti.reconnect_grace_ms === "number" && ti.reconnect_grace_ms > 0) {
+            graceMs = ti.reconnect_grace_ms;
+        }
+        else if (ti && typeof ti.reconnect_grace_seconds === "number" && ti.reconnect_grace_seconds > 0) {
+            graceMs = ti.reconnect_grace_seconds * 1000;
+        }
+        var kernelState = {
+            template_id: template.templateId,
+            game_id: args.game_id,
+            region: args.region,
+            presence: MpKernelPresence.init(graceMs),
+            clock: MpKernelClock.init(),
+            feature_flags: 0,
+            counters: {
+                messages_in: 0,
+                messages_in_dropped_dupe: 0,
+                messages_in_dropped_unknown_op: 0,
+                messages_in_dropped_seq_gap: 0,
+                flap_kicks: 0,
+                reconnects_inside_grace: 0
+            },
+            template_state: inner.state,
+            template: template,
+            last_resync_seq: 0
+        };
+        // Inject a kernel-shared seq provider into the template state so
+        // server-origin broadcasts (kernel + template) advance ONE counter.
+        // Without this, both would emit `sender_user_id="server"` with
+        // independent seqs and clients ordering by (sender, seq) would
+        // see two interleaved monotonic streams. Conformance test 06.
+        if (typeof inner.state === "object" && inner.state !== null) {
+            inner.state.__seqProvider = function () {
+                return MpKernelClock.nextSeq(kernelState.clock);
+            };
+            inner.state.__matchTimeMs = function () {
+                return MpKernelClock.matchTimeMs(kernelState.clock);
+            };
+        }
         return {
-            matchInit: function (ctx, logger, nk, params) {
-                var args = {
-                    template_id: template.templateId,
-                    game_id: (params && params.game_id) ? String(params.game_id) : "",
-                    region: (params && params.region) ? String(params.region) : "",
-                    template_init: (params && params.template_init) ? params.template_init : template.defaultInit,
-                    creator_user_id: (params && params.creator_user_id) ? String(params.creator_user_id) : "",
-                    flags: {}
-                };
-                var inner = template.initState(ctx, logger, nk, args);
-                // Determine reconnect grace from template_init or default.
-                var graceMs = MpKernelPresence.DEFAULT_GRACE_MS;
-                var ti = args.template_init;
-                if (ti && typeof ti.reconnect_grace_ms === "number" && ti.reconnect_grace_ms > 0) {
-                    graceMs = ti.reconnect_grace_ms;
-                }
-                else if (ti && typeof ti.reconnect_grace_seconds === "number" && ti.reconnect_grace_seconds > 0) {
-                    graceMs = ti.reconnect_grace_seconds * 1000;
-                }
-                var kernelState = {
-                    template_id: template.templateId,
-                    game_id: args.game_id,
-                    region: args.region,
-                    presence: MpKernelPresence.init(graceMs),
-                    clock: MpKernelClock.init(),
-                    feature_flags: 0,
-                    counters: {
-                        messages_in: 0,
-                        messages_in_dropped_dupe: 0,
-                        messages_in_dropped_unknown_op: 0,
-                        messages_in_dropped_seq_gap: 0,
-                        flap_kicks: 0,
-                        reconnects_inside_grace: 0
-                    },
-                    template_state: inner.state,
-                    template: template,
-                    last_resync_seq: 0
-                };
-                // Inject a kernel-shared seq provider into the template state so
-                // server-origin broadcasts (kernel + template) advance ONE counter.
-                // Without this, both would emit `sender_user_id="server"` with
-                // independent seqs and clients ordering by (sender, seq) would
-                // see two interleaved monotonic streams. Conformance test 06.
-                if (typeof inner.state === "object" && inner.state !== null) {
-                    inner.state.__seqProvider = function () {
-                        return MpKernelClock.nextSeq(kernelState.clock);
-                    };
-                    inner.state.__matchTimeMs = function () {
-                        return MpKernelClock.matchTimeMs(kernelState.clock);
-                    };
-                }
-                return {
-                    state: kernelState,
-                    tickRate: inner.tickRate,
-                    label: inner.label
-                };
-            },
-            matchJoinAttempt: function (ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
-                // Hand off to template for game-specific gating.
-                var ks = state;
-                var inner = ks.template.onJoinAttempt(ctx, logger, nk, dispatcher, tick, ks.template_state, presence, metadata);
-                ks.template_state = inner.state;
-                return { state: ks, accept: inner.accept, rejectMessage: inner.rejectMessage };
-            },
-            matchJoin: function (ctx, logger, nk, dispatcher, tick, state, presences) {
-                var ks = state;
-                var now = Date.now();
-                var matchId = ctx.matchId || "";
-                for (var i = 0; i < presences.length; i++) {
-                    var p = presences[i];
-                    var rj = MpKernelPresence.recordJoin(ks.presence, p, now);
-                    if (rj.flapped) {
-                        ks.counters.flap_kicks++;
-                        // Soft-ban: emit PlayerKicked + ERROR(FLAPPING), then evict.
-                        broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_KICKED, {
-                            user_id: p.userId,
-                            reason: MpKernel.LeaveReason.FLAPPING,
-                            ban_seconds: ks.presence.flap_ban_seconds
-                        }, null);
-                        MpKernelError.send(dispatcher, p, matchId, "server", MpKernelClock.seqProvider(ks.clock), MpKernelClock.matchTimeMs(ks.clock), MpKernelError.flapping(ks.presence.flap_ban_seconds));
-                        // Remove the seat fully — don't carry flapper state forward.
-                        delete ks.presence.seats[p.userId];
-                        try {
-                            dispatcher.matchKick([p]);
-                        }
-                        catch (_) { }
-                        continue;
-                    }
-                    if (rj.resumed) {
-                        ks.counters.reconnects_inside_grace++;
-                    }
-                    // Send Welcome to the (re)joining player.
-                    var welcome = {
-                        match_id: matchId,
-                        assigned_user_id: p.userId,
-                        server_match_time_ms: MpKernelClock.matchTimeMs(ks.clock),
-                        server_unix_ms: Date.now(),
-                        feature_flags: ks.feature_flags,
-                        reconnect_grace_ms_remaining: MpKernelPresence.reconnectGraceRemainingMs(rj.seat, ks.presence, now)
-                    };
-                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.WELCOME, welcome, [p]);
-                    // Broadcast PlayerJoined to everyone else (excluding self).
-                    var others = [];
-                    for (var k in ks.presence.seats) {
-                        if (!ks.presence.seats.hasOwnProperty(k))
-                            continue;
-                        if (k === p.userId)
-                            continue;
-                        var s = ks.presence.seats[k];
-                        if (s.disconnected_at_unix_ms === 0) {
-                            // We don't track Presence objects directly; fan-out goes
-                            // to "all-except-self" via dispatcher.broadcastMessage with
-                            // null + presenceRecipients excludes. Nakama's API doesn't
-                            // give us the Presence list back; we use targets=null and
-                            // an opt-out filter on the wire by sender_user_id check.
-                        }
-                    }
-                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_JOINED, {
-                        user_id: p.userId,
-                        is_agent: rj.seat.is_agent,
-                        display_name: rj.seat.display_name || "",
-                        presence_metadata: rj.seat.presence_metadata
-                    }, null);
-                }
-                // Defer to template for any game-side wiring.
-                var inner = ks.template.onJoin(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
-                ks.template_state = inner.state;
-                return { state: ks };
-            },
-            matchLeave: function (ctx, logger, nk, dispatcher, tick, state, presences) {
-                var ks = state;
-                var now = Date.now();
-                var matchId = ctx.matchId || "";
-                for (var i = 0; i < presences.length; i++) {
-                    MpKernelPresence.recordLeave(ks.presence, presences[i], now);
-                }
-                var inner = ks.template.onLeave(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
-                ks.template_state = inner.state;
-                return { state: ks };
-            },
-            matchLoop: function (ctx, logger, nk, dispatcher, tick, state, messages) {
-                var ks = state;
-                var matchId = ctx.matchId || "";
-                var now = Date.now();
-                // 1. GC reconnect-grace expirations.
-                var evicted = MpKernelPresence.evictExpired(ks.presence, now);
-                for (var i = 0; i < evicted.length; i++) {
-                    var ev = evicted[i];
-                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_LEFT, {
-                        user_id: ev.user_id,
-                        reason: MpKernel.LeaveReason.TIMEOUT
-                    }, null);
-                }
-                // 2. Process incoming messages — kernel intercepts control opcodes
-                //    + dedupes, then forwards game opcodes to the template.
-                var forwarded = [];
-                for (var j = 0; j < messages.length; j++) {
-                    var m = messages[j];
-                    ks.counters.messages_in++;
-                    if (handleKernelOpInbound(ks, dispatcher, matchId, m, logger))
-                        continue;
-                    // Idempotency dedup happens for game opcodes.
-                    var senderSeat = ks.presence.seats[m.sender.userId];
-                    if (senderSeat) {
-                        // Parse envelope to extract idem uuid + seq, but on parse failure
-                        // forward as-is (template may use legacy raw format during cutover).
-                        var hdr = parseHeader(m);
-                        if (hdr) {
-                            if (hdr.client_opcode_uuid && !MpKernelIdempotency.admit(senderSeat.idem_ring, hdr.client_opcode_uuid, now)) {
-                                ks.counters.messages_in_dropped_dupe++;
-                                continue;
-                            }
-                            if (hdr.seq > 0 && hdr.seq < senderSeat.last_seq_in_from_client) {
-                                // Out-of-order — drop, but don't error (Pillar 8: tolerate).
-                                continue;
-                            }
-                            if (hdr.seq > senderSeat.last_seq_in_from_client + MpKernelMatch.SEQ_GAP_THRESHOLD && senderSeat.last_seq_in_from_client !== 0) {
-                                ks.counters.messages_in_dropped_seq_gap++;
-                                MpKernelError.send(dispatcher, m.sender, matchId, "server", MpKernelClock.seqProvider(ks.clock), MpKernelClock.matchTimeMs(ks.clock), MpKernelError.build(MpKernel.ErrorCode.SEQ_GAP, "gap>" + MpKernelMatch.SEQ_GAP_THRESHOLD));
-                                // Force a state-resync — template.buildResult() (or a
-                                // dedicated snapshot hook) drives the snapshot payload.
-                                continue;
-                            }
-                            if (hdr.seq > senderSeat.last_seq_in_from_client) {
-                                senderSeat.last_seq_in_from_client = hdr.seq;
-                            }
-                            senderSeat.last_seen_unix_ms = now;
-                        }
-                    }
-                    forwarded.push(m);
-                }
-                // 3. Periodic ClockSync (every CLOCK_SYNC_INTERVAL_MS).
-                if (MpKernelClock.shouldEmitClockSync(ks.clock)) {
-                    broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.CLOCK_SYNC, MpKernelClock.buildClockSync(ks.clock, 0), null);
-                }
-                // 4. Hand off to template for game logic + outbound.
-                var inner = ks.template.onLoop(ctx, logger, nk, dispatcher, tick, ks.template_state, forwarded);
-                if (inner === null) {
-                    // Template requested match end. Persist + return null to Nakama.
-                    finalizeMatch(ks, dispatcher, matchId, "template_requested", logger, nk);
-                    return null;
-                }
-                ks.template_state = inner.state;
-                // 5. Liveness sanity check — quorum lost (active < min) ends match.
-                var initParams = ks.template.defaultInit;
-                var min = (initParams && typeof initParams.min_players === "number") ? initParams.min_players : 0;
-                if (min > 0 && MpKernelPresence.activeCount(ks.presence) < min) {
-                    // QuizVerse and similar games tolerate a brief drop-below-min during
-                    // grace. Only force-end when no seat is even pending reconnect.
-                    if (MpKernelPresence.totalCount(ks.presence) < min) {
-                        // Persist + broadcast in correct order: build the result first
-                        // so the wire MatchEnded can carry it (Pillar 8 — clients see
-                        // outcome immediately, don't have to round-trip an RPC).
-                        var endRes = null;
-                        if (typeof ks.template.buildResult === "function") {
-                            endRes = ks.template.buildResult(ks.template_state, "quorum_lost");
-                        }
-                        broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
-                            reason: MpKernel.EndReason.QUORUM_LOST,
-                            result_envelope: endRes
-                        }, null);
-                        finalizeMatch(ks, dispatcher, matchId, "quorum_lost", logger, nk);
-                        return null;
-                    }
-                }
-                return { state: ks };
-            },
-            matchTerminate: function (ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
-                var ks = state;
-                var matchId = ctx.matchId || "";
-                var inner = ks.template.onTerminate(ctx, logger, nk, dispatcher, tick, ks.template_state, graceSeconds);
-                ks.template_state = inner.state;
-                finalizeMatch(ks, dispatcher, matchId, "operator_terminate", logger, nk);
-                return { state: ks };
-            },
-            matchSignal: function (ctx, logger, nk, dispatcher, tick, state, data) {
-                // Reserved for admin signals (force-end, mod-action). Default no-op.
-                return { state: state, data: data };
-            }
+            state: kernelState,
+            tickRate: inner.tickRate,
+            label: inner.label
         };
     }
-    MpKernelMatch.makeHandler = makeHandler;
+    MpKernelMatch.matchInitImpl = matchInitImpl;
+    function matchJoinAttemptImpl(ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
+        // Hand off to template for game-specific gating.
+        var ks = state;
+        var inner = ks.template.onJoinAttempt(ctx, logger, nk, dispatcher, tick, ks.template_state, presence, metadata);
+        ks.template_state = inner.state;
+        return { state: ks, accept: inner.accept, rejectMessage: inner.rejectMessage };
+    }
+    MpKernelMatch.matchJoinAttemptImpl = matchJoinAttemptImpl;
+    function matchJoinImpl(ctx, logger, nk, dispatcher, tick, state, presences) {
+        var ks = state;
+        var now = Date.now();
+        var matchId = ctx.matchId || "";
+        for (var i = 0; i < presences.length; i++) {
+            var p = presences[i];
+            var rj = MpKernelPresence.recordJoin(ks.presence, p, now);
+            if (rj.flapped) {
+                ks.counters.flap_kicks++;
+                // Soft-ban: emit PlayerKicked + ERROR(FLAPPING), then evict.
+                broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_KICKED, {
+                    user_id: p.userId,
+                    reason: MpKernel.LeaveReason.FLAPPING,
+                    ban_seconds: ks.presence.flap_ban_seconds
+                }, null);
+                MpKernelError.send(dispatcher, p, matchId, "server", MpKernelClock.seqProvider(ks.clock), MpKernelClock.matchTimeMs(ks.clock), MpKernelError.flapping(ks.presence.flap_ban_seconds));
+                // Remove the seat fully — don't carry flapper state forward.
+                delete ks.presence.seats[p.userId];
+                try {
+                    dispatcher.matchKick([p]);
+                }
+                catch (_) { }
+                continue;
+            }
+            if (rj.resumed) {
+                ks.counters.reconnects_inside_grace++;
+            }
+            // Send Welcome to the (re)joining player.
+            var welcome = {
+                match_id: matchId,
+                assigned_user_id: p.userId,
+                server_match_time_ms: MpKernelClock.matchTimeMs(ks.clock),
+                server_unix_ms: Date.now(),
+                feature_flags: ks.feature_flags,
+                reconnect_grace_ms_remaining: MpKernelPresence.reconnectGraceRemainingMs(rj.seat, ks.presence, now)
+            };
+            broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.WELCOME, welcome, [p]);
+            // Broadcast PlayerJoined to everyone else (excluding self).
+            var others = [];
+            for (var k in ks.presence.seats) {
+                if (!ks.presence.seats.hasOwnProperty(k))
+                    continue;
+                if (k === p.userId)
+                    continue;
+                var s = ks.presence.seats[k];
+                if (s.disconnected_at_unix_ms === 0) {
+                    // We don't track Presence objects directly; fan-out goes
+                    // to "all-except-self" via dispatcher.broadcastMessage with
+                    // null + presenceRecipients excludes. Nakama's API doesn't
+                    // give us the Presence list back; we use targets=null and
+                    // an opt-out filter on the wire by sender_user_id check.
+                }
+            }
+            broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_JOINED, {
+                user_id: p.userId,
+                is_agent: rj.seat.is_agent,
+                display_name: rj.seat.display_name || "",
+                presence_metadata: rj.seat.presence_metadata
+            }, null);
+        }
+        // Defer to template for any game-side wiring.
+        var inner = ks.template.onJoin(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
+        ks.template_state = inner.state;
+        return { state: ks };
+    }
+    MpKernelMatch.matchJoinImpl = matchJoinImpl;
+    function matchLeaveImpl(ctx, logger, nk, dispatcher, tick, state, presences) {
+        var ks = state;
+        var now = Date.now();
+        var matchId = ctx.matchId || "";
+        for (var i = 0; i < presences.length; i++) {
+            MpKernelPresence.recordLeave(ks.presence, presences[i], now);
+        }
+        var inner = ks.template.onLeave(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
+        ks.template_state = inner.state;
+        return { state: ks };
+    }
+    MpKernelMatch.matchLeaveImpl = matchLeaveImpl;
+    function matchLoopImpl(ctx, logger, nk, dispatcher, tick, state, messages) {
+        var ks = state;
+        var matchId = ctx.matchId || "";
+        var now = Date.now();
+        // 1. GC reconnect-grace expirations.
+        var evicted = MpKernelPresence.evictExpired(ks.presence, now);
+        for (var i = 0; i < evicted.length; i++) {
+            var ev = evicted[i];
+            broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.PLAYER_LEFT, {
+                user_id: ev.user_id,
+                reason: MpKernel.LeaveReason.TIMEOUT
+            }, null);
+        }
+        // 2. Process incoming messages — kernel intercepts control opcodes
+        //    + dedupes, then forwards game opcodes to the template.
+        var forwarded = [];
+        for (var j = 0; j < messages.length; j++) {
+            var m = messages[j];
+            ks.counters.messages_in++;
+            if (handleKernelOpInbound(ks, dispatcher, matchId, m, logger))
+                continue;
+            // Idempotency dedup happens for game opcodes.
+            var senderSeat = ks.presence.seats[m.sender.userId];
+            if (senderSeat) {
+                // Parse envelope to extract idem uuid + seq, but on parse failure
+                // forward as-is (template may use legacy raw format during cutover).
+                var hdr = parseHeader(m);
+                if (hdr) {
+                    if (hdr.client_opcode_uuid && !MpKernelIdempotency.admit(senderSeat.idem_ring, hdr.client_opcode_uuid, now)) {
+                        ks.counters.messages_in_dropped_dupe++;
+                        continue;
+                    }
+                    if (hdr.seq > 0 && hdr.seq < senderSeat.last_seq_in_from_client) {
+                        // Out-of-order — drop, but don't error (Pillar 8: tolerate).
+                        continue;
+                    }
+                    if (hdr.seq > senderSeat.last_seq_in_from_client + MpKernelMatch.SEQ_GAP_THRESHOLD && senderSeat.last_seq_in_from_client !== 0) {
+                        ks.counters.messages_in_dropped_seq_gap++;
+                        MpKernelError.send(dispatcher, m.sender, matchId, "server", MpKernelClock.seqProvider(ks.clock), MpKernelClock.matchTimeMs(ks.clock), MpKernelError.build(MpKernel.ErrorCode.SEQ_GAP, "gap>" + MpKernelMatch.SEQ_GAP_THRESHOLD));
+                        // Force a state-resync — template.buildResult() (or a
+                        // dedicated snapshot hook) drives the snapshot payload.
+                        continue;
+                    }
+                    if (hdr.seq > senderSeat.last_seq_in_from_client) {
+                        senderSeat.last_seq_in_from_client = hdr.seq;
+                    }
+                    senderSeat.last_seen_unix_ms = now;
+                }
+            }
+            forwarded.push(m);
+        }
+        // 3. Periodic ClockSync (every CLOCK_SYNC_INTERVAL_MS).
+        if (MpKernelClock.shouldEmitClockSync(ks.clock)) {
+            broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.CLOCK_SYNC, MpKernelClock.buildClockSync(ks.clock, 0), null);
+        }
+        // 4. Hand off to template for game logic + outbound.
+        var inner = ks.template.onLoop(ctx, logger, nk, dispatcher, tick, ks.template_state, forwarded);
+        if (inner === null) {
+            // Template requested match end. Persist + return null to Nakama.
+            finalizeMatch(ks, dispatcher, matchId, "template_requested", logger, nk);
+            return null;
+        }
+        ks.template_state = inner.state;
+        // 5. Liveness sanity check — quorum lost (active < min) ends match.
+        var initParams = ks.template.defaultInit;
+        var min = (initParams && typeof initParams.min_players === "number") ? initParams.min_players : 0;
+        if (min > 0 && MpKernelPresence.activeCount(ks.presence) < min) {
+            // QuizVerse and similar games tolerate a brief drop-below-min during
+            // grace. Only force-end when no seat is even pending reconnect.
+            if (MpKernelPresence.totalCount(ks.presence) < min) {
+                // Persist + broadcast in correct order: build the result first
+                // so the wire MatchEnded can carry it (Pillar 8 — clients see
+                // outcome immediately, don't have to round-trip an RPC).
+                var endRes = null;
+                if (typeof ks.template.buildResult === "function") {
+                    endRes = ks.template.buildResult(ks.template_state, "quorum_lost");
+                }
+                broadcastKernel(ks, dispatcher, matchId, MpKernel.KernelOp.MATCH_ENDED, {
+                    reason: MpKernel.EndReason.QUORUM_LOST,
+                    result_envelope: endRes
+                }, null);
+                finalizeMatch(ks, dispatcher, matchId, "quorum_lost", logger, nk);
+                return null;
+            }
+        }
+        return { state: ks };
+    }
+    MpKernelMatch.matchLoopImpl = matchLoopImpl;
+    function matchTerminateImpl(ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
+        var ks = state;
+        var matchId = ctx.matchId || "";
+        var inner = ks.template.onTerminate(ctx, logger, nk, dispatcher, tick, ks.template_state, graceSeconds);
+        ks.template_state = inner.state;
+        finalizeMatch(ks, dispatcher, matchId, "operator_terminate", logger, nk);
+        return { state: ks };
+    }
+    MpKernelMatch.matchTerminateImpl = matchTerminateImpl;
+    function matchSignalImpl(ctx, logger, nk, dispatcher, tick, state, data) {
+        // Reserved for admin signals (force-end, mod-action). Default no-op.
+        return { state: state, data: data };
+    }
+    MpKernelMatch.matchSignalImpl = matchSignalImpl;
     // ------- helpers -------
     function parseHeader(m) {
         try {
@@ -27968,26 +28106,31 @@ var MpKernelMatch;
         }
     }
     // ------- template registration -------
-    // Register a template with the Nakama runtime + the code registry.
-    // Idempotent across module reload.
-    function registerTemplate(initializer, template, logger) {
+    // Reserve a template's opcode range in the code registry. Pure (no
+    // `initializer`, `nk` or `logger`) so it is safe to run on EVERY Goja VM
+    // via the auto-invoked, single-arg MpKernelModule.register(initializer)
+    // (see postbuild.js autoInvokeRegister). Idempotent across module reload.
+    //
+    // NOTE: this intentionally does NOT call `initializer.registerMatch(...)`.
+    // Nakama's Goja AST walker (server/runtime_javascript_init.go
+    // @ getMatchHookFnIdentifier) only extracts handler keys from
+    // `registerMatch` calls that are DIRECT statements inside InitModule's
+    // body, with handler properties that are Identifiers referencing
+    // GLOBAL-scope functions. A nested call here (inside a namespace helper,
+    // passing a factory-built object literal) is invisible to the walker and
+    // throws "global id could not be extracted: not found" — which is exactly
+    // why every match template silently failed to mount. The actual
+    // registerMatch wiring now lives in postbuild.js section 5b, which emits
+    // direct calls in the generated InitModule wrapper pointing at the
+    // top-level wrappers declared in data/modules/zz_mp_kernel_handlers.js.
+    function registerTemplate(template) {
         MpKernelCodeRegistry.bootstrapKernelRanges();
-        MpKernelCodeRegistry.register({
+        MpKernelCodeRegistry.reserve({
             name: "template:" + template.templateId,
             from: template.opRange.from,
             to: template.opRange.to,
             template_id: template.templateId
         });
-        // MpKernel per-template registration helper. The set of templates
-        // is enumerated at build time in src/multiplayer-kernel/index.ts —
-        // each one is wrapped in safeRegisterTemplate() with a known literal
-        // label, and the templateId itself comes from a const exported in
-        // src/multiplayer-kernel/code-registry.ts. So while this exact call
-        // site doesn't have a literal, the upstream chain is fully static
-        // and reviewable. nakama-allow-dynamic-rpc-id
-        initializer.registerMatch(template.templateId, makeHandler(template));
-        logger.info("[MpKernel] registered match template '" + template.templateId +
-            "' opRange=0x" + template.opRange.from.toString(16) + "-0x" + template.opRange.to.toString(16));
     }
     MpKernelMatch.registerTemplate = registerTemplate;
 })(MpKernelMatch || (MpKernelMatch = {}));
@@ -47609,6 +47752,412 @@ var TournamentFormatPickN;
     }
     TournamentFormatPickN.computePayouts = computePayouts;
 })(TournamentFormatPickN || (TournamentFormatPickN = {}));
+// tutorx_progress.ts — Server-authoritative TutorX gamification
+// (XP, daily streak with freeze, and idempotent daily-quest claims).
+//
+// Replaces the previously client-only (localStorage) streak/XP/quest logic in
+// the TutorX web SPA. The web client calls these RPCs with `?unwrap`, so every
+// handler returns a FLAT JSON object (NOT the {success,data} envelope) whose
+// keys match what the SPA reads: res.xp, res.streak, res.streakDate, etc.
+//
+// RPCs:
+//   tutorx_xp_get      → { xp, streak, streakDate, level, freezes }
+//   tutorx_xp_add      → { xp, added, level }            payload: { delta }
+//   tutorx_streak_touch→ { streak, streakDate, freezes, frozen }
+//   tutorx_quest_claim → { claimed, alreadyClaimed, quest, xp, xpAwarded,
+//                          questsToday, streak, streakDate }
+//                        payload: { quest: "showup"|"ask"|"practice" }
+//
+// State is stored in ONE record (collection `tutorx_progress`, key `state`) per
+// user so streak/XP/quests stay consistent. Optimistic concurrency via the
+// storage `version` field prevents lost updates under concurrent calls.
+var TutorXProgress;
+(function (TutorXProgress) {
+    var COLLECTION = "tutorx_progress";
+    var STATE_KEY = "state";
+    // XP awarded per quest, enforced SERVER-SIDE (clients cannot inflate).
+    var QUEST_XP = {
+        showup: 20,
+        ask: 15,
+        practice: 15,
+    };
+    // Anti-abuse: cap a single tutorx_xp_add delta. Quests don't go through
+    // xp_add (they use quest_claim), so this only covers misc client XP events.
+    var MAX_XP_DELTA = 200;
+    // Streak-freeze economy: every user starts with 1 freeze; they earn another
+    // each time their streak crosses a 7-day milestone, capped at MAX_FREEZES.
+    var START_FREEZES = 1;
+    var MAX_FREEZES = 3;
+    var FREEZE_MILESTONE = 7;
+    // ─── Date helpers (UTC ISO day, matches the web client's slice(0,10)) ──
+    function today() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    function addDays(isoDay, n) {
+        var d = new Date(isoDay + "T00:00:00.000Z");
+        d.setUTCDate(d.getUTCDate() + n);
+        return d.toISOString().slice(0, 10);
+    }
+    function defaultState() {
+        return {
+            xp: 0,
+            streak: 0,
+            streakDate: "",
+            freezes: START_FREEZES,
+            lastFreezeMilestone: 0,
+            quests: { date: "", claimed: {} },
+        };
+    }
+    function load(nk, userId) {
+        try {
+            var records = nk.storageRead([{ collection: COLLECTION, key: STATE_KEY, userId: userId }]);
+            if (records && records.length > 0 && records[0].value) {
+                var v = records[0].value;
+                var s = defaultState();
+                if (typeof v.xp === "number")
+                    s.xp = v.xp;
+                if (typeof v.streak === "number")
+                    s.streak = v.streak;
+                if (typeof v.streakDate === "string")
+                    s.streakDate = v.streakDate;
+                if (typeof v.freezes === "number")
+                    s.freezes = v.freezes;
+                if (typeof v.lastFreezeMilestone === "number")
+                    s.lastFreezeMilestone = v.lastFreezeMilestone;
+                if (v.quests && typeof v.quests === "object") {
+                    s.quests.date = typeof v.quests.date === "string" ? v.quests.date : "";
+                    s.quests.claimed = (v.quests.claimed && typeof v.quests.claimed === "object") ? v.quests.claimed : {};
+                }
+                return { state: s, version: records[0].version };
+            }
+        }
+        catch (_) {
+            // fall through to default
+        }
+        return { state: defaultState(), version: undefined };
+    }
+    function save(nk, userId, state, version) {
+        var write = {
+            collection: COLLECTION,
+            key: STATE_KEY,
+            userId: userId,
+            value: state,
+            permissionRead: 1, // owner can read their own progress
+            permissionWrite: 0, // server-only writes
+        };
+        // Optimistic concurrency: only attach version when we actually read one,
+        // so the very first write (no prior record) isn't rejected.
+        if (version)
+            write.version = version;
+        nk.storageWrite([write]);
+    }
+    // Roll the quest-day forward if it belongs to a previous day.
+    function rollQuests(state, day) {
+        if (state.quests.date !== day) {
+            state.quests = { date: day, claimed: {} };
+        }
+    }
+    // Grant freeze tokens for any 7-day milestones crossed since last grant.
+    function grantFreezeMilestones(state) {
+        var milestone = Math.floor(state.streak / FREEZE_MILESTONE) * FREEZE_MILESTONE;
+        if (milestone > state.lastFreezeMilestone) {
+            var steps = (milestone - state.lastFreezeMilestone) / FREEZE_MILESTONE;
+            for (var i = 0; i < steps && state.freezes < MAX_FREEZES; i++) {
+                state.freezes++;
+            }
+            state.lastFreezeMilestone = milestone;
+        }
+    }
+    // Advance the streak for "activity happened today". Returns whether a freeze
+    // was consumed to bridge a missed day. Mutates state in place.
+    function touchStreak(state, day) {
+        var frozen = false;
+        if (state.streakDate === day) {
+            // Already counted today — no change.
+            return false;
+        }
+        if (!state.streakDate) {
+            // First ever activity.
+            state.streak = 1;
+        }
+        else if (addDays(state.streakDate, 1) === day) {
+            // Consecutive day.
+            state.streak = state.streak + 1;
+        }
+        else {
+            // Missed one or more days. A single freeze bridges exactly one gap day;
+            // we consume one if available and the gap is recoverable, else reset.
+            if (state.freezes > 0) {
+                state.freezes--;
+                state.streak = state.streak + 1;
+                frozen = true;
+            }
+            else {
+                state.streak = 1;
+            }
+        }
+        state.streakDate = day;
+        grantFreezeMilestones(state);
+        return frozen;
+    }
+    function levelForXp(xp) {
+        // Mirror-ish of the web's level curve; informational only (client computes
+        // its own). Simple sqrt curve: level grows with total XP.
+        if (xp <= 0)
+            return 1;
+        return Math.floor(Math.sqrt(xp / 100)) + 1;
+    }
+    // ─── RPC: tutorx_xp_get ──────────────────────────────────────────────
+    function rpcXpGet(ctx, logger, nk, _payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var loaded = load(nk, userId);
+        var s = loaded.state;
+        return JSON.stringify({
+            xp: s.xp,
+            streak: s.streak,
+            streakDate: s.streakDate,
+            freezes: s.freezes,
+            level: levelForXp(s.xp),
+        });
+    }
+    // ─── RPC: tutorx_xp_add ──────────────────────────────────────────────
+    function rpcXpAdd(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var delta = 0;
+        if (typeof data.delta === "number" && isFinite(data.delta)) {
+            delta = Math.floor(data.delta);
+        }
+        // Only positive, capped deltas are honoured. Negative/zero → no-op (but we
+        // still return the authoritative total so the client can reconcile).
+        if (delta < 0)
+            delta = 0;
+        if (delta > MAX_XP_DELTA)
+            delta = MAX_XP_DELTA;
+        var loaded = load(nk, userId);
+        var s = loaded.state;
+        if (delta > 0) {
+            s.xp = s.xp + delta;
+            try {
+                save(nk, userId, s, loaded.version);
+            }
+            catch (err) {
+                logger.warn("[TutorXProgress] xp_add save failed: " + (err && err.message ? err.message : String(err)));
+            }
+        }
+        return JSON.stringify({ xp: s.xp, added: delta, level: levelForXp(s.xp) });
+    }
+    // ─── RPC: tutorx_streak_touch ────────────────────────────────────────
+    function rpcStreakTouch(ctx, logger, nk, _payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var day = today();
+        var loaded = load(nk, userId);
+        var s = loaded.state;
+        var frozen = touchStreak(s, day);
+        try {
+            save(nk, userId, s, loaded.version);
+        }
+        catch (err) {
+            logger.warn("[TutorXProgress] streak_touch save failed: " + (err && err.message ? err.message : String(err)));
+        }
+        return JSON.stringify({
+            streak: s.streak,
+            streakDate: s.streakDate,
+            freezes: s.freezes,
+            frozen: frozen,
+        });
+    }
+    // ─── RPC: tutorx_quest_claim ─────────────────────────────────────────
+    // Idempotent per (user, quest, day). Awards server-enforced XP on FIRST claim
+    // only, and also touches the streak (claiming a quest is real daily activity).
+    function rpcQuestClaim(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var quest = typeof data.quest === "string" ? data.quest : "";
+        if (!QUEST_XP.hasOwnProperty(quest)) {
+            // Flat error (no throw) so anonymous/buggy callers don't get a goja
+            // stack trace + HTTP 500; the client just treats it as a no-op.
+            return JSON.stringify({ claimed: false, alreadyClaimed: false, quest: quest, error: "unknown_quest" });
+        }
+        var day = today();
+        var loaded = load(nk, userId);
+        var s = loaded.state;
+        rollQuests(s, day);
+        var already = s.quests.claimed[quest] === true;
+        var xpAwarded = 0;
+        if (!already) {
+            s.quests.claimed[quest] = true;
+            xpAwarded = QUEST_XP[quest];
+            s.xp = s.xp + xpAwarded;
+            // Completing a quest is genuine daily activity → keep the streak alive.
+            touchStreak(s, day);
+        }
+        try {
+            save(nk, userId, s, loaded.version);
+        }
+        catch (err) {
+            logger.warn("[TutorXProgress] quest_claim save failed: " + (err && err.message ? err.message : String(err)));
+        }
+        return JSON.stringify({
+            claimed: !already,
+            alreadyClaimed: already,
+            quest: quest,
+            xp: s.xp,
+            xpAwarded: xpAwarded,
+            questsToday: s.quests.claimed,
+            streak: s.streak,
+            streakDate: s.streakDate,
+            freezes: s.freezes,
+            level: levelForXp(s.xp),
+        });
+    }
+    // ─── Registration ────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("tutorx_xp_get", RpcHelpers.withCleanAuthError(rpcXpGet));
+        initializer.registerRpc("tutorx_xp_add", RpcHelpers.withCleanAuthError(rpcXpAdd));
+        initializer.registerRpc("tutorx_streak_touch", RpcHelpers.withCleanAuthError(rpcStreakTouch));
+        initializer.registerRpc("tutorx_quest_claim", RpcHelpers.withCleanAuthError(rpcQuestClaim));
+    }
+    TutorXProgress.register = register;
+})(TutorXProgress || (TutorXProgress = {}));
+// tutorx_studyplan.ts — Server-authoritative TutorX study-plan checklist state.
+//
+// The study-plan *content* (days + tasks) is generated by the DeepTutor API and
+// rendered by the TutorX web SPA. This module persists only the per-user
+// CHECKLIST completion state (which task ids are ticked off) in Nakama storage,
+// so progress survives across devices/sessions instead of living in localStorage.
+//
+// The web client calls these RPCs with `?unwrap`, so every handler returns a
+// FLAT JSON object (NOT the {success,data} envelope).
+//
+// RPCs:
+//   tutorx_studyplan_get    → { planId, done: {taskId:true}, count }
+//                             payload: { planId }
+//   tutorx_studyplan_toggle → { planId, taskId, completed, done: {taskId:true}, count }
+//                             payload: { planId, taskId, done?: boolean }
+//
+// State is stored as ONE record per (user, plan): collection `tutorx_studyplan`,
+// key = sanitized planId. Optimistic concurrency via the storage `version` field
+// prevents lost updates under concurrent toggles.
+var TutorXStudyPlan;
+(function (TutorXStudyPlan) {
+    var COLLECTION = "tutorx_studyplan";
+    var MAX_ID_LEN = 128;
+    var MAX_TASKS = 2000; // safety cap on distinct ticked tasks per plan
+    function sanitizeId(raw) {
+        var s = typeof raw === "string" ? raw : "";
+        if (s.length > MAX_ID_LEN)
+            s = s.slice(0, MAX_ID_LEN);
+        return s;
+    }
+    function countDone(done) {
+        var n = 0;
+        for (var k in done) {
+            if (done.hasOwnProperty(k) && done[k] === true)
+                n++;
+        }
+        return n;
+    }
+    function defaultState() {
+        return { done: {}, updatedAt: 0 };
+    }
+    function load(nk, userId, planId) {
+        try {
+            var records = nk.storageRead([{ collection: COLLECTION, key: planId, userId: userId }]);
+            if (records && records.length > 0 && records[0].value) {
+                var v = records[0].value;
+                var s = defaultState();
+                if (v.done && typeof v.done === "object") {
+                    for (var k in v.done) {
+                        if (v.done.hasOwnProperty(k) && v.done[k] === true)
+                            s.done[k] = true;
+                    }
+                }
+                if (typeof v.updatedAt === "number")
+                    s.updatedAt = v.updatedAt;
+                return { state: s, version: records[0].version };
+            }
+        }
+        catch (_) {
+            // fall through to default
+        }
+        return { state: defaultState(), version: undefined };
+    }
+    function save(nk, userId, planId, state, version) {
+        var write = {
+            collection: COLLECTION,
+            key: planId,
+            userId: userId,
+            value: state,
+            permissionRead: 1, // owner can read their own checklist
+            permissionWrite: 0, // server-only writes
+        };
+        if (version)
+            write.version = version;
+        nk.storageWrite([write]);
+    }
+    // ─── RPC: tutorx_studyplan_get ───────────────────────────────────────
+    function rpcGet(ctx, _logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var planId = sanitizeId(data.planId);
+        if (!planId) {
+            return JSON.stringify({ planId: "", done: {}, count: 0, error: "missing_plan_id" });
+        }
+        var loaded = load(nk, userId, planId);
+        return JSON.stringify({ planId: planId, done: loaded.state.done, count: countDone(loaded.state.done) });
+    }
+    // ─── RPC: tutorx_studyplan_toggle ────────────────────────────────────
+    function rpcToggle(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var planId = sanitizeId(data.planId);
+        var taskId = sanitizeId(data.taskId);
+        if (!planId || !taskId) {
+            return JSON.stringify({ planId: planId, taskId: taskId, completed: false, done: {}, count: 0, error: "missing_id" });
+        }
+        var loaded = load(nk, userId, planId);
+        var s = loaded.state;
+        var already = s.done[taskId] === true;
+        // If `done` is provided, set explicitly; otherwise flip current state.
+        var target;
+        if (typeof data.done === "boolean") {
+            target = data.done;
+        }
+        else {
+            target = !already;
+        }
+        if (target) {
+            if (!already && countDone(s.done) >= MAX_TASKS) {
+                return JSON.stringify({ planId: planId, taskId: taskId, completed: already, done: s.done, count: countDone(s.done), error: "task_cap" });
+            }
+            s.done[taskId] = true;
+        }
+        else {
+            delete s.done[taskId];
+        }
+        s.updatedAt = Date.now();
+        try {
+            save(nk, userId, planId, s, loaded.version);
+        }
+        catch (err) {
+            logger.warn("[TutorXStudyPlan] toggle save failed: " + (err && err.message ? err.message : String(err)));
+        }
+        return JSON.stringify({
+            planId: planId,
+            taskId: taskId,
+            completed: s.done[taskId] === true,
+            done: s.done,
+            count: countDone(s.done),
+        });
+    }
+    // ─── Registration ────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("tutorx_studyplan_get", RpcHelpers.withCleanAuthError(rpcGet));
+        initializer.registerRpc("tutorx_studyplan_toggle", RpcHelpers.withCleanAuthError(rpcToggle));
+    }
+    TutorXStudyPlan.register = register;
+})(TutorXStudyPlan || (TutorXStudyPlan = {}));
 // =============================================================================
 // User Model RPCs — read-side + signal ingest + consent
 //

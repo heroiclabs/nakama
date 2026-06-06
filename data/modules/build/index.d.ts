@@ -651,7 +651,8 @@ declare namespace QuizVersePlugin {
     var RPC_CREATE_MATCH: string;
     var RPC_LOAD_PACK: string;
     var RPC_LIST_PACKS: string;
-    function register(initializer: nkruntime.Initializer, nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+    function register(initializer: nkruntime.Initializer): void;
+    function registerGenerators(nk: nkruntime.Nakama): void;
 }
 declare namespace QuizVerseLiveBanner {
     function register(initializer: nkruntime.Initializer): void;
@@ -1567,7 +1568,7 @@ declare namespace MpKernelCodeRegistry {
         to: number;
         template_id?: string;
     }
-    function register(owner: IRangeOwner): void;
+    function reserve(owner: IRangeOwner): void;
     function findOwner(op: number): IRangeOwner | null;
     function listAll(): IRangeOwner[];
     function bootstrapKernelRanges(): void;
@@ -1633,7 +1634,9 @@ declare namespace MpKernelModule {
     function rpcCreateMatch(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcReadMatchResult(_ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcListTemplates(_ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, _payload: string): string;
-    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+    function registerBuiltinGenerators(): void;
+    function register(initializer: nkruntime.Initializer): void;
+    function mount(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
 }
 declare namespace MpKernelInterest {
     interface IMatchCfg {
@@ -1695,8 +1698,38 @@ declare namespace MpKernelMatch {
         last_resync_seq: number;
     }
     function broadcastKernel<P>(state: IKernelState<any>, dispatcher: nkruntime.MatchDispatcher, matchId: string, op: number, payload: P, targets: nkruntime.Presence[] | null, senderUserId?: string): void;
-    function makeHandler<TS>(template: MpKernel.IMatchTemplate<TS>): nkruntime.MatchHandler<IKernelState<TS>>;
-    function registerTemplate<TS>(initializer: nkruntime.Initializer, template: MpKernel.IMatchTemplate<TS>, logger: nkruntime.Logger): void;
+    function getTemplate(templateId: string): MpKernel.IMatchTemplate<any> | null;
+    function matchInitImpl(templateId: string, ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, params: {
+        [key: string]: any;
+    }): {
+        state: nkruntime.MatchState;
+        tickRate: number;
+        label: string;
+    };
+    function matchJoinAttemptImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, presence: nkruntime.Presence, metadata: {
+        [key: string]: any;
+    }): {
+        state: nkruntime.MatchState;
+        accept: boolean;
+        rejectMessage?: string;
+    } | null;
+    function matchJoinImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, presences: nkruntime.Presence[]): {
+        state: nkruntime.MatchState;
+    } | null;
+    function matchLeaveImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, presences: nkruntime.Presence[]): {
+        state: nkruntime.MatchState;
+    } | null;
+    function matchLoopImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, messages: nkruntime.MatchMessage[]): {
+        state: nkruntime.MatchState;
+    } | null;
+    function matchTerminateImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, graceSeconds: number): {
+        state: nkruntime.MatchState;
+    } | null;
+    function matchSignalImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, dispatcher: nkruntime.MatchDispatcher, tick: number, state: nkruntime.MatchState, data: string): {
+        state: nkruntime.MatchState;
+        data: string;
+    } | null;
+    function registerTemplate<TS>(template: MpKernel.IMatchTemplate<TS>): void;
 }
 declare namespace MpKernelMatchResult {
     var COLLECTION: string;
@@ -4086,6 +4119,12 @@ declare namespace TournamentFormatPickN {
         pool_drained: boolean;
         house_backstop_used_bc: number;
     };
+}
+declare namespace TutorXProgress {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace TutorXStudyPlan {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace Hiro {
     interface CurrencyAmount {

@@ -46,7 +46,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   // and Hiro registrations so QuizVerse + future game plugins can call
   // MpKernelSyncTurn.registerGenerator(...) during their own register().
   try {
-    MpKernelModule.register(initializer, logger);
+    MpKernelModule.mount(initializer, logger);
   } catch (err: any) {
     logger.error("[MpKernel] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
@@ -57,7 +57,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   // and BEFORE the legacy bridge so QuizVerse rpc IDs are pinned in
   // _tsRpcList and the legacy_runtime.js stub cannot shadow them.
   try {
-    QuizVersePlugin.register(initializer, nk, logger);
+    // register(initializer) is single-arg on purpose so postbuild's
+    // autoInvokeRegister re-runs it on every pooled Goja VM (populating the
+    // quizverse_* __rpc_ stubs there — otherwise they're undefined on the
+    // VMs that serve traffic → HTTP 500). Generators are registered lazily
+    // at match-init time (see zz_mp_kernel_handlers.js) since they need `nk`
+    // and the QuizVerseGame/Generator namespaces, which aren't safe to touch
+    // at IIFE-eval time. This explicit call covers the initial VM.
+    QuizVersePlugin.register(initializer);
   } catch (err: any) {
     logger.error("[QuizVerse] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
   }
@@ -555,6 +562,30 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[FortuneWheelAdSpin] Fortune wheel ad spin registered successfully");
   } catch (err: any) {
     logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
+  }
+
+  // ---- TutorX Progress (server-authoritative XP + streak/freeze + quests) ----
+  // Replaces the client-only (localStorage) gamification in the TutorX web SPA.
+  // register() is single-arg on purpose so postbuild's autoInvokeRegister
+  // re-runs it on every pooled Goja VM (populating the __rpc_tutorx_* stubs
+  // there — otherwise they're undefined on the VMs serving traffic → HTTP 500).
+  try {
+    logger.info("[TutorXProgress] Registering tutorx_xp_get / xp_add / streak_touch / quest_claim RPCs...");
+    TutorXProgress.register(initializer);
+    logger.info("[TutorXProgress] TutorX progress RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[TutorXProgress] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- TutorX Study Plan (server-authoritative checklist completion state) ----
+  // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+  // pooled Goja VM (same rationale as TutorXProgress above).
+  try {
+    logger.info("[TutorXStudyPlan] Registering tutorx_studyplan_get / toggle RPCs...");
+    TutorXStudyPlan.register(initializer);
+    logger.info("[TutorXStudyPlan] TutorX study-plan RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[TutorXStudyPlan] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
   // ---- Fantasy Cricket RPCs ----

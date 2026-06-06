@@ -71,85 +71,141 @@ namespace MpKernelMatch {
     }
   }
 
-  // ------- match handler factory -------
+  // ------- template resolution (VM-pool safe) -------
+  //
+  // Match handlers run on POOLED Goja VMs that never execute InitModule, so
+  // anything populated only inside InitModule/register() (a template-object
+  // registry, generator maps, etc.) is absent when a match actually runs.
+  // We therefore resolve the template object directly from its owning
+  // namespace by id. `getTemplate` is only ever CALLED at match time — long
+  // after every namespace IIFE has evaluated — so the forward references
+  // below resolve cleanly on every VM regardless of namespace eval order.
+  export function getTemplate(templateId: string): MpKernel.IMatchTemplate<any> | null {
+    switch (templateId) {
+      case "sync-turn-v1":            return MpKernelSyncTurn.template;
+      case "async-turn-v1":           return MpKernelAsyncTurn.template;
+      case "lobby-handoff-v1":        return MpKernelLobbyHandoff.template;
+      case "tournament-v1":           return MpKernelTournament.template;
+      case "live-event-v1":           return MpKernelLiveEvent.template;
+      case "persistent-party-v1":     return MpKernelPersistentParty.template;
+      case "conversational-party-v1": return MpKernelConvParty.template;
+      case "mixed-reality-anchor-v1": return MpKernelMrAnchor.template;
+      default:                        return null;
+    }
+  }
 
-  export function makeHandler<TS>(
-    template: MpKernel.IMatchTemplate<TS>
-  ): nkruntime.MatchHandler<IKernelState<TS>> {
+  // ------- match handler lifecycle impls -------
+  //
+  // These are the real handler bodies. The seven Nakama lifecycle hooks are
+  // registered via top-level global wrapper functions (data/modules/
+  // zz_mp_kernel_handlers.js) that postbuild.js injects into the InitModule
+  // wrapper with a direct `initializer.registerMatch(...)` call — the only
+  // shape Nakama's Goja AST walker can extract handler keys from. The
+  // wrappers delegate here. matchInit takes the templateId explicitly (the
+  // match-name = templateId, hard-coded per-template in its init wrapper);
+  // the remaining hooks read the resolved template back off kernel state.
+
+  export function matchInitImpl(
+    templateId: string,
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    params: { [key: string]: any }
+  ): { state: nkruntime.MatchState; tickRate: number; label: string } {
+    var template = getTemplate(templateId);
+    if (!template) {
+      throw new Error("[MpKernel] unknown template_id at matchInit: " + templateId);
+    }
+
+    var args: MpKernel.IMatchInitArgs = {
+      template_id: template.templateId,
+      game_id: (params && params.game_id) ? String(params.game_id) : "",
+      region: (params && params.region) ? String(params.region) : "",
+      template_init: (params && params.template_init) ? params.template_init : template.defaultInit,
+      creator_user_id: (params && params.creator_user_id) ? String(params.creator_user_id) : "",
+      flags: {}
+    };
+    var inner = template.initState(ctx, logger, nk, args);
+
+    // Determine reconnect grace from template_init or default.
+    var graceMs = MpKernelPresence.DEFAULT_GRACE_MS;
+    var ti: any = args.template_init;
+    if (ti && typeof ti.reconnect_grace_ms === "number" && ti.reconnect_grace_ms > 0) {
+      graceMs = ti.reconnect_grace_ms;
+    } else if (ti && typeof ti.reconnect_grace_seconds === "number" && ti.reconnect_grace_seconds > 0) {
+      graceMs = ti.reconnect_grace_seconds * 1000;
+    }
+
+    var kernelState: IKernelState<any> = {
+      template_id: template.templateId,
+      game_id: args.game_id,
+      region: args.region,
+      presence: MpKernelPresence.init(graceMs),
+      clock: MpKernelClock.init(),
+      feature_flags: 0,
+      counters: {
+        messages_in: 0,
+        messages_in_dropped_dupe: 0,
+        messages_in_dropped_unknown_op: 0,
+        messages_in_dropped_seq_gap: 0,
+        flap_kicks: 0,
+        reconnects_inside_grace: 0
+      },
+      template_state: inner.state,
+      template: template,
+      last_resync_seq: 0
+    };
+
+    // Inject a kernel-shared seq provider into the template state so
+    // server-origin broadcasts (kernel + template) advance ONE counter.
+    // Without this, both would emit `sender_user_id="server"` with
+    // independent seqs and clients ordering by (sender, seq) would
+    // see two interleaved monotonic streams. Conformance test 06.
+    if (typeof inner.state === "object" && inner.state !== null) {
+      (inner.state as any).__seqProvider = function () {
+        return MpKernelClock.nextSeq(kernelState.clock);
+      };
+      (inner.state as any).__matchTimeMs = function () {
+        return MpKernelClock.matchTimeMs(kernelState.clock);
+      };
+    }
+
     return {
-      matchInit: function (ctx, logger, nk, params) {
-        var args: MpKernel.IMatchInitArgs = {
-          template_id: template.templateId,
-          game_id: (params && params.game_id) ? String(params.game_id) : "",
-          region: (params && params.region) ? String(params.region) : "",
-          template_init: (params && params.template_init) ? params.template_init : template.defaultInit,
-          creator_user_id: (params && params.creator_user_id) ? String(params.creator_user_id) : "",
-          flags: {}
-        };
-        var inner = template.initState(ctx, logger, nk, args);
+      state: kernelState,
+      tickRate: inner.tickRate,
+      label: inner.label
+    };
+  }
 
-        // Determine reconnect grace from template_init or default.
-        var graceMs = MpKernelPresence.DEFAULT_GRACE_MS;
-        var ti: any = args.template_init;
-        if (ti && typeof ti.reconnect_grace_ms === "number" && ti.reconnect_grace_ms > 0) {
-          graceMs = ti.reconnect_grace_ms;
-        } else if (ti && typeof ti.reconnect_grace_seconds === "number" && ti.reconnect_grace_seconds > 0) {
-          graceMs = ti.reconnect_grace_seconds * 1000;
-        }
+  export function matchJoinAttemptImpl(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    dispatcher: nkruntime.MatchDispatcher,
+    tick: number,
+    state: nkruntime.MatchState,
+    presence: nkruntime.Presence,
+    metadata: { [key: string]: any }
+  ): { state: nkruntime.MatchState; accept: boolean; rejectMessage?: string } | null {
+    // Hand off to template for game-specific gating.
+    var ks = state as IKernelState<any>;
+    var inner = ks.template.onJoinAttempt(
+      ctx, logger, nk, dispatcher, tick, ks.template_state, presence, metadata
+    );
+    ks.template_state = inner.state;
+    return { state: ks, accept: inner.accept, rejectMessage: inner.rejectMessage };
+  }
 
-        var kernelState: IKernelState<TS> = {
-          template_id: template.templateId,
-          game_id: args.game_id,
-          region: args.region,
-          presence: MpKernelPresence.init(graceMs),
-          clock: MpKernelClock.init(),
-          feature_flags: 0,
-          counters: {
-            messages_in: 0,
-            messages_in_dropped_dupe: 0,
-            messages_in_dropped_unknown_op: 0,
-            messages_in_dropped_seq_gap: 0,
-            flap_kicks: 0,
-            reconnects_inside_grace: 0
-          },
-          template_state: inner.state,
-          template: template,
-          last_resync_seq: 0
-        };
-
-        // Inject a kernel-shared seq provider into the template state so
-        // server-origin broadcasts (kernel + template) advance ONE counter.
-        // Without this, both would emit `sender_user_id="server"` with
-        // independent seqs and clients ordering by (sender, seq) would
-        // see two interleaved monotonic streams. Conformance test 06.
-        if (typeof inner.state === "object" && inner.state !== null) {
-          (inner.state as any).__seqProvider = function () {
-            return MpKernelClock.nextSeq(kernelState.clock);
-          };
-          (inner.state as any).__matchTimeMs = function () {
-            return MpKernelClock.matchTimeMs(kernelState.clock);
-          };
-        }
-
-        return {
-          state: kernelState,
-          tickRate: inner.tickRate,
-          label: inner.label
-        };
-      },
-
-      matchJoinAttempt: function (ctx, logger, nk, dispatcher, tick, state, presence, metadata) {
-        // Hand off to template for game-specific gating.
-        var ks = state as IKernelState<TS>;
-        var inner = ks.template.onJoinAttempt(
-          ctx, logger, nk, dispatcher, tick, ks.template_state, presence, metadata
-        );
-        ks.template_state = inner.state;
-        return { state: ks, accept: inner.accept, rejectMessage: inner.rejectMessage };
-      },
-
-      matchJoin: function (ctx, logger, nk, dispatcher, tick, state, presences) {
-        var ks = state as IKernelState<TS>;
+  export function matchJoinImpl(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    dispatcher: nkruntime.MatchDispatcher,
+    tick: number,
+    state: nkruntime.MatchState,
+    presences: nkruntime.Presence[]
+  ): { state: nkruntime.MatchState } | null {
+        var ks = state as IKernelState<any>;
         var now = Date.now();
         var matchId = (ctx as any).matchId || "";
         for (var i = 0; i < presences.length; i++) {
@@ -215,10 +271,18 @@ namespace MpKernelMatch {
         var inner = ks.template.onJoin(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
         ks.template_state = inner.state;
         return { state: ks };
-      },
+  }
 
-      matchLeave: function (ctx, logger, nk, dispatcher, tick, state, presences) {
-        var ks = state as IKernelState<TS>;
+  export function matchLeaveImpl(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    dispatcher: nkruntime.MatchDispatcher,
+    tick: number,
+    state: nkruntime.MatchState,
+    presences: nkruntime.Presence[]
+  ): { state: nkruntime.MatchState } | null {
+        var ks = state as IKernelState<any>;
         var now = Date.now();
         var matchId = (ctx as any).matchId || "";
         for (var i = 0; i < presences.length; i++) {
@@ -227,10 +291,18 @@ namespace MpKernelMatch {
         var inner = ks.template.onLeave(ctx, logger, nk, dispatcher, tick, ks.template_state, presences);
         ks.template_state = inner.state;
         return { state: ks };
-      },
+  }
 
-      matchLoop: function (ctx, logger, nk, dispatcher, tick, state, messages) {
-        var ks = state as IKernelState<TS>;
+  export function matchLoopImpl(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    dispatcher: nkruntime.MatchDispatcher,
+    tick: number,
+    state: nkruntime.MatchState,
+    messages: nkruntime.MatchMessage[]
+  ): { state: nkruntime.MatchState } | null {
+        var ks = state as IKernelState<any>;
         var matchId = (ctx as any).matchId || "";
         var now = Date.now();
 
@@ -327,22 +399,36 @@ namespace MpKernelMatch {
         }
 
         return { state: ks };
-      },
+  }
 
-      matchTerminate: function (ctx, logger, nk, dispatcher, tick, state, graceSeconds) {
-        var ks = state as IKernelState<TS>;
+  export function matchTerminateImpl(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    dispatcher: nkruntime.MatchDispatcher,
+    tick: number,
+    state: nkruntime.MatchState,
+    graceSeconds: number
+  ): { state: nkruntime.MatchState } | null {
+        var ks = state as IKernelState<any>;
         var matchId = (ctx as any).matchId || "";
         var inner = ks.template.onTerminate(ctx, logger, nk, dispatcher, tick, ks.template_state, graceSeconds);
         ks.template_state = inner.state;
         finalizeMatch(ks, dispatcher, matchId, "operator_terminate", logger, nk);
         return { state: ks };
-      },
+  }
 
-      matchSignal: function (ctx, logger, nk, dispatcher, tick, state, data) {
+  export function matchSignalImpl(
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
+    nk: nkruntime.Nakama,
+    dispatcher: nkruntime.MatchDispatcher,
+    tick: number,
+    state: nkruntime.MatchState,
+    data: string
+  ): { state: nkruntime.MatchState; data: string } | null {
         // Reserved for admin signals (force-end, mod-action). Default no-op.
         return { state: state, data: data };
-      }
-    };
   }
 
   // ------- helpers -------
@@ -452,29 +538,32 @@ namespace MpKernelMatch {
 
   // ------- template registration -------
 
-  // Register a template with the Nakama runtime + the code registry.
-  // Idempotent across module reload.
+  // Reserve a template's opcode range in the code registry. Pure (no
+  // `initializer`, `nk` or `logger`) so it is safe to run on EVERY Goja VM
+  // via the auto-invoked, single-arg MpKernelModule.register(initializer)
+  // (see postbuild.js autoInvokeRegister). Idempotent across module reload.
+  //
+  // NOTE: this intentionally does NOT call `initializer.registerMatch(...)`.
+  // Nakama's Goja AST walker (server/runtime_javascript_init.go
+  // @ getMatchHookFnIdentifier) only extracts handler keys from
+  // `registerMatch` calls that are DIRECT statements inside InitModule's
+  // body, with handler properties that are Identifiers referencing
+  // GLOBAL-scope functions. A nested call here (inside a namespace helper,
+  // passing a factory-built object literal) is invisible to the walker and
+  // throws "global id could not be extracted: not found" — which is exactly
+  // why every match template silently failed to mount. The actual
+  // registerMatch wiring now lives in postbuild.js section 5b, which emits
+  // direct calls in the generated InitModule wrapper pointing at the
+  // top-level wrappers declared in data/modules/zz_mp_kernel_handlers.js.
   export function registerTemplate<TS>(
-    initializer: nkruntime.Initializer,
-    template: MpKernel.IMatchTemplate<TS>,
-    logger: nkruntime.Logger
+    template: MpKernel.IMatchTemplate<TS>
   ): void {
     MpKernelCodeRegistry.bootstrapKernelRanges();
-    MpKernelCodeRegistry.register({
+    MpKernelCodeRegistry.reserve({
       name: "template:" + template.templateId,
       from: template.opRange.from,
       to: template.opRange.to,
       template_id: template.templateId
     });
-    // MpKernel per-template registration helper. The set of templates
-    // is enumerated at build time in src/multiplayer-kernel/index.ts —
-    // each one is wrapped in safeRegisterTemplate() with a known literal
-    // label, and the templateId itself comes from a const exported in
-    // src/multiplayer-kernel/code-registry.ts. So while this exact call
-    // site doesn't have a literal, the upstream chain is fully static
-    // and reviewable. nakama-allow-dynamic-rpc-id
-    initializer.registerMatch(template.templateId, makeHandler(template));
-    logger.info("[MpKernel] registered match template '" + template.templateId +
-      "' opRange=0x" + template.opRange.from.toString(16) + "-0x" + template.opRange.to.toString(16));
   }
 }

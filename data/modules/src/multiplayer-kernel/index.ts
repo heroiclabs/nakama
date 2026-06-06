@@ -124,18 +124,29 @@ namespace MpKernelModule {
     _nk: nkruntime.Nakama,
     _payload: string
   ): string {
-    var owners = MpKernelCodeRegistry.listAll();
+    // Source of truth is `registeredTemplateIds`, populated by the
+    // single-arg, auto-invoked register(initializer) so it is present on
+    // EVERY pooled Goja VM (the code registry's opcode ranges are only
+    // reserved on the InitModule VM via mount(), so we can't rely on
+    // listAll() here without returning an empty set on pooled VMs).
+    var ranges: { [id: string]: { from: number; to: number } } = {};
+    try {
+      var owners = MpKernelCodeRegistry.listAll();
+      for (var i = 0; i < owners.length; i++) {
+        if (owners[i].template_id) {
+          ranges[owners[i].template_id as string] = { from: owners[i].from, to: owners[i].to };
+        }
+      }
+    } catch (_e) { /* registry not bootstrapped on this VM — ranges optional */ }
+
     var out = {
       templates: [] as Array<{ id: string; from: number; to: number }>
     };
-    for (var i = 0; i < owners.length; i++) {
-      if (owners[i].template_id) {
-        out.templates.push({
-          id: owners[i].template_id as string,
-          from: owners[i].from,
-          to: owners[i].to
-        });
-      }
+    for (var id in registeredTemplateIds) {
+      if (!registeredTemplateIds.hasOwnProperty(id)) continue;
+      if (registeredTemplateIds[id] !== true) continue;
+      var r = ranges[id] || { from: 0, to: 0 };
+      out.templates.push({ id: id, from: r.from, to: r.to });
     }
     return JSON.stringify(out);
   }
@@ -229,46 +240,78 @@ namespace MpKernelModule {
     }
   };
 
-  // Single boot path: registers all built-in templates + RPCs.
-  //
-  // Per-template registration is wrapped in a try/catch + null-check so a
-  // single broken template (e.g. an undefined `template` from a TS-bundle
-  // load-order issue, or a missing `template.opRange`/`template.templateId`)
-  // can't take down the entire kernel mount. Symptom in prod (EKS,
-  // 2026-05-27): "[MpKernel] failed to mount: Cannot read property 'name'
-  // of undefined" caused every match-create + every fantasy_event_leaderboard
-  // / fantasy_scoring_process RPC to fail across all 4 pods after rollout.
-  // The defensive guards here keep healthy templates registering and emit a
-  // pinpoint log for the broken one(s).
-  function safeRegisterTemplate(
-    initializer: nkruntime.Initializer,
-    logger: nkruntime.Logger,
-    label: string,
-    template: any,
-    afterRegister?: () => void
-  ): void {
-    try {
-      if (!template || typeof template !== "object") {
-        logger.error("[MpKernel] template '" + label + "' is undefined at boot — skipping (check TS bundle load order)");
-        return;
-      }
-      if (!template.templateId || !template.opRange ||
-          typeof template.opRange.from !== "number" ||
-          typeof template.opRange.to !== "number") {
-        logger.error("[MpKernel] template '" + label + "' missing required fields (templateId/opRange) — skipping");
-        return;
-      }
-      MpKernelMatch.registerTemplate(initializer, template, logger);
-      registerTemplateId(template.templateId);
-      if (afterRegister) afterRegister();
-    } catch (err: any) {
-      logger.error("[MpKernel] template '" + label + "' register failed: " +
-        (err && err.message ? err.message : String(err)) +
-        " — kernel boot continues with remaining templates");
-    }
+  // All in-tree JS templates, keyed by their stable templateId. The order
+  // here is the registration order. Native Go templates (realtime-tick,
+  // avatar-replication) are id-only — their match handler is mounted by the
+  // Go plugin's own InitModule.
+  var JS_TEMPLATE_IDS = [
+    TEMPLATE_IDS.SYNC_TURN_V1,
+    TEMPLATE_IDS.ASYNC_TURN_V1,
+    TEMPLATE_IDS.LOBBY_HANDOFF_V1,
+    TEMPLATE_IDS.TOURNAMENT_V1,
+    TEMPLATE_IDS.LIVE_EVENT_V1,
+    TEMPLATE_IDS.PERSISTENT_PARTY_V1,
+    TEMPLATE_IDS.CONVERSATIONAL_PARTY_V1,
+    TEMPLATE_IDS.MR_ANCHOR_V1
+  ];
+
+  // Resolve a template object by id. Only called from mount() (InitModule
+  // VM, after every namespace IIFE has evaluated) so the references are safe.
+  function templateById(id: string): any {
+    return MpKernelMatch.getTemplate(id);
   }
 
-  export function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void {
+  // Register the built-in echo generators used by the SDK conformance suite
+  // and any game that doesn't ship its own generator. Pure (no initializer /
+  // nk / logger) and idempotent, so it is safe to call lazily on EVERY pooled
+  // Goja VM at match-init time (see data/modules/zz_mp_kernel_handlers.js).
+  // It must NOT run at namespace-IIFE-eval time: MpKernelSyncTurn /
+  // MpKernelAsyncTurn evaluate AFTER MpKernelModule in the bundle, so an
+  // eager call would hit an undefined namespace.
+  export function registerBuiltinGenerators(): void {
+    try { MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR); } catch (_e) {}
+    try { MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR); } catch (_e) {}
+  }
+
+  // VM-pool-safe registration. This is a SINGLE-parameter `register(initializer)`
+  // on purpose: postbuild.js's autoInvokeRegister re-invokes zero/one-arg
+  // register() functions at IIFE scope on EVERY Goja VM (not just the initial
+  // VM that runs InitModule), which is the only way the `__rpc_*` stubs get
+  // populated on the pooled VMs that actually serve RPC traffic. The previous
+  // two-arg `register(initializer, logger)` was skipped by autoInvokeRegister,
+  // so mp_create_match / mp_list_templates / mp_read_match_result resolved to
+  // `undefined` on pooled VMs → HTTP 500 "Could not run Rpc function".
+  //
+  // CRITICAL: this body must only touch MpKernelModule-internal symbols and
+  // must NOT call any `initializer.<x>()` other than registerRpc — both are
+  // requirements for autoInvokeRegister to treat it as safe, and the function
+  // runs at MpKernelModule's IIFE-end (before the template namespaces have
+  // evaluated). Template-object wiring + opcode-range reservation that needs
+  // those later namespaces lives in mount(), called from InitModule.
+  export function register(initializer: nkruntime.Initializer): void {
+    // Whitelist every template id so `mp_create_match` (isKnownTemplate) and
+    // `mp_list_templates` work on every VM. Pure literal-id calls only.
+    for (var i = 0; i < JS_TEMPLATE_IDS.length; i++) {
+      registerTemplateId(JS_TEMPLATE_IDS[i]);
+    }
+    registerTemplateId(TEMPLATE_IDS.REALTIME_TICK_V1);
+    registerTemplateId(TEMPLATE_IDS.AVATAR_REPLICATION_V1);
+
+    initializer.registerRpc("mp_create_match",      rpcCreateMatch);
+    initializer.registerRpc("mp_read_match_result", rpcReadMatchResult);
+    initializer.registerRpc("mp_list_templates",    rpcListTemplates);
+  }
+
+  // Full boot path — invoked once from src/main.ts InitModule, AFTER every
+  // namespace IIFE has evaluated (so template objects are resolvable). Does
+  // the opcode-range reservation + the runtime services (voice / agents /
+  // moderation / interest). Match handlers themselves are mounted by
+  // postbuild.js section 5b (direct registerMatch in the InitModule wrapper);
+  // generators are registered lazily at match-init time. This is also where
+  // we (re-)run register() so the RPCs are registered on the initial VM.
+  export function mount(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void {
+    register(initializer);
+
     try {
       MpKernelCodeRegistry.bootstrapKernelRanges();
     } catch (err: any) {
@@ -277,68 +320,43 @@ namespace MpKernelModule {
         " — kernel boot continues; opcode-range overlap detection disabled");
     }
 
-    // Templates ship one-by-one; P1 ships SyncTurnMatch, P5 adds
-    // AsyncTurnMatch + LobbyHandoffMatch.
-    safeRegisterTemplate(initializer, logger, "sync-turn-v1", MpKernelSyncTurn && MpKernelSyncTurn.template, function () {
-      MpKernelSyncTurn.registerGenerator(ECHO_GENERATOR);
-    });
+    // Reserve each JS template's opcode range in the code registry. Wrapped
+    // per-template so a single missing namespace can't abort the rest.
+    for (var i = 0; i < JS_TEMPLATE_IDS.length; i++) {
+      var id = JS_TEMPLATE_IDS[i];
+      try {
+        var tmpl = templateById(id);
+        if (!tmpl || !tmpl.opRange || typeof tmpl.opRange.from !== "number" || typeof tmpl.opRange.to !== "number") {
+          logger.error("[MpKernel] template '" + id + "' missing/invalid at mount — opcode range not reserved (handler still mounts via postbuild)");
+          continue;
+        }
+        MpKernelMatch.registerTemplate(tmpl);
+      } catch (err: any) {
+        logger.error("[MpKernel] template '" + id + "' range reserve failed: " +
+          (err && err.message ? err.message : String(err)) + " — continuing");
+      }
+    }
 
-    safeRegisterTemplate(initializer, logger, "async-turn-v1", MpKernelAsyncTurn && MpKernelAsyncTurn.template, function () {
-      MpKernelAsyncTurn.registerGenerator(ASYNC_ECHO_GENERATOR);
-    });
-
-    safeRegisterTemplate(initializer, logger, "lobby-handoff-v1", MpKernelLobbyHandoff && MpKernelLobbyHandoff.template);
-    safeRegisterTemplate(initializer, logger, "tournament-v1",    MpKernelTournament && MpKernelTournament.template);
-    safeRegisterTemplate(initializer, logger, "live-event-v1",    MpKernelLiveEvent && MpKernelLiveEvent.template);
-    safeRegisterTemplate(initializer, logger, "persistent-party-v1", MpKernelPersistentParty && MpKernelPersistentParty.template);
-    safeRegisterTemplate(initializer, logger, "conversational-party-v1", MpKernelConvParty && MpKernelConvParty.template);
-    safeRegisterTemplate(initializer, logger, "mixed-reality-anchor-v1", MpKernelMrAnchor && MpKernelMrAnchor.template);
-
-    // RealtimeTickMatch lives in a native Go plugin (data/modules/realtime_tick.so)
-    // so it can run at 10–30 Hz without paying the Goja per-tick cost. The Go
-    // plugin registers the match handler under "realtime-tick-v1" at boot via
-    // its own InitModule. Here we ONLY whitelist the template_id so
-    // `mp_create_match` will accept it — without this guard the RPC returns
-    // NOT_FOUND even though the Go side is ready. Also reserve the opcode
-    // range so other JS templates can't collide with realtime-tick wires.
-    registerTemplateId(TEMPLATE_IDS.REALTIME_TICK_V1);
+    // Native Go templates: id already whitelisted in register(); reserve their
+    // opcode ranges here so JS templates can't collide with their wires.
     try {
-      MpKernelCodeRegistry.register({
-        name: TEMPLATE_IDS.REALTIME_TICK_V1,
-        from: 0x6000,
-        to: 0x6FFF,
+      MpKernelCodeRegistry.reserve({
+        name: TEMPLATE_IDS.REALTIME_TICK_V1, from: 0x6000, to: 0x6FFF,
         template_id: TEMPLATE_IDS.REALTIME_TICK_V1
       });
     } catch (e) {
-      // Range already reserved (re-register on hot reload). Idempotent.
       logger.debug("[MpKernel] realtime-tick range already reserved: " +
         ((e && (e as any).message) ? (e as any).message : String(e)));
     }
-
-    // AvatarReplicationMatch lives in a native Go plugin
-    // (data/modules/avatar_replication/main.go → avatar_replication.so) so it
-    // can sustain 60–90 Hz pose tick with delta + quantization + AOI without
-    // paying the Goja per-tick cost. The Go plugin registers the match
-    // handler under "avatar-replication-v1" at boot via its own InitModule.
-    // Here we whitelist the template_id so `mp_create_match` accepts it and
-    // reserve opcode range 0xF000–0xFFFF (XR pose fast-path) so other JS
-    // templates can't collide with XR wires.
-    registerTemplateId(TEMPLATE_IDS.AVATAR_REPLICATION_V1);
     try {
-      MpKernelCodeRegistry.register({
-        name: TEMPLATE_IDS.AVATAR_REPLICATION_V1,
-        from: 0xF000,
-        to: 0xFFFF,
+      MpKernelCodeRegistry.reserve({
+        name: TEMPLATE_IDS.AVATAR_REPLICATION_V1, from: 0xF000, to: 0xFFFF,
         template_id: TEMPLATE_IDS.AVATAR_REPLICATION_V1
       });
     } catch (e) {
       logger.debug("[MpKernel] avatar-replication range already reserved: " +
         ((e && (e as any).message) ? (e as any).message : String(e)));
     }
-
-    initializer.registerRpc("mp_create_match",       rpcCreateMatch);
-    initializer.registerRpc("mp_read_match_result",  rpcReadMatchResult);
-    initializer.registerRpc("mp_list_templates",     rpcListTemplates);
 
     // Voice-provider plumbing: register the `mp_voice_token` RPC. The
     // active LiveKit minter is constructed lazily on first RPC call

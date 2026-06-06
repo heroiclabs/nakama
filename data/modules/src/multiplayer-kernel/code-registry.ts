@@ -15,11 +15,29 @@ namespace MpKernelCodeRegistry {
 
   var owners: IRangeOwner[] = [];
 
-  export function register(owner: IRangeOwner): void {
+  // NOTE: deliberately NOT named `register`. postbuild.js's autoInvokeRegister
+  // auto-invokes any zero/one-arg `Namespace.register = register;` at IIFE
+  // scope on every Goja VM to populate __rpc_ stubs. A 1-arg `register(owner)`
+  // here matched that heuristic and got called with `owner === undefined`,
+  // pushing `undefined` into `owners` — which then made every subsequent
+  // reserve()/bootstrap throw "Cannot read property 'name' of undefined"
+  // (the original 2026-05 MpKernel mount-failure signature). Keep this name
+  // distinct from `register` so the heuristic can never fire on it.
+  export function reserve(owner: IRangeOwner): void {
     for (var i = 0; i < owners.length; i++) {
       var o = owners[i];
       if (o.name === owner.name) {
         // Idempotent re-registration (e.g. test reload): replace.
+        owners[i] = owner;
+        return;
+      }
+      // Exact-range adoption: some templates intentionally live inside a
+      // pre-claimed service band (e.g. conversational-party-v1 uses the
+      // 0x1000-0x1FFF "social-conversational" band). When a template claims a
+      // range that is byte-for-byte identical to an existing placeholder, the
+      // template "adopts" the band — replace the placeholder rather than
+      // flagging a (false-positive) overlap. Partial overlaps remain errors.
+      if (o.from === owner.from && o.to === owner.to) {
         owners[i] = owner;
         return;
       }
@@ -61,11 +79,11 @@ namespace MpKernelCodeRegistry {
     // schemas/multiplayer/opcodes.proto. Template ranges register
     // themselves on registerTemplate; ranges below are pre-claimed so
     // any accidental overlap fails fast at module init.
-    register({ name: "kernel-control",          from: 0x0000, to: 0x0FFF });
-    register({ name: "social-conversational",   from: 0x1000, to: 0x1FFF });
-    register({ name: "agents",                  from: 0x2000, to: 0x2FFF });
-    register({ name: "moderation",              from: 0x3000, to: 0x3FFF });
-    register({ name: "game-defined",            from: 0xC000, to: 0xCFFF });
-    register({ name: "xr-pose-fast-path",       from: 0xF000, to: 0xFFFF });
+    reserve({ name: "kernel-control",          from: 0x0000, to: 0x0FFF });
+    reserve({ name: "social-conversational",   from: 0x1000, to: 0x1FFF });
+    reserve({ name: "agents",                  from: 0x2000, to: 0x2FFF });
+    reserve({ name: "moderation",              from: 0x3000, to: 0x3FFF });
+    reserve({ name: "game-defined",            from: 0xC000, to: 0xCFFF });
+    reserve({ name: "xr-pose-fast-path",       from: 0xF000, to: 0xFFFF });
   }
 }

@@ -262,26 +262,40 @@ namespace QuizVersePlugin {
     return JSON.stringify({ packs: out });
   }
 
-  export function register(
-    initializer: nkruntime.Initializer,
-    nk: nkruntime.Nakama,
-    logger: nkruntime.Logger
-  ): void {
-    QuizVerseGenerator.registerNk(nk);
+  // SINGLE-parameter `register(initializer)` on purpose. postbuild.js's
+  // autoInvokeRegister only re-invokes zero/one-arg register() functions at
+  // IIFE scope on every pooled Goja VM — and that IIFE-scope replay is the
+  // ONLY thing that populates the `__rpc_quizverse_*` stubs on the VMs that
+  // actually serve RPC traffic (pooled VMs never run InitModule). The old
+  // three-arg `register(initializer, nk, logger)` was skipped, so
+  // quizverse_create_match resolved to `undefined` on pooled VMs → HTTP 500
+  // "Could not run Rpc function." The literal-string RPC ids are still
+  // REQUIRED (Goja's AST walker only extracts string-literal ids); the
+  // RPC_CREATE_MATCH/etc. constants remain for external reference only —
+  // see PRs #94/#97/#100. Body must contain ONLY registerRpc calls so
+  // autoInvokeRegister considers it safe to replay.
+  export function register(initializer: nkruntime.Initializer): void {
+    initializer.registerRpc("quizverse_create_match", rpcCreateMatch);
+    initializer.registerRpc("quizverse_load_pack",    rpcLoadPack);
+    initializer.registerRpc("quizverse_list_packs",   rpcListPacks);
+  }
+
+  // Build + register the QuizVerse turn generators into the SyncTurn
+  // registry. Invoked LAZILY at match-init time (data/modules/
+  // zz_mp_kernel_handlers.js) rather than from InitModule, because:
+  //   (a) match handlers run on pooled VMs that never ran InitModule, so the
+  //       generator map must be (re)populated on whichever VM hosts the match;
+  //   (b) it needs the live `nk` (for custom packs; falls back to SEED_PACK
+  //       when absent) which is only available inside match/RPC callbacks; and
+  //   (c) QuizVerseGenerator.buildAll() touches QuizVerseGame.*, whose
+  //       namespace IIFE evaluates AFTER QuizVersePlugin's — so an eager
+  //       eval-time call would throw (build #217 regression).
+  // Idempotent: registerGenerator just overwrites the map entry by id.
+  export function registerGenerators(nk: nkruntime.Nakama): void {
+    if (nk) QuizVerseGenerator.registerNk(nk);
     var gens = QuizVerseGenerator.buildAll();
     for (var i = 0; i < gens.length; i++) {
       MpKernelSyncTurn.registerGenerator(gens[i]);
     }
-    // Literal-string registrations REQUIRED — Goja's AST walker only
-    // extracts RPC ids that appear as string literals at the call site.
-    // The RPC_CREATE_MATCH / RPC_LOAD_PACK / RPC_LIST_PACKS constants
-    // above remain for export so external callers can reference them
-    // by name; do not replace these literals with the constants.
-    // See PRs #94 and #100 for the live regression that motivated this,
-    // and PR #97 for the build-time linter that enforces it going forward.
-    initializer.registerRpc("quizverse_create_match", rpcCreateMatch);
-    initializer.registerRpc("quizverse_load_pack",    rpcLoadPack);
-    initializer.registerRpc("quizverse_list_packs",   rpcListPacks);
-    logger.info("[QuizVerse] plugin registered; generators=" + gens.length + " modes=classic|friend_battle|link_and_play");
   }
 }
