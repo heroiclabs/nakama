@@ -3016,7 +3016,7 @@
                     <button class="card-btn" onclick="loadTopPlayers()">↻ Refresh</button>
                     <button class="export-btn" onclick="exportPlayers()">⬇ CSV</button>
                     <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
-                </div></h3>
+                </div></h3>          
                 <div class="card-body">
                     <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
                         <input type="search" id="playersSearch" class="players-search" placeholder="Filter by User ID..." oninput="filterPlayers(this.value)" style="flex:1;min-width:200px;">
@@ -9038,7 +9038,7 @@
                     km      = cached.km;
                 } else {
                     const [pRes, eRes, kmRes] = await Promise.allSettled([
-                        callRpc('qe_player_full_profile', { user_id: userId }),
+                        callRpc('qe_player_full_profile', { user_id: userId, ...getGamePayload() }),
                         callRpc('dashboard_events_timeline', {
                             user_id: userId,
                             days:    Math.max(30, selectedDays || 30),
@@ -9075,6 +9075,7 @@
             const gs        = profile.game_stats || {};
             const an        = profile.analytics  || {};
             const prof      = profile.profile    || {};
+            const gpa       = profile.gpa        || null;
             const lbCount   = profile.leaderboard_count || 0;
             const errMsg    = profile._error;
 
@@ -9116,10 +9117,10 @@
 
             const headlineKpis = [
                 { l: 'Events (window)',  v: formatNumber(events.length) },
-                { l: 'Total Events',     v: formatNumber(an.total_events || 0) },
-                { l: 'Quizzes',          v: formatNumber(an.quiz_completed || gs.quizzes_completed || 0) },
-                { l: 'Sessions',         v: formatNumber(an.sessions || gs.sessions || 0) },
-                { l: 'Purchases',        v: formatNumber(an.purchases || 0) },
+                { l: 'LT Events',        v: formatNumber(gpa ? (gpa.lt_events||0) : (an.total_events||0)) },
+                { l: 'LT Quiz Plays',    v: formatNumber(gpa ? (gpa.lt_quiz_plays||0) : (an.quiz_completed||gs.quizzes_completed||0)) },
+                { l: 'LT Sessions',      v: formatNumber(gpa ? (gpa.lt_sessions||0) : (an.sessions||gs.sessions||0)) },
+                { l: 'Total Spend',      v: gpa ? '$'+(gpa.money&&gpa.money.spend_usd ? gpa.money.spend_usd.toFixed(2) : '0.00') : formatNumber(an.purchases||0) },
                 { l: 'Coins',            v: formatNumber(gs.coins || 0) },
                 { l: 'Leaderboards',     v: formatNumber(lbCount) },
                 { l: 'Distinct Events',  v: formatNumber(Object.keys(evCounts).length) }
@@ -9209,6 +9210,60 @@
                         ${walletEntries.map(([k,v]) => `<div><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('')}
                     </div>
                 </div>` : ''}
+
+                ${gpa ? (() => {
+                    const eng   = gpa.eng   || {};
+                    const money = gpa.money || {};
+                    const fmtUtc = s => s ? new Date(s * 1000).toLocaleString() : '—';
+                    const retBadge = (flag, label) => flag
+                        ? `<span style="background:#10b98122;color:#10b981;border:1px solid #10b98144;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;">${label}</span>`
+                        : `<span style="background:var(--bg-tertiary);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;">—</span>`;
+                    return `
+                <div class="pp-section">
+                    <h3>📊 GPA — Lifetime Engagement</h3>
+                    <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
+                        <div><div class="k">LT Events</div><div class="v">${formatNumber(gpa.lt_events||0)}</div></div>
+                        <div><div class="k">LT Sessions</div><div class="v">${formatNumber(gpa.lt_sessions||0)}</div></div>
+                        <div><div class="k">LT Quiz Plays</div><div class="v">${formatNumber(gpa.lt_quiz_plays||0)}</div></div>
+                        <div><div class="k">Fav Mode</div><div class="v" style="font-size:13px">${escapeHtml(gpa.fav_mode||'—')}</div></div>
+                        <div><div class="k">Fav Mode Plays</div><div class="v">${formatNumber(gpa.fav_mode_n||0)}</div></div>
+                        <div><div class="k">Days Since Install</div><div class="v">${gpa.days_since_install||0}</div></div>
+                        <div><div class="k">First Seen</div><div class="v" style="font-size:11px">${fmtUtc(gpa.first_seen_utc)}</div></div>
+                        <div><div class="k">Last Active</div><div class="v" style="font-size:11px">${fmtUtc(gpa.last_active_utc)}</div></div>
+                    </div>
+                    <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin-top:10px">
+                        <div><div class="k">Streak (current)</div><div class="v">${eng.streak||0} days</div></div>
+                        <div><div class="k">Streak (max)</div><div class="v">${eng.streak_max||0} days</div></div>
+                        <div><div class="k">Avg Accuracy</div><div class="v">${eng.avg_accuracy != null ? eng.avg_accuracy+'%' : '—'}</div></div>
+                        <div><div class="k">Total Correct</div><div class="v">${formatNumber(eng.total_correct||0)}</div></div>
+                        <div><div class="k">Total Answered</div><div class="v">${formatNumber(eng.total_answered||0)}</div></div>
+                        <div><div class="k">Last Score</div><div class="v">${eng.last_score != null ? eng.last_score : '—'}</div></div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+                        <span style="font-size:11px;color:var(--text-muted);margin-right:4px">Retention:</span>
+                        ${retBadge(eng.d1, 'D1')}
+                        ${retBadge(eng.d7, 'D7')}
+                        ${retBadge(eng.d30, 'D30')}
+                    </div>
+                </div>
+                <div class="pp-section">
+                    <h3>💰 GPA — Monetization</h3>
+                    <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
+                        <div><div class="k">Total Spend</div><div class="v">$${(money.spend_usd||0).toFixed(2)}</div></div>
+                        <div><div class="k">IAP Count</div><div class="v">${formatNumber(money.iap_count||0)}</div></div>
+                        <div><div class="k">Reward Tier</div><div class="v" style="font-size:13px">${escapeHtml(money.reward_tier||'bronze')}</div></div>
+                        <div><div class="k">Ad Views</div><div class="v">${formatNumber(money.ad_views||0)}</div></div>
+                        <div><div class="k">Rewarded Ads</div><div class="v">${formatNumber(money.rewarded_ads||0)}</div></div>
+                        <div><div class="k">Ad Clicks</div><div class="v">${formatNumber(money.ad_clicks||0)}</div></div>
+                        <div><div class="k">Coins Earned</div><div class="v">${formatNumber(money.coins_earned||0)}</div></div>
+                        <div><div class="k">Coins Spent</div><div class="v">${formatNumber(money.coins_spent||0)}</div></div>
+                        <div><div class="k">Paywall Shown</div><div class="v">${formatNumber(money.paywall_shown_count||0)}</div></div>
+                        <div><div class="k">IAP Started</div><div class="v">${formatNumber(money.iap_started_count||0)}</div></div>
+                        <div><div class="k">IAP Failed</div><div class="v">${formatNumber(money.iap_failed_count||0)}</div></div>
+                        ${money.last_iap_utc ? `<div><div class="k">Last IAP</div><div class="v" style="font-size:11px">${fmtUtc(money.last_iap_utc)}</div></div>` : ''}
+                    </div>
+                </div>`;
+                })() : ''}
 
                 ${topEvents.length ? `
                 <div class="pp-section">
