@@ -261,12 +261,14 @@ function arScanEventsForDate(nk, logger, dateStr) {
     var scanned = 0;
     var truncated = false;
     var cursor = null;
-    var maxPages = 500;         // cap: 500 pages × 200 = 100k events / day
-    var pageSize = 200;
+    var pagesScanned = 0;
+    var maxPages = 100;         // cap: 100 pages × 100 = 10k objects / day; keeps well under the 30s RPC gateway timeout
+    var pageSize = 100;
     var dayStart = Math.floor(new Date(dateStr + "T00:00:00.000Z").getTime() / 1000);
     var dayEnd = dayStart + 86400;
 
     for (var p = 0; p < maxPages; p++) {
+        pagesScanned++;
         var page;
         try {
             page = nk.storageList(AR_SYSTEM_USER, AR_EVENTS_COLLECTION, pageSize, cursor);
@@ -304,7 +306,7 @@ function arScanEventsForDate(nk, logger, dateStr) {
         cursor = page.cursor;
     }
 
-    if (events.length >= maxPages * pageSize) truncated = true;
+    if (pagesScanned >= maxPages && page && page.cursor) truncated = true;
     return { events: events, scanned: scanned, truncated: truncated };
 }
 
@@ -1386,6 +1388,8 @@ function rpcAnalyticsRollupBackfill(ctx, logger, nk, payload) {
     var dates = arDateRange(data.from, data.to);
     if (dates.length === 0) return arErr("Empty date range", 400);
     if (dates.length > 90) return arErr("Backfill range too large (max 90 days)", 400);
+    // Note: for backfills >7 days via the dashboard, use the analytics_cron sidecar
+    // or call this RPC in 7-day chunks. The cron sidecar has no gateway timeout.
 
     // Canonicalize caller-supplied gameIds once at the entry point so each
     // per-date run downstream sees UUIDs even if the operator passed slugs.
