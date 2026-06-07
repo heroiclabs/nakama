@@ -91,7 +91,8 @@ function hwSanitizeWidget(w) {
         size: (HW_SIZES[w.size]) ? w.size : "m",
         anim: (HW_ANIMS[w.anim]) ? w.anim : "pulse",
         seconds: w.seconds === true,
-        milestones: w.milestones === true
+        milestones: w.milestones === true,
+        brand: w.brand !== false
     };
     return cfg;
 }
