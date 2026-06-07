@@ -634,6 +634,7 @@ namespace QuizVerseMigration {
     countries:   { name: "countries",   method: "get", url: "https://restcountries.com/v3.1/all?fields=name,flags,capital,region,subregion,population,cca2", cacheTtlMs: 24 * 60 * 60 * 1000 },
     ghibli:      { name: "ghibli",      method: "get", url: "https://ghibliapi.vercel.app/films",                    cacheTtlMs: 24 * 60 * 60 * 1000 },
     disney:      { name: "disney",      method: "get", url: "https://api.disneyapi.dev/character",                   cacheTtlMs: 24 * 60 * 60 * 1000 },
+    dog:         { name: "dog",         method: "get", url: "https://dog.ceo/api/breeds/image/random/50",             cacheTtlMs: 60 * 60 * 1000 },
     // swapi.dev is chronically down / expired TLS. swapi.info is a reliable static mirror; the
     // people LIST (no {id}) lets the client build attribute-trivia with sibling distractors.
     starwars:    { name: "starwars",    method: "get", url: "https://swapi.info/api/people",                        cacheTtlMs: 24 * 60 * 60 * 1000 },
