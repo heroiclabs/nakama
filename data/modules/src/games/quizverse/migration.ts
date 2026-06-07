@@ -436,7 +436,12 @@ namespace QuizVerseMigration {
     var env: any = ctx.env || {};
     var url = env.IVX_AI_SVC_BASE_URL || env.AI_SVC_BASE_URL || "";
     if (!url) return "";
-    return url.replace(/\/+$/, "");
+    url = url.replace(/\/+$/, "");
+    // The deployed env value includes the "/api/ai" global prefix, but every
+    // callAiUpstream() path already begins with "/api/ai" → strip it here to
+    // avoid a doubled "/api/ai/api/ai/..." URL (HTTP 404).
+    url = url.replace(/\/api\/ai$/, "");
+    return url;
   }
 
   function aiAuthHeader(ctx: nkruntime.Context): { [key: string]: string } {

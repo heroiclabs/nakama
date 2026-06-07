@@ -564,6 +564,13 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
   }
 
+  try {
+    logger.info("[WebAdReward] Registering quizverse_web_ad_reward RPC...");
+    WebAdReward.register(initializer, logger);
+  } catch (err: any) {
+    logger.error("[WebAdReward] Failed to register: " + (err.message || String(err)));
+  }
+
   // ---- TutorX Progress (server-authoritative XP + streak/freeze + quests) ----
   // Replaces the client-only (localStorage) gamification in the TutorX web SPA.
   // register() is single-arg on purpose so postbuild's autoInvokeRegister
