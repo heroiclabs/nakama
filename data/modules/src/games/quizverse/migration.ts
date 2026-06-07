@@ -638,7 +638,10 @@ namespace QuizVerseMigration {
     // swapi.dev is chronically down / expired TLS. swapi.info is a reliable static mirror; the
     // people LIST (no {id}) lets the client build attribute-trivia with sibling distractors.
     starwars:    { name: "starwars",    method: "get", url: "https://swapi.info/api/people",                        cacheTtlMs: 24 * 60 * 60 * 1000 },
-    sports:      { name: "sports",      method: "get", url: "https://www.thesportsdb.com/api/v1/json/3/all_sports.php",cacheTtlMs: 24 * 60 * 60 * 1000 }
+    // all_sports.php only returns ~30 sport *categories* (too thin for a guess quiz).
+    // search_all_teams returns a league's clubs WITH badge logos (strBadge) — a real
+    // "which club is this?" image quiz. Free key "3" caps at ~10 teams, enough for 4-option Qs.
+    sports:      { name: "sports",      method: "get", url: "https://www.thesportsdb.com/api/v1/json/3/search_all_teams.php?l=English%20Premier%20League", cacheTtlMs: 24 * 60 * 60 * 1000 }
   };
 
   function expandUrl(template: string, params: any): string {
