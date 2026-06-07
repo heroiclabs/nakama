@@ -886,7 +886,7 @@ namespace QuizVerseMigration {
     if (!req.email || !req.password) {
       throw nakamaError("email and password required", nkruntime.Codes.INVALID_ARGUMENT);
     }
-    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_SIGNUP, "post", "/api/user/auth-v2/signup", req);
+    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_SIGNUP, "post", "/api/user/auth_v_2/signup", req);
   }
 
   function rpcAuthLogin(
@@ -899,7 +899,7 @@ namespace QuizVerseMigration {
     if (!req.email || !req.password) {
       throw nakamaError("email and password required", nkruntime.Codes.INVALID_ARGUMENT);
     }
-    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_LOGIN, "post", "/api/user/auth-v2/login", req);
+    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_LOGIN, "post", "/api/user/auth_v_2/login", req);
   }
 
   function rpcAuthSocialLogin(
