@@ -8556,10 +8556,12 @@ var QuizVerseMigration;
         cocktaildb: { name: "cocktaildb", method: "get", url: "https://www.thecocktaildb.com/api/json/v1/1/random.php", cacheTtlMs: 10 * 60 * 1000 },
         foodish: { name: "foodish", method: "get", url: "https://foodish-api.com/api/", cacheTtlMs: 5 * 60 * 1000 },
         nasa: { name: "nasa", method: "get", url: "https://images-api.nasa.gov/search?q={query}", cacheTtlMs: 60 * 60 * 1000 },
-        countries: { name: "countries", method: "get", url: "https://restcountries.com/v3.1/all", cacheTtlMs: 24 * 60 * 60 * 1000 },
+        // restcountries v3.1 now REJECTS /all without an explicit ?fields= list (HTTP 400).
+        countries: { name: "countries", method: "get", url: "https://restcountries.com/v3.1/all?fields=name,flags,capital,region,subregion,population,cca2", cacheTtlMs: 24 * 60 * 60 * 1000 },
         ghibli: { name: "ghibli", method: "get", url: "https://ghibliapi.vercel.app/films", cacheTtlMs: 24 * 60 * 60 * 1000 },
         disney: { name: "disney", method: "get", url: "https://api.disneyapi.dev/character", cacheTtlMs: 24 * 60 * 60 * 1000 },
-        starwars: { name: "starwars", method: "get", url: "https://swapi.dev/api/people/{id}", cacheTtlMs: 24 * 60 * 60 * 1000 },
+        // swapi.dev is chronically down / expired TLS (transport_error). swapi.info is a reliable static mirror.
+        starwars: { name: "starwars", method: "get", url: "https://swapi.info/api/people/{id}", cacheTtlMs: 24 * 60 * 60 * 1000 },
         sports: { name: "sports", method: "get", url: "https://www.thesportsdb.com/api/v1/json/3/all_sports.php", cacheTtlMs: 24 * 60 * 60 * 1000 }
     };
     function expandUrl(template, params) {
@@ -8595,6 +8597,16 @@ var QuizVerseMigration;
                 ok: false, error: "unknown_provider", provider: req.provider,
                 fallback_to_client: true
             });
+        }
+        // Some providers address a single random entity via an {id} path token.
+        // The web/Unity clients send no params, so inject a sane random id here
+        // (otherwise the literal "{id}" leaks into the URL → upstream 400/404).
+        req.params = req.params || {};
+        if (provider.name === "pokeapi" && !req.params.id) {
+            req.params.id = String(1 + Math.floor(Math.random() * 1025)); // National Dex size
+        }
+        if (provider.name === "starwars" && !req.params.id) {
+            req.params.id = String(1 + Math.floor(Math.random() * 82)); // SWAPI people count
         }
         var cacheKey = externalCacheKey(provider.name, req.params);
         // Cache read.
@@ -8792,14 +8804,14 @@ var QuizVerseMigration;
         if (!req.email || !req.password) {
             throw nakamaError("email and password required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
         }
-        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_SIGNUP, "post", "/api/user/auth-v2/signup", req);
+        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_SIGNUP, "post", "/api/user/auth_v_2/signup", req);
     }
     function rpcAuthLogin(ctx, logger, nk, payload) {
         var req = parseJson(payload);
         if (!req.email || !req.password) {
             throw nakamaError("email and password required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
         }
-        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_LOGIN, "post", "/api/user/auth-v2/login", req);
+        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_LOGIN, "post", "/api/user/auth_v_2/login", req);
     }
     function rpcAuthSocialLogin(ctx, logger, nk, payload) {
         var req = parseJson(payload);
@@ -15512,8 +15524,21 @@ var AccountMerge;
         var token = payload && payload.service_token;
         if (!token)
             return false;
-        var expected = "" + ((ctx.env && ctx.env["ACCOUNT_MERGE_SERVICE_TOKEN"]) || (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
-        return expected.length > 0 && token === expected;
+        // Accept any of the platform service tokens. TOURNAMENT_SERVICE_TOKEN is the
+        // one actually provisioned in runtime.env today (the web cognito-callback /
+        // login flow sends it), so the ghost→cognito merge can authenticate without
+        // a dedicated ACCOUNT_MERGE_SERVICE_TOKEN being added to Nakama config.
+        var e = ctx.env || {};
+        var candidates = [
+            "" + (e["ACCOUNT_MERGE_SERVICE_TOKEN"] || ""),
+            "" + (e["BRAIN_COINS_SERVICE_TOKEN"] || ""),
+            "" + (e["TOURNAMENT_SERVICE_TOKEN"] || ""),
+        ];
+        for (var i = 0; i < candidates.length; i++) {
+            if (candidates[i].length > 0 && token === candidates[i])
+                return true;
+        }
+        return false;
     }
     function nowSec() { return Math.floor(Date.now() / 1000); }
     // Read brain_coins wallet for a user
