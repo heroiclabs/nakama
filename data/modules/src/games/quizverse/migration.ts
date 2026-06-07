@@ -615,19 +615,23 @@ namespace QuizVerseMigration {
     cacheTtlMs: number;
   }
 
+  // Every provider must return a LIST (>= ~10 entries) in a single call so the
+  // client can build a full image-guess quiz (correct answer + 3 distractors)
+  // off one request — no per-question fan-out, no upstream rate-limit storms.
   var EXTERNAL_PROVIDERS: { [key: string]: ExternalProvider } = {
-    jikan:       { name: "jikan",       method: "get", url: "https://api.jikan.moe/v4/random/anime",                 cacheTtlMs: 5 * 60 * 1000 },
-    pokeapi:     { name: "pokeapi",     method: "get", url: "https://pokeapi.co/api/v2/pokemon/{id}",                cacheTtlMs: 24 * 60 * 60 * 1000 },
-    themealdb:   { name: "themealdb",   method: "get", url: "https://www.themealdb.com/api/json/v1/1/random.php",    cacheTtlMs: 10 * 60 * 1000 },
-    cocktaildb:  { name: "cocktaildb",  method: "get", url: "https://www.thecocktaildb.com/api/json/v1/1/random.php",cacheTtlMs: 10 * 60 * 1000 },
+    jikan:       { name: "jikan",       method: "get", url: "https://api.jikan.moe/v4/top/anime",                   cacheTtlMs: 60 * 60 * 1000 },
+    pokeapi:     { name: "pokeapi",     method: "get", url: "https://pokeapi.co/api/v2/pokemon?limit=300",           cacheTtlMs: 24 * 60 * 60 * 1000 },
+    themealdb:   { name: "themealdb",   method: "get", url: "https://www.themealdb.com/api/json/v1/1/search.php?f=c",cacheTtlMs: 60 * 60 * 1000 },
+    cocktaildb:  { name: "cocktaildb",  method: "get", url: "https://www.thecocktaildb.com/api/json/v1/1/search.php?f=m",cacheTtlMs: 60 * 60 * 1000 },
     foodish:     { name: "foodish",     method: "get", url: "https://foodish-api.com/api/",                          cacheTtlMs: 5 * 60 * 1000 },
     nasa:        { name: "nasa",        method: "get", url: "https://images-api.nasa.gov/search?q={query}",          cacheTtlMs: 60 * 60 * 1000 },
     // restcountries v3.1 now REJECTS /all without an explicit ?fields= list (HTTP 400).
     countries:   { name: "countries",   method: "get", url: "https://restcountries.com/v3.1/all?fields=name,flags,capital,region,subregion,population,cca2", cacheTtlMs: 24 * 60 * 60 * 1000 },
     ghibli:      { name: "ghibli",      method: "get", url: "https://ghibliapi.vercel.app/films",                    cacheTtlMs: 24 * 60 * 60 * 1000 },
     disney:      { name: "disney",      method: "get", url: "https://api.disneyapi.dev/character",                   cacheTtlMs: 24 * 60 * 60 * 1000 },
-    // swapi.dev is chronically down / expired TLS (transport_error). swapi.info is a reliable static mirror.
-    starwars:    { name: "starwars",    method: "get", url: "https://swapi.info/api/people/{id}",                    cacheTtlMs: 24 * 60 * 60 * 1000 },
+    // swapi.dev is chronically down / expired TLS. swapi.info is a reliable static mirror; the
+    // people LIST (no {id}) lets the client build attribute-trivia with sibling distractors.
+    starwars:    { name: "starwars",    method: "get", url: "https://swapi.info/api/people",                        cacheTtlMs: 24 * 60 * 60 * 1000 },
     sports:      { name: "sports",      method: "get", url: "https://www.thesportsdb.com/api/v1/json/3/all_sports.php",cacheTtlMs: 24 * 60 * 60 * 1000 }
   };
 
@@ -673,17 +677,6 @@ namespace QuizVerseMigration {
         ok: false, error: "unknown_provider", provider: req.provider,
         fallback_to_client: true
       });
-    }
-
-    // Some providers address a single random entity via an {id} path token.
-    // The web/Unity clients send no params, so inject a sane random id here
-    // (otherwise the literal "{id}" leaks into the URL → upstream 400/404).
-    req.params = req.params || {};
-    if (provider.name === "pokeapi" && !req.params.id) {
-      req.params.id = String(1 + Math.floor(Math.random() * 1025)); // National Dex size
-    }
-    if (provider.name === "starwars" && !req.params.id) {
-      req.params.id = String(1 + Math.floor(Math.random() * 82));   // SWAPI people count
     }
 
     var cacheKey = externalCacheKey(provider.name, req.params);
