@@ -28,8 +28,20 @@ namespace AccountMerge {
   function isServiceCaller(ctx: nkruntime.Context, payload: any): boolean {
     var token = payload && payload.service_token;
     if (!token) return false;
-    var expected = "" + ((ctx.env && ctx.env["ACCOUNT_MERGE_SERVICE_TOKEN"]) || (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
-    return expected.length > 0 && token === expected;
+    // Accept any of the platform service tokens. TOURNAMENT_SERVICE_TOKEN is the
+    // one actually provisioned in runtime.env today (the web cognito-callback /
+    // login flow sends it), so the ghost→cognito merge can authenticate without
+    // a dedicated ACCOUNT_MERGE_SERVICE_TOKEN being added to Nakama config.
+    var e = ctx.env || ({} as { [k: string]: string });
+    var candidates = [
+      "" + (e["ACCOUNT_MERGE_SERVICE_TOKEN"] || ""),
+      "" + (e["BRAIN_COINS_SERVICE_TOKEN"] || ""),
+      "" + (e["TOURNAMENT_SERVICE_TOKEN"] || ""),
+    ];
+    for (var i = 0; i < candidates.length; i++) {
+      if (candidates[i].length > 0 && token === candidates[i]) return true;
+    }
+    return false;
   }
 
   function nowSec(): number { return Math.floor(Date.now() / 1000); }
