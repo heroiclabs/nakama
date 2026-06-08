@@ -300,24 +300,48 @@ function appAdminVerifySecret(payload, ctx, nk, logger) {
 }
 
 /**
- * analytics_admin_player_search — find players by user_id prefix or username.
+ * analytics_admin_player_search — find players by exact user_id or username prefix.
  *
- * REQUEST:  { "dashboard_secret": "...", "query": "abc", "game_id": "...", "limit": 20 }
- * RESPONSE: { "players": [ { "user_id": "...", "username": "...", "lt_events": N, "last_active_utc": ts } ] }
+ * When the query is a full UUID we do a direct storageRead (O(1), no scan).
+ * When the query is a partial UUID prefix or a username fragment we do a
+ * bounded scan of the system-mirror page (≤ 20 pages × 100 rows = 2 000 docs).
+ *
+ * REQUEST:  { "dashboard_secret": "...", "q": "abc", "game_id": "...", "limit": 20 }
+ * RESPONSE: { "players": [ { "user_id": "...", "username": "...", ... } ] }
  */
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function rpcAnalyticsAdminPlayerSearch(ctx, logger, nk, payload) {
     try {
         var data = {};
         try { data = JSON.parse(payload || '{}'); } catch (_) {}
         if (!appAdminVerifySecret(data, ctx, nk, logger)) return JSON.stringify({ error: 'invalid_secret' });
 
-        // Accept "q" (used by the dashboard) as an alias for "query".
-        var query = (data.q || data.query || '').toString().trim().toLowerCase();
+        var query = (data.q || data.query || '').toString().trim();
         if (!query || query.length < 2) return JSON.stringify({ error: 'query must be at least 2 chars' });
+        var queryLower = query.toLowerCase();
         var limit = Math.min(parseInt(data.limit, 10) || 20, 50);
+        var gameId = appResolveGameId(data.game_id || data.gameId || DEFAULT_GAME_ID);
 
-        // Scan game_player_analytics user-keyed collection (one record per user/game)
         var players = [];
+
+        // ── Fast path: exact UUID → direct storageRead, no scan ──────────────
+        if (UUID_RE.test(query)) {
+            var userId = query.toLowerCase();
+            var gpaKey = gameId + ':' + userId;
+            try {
+                var hit = nk.storageRead([{ collection: 'game_player_analytics', key: gpaKey, userId: userId }]);
+                if (hit && hit.length > 0) {
+                    var v = hit[0].value || {};
+                    players.push(_gpaToPlayerRow(userId, v));
+                }
+            } catch (e) { logger.warn('[analytics_admin_player_search] direct read err: ' + e.message); }
+            return JSON.stringify({ query: query, count: players.length, players: players });
+        }
+
+        // ── Slow path: prefix/username scan over system-mirror entries ────────
+        // We scan system-mirror docs (userId = null) which contain the real uid
+        // in the key field ("gameId:userId").
         try {
             var cursor = null, iter = 0;
             do {
@@ -325,32 +349,48 @@ function rpcAnalyticsAdminPlayerSearch(ctx, logger, nk, payload) {
                 if (!r || !r.objects) break;
                 for (var i = 0; i < r.objects.length && players.length < limit; i++) {
                     var obj = r.objects[i];
-                    var v = obj.value || {};
-                    var uid = obj.userId || '';
-                    var uname = (v.username || v.display_name || v.user_name || '').toString();
+                    var v2 = obj.value || {};
+                    // Extract the real user_id from the doc key ("gameId:userId")
+                    var uid = _uidFromGpaKey(obj.key, v2);
+                    var uname = (v2.username || v2.display_name || v2.user_name || '').toString();
                     var hay = (uid + ' ' + uname).toLowerCase();
-                    if (hay.indexOf(query) === -1) continue;
-                    players.push({
-                        user_id: uid,
-                        username: uname,
-                        lt_events: v.lt_events || v.lifetime_event_count || 0,
-                        lt_sessions: v.lt_sessions || v.lifetime_session_count || 0,
-                        lt_quiz_plays: v.lt_quiz_plays || 0,
-                        last_active_utc: v.last_active_utc || v.lastEventUtc || 0,
-                        platform: v.platform || (v.tier_signals && v.tier_signals.platform) || null,
-                        country: v.country || (v.tier_signals && v.tier_signals.country) || null,
-                        favorite_mode: v.fav_mode || null
-                    });
+                    if (hay.indexOf(queryLower) === -1) continue;
+                    players.push(_gpaToPlayerRow(uid, v2));
                 }
                 cursor = r.cursor; iter++;
-            } while (cursor && iter < 50 && players.length < limit);
-        } catch (e) { logger.warn('[app_admin_search] scan err: ' + e.message); }
+            } while (cursor && iter < 20 && players.length < limit);
+        } catch (e2) { logger.warn('[analytics_admin_player_search] scan err: ' + e2.message); }
 
         return JSON.stringify({ query: query, count: players.length, players: players });
     } catch (err) {
         logger.warn('[analytics_admin_player_search] err: ' + err.message);
         return JSON.stringify({ error: err.message });
     }
+}
+
+// Extract the real userId from a GPA storage key ("{gameId}:{userId}") or fall
+// back to the value's user_id field, and finally the obj.userId itself.
+function _uidFromGpaKey(key, v) {
+    if (key && key.indexOf(':') !== -1) {
+        var parts = key.split(':');
+        // Last segment after the first colon is the userId UUID
+        return parts.slice(1).join(':');
+    }
+    return (v && (v.user_id || v.userId)) || '';
+}
+
+function _gpaToPlayerRow(uid, v) {
+    return {
+        user_id:        uid,
+        username:       v.username || v.display_name || v.user_name || '',
+        lt_events:      v.lt_events || v.lifetime_event_count || 0,
+        lt_sessions:    v.lt_sessions || v.lifetime_session_count || 0,
+        lt_quiz_plays:  v.lt_quiz_plays || 0,
+        last_active_utc: v.last_active_utc || v.lastEventUtc || 0,
+        platform:       v.platform || (v.tier_signals && v.tier_signals.platform) || null,
+        country:        v.country  || (v.tier_signals && v.tier_signals.country)  || null,
+        favorite_mode:  v.fav_mode || null
+    };
 }
 
 /**
@@ -718,18 +758,13 @@ function rpcAnalyticsPlayerList(ctx, logger, nk, payload) {
         for (var i = 0; i < objects.length; i++) {
             var obj = objects[i];
             var v   = obj.value || {};
-            var uid = obj.userId || obj.key || '';
-            players.push({
-                user_id:        uid,
-                username:       v.username || v.display_name || v.user_name || '',
-                lt_events:      v.lt_events || v.lifetime_event_count || 0,
-                lt_sessions:    v.lt_sessions || v.lifetime_session_count || 0,
-                lt_quiz_plays:  v.lt_quiz_plays || 0,
-                last_active_utc: v.last_active_utc || v.lastEventUtc || 0,
-                platform:       v.platform || (v.tier_signals && v.tier_signals.platform) || null,
-                country:        v.country  || (v.tier_signals && v.tier_signals.country)  || null,
-                favorite_mode:  v.fav_mode || null
-            });
+            // The GPA key is "{gameId}:{userId}". Extract the real userId from
+            // the key so we never surface the 00000000 system-user value.
+            var uid = _uidFromGpaKey(obj.key, v) || obj.userId || '';
+            // Skip the system/root mirror row — the real user doc is the source
+            // of truth; the mirror under 00000000 is just an operator shortcut.
+            if (!uid || uid === '00000000-0000-0000-0000-000000000000') continue;
+            players.push(_gpaToPlayerRow(uid, v));
         }
 
         return JSON.stringify({
