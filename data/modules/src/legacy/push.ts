@@ -716,6 +716,27 @@ namespace LegacyPush {
     reminder_body: {
       en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
       ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+    },
+    // ── Spaced-repetition review nudge (server-scheduled; {count} = due concepts) ──
+    review_due_title: {
+      en: "🧠 Time to review",          hi: "🧠 रिवीज़न का समय",          es: "🧠 Hora de repasar",       fr: "🧠 C'est l'heure de réviser",
+      de: "🧠 Zeit zu wiederholen",      pt: "🧠 Hora de revisar",          ru: "🧠 Пора повторить",         ja: "🧠 復習の時間です",
+      ko: "🧠 복습할 시간이에요",        "zh-Hans": "🧠 该复习了",           ar: "🧠 حان وقت المراجعة",       id: "🧠 Waktunya mengulang",       zu: "🧠 Isikhathi sokubuyekeza"
+    },
+    review_due_body: {
+      en: "{count} concepts are ready — lock them into long-term memory.",
+      hi: "{count} कॉन्सेप्ट तैयार हैं — इन्हें लंबी याददाश्त में बसा लें।",
+      es: "{count} conceptos listos: fíjalos en tu memoria a largo plazo.",
+      fr: "{count} notions à revoir — ancre-les dans ta mémoire.",
+      de: "{count} Konzepte sind fällig — präge sie dir dauerhaft ein.",
+      pt: "{count} conceitos prontos — fixe-os na memória de longo prazo.",
+      ru: "{count} понятий готовы к повторению — закрепите их надолго.",
+      ja: "{count}個の概念が復習待ちです。長期記憶に定着させましょう。",
+      ko: "복습할 개념 {count}개가 준비됐어요 — 장기 기억으로 굳혀요.",
+      "zh-Hans": "有 {count} 个概念待复习——把它们刻进长期记忆。",
+      ar: "{count} مفاهيم جاهزة — رسّخها في ذاكرتك بعيدة المدى.",
+      id: "{count} konsep siap diulang — tanamkan ke memori jangka panjang.",
+      zu: "Ama-concept angu-{count} akulindele — wagxilise enkumbulweni yesikhathi eside."
     }
   };
 
@@ -1312,6 +1333,72 @@ namespace LegacyPush {
     return RpcHelpers.successResponse({ sent: sent, gated: gated, due_scanned: dueScanned, users_scanned: usersScanned });
   }
 
+  // ─── 9. Spaced-repetition review nudge cron (server-scheduled) ─────────────
+  // Sends ONE consolidated daily OS push when a learner has saved review
+  // concepts that are now DUE (dueTs <= now), fired inside their LOCAL
+  // early-evening window. The schedule itself is owned by the lt_review_*
+  // module (Leitner dueTs, recomputed on every grade); this cron is the
+  // server-side backstop for devices that haven't pre-registered exact-time
+  // local notifications. De-duplicated once-per-day via notif_send_markers.
+  // Users with no push token are no-ops (the in-app review card still covers
+  // web/WebView surfaces).
+  var REVIEW_STORE_COLLECTION = "qv_review";
+  var REVIEW_STORE_KEY = "list_v1";
+  var REVIEW_WINDOW_START_MIN = 17 * 60;   // 17:00 local
+  var REVIEW_WINDOW_END_MIN = 21 * 60;     // 21:00 local
+
+  function listUsersWithReview(nk: nkruntime.Nakama, limit: number, offset: number): string[] {
+    try {
+      var rows: any = nk.sqlQuery(
+        "SELECT user_id::text FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000' ORDER BY user_id LIMIT $2 OFFSET $3",
+        [REVIEW_STORE_COLLECTION, limit, offset]
+      );
+      var ids: string[] = [];
+      if (rows && rows.length) {
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+        }
+      }
+      return ids;
+    } catch (_) { return []; }
+  }
+
+  function rpcNotifCronReview(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
+    var sent = 0, gated = 0, usersScanned = 0;
+    var nowMs = Date.now();
+    var batch = 100, offset = 0;
+    while (true) {
+      var users = listUsersWithReview(nk, batch, offset);
+      if (!users || users.length === 0) break;
+      for (var i = 0; i < users.length; i++) {
+        usersScanned++;
+        var u = users[i];
+        var parts = getUserLocalParts(nk, u);
+        // Only nudge inside the learner's local early-evening window.
+        if (parts.minuteOfDay < REVIEW_WINDOW_START_MIN || parts.minuteOfDay >= REVIEW_WINDOW_END_MIN) continue;
+        if (hasMarker(nk, u, "review_due", parts.dateKey)) { gated++; continue; }
+        var recs: any;
+        try { recs = nk.storageRead([{ collection: REVIEW_STORE_COLLECTION, key: REVIEW_STORE_KEY, userId: u }]); }
+        catch (_) { continue; }
+        if (!recs || recs.length === 0 || !recs[0].value || !recs[0].value.items) continue;
+        var items = recs[0].value.items;
+        var due = 0;
+        for (var j = 0; j < items.length; j++) {
+          if (items[j] && (items[j].dueTs || 0) <= nowMs) due++;
+        }
+        if (due <= 0) { gated++; continue; }
+        var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "review_due",
+          "review_due_title", "review_due_body", { count: due },
+          { skipQuietHours: true, data: { screen: "review", due: String(due) } });
+        if (ok) { recordMarker(nk, u, "review_due", parts.dateKey); sent++; } else { gated++; }
+      }
+      offset += batch;
+      if (users.length < batch) break;
+    }
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, users_scanned: usersScanned });
+  }
+
   // Internal aliases so the in-process scheduler match can invoke each cron
   // handler directly without an HTTP round-trip. The RPC versions remain
   // registered for ops use (manual fire / external trigger / curl).
@@ -1321,6 +1408,7 @@ namespace LegacyPush {
   export var runStreakWarningCron = rpcNotifCronStreakWarning;
   export var runMotivationCron    = rpcNotifCronMotivation;
   export var runRemindersCron     = rpcNotifCronReminders;
+  export var runReviewCron        = rpcNotifCronReview;
 
   // ─── Pending-registration flush ──────────────────────────────────────────
   // Called by the scheduler (LegacyNotifScheduler.matchLoop) every 30 min
@@ -1485,6 +1573,7 @@ namespace LegacyPush {
     initializer.registerRpc("notif_cron_streak_warning", rpcNotifCronStreakWarning);
     initializer.registerRpc("notif_cron_motivation", rpcNotifCronMotivation);
     initializer.registerRpc("notif_cron_reminders", rpcNotifCronReminders);
+    initializer.registerRpc("notif_cron_review", rpcNotifCronReview);
     initializer.registerRpc("notif_friend_request_sent", rpcNotifFriendRequestSent);
     initializer.registerRpc("notif_friend_challenge", rpcNotifFriendChallenge);
   }

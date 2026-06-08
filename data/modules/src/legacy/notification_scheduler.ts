@@ -30,6 +30,7 @@
 //      streak_warning   -> every 30 minutes (per-user 18:00-22:00 local gating)
 //      motivation       -> every 60 minutes (per-user 12:00-18:00 + 3-day throttle)
 //      reminders        -> every  5 minutes (per-user scheduled local time, 15-min grace)
+//      review_due       -> every 30 minutes (per-user 17:00-21:00 local, once/day)
 // ===========================================================================
 
 namespace LegacyNotifScheduler {
@@ -123,6 +124,7 @@ namespace LegacyNotifScheduler {
     if (shouldDispatch(state, "streak_warning",  30)) dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
     if (shouldDispatch(state, "motivation",      60)) dispatchSafely("motivation",     LegacyPush.runMotivationCron,    ctx, logger, nk);
     if (shouldDispatch(state, "reminders",        5)) dispatchSafely("reminders",      LegacyPush.runRemindersCron,     ctx, logger, nk);
+    if (shouldDispatch(state, "review_due",       30)) dispatchSafely("review_due",     LegacyPush.runReviewCron,        ctx, logger, nk);
     if (shouldDispatch(state, "flush_pending_push", 30)) {
       try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
     }
