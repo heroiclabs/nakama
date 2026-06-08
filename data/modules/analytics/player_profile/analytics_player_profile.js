@@ -669,11 +669,86 @@ function rpcAnalyticsPlayerKnowledgeMap(ctx, logger, nk, payload) {
     }
 }
 
+/**
+ * analytics_player_list — cursor-paginated list of ALL players from
+ * game_player_analytics. Supports browsing 794k+ users without loading
+ * everything at once. Each page is one storageList call on the server.
+ *
+ * REQUEST:
+ *   {
+ *     "dashboard_secret": "...",
+ *     "limit":  25,          // 10–200, default 25
+ *     "cursor": "<opaque>",  // omit / null for first page
+ *     "sort":   "lt_events|lt_sessions|lt_quiz_plays|last_active|username"
+ *                            // default: storage order (by key)
+ *   }
+ *
+ * RESPONSE:
+ *   {
+ *     "players":    [ { user_id, username, lt_events, lt_sessions,
+ *                       lt_quiz_plays, last_active_utc, platform,
+ *                       country, favorite_mode } ],
+ *     "next_cursor": "<opaque>" | null,   // null = last page
+ *     "count":       <number of players in this page>
+ *   }
+ */
+function rpcAnalyticsPlayerList(ctx, logger, nk, payload) {
+    try {
+        var data = {};
+        try { data = JSON.parse(payload || '{}'); } catch (_) {}
+        if (!appAdminVerifySecret(data, ctx, nk, logger)) {
+            return JSON.stringify({ error: 'invalid_secret' });
+        }
+
+        var limit  = Math.min(Math.max(parseInt(data.limit, 10) || 25, 1), 200);
+        var cursor = data.cursor || null;
+
+        var result = null;
+        try {
+            result = nk.storageList(null, 'game_player_analytics', limit, cursor);
+        } catch (e) {
+            logger.warn('[analytics_player_list] storageList err: ' + e.message);
+            return JSON.stringify({ error: e.message, players: [], next_cursor: null, count: 0 });
+        }
+
+        var objects = (result && result.objects) ? result.objects : [];
+        var nextCursor = (result && result.cursor && result.cursor.length > 0) ? result.cursor : null;
+
+        var players = [];
+        for (var i = 0; i < objects.length; i++) {
+            var obj = objects[i];
+            var v   = obj.value || {};
+            var uid = obj.userId || obj.key || '';
+            players.push({
+                user_id:        uid,
+                username:       v.username || v.display_name || v.user_name || '',
+                lt_events:      v.lt_events || v.lifetime_event_count || 0,
+                lt_sessions:    v.lt_sessions || v.lifetime_session_count || 0,
+                lt_quiz_plays:  v.lt_quiz_plays || 0,
+                last_active_utc: v.last_active_utc || v.lastEventUtc || 0,
+                platform:       v.platform || (v.tier_signals && v.tier_signals.platform) || null,
+                country:        v.country  || (v.tier_signals && v.tier_signals.country)  || null,
+                favorite_mode:  v.fav_mode || null
+            });
+        }
+
+        return JSON.stringify({
+            players:     players,
+            next_cursor: nextCursor,
+            count:       players.length
+        });
+    } catch (err) {
+        logger.warn('[analytics_player_list] err: ' + err.message);
+        return JSON.stringify({ error: err.message, players: [], next_cursor: null, count: 0 });
+    }
+}
+
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_get_player_profile", rpcAnalyticsGetPlayerProfile);
     initializer.registerRpc("analytics_record_user_rollup", rpcAnalyticsRecordUserRollup);
     initializer.registerRpc("analytics_admin_player_search", rpcAnalyticsAdminPlayerSearch);
     initializer.registerRpc("analytics_admin_player_full_profile", rpcAnalyticsAdminPlayerFullProfile);
     initializer.registerRpc("analytics_player_knowledge_map", rpcAnalyticsPlayerKnowledgeMap);
-    logger.info("[analytics_player_profile] Module registered: 5 RPCs");
+    initializer.registerRpc("analytics_player_list", rpcAnalyticsPlayerList);
+    logger.info("[analytics_player_profile] Module registered: 6 RPCs");
 }
