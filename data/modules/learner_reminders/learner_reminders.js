@@ -101,7 +101,14 @@ function rmSanitizeList(list) {
     for (var i = 0; i < list.length && out.length < RM_MAX; i++) {
         var c = rmSanitize(list[i]);
         if (!c) continue;
-        if (seen[c.id]) c.id = rmGenId();
+        // Guarantee a unique id. A collision-avoidance id from rmGenId() can itself
+        // clash (its timestamp is constant within this synchronous loop, so only the
+        // ~20-bit random component varies), so keep regenerating until it's actually
+        // unused. The guard caps retries to avoid any pathological infinite loop.
+        if (seen[c.id]) {
+            var guard = 0;
+            do { c.id = rmGenId(); guard++; } while (seen[c.id] && guard < 100);
+        }
         seen[c.id] = 1;
         out.push(c);
     }

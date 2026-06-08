@@ -706,6 +706,16 @@ namespace LegacyPush {
       ko: "{name}님이 {mode}에 도전했어요. 실력을 보여주세요!",                "zh-Hans": "{name} 在 {mode} 中向你挑战。亮出实力！",
       ar: "{name} تحداك في {mode}. أرِهم ما لديك!",                            id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
       zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
+    },
+    // ── Study reminders (user-scheduled; body is the learner's own text via {text}) ──
+    reminder_title: {
+      en: "⏰ Study reminder",        hi: "⏰ अध्ययन रिमाइंडर",        es: "⏰ Recordatorio de estudio", fr: "⏰ Rappel d'étude",
+      de: "⏰ Lern-Erinnerung",        pt: "⏰ Lembrete de estudo",      ru: "⏰ Напоминание об учёбе",    ja: "⏰ 学習リマインダー",
+      ko: "⏰ 학습 알림",              "zh-Hans": "⏰ 学习提醒",          ar: "⏰ تذكير بالدراسة",          id: "⏰ Pengingat belajar",        zu: "⏰ Isikhumbuzi sokufunda"
+    },
+    reminder_body: {
+      en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+      ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
     }
   };
 
@@ -1212,6 +1222,96 @@ namespace LegacyPush {
     return RpcHelpers.successResponse({ sent: ok });
   }
 
+  // ─── 8. Study reminders cron (user-scheduled local-time push) ──────────────
+  // Delivers REAL OS push (APNs/FCM) for the per-user reminders created via
+  // the lt_reminders_* RPCs (collection "qv_reminders"). Runs every few minutes
+  // and fires each reminder once on the day it's due, in the user's LOCAL time,
+  // de-duplicated via the notif_send_markers store. Quiet hours are skipped on
+  // purpose — the learner chose the time. Users with no push token are no-ops
+  // (sendLocalizedPushToUser returns false), so the in-app reminder list still
+  // covers web/WebView surfaces.
+  var REM_STORE_COLLECTION = "qv_reminders";
+  var REM_STORE_KEY = "list_v1";
+  var REMINDER_WINDOW_MIN = 15;   // grace window so a delayed tick never misses
+
+  function listUsersWithReminders(nk: nkruntime.Nakama, limit: number, offset: number): string[] {
+    try {
+      var rows: any = nk.sqlQuery(
+        "SELECT user_id::text FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000' ORDER BY user_id LIMIT $2 OFFSET $3",
+        [REM_STORE_COLLECTION, limit, offset]
+      );
+      var ids: string[] = [];
+      if (rows && rows.length) {
+        for (var i = 0; i < rows.length; i++) {
+          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+        }
+      }
+      return ids;
+    } catch (_) { return []; }
+  }
+
+  function getUserLocalParts(nk: nkruntime.Nakama, userId: string): { minuteOfDay: number; weekday: number; dateKey: string } {
+    var offsetMin = getUserTimezoneOffsetMinutes(nk, userId);
+    var local = new Date(Date.now() + offsetMin * 60000);
+    var mm = local.getUTCMonth() + 1, dd = local.getUTCDate();
+    return {
+      minuteOfDay: local.getUTCHours() * 60 + local.getUTCMinutes(),
+      weekday: local.getUTCDay(),   // 0 = Sunday
+      dateKey: local.getUTCFullYear() + "-" + (mm < 10 ? "0" : "") + mm + "-" + (dd < 10 ? "0" : "") + dd
+    };
+  }
+
+  function reminderDueNow(rem: any, parts: { minuteOfDay: number; weekday: number; dateKey: string }): boolean {
+    if (!rem || !rem.time) return false;
+    var m = /^([0-9]{2}):([0-9]{2})$/.exec(String(rem.time));
+    if (!m) return false;
+    var target = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    var delta = parts.minuteOfDay - target;
+    if (delta < 0 || delta >= REMINDER_WINDOW_MIN) return false;   // not in this tick window
+    var rep = rem.repeat || "daily";
+    if (rep === "once") {
+      if (rem.done === true) return false;
+      return rem.date === parts.dateKey;
+    }
+    if (rep === "weekdays") return parts.weekday >= 1 && parts.weekday <= 5;
+    if (rep === "weekly") return Number(rem.weekday) === parts.weekday;
+    return true;   // daily
+  }
+
+  function rpcNotifCronReminders(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
+    var sent = 0, gated = 0, dueScanned = 0, usersScanned = 0;
+    var batch = 100, offset = 0;
+    while (true) {
+      var users = listUsersWithReminders(nk, batch, offset);
+      if (!users || users.length === 0) break;
+      for (var i = 0; i < users.length; i++) {
+        usersScanned++;
+        var u = users[i];
+        var parts = getUserLocalParts(nk, u);
+        var recs: any;
+        try { recs = nk.storageRead([{ collection: REM_STORE_COLLECTION, key: REM_STORE_KEY, userId: u }]); }
+        catch (_) { continue; }
+        if (!recs || recs.length === 0 || !recs[0].value || !recs[0].value.reminders) continue;
+        var list = recs[0].value.reminders;
+        for (var j = 0; j < list.length; j++) {
+          var rem = list[j];
+          dueScanned++;
+          if (!reminderDueNow(rem, parts)) continue;
+          var markerKey = "rem_" + (rem.id || ("idx" + j));
+          if (hasMarker(nk, u, markerKey, parts.dateKey)) { gated++; continue; }
+          var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "study_reminder",
+            "reminder_title", "reminder_body", { text: rem.text || "Time to study" },
+            { skipQuietHours: true, data: { screen: "reminders", reminderId: String(rem.id || "") } });
+          if (ok) { recordMarker(nk, u, markerKey, parts.dateKey); sent++; } else { gated++; }
+        }
+      }
+      offset += batch;
+      if (users.length < batch) break;
+    }
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, due_scanned: dueScanned, users_scanned: usersScanned });
+  }
+
   // Internal aliases so the in-process scheduler match can invoke each cron
   // handler directly without an HTTP round-trip. The RPC versions remain
   // registered for ops use (manual fire / external trigger / curl).
@@ -1220,6 +1320,7 @@ namespace LegacyPush {
   export var runIdleWinbackCron   = rpcNotifCronIdleWinback;
   export var runStreakWarningCron = rpcNotifCronStreakWarning;
   export var runMotivationCron    = rpcNotifCronMotivation;
+  export var runRemindersCron     = rpcNotifCronReminders;
 
   // ─── Pending-registration flush ──────────────────────────────────────────
   // Called by the scheduler (LegacyNotifScheduler.matchLoop) every 30 min
@@ -1383,6 +1484,7 @@ namespace LegacyPush {
     initializer.registerRpc("notif_cron_idle_winback", rpcNotifCronIdleWinback);
     initializer.registerRpc("notif_cron_streak_warning", rpcNotifCronStreakWarning);
     initializer.registerRpc("notif_cron_motivation", rpcNotifCronMotivation);
+    initializer.registerRpc("notif_cron_reminders", rpcNotifCronReminders);
     initializer.registerRpc("notif_friend_request_sent", rpcNotifFriendRequestSent);
     initializer.registerRpc("notif_friend_challenge", rpcNotifFriendChallenge);
   }
