@@ -167,23 +167,7 @@ namespace TournamentRpcs {
         // Promote each Wave-2 draft into a TournamentConfig shape using the
         // shared launch-window defaults. This is read-only — we don't mutate
         // LAUNCH_SLATE; we just serve the row out of tournament_list.
-        slate = slate.concat([{
-          slug: w2[w].slug,
-          name: w2[w].name,
-          description: w2[w].description,
-          topic_tag: w2[w].topic_tag,
-          format: "classic",
-          format_ui_variant: "classic-pot",
-          pre_enroll_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-          open_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-          end_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-          entry_fee_bc: w2[w].entry_fee_bc,
-          rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
-          pot_seed_bc: w2[w].pot_seed_bc,
-          countries_allowed: "ALL",
-          min_age: 18,
-          badge_emoji: "🎬",
-        } as any]);
+        slate = slate.concat([TournamentEconomyV2.wave2ToConfig(w2[w])]);
       }
     }
 
@@ -250,7 +234,7 @@ namespace TournamentRpcs {
     var data = RpcHelpers.parseRpcPayload(payload);
     var slug = "" + (data.slug || "");
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
     // Opportunistic tick: cheap, gated to once-per-60s globally (B6 fix).
     try { TournamentCrons.opportunisticTick(ctx, _logger, nk); } catch (_) { }
@@ -349,7 +333,7 @@ namespace TournamentRpcs {
     var slug = "" + (data.slug || "");
     var referredBy = "" + (data.referred_by || "");
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
 
     var meta = TournamentsStorage.readMeta(nk, slug) || TournamentsStorage.seedFromConfig(nk, cfg);
@@ -413,7 +397,7 @@ namespace TournamentRpcs {
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
     if (!idempotencyKey) return RpcHelpers.errorResponse("idempotency_key required", 400);
 
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
     var meta = TournamentsStorage.readMeta(nk, slug);
     if (!meta) return RpcHelpers.errorResponse("tournament meta missing — call tournament_list first", 404);
@@ -523,7 +507,7 @@ namespace TournamentRpcs {
     var prior = TournamentsStorage.readSubmitIdem(nk, userId, idempotencyKey);
     if (prior) return RpcHelpers.successResponse({ submit: prior, idempotent: true });
 
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
 
     var entry = TournamentsStorage.readEntry(nk, slug, userId);
@@ -609,7 +593,7 @@ namespace TournamentRpcs {
     if (!slug || !idempotencyKey) return RpcHelpers.errorResponse("slug + idempotency_key required", 400);
     if (!picks || picks.length === 0) return RpcHelpers.errorResponse("picks array required", 400);
 
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
     if (cfg.format !== "pick_n") return RpcHelpers.errorResponse("submit_picks only valid for pick_n format", 400);
     if (!cfg.pick_n_config) return RpcHelpers.errorResponse("tournament misconfigured: pick_n_config missing", 500);
@@ -820,7 +804,7 @@ namespace TournamentRpcs {
       return RpcHelpers.successResponse({ pack: entry, source: "cache" });
     }
 
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
     var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
     if (!topic) return RpcHelpers.errorResponse("topic catalog missing for " + cfg.topic_tag, 500);
@@ -912,7 +896,7 @@ namespace TournamentRpcs {
     if (!isServiceCaller(ctx, data)) return RpcHelpers.errorResponse("service-only", 401);
     var slug = "" + (data.slug || "");
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("slug not in LAUNCH_SLATE", 404);
     var meta = TournamentsStorage.seedFromConfig(nk, cfg);
     return RpcHelpers.successResponse({ meta: meta, idempotent: !!meta });
@@ -927,7 +911,7 @@ namespace TournamentRpcs {
     var weekNum = parseInt("" + (data.week_num || 0), 10);
     var numCards = parseInt("" + (data.num_cards || 30), 10);
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("slug not found", 404);
     var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
     if (!topic) return RpcHelpers.errorResponse("topic missing", 500);
@@ -981,7 +965,7 @@ namespace TournamentRpcs {
     var data = RpcHelpers.parseRpcPayload(payload);
     var slug = "" + (data.slug || "");
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
 
     var userId = ctx.userId || "";
@@ -1150,7 +1134,7 @@ namespace TournamentRpcs {
     if (!meta || !bracketId) {
       return RpcHelpers.successResponse({ exists: false });
     }
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     var publicUrl: string | null = anyMeta.bracket_public_url || null;
     if (!publicUrl) {
       // Default to the canonical Bracket dashboard URL pattern.
@@ -1273,7 +1257,7 @@ namespace TournamentRpcs {
       var accts = nk.usersGetId([row.user_id]);
       if (accts && accts.length > 0 && accts[0].username) username = accts[0].username;
     } catch (_) { /* keep default */ }
-    var cfg = TournamentEconomy.getBySlug(row.tournament_slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(row.tournament_slug);
     if (cfg) tournamentName = cfg.name;
 
     var ogBase = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
@@ -1303,7 +1287,7 @@ namespace TournamentRpcs {
     var data = RpcHelpers.parseRpcPayload(payload);
     var trackId = "" + (data.track_id || "");
     if (!trackId) return RpcHelpers.errorResponse("track_id required", 400);
-    var cfg = TournamentEconomy.getBySlug(trackId);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
     if (!cfg) return RpcHelpers.successResponse({ ok: false, error: "track not found" });
     var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
       ? cfg.amoe.learning_series_required_videos : 6;
@@ -1372,7 +1356,7 @@ namespace TournamentRpcs {
     var data = RpcHelpers.parseRpcPayload(payload);
     var trackId = "" + (data.track_id || "");
     if (!trackId) return RpcHelpers.errorResponse("track_id required", 400);
-    var cfg = TournamentEconomy.getBySlug(trackId);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
     if (!cfg) return RpcHelpers.successResponse({ ok: false, error: "track not found" });
     var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
       ? cfg.amoe.learning_series_required_videos : 6;
@@ -1398,7 +1382,7 @@ namespace TournamentRpcs {
     var trackId = "" + (data.track_id || "");
     var videoId = "" + (data.video_id || "");
     if (!trackId || !videoId) return RpcHelpers.errorResponse("track_id + video_id required", 400);
-    var cfg = TournamentEconomy.getBySlug(trackId);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
     if (!cfg) return RpcHelpers.successResponse({ ok: false, error: "track not found" });
     // video_id convention: "v{index}" (matches rpcLearningTrackProgressGet).
     var vidx = 0;
@@ -1515,7 +1499,7 @@ namespace TournamentRpcs {
     var data = RpcHelpers.parseRpcPayload(payload);
     var slug = "" + (data.slug || "");
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
-    if (!TournamentEconomy.getBySlug(slug)) return RpcHelpers.errorResponse("tournament not found", 404);
+    if (!TournamentEconomyV2.resolveConfigBySlug(slug)) return RpcHelpers.errorResponse("tournament not found", 404);
     var row = TournamentLevers.recordDetailView(nk, userId, slug);
     TournamentLevers.logEvent(nk, "tournament_detail_viewed", userId, { slug: slug });
     return RpcHelpers.successResponse({ tracked: true, nudge_due_at: row.nudge_due_at });
@@ -1532,7 +1516,7 @@ namespace TournamentRpcs {
     if (!TournamentEconomyV2.FEATURE_FLAGS.pickn_doubleup_v1) {
       return RpcHelpers.errorResponse("doubleup feature not enabled yet", 503);
     }
-    var cfg = TournamentEconomy.getBySlug(slug);
+    var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
     if (!cfg) return RpcHelpers.errorResponse("tournament not found", 404);
     if (cfg.format !== "pick_n") return RpcHelpers.errorResponse("doubleup only available for pick_n format", 400);
 
@@ -1593,7 +1577,7 @@ namespace TournamentRpcs {
     var data = RpcHelpers.parseRpcPayload(payload);
     var slug = "" + (data.slug || "");
     if (!slug) return RpcHelpers.errorResponse("slug required", 400);
-    if (!TournamentEconomy.getBySlug(slug)) return RpcHelpers.errorResponse("tournament not found", 404);
+    if (!TournamentEconomyV2.resolveConfigBySlug(slug)) return RpcHelpers.errorResponse("tournament not found", 404);
     var userId = ctx.userId || ("anon_" + nowSec());
     TournamentLevers.addSpectator(nk, slug, userId);
     TournamentLevers.logEvent(nk, "spectator_subscribed", ctx.userId || null, { slug: slug });

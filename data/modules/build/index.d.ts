@@ -3210,6 +3210,10 @@ declare namespace TournamentEconomyV2 {
         eligible_after_picks: number;
     }
     const PICKN_DOUBLEUP_DEFAULT: PickNDoubleupConfig;
+    function wave2BadgeEmoji(slug: string): string;
+    function wave2ToConfig(draft: Wave2Tournament): TournamentEconomy.TournamentConfig;
+    /** LAUNCH_SLATE first, then Wave-2 draft rows when wave2_slate flag is on. */
+    function resolveConfigBySlug(slug: string): TournamentEconomy.TournamentConfig | null;
     function thresholdByName(name: string): KPIThreshold | null;
     function isFeatureEnabled(flag: keyof typeof FEATURE_FLAGS): boolean;
     const WELCOME_PACK: {

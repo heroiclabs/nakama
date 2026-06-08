@@ -35400,6 +35400,54 @@ var TournamentEconomyV2;
         eligible_after_picks: 3,
     };
     // ───────────────────────────────────────────────────────────────────────────
+    // Wave-2 slate → TournamentConfig (shared by tournament_list + tournament_get)
+    // ───────────────────────────────────────────────────────────────────────────
+    function wave2BadgeEmoji(slug) {
+        if (slug === "music-history-royale")
+            return "🎵";
+        if (slug === "pop-culture-2010s")
+            return "📺";
+        return "🎬";
+    }
+    TournamentEconomyV2.wave2BadgeEmoji = wave2BadgeEmoji;
+    function wave2ToConfig(draft) {
+        return {
+            slug: draft.slug,
+            name: draft.name,
+            description: draft.description,
+            topic_tag: draft.topic_tag,
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+            open_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+            end_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+            entry_fee_bc: draft.entry_fee_bc,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: draft.pot_seed_bc,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: wave2BadgeEmoji(draft.slug),
+        };
+    }
+    TournamentEconomyV2.wave2ToConfig = wave2ToConfig;
+    /** LAUNCH_SLATE first, then Wave-2 draft rows when wave2_slate flag is on. */
+    function resolveConfigBySlug(slug) {
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (cfg)
+            return cfg;
+        if (!TournamentEconomyV2.FEATURE_FLAGS.wave2_slate)
+            return null;
+        for (var w = 0; w < TournamentEconomyV2.WAVE_2_SLATE_DRAFT.length; w++) {
+            if (TournamentEconomyV2.WAVE_2_SLATE_DRAFT[w].slug === slug) {
+                return wave2ToConfig(TournamentEconomyV2.WAVE_2_SLATE_DRAFT[w]);
+            }
+        }
+        return null;
+    }
+    TournamentEconomyV2.resolveConfigBySlug = resolveConfigBySlug;
+    // ───────────────────────────────────────────────────────────────────────────
     // Helpers
     // ───────────────────────────────────────────────────────────────────────────
     function thresholdByName(name) {
@@ -39023,7 +39071,9 @@ var SatoriCreatorEvents;
         if (startAt <= 0 || durationMin <= 0)
             return "Event schedule is invalid";
         var endAt = startAt + Math.floor(durationMin * 60);
-        if (nowSec < startAt)
+        // Allow up to 30 s before the scheduled start to absorb clock skew and
+        // the brief lag between the countdown reaching zero and the server tick.
+        if (nowSec < startAt - 30)
             return "Event has not started yet";
         if (nowSec >= endAt)
             return "Event has ended";
@@ -44809,23 +44859,7 @@ var TournamentRpcs;
                 // Promote each Wave-2 draft into a TournamentConfig shape using the
                 // shared launch-window defaults. This is read-only — we don't mutate
                 // LAUNCH_SLATE; we just serve the row out of tournament_list.
-                slate = slate.concat([{
-                        slug: w2[w].slug,
-                        name: w2[w].name,
-                        description: w2[w].description,
-                        topic_tag: w2[w].topic_tag,
-                        format: "classic",
-                        format_ui_variant: "classic-pot",
-                        pre_enroll_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-                        open_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-                        end_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-                        entry_fee_bc: w2[w].entry_fee_bc,
-                        rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
-                        pot_seed_bc: w2[w].pot_seed_bc,
-                        countries_allowed: "ALL",
-                        min_age: 18,
-                        badge_emoji: "🎬",
-                    }]);
+                slate = slate.concat([TournamentEconomyV2.wave2ToConfig(w2[w])]);
             }
         }
         var out = [];
@@ -44889,7 +44923,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         // Opportunistic tick: cheap, gated to once-per-60s globally (B6 fix).
@@ -44993,7 +45027,7 @@ var TournamentRpcs;
         var referredBy = "" + (data.referred_by || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var meta = TournamentsStorage.readMeta(nk, slug) || TournamentsStorage.seedFromConfig(nk, cfg);
@@ -45055,7 +45089,7 @@ var TournamentRpcs;
             return RpcHelpers.errorResponse("slug required", 400);
         if (!idempotencyKey)
             return RpcHelpers.errorResponse("idempotency_key required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var meta = TournamentsStorage.readMeta(nk, slug);
@@ -45164,7 +45198,7 @@ var TournamentRpcs;
         var prior = TournamentsStorage.readSubmitIdem(nk, userId, idempotencyKey);
         if (prior)
             return RpcHelpers.successResponse({ submit: prior, idempotent: true });
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var entry = TournamentsStorage.readEntry(nk, slug, userId);
@@ -45249,7 +45283,7 @@ var TournamentRpcs;
             return RpcHelpers.errorResponse("slug + idempotency_key required", 400);
         if (!picks || picks.length === 0)
             return RpcHelpers.errorResponse("picks array required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         if (cfg.format !== "pick_n")
@@ -45460,7 +45494,7 @@ var TournamentRpcs;
         if (entry) {
             return RpcHelpers.successResponse({ pack: entry, source: "cache" });
         }
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
@@ -45558,7 +45592,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("slug not in LAUNCH_SLATE", 404);
         var meta = TournamentsStorage.seedFromConfig(nk, cfg);
@@ -45575,7 +45609,7 @@ var TournamentRpcs;
         var numCards = parseInt("" + (data.num_cards || 30), 10);
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("slug not found", 404);
         var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
@@ -45633,7 +45667,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var userId = ctx.userId || "";
@@ -45822,7 +45856,7 @@ var TournamentRpcs;
         if (!meta || !bracketId) {
             return RpcHelpers.successResponse({ exists: false });
         }
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         var publicUrl = anyMeta.bracket_public_url || null;
         if (!publicUrl) {
             // Default to the canonical Bracket dashboard URL pattern.
@@ -45962,7 +45996,7 @@ var TournamentRpcs;
                 username = accts[0].username;
         }
         catch (_) { /* keep default */ }
-        var cfg = TournamentEconomy.getBySlug(row.tournament_slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(row.tournament_slug);
         if (cfg)
             tournamentName = cfg.name;
         var ogBase = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
@@ -45992,7 +46026,7 @@ var TournamentRpcs;
         var trackId = "" + (data.track_id || "");
         if (!trackId)
             return RpcHelpers.errorResponse("track_id required", 400);
-        var cfg = TournamentEconomy.getBySlug(trackId);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
         if (!cfg)
             return RpcHelpers.successResponse({ ok: false, error: "track not found" });
         var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
@@ -46059,7 +46093,7 @@ var TournamentRpcs;
         var trackId = "" + (data.track_id || "");
         if (!trackId)
             return RpcHelpers.errorResponse("track_id required", 400);
-        var cfg = TournamentEconomy.getBySlug(trackId);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
         if (!cfg)
             return RpcHelpers.successResponse({ ok: false, error: "track not found" });
         var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
@@ -46086,7 +46120,7 @@ var TournamentRpcs;
         var videoId = "" + (data.video_id || "");
         if (!trackId || !videoId)
             return RpcHelpers.errorResponse("track_id + video_id required", 400);
-        var cfg = TournamentEconomy.getBySlug(trackId);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
         if (!cfg)
             return RpcHelpers.successResponse({ ok: false, error: "track not found" });
         // video_id convention: "v{index}" (matches rpcLearningTrackProgressGet).
@@ -46202,7 +46236,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        if (!TournamentEconomy.getBySlug(slug))
+        if (!TournamentEconomyV2.resolveConfigBySlug(slug))
             return RpcHelpers.errorResponse("tournament not found", 404);
         var row = TournamentLevers.recordDetailView(nk, userId, slug);
         TournamentLevers.logEvent(nk, "tournament_detail_viewed", userId, { slug: slug });
@@ -46220,7 +46254,7 @@ var TournamentRpcs;
         if (!TournamentEconomyV2.FEATURE_FLAGS.pickn_doubleup_v1) {
             return RpcHelpers.errorResponse("doubleup feature not enabled yet", 503);
         }
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         if (cfg.format !== "pick_n")
@@ -46280,7 +46314,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        if (!TournamentEconomy.getBySlug(slug))
+        if (!TournamentEconomyV2.resolveConfigBySlug(slug))
             return RpcHelpers.errorResponse("tournament not found", 404);
         var userId = ctx.userId || ("anon_" + nowSec());
         TournamentLevers.addSpectator(nk, slug, userId);
@@ -47349,8 +47383,9 @@ var TournamentLevers;
             // user wants quick play → Pick-5 Daily
             return "pick-5-daily";
         }
-        if (fav === "movies")
-            return "movie-buff-weekly";
+        if (fav === "movies") {
+            return TournamentEconomyV2.FEATURE_FLAGS.wave2_slate ? "movie-trivia-royale" : "movie-buff-weekly";
+        }
         if (fav === "exam") {
             // exam-prep cohort → match by time-of-year defaults
             return "ap-2027-prep-weekly";
