@@ -14,6 +14,15 @@
 // RPCs:
 //   lt_home_widgets_get  → { success:true, widgets:[...], updated_at:<ms> }
 //   lt_home_widgets_set  ← { widgets:[...] }  → { success:true, count:N }
+//   lt_widget_render     → { success:true, widgets:[...resolved...], updated_at, server_time }
+//                          Canonical read endpoint for the NATIVE iOS WidgetKit /
+//                          Android AppWidget home-screen widgets. Returns each pinned
+//                          widget with a render-ready snapshot (big/unit/sub/frac),
+//                          a freshly recomputed countdown, and a quizverse:// deeplink
+//                          so a widget tap opens the right screen. The native shells
+//                          read this (or the same payload pushed from the web view via
+//                          the gree bridge) and write it to their shared container
+//                          (App Group / SharedPreferences).
 //
 // Storage: collection "qv_home_widgets", key "config_v1", owned by the calling user
 // (permissionRead:1 owner-only, permissionWrite:0 server-only).
@@ -165,11 +174,115 @@ function rpcLtHomeWidgetsSet(ctx, logger, nk, payload) {
 }
 
 // ============================================================================
+// RPC: lt_widget_render  (canonical payload for NATIVE home-screen widgets)
+// ============================================================================
+
+// quizverse:// deeplink per widget kind. The schemes/hosts are already registered
+// in the iOS Info.plist + Android intent-filter, and the unity-auth-bridge maps
+// these path aliases to SPA pages, so a widget tap deep-links straight in.
+var HW_DEEPLINK = {
+    countdown: "quizverse://exams",
+    gpa:       "quizverse://exams",
+    school:    "quizverse://exams",
+    studyplan: "quizverse://study-plan",
+    guided:    "quizverse://guided",
+    reminders: "quizverse://home",
+    streak:    "quizverse://home",
+    stats:     "quizverse://profile",
+    predictor: "quizverse://predictor"
+};
+
+function hwDeeplink(kind) {
+    return HW_DEEPLINK[kind] || "quizverse://home";
+}
+
+function hwPad2(n) { return (n < 10 ? "0" : "") + n; }
+
+// Recompute a countdown snapshot server-side from the stored ISO date so the
+// native widget shows the correct day count even if the cached snap is stale.
+// Returns null when there's no parseable date (caller keeps the existing snap).
+function hwCountdownSnap(dateIso) {
+    if (!dateIso) return null;
+    var t = Date.parse(dateIso);
+    if (isNaN(t)) return null;
+    var nowMs = Date.now();
+    var diffMs = t - nowMs;
+    if (diffMs <= 0) {
+        return { big: "0", unit: "days", sub: "It's here \u2014 good luck!", frac: 1 };
+    }
+    var totalDays = Math.ceil(diffMs / 86400000);
+    var hours = Math.floor((diffMs % 86400000) / 3600000);
+    // frac = progress within a (capped) 180-day runway so a ring fills as the day nears.
+    var frac = Math.max(0, Math.min(1, 1 - (totalDays / 180)));
+    var unit = totalDays === 1 ? "day" : "days";
+    var sub = totalDays <= 1 ? (hours + "h to go") : (totalDays + " " + unit + " to go");
+    return { big: String(totalDays), unit: unit, sub: sub, frac: frac };
+}
+
+// Build a render-ready widget object from a sanitized config.
+function hwRenderWidget(w) {
+    var snap = w.snap || {};
+    var big = snap.big || "";
+    var unit = snap.unit || "";
+    var sub = snap.sub || "";
+    var frac = (typeof snap.frac === "number") ? snap.frac : null;
+
+    if (w.kind === "countdown") {
+        var cs = hwCountdownSnap(w.date_iso);
+        if (cs) { big = cs.big; unit = cs.unit; sub = cs.sub; frac = cs.frac; }
+    }
+
+    return {
+        id: w.id,
+        kind: w.kind,
+        ref: w.ref,
+        label: w.label || "",
+        style: w.style,
+        theme: w.theme,
+        size: w.size,
+        anim: w.anim,
+        seconds: w.seconds === true,
+        milestones: w.milestones === true,
+        brand: w.brand !== false,
+        date_iso: w.date_iso || "",
+        big: big,
+        unit: unit,
+        sub: sub,
+        frac: frac,
+        deeplink: hwDeeplink(w.kind)
+    };
+}
+
+function rpcLtWidgetRender(ctx, logger, nk, payload) {
+    var uid = ctx.userId;
+    if (!uid) return hwErr("no_user");
+
+    var widgets = [];
+    var updatedAt = 0;
+    try {
+        var records = nk.storageRead([{ collection: HW_COLLECTION, key: HW_KEY, userId: uid }]);
+        if (records && records.length > 0 && records[0].value && records[0].value.widgets) {
+            var v = records[0].value;
+            updatedAt = v.updated_at || 0;
+            var clean = hwSanitizeList(v.widgets);
+            for (var i = 0; i < clean.length; i++) {
+                widgets.push(hwRenderWidget(clean[i]));
+            }
+        }
+    } catch (e) {
+        logger.warn("[HomeWidgets] render failed for " + uid + ": " + e);
+    }
+
+    return hwOk({ widgets: widgets, updated_at: updatedAt, server_time: hwNowMs() });
+}
+
+// ============================================================================
 // MODULE INIT
 // ============================================================================
 
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("lt_home_widgets_get", rpcLtHomeWidgetsGet);
     initializer.registerRpc("lt_home_widgets_set", rpcLtHomeWidgetsSet);
-    logger.info("[HomeWidgets] Registered RPCs: lt_home_widgets_get, lt_home_widgets_set");
+    initializer.registerRpc("lt_widget_render", rpcLtWidgetRender);
+    logger.info("[HomeWidgets] Registered RPCs: lt_home_widgets_get, lt_home_widgets_set, lt_widget_render");
 }
