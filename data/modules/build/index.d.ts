@@ -1221,11 +1221,15 @@ declare namespace LegacyPush {
     function rpcNotifCronIdleWinback(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronStreakWarning(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronMotivation(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcNotifCronReminders(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcNotifCronReview(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     export var runDailyQuizCron: typeof rpcNotifCronDailyQuiz;
     export var runWeeklyQuizCron: typeof rpcNotifCronWeeklyQuiz;
     export var runIdleWinbackCron: typeof rpcNotifCronIdleWinback;
     export var runStreakWarningCron: typeof rpcNotifCronStreakWarning;
     export var runMotivationCron: typeof rpcNotifCronMotivation;
+    export var runRemindersCron: typeof rpcNotifCronReminders;
+    export var runReviewCron: typeof rpcNotifCronReview;
     export function flushPendingRegistrations(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
     export function register(initializer: nkruntime.Initializer): void;
     export {};
@@ -3630,6 +3634,10 @@ declare namespace WalletHelpers {
     function addCurrency(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, currencyId: string, amount: number): GameWallet;
     function spendCurrency(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, currencyId: string, amount: number): GameWallet;
     function hasCurrency(nk: nkruntime.Nakama, userId: string, gameId: string, currencyId: string, amount: number): boolean;
+}
+declare namespace WebAdReward {
+    function rpcWebAdReward(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
 }
 declare namespace TournamentAntiCheat {
     interface SubmitCheckInput {

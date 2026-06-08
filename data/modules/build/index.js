@@ -503,6 +503,13 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));
     }
+    try {
+        logger.info("[WebAdReward] Registering quizverse_web_ad_reward RPC...");
+        WebAdReward.register(initializer, logger);
+    }
+    catch (err) {
+        logger.error("[WebAdReward] Failed to register: " + (err.message || String(err)));
+    }
     // ---- TutorX Progress (server-authoritative XP + streak/freeze + quests) ----
     // Replaces the client-only (localStorage) gamification in the TutorX web SPA.
     // register() is single-arg on purpose so postbuild's autoInvokeRegister
@@ -8409,7 +8416,12 @@ var QuizVerseMigration;
         var url = env.IVX_AI_SVC_BASE_URL || env.AI_SVC_BASE_URL || "";
         if (!url)
             return "";
-        return url.replace(/\/+$/, "");
+        url = url.replace(/\/+$/, "");
+        // The deployed env value includes the "/api/ai" global prefix, but every
+        // callAiUpstream() path already begins with "/api/ai" → strip it here to
+        // avoid a doubled "/api/ai/api/ai/..." URL (HTTP 404).
+        url = url.replace(/\/api\/ai$/, "");
+        return url;
     }
     function aiAuthHeader(ctx) {
         var env = ctx.env || {};
@@ -8549,20 +8561,28 @@ var QuizVerseMigration;
     // returns `fallback_to_client: true` so Unity drops to the legacy
     // ExternalQuizApiService path unchanged.
     var COL_EXTERNAL_CACHE = "qv_external_cache";
+    // Every provider must return a LIST (>= ~10 entries) in a single call so the
+    // client can build a full image-guess quiz (correct answer + 3 distractors)
+    // off one request — no per-question fan-out, no upstream rate-limit storms.
     var EXTERNAL_PROVIDERS = {
-        jikan: { name: "jikan", method: "get", url: "https://api.jikan.moe/v4/random/anime", cacheTtlMs: 5 * 60 * 1000 },
-        pokeapi: { name: "pokeapi", method: "get", url: "https://pokeapi.co/api/v2/pokemon/{id}", cacheTtlMs: 24 * 60 * 60 * 1000 },
-        themealdb: { name: "themealdb", method: "get", url: "https://www.themealdb.com/api/json/v1/1/random.php", cacheTtlMs: 10 * 60 * 1000 },
-        cocktaildb: { name: "cocktaildb", method: "get", url: "https://www.thecocktaildb.com/api/json/v1/1/random.php", cacheTtlMs: 10 * 60 * 1000 },
+        jikan: { name: "jikan", method: "get", url: "https://api.jikan.moe/v4/top/anime", cacheTtlMs: 60 * 60 * 1000 },
+        pokeapi: { name: "pokeapi", method: "get", url: "https://pokeapi.co/api/v2/pokemon?limit=300", cacheTtlMs: 24 * 60 * 60 * 1000 },
+        themealdb: { name: "themealdb", method: "get", url: "https://www.themealdb.com/api/json/v1/1/search.php?f=c", cacheTtlMs: 60 * 60 * 1000 },
+        cocktaildb: { name: "cocktaildb", method: "get", url: "https://www.thecocktaildb.com/api/json/v1/1/search.php?f=m", cacheTtlMs: 60 * 60 * 1000 },
         foodish: { name: "foodish", method: "get", url: "https://foodish-api.com/api/", cacheTtlMs: 5 * 60 * 1000 },
         nasa: { name: "nasa", method: "get", url: "https://images-api.nasa.gov/search?q={query}", cacheTtlMs: 60 * 60 * 1000 },
         // restcountries v3.1 now REJECTS /all without an explicit ?fields= list (HTTP 400).
         countries: { name: "countries", method: "get", url: "https://restcountries.com/v3.1/all?fields=name,flags,capital,region,subregion,population,cca2", cacheTtlMs: 24 * 60 * 60 * 1000 },
         ghibli: { name: "ghibli", method: "get", url: "https://ghibliapi.vercel.app/films", cacheTtlMs: 24 * 60 * 60 * 1000 },
         disney: { name: "disney", method: "get", url: "https://api.disneyapi.dev/character", cacheTtlMs: 24 * 60 * 60 * 1000 },
-        // swapi.dev is chronically down / expired TLS (transport_error). swapi.info is a reliable static mirror.
-        starwars: { name: "starwars", method: "get", url: "https://swapi.info/api/people/{id}", cacheTtlMs: 24 * 60 * 60 * 1000 },
-        sports: { name: "sports", method: "get", url: "https://www.thesportsdb.com/api/v1/json/3/all_sports.php", cacheTtlMs: 24 * 60 * 60 * 1000 }
+        dog: { name: "dog", method: "get", url: "https://dog.ceo/api/breeds/image/random/50", cacheTtlMs: 60 * 60 * 1000 },
+        // swapi.dev is chronically down / expired TLS. swapi.info is a reliable static mirror; the
+        // people LIST (no {id}) lets the client build attribute-trivia with sibling distractors.
+        starwars: { name: "starwars", method: "get", url: "https://swapi.info/api/people", cacheTtlMs: 24 * 60 * 60 * 1000 },
+        // all_sports.php only returns ~30 sport *categories* (too thin for a guess quiz).
+        // search_all_teams returns a league's clubs WITH badge logos (strBadge) — a real
+        // "which club is this?" image quiz. Free key "3" caps at ~10 teams, enough for 4-option Qs.
+        sports: { name: "sports", method: "get", url: "https://www.thesportsdb.com/api/v1/json/3/search_all_teams.php?l=English%20Premier%20League", cacheTtlMs: 24 * 60 * 60 * 1000 }
     };
     function expandUrl(template, params) {
         var out = template;
@@ -8597,16 +8617,6 @@ var QuizVerseMigration;
                 ok: false, error: "unknown_provider", provider: req.provider,
                 fallback_to_client: true
             });
-        }
-        // Some providers address a single random entity via an {id} path token.
-        // The web/Unity clients send no params, so inject a sane random id here
-        // (otherwise the literal "{id}" leaks into the URL → upstream 400/404).
-        req.params = req.params || {};
-        if (provider.name === "pokeapi" && !req.params.id) {
-            req.params.id = String(1 + Math.floor(Math.random() * 1025)); // National Dex size
-        }
-        if (provider.name === "starwars" && !req.params.id) {
-            req.params.id = String(1 + Math.floor(Math.random() * 82)); // SWAPI people count
         }
         var cacheKey = externalCacheKey(provider.name, req.params);
         // Cache read.
@@ -22603,6 +22613,8 @@ var LegacyMultiGame;
 //      idle_winback     -> every 30 minutes (per-user 11:00-19:00 local gating)
 //      streak_warning   -> every 30 minutes (per-user 18:00-22:00 local gating)
 //      motivation       -> every 60 minutes (per-user 12:00-18:00 + 3-day throttle)
+//      reminders        -> every  5 minutes (per-user scheduled local time, 15-min grace)
+//      review_due       -> every 30 minutes (per-user 17:00-21:00 local, once/day)
 // ===========================================================================
 var LegacyNotifScheduler;
 (function (LegacyNotifScheduler) {
@@ -22692,6 +22704,10 @@ var LegacyNotifScheduler;
             dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
         if (shouldDispatch(state, "motivation", 60))
             dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk);
+        if (shouldDispatch(state, "reminders", 5))
+            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk);
+        if (shouldDispatch(state, "review_due", 30))
+            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk);
         if (shouldDispatch(state, "flush_pending_push", 30)) {
             try {
                 LegacyPush.flushPendingRegistrations(ctx, logger, nk);
@@ -23633,6 +23649,37 @@ var LegacyPush;
             ko: "{name}님이 {mode}에 도전했어요. 실력을 보여주세요!", "zh-Hans": "{name} 在 {mode} 中向你挑战。亮出实力！",
             ar: "{name} تحداك في {mode}. أرِهم ما لديك!", id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
             zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
+        },
+        // ── Study reminders (user-scheduled; body is the learner's own text via {text}) ──
+        reminder_title: {
+            en: "⏰ Study reminder", hi: "⏰ अध्ययन रिमाइंडर", es: "⏰ Recordatorio de estudio", fr: "⏰ Rappel d'étude",
+            de: "⏰ Lern-Erinnerung", pt: "⏰ Lembrete de estudo", ru: "⏰ Напоминание об учёбе", ja: "⏰ 学習リマインダー",
+            ko: "⏰ 학습 알림", "zh-Hans": "⏰ 学习提醒", ar: "⏰ تذكير بالدراسة", id: "⏰ Pengingat belajar", zu: "⏰ Isikhumbuzi sokufunda"
+        },
+        reminder_body: {
+            en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+            ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+        },
+        // ── Spaced-repetition review nudge (server-scheduled; {count} = due concepts) ──
+        review_due_title: {
+            en: "🧠 Time to review", hi: "🧠 रिवीज़न का समय", es: "🧠 Hora de repasar", fr: "🧠 C'est l'heure de réviser",
+            de: "🧠 Zeit zu wiederholen", pt: "🧠 Hora de revisar", ru: "🧠 Пора повторить", ja: "🧠 復習の時間です",
+            ko: "🧠 복습할 시간이에요", "zh-Hans": "🧠 该复习了", ar: "🧠 حان وقت المراجعة", id: "🧠 Waktunya mengulang", zu: "🧠 Isikhathi sokubuyekeza"
+        },
+        review_due_body: {
+            en: "{count} concepts are ready — lock them into long-term memory.",
+            hi: "{count} कॉन्सेप्ट तैयार हैं — इन्हें लंबी याददाश्त में बसा लें।",
+            es: "{count} conceptos listos: fíjalos en tu memoria a largo plazo.",
+            fr: "{count} notions à revoir — ancre-les dans ta mémoire.",
+            de: "{count} Konzepte sind fällig — präge sie dir dauerhaft ein.",
+            pt: "{count} conceitos prontos — fixe-os na memória de longo prazo.",
+            ru: "{count} понятий готовы к повторению — закрепите их надолго.",
+            ja: "{count}個の概念が復習待ちです。長期記憶に定着させましょう。",
+            ko: "복습할 개념 {count}개가 준비됐어요 — 장기 기억으로 굳혀요.",
+            "zh-Hans": "有 {count} 个概念待复习——把它们刻进长期记忆。",
+            ar: "{count} مفاهيم جاهزة — رسّخها في ذاكرتك بعيدة المدى.",
+            id: "{count} konsep siap diulang — tanamkan ke memori jangka panjang.",
+            zu: "Ama-concept angu-{count} akulindele — wagxilise enkumbulweni yesikhathi eside."
         }
     };
     function localize(locale, key, vars) {
@@ -24236,6 +24283,198 @@ var LegacyPush;
         var ok = sendLocalizedPushToUser(ctx, logger, nk, to, "friend_challenge", "friend_challenge_title", "friend_challenge_body", { name: name, mode: mode }, { skipQuietHours: true, data: { screen: "challenges", fromUserId: d.fromUserId || "", mode: mode } });
         return RpcHelpers.successResponse({ sent: ok });
     }
+    // ─── 8. Study reminders cron (user-scheduled local-time push) ──────────────
+    // Delivers REAL OS push (APNs/FCM) for the per-user reminders created via
+    // the lt_reminders_* RPCs (collection "qv_reminders"). Runs every few minutes
+    // and fires each reminder once on the day it's due, in the user's LOCAL time,
+    // de-duplicated via the notif_send_markers store. Quiet hours are skipped on
+    // purpose — the learner chose the time. Users with no push token are no-ops
+    // (sendLocalizedPushToUser returns false), so the in-app reminder list still
+    // covers web/WebView surfaces.
+    var REM_STORE_COLLECTION = "qv_reminders";
+    var REM_STORE_KEY = "list_v1";
+    var REMINDER_WINDOW_MIN = 15; // grace window so a delayed tick never misses
+    function listUsersWithReminders(nk, limit, offset) {
+        try {
+            var rows = nk.sqlQuery("SELECT user_id::text FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000' ORDER BY user_id LIMIT $2 OFFSET $3", [REM_STORE_COLLECTION, limit, offset]);
+            var ids = [];
+            if (rows && rows.length) {
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i] && rows[i].length > 0)
+                        ids.push(String(rows[i][0]));
+                }
+            }
+            return ids;
+        }
+        catch (_) {
+            return [];
+        }
+    }
+    function getUserLocalParts(nk, userId) {
+        var offsetMin = getUserTimezoneOffsetMinutes(nk, userId);
+        var local = new Date(Date.now() + offsetMin * 60000);
+        var mm = local.getUTCMonth() + 1, dd = local.getUTCDate();
+        return {
+            minuteOfDay: local.getUTCHours() * 60 + local.getUTCMinutes(),
+            weekday: local.getUTCDay(), // 0 = Sunday
+            dateKey: local.getUTCFullYear() + "-" + (mm < 10 ? "0" : "") + mm + "-" + (dd < 10 ? "0" : "") + dd
+        };
+    }
+    function reminderDueNow(rem, parts) {
+        if (!rem || !rem.time)
+            return false;
+        var m = /^([0-9]{2}):([0-9]{2})$/.exec(String(rem.time));
+        if (!m)
+            return false;
+        var target = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+        var delta = parts.minuteOfDay - target;
+        if (delta < 0 || delta >= REMINDER_WINDOW_MIN)
+            return false; // not in this tick window
+        var rep = rem.repeat || "daily";
+        if (rep === "once") {
+            if (rem.done === true)
+                return false;
+            return rem.date === parts.dateKey;
+        }
+        if (rep === "weekdays")
+            return parts.weekday >= 1 && parts.weekday <= 5;
+        if (rep === "weekly")
+            return Number(rem.weekday) === parts.weekday;
+        return true; // daily
+    }
+    function rpcNotifCronReminders(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var sent = 0, gated = 0, dueScanned = 0, usersScanned = 0;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listUsersWithReminders(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                usersScanned++;
+                var u = users[i];
+                var parts = getUserLocalParts(nk, u);
+                var recs;
+                try {
+                    recs = nk.storageRead([{ collection: REM_STORE_COLLECTION, key: REM_STORE_KEY, userId: u }]);
+                }
+                catch (_) {
+                    continue;
+                }
+                if (!recs || recs.length === 0 || !recs[0].value || !recs[0].value.reminders)
+                    continue;
+                var list = recs[0].value.reminders;
+                for (var j = 0; j < list.length; j++) {
+                    var rem = list[j];
+                    dueScanned++;
+                    if (!reminderDueNow(rem, parts))
+                        continue;
+                    var markerKey = "rem_" + (rem.id || ("idx" + j));
+                    if (hasMarker(nk, u, markerKey, parts.dateKey)) {
+                        gated++;
+                        continue;
+                    }
+                    var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "study_reminder", "reminder_title", "reminder_body", { text: rem.text || "Time to study" }, { skipQuietHours: true, data: { screen: "reminders", reminderId: String(rem.id || "") } });
+                    if (ok) {
+                        recordMarker(nk, u, markerKey, parts.dateKey);
+                        sent++;
+                    }
+                    else {
+                        gated++;
+                    }
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, due_scanned: dueScanned, users_scanned: usersScanned });
+    }
+    // ─── 9. Spaced-repetition review nudge cron (server-scheduled) ─────────────
+    // Sends ONE consolidated daily OS push when a learner has saved review
+    // concepts that are now DUE (dueTs <= now), fired inside their LOCAL
+    // early-evening window. The schedule itself is owned by the lt_review_*
+    // module (Leitner dueTs, recomputed on every grade); this cron is the
+    // server-side backstop for devices that haven't pre-registered exact-time
+    // local notifications. De-duplicated once-per-day via notif_send_markers.
+    // Users with no push token are no-ops (the in-app review card still covers
+    // web/WebView surfaces).
+    var REVIEW_STORE_COLLECTION = "qv_review";
+    var REVIEW_STORE_KEY = "list_v1";
+    var REVIEW_WINDOW_START_MIN = 17 * 60; // 17:00 local
+    var REVIEW_WINDOW_END_MIN = 21 * 60; // 21:00 local
+    function listUsersWithReview(nk, limit, offset) {
+        try {
+            var rows = nk.sqlQuery("SELECT user_id::text FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000' ORDER BY user_id LIMIT $2 OFFSET $3", [REVIEW_STORE_COLLECTION, limit, offset]);
+            var ids = [];
+            if (rows && rows.length) {
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i] && rows[i].length > 0)
+                        ids.push(String(rows[i][0]));
+                }
+            }
+            return ids;
+        }
+        catch (_) {
+            return [];
+        }
+    }
+    function rpcNotifCronReview(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var sent = 0, gated = 0, usersScanned = 0;
+        var nowMs = Date.now();
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listUsersWithReview(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                usersScanned++;
+                var u = users[i];
+                var parts = getUserLocalParts(nk, u);
+                // Only nudge inside the learner's local early-evening window.
+                if (parts.minuteOfDay < REVIEW_WINDOW_START_MIN || parts.minuteOfDay >= REVIEW_WINDOW_END_MIN)
+                    continue;
+                if (hasMarker(nk, u, "review_due", parts.dateKey)) {
+                    gated++;
+                    continue;
+                }
+                var recs;
+                try {
+                    recs = nk.storageRead([{ collection: REVIEW_STORE_COLLECTION, key: REVIEW_STORE_KEY, userId: u }]);
+                }
+                catch (_) {
+                    continue;
+                }
+                if (!recs || recs.length === 0 || !recs[0].value || !recs[0].value.items)
+                    continue;
+                var items = recs[0].value.items;
+                var due = 0;
+                for (var j = 0; j < items.length; j++) {
+                    if (items[j] && (items[j].dueTs || 0) <= nowMs)
+                        due++;
+                }
+                if (due <= 0) {
+                    gated++;
+                    continue;
+                }
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "review_due", "review_due_title", "review_due_body", { count: due }, { skipQuietHours: true, data: { screen: "review", due: String(due) } });
+                if (ok) {
+                    recordMarker(nk, u, "review_due", parts.dateKey);
+                    sent++;
+                }
+                else {
+                    gated++;
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, users_scanned: usersScanned });
+    }
     // Internal aliases so the in-process scheduler match can invoke each cron
     // handler directly without an HTTP round-trip. The RPC versions remain
     // registered for ops use (manual fire / external trigger / curl).
@@ -24244,6 +24483,8 @@ var LegacyPush;
     LegacyPush.runIdleWinbackCron = rpcNotifCronIdleWinback;
     LegacyPush.runStreakWarningCron = rpcNotifCronStreakWarning;
     LegacyPush.runMotivationCron = rpcNotifCronMotivation;
+    LegacyPush.runRemindersCron = rpcNotifCronReminders;
+    LegacyPush.runReviewCron = rpcNotifCronReview;
     // ─── Pending-registration flush ──────────────────────────────────────────
     // Called by the scheduler (LegacyNotifScheduler.matchLoop) every 30 min
     // and available as an admin RPC (push_flush_pending).
@@ -24396,6 +24637,8 @@ var LegacyPush;
         initializer.registerRpc("notif_cron_idle_winback", rpcNotifCronIdleWinback);
         initializer.registerRpc("notif_cron_streak_warning", rpcNotifCronStreakWarning);
         initializer.registerRpc("notif_cron_motivation", rpcNotifCronMotivation);
+        initializer.registerRpc("notif_cron_reminders", rpcNotifCronReminders);
+        initializer.registerRpc("notif_cron_review", rpcNotifCronReview);
         initializer.registerRpc("notif_friend_request_sent", rpcNotifFriendRequestSent);
         initializer.registerRpc("notif_friend_challenge", rpcNotifFriendChallenge);
     }
@@ -42781,6 +43024,145 @@ var WalletHelpers;
     }
     WalletHelpers.hasCurrency = hasCurrency;
 })(WalletHelpers || (WalletHelpers = {}));
+// web-ad-reward.ts
+// Rewarded-ad → Brain Coin grant for the QuizVerse WEB client (web.quizverse.world).
+//
+// Mirrors the server-authoritative pattern of fortune_wheel_ad_spin: the web
+// client plays an Applixir rewarded ad, then calls this RPC. The SERVER owns
+// the reward amount, the daily cap, the cooldown and idempotency — the client
+// is never trusted to self-credit.
+//
+// Why session-authed (not the Applixir S2S callback):
+//   The web runs on authenticated Nakama ghost sessions, so `ctx.userId` is a
+//   real account. Crediting it directly keeps the reward on the SAME wallet the
+//   shop/leaderboard read (no guest-localStorage disconnect). The Applixir S2S
+//   callback remains a separate fraud/accounting signal.
+//
+// Flow:
+//   1. Client finishes rewarded ad → quizverse_web_ad_reward { placement, txnId }
+//   2. Server validates: cap not hit, cooldown elapsed, txn not already claimed
+//   3. Server grants `coins` atomically and records the txn
+//   4. Returns { success, reward, grantedToday, dailyCap, cooldownSeconds }
+var WebAdReward;
+(function (WebAdReward) {
+    var COLLECTION = "web_ad_rewards";
+    var STATE_KEY = "state";
+    var REWARD_COINS = 25; // Brain Coins per rewarded ad
+    var DAILY_CAP = 10; // max rewarded grants per UTC day
+    var COOLDOWN_SECONDS = 30; // anti-spam gap between grants
+    var TXN_MEMORY = 40; // recent txn ids retained for idempotency
+    function utcDay() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    function readState(nk, userId) {
+        try {
+            var recs = nk.storageRead([{ collection: COLLECTION, key: STATE_KEY, userId: userId }]);
+            if (recs && recs.length > 0 && recs[0].value) {
+                var v = recs[0].value;
+                return {
+                    day: v.day || utcDay(),
+                    count: typeof v.count === "number" ? v.count : 0,
+                    lastAt: typeof v.lastAt === "number" ? v.lastAt : 0,
+                    seenTxns: Array.isArray(v.seenTxns) ? v.seenTxns : [],
+                };
+            }
+        }
+        catch (_e) { /* fall through */ }
+        return { day: utcDay(), count: 0, lastAt: 0, seenTxns: [] };
+    }
+    function writeState(nk, userId, state) {
+        nk.storageWrite([{
+                collection: COLLECTION,
+                key: STATE_KEY,
+                userId: userId,
+                value: state,
+                permissionRead: 1,
+                permissionWrite: 0,
+            }]);
+    }
+    function rpcWebAdReward(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Authentication required", errorCode: "NO_AUTH" });
+        }
+        var req = {};
+        try {
+            req = payload ? JSON.parse(payload) : {};
+        }
+        catch (_e) {
+            req = {};
+        }
+        var placement = String(req.placement || "web_rewarded");
+        var txnId = String(req.txnId || "");
+        var now = Math.floor(Date.now() / 1000);
+        var today = utcDay();
+        var state = readState(nk, userId);
+        // New UTC day → reset the cap window (keep txn memory short-lived too).
+        if (state.day !== today) {
+            state = { day: today, count: 0, lastAt: 0, seenTxns: [] };
+        }
+        // Idempotency: same Applixir txn must not double-credit.
+        if (txnId && state.seenTxns.indexOf(txnId) !== -1) {
+            return JSON.stringify({
+                success: true, deduped: true, reward: 0,
+                grantedToday: state.count, dailyCap: DAILY_CAP,
+            });
+        }
+        // Daily cap.
+        if (state.count >= DAILY_CAP) {
+            return JSON.stringify({
+                success: false, error: "Daily reward cap reached", errorCode: "DAILY_CAP",
+                grantedToday: state.count, dailyCap: DAILY_CAP,
+            });
+        }
+        // Cooldown.
+        if (state.lastAt > 0 && (now - state.lastAt) < COOLDOWN_SECONDS) {
+            var remaining = COOLDOWN_SECONDS - (now - state.lastAt);
+            return JSON.stringify({
+                success: false, error: "Cooldown active", errorCode: "COOLDOWN",
+                cooldownRemaining: remaining,
+            });
+        }
+        // Grant Brain Coins atomically (ledgered).
+        try {
+            nk.walletUpdate(userId, { coins: REWARD_COINS }, { source: "web_rewarded_ad", placement: placement, txn: txnId || "n/a" }, true);
+        }
+        catch (err) {
+            logger.error("[WebAdReward] wallet grant failed for " + userId + ": " + (err && err.message ? err.message : String(err)));
+            return JSON.stringify({ success: false, error: "Server error", errorCode: "GRANT_FAILED" });
+        }
+        // Record state.
+        state.count += 1;
+        state.lastAt = now;
+        if (txnId) {
+            state.seenTxns.push(txnId);
+            if (state.seenTxns.length > TXN_MEMORY) {
+                state.seenTxns = state.seenTxns.slice(state.seenTxns.length - TXN_MEMORY);
+            }
+        }
+        try {
+            writeState(nk, userId, state);
+        }
+        catch (err) {
+            logger.warn("[WebAdReward] state write failed for " + userId + ": " + (err && err.message ? err.message : String(err)));
+        }
+        logger.info("[WebAdReward] +" + REWARD_COINS + " coins → " + userId + " (placement=" + placement + ", " + state.count + "/" + DAILY_CAP + ")");
+        return JSON.stringify({
+            success: true,
+            reward: REWARD_COINS,
+            currency: "coins",
+            grantedToday: state.count,
+            dailyCap: DAILY_CAP,
+            cooldownSeconds: COOLDOWN_SECONDS,
+        });
+    }
+    WebAdReward.rpcWebAdReward = rpcWebAdReward;
+    function register(initializer, logger) {
+        initializer.registerRpc("quizverse_web_ad_reward", rpcWebAdReward);
+        logger.info("[WebAdReward] ✓ Registered RPC: quizverse_web_ad_reward");
+    }
+    WebAdReward.register = register;
+})(WebAdReward || (WebAdReward = {}));
 // =============================================================================
 // anticheat.ts — Server-side cheat detection for tournament submits
 //
