@@ -445,7 +445,7 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  */
 // metrics: optional { revenue_usd, ad_revenue_usd, session_count, session_seconds,
 //                     coins_earned, coins_spent } — accumulated into the live doc.
-function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metrics) {
+function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metrics, audienceDims) {
     for (var attempt = 0; attempt < 2; attempt++) {
         var existing = null;
         var version  = null;
@@ -467,6 +467,21 @@ function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metric
         if (platform) { doc.by_platform[platform] = (doc.by_platform[platform] || 0) + 1; }
         if (country)  { doc.by_country[country]   = (doc.by_country[country]   || 0) + 1; }
         doc.last_event_at = Math.max(doc.last_event_at || 0, unixTs || 0);
+
+        // Audience dimensions: device_tier, locale, app_version, install_source,
+        // consent_state, att_status — written today so the Audience tab shows
+        // live data before the nightly rollup runs.
+        if (audienceDims) {
+            var aDimKeys = ['device_tier', 'locale', 'app_version', 'install_source', 'consent_state', 'att_status'];
+            for (var _ai = 0; _ai < aDimKeys.length; _ai++) {
+                var _adk = aDimKeys[_ai];
+                var _adv = audienceDims[_adk];
+                if (!_adv) continue;
+                var _byKey = 'by_' + _adk;
+                if (!doc[_byKey]) doc[_byKey] = {};
+                doc[_byKey][_adv] = (doc[_byKey][_adv] || 0) + 1;
+            }
+        }
 
         // ── Real-time KPI accumulators ──────────────────────────────────
         // Accumulated here so the dashboard never needs a rollup to show
@@ -505,6 +520,17 @@ function liveCountersUpdate(nk, ev) {
     var platform = ((ed.platform || ed.Platform) || ev.platform || "").toLowerCase() || null;
     var country  = ((ed.country) || ev.country || "").toUpperCase().slice(0, 2) || null;
 
+    // Audience dimensions passed through to live_daily so the Audience tab
+    // shows today's breakdown before the nightly rollup runs.
+    var audienceDims = {
+        device_tier:    ed.device_tier    || null,
+        locale:         ed.locale         || null,
+        app_version:    ed.app_version    || null,
+        install_source: ed.install_source || null,
+        consent_state:  ed.consent_state  || null,
+        att_status:     ed.att_status     || null
+    };
+
     // ── Extract per-event KPI metrics ───────────────────────────────────
     // These accumulate into the live counter doc so the dashboard always
     // shows live revenue, session counts, and economy data with zero lag
@@ -528,11 +554,11 @@ function liveCountersUpdate(nk, ev) {
     }
 
     // Per-game doc — keyed by canonical UUID (slug was resolved in normalizeInboundEvent).
-    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp, metrics);
+    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
 
     // "All games" aggregate doc — lets the dashboard "All Games" selector show
     // today's live data without waiting for the nightly rollup.
-    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp, metrics);
+    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
 }
 
 /**
