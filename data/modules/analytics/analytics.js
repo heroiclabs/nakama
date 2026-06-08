@@ -708,7 +708,7 @@ function persistNormalizedEvent(nk, logger, ev) {
 
     // Platform breakdown key (cheap counter keyed per day+platform+gameId).
     if (ev.platform) {
-        trackPlatform(nk, logger, ev.gameId, ev.platform);
+        trackPlatform(nk, logger, ev.gameId, ev.platform, ev.userId);
     }
 
     // Only surface an error when the dashboard write itself failed — that is the
@@ -935,13 +935,29 @@ function bumpMetricsCounter(nk, delta) {
  *
  * Key shape: platform_<gameId>_<YYYY-MM-DD>_<platform>. Was previously using
  * unix-seconds in the date slot, breaking dashboard reads (see trackDAU note).
+ *
+ * Also tracks unique_users using the same bounded-array approach as trackDAU
+ * (capped at DAU_MAX_TRACKED_USERS) so the dashboard can show Users by Platform.
  */
-function trackPlatform(nk, logger, gameId, platform) {
+function trackPlatform(nk, logger, gameId, platform, userId) {
     var today = new Date().toISOString().slice(0, 10);
     var key = "platform_" + gameId + "_" + today + "_" + platform;
     casUpdate(nk, logger, "analytics_platform", key, SYSTEM_USER, function (rec) {
-        if (!rec) rec = { gameId: gameId, date: today, platform: platform, count: 0 };
+        if (!rec) rec = { gameId: gameId, date: today, platform: platform, count: 0, unique_users: 0, uniqueUsers: [] };
         rec.count = (rec.count || 0) + 1;
+        if (userId) {
+            if (!Array.isArray(rec.uniqueUsers)) rec.uniqueUsers = [];
+            if (rec.uniqueUsers.length < DAU_MAX_TRACKED_USERS) {
+                if (rec.uniqueUsers.indexOf(userId) === -1) {
+                    rec.uniqueUsers.push(userId);
+                }
+            }
+            rec.unique_users = rec.uniqueUsers.length + (rec.overflow_users || 0);
+            if (rec.uniqueUsers.length >= DAU_MAX_TRACKED_USERS && rec.uniqueUsers.indexOf(userId) === -1) {
+                rec.overflow_users = (rec.overflow_users || 0) + 1;
+                rec.unique_users = DAU_MAX_TRACKED_USERS + rec.overflow_users;
+            }
+        }
         return rec;
     });
 }
