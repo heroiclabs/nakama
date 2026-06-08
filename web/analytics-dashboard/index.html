@@ -3012,41 +3012,54 @@
         <div id="players" class="tab-content">
             <div class="kpi-grid" id="playersKpis" style="margin-bottom:1.5rem"></div>
             <div class="chart-card">
-                <h3>Top Players by Activity <div class="card-actions">
-                    <button class="card-btn" onclick="loadTopPlayers()">↻ Refresh</button>
-                    <button class="export-btn" onclick="exportPlayers()">⬇ CSV</button>
-                    <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
-                </div></h3>          
+                <h3>All Players <span id="playersListMode" style="font-size:0.75rem;font-weight:400;color:var(--text-muted);margin-left:0.5rem;">— browse all users</span>
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="playersResetAndLoad()">↻ Refresh</button>
+                        <button class="export-btn" onclick="exportPlayers()">⬇ CSV</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
                 <div class="card-body">
                     <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
-                        <input type="search" id="playersSearch" class="players-search" placeholder="Filter by User ID..." oninput="filterPlayers(this.value)" style="flex:1;min-width:200px;">
+                        <div style="display:flex;flex:1;min-width:240px;gap:0.5rem;">
+                            <input type="search" id="playersSearch" class="players-search"
+                                placeholder="Search by User ID or username (min 2 chars)…"
+                                style="flex:1;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:7px 12px;border-radius:6px;font-size:0.85rem;"
+                                oninput="playersSearchDebounced(this.value)">
+                            <button class="card-btn" id="playersClearSearch" onclick="playersClearSearch()" style="display:none;">✕ Clear</button>
+                        </div>
                         <label style="color:var(--text-secondary);font-size:0.85rem;">Per Page:
-                            <select id="playersPageSize" onchange="loadTopPlayers()" style="margin-left:0.5rem;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:6px 12px;border-radius:6px;">
+                            <select id="playersPageSize" onchange="playersResetAndLoad()" style="margin-left:0.5rem;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:6px 12px;border-radius:6px;">
                                 <option value="25" selected>25</option>
                                 <option value="50">50</option>
                                 <option value="100">100</option>
-                                <option value="200">200</option>
-                                <option value="500">500</option>
                             </select>
                         </label>
                     </div>
-                    <div id="playersPagination" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;"></div>
-                <table class="data-table" id="playersTable">
-                    <thead>
-                        <tr>
-                            <th class="sortable" onclick="sortTable('playersTable',0,this)">#</th>
-                            <th>User ID</th>
-                            <th class="sortable" onclick="sortTable('playersTable',2,this)">Events</th>
-                            <th class="sortable" onclick="sortTable('playersTable',3,this)">Quizzes</th>
-                            <th class="sortable" onclick="sortTable('playersTable',4,this)">Daily Q</th>
-                            <th class="sortable" onclick="sortTable('playersTable',5,this)">AI Events</th>
-                            <th class="sortable" onclick="sortTable('playersTable',6,this)">Sessions</th>
-                            <th class="sortable" onclick="sortTable('playersTable',7,this)">Purchases</th>
-                            <th class="sortable" onclick="sortTable('playersTable',8,this)">Last Active</th>
-                        </tr>
-                    </thead>
-                    <tbody><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:65%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:78%"></div></td></tr></tbody>
-                </table></div>
+                    <div id="playersPagination" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;"></div>
+                    <table class="data-table" id="playersTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>User ID</th>
+                                <th>Username</th>
+                                <th>LT Events</th>
+                                <th>LT Quizzes</th>
+                                <th>LT Sessions</th>
+                                <th>Platform</th>
+                                <th>Country</th>
+                                <th>Last Active</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playersTableBody">
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:65%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:78%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -7840,7 +7853,20 @@
         let _playersData  = null;
 
         function exportPlatforms() { if (_platformData) exportToCSV(_platformData, 'platforms.csv'); else showToast('Load the Platforms tab first', 'warn'); }
-        function exportPlayers()   { if (_playersData)  exportToCSV(_playersData,  'top_players.csv'); else showToast('Load the Players tab first', 'warn'); }
+        function exportPlayers() {
+            if (!_playersData || !_playersData.length) { showToast('Load the Players tab first', 'warn'); return; }
+            const rows = _playersData.map(p => ({
+                user_id: p.user_id,
+                username: p.username || '',
+                lt_events: p.lt_events || 0,
+                lt_quiz_plays: p.lt_quiz_plays || 0,
+                lt_sessions: p.lt_sessions || 0,
+                platform: p.platform || '',
+                country: p.country || '',
+                last_active_utc: p.last_active_utc || 0
+            }));
+            exportToCSV(rows, 'players_page.csv');
+        }
 
         // ─────────────────────────────────────────────────────────────────────
         // Platform Breakdown
@@ -7888,74 +7914,181 @@
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // Top Players
+        // Players — cursor-paginated browse of ALL users in game_player_analytics
+        // Each page is a single storageList call on the server; never loads more
+        // than one page at a time regardless of how many total users exist.
         // ─────────────────────────────────────────────────────────────────────
 
+        // Cursor stack: index 0 = null (first page), index N = cursor for page N+1.
+        // _playersCursorStack[page-1] is the cursor you pass to reach page `page`.
+        let _playersCursorStack = [null];  // stack[0]=null means "first page cursor"
         let _playersCurrentPage = 1;
-        let _playersTotalCount = 0;
+        let _playersSearchMode  = false;   // true when showing search results
+        let _playersSearchTerm  = '';
+        let _playersSearchTimer = null;
+
+        // _playersData holds the current page's rows for CSV export
+        // (overwritten on every page load / search)
 
         async function loadTopPlayers(direction = 'first') {
+            const limit = parseInt(document.getElementById('playersPageSize')?.value || '25', 10);
+
+            if (direction === 'first') {
+                _playersCursorStack = [null];
+                _playersCurrentPage = 1;
+            } else if (direction === 'prev') {
+                _playersCurrentPage = Math.max(1, _playersCurrentPage - 1);
+                // cursor for this page is stack[page-1]
+            } else if (direction === 'next') {
+                _playersCurrentPage++;
+            }
+
+            const cursor = _playersCursorStack[_playersCurrentPage - 1] || null;
+
+            document.getElementById('playersTableBody').innerHTML = skTable(9, 5);
+            document.getElementById('playersPagination').innerHTML = '';
+
             try {
-                const limit = parseInt(document.getElementById('playersPageSize')?.value || '25', 10);
-
-                if (direction === 'first') {
-                    _playersCurrentPage = 1;
-                } else if (direction === 'prev') {
-                    _playersCurrentPage = Math.max(1, _playersCurrentPage - 1);
-                } else if (direction === 'next') {
-                    _playersCurrentPage++;
-                }
-
-                document.querySelector('#playersTable tbody').innerHTML = skTable(9, 5);
-                const offset = (_playersCurrentPage - 1) * limit;
-                const data = await callRpc('analytics_top_players', { 
-                    days: selectedDays, 
-                    limit: limit * 10,
-                    ...getGamePayload() 
+                const data = await callRpc('analytics_player_list', {
+                    limit,
+                    cursor,
+                    ...getGamePayload()
                 });
 
                 if (data.error) {
-                    document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">${data.error}</td></tr>`;
-                    document.getElementById('playersPagination').innerHTML = '';
+                    document.getElementById('playersTableBody').innerHTML =
+                        `<tr><td colspan="9" class="empty-state">${escapeHtml(data.error)}</td></tr>`;
                     return;
                 }
 
-                _playersData = data.players || [];
-                _playersTotalCount = _playersData.length;
+                const players = data.players || [];
+                _playersData = players;
 
-                const paginated = _playersData.slice(offset, offset + limit);
-                const totalPages = Math.ceil(_playersTotalCount / limit);
+                // Store next cursor so the stack always has the cursor for page+1
+                const nextCursor = data.next_cursor || null;
+                if (_playersCursorStack.length <= _playersCurrentPage) {
+                    _playersCursorStack.push(nextCursor);
+                } else {
+                    _playersCursorStack[_playersCurrentPage] = nextCursor;
+                }
 
+                // KPI strip
                 document.getElementById('playersKpis').innerHTML = [
-                    { label: 'Active Players', value: formatNumber(data.total_active_users), icon: '🏃' },
-                    { label: 'Total Users Scanned', value: formatNumber(_playersTotalCount), icon: '🔬' },
-                    { label: 'Days Analyzed', value: data.days, icon: '📅' }
+                    { label: 'On This Page', value: formatNumber(players.length), icon: '👥' },
+                    { label: 'Page', value: _playersCurrentPage, icon: '📄' },
+                    { label: 'Page Size', value: limit, icon: '📋' }
                 ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.value}</div></div>`).join('');
 
-                if (paginated.length > 0) {
-                    renderPlayersRows(paginated, offset);
-                } else {
-                    document.querySelector('#playersTable tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No player activity found</td></tr>';
+                // List mode label
+                const modeEl = document.getElementById('playersListMode');
+                if (modeEl) modeEl.textContent = '— all users (page ' + _playersCurrentPage + ')';
+
+                renderPlayersRows(players, ((_playersCurrentPage - 1) * limit));
+
+                // Pagination controls
+                const hasPrev = _playersCurrentPage > 1;
+                const hasNext = !!nextCursor;
+                const paginationEl = document.getElementById('playersPagination');
+                paginationEl.innerHTML = `
+                    <button class="card-btn" onclick="loadTopPlayers('prev')" ${!hasPrev ? 'disabled style="opacity:0.4;cursor:default"' : ''}>← Prev</button>
+                    <span style="color:var(--text-secondary);font-size:0.85rem;padding:0 0.75rem;">Page ${_playersCurrentPage}</span>
+                    <button class="card-btn" onclick="loadTopPlayers('next')" ${!hasNext ? 'disabled style="opacity:0.4;cursor:default"' : ''}>Next →</button>
+                    <span style="color:var(--text-muted);font-size:0.78rem;margin-left:1rem;">${players.length} users on this page${hasNext ? ' · more available' : ' · last page'}</span>
+                `;
+            } catch(e) {
+                console.error('Players list error:', e);
+                document.getElementById('playersTableBody').innerHTML =
+                    `<tr><td colspan="9" class="empty-state">Error: ${escapeHtml(e.message)}</td></tr>`;
+            }
+        }
+
+        function playersResetAndLoad() {
+            // Clear search mode and reload from page 1
+            _playersSearchMode = false;
+            _playersSearchTerm = '';
+            const searchEl = document.getElementById('playersSearch');
+            if (searchEl) searchEl.value = '';
+            const clearBtn = document.getElementById('playersClearSearch');
+            if (clearBtn) clearBtn.style.display = 'none';
+            const modeEl = document.getElementById('playersListMode');
+            if (modeEl) modeEl.textContent = '— all users';
+            loadTopPlayers('first');
+        }
+
+        function playersClearSearch() {
+            playersResetAndLoad();
+        }
+
+        function playersSearchDebounced(val) {
+            clearTimeout(_playersSearchTimer);
+            _playersSearchTimer = setTimeout(() => playersDoSearch(val), 400);
+        }
+
+        async function playersDoSearch(q) {
+            const term = (q || '').trim();
+            const clearBtn = document.getElementById('playersClearSearch');
+            const modeEl = document.getElementById('playersListMode');
+
+            if (!term || term.length < 2) {
+                if (clearBtn) clearBtn.style.display = 'none';
+                if (modeEl) modeEl.textContent = '— all users';
+                // If we just cleared the search, go back to browse mode
+                if (_playersSearchMode) {
+                    _playersSearchMode = false;
+                    _playersSearchTerm = '';
+                    loadTopPlayers('first');
+                }
+                return;
+            }
+
+            if (clearBtn) clearBtn.style.display = '';
+            _playersSearchMode = true;
+            _playersSearchTerm = term;
+            if (modeEl) modeEl.textContent = `— search: "${term}"`;
+
+            document.getElementById('playersTableBody').innerHTML = skTable(9, 3);
+            document.getElementById('playersPagination').innerHTML = '';
+            document.getElementById('playersKpis').innerHTML = '';
+
+            try {
+                const data = await callRpc('analytics_admin_player_search', {
+                    q: term,
+                    limit: 50,
+                    ...getGamePayload()
+                });
+
+                if (data.error) {
+                    document.getElementById('playersTableBody').innerHTML =
+                        `<tr><td colspan="9" class="empty-state">${escapeHtml(data.error)}</td></tr>`;
+                    return;
                 }
 
-                const hasPrev = _playersCurrentPage > 1;
-                const hasNext = _playersCurrentPage < totalPages;
+                const players = (data.players || []).map(p => ({
+                    user_id:        p.user_id,
+                    username:       p.username || '',
+                    lt_events:      p.lt_events || 0,
+                    lt_quiz_plays:  p.lt_quiz_plays || 0,
+                    lt_sessions:    p.lt_sessions || 0,
+                    platform:       p.platform || null,
+                    country:        p.country  || null,
+                    last_active_utc: p.last_active_utc || 0,
+                    favorite_mode:  p.favorite_mode || null
+                }));
+                _playersData = players;
+
+                document.getElementById('playersKpis').innerHTML = [
+                    { label: 'Matches Found', value: formatNumber(players.length), icon: '🔍' },
+                    { label: 'Search Term', value: escapeHtml(term), icon: '🔎' }
+                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.v !== undefined ? k.v : k.value}</div></div>`).join('');
+
+                renderPlayersRows(players, 0);
+
                 const paginationEl = document.getElementById('playersPagination');
-                if (paginationEl) {
-                    if (totalPages > 1) {
-                        paginationEl.innerHTML = `
-                            <button class="card-btn" onclick="loadTopPlayers('prev')" ${!hasPrev ? 'disabled style="opacity:0.5"' : ''}>← Previous</button>
-                            <span style="color:var(--text-secondary);font-size:0.85rem;padding:0 0.5rem;">Page ${_playersCurrentPage} of ${totalPages}</span>
-                            <button class="card-btn" onclick="loadTopPlayers('next')" ${!hasNext ? 'disabled style="opacity:0.5"' : ''}>Next →</button>
-                            <span style="color:var(--text-muted);font-size:0.8rem;margin-left:1rem;">Showing ${offset + 1}-${Math.min(offset + limit, _playersTotalCount)} of ${_playersTotalCount}</span>
-                        `;
-                    } else {
-                        paginationEl.innerHTML = '';
-                    }
-                }
+                paginationEl.innerHTML = `<span style="color:var(--text-secondary);font-size:0.85rem;">${players.length} result${players.length !== 1 ? 's' : ''} for "${escapeHtml(term)}"${players.length === 50 ? ' (showing first 50)' : ''}</span>`;
+
             } catch(e) {
-                console.error('Top players error:', e);
-                document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">Failed: ${e.message}</td></tr>`;
+                document.getElementById('playersTableBody').innerHTML =
+                    `<tr><td colspan="9" class="empty-state">Search error: ${escapeHtml(e.message)}</td></tr>`;
             }
         }
 
@@ -9950,47 +10083,40 @@
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // Filter Players
+        // Players table renderer
         // ─────────────────────────────────────────────────────────────────────
 
         function renderPlayersRows(players, offset = 0) {
+            const tbody = document.getElementById('playersTableBody');
             if (!players || !players.length) {
-                document.querySelector('#playersTable tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No matching players</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No players found</td></tr>';
                 return;
             }
-            document.querySelector('#playersTable tbody').innerHTML = players.map((p, i) => {
-                const actualIdx = offset + i;
-                const r = actualIdx < 3 ? `rank-${actualIdx+1}` : 'rank-other';
-                const medal = actualIdx === 0 ? '🥇' : actualIdx === 1 ? '🥈' : actualIdx === 2 ? '🥉' : actualIdx + 1;
+            tbody.innerHTML = players.map((p, i) => {
+                const rowNum = offset + i + 1;
+                const lastActive = p.last_active_utc && p.last_active_utc > 0
+                    ? new Date(p.last_active_utc * 1000).toLocaleDateString()
+                    : '—';
+                const platform = p.platform || '—';
+                const country  = p.country  || '—';
+                const username = p.username ? escapeHtml(p.username) : `<span style="color:var(--text-muted)">—</span>`;
                 return `<tr>
-                    <td><span class="rank-badge ${r}">${medal}</span></td>
-                    <td><a class="pp-uid-link" onclick="openPlayerProfile('${escapeHtml(p.user_id)}')" title="Open Player 360">${escapeHtml(p.user_id)}</a></td>
-                    <td><strong>${formatNumber(p.total_events)}</strong></td>
-                    <td>${formatNumber(p.quiz_completed)}</td>
-                    <td>${formatNumber(p.daily_quizzes)}</td>
-                    <td>${formatNumber(p.ai_events)}</td>
-                    <td>${formatNumber(p.sessions)}</td>
-                    <td>${p.purchases > 0 ? `<span style="color:var(--success)">💰 ${p.purchases}</span>` : '—'}</td>
-                    <td style="font-size:0.8rem;color:var(--text-muted)">${p.last_active}</td>
+                    <td style="color:var(--text-muted);font-size:0.8rem;">${rowNum}</td>
+                    <td><a class="pp-uid-link" onclick="openPlayerProfile('${escapeHtml(p.user_id)}')" title="Open Player 360 for ${escapeHtml(p.user_id)}">${escapeHtml(p.user_id.slice(0,13))}…</a></td>
+                    <td>${username}</td>
+                    <td><strong>${formatNumber(p.lt_events || 0)}</strong></td>
+                    <td>${formatNumber(p.lt_quiz_plays || 0)}</td>
+                    <td>${formatNumber(p.lt_sessions || 0)}</td>
+                    <td style="font-size:0.8rem;">${escapeHtml(platform)}</td>
+                    <td style="font-size:0.8rem;">${escapeHtml(country)}</td>
+                    <td style="font-size:0.78rem;color:var(--text-muted);">${lastActive}</td>
                 </tr>`;
             }).join('');
         }
 
         function filterPlayers(q) {
-            if (!_playersData) return;
-            const term = (q || '').toLowerCase().trim();
-            const filtered = term
-                ? _playersData.filter(p => p.user_id.toLowerCase().includes(term))
-                : _playersData;
-            
-            const limit = parseInt(document.getElementById('playersPageSize')?.value || '25', 10);
-            const paginated = filtered.slice(0, limit);
-            renderPlayersRows(paginated, 0);
-            
-            const paginationEl = document.getElementById('playersPagination');
-            if (paginationEl && term) {
-                paginationEl.innerHTML = `<span style="color:var(--text-secondary);font-size:0.85rem;">Showing ${paginated.length} of ${filtered.length} matching players</span>`;
-            }
+            // Legacy shim — now handled by playersSearchDebounced
+            playersSearchDebounced(q);
         }
 
         // ─────────────────────────────────────────────────────────────────────
