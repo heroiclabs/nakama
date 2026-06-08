@@ -711,6 +711,21 @@ function persistNormalizedEvent(nk, logger, ev) {
         trackPlatform(nk, logger, ev.gameId, ev.platform, ev.userId);
     }
 
+    // Heatmap pre-aggregation — runs for all click/tap/screen/view/popup/modal
+    // events so rpcAnalyticsHomeHeatmap can do O(1) point-reads.
+    var evNameLow = (ev.eventName || '').toLowerCase();
+    if (evNameLow.indexOf('click') !== -1 || evNameLow.indexOf('tap') !== -1 ||
+        evNameLow.indexOf('screen') !== -1 || evNameLow.indexOf('view') !== -1 ||
+        evNameLow.indexOf('popup') !== -1 || evNameLow.indexOf('modal') !== -1) {
+        try {
+            trackHeatmap(nk, logger, ev.gameId, ev.eventName, ev.eventData || {});
+        } catch (eHm) {
+            if (logger && logger.warn) {
+                logger.warn("[analytics] trackHeatmap failed (event still recorded): " + (eHm.message || eHm));
+            }
+        }
+    }
+
     // Only surface an error when the dashboard write itself failed — that is the
     // primary signal for operators (no data in analytics_events = nothing on the dashboard).
     // Fix #6: GPA-only failures (dashboard write succeeded) are demoted to a warning.
@@ -958,6 +973,63 @@ function trackPlatform(nk, logger, gameId, platform, userId) {
                 rec.unique_users = DAU_MAX_TRACKED_USERS + rec.overflow_users;
             }
         }
+        return rec;
+    });
+}
+
+/**
+ * Pre-aggregate heatmap counters (button clicks, screen views, popup shown,
+ * screen time) into a single daily doc per gameId so that
+ * rpcAnalyticsHomeHeatmap can do N point-reads instead of a 50k-object scan.
+ *
+ * Collection : analytics_heatmap
+ * Key shape  : heatmap_<gameId>_<YYYY-MM-DD>
+ *
+ * Doc shape:
+ *   {
+ *     gameId, date,
+ *     buttons  : { [buttonName]: count },
+ *     screens  : { [screenName]: { views, totalSec, samples } },
+ *     popups   : { [popupName]:  count }
+ *   }
+ */
+function trackHeatmap(nk, logger, gameId, eventName, eventData) {
+    var today = new Date().toISOString().slice(0, 10);
+    var key = "heatmap_" + gameId + "_" + today;
+    var nameLow = (eventName || '').toLowerCase();
+    var isClick = nameLow.indexOf('click') !== -1 || nameLow.indexOf('tap') !== -1;
+    var isScreen = nameLow.indexOf('screen') !== -1 || nameLow.indexOf('view') !== -1;
+    var isPopup = nameLow.indexOf('popup') !== -1 || nameLow.indexOf('modal') !== -1;
+
+    casUpdate(nk, logger, "analytics_heatmap", key, SYSTEM_USER, function (rec) {
+        if (!rec) rec = { gameId: gameId, date: today, buttons: {}, screens: {}, popups: {} };
+        if (!rec.buttons) rec.buttons = {};
+        if (!rec.screens) rec.screens = {};
+        if (!rec.popups) rec.popups = {};
+
+        var ed = eventData || {};
+
+        if (isClick) {
+            var btn = ed.button || ed.buttonName || eventName;
+            rec.buttons[btn] = (rec.buttons[btn] || 0) + 1;
+        }
+
+        if (isScreen) {
+            var scr = ed.screen || ed.screenName || eventName;
+            if (!rec.screens[scr]) rec.screens[scr] = { views: 0, totalSec: 0, samples: 0 };
+            rec.screens[scr].views++;
+            var dur = ed.duration || ed.timeSpent || 0;
+            if (dur) {
+                rec.screens[scr].totalSec += dur;
+                rec.screens[scr].samples++;
+            }
+        }
+
+        if (isPopup) {
+            var pop = ed.popup || ed.popupName || eventName;
+            rec.popups[pop] = (rec.popups[pop] || 0) + 1;
+        }
+
         return rec;
     });
 }
