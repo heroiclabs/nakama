@@ -23864,7 +23864,7 @@ var LegacyPush;
     var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
     function fetchDailyQuizForToday(nk, logger) {
         var dateStr = todayDateKey();
-        var url = S3_BASE + "/daily-quiz/dailyquiz-" + dateStr + ".json";
+        var url = S3_BASE + "/quiz-verse/daily/dailyquiz-" + dateStr + ".json";
         try {
             var resp = nk.httpRequest(url, "get", {}, "", 10000);
             if (resp && resp.code >= 200 && resp.code < 300) {

@@ -926,7 +926,11 @@ namespace LegacyPush {
 
   function fetchDailyQuizForToday(nk: nkruntime.Nakama, logger: nkruntime.Logger): any {
     var dateStr = todayDateKey();
-    var url = S3_BASE + "/daily-quiz/dailyquiz-" + dateStr + ".json";
+    // S3 path must match where Intelliverse-X-AI's DailyQuizStorageService writes
+    // (S3_KEY_PREFIX = "quiz-verse/daily/"). The old "/daily-quiz/" path was stale
+    // and 404'd for every date after 2026-06-01, silently skipping all daily-quiz
+    // push notifications. Weekly already uses the "/quiz-verse/weekly/" prefix.
+    var url = S3_BASE + "/quiz-verse/daily/dailyquiz-" + dateStr + ".json";
     try {
       var resp: any = nk.httpRequest(url, "get", {}, "", 10000);
       if (resp && resp.code >= 200 && resp.code < 300) {
