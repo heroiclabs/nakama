@@ -8032,7 +8032,6 @@
             if (!term || term.length < 2) {
                 if (clearBtn) clearBtn.style.display = 'none';
                 if (modeEl) modeEl.textContent = '— all users';
-                // If we just cleared the search, go back to browse mode
                 if (_playersSearchMode) {
                     _playersSearchMode = false;
                     _playersSearchTerm = '';
@@ -8044,7 +8043,9 @@
             if (clearBtn) clearBtn.style.display = '';
             _playersSearchMode = true;
             _playersSearchTerm = term;
-            if (modeEl) modeEl.textContent = `— search: "${term}"`;
+
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(term);
+            if (modeEl) modeEl.textContent = isUuid ? `— looking up user ID…` : `— search: "${term}"`;
 
             document.getElementById('playersTableBody').innerHTML = skTable(9, 3);
             document.getElementById('playersPagination').innerHTML = '';
@@ -8058,6 +8059,7 @@
                 });
 
                 if (data.error) {
+                    if (modeEl) modeEl.textContent = `— search: "${term}"`;
                     document.getElementById('playersTableBody').innerHTML =
                         `<tr><td colspan="9" class="empty-state">${escapeHtml(data.error)}</td></tr>`;
                     return;
@@ -8076,17 +8078,26 @@
                 }));
                 _playersData = players;
 
+                if (modeEl) modeEl.textContent = players.length
+                    ? (isUuid ? `— user: ${term.slice(0,13)}…` : `— search: "${term}"`)
+                    : `— no results for "${term}"`;
+
                 document.getElementById('playersKpis').innerHTML = [
                     { label: 'Matches Found', value: formatNumber(players.length), icon: '🔍' },
-                    { label: 'Search Term', value: escapeHtml(term), icon: '🔎' }
-                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.v !== undefined ? k.v : k.value}</div></div>`).join('');
+                    { label: 'Search Term', value: escapeHtml(term.slice(0, 20) + (term.length > 20 ? '…' : '')), icon: '🔎' }
+                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.value}</div></div>`).join('');
 
                 renderPlayersRows(players, 0);
 
                 const paginationEl = document.getElementById('playersPagination');
-                paginationEl.innerHTML = `<span style="color:var(--text-secondary);font-size:0.85rem;">${players.length} result${players.length !== 1 ? 's' : ''} for "${escapeHtml(term)}"${players.length === 50 ? ' (showing first 50)' : ''}</span>`;
+                if (players.length === 0) {
+                    paginationEl.innerHTML = `<span style="color:var(--text-muted);font-size:0.85rem;">No players found matching "${escapeHtml(term)}".</span>`;
+                } else {
+                    paginationEl.innerHTML = `<span style="color:var(--text-secondary);font-size:0.85rem;">${players.length} result${players.length !== 1 ? 's' : ''} for "${escapeHtml(term)}"${players.length === 50 ? ' (showing first 50)' : ''}</span>`;
+                }
 
             } catch(e) {
+                if (modeEl) modeEl.textContent = `— search: "${term}"`;
                 document.getElementById('playersTableBody').innerHTML =
                     `<tr><td colspan="9" class="empty-state">Search error: ${escapeHtml(e.message)}</td></tr>`;
             }
