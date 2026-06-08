@@ -2896,19 +2896,28 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
                 if (aLiveRecs && aLiveRecs.length > 0 && aLiveRecs[0].value) {
                     var ald = aLiveRecs[0].value;
                     totalEvents += ald.total || 0;
-                    // Inject platform dimension from live_daily.by_platform
-                    var bpMap = ald.by_platform || {};
-                    for (var bpk in bpMap) {
-                        if (!bpMap.hasOwnProperty(bpk)) continue;
-                        if (!agg.platform[bpk]) agg.platform[bpk] = { events: 0, unique_users: 0 };
-                        agg.platform[bpk].events += bpMap[bpk];
-                    }
-                    // Inject country dimension from live_daily.by_country
-                    var bcMap = ald.by_country || {};
-                    for (var bck in bcMap) {
-                        if (!bcMap.hasOwnProperty(bck)) continue;
-                        if (!agg.country[bck]) agg.country[bck] = { events: 0, unique_users: 0 };
-                        agg.country[bck].events += bcMap[bck];
+
+                    // Map: live_daily key → agg dimension key
+                    var _audPairs = [
+                        ['by_platform',     'platform'],
+                        ['by_country',      'country'],
+                        ['by_device_tier',  'device_tier'],
+                        ['by_locale',       'locale'],
+                        ['by_app_version',  'app_version'],
+                        ['by_install_source','install_source'],
+                        ['by_consent_state','consent_state'],
+                        ['by_att_status',   'att_status']
+                    ];
+                    for (var _pi = 0; _pi < _audPairs.length; _pi++) {
+                        var _livK = _audPairs[_pi][0];
+                        var _aggK = _audPairs[_pi][1];
+                        var _map  = ald[_livK] || {};
+                        for (var _mk in _map) {
+                            if (!_map.hasOwnProperty(_mk)) continue;
+                            if (!agg[_aggK]) agg[_aggK] = {};
+                            if (!agg[_aggK][_mk]) agg[_aggK][_mk] = { events: 0, unique_users: 0 };
+                            agg[_aggK][_mk].events += _map[_mk];
+                        }
                     }
                 }
             } catch (_al_err) { /* live_daily read failure must not break the RPC */ }
