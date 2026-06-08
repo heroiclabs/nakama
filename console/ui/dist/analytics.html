@@ -2168,7 +2168,7 @@
                     <div class="card-body"><canvas id="platformPieChart" height="220"></canvas></div>
                 </div>
                 <div class="chart-card">
-                    <h3>Users by Platform <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformUsersChart','Users by Platform')">⛶</button></div></h3>
+                    <h3>Daily Unique Users by Platform <span title="Sum of daily unique users across the selected period — the same user is counted once per active day, not once total" style="cursor:help;opacity:0.55;font-size:0.78em;font-weight:400;">ⓘ</span> <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformUsersChart','Daily Unique Users by Platform')">⛶</button></div></h3>
                     <div class="card-body"><canvas id="platformUsersChart" height="220"></canvas></div>
                 </div>
             </div>
@@ -6100,7 +6100,7 @@
                         options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:'right', labels:{ color:'#94a3b8', padding:12, boxWidth:14 } } } }
                     });
                     if (charts.platformUsers) charts.platformUsers.destroy();
-                    charts.platformUsers = createBarChart('platformUsersChart', labels, users, 'Unique Users');
+                    charts.platformUsers = createBarChart('platformUsersChart', labels, users, 'Daily Unique Users (sum across period)');
                 }
                 _heatmapClear('platformOsChart');
                 if (data.os_versions && data.os_versions.length > 0) {

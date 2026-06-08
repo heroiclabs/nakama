@@ -2064,60 +2064,111 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
 function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var days = parseInt(data.days, 10) || 7;
-        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
+        var days = Math.min(parseInt(data.days, 10) || 7, 90);
+        var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
         var buttonClicks = {};
         var screenViews = {};
-        var screenTime = {};
+        var screenTime   = {};
         var screenTimeCounts = {};
-        var popupShown = {};
+        var popupShown   = {};
 
-        // Scan UI-related events (with gameId filter)
-        var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            var evName = (val.eventName || '').toLowerCase();
-            return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 ||
-                   evName.indexOf('screen') !== -1 || evName.indexOf('popup') !== -1 ||
-                   evName.indexOf('button') !== -1 || evName.indexOf('tap') !== -1;
-        }, gameId);
+        // Build an array of date strings covering the requested window.
+        // Each date maps to exactly one pre-aggregated heatmap doc written
+        // by trackHeatmap() inside persistNormalizedEvent() — O(days) reads
+        // instead of a 50k-object storageList scan.
+        var dateKeys = [];
+        for (var d = 0; d < days; d++) {
+            var dt = extDaysAgo(d);
+            // When no gameId filter is requested, we cannot enumerate all
+            // possible gameIds, so fall back to the legacy scan but capped
+            // at 25 pages to avoid 502s.
+            if (!gameId) break;
+            dateKeys.push({ collection: "analytics_heatmap", key: "heatmap_" + gameId + "_" + dt });
+        }
 
-        for (var i = 0; i < events.length; i++) {
-            var ev = events[i];
-            var evName = ev.eventName || '';
-            var evData = ev.eventData || {};
-
-            // Button clicks
-            if (evName.toLowerCase().indexOf('click') !== -1 || evName.toLowerCase().indexOf('tap') !== -1) {
-                var button = evData.button || evData.buttonName || evName;
-                buttonClicks[button] = (buttonClicks[button] || 0) + 1;
+        if (dateKeys.length > 0) {
+            // Fast path: O(days) point-reads from pre-aggregated docs.
+            var reads = [];
+            try { reads = nk.storageRead(dateKeys); } catch (eRead) {
+                logger.warn("[AnalyticsExtended] heatmap point-read failed, falling back to scan: " + eRead.message);
+                dateKeys = []; // trigger fallback below
             }
 
-            // Screen views
-            if (evName.toLowerCase().indexOf('screen') !== -1 || evName.toLowerCase().indexOf('view') !== -1) {
-                var screen = evData.screen || evData.screenName || evName;
-                screenViews[screen] = (screenViews[screen] || 0) + 1;
-
-                if (evData.duration || evData.timeSpent) {
-                    if (!screenTime[screen]) screenTime[screen] = 0;
-                    if (!screenTimeCounts[screen]) screenTimeCounts[screen] = 0;
-                    screenTime[screen] += evData.duration || evData.timeSpent || 0;
-                    screenTimeCounts[screen]++;
+            for (var r = 0; r < reads.length; r++) {
+                var rec = reads[r].value || {};
+                var bMap = rec.buttons || {};
+                for (var btn in bMap) {
+                    buttonClicks[btn] = (buttonClicks[btn] || 0) + bMap[btn];
                 }
-            }
-
-            // Popups
-            if (evName.toLowerCase().indexOf('popup') !== -1 || evName.toLowerCase().indexOf('modal') !== -1) {
-                var popup = evData.popup || evData.popupName || evName;
-                popupShown[popup] = (popupShown[popup] || 0) + 1;
+                var sMap = rec.screens || {};
+                for (var scr in sMap) {
+                    var sd = sMap[scr];
+                    screenViews[scr] = (screenViews[scr] || 0) + (sd.views || 0);
+                    if (sd.totalSec) {
+                        screenTime[scr]       = (screenTime[scr] || 0)       + sd.totalSec;
+                        screenTimeCounts[scr] = (screenTimeCounts[scr] || 0) + (sd.samples || 0);
+                    }
+                }
+                var pMap = rec.popups || {};
+                for (var pop in pMap) {
+                    popupShown[pop] = (popupShown[pop] || 0) + pMap[pop];
+                }
             }
         }
 
-        // Calculate average screen time
+        // Fallback (no gameId supplied or point-read failed): bounded scan capped
+        // at 25 pages × 200 objects = 5 000 events. Still avoids the 502-inducing
+        // 250-page default of extScanEvents.
+        if (dateKeys.length === 0) {
+            var cutoff = extDaysAgo(days - 1);
+            var cursor = null;
+            var iterations = 0;
+            var maxIter = 25;
+            do {
+                var result = null;
+                try { result = nk.storageList(SYSTEM_USER_ID, "analytics_events", 200, cursor); } catch (eScan) {
+                    logger.warn("[AnalyticsExtended] heatmap fallback scan error: " + eScan.message);
+                    break;
+                }
+                if (!result || !result.objects) break;
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj   = result.objects[i];
+                    var val   = extNormalizeEvent(obj.value, obj.key);
+                    if (!val) continue;
+                    var evDate = val.date || obj.key.slice(-10);
+                    if (evDate && evDate < cutoff) continue;
+                    var evName = val.eventName || '';
+                    var evData = val.eventData || {};
+                    var nLow   = evName.toLowerCase();
+                    if (nLow.indexOf('click') !== -1 || nLow.indexOf('tap') !== -1) {
+                        var b = evData.button || evData.buttonName || evName;
+                        buttonClicks[b] = (buttonClicks[b] || 0) + 1;
+                    }
+                    if (nLow.indexOf('screen') !== -1 || nLow.indexOf('view') !== -1) {
+                        var s = evData.screen || evData.screenName || evName;
+                        screenViews[s] = (screenViews[s] || 0) + 1;
+                        var dur = evData.duration || evData.timeSpent || 0;
+                        if (dur) {
+                            screenTime[s]       = (screenTime[s] || 0)       + dur;
+                            screenTimeCounts[s] = (screenTimeCounts[s] || 0) + 1;
+                        }
+                    }
+                    if (nLow.indexOf('popup') !== -1 || nLow.indexOf('modal') !== -1) {
+                        var p = evData.popup || evData.popupName || evName;
+                        popupShown[p] = (popupShown[p] || 0) + 1;
+                    }
+                }
+                cursor = result.cursor;
+                iterations++;
+            } while (cursor && iterations < maxIter);
+        }
+
         var screenTimeAvg = [];
-        for (var s in screenTime) {
+        for (var sc in screenTime) {
             screenTimeAvg.push({
-                screen: s,
-                avg_seconds: screenTimeCounts[s] > 0 ? Math.round(screenTime[s] / screenTimeCounts[s]) : 0
+                screen: sc,
+                avg_seconds: screenTimeCounts[sc] > 0 ? Math.round(screenTime[sc] / screenTimeCounts[sc]) : 0
             });
         }
         screenTimeAvg.sort(function(a, b) { return b.avg_seconds - a.avg_seconds; });
@@ -2127,7 +2178,8 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
             buttons: extTopN(buttonClicks, 15, 'button', 'count'),
             top_screens: extTopN(screenViews, 10, 'screen', 'views'),
             screen_time: screenTimeAvg.slice(0, 10),
-            top_popups: extTopN(popupShown, 10, 'popup', 'shown')
+            top_popups: extTopN(popupShown, 10, 'popup', 'shown'),
+            source: dateKeys.length > 0 ? 'rollup_daily' : 'scan_fallback'
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] home_heatmap error: ' + e.message);
