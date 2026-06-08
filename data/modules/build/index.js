@@ -23864,6 +23864,10 @@ var LegacyPush;
     var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
     function fetchDailyQuizForToday(nk, logger) {
         var dateStr = todayDateKey();
+        // S3 path must match where Intelliverse-X-AI's DailyQuizStorageService writes
+        // (S3_KEY_PREFIX = "quiz-verse/daily/"). The old "/daily-quiz/" path was stale
+        // and 404'd for every date after 2026-06-01, silently skipping all daily-quiz
+        // push notifications. Weekly already uses the "/quiz-verse/weekly/" prefix.
         var url = S3_BASE + "/quiz-verse/daily/dailyquiz-" + dateStr + ".json";
         try {
             var resp = nk.httpRequest(url, "get", {}, "", 10000);
@@ -23938,6 +23942,39 @@ var LegacyPush;
         }
         catch (_) { }
     }
+    // Resolve the daily-quiz topic for a given locale. The daily-quiz JSON
+    // (written by Intelliverse-X-AI) ships `topic` as a localized OBJECT
+    // ({ en, hi, ar, "pt-BR", "zh-Hans", ... }) — NOT the flat
+    // title/category/theme the old code assumed, which is why every push
+    // fell back to the literal "today's quiz". We prefer the exact locale,
+    // then a base-language match (e.g. user "pt" → JSON "pt-BR"), then
+    // English, then any available value. Legacy flat fields are still
+    // honoured for backward compatibility.
+    function pickQuizTopic(quiz, locale) {
+        if (!quiz)
+            return "today's quiz";
+        var field = quiz.topic || quiz.title || quiz.category || quiz.theme;
+        if (!field)
+            return "today's quiz";
+        if (typeof field === "string")
+            return field;
+        if (typeof field === "object") {
+            if (field[locale])
+                return String(field[locale]);
+            var base = String(locale).split("-")[0].toLowerCase();
+            for (var k in field) {
+                if (field[k] && String(k).split("-")[0].toLowerCase() === base)
+                    return String(field[k]);
+            }
+            if (field["en"])
+                return String(field["en"]);
+            for (var kk in field) {
+                if (field[kk])
+                    return String(field[kk]);
+            }
+        }
+        return "today's quiz";
+    }
     // ─── 1. Daily quiz cron (broadcast localized "new daily quiz" with topic) ─
     function rpcNotifCronDailyQuiz(ctx, logger, nk, payload) {
         if (ctx.userId)
@@ -23945,7 +23982,6 @@ var LegacyPush;
         var quiz = fetchDailyQuizForToday(nk, logger);
         if (!quiz)
             return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
-        var topic = quiz.title || quiz.category || quiz.theme || "today's quiz";
         var todayKey = todayDateKey();
         var sent = 0, gated = 0, scanned = 0;
         var batch = 100, offset = 0;
@@ -23965,6 +24001,9 @@ var LegacyPush;
                     gated++;
                     continue;
                 }
+                // Localize the topic to each user's language (the push templates are
+                // already localized; the topic value must be too).
+                var topic = pickQuizTopic(quiz, getUserLocale(nk, u));
                 var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz", "daily_quiz_title", "daily_quiz_body", { topic: topic }, { data: { screen: "daily_quiz" } });
                 if (ok) {
                     recordMarker(nk, u, "daily_quiz", todayKey);
@@ -23978,7 +24017,7 @@ var LegacyPush;
             if (users.length < batch)
                 break;
         }
-        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: topic });
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: pickQuizTopic(quiz, "en") });
     }
     // ─── 2. Weekly quiz cron (read 5 types × 13 langs daily, push only on diff) ─
     function rpcNotifCronWeeklyQuiz(ctx, logger, nk, payload) {

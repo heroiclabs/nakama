@@ -992,12 +992,36 @@ namespace LegacyPush {
     } catch (_) {}
   }
 
+  // Resolve the daily-quiz topic for a given locale. The daily-quiz JSON
+  // (written by Intelliverse-X-AI) ships `topic` as a localized OBJECT
+  // ({ en, hi, ar, "pt-BR", "zh-Hans", ... }) — NOT the flat
+  // title/category/theme the old code assumed, which is why every push
+  // fell back to the literal "today's quiz". We prefer the exact locale,
+  // then a base-language match (e.g. user "pt" → JSON "pt-BR"), then
+  // English, then any available value. Legacy flat fields are still
+  // honoured for backward compatibility.
+  function pickQuizTopic(quiz: any, locale: string): string {
+    if (!quiz) return "today's quiz";
+    var field: any = quiz.topic || quiz.title || quiz.category || quiz.theme;
+    if (!field) return "today's quiz";
+    if (typeof field === "string") return field;
+    if (typeof field === "object") {
+      if (field[locale]) return String(field[locale]);
+      var base = String(locale).split("-")[0].toLowerCase();
+      for (var k in field) {
+        if (field[k] && String(k).split("-")[0].toLowerCase() === base) return String(field[k]);
+      }
+      if (field["en"]) return String(field["en"]);
+      for (var kk in field) { if (field[kk]) return String(field[kk]); }
+    }
+    return "today's quiz";
+  }
+
   // ─── 1. Daily quiz cron (broadcast localized "new daily quiz" with topic) ─
   function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
     var quiz = fetchDailyQuizForToday(nk, logger);
     if (!quiz) return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
-    var topic: string = quiz.title || quiz.category || quiz.theme || "today's quiz";
     var todayKey = todayDateKey();
     var sent = 0, gated = 0, scanned = 0;
     var batch = 100, offset = 0;
@@ -1010,6 +1034,9 @@ namespace LegacyPush {
         var h = getUserLocalHour(nk, u);
         if (h < 9 || h >= 13) { gated++; continue; }            // outside daily push window
         if (hasMarker(nk, u, "daily_quiz", todayKey)) { gated++; continue; }
+        // Localize the topic to each user's language (the push templates are
+        // already localized; the topic value must be too).
+        var topic = pickQuizTopic(quiz, getUserLocale(nk, u));
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz",
           "daily_quiz_title", "daily_quiz_body", { topic: topic },
           { data: { screen: "daily_quiz" } });
@@ -1018,7 +1045,7 @@ namespace LegacyPush {
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: topic });
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: pickQuizTopic(quiz, "en") });
   }
 
   // ─── 2. Weekly quiz cron (read 5 types × 13 langs daily, push only on diff) ─
