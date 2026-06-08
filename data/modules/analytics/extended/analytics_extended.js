@@ -2012,6 +2012,7 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
         var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
         var platformCounts = {};
+        var platformUsers = {};
 
         // Read pre-computed per-platform daily counters written by trackPlatform()
         // in analytics.js (key: platform_<gameId>_<YYYY-MM-DD>_<platform>).
@@ -2027,6 +2028,8 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
                     var pRec = extStorageRead(nk, 'analytics_platform', pkey, SYSTEM_USER_ID);
                     if (pRec && pRec.count) {
                         platformCounts[knownPlatforms[p]] = (platformCounts[knownPlatforms[p]] || 0) + pRec.count;
+                        if (!platformUsers[knownPlatforms[p]]) platformUsers[knownPlatforms[p]] = 0;
+                        platformUsers[knownPlatforms[p]] += (pRec.unique_users || 0);
                     }
                 }
             }
@@ -2039,7 +2042,7 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
             platforms_arr.push({
                 platform: plat,
                 events: platformCounts[plat],
-                unique_users: 0
+                unique_users: platformUsers[plat] || 0
             });
         }
         platforms_arr.sort(function(a, b) { return b.events - a.events; });
