@@ -2009,85 +2009,37 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
+        var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
         var platformCounts = {};
-        var platformUsers = {};
-        var osVersionCounts = {};
-        var deviceCounts = {};
 
-        // Scan events for platform data (with gameId filter)
-        var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
-
-        for (var i = 0; i < events.length; i++) {
-            var ev = events[i];
-            var evData = ev.eventData || {};
-
-            var platform = evData.platform || ev.platform || 'unknown';
-            platformCounts[platform] = (platformCounts[platform] || 0) + 1;
-
-            if (ev.userId) {
-                if (!platformUsers[platform]) platformUsers[platform] = {};
-                platformUsers[platform][ev.userId] = true;
-            }
-
-            if (evData.osVersion) {
-                osVersionCounts[evData.osVersion] = (osVersionCounts[evData.osVersion] || 0) + 1;
-            }
-
-            if (evData.deviceModel) {
-                deviceCounts[evData.deviceModel] = (deviceCounts[evData.deviceModel] || 0) + 1;
-            }
-        }
-
-        // Today's live patch — analytics_live_daily.by_platform is updated on every
-        // event ingest, giving us real-time platform counts without waiting for
-        // the nightly rollup or relying on the scan reaching today's events.
-        try {
-            var pTodayStr = extDaysAgo(0);
-            var pLiveDailyKey = "live_" + (gameId || "all") + "_" + pTodayStr;
-            var pLiveRecs = nk.storageRead([{ collection: "analytics_live_daily", key: pLiveDailyKey, userId: SYSTEM_USER_ID }]);
-            if (pLiveRecs && pLiveRecs.length > 0 && pLiveRecs[0].value) {
-                var pbpMap = pLiveRecs[0].value.by_platform || {};
-                for (var pbpk in pbpMap) {
-                    if (!pbpMap.hasOwnProperty(pbpk)) continue;
-                    platformCounts[pbpk] = (platformCounts[pbpk] || 0) + pbpMap[pbpk];
-                }
-            }
-        } catch (_pp_err) { /* live_daily read failure must not break the RPC */ }
-
-        // Augment with the per-platform daily counter that ingestion writes
-        // via trackPlatform() in analytics.js. The previous implementation
-        // here read `dau_<platform>_<date>` keys that ingestion never writes
-        // (it writes `dau_<gameId>_<date>` and `dau_platform_<date>`), so the
-        // DAU loop never added anything. Now we read the canonical
-        // `analytics_platform` collection with keys
-        // `platform_<gameId>_<date>_<platform>`.
-        for (var d = 0; d < Math.min(days, 7); d++) {
-            var dateStr = extDaysAgo(d);
-            var platforms = ['android', 'ios', 'webgl', 'editor', 'unknown'];
-
-            for (var p = 0; p < platforms.length; p++) {
+        // Read pre-computed per-platform daily counters written by trackPlatform()
+        // in analytics.js (key: platform_<gameId>_<YYYY-MM-DD>_<platform>).
+        // This avoids the expensive extScanEvents call that caused timeouts.
+        var knownPlatforms = ['android', 'ios', 'webgl', 'editor', 'windows', 'unknown'];
+        var dateWindow = extResolveDateWindow(data);
+        var dates = dateWindow.dates;
+        for (var d = 0; d < dates.length; d++) {
+            var dateStr = dates[d];
+            for (var p = 0; p < knownPlatforms.length; p++) {
                 if (gameId) {
-                    var pkey = 'platform_' + gameId + '_' + dateStr + '_' + platforms[p];
+                    var pkey = 'platform_' + gameId + '_' + dateStr + '_' + knownPlatforms[p];
                     var pRec = extStorageRead(nk, 'analytics_platform', pkey, SYSTEM_USER_ID);
                     if (pRec && pRec.count) {
-                        platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + pRec.count;
+                        platformCounts[knownPlatforms[p]] = (platformCounts[knownPlatforms[p]] || 0) + pRec.count;
                     }
                 }
-                // When gameId is null ("all games") we already have the
-                // accurate per-event tally from the scan above; the per-game
-                // counter scan is too expensive without the gameId prefix.
             }
         }
 
         // Build platforms array
         var platforms_arr = [];
         for (var plat in platformCounts) {
+            if (!platformCounts.hasOwnProperty(plat)) continue;
             platforms_arr.push({
                 platform: plat,
                 events: platformCounts[plat],
-                unique_users: platformUsers[plat] ? Object.keys(platformUsers[plat]).length : 0
+                unique_users: 0
             });
         }
         platforms_arr.sort(function(a, b) { return b.events - a.events; });
@@ -2095,8 +2047,8 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
         return JSON.stringify({
             game_id: gameId || 'all',
             platforms: platforms_arr,
-            os_versions: extTopN(osVersionCounts, 10, 'version', 'count'),
-            top_devices: extTopN(deviceCounts, 10, 'model', 'count')
+            os_versions: [],
+            top_devices: []
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] platform_breakdown error: ' + e.message);
