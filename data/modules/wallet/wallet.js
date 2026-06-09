@@ -499,6 +499,7 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
 
     var parsed = utils.safeJsonParse(payload || "{}");
     var data = parsed.data || {};
+    var gameId = data.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b";
 
     var today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     var usageKey = "usage_" + userId + "_" + today;
@@ -521,10 +522,64 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
         utils.logWarn(logger, "tutorx_record_usage: storage read error: " + err.message);
     }
 
-    // Increment
+    // Determine whether this message consumes a free slot or costs coins
+    var freeBeforeThisMsg = TUTORX_CONFIG.FREE_MESSAGES_PER_DAY - usage.usedToday;
+    var coinCharged = 0;
+    var coinBalance = 0;
+
+    if (freeBeforeThisMsg <= 0) {
+        // Paid message — deduct from game wallet
+        var wallet = null;
+        try {
+            wallet = getGameWallet(nk, logger, userId, gameId);
+        } catch (err) {
+            utils.logWarn(logger, "tutorx_record_usage: wallet read error: " + err.message);
+        }
+
+        if (wallet) {
+            var currentBal = (wallet.currencies && (wallet.currencies.game || wallet.currencies.tokens)) || 0;
+            if (currentBal < TUTORX_CONFIG.COST_PER_MESSAGE) {
+                return JSON.stringify({
+                    success: false,
+                    error: "insufficient_coins",
+                    coinBalance: currentBal,
+                    costPerMsg: TUTORX_CONFIG.COST_PER_MESSAGE,
+                    timestamp: utils.getCurrentTimestamp()
+                });
+            }
+            // Deduct from whichever currency key holds the balance
+            var currencyKey = (wallet.currencies && wallet.currencies.game !== undefined) ? "game" : "tokens";
+            wallet.currencies[currencyKey] -= TUTORX_CONFIG.COST_PER_MESSAGE;
+            coinCharged = TUTORX_CONFIG.COST_PER_MESSAGE;
+            coinBalance = wallet.currencies[currencyKey];
+            try {
+                saveGameWallet(nk, logger, userId, gameId, wallet);
+                logTransaction(nk, logger, userId, {
+                    type: "tutorx_coin_charge",
+                    gameId: gameId,
+                    currency: currencyKey,
+                    amount: coinCharged,
+                    operation: "subtract",
+                    newBalance: coinBalance
+                });
+            } catch (err) {
+                utils.logError(logger, "tutorx_record_usage: wallet save failed: " + err.message);
+            }
+        }
+    } else {
+        // Free message — read wallet balance for the response without modifying it
+        try {
+            var w = getGameWallet(nk, logger, userId, gameId);
+            coinBalance = (w.currencies && (w.currencies.game !== undefined ? w.currencies.game : w.currencies.tokens)) || 0;
+        } catch (err) {
+            utils.logWarn(logger, "tutorx_record_usage: wallet read (balance-only) error: " + err.message);
+        }
+    }
+
+    // Increment daily usage counter
     usage.usedToday++;
 
-    // Write back
+    // Write back usage counter
     try {
         nk.storageWrite([{
             collection: TUTORX_CONFIG.COLLECTION,
@@ -542,12 +597,15 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
     var freeRemaining = TUTORX_CONFIG.FREE_MESSAGES_PER_DAY - usage.usedToday;
     if (freeRemaining < 0) freeRemaining = 0;
 
-    utils.logInfo(logger, "tutorx_record_usage: user=" + userId + " usedToday=" + usage.usedToday);
+    utils.logInfo(logger, "tutorx_record_usage: user=" + userId + " usedToday=" + usage.usedToday + " coinCharged=" + coinCharged + " coinBalance=" + coinBalance);
 
     return JSON.stringify({
         success: true,
         usedToday: usage.usedToday,
         freeRemaining: freeRemaining,
+        coinCharged: coinCharged,
+        coinBalance: coinBalance,
+        costPerMsg: TUTORX_CONFIG.COST_PER_MESSAGE,
         timestamp: utils.getCurrentTimestamp()
     });
 }
