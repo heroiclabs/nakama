@@ -2942,7 +2942,7 @@
                     <div class="card-body"><canvas id="platformPieChart" height="220"></canvas></div>
                 </div>
                 <div class="chart-card">
-                    <h3>Users by Platform <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformUsersChart','Users by Platform')">⛶</button></div></h3>
+                    <h3>Daily Unique Users by Platform <span title="Sum of daily unique users across the selected period — the same user is counted once per active day, not once total" style="cursor:help;opacity:0.55;font-size:0.78em;font-weight:400;">ⓘ</span> <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformUsersChart','Daily Unique Users by Platform')">⛶</button></div></h3>
                     <div class="card-body"><canvas id="platformUsersChart" height="220"></canvas></div>
                 </div>
             </div>
@@ -2999,12 +2999,18 @@
                     <div class="card-body"><canvas id="audienceAttChart" height="200"></canvas></div>
                 </div>
             </div>
-            <div class="chart-card">
-                <h3>🗣️ Locale Distribution <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
-                <div class="card-body"><table class="data-table" id="audienceLocaleTable">
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🖥️ Platform <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audiencePlatformChart','Platform')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="audiencePlatformChart" height="220"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>🗣️ Locale Distribution <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><table class="data-table" id="audienceLocaleTable">
                     <thead><tr><th>Locale</th><th>Unique Users</th><th>Events</th></tr></thead>
                     <tbody><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody>
                 </table></div>
+                </div>
             </div>
         </div>
 
@@ -5924,8 +5930,9 @@
                 document.getElementById('audienceHeaderKpis').innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">👥</div>
-                        <div class="label">Unique Users (${data.days || selectedDays}d)</div>
+                        <div class="label">Est. Unique Users (${data.days || selectedDays}d) <span title="Sum of daily unique users — same user may be counted on multiple days" style="cursor:help;opacity:0.6;font-size:0.8em;">ⓘ</span></div>
                         <div class="value">${formatNumber(data.unique_users || 0)}</div>
+                        <div class="trend" style="color:var(--text-muted);font-size:0.72rem">Upper bound — cross-day dedup not applied</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
@@ -5936,29 +5943,38 @@
                 `;
 
                 // Helper: render dimension as bar chart (top-N unique users).
-                const renderBar = (canvasId, dim, color) => {
+                // labelFn optionally transforms raw value strings for display.
+                const renderBar = (canvasId, dim, color, labelFn) => {
                     const slot = (data[dim] || []);
                     if (!slot.length) return;
-                    const labels = slot.map(s => s.value);
+                    const labels = slot.map(s => labelFn ? labelFn(s.value) : s.value);
                     const values = slot.map(s => s.unique_users || s.events);
                     if (charts[canvasId]) charts[canvasId].destroy();
                     charts[canvasId] = createBarChart(canvasId, labels, values, 'Unique users');
                 };
-                const renderDoughnut = (canvasId, dim) => {
+                const renderDoughnut = (canvasId, dim, labelFn) => {
                     const slot = (data[dim] || []);
                     if (!slot.length) return;
                     if (charts[canvasId]) charts[canvasId].destroy();
                     charts[canvasId] = createDoughnutChart(canvasId,
-                        slot.map(s => s.value),
+                        slot.map(s => labelFn ? labelFn(s.value) : s.value),
                         slot.map(s => s.unique_users || s.events));
                 };
 
-                renderBar('audienceCountryChart',     'country',        '#3b82f6');
-                renderDoughnut('audienceDeviceTierChart', 'device_tier');
-                renderDoughnut('audienceInstallChart',    'install_source');
-                renderBar('audienceAppVersionChart',  'app_version',    '#8b5cf6');
-                renderDoughnut('audienceConsentChart', 'consent_state');
-                renderDoughnut('audienceAttChart',     'att_status');
+                // Label normalisers for well-known dimension values.
+                const DEVICE_TIER_LABELS = { high: 'High-End', mid: 'Mid-Range', low: 'Low-End', unknown: 'Unknown' };
+                const CONSENT_LABELS     = { granted: 'Granted', denied: 'Denied', unknown: 'Unknown', not_applicable: 'N/A' };
+                const ATT_LABELS         = { authorized: 'Authorized', denied: 'Denied', restricted: 'Restricted', not_determined: 'Not Asked', not_applicable: 'N/A (non-iOS)', unknown: 'Unknown' };
+                const INSTALL_LABELS     = { organic: 'Organic', paid: 'Paid', referral: 'Referral', unknown: 'Unknown' };
+                const fmtDim = (map) => (v) => map[v] || (v ? v : 'Unknown');
+
+                renderBar('audienceCountryChart',     'country');
+                renderDoughnut('audienceDeviceTierChart', 'device_tier',   fmtDim(DEVICE_TIER_LABELS));
+                renderDoughnut('audienceInstallChart',    'install_source', fmtDim(INSTALL_LABELS));
+                renderBar('audienceAppVersionChart',  'app_version');
+                renderDoughnut('audienceConsentChart', 'consent_state',   fmtDim(CONSENT_LABELS));
+                renderDoughnut('audienceAttChart',     'att_status',       fmtDim(ATT_LABELS));
+                renderDoughnut('audiencePlatformChart','platform');
 
                 const localeSlot = data.locale || [];
                 const lTbody = document.querySelector('#audienceLocaleTable tbody');
@@ -7893,7 +7909,7 @@
                         options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:'right', labels:{ color:'#94a3b8', padding:12, boxWidth:14 } } } }
                     });
                     if (charts['platformUsersChart']) charts['platformUsersChart'].destroy();
-                    charts['platformUsersChart'] = createBarChart('platformUsersChart', labels, users, 'Unique Users');
+                    charts['platformUsersChart'] = createBarChart('platformUsersChart', labels, users, 'Daily Unique Users (sum across period)');
                 }
                 _heatmapClear('platformOsChart');
                 if (data.os_versions && data.os_versions.length > 0) {

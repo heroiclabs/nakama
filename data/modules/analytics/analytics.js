@@ -445,7 +445,7 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  */
 // metrics: optional { revenue_usd, ad_revenue_usd, session_count, session_seconds,
 //                     coins_earned, coins_spent } — accumulated into the live doc.
-function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metrics) {
+function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metrics, audienceDims) {
     for (var attempt = 0; attempt < 2; attempt++) {
         var existing = null;
         var version  = null;
@@ -467,6 +467,21 @@ function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metric
         if (platform) { doc.by_platform[platform] = (doc.by_platform[platform] || 0) + 1; }
         if (country)  { doc.by_country[country]   = (doc.by_country[country]   || 0) + 1; }
         doc.last_event_at = Math.max(doc.last_event_at || 0, unixTs || 0);
+
+        // Audience dimensions: device_tier, locale, app_version, install_source,
+        // consent_state, att_status — written today so the Audience tab shows
+        // live data before the nightly rollup runs.
+        if (audienceDims) {
+            var aDimKeys = ['device_tier', 'locale', 'app_version', 'install_source', 'consent_state', 'att_status'];
+            for (var _ai = 0; _ai < aDimKeys.length; _ai++) {
+                var _adk = aDimKeys[_ai];
+                var _adv = audienceDims[_adk];
+                if (!_adv) continue;
+                var _byKey = 'by_' + _adk;
+                if (!doc[_byKey]) doc[_byKey] = {};
+                doc[_byKey][_adv] = (doc[_byKey][_adv] || 0) + 1;
+            }
+        }
 
         // ── Real-time KPI accumulators ──────────────────────────────────
         // Accumulated here so the dashboard never needs a rollup to show
@@ -505,6 +520,17 @@ function liveCountersUpdate(nk, ev) {
     var platform = ((ed.platform || ed.Platform) || ev.platform || "").toLowerCase() || null;
     var country  = ((ed.country) || ev.country || "").toUpperCase().slice(0, 2) || null;
 
+    // Audience dimensions passed through to live_daily so the Audience tab
+    // shows today's breakdown before the nightly rollup runs.
+    var audienceDims = {
+        device_tier:    ed.device_tier    || null,
+        locale:         ed.locale         || null,
+        app_version:    ed.app_version    || null,
+        install_source: ed.install_source || null,
+        consent_state:  ed.consent_state  || null,
+        att_status:     ed.att_status     || null
+    };
+
     // ── Extract per-event KPI metrics ───────────────────────────────────
     // These accumulate into the live counter doc so the dashboard always
     // shows live revenue, session counts, and economy data with zero lag
@@ -528,11 +554,11 @@ function liveCountersUpdate(nk, ev) {
     }
 
     // Per-game doc — keyed by canonical UUID (slug was resolved in normalizeInboundEvent).
-    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp, metrics);
+    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
 
     // "All games" aggregate doc — lets the dashboard "All Games" selector show
     // today's live data without waiting for the nightly rollup.
-    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp, metrics);
+    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
 }
 
 /**
@@ -682,7 +708,22 @@ function persistNormalizedEvent(nk, logger, ev) {
 
     // Platform breakdown key (cheap counter keyed per day+platform+gameId).
     if (ev.platform) {
-        trackPlatform(nk, logger, ev.gameId, ev.platform);
+        trackPlatform(nk, logger, ev.gameId, ev.platform, ev.userId);
+    }
+
+    // Heatmap pre-aggregation — runs for all click/tap/screen/view/popup/modal
+    // events so rpcAnalyticsHomeHeatmap can do O(1) point-reads.
+    var evNameLow = (ev.eventName || '').toLowerCase();
+    if (evNameLow.indexOf('click') !== -1 || evNameLow.indexOf('tap') !== -1 ||
+        evNameLow.indexOf('screen') !== -1 || evNameLow.indexOf('view') !== -1 ||
+        evNameLow.indexOf('popup') !== -1 || evNameLow.indexOf('modal') !== -1) {
+        try {
+            trackHeatmap(nk, logger, ev.gameId, ev.eventName, ev.eventData || {});
+        } catch (eHm) {
+            if (logger && logger.warn) {
+                logger.warn("[analytics] trackHeatmap failed (event still recorded): " + (eHm.message || eHm));
+            }
+        }
     }
 
     // Only surface an error when the dashboard write itself failed — that is the
@@ -909,13 +950,86 @@ function bumpMetricsCounter(nk, delta) {
  *
  * Key shape: platform_<gameId>_<YYYY-MM-DD>_<platform>. Was previously using
  * unix-seconds in the date slot, breaking dashboard reads (see trackDAU note).
+ *
+ * Also tracks unique_users using the same bounded-array approach as trackDAU
+ * (capped at DAU_MAX_TRACKED_USERS) so the dashboard can show Users by Platform.
  */
-function trackPlatform(nk, logger, gameId, platform) {
+function trackPlatform(nk, logger, gameId, platform, userId) {
     var today = new Date().toISOString().slice(0, 10);
     var key = "platform_" + gameId + "_" + today + "_" + platform;
     casUpdate(nk, logger, "analytics_platform", key, SYSTEM_USER, function (rec) {
-        if (!rec) rec = { gameId: gameId, date: today, platform: platform, count: 0 };
+        if (!rec) rec = { gameId: gameId, date: today, platform: platform, count: 0, unique_users: 0, uniqueUsers: [] };
         rec.count = (rec.count || 0) + 1;
+        if (userId) {
+            if (!Array.isArray(rec.uniqueUsers)) rec.uniqueUsers = [];
+            if (rec.uniqueUsers.length < DAU_MAX_TRACKED_USERS) {
+                if (rec.uniqueUsers.indexOf(userId) === -1) {
+                    rec.uniqueUsers.push(userId);
+                }
+            }
+            rec.unique_users = rec.uniqueUsers.length + (rec.overflow_users || 0);
+            if (rec.uniqueUsers.length >= DAU_MAX_TRACKED_USERS && rec.uniqueUsers.indexOf(userId) === -1) {
+                rec.overflow_users = (rec.overflow_users || 0) + 1;
+                rec.unique_users = DAU_MAX_TRACKED_USERS + rec.overflow_users;
+            }
+        }
+        return rec;
+    });
+}
+
+/**
+ * Pre-aggregate heatmap counters (button clicks, screen views, popup shown,
+ * screen time) into a single daily doc per gameId so that
+ * rpcAnalyticsHomeHeatmap can do N point-reads instead of a 50k-object scan.
+ *
+ * Collection : analytics_heatmap
+ * Key shape  : heatmap_<gameId>_<YYYY-MM-DD>
+ *
+ * Doc shape:
+ *   {
+ *     gameId, date,
+ *     buttons  : { [buttonName]: count },
+ *     screens  : { [screenName]: { views, totalSec, samples } },
+ *     popups   : { [popupName]:  count }
+ *   }
+ */
+function trackHeatmap(nk, logger, gameId, eventName, eventData) {
+    var today = new Date().toISOString().slice(0, 10);
+    var key = "heatmap_" + gameId + "_" + today;
+    var nameLow = (eventName || '').toLowerCase();
+    var isClick = nameLow.indexOf('click') !== -1 || nameLow.indexOf('tap') !== -1;
+    var isScreen = nameLow.indexOf('screen') !== -1 || nameLow.indexOf('view') !== -1;
+    var isPopup = nameLow.indexOf('popup') !== -1 || nameLow.indexOf('modal') !== -1;
+
+    casUpdate(nk, logger, "analytics_heatmap", key, SYSTEM_USER, function (rec) {
+        if (!rec) rec = { gameId: gameId, date: today, buttons: {}, screens: {}, popups: {} };
+        if (!rec.buttons) rec.buttons = {};
+        if (!rec.screens) rec.screens = {};
+        if (!rec.popups) rec.popups = {};
+
+        var ed = eventData || {};
+
+        if (isClick) {
+            var btn = ed.button || ed.buttonName || eventName;
+            rec.buttons[btn] = (rec.buttons[btn] || 0) + 1;
+        }
+
+        if (isScreen) {
+            var scr = ed.screen || ed.screenName || eventName;
+            if (!rec.screens[scr]) rec.screens[scr] = { views: 0, totalSec: 0, samples: 0 };
+            rec.screens[scr].views++;
+            var dur = ed.duration || ed.timeSpent || 0;
+            if (dur) {
+                rec.screens[scr].totalSec += dur;
+                rec.screens[scr].samples++;
+            }
+        }
+
+        if (isPopup) {
+            var pop = ed.popup || ed.popupName || eventName;
+            rec.popups[pop] = (rec.popups[pop] || 0) + 1;
+        }
+
         return rec;
     });
 }

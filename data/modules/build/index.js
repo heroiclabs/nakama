@@ -23727,6 +23727,19 @@ var LegacyPush;
         return "en";
     }
     // ─── Quiet hours: 22:00 – 08:00 in the user's local time ───────────────────
+    // Fallback offset (minutes) for users whose client never sent a PARSEABLE
+    // timezone. The Unity client historically sent `TimeZoneInfo.Local.Id`,
+    // which on many Android/IL2CPP devices resolves to the literal string
+    // "Local" (and sometimes empty/"Unknown") — none of which we can parse.
+    // The OLD code defaulted those to 0 (UTC), which silently collapsed the
+    // per-user "09:00–13:00 local" daily-push window to 09:00–13:00 *UTC*.
+    // For the India-majority user base that meant the daily quiz fired at
+    // 2:30–6:30 PM IST instead of the morning (and at 2–9 AM for US users).
+    // Since the base is India-first, fall back to IST (+330) so the bulk of
+    // users get a sensible morning window. The permanent fix is the client
+    // sending a numeric offset ("+05:30"), which the parser below honours
+    // exactly for every region.
+    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 330; // IST (Asia/Kolkata)
     function getUserTimezoneOffsetMinutes(nk, userId) {
         try {
             var account = nk.accountGetId(userId);
@@ -23735,26 +23748,40 @@ var LegacyPush;
                 var meta = Storage.readJson(nk, Constants.PLAYER_METADATA_COLLECTION, "metadata", userId);
                 tz = meta && meta.timezone ? meta.timezone : "";
             }
-            if (!tz)
+            // Explicit UTC/GMT → offset 0 (a real, parseable answer; not the
+            // "unknown" fallback).
+            var tzLower = String(tz || "").trim().toLowerCase();
+            if (tzLower === "z" || tzLower === "utc" || tzLower === "gmt")
                 return 0;
-            var m = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(String(tz));
+            // Unparseable sentinels the client is known to emit → use default.
+            if (!tz || tzLower === "local" || tzLower === "unknown") {
+                return NOTIF_DEFAULT_TZ_OFFSET_MIN;
+            }
+            // Numeric offset, the canonical correct form the client should send:
+            //   "+05:30", "-04:00", "+0530", "+9".
+            var m = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(String(tz).trim());
             if (m) {
                 var sign = m[1] === "-" ? -1 : 1;
                 return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
             }
             // Common IANA fallbacks (cheap built-in lookup; no tz lib in Goja)
             var iana = {
-                "Asia/Kolkata": 330, "Asia/Karachi": 300, "Asia/Tokyo": 540, "Asia/Seoul": 540,
-                "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Dubai": 240, "Asia/Jakarta": 420,
-                "Europe/London": 0, "Europe/Berlin": 60, "Europe/Paris": 60, "Europe/Moscow": 180,
-                "America/New_York": -300, "America/Chicago": -360, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
-                "Africa/Johannesburg": 120, "Australia/Sydney": 600
+                "Asia/Kolkata": 330, "Asia/Calcutta": 330, "Asia/Karachi": 300, "Asia/Dhaka": 360,
+                "Asia/Kathmandu": 345, "Asia/Colombo": 330, "Asia/Tokyo": 540, "Asia/Seoul": 540,
+                "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Hong_Kong": 480, "Asia/Dubai": 240,
+                "Asia/Jakarta": 420, "Asia/Bangkok": 420, "Asia/Manila": 480, "Asia/Tehran": 210,
+                "Europe/London": 0, "Europe/Dublin": 0, "Europe/Berlin": 60, "Europe/Paris": 60,
+                "Europe/Madrid": 60, "Europe/Rome": 60, "Europe/Moscow": 180, "Europe/Istanbul": 180,
+                "America/New_York": -300, "America/Toronto": -300, "America/Chicago": -360,
+                "America/Denver": -420, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
+                "America/Mexico_City": -360, "Africa/Cairo": 120, "Africa/Johannesburg": 120,
+                "Africa/Lagos": 60, "Australia/Sydney": 600, "Pacific/Auckland": 720
             };
             if (iana[String(tz)] !== undefined)
                 return iana[String(tz)];
         }
         catch (_) { }
-        return 0;
+        return NOTIF_DEFAULT_TZ_OFFSET_MIN;
     }
     function getUserLocalHour(nk, userId) {
         var offsetMin = getUserTimezoneOffsetMinutes(nk, userId);
@@ -23807,8 +23834,14 @@ var LegacyPush;
             var ids = [];
             if (rows && rows.length) {
                 for (var i = 0; i < rows.length; i++) {
-                    if (rows[i] && rows[i].length > 0)
-                        ids.push(String(rows[i][0]));
+                    // nk.sqlQuery returns each row as an OBJECT keyed by column name
+                    // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+                    // The old `rows[i][0]` always read undefined, so these crons
+                    // silently scanned 0 users and never sent a single push.
+                    var __row = rows[i];
+                    var __uid = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+                    if (__uid != null && String(__uid) !== "")
+                        ids.push(String(__uid));
                 }
             }
             return ids;
@@ -24339,8 +24372,14 @@ var LegacyPush;
             var ids = [];
             if (rows && rows.length) {
                 for (var i = 0; i < rows.length; i++) {
-                    if (rows[i] && rows[i].length > 0)
-                        ids.push(String(rows[i][0]));
+                    // nk.sqlQuery returns each row as an OBJECT keyed by column name
+                    // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+                    // The old `rows[i][0]` always read undefined, so these crons
+                    // silently scanned 0 users and never sent a single push.
+                    var __row = rows[i];
+                    var __uid = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+                    if (__uid != null && String(__uid) !== "")
+                        ids.push(String(__uid));
                 }
             }
             return ids;
@@ -24449,8 +24488,14 @@ var LegacyPush;
             var ids = [];
             if (rows && rows.length) {
                 for (var i = 0; i < rows.length; i++) {
-                    if (rows[i] && rows[i].length > 0)
-                        ids.push(String(rows[i][0]));
+                    // nk.sqlQuery returns each row as an OBJECT keyed by column name
+                    // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+                    // The old `rows[i][0]` always read undefined, so these crons
+                    // silently scanned 0 users and never sent a single push.
+                    var __row = rows[i];
+                    var __uid = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+                    if (__uid != null && String(__uid) !== "")
+                        ids.push(String(__uid));
                 }
             }
             return ids;
@@ -35400,6 +35445,54 @@ var TournamentEconomyV2;
         eligible_after_picks: 3,
     };
     // ───────────────────────────────────────────────────────────────────────────
+    // Wave-2 slate → TournamentConfig (shared by tournament_list + tournament_get)
+    // ───────────────────────────────────────────────────────────────────────────
+    function wave2BadgeEmoji(slug) {
+        if (slug === "music-history-royale")
+            return "🎵";
+        if (slug === "pop-culture-2010s")
+            return "📺";
+        return "🎬";
+    }
+    TournamentEconomyV2.wave2BadgeEmoji = wave2BadgeEmoji;
+    function wave2ToConfig(draft) {
+        return {
+            slug: draft.slug,
+            name: draft.name,
+            description: draft.description,
+            topic_tag: draft.topic_tag,
+            format: "classic",
+            format_ui_variant: "classic-pot",
+            pre_enroll_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+            open_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+            end_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+            entry_fee_bc: draft.entry_fee_bc,
+            rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+            pot_seed_bc: draft.pot_seed_bc,
+            pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+            countries_allowed: "ALL",
+            min_age: TournamentEconomy.MIN_AGE,
+            amoe: TournamentEconomy.AMOE_CLASSIC,
+            badge_emoji: wave2BadgeEmoji(draft.slug),
+        };
+    }
+    TournamentEconomyV2.wave2ToConfig = wave2ToConfig;
+    /** LAUNCH_SLATE first, then Wave-2 draft rows when wave2_slate flag is on. */
+    function resolveConfigBySlug(slug) {
+        var cfg = TournamentEconomy.getBySlug(slug);
+        if (cfg)
+            return cfg;
+        if (!TournamentEconomyV2.FEATURE_FLAGS.wave2_slate)
+            return null;
+        for (var w = 0; w < TournamentEconomyV2.WAVE_2_SLATE_DRAFT.length; w++) {
+            if (TournamentEconomyV2.WAVE_2_SLATE_DRAFT[w].slug === slug) {
+                return wave2ToConfig(TournamentEconomyV2.WAVE_2_SLATE_DRAFT[w]);
+            }
+        }
+        return null;
+    }
+    TournamentEconomyV2.resolveConfigBySlug = resolveConfigBySlug;
+    // ───────────────────────────────────────────────────────────────────────────
     // Helpers
     // ───────────────────────────────────────────────────────────────────────────
     function thresholdByName(name) {
@@ -44809,23 +44902,7 @@ var TournamentRpcs;
                 // Promote each Wave-2 draft into a TournamentConfig shape using the
                 // shared launch-window defaults. This is read-only — we don't mutate
                 // LAUNCH_SLATE; we just serve the row out of tournament_list.
-                slate = slate.concat([{
-                        slug: w2[w].slug,
-                        name: w2[w].name,
-                        description: w2[w].description,
-                        topic_tag: w2[w].topic_tag,
-                        format: "classic",
-                        format_ui_variant: "classic-pot",
-                        pre_enroll_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-                        open_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-                        end_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
-                        entry_fee_bc: w2[w].entry_fee_bc,
-                        rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
-                        pot_seed_bc: w2[w].pot_seed_bc,
-                        countries_allowed: "ALL",
-                        min_age: 18,
-                        badge_emoji: "🎬",
-                    }]);
+                slate = slate.concat([TournamentEconomyV2.wave2ToConfig(w2[w])]);
             }
         }
         var out = [];
@@ -44889,7 +44966,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         // Opportunistic tick: cheap, gated to once-per-60s globally (B6 fix).
@@ -44993,7 +45070,7 @@ var TournamentRpcs;
         var referredBy = "" + (data.referred_by || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var meta = TournamentsStorage.readMeta(nk, slug) || TournamentsStorage.seedFromConfig(nk, cfg);
@@ -45055,7 +45132,7 @@ var TournamentRpcs;
             return RpcHelpers.errorResponse("slug required", 400);
         if (!idempotencyKey)
             return RpcHelpers.errorResponse("idempotency_key required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var meta = TournamentsStorage.readMeta(nk, slug);
@@ -45164,7 +45241,7 @@ var TournamentRpcs;
         var prior = TournamentsStorage.readSubmitIdem(nk, userId, idempotencyKey);
         if (prior)
             return RpcHelpers.successResponse({ submit: prior, idempotent: true });
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var entry = TournamentsStorage.readEntry(nk, slug, userId);
@@ -45249,7 +45326,7 @@ var TournamentRpcs;
             return RpcHelpers.errorResponse("slug + idempotency_key required", 400);
         if (!picks || picks.length === 0)
             return RpcHelpers.errorResponse("picks array required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         if (cfg.format !== "pick_n")
@@ -45460,7 +45537,7 @@ var TournamentRpcs;
         if (entry) {
             return RpcHelpers.successResponse({ pack: entry, source: "cache" });
         }
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
@@ -45558,7 +45635,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("slug not in LAUNCH_SLATE", 404);
         var meta = TournamentsStorage.seedFromConfig(nk, cfg);
@@ -45575,7 +45652,7 @@ var TournamentRpcs;
         var numCards = parseInt("" + (data.num_cards || 30), 10);
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("slug not found", 404);
         var topic = TournamentTopicCatalog.getEntry(cfg.topic_tag);
@@ -45633,7 +45710,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         var userId = ctx.userId || "";
@@ -45822,7 +45899,7 @@ var TournamentRpcs;
         if (!meta || !bracketId) {
             return RpcHelpers.successResponse({ exists: false });
         }
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         var publicUrl = anyMeta.bracket_public_url || null;
         if (!publicUrl) {
             // Default to the canonical Bracket dashboard URL pattern.
@@ -45962,7 +46039,7 @@ var TournamentRpcs;
                 username = accts[0].username;
         }
         catch (_) { /* keep default */ }
-        var cfg = TournamentEconomy.getBySlug(row.tournament_slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(row.tournament_slug);
         if (cfg)
             tournamentName = cfg.name;
         var ogBase = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
@@ -45992,7 +46069,7 @@ var TournamentRpcs;
         var trackId = "" + (data.track_id || "");
         if (!trackId)
             return RpcHelpers.errorResponse("track_id required", 400);
-        var cfg = TournamentEconomy.getBySlug(trackId);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
         if (!cfg)
             return RpcHelpers.successResponse({ ok: false, error: "track not found" });
         var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
@@ -46059,7 +46136,7 @@ var TournamentRpcs;
         var trackId = "" + (data.track_id || "");
         if (!trackId)
             return RpcHelpers.errorResponse("track_id required", 400);
-        var cfg = TournamentEconomy.getBySlug(trackId);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
         if (!cfg)
             return RpcHelpers.successResponse({ ok: false, error: "track not found" });
         var threshold = cfg.amoe && cfg.amoe.learning_series_required_videos
@@ -46086,7 +46163,7 @@ var TournamentRpcs;
         var videoId = "" + (data.video_id || "");
         if (!trackId || !videoId)
             return RpcHelpers.errorResponse("track_id + video_id required", 400);
-        var cfg = TournamentEconomy.getBySlug(trackId);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(trackId);
         if (!cfg)
             return RpcHelpers.successResponse({ ok: false, error: "track not found" });
         // video_id convention: "v{index}" (matches rpcLearningTrackProgressGet).
@@ -46202,7 +46279,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        if (!TournamentEconomy.getBySlug(slug))
+        if (!TournamentEconomyV2.resolveConfigBySlug(slug))
             return RpcHelpers.errorResponse("tournament not found", 404);
         var row = TournamentLevers.recordDetailView(nk, userId, slug);
         TournamentLevers.logEvent(nk, "tournament_detail_viewed", userId, { slug: slug });
@@ -46220,7 +46297,7 @@ var TournamentRpcs;
         if (!TournamentEconomyV2.FEATURE_FLAGS.pickn_doubleup_v1) {
             return RpcHelpers.errorResponse("doubleup feature not enabled yet", 503);
         }
-        var cfg = TournamentEconomy.getBySlug(slug);
+        var cfg = TournamentEconomyV2.resolveConfigBySlug(slug);
         if (!cfg)
             return RpcHelpers.errorResponse("tournament not found", 404);
         if (cfg.format !== "pick_n")
@@ -46280,7 +46357,7 @@ var TournamentRpcs;
         var slug = "" + (data.slug || "");
         if (!slug)
             return RpcHelpers.errorResponse("slug required", 400);
-        if (!TournamentEconomy.getBySlug(slug))
+        if (!TournamentEconomyV2.resolveConfigBySlug(slug))
             return RpcHelpers.errorResponse("tournament not found", 404);
         var userId = ctx.userId || ("anon_" + nowSec());
         TournamentLevers.addSpectator(nk, slug, userId);
@@ -47349,8 +47426,9 @@ var TournamentLevers;
             // user wants quick play → Pick-5 Daily
             return "pick-5-daily";
         }
-        if (fav === "movies")
-            return "movie-buff-weekly";
+        if (fav === "movies") {
+            return TournamentEconomyV2.FEATURE_FLAGS.wave2_slate ? "movie-trivia-royale" : "movie-buff-weekly";
+        }
         if (fav === "exam") {
             // exam-prep cohort → match by time-of-year defaults
             return "ap-2027-prep-weekly";

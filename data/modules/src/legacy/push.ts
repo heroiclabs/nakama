@@ -779,6 +779,19 @@ namespace LegacyPush {
   }
 
   // ─── Quiet hours: 22:00 – 08:00 in the user's local time ───────────────────
+  // Fallback offset (minutes) for users whose client never sent a PARSEABLE
+  // timezone. The Unity client historically sent `TimeZoneInfo.Local.Id`,
+  // which on many Android/IL2CPP devices resolves to the literal string
+  // "Local" (and sometimes empty/"Unknown") — none of which we can parse.
+  // The OLD code defaulted those to 0 (UTC), which silently collapsed the
+  // per-user "09:00–13:00 local" daily-push window to 09:00–13:00 *UTC*.
+  // For the India-majority user base that meant the daily quiz fired at
+  // 2:30–6:30 PM IST instead of the morning (and at 2–9 AM for US users).
+  // Since the base is India-first, fall back to IST (+330) so the bulk of
+  // users get a sensible morning window. The permanent fix is the client
+  // sending a numeric offset ("+05:30"), which the parser below honours
+  // exactly for every region.
+  var NOTIF_DEFAULT_TZ_OFFSET_MIN = 330; // IST (Asia/Kolkata)
   function getUserTimezoneOffsetMinutes(nk: nkruntime.Nakama, userId: string): number {
     try {
       var account: any = nk.accountGetId(userId);
@@ -787,23 +800,37 @@ namespace LegacyPush {
         var meta: any = Storage.readJson(nk, Constants.PLAYER_METADATA_COLLECTION, "metadata", userId);
         tz = meta && meta.timezone ? meta.timezone : "";
       }
-      if (!tz) return 0;
-      var m = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(String(tz));
+      // Explicit UTC/GMT → offset 0 (a real, parseable answer; not the
+      // "unknown" fallback).
+      var tzLower = String(tz || "").trim().toLowerCase();
+      if (tzLower === "z" || tzLower === "utc" || tzLower === "gmt") return 0;
+      // Unparseable sentinels the client is known to emit → use default.
+      if (!tz || tzLower === "local" || tzLower === "unknown") {
+        return NOTIF_DEFAULT_TZ_OFFSET_MIN;
+      }
+      // Numeric offset, the canonical correct form the client should send:
+      //   "+05:30", "-04:00", "+0530", "+9".
+      var m = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(String(tz).trim());
       if (m) {
         var sign = m[1] === "-" ? -1 : 1;
         return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
       }
       // Common IANA fallbacks (cheap built-in lookup; no tz lib in Goja)
       var iana: { [k: string]: number } = {
-        "Asia/Kolkata": 330, "Asia/Karachi": 300, "Asia/Tokyo": 540, "Asia/Seoul": 540,
-        "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Dubai": 240, "Asia/Jakarta": 420,
-        "Europe/London": 0, "Europe/Berlin": 60, "Europe/Paris": 60, "Europe/Moscow": 180,
-        "America/New_York": -300, "America/Chicago": -360, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
-        "Africa/Johannesburg": 120, "Australia/Sydney": 600
+        "Asia/Kolkata": 330, "Asia/Calcutta": 330, "Asia/Karachi": 300, "Asia/Dhaka": 360,
+        "Asia/Kathmandu": 345, "Asia/Colombo": 330, "Asia/Tokyo": 540, "Asia/Seoul": 540,
+        "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Hong_Kong": 480, "Asia/Dubai": 240,
+        "Asia/Jakarta": 420, "Asia/Bangkok": 420, "Asia/Manila": 480, "Asia/Tehran": 210,
+        "Europe/London": 0, "Europe/Dublin": 0, "Europe/Berlin": 60, "Europe/Paris": 60,
+        "Europe/Madrid": 60, "Europe/Rome": 60, "Europe/Moscow": 180, "Europe/Istanbul": 180,
+        "America/New_York": -300, "America/Toronto": -300, "America/Chicago": -360,
+        "America/Denver": -420, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
+        "America/Mexico_City": -360, "Africa/Cairo": 120, "Africa/Johannesburg": 120,
+        "Africa/Lagos": 60, "Australia/Sydney": 600, "Pacific/Auckland": 720
       };
       if (iana[String(tz)] !== undefined) return iana[String(tz)];
     } catch (_) {}
-    return 0;
+    return NOTIF_DEFAULT_TZ_OFFSET_MIN;
   }
 
   function getUserLocalHour(nk: nkruntime.Nakama, userId: string): number {
@@ -865,7 +892,13 @@ namespace LegacyPush {
       var ids: string[] = [];
       if (rows && rows.length) {
         for (var i = 0; i < rows.length; i++) {
-          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+          // nk.sqlQuery returns each row as an OBJECT keyed by column name
+          // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+          // The old `rows[i][0]` always read undefined, so these crons
+          // silently scanned 0 users and never sent a single push.
+          var __row: any = rows[i];
+          var __uid: any = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+          if (__uid != null && String(__uid) !== "") ids.push(String(__uid));
         }
       }
       return ids;
@@ -1295,7 +1328,13 @@ namespace LegacyPush {
       var ids: string[] = [];
       if (rows && rows.length) {
         for (var i = 0; i < rows.length; i++) {
-          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+          // nk.sqlQuery returns each row as an OBJECT keyed by column name
+          // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+          // The old `rows[i][0]` always read undefined, so these crons
+          // silently scanned 0 users and never sent a single push.
+          var __row: any = rows[i];
+          var __uid: any = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+          if (__uid != null && String(__uid) !== "") ids.push(String(__uid));
         }
       }
       return ids;
@@ -1387,7 +1426,13 @@ namespace LegacyPush {
       var ids: string[] = [];
       if (rows && rows.length) {
         for (var i = 0; i < rows.length; i++) {
-          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+          // nk.sqlQuery returns each row as an OBJECT keyed by column name
+          // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+          // The old `rows[i][0]` always read undefined, so these crons
+          // silently scanned 0 users and never sent a single push.
+          var __row: any = rows[i];
+          var __uid: any = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+          if (__uid != null && String(__uid) !== "") ids.push(String(__uid));
         }
       }
       return ids;

@@ -95,7 +95,9 @@ namespace TournamentLevers {
       // user wants quick play → Pick-5 Daily
       return "pick-5-daily";
     }
-    if (fav === "movies") return "movie-buff-weekly";
+    if (fav === "movies") {
+      return TournamentEconomyV2.FEATURE_FLAGS.wave2_slate ? "movie-trivia-royale" : "movie-buff-weekly";
+    }
     if (fav === "exam") {
       // exam-prep cohort → match by time-of-year defaults
       return "ap-2027-prep-weekly";
