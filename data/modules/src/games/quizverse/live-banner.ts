@@ -386,9 +386,19 @@ namespace QuizVerseLiveBanner {
     seen: { [id: string]: boolean },
     out: any[]
   ): void {
+    // Nakama's JS runtime rejects an empty-string userId ("expects empty or
+    // valid user id"); to list across ALL users it must be `undefined`, not "".
+    var listUserId: any = (userId && userId.length > 0) ? userId : undefined;
     var cursor = "";
     for (var page = 0; page < maxPages; page++) {
-      var result = nk.storageList(userId, LIVE_EVENTS_COLLECTION, 50, cursor);
+      var result: any;
+      try {
+        result = nk.storageList(listUserId, LIVE_EVENTS_COLLECTION, 50, cursor);
+      } catch (_e) {
+        // A rejected userId (or unsupported cross-user list) must not abort the
+        // whole creator scan — other sources (index, system, satori) still count.
+        break;
+      }
       var objects = (result && result.objects) ? result.objects : [];
       for (var i = 0; i < objects.length; i++) {
         var obj = objects[i];
@@ -648,33 +658,45 @@ namespace QuizVerseLiveBanner {
 
   function buildDiagnostics(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string): any {
     var now = Math.floor(Date.now() / 1000);
-    var seen: { [id: string]: boolean } = {};
-    var records: any[] = [];
-    collectSatoriCreatorEvents(nk, seen, records);
-    collectLiveEventsFromStorageList(nk, SYSTEM_USER, 2, seen, records);
-    collectLiveEventsFromStorageList(nk, "", 3, seen, records);
-
-    var creatorDiags: CreatorRecordDiagnostic[] = [];
-    var eligibleCount = 0;
-    for (var i = 0; i < records.length; i++) {
-      var d = creatorRecordDiagnostic(records[i], now);
-      if (d.eligible) eligibleCount++;
-      creatorDiags.push(d);
-    }
-
-    var tournament = fetchTournamentCandidate(nk, logger, userId);
-    var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
-
-    return {
+    var out: any = {
       server_time: now,
       quizverse_game_id: QUIZVERSE_GAME_ID,
+      upcoming_window_sec: UPCOMING_WINDOW_SEC,
       force_live_banner_off: FORCE_LIVE_BANNER_OFF,
-      tournament_candidate: tournament ? { id: tournament.id, status: tournament.status } : null,
-      satori_candidate: satori ? { id: satori.id, status: satori.status } : null,
-      creator_records_scanned: records.length,
-      creator_records_eligible: eligibleCount,
-      creator_records: creatorDiags
+      tournament_candidate: null,
+      satori_candidate: null,
+      creator_records_scanned: 0,
+      creator_records_eligible: 0,
+      creator_records: []
     };
+    try {
+      var seen: { [id: string]: boolean } = {};
+      var records: any[] = [];
+      collectSatoriCreatorEvents(nk, seen, records);
+      collectLiveEventsFromStorageList(nk, SYSTEM_USER, 2, seen, records);
+      collectLiveEventsFromStorageList(nk, "", 3, seen, records);
+
+      var creatorDiags: CreatorRecordDiagnostic[] = [];
+      var eligibleCount = 0;
+      for (var i = 0; i < records.length; i++) {
+        var d = creatorRecordDiagnostic(records[i], now);
+        if (d.eligible) eligibleCount++;
+        creatorDiags.push(d);
+      }
+
+      var tournament = fetchTournamentCandidate(nk, logger, userId);
+      var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
+
+      out.tournament_candidate = tournament ? { id: tournament.id, status: tournament.status } : null;
+      out.satori_candidate = satori ? { id: satori.id, status: satori.status } : null;
+      out.creator_records_scanned = records.length;
+      out.creator_records_eligible = eligibleCount;
+      out.creator_records = creatorDiags;
+    } catch (e: any) {
+      out.error = "diagnostics failed: " + (e && e.message ? e.message : String(e));
+      logger.warn("[LiveBanner] buildDiagnostics error: " + out.error);
+    }
+    return out;
   }
 
   function refreshCachedPayloadTimes(cached: any): void {
