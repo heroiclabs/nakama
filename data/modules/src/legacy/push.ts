@@ -892,7 +892,13 @@ namespace LegacyPush {
       var ids: string[] = [];
       if (rows && rows.length) {
         for (var i = 0; i < rows.length; i++) {
-          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+          // nk.sqlQuery returns each row as an OBJECT keyed by column name
+          // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+          // The old `rows[i][0]` always read undefined, so these crons
+          // silently scanned 0 users and never sent a single push.
+          var __row: any = rows[i];
+          var __uid: any = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+          if (__uid != null && String(__uid) !== "") ids.push(String(__uid));
         }
       }
       return ids;
@@ -1322,7 +1328,13 @@ namespace LegacyPush {
       var ids: string[] = [];
       if (rows && rows.length) {
         for (var i = 0; i < rows.length; i++) {
-          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+          // nk.sqlQuery returns each row as an OBJECT keyed by column name
+          // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+          // The old `rows[i][0]` always read undefined, so these crons
+          // silently scanned 0 users and never sent a single push.
+          var __row: any = rows[i];
+          var __uid: any = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+          if (__uid != null && String(__uid) !== "") ids.push(String(__uid));
         }
       }
       return ids;
@@ -1414,7 +1426,13 @@ namespace LegacyPush {
       var ids: string[] = [];
       if (rows && rows.length) {
         for (var i = 0; i < rows.length; i++) {
-          if (rows[i] && rows[i].length > 0) ids.push(String(rows[i][0]));
+          // nk.sqlQuery returns each row as an OBJECT keyed by column name
+          // (SqlQueryResult = {[column]: any}[]), NOT a positional array.
+          // The old `rows[i][0]` always read undefined, so these crons
+          // silently scanned 0 users and never sent a single push.
+          var __row: any = rows[i];
+          var __uid: any = __row ? (__row.user_id != null ? __row.user_id : (__row.length > 0 ? __row[0] : null)) : null;
+          if (__uid != null && String(__uid) !== "") ids.push(String(__uid));
         }
       }
       return ids;
