@@ -23727,6 +23727,19 @@ var LegacyPush;
         return "en";
     }
     // ─── Quiet hours: 22:00 – 08:00 in the user's local time ───────────────────
+    // Fallback offset (minutes) for users whose client never sent a PARSEABLE
+    // timezone. The Unity client historically sent `TimeZoneInfo.Local.Id`,
+    // which on many Android/IL2CPP devices resolves to the literal string
+    // "Local" (and sometimes empty/"Unknown") — none of which we can parse.
+    // The OLD code defaulted those to 0 (UTC), which silently collapsed the
+    // per-user "09:00–13:00 local" daily-push window to 09:00–13:00 *UTC*.
+    // For the India-majority user base that meant the daily quiz fired at
+    // 2:30–6:30 PM IST instead of the morning (and at 2–9 AM for US users).
+    // Since the base is India-first, fall back to IST (+330) so the bulk of
+    // users get a sensible morning window. The permanent fix is the client
+    // sending a numeric offset ("+05:30"), which the parser below honours
+    // exactly for every region.
+    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 330; // IST (Asia/Kolkata)
     function getUserTimezoneOffsetMinutes(nk, userId) {
         try {
             var account = nk.accountGetId(userId);
@@ -23735,26 +23748,40 @@ var LegacyPush;
                 var meta = Storage.readJson(nk, Constants.PLAYER_METADATA_COLLECTION, "metadata", userId);
                 tz = meta && meta.timezone ? meta.timezone : "";
             }
-            if (!tz)
+            // Explicit UTC/GMT → offset 0 (a real, parseable answer; not the
+            // "unknown" fallback).
+            var tzLower = String(tz || "").trim().toLowerCase();
+            if (tzLower === "z" || tzLower === "utc" || tzLower === "gmt")
                 return 0;
-            var m = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(String(tz));
+            // Unparseable sentinels the client is known to emit → use default.
+            if (!tz || tzLower === "local" || tzLower === "unknown") {
+                return NOTIF_DEFAULT_TZ_OFFSET_MIN;
+            }
+            // Numeric offset, the canonical correct form the client should send:
+            //   "+05:30", "-04:00", "+0530", "+9".
+            var m = /^([+-])(\d{1,2}):?(\d{2})?$/.exec(String(tz).trim());
             if (m) {
                 var sign = m[1] === "-" ? -1 : 1;
                 return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
             }
             // Common IANA fallbacks (cheap built-in lookup; no tz lib in Goja)
             var iana = {
-                "Asia/Kolkata": 330, "Asia/Karachi": 300, "Asia/Tokyo": 540, "Asia/Seoul": 540,
-                "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Dubai": 240, "Asia/Jakarta": 420,
-                "Europe/London": 0, "Europe/Berlin": 60, "Europe/Paris": 60, "Europe/Moscow": 180,
-                "America/New_York": -300, "America/Chicago": -360, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
-                "Africa/Johannesburg": 120, "Australia/Sydney": 600
+                "Asia/Kolkata": 330, "Asia/Calcutta": 330, "Asia/Karachi": 300, "Asia/Dhaka": 360,
+                "Asia/Kathmandu": 345, "Asia/Colombo": 330, "Asia/Tokyo": 540, "Asia/Seoul": 540,
+                "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Hong_Kong": 480, "Asia/Dubai": 240,
+                "Asia/Jakarta": 420, "Asia/Bangkok": 420, "Asia/Manila": 480, "Asia/Tehran": 210,
+                "Europe/London": 0, "Europe/Dublin": 0, "Europe/Berlin": 60, "Europe/Paris": 60,
+                "Europe/Madrid": 60, "Europe/Rome": 60, "Europe/Moscow": 180, "Europe/Istanbul": 180,
+                "America/New_York": -300, "America/Toronto": -300, "America/Chicago": -360,
+                "America/Denver": -420, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
+                "America/Mexico_City": -360, "Africa/Cairo": 120, "Africa/Johannesburg": 120,
+                "Africa/Lagos": 60, "Australia/Sydney": 600, "Pacific/Auckland": 720
             };
             if (iana[String(tz)] !== undefined)
                 return iana[String(tz)];
         }
         catch (_) { }
-        return 0;
+        return NOTIF_DEFAULT_TZ_OFFSET_MIN;
     }
     function getUserLocalHour(nk, userId) {
         var offsetMin = getUserTimezoneOffsetMinutes(nk, userId);
@@ -39071,9 +39098,7 @@ var SatoriCreatorEvents;
         if (startAt <= 0 || durationMin <= 0)
             return "Event schedule is invalid";
         var endAt = startAt + Math.floor(durationMin * 60);
-        // Allow up to 30 s before the scheduled start to absorb clock skew and
-        // the brief lag between the countdown reaching zero and the server tick.
-        if (nowSec < startAt - 30)
+        if (nowSec < startAt)
             return "Event has not started yet";
         if (nowSec >= endAt)
             return "Event has ended";
