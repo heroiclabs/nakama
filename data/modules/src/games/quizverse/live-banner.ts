@@ -51,7 +51,11 @@ namespace QuizVerseLiveBanner {
   var CACHE_KEY         = "banner";
   var CACHE_TTL_SEC     = 60;          // 1 min cache per user (hot path dedup)
   var NO_EVENT_TTL_SEC  = 300;         // 5 min cache when show=false (save DB reads)
-  var UPCOMING_WINDOW_SEC = 1800;      // Show "upcoming" banner 30 min before start
+  // How early an UPCOMING event surfaces on the banner. Set generously so a
+  // public event shows as soon as it's published (not just 30 min before start).
+  // Change this single number to tighten/widen the horizon (e.g. 1800 = 30 min,
+  // 86400 = 1 day, 604800 = 7 days).
+  var UPCOMING_WINDOW_SEC = 604800;    // 7 days — event shows right after publish
   var ENDING_SOON_SEC  = 900;          // "Ending soon" badge within 15 min of end
   var LIVE_URL_BASE    = "https://live.quizverse.world/player";
   var QUIZVERSE_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
@@ -129,6 +133,18 @@ namespace QuizVerseLiveBanner {
     var age = now - startsAt;
     if (age < 1800) return "new"; // New in last 30 min
     return "hot";
+  }
+
+  // ── Human countdown label ─────────────────────────────────────────────────
+  // Renders a seconds-until value as a friendly "in 3 days" / "in 5h" / "in 12m"
+  // so far-future upcoming events don't show "Starts in 4320 min".
+  function formatCountdownLabel(secUntil: number): string {
+    var s = Math.max(0, Math.floor(secUntil));
+    if (s >= 172800) return Math.floor(s / 86400) + " days";   // 2d+
+    if (s >= 86400)  return "1 day";
+    if (s >= 3600)   return Math.floor(s / 3600) + "h";
+    var m = Math.floor(s / 60);
+    return (m < 1 ? 1 : m) + "m";
   }
 
   // ── Build CTA URL ─────────────────────────────────────────────────────────
@@ -517,8 +533,7 @@ namespace QuizVerseLiveBanner {
     // Build human subtitle
     var subtitle = description || title;
     if (status === "upcoming") {
-      var minUntil = Math.floor((startsAt - now) / 60);
-      subtitle = "Starts in " + minUntil + " min · " + title;
+      subtitle = "Starts in " + formatCountdownLabel(startsAt - now) + " · " + title;
     } else if (timeRemaining < 3600) {
       var minsLeft = Math.floor(timeRemaining / 60);
       subtitle = title + " · Ends in " + minsLeft + "m";
@@ -550,15 +565,116 @@ namespace QuizVerseLiveBanner {
     };
   }
 
-  /** True when an event is in the live window right now (not just upcoming). */
-  function isLiveWindowActive(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string): boolean {
+  /**
+   * True when any source currently has a banner-worthy event — either live
+   * right now OR upcoming within UPCOMING_WINDOW_SEC. Used to bust a stale
+   * `show=false` cache so a freshly-started (or about-to-start) public event
+   * surfaces without waiting out the no-event TTL.
+   */
+  function hasShowableEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string): boolean {
     var tournament = fetchTournamentCandidate(nk, logger, userId);
-    if (tournament && tournament.status === "active") return true;
+    if (tournament) return true; // fetch* only return active/upcoming candidates
     var creator = fetchCreatorCandidate(nk, logger);
-    if (creator && creator.status === "active") return true;
+    if (creator) return true;
     var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
-    if (satori && satori.status === "active") return true;
+    if (satori) return true;
     return false;
+  }
+
+  // ── Diagnostics (debug=true) ──────────────────────────────────────────────
+  // Explains, per creator record, why it was accepted or rejected as a banner
+  // candidate. This is the fast path to answer "why isn't my public event
+  // showing?" without DB access — it mirrors the exact filters the hot path uses.
+
+  interface CreatorRecordDiagnostic {
+    id: string;
+    eligible: boolean;
+    reason: string;
+    status?: string;
+    visibility?: string;
+    game_id?: string;
+    starts_at?: number;
+    ends_at?: number;
+  }
+
+  function creatorRecordDiagnostic(ev: any, now: number): CreatorRecordDiagnostic {
+    var id = (ev && ev.id) ? String(ev.id) : "(no id)";
+    if (!ev || !ev.id) {
+      return { id: id, eligible: false, reason: "record has no id" };
+    }
+
+    var status = String(ev.status || "published").toLowerCase();
+    var visibility = ev.visibility ? String(ev.visibility).toLowerCase() : "(unset → treated as public)";
+    var gameId = ev.gameId || ev.game_id || "";
+
+    if (status === "draft" || status === "cancelled" ||
+        status === "distributed" || status === "funded" || status === "ended") {
+      return { id: id, eligible: false, reason: "status=" + status + " is not bannerable", status: status };
+    }
+    if (ev.visibility && String(ev.visibility).toLowerCase() === "private") {
+      return { id: id, eligible: false, reason: "visibility is private", status: status, visibility: visibility };
+    }
+    if (gameId && String(gameId) !== QUIZVERSE_GAME_ID) {
+      return {
+        id: id, eligible: false,
+        reason: "gameId " + gameId + " != QuizVerse (" + QUIZVERSE_GAME_ID + ")",
+        status: status, visibility: visibility, game_id: String(gameId)
+      };
+    }
+
+    var window = resolveCreatorEventWindow(ev);
+    if (!window) {
+      return { id: id, eligible: false, reason: "no valid start time / duration", status: status, visibility: visibility };
+    }
+
+    var timeStatus = classifyBannerTimeStatus(now, window.startAt, window.endAt);
+    if (!timeStatus) {
+      var reason = (now > window.endAt)
+        ? "ended " + (now - window.endAt) + "s ago"
+        : "starts in " + (window.startAt - now) + "s (beyond the " + UPCOMING_WINDOW_SEC + "s upcoming window)";
+      return {
+        id: id, eligible: false, reason: reason,
+        status: status, visibility: visibility,
+        starts_at: window.startAt, ends_at: window.endAt
+      };
+    }
+
+    return {
+      id: id, eligible: true, reason: timeStatus,
+      status: status, visibility: visibility,
+      starts_at: window.startAt, ends_at: window.endAt
+    };
+  }
+
+  function buildDiagnostics(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string): any {
+    var now = Math.floor(Date.now() / 1000);
+    var seen: { [id: string]: boolean } = {};
+    var records: any[] = [];
+    collectSatoriCreatorEvents(nk, seen, records);
+    collectLiveEventsFromStorageList(nk, SYSTEM_USER, 2, seen, records);
+    collectLiveEventsFromStorageList(nk, "", 3, seen, records);
+
+    var creatorDiags: CreatorRecordDiagnostic[] = [];
+    var eligibleCount = 0;
+    for (var i = 0; i < records.length; i++) {
+      var d = creatorRecordDiagnostic(records[i], now);
+      if (d.eligible) eligibleCount++;
+      creatorDiags.push(d);
+    }
+
+    var tournament = fetchTournamentCandidate(nk, logger, userId);
+    var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
+
+    return {
+      server_time: now,
+      quizverse_game_id: QUIZVERSE_GAME_ID,
+      force_live_banner_off: FORCE_LIVE_BANNER_OFF,
+      tournament_candidate: tournament ? { id: tournament.id, status: tournament.status } : null,
+      satori_candidate: satori ? { id: satori.id, status: satori.status } : null,
+      creator_records_scanned: records.length,
+      creator_records_eligible: eligibleCount,
+      creator_records: creatorDiags
+    };
   }
 
   function refreshCachedPayloadTimes(cached: any): void {
@@ -590,10 +706,17 @@ namespace QuizVerseLiveBanner {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
     var gameId = (data && data.game_id) ? String(data.game_id) : QUIZVERSE_GAME_ID;
-    var forceRefresh = !!(data && data.force_refresh);
+    var debug = !!(data && data.debug);
+    // Debug calls always bypass the cache so diagnostics reflect live storage.
+    var forceRefresh = !!(data && data.force_refresh) || debug;
 
     if (FORCE_LIVE_BANNER_OFF) {
       var disabledPayload = emptyBannerPayload();
+      if (debug) {
+        disabledPayload.diagnostics = buildDiagnostics(nk, logger, userId, gameId);
+        logger.info("[LiveBanner] user=" + userId + " FORCE_LIVE_BANNER_OFF (debug) — kill-switch is ON, banner suppressed");
+        return RpcHelpers.successResponse(disabledPayload);
+      }
       writeCache(nk, userId, disabledPayload, NO_EVENT_TTL_SEC);
       logger.info("[LiveBanner] user=" + userId + " FORCE_LIVE_BANNER_OFF — show=false force_live=false");
       return RpcHelpers.successResponse(disabledPayload);
@@ -603,9 +726,10 @@ namespace QuizVerseLiveBanner {
     if (!forceRefresh) {
       var cached = readCache(nk, userId);
       if (cached !== null) {
-        // Stale no-banner cache: if an event went live after we cached false, rebuild now.
-        if (!cached.show && isLiveWindowActive(nk, logger, userId, gameId)) {
-          logger.info("[LiveBanner] user=" + userId + " busting show=false cache — live event active");
+        // Stale no-banner cache: if an event is now live OR upcoming after we
+        // cached false, rebuild immediately instead of waiting out the TTL.
+        if (!cached.show && hasShowableEvent(nk, logger, userId, gameId)) {
+          logger.info("[LiveBanner] user=" + userId + " busting show=false cache — showable event present");
           cached = null;
         } else {
           refreshCachedPayloadTimes(cached);
@@ -670,6 +794,13 @@ namespace QuizVerseLiveBanner {
         server_time: Math.floor(Date.now() / 1000)
       };
       cacheTtl = NO_EVENT_TTL_SEC;
+    }
+
+    if (debug) {
+      // Don't cache debug results; return diagnostics alongside the real payload.
+      bannerPayload.diagnostics = buildDiagnostics(nk, logger, userId, gameId);
+      logger.info("[LiveBanner] user=" + userId + " (debug) show=" + bannerPayload.show + " type=" + bannerPayload.event_type + " creator_scanned=" + bannerPayload.diagnostics.creator_records_scanned + " eligible=" + bannerPayload.diagnostics.creator_records_eligible);
+      return RpcHelpers.successResponse(bannerPayload);
     }
 
     writeCache(nk, userId, bannerPayload, cacheTtl);
