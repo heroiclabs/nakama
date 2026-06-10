@@ -2009,85 +2009,40 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
         var days = parseInt(data.days, 10) || 7;
-        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
+        var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
         var platformCounts = {};
         var platformUsers = {};
-        var osVersionCounts = {};
-        var deviceCounts = {};
 
-        // Scan events for platform data (with gameId filter)
-        var events = extScanEvents(nk, logger, 'analytics_events', days, null, gameId);
-
-        for (var i = 0; i < events.length; i++) {
-            var ev = events[i];
-            var evData = ev.eventData || {};
-
-            var platform = evData.platform || ev.platform || 'unknown';
-            platformCounts[platform] = (platformCounts[platform] || 0) + 1;
-
-            if (ev.userId) {
-                if (!platformUsers[platform]) platformUsers[platform] = {};
-                platformUsers[platform][ev.userId] = true;
-            }
-
-            if (evData.osVersion) {
-                osVersionCounts[evData.osVersion] = (osVersionCounts[evData.osVersion] || 0) + 1;
-            }
-
-            if (evData.deviceModel) {
-                deviceCounts[evData.deviceModel] = (deviceCounts[evData.deviceModel] || 0) + 1;
-            }
-        }
-
-        // Today's live patch — analytics_live_daily.by_platform is updated on every
-        // event ingest, giving us real-time platform counts without waiting for
-        // the nightly rollup or relying on the scan reaching today's events.
-        try {
-            var pTodayStr = extDaysAgo(0);
-            var pLiveDailyKey = "live_" + (gameId || "all") + "_" + pTodayStr;
-            var pLiveRecs = nk.storageRead([{ collection: "analytics_live_daily", key: pLiveDailyKey, userId: SYSTEM_USER_ID }]);
-            if (pLiveRecs && pLiveRecs.length > 0 && pLiveRecs[0].value) {
-                var pbpMap = pLiveRecs[0].value.by_platform || {};
-                for (var pbpk in pbpMap) {
-                    if (!pbpMap.hasOwnProperty(pbpk)) continue;
-                    platformCounts[pbpk] = (platformCounts[pbpk] || 0) + pbpMap[pbpk];
-                }
-            }
-        } catch (_pp_err) { /* live_daily read failure must not break the RPC */ }
-
-        // Augment with the per-platform daily counter that ingestion writes
-        // via trackPlatform() in analytics.js. The previous implementation
-        // here read `dau_<platform>_<date>` keys that ingestion never writes
-        // (it writes `dau_<gameId>_<date>` and `dau_platform_<date>`), so the
-        // DAU loop never added anything. Now we read the canonical
-        // `analytics_platform` collection with keys
-        // `platform_<gameId>_<date>_<platform>`.
-        for (var d = 0; d < Math.min(days, 7); d++) {
-            var dateStr = extDaysAgo(d);
-            var platforms = ['android', 'ios', 'webgl', 'editor', 'unknown'];
-
-            for (var p = 0; p < platforms.length; p++) {
+        // Read pre-computed per-platform daily counters written by trackPlatform()
+        // in analytics.js (key: platform_<gameId>_<YYYY-MM-DD>_<platform>).
+        // This avoids the expensive extScanEvents call that caused timeouts.
+        var knownPlatforms = ['android', 'ios', 'webgl', 'editor', 'windows', 'unknown'];
+        var dateWindow = extResolveDateWindow(data);
+        var dates = dateWindow.dates;
+        for (var d = 0; d < dates.length; d++) {
+            var dateStr = dates[d];
+            for (var p = 0; p < knownPlatforms.length; p++) {
                 if (gameId) {
-                    var pkey = 'platform_' + gameId + '_' + dateStr + '_' + platforms[p];
+                    var pkey = 'platform_' + gameId + '_' + dateStr + '_' + knownPlatforms[p];
                     var pRec = extStorageRead(nk, 'analytics_platform', pkey, SYSTEM_USER_ID);
                     if (pRec && pRec.count) {
-                        platformCounts[platforms[p]] = (platformCounts[platforms[p]] || 0) + pRec.count;
+                        platformCounts[knownPlatforms[p]] = (platformCounts[knownPlatforms[p]] || 0) + pRec.count;
+                        if (!platformUsers[knownPlatforms[p]]) platformUsers[knownPlatforms[p]] = 0;
+                        platformUsers[knownPlatforms[p]] += (pRec.unique_users || 0);
                     }
                 }
-                // When gameId is null ("all games") we already have the
-                // accurate per-event tally from the scan above; the per-game
-                // counter scan is too expensive without the gameId prefix.
             }
         }
 
         // Build platforms array
         var platforms_arr = [];
         for (var plat in platformCounts) {
+            if (!platformCounts.hasOwnProperty(plat)) continue;
             platforms_arr.push({
                 platform: plat,
                 events: platformCounts[plat],
-                unique_users: platformUsers[plat] ? Object.keys(platformUsers[plat]).length : 0
+                unique_users: platformUsers[plat] || 0
             });
         }
         platforms_arr.sort(function(a, b) { return b.events - a.events; });
@@ -2095,8 +2050,8 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
         return JSON.stringify({
             game_id: gameId || 'all',
             platforms: platforms_arr,
-            os_versions: extTopN(osVersionCounts, 10, 'version', 'count'),
-            top_devices: extTopN(deviceCounts, 10, 'model', 'count')
+            os_versions: [],
+            top_devices: []
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] platform_breakdown error: ' + e.message);
@@ -2109,60 +2064,111 @@ function rpcAnalyticsPlatformBreakdown(ctx, logger, nk, payload) {
 function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
     try {
         var data = extSafeJsonParse(payload);
-        var days = parseInt(data.days, 10) || 7;
-        var gameId = extResolveGameId(data.game_id || data.gameId || null); // Optional filter — alias slugs to canonical UUIDs
+        var days = Math.min(parseInt(data.days, 10) || 7, 90);
+        var gameId = extResolveGameId(data.game_id || data.gameId || null);
 
         var buttonClicks = {};
         var screenViews = {};
-        var screenTime = {};
+        var screenTime   = {};
         var screenTimeCounts = {};
-        var popupShown = {};
+        var popupShown   = {};
 
-        // Scan UI-related events (with gameId filter)
-        var events = extScanEvents(nk, logger, 'analytics_events', days, function(val) {
-            var evName = (val.eventName || '').toLowerCase();
-            return evName.indexOf('click') !== -1 || evName.indexOf('view') !== -1 ||
-                   evName.indexOf('screen') !== -1 || evName.indexOf('popup') !== -1 ||
-                   evName.indexOf('button') !== -1 || evName.indexOf('tap') !== -1;
-        }, gameId);
+        // Build an array of date strings covering the requested window.
+        // Each date maps to exactly one pre-aggregated heatmap doc written
+        // by trackHeatmap() inside persistNormalizedEvent() — O(days) reads
+        // instead of a 50k-object storageList scan.
+        var dateKeys = [];
+        for (var d = 0; d < days; d++) {
+            var dt = extDaysAgo(d);
+            // When no gameId filter is requested, we cannot enumerate all
+            // possible gameIds, so fall back to the legacy scan but capped
+            // at 25 pages to avoid 502s.
+            if (!gameId) break;
+            dateKeys.push({ collection: "analytics_heatmap", key: "heatmap_" + gameId + "_" + dt });
+        }
 
-        for (var i = 0; i < events.length; i++) {
-            var ev = events[i];
-            var evName = ev.eventName || '';
-            var evData = ev.eventData || {};
-
-            // Button clicks
-            if (evName.toLowerCase().indexOf('click') !== -1 || evName.toLowerCase().indexOf('tap') !== -1) {
-                var button = evData.button || evData.buttonName || evName;
-                buttonClicks[button] = (buttonClicks[button] || 0) + 1;
+        if (dateKeys.length > 0) {
+            // Fast path: O(days) point-reads from pre-aggregated docs.
+            var reads = [];
+            try { reads = nk.storageRead(dateKeys); } catch (eRead) {
+                logger.warn("[AnalyticsExtended] heatmap point-read failed, falling back to scan: " + eRead.message);
+                dateKeys = []; // trigger fallback below
             }
 
-            // Screen views
-            if (evName.toLowerCase().indexOf('screen') !== -1 || evName.toLowerCase().indexOf('view') !== -1) {
-                var screen = evData.screen || evData.screenName || evName;
-                screenViews[screen] = (screenViews[screen] || 0) + 1;
-
-                if (evData.duration || evData.timeSpent) {
-                    if (!screenTime[screen]) screenTime[screen] = 0;
-                    if (!screenTimeCounts[screen]) screenTimeCounts[screen] = 0;
-                    screenTime[screen] += evData.duration || evData.timeSpent || 0;
-                    screenTimeCounts[screen]++;
+            for (var r = 0; r < reads.length; r++) {
+                var rec = reads[r].value || {};
+                var bMap = rec.buttons || {};
+                for (var btn in bMap) {
+                    buttonClicks[btn] = (buttonClicks[btn] || 0) + bMap[btn];
                 }
-            }
-
-            // Popups
-            if (evName.toLowerCase().indexOf('popup') !== -1 || evName.toLowerCase().indexOf('modal') !== -1) {
-                var popup = evData.popup || evData.popupName || evName;
-                popupShown[popup] = (popupShown[popup] || 0) + 1;
+                var sMap = rec.screens || {};
+                for (var scr in sMap) {
+                    var sd = sMap[scr];
+                    screenViews[scr] = (screenViews[scr] || 0) + (sd.views || 0);
+                    if (sd.totalSec) {
+                        screenTime[scr]       = (screenTime[scr] || 0)       + sd.totalSec;
+                        screenTimeCounts[scr] = (screenTimeCounts[scr] || 0) + (sd.samples || 0);
+                    }
+                }
+                var pMap = rec.popups || {};
+                for (var pop in pMap) {
+                    popupShown[pop] = (popupShown[pop] || 0) + pMap[pop];
+                }
             }
         }
 
-        // Calculate average screen time
+        // Fallback (no gameId supplied or point-read failed): bounded scan capped
+        // at 25 pages × 200 objects = 5 000 events. Still avoids the 502-inducing
+        // 250-page default of extScanEvents.
+        if (dateKeys.length === 0) {
+            var cutoff = extDaysAgo(days - 1);
+            var cursor = null;
+            var iterations = 0;
+            var maxIter = 25;
+            do {
+                var result = null;
+                try { result = nk.storageList(SYSTEM_USER_ID, "analytics_events", 200, cursor); } catch (eScan) {
+                    logger.warn("[AnalyticsExtended] heatmap fallback scan error: " + eScan.message);
+                    break;
+                }
+                if (!result || !result.objects) break;
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj   = result.objects[i];
+                    var val   = extNormalizeEvent(obj.value, obj.key);
+                    if (!val) continue;
+                    var evDate = val.date || obj.key.slice(-10);
+                    if (evDate && evDate < cutoff) continue;
+                    var evName = val.eventName || '';
+                    var evData = val.eventData || {};
+                    var nLow   = evName.toLowerCase();
+                    if (nLow.indexOf('click') !== -1 || nLow.indexOf('tap') !== -1) {
+                        var b = evData.button || evData.buttonName || evName;
+                        buttonClicks[b] = (buttonClicks[b] || 0) + 1;
+                    }
+                    if (nLow.indexOf('screen') !== -1 || nLow.indexOf('view') !== -1) {
+                        var s = evData.screen || evData.screenName || evName;
+                        screenViews[s] = (screenViews[s] || 0) + 1;
+                        var dur = evData.duration || evData.timeSpent || 0;
+                        if (dur) {
+                            screenTime[s]       = (screenTime[s] || 0)       + dur;
+                            screenTimeCounts[s] = (screenTimeCounts[s] || 0) + 1;
+                        }
+                    }
+                    if (nLow.indexOf('popup') !== -1 || nLow.indexOf('modal') !== -1) {
+                        var p = evData.popup || evData.popupName || evName;
+                        popupShown[p] = (popupShown[p] || 0) + 1;
+                    }
+                }
+                cursor = result.cursor;
+                iterations++;
+            } while (cursor && iterations < maxIter);
+        }
+
         var screenTimeAvg = [];
-        for (var s in screenTime) {
+        for (var sc in screenTime) {
             screenTimeAvg.push({
-                screen: s,
-                avg_seconds: screenTimeCounts[s] > 0 ? Math.round(screenTime[s] / screenTimeCounts[s]) : 0
+                screen: sc,
+                avg_seconds: screenTimeCounts[sc] > 0 ? Math.round(screenTime[sc] / screenTimeCounts[sc]) : 0
             });
         }
         screenTimeAvg.sort(function(a, b) { return b.avg_seconds - a.avg_seconds; });
@@ -2172,7 +2178,8 @@ function rpcAnalyticsHomeHeatmap(ctx, logger, nk, payload) {
             buttons: extTopN(buttonClicks, 15, 'button', 'count'),
             top_screens: extTopN(screenViews, 10, 'screen', 'views'),
             screen_time: screenTimeAvg.slice(0, 10),
-            top_popups: extTopN(popupShown, 10, 'popup', 'shown')
+            top_popups: extTopN(popupShown, 10, 'popup', 'shown'),
+            source: dateKeys.length > 0 ? 'rollup_daily' : 'scan_fallback'
         });
     } catch (e) {
         logger.error('[AnalyticsExtended] home_heatmap error: ' + e.message);
@@ -2944,19 +2951,28 @@ function rpcAnalyticsAudienceBreakdown(ctx, logger, nk, payload) {
                 if (aLiveRecs && aLiveRecs.length > 0 && aLiveRecs[0].value) {
                     var ald = aLiveRecs[0].value;
                     totalEvents += ald.total || 0;
-                    // Inject platform dimension from live_daily.by_platform
-                    var bpMap = ald.by_platform || {};
-                    for (var bpk in bpMap) {
-                        if (!bpMap.hasOwnProperty(bpk)) continue;
-                        if (!agg.platform[bpk]) agg.platform[bpk] = { events: 0, unique_users: 0 };
-                        agg.platform[bpk].events += bpMap[bpk];
-                    }
-                    // Inject country dimension from live_daily.by_country
-                    var bcMap = ald.by_country || {};
-                    for (var bck in bcMap) {
-                        if (!bcMap.hasOwnProperty(bck)) continue;
-                        if (!agg.country[bck]) agg.country[bck] = { events: 0, unique_users: 0 };
-                        agg.country[bck].events += bcMap[bck];
+
+                    // Map: live_daily key → agg dimension key
+                    var _audPairs = [
+                        ['by_platform',     'platform'],
+                        ['by_country',      'country'],
+                        ['by_device_tier',  'device_tier'],
+                        ['by_locale',       'locale'],
+                        ['by_app_version',  'app_version'],
+                        ['by_install_source','install_source'],
+                        ['by_consent_state','consent_state'],
+                        ['by_att_status',   'att_status']
+                    ];
+                    for (var _pi = 0; _pi < _audPairs.length; _pi++) {
+                        var _livK = _audPairs[_pi][0];
+                        var _aggK = _audPairs[_pi][1];
+                        var _map  = ald[_livK] || {};
+                        for (var _mk in _map) {
+                            if (!_map.hasOwnProperty(_mk)) continue;
+                            if (!agg[_aggK]) agg[_aggK] = {};
+                            if (!agg[_aggK][_mk]) agg[_aggK][_mk] = { events: 0, unique_users: 0 };
+                            agg[_aggK][_mk].events += _map[_mk];
+                        }
                     }
                 }
             } catch (_al_err) { /* live_daily read failure must not break the RPC */ }

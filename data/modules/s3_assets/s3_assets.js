@@ -332,7 +332,7 @@ function rpcStarWarsCharacterImages(ctx, logger, nk, payload) {
 
     const category = 'starwars/characters';
     const collection = 's3_asset_manifests';
-    const key = category.replace(/\\//g, '_');
+    const key = category.replace(/\//g, '_');
 
     const objects = nk.storageRead([{
         collection: collection,
@@ -353,9 +353,17 @@ function rpcStarWarsCharacterImages(ctx, logger, nk, payload) {
                 .replace(/_/g, ' ')
                 .replace(/\b\w/g, c => c.toUpperCase());
             
-            // Filter if specific characters requested
-            if (request.characters && !request.characters.includes(charName)) {
-                continue;
+            // Filter if specific characters requested — normalise both sides so
+            // "luke_skywalker" and "Luke Skywalker" both match.
+            if (request.characters && request.characters.length > 0) {
+                const charNameNorm = charName.toLowerCase().replace(/\s+/g, '_');
+                const matched = request.characters.some(c =>
+                    c === charName ||
+                    c.toLowerCase() === charName.toLowerCase() ||
+                    c.toLowerCase().replace(/\s+/g, '_') === charNameNorm ||
+                    c.toLowerCase().replace(/_/g, ' ') === charName.toLowerCase()
+                );
+                if (!matched) continue;
             }
 
             const objectKey = category + '/' + assetName;

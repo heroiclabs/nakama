@@ -441,6 +441,50 @@ namespace TournamentEconomyV2 {
   };
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Wave-2 slate → TournamentConfig (shared by tournament_list + tournament_get)
+  // ───────────────────────────────────────────────────────────────────────────
+  export function wave2BadgeEmoji(slug: string): string {
+    if (slug === "music-history-royale") return "🎵";
+    if (slug === "pop-culture-2010s") return "📺";
+    return "🎬";
+  }
+
+  export function wave2ToConfig(draft: Wave2Tournament): TournamentEconomy.TournamentConfig {
+    return {
+      slug: draft.slug,
+      name: draft.name,
+      description: draft.description,
+      topic_tag: draft.topic_tag,
+      format: "classic",
+      format_ui_variant: "classic-pot",
+      pre_enroll_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+      open_start_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+      end_iso: TournamentEconomy.PUBLIC_OPEN_TIME_ISO,
+      entry_fee_bc: draft.entry_fee_bc,
+      rake_pct: TournamentEconomy.HOUSE_RAKE_PCT,
+      pot_seed_bc: draft.pot_seed_bc,
+      pot_split_top_n: TournamentEconomy.CLASSIC_POT_SPLIT_TOP_N,
+      countries_allowed: "ALL",
+      min_age: TournamentEconomy.MIN_AGE,
+      amoe: TournamentEconomy.AMOE_CLASSIC,
+      badge_emoji: wave2BadgeEmoji(draft.slug),
+    };
+  }
+
+  /** LAUNCH_SLATE first, then Wave-2 draft rows when wave2_slate flag is on. */
+  export function resolveConfigBySlug(slug: string): TournamentEconomy.TournamentConfig | null {
+    var cfg = TournamentEconomy.getBySlug(slug);
+    if (cfg) return cfg;
+    if (!FEATURE_FLAGS.wave2_slate) return null;
+    for (var w = 0; w < WAVE_2_SLATE_DRAFT.length; w++) {
+      if (WAVE_2_SLATE_DRAFT[w].slug === slug) {
+        return wave2ToConfig(WAVE_2_SLATE_DRAFT[w]);
+      }
+    }
+    return null;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Helpers
   // ───────────────────────────────────────────────────────────────────────────
   export function thresholdByName(name: string): KPIThreshold | null {

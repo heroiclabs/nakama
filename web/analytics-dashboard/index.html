@@ -2942,7 +2942,7 @@
                     <div class="card-body"><canvas id="platformPieChart" height="220"></canvas></div>
                 </div>
                 <div class="chart-card">
-                    <h3>Users by Platform <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformUsersChart','Users by Platform')">⛶</button></div></h3>
+                    <h3>Daily Unique Users by Platform <span title="Sum of daily unique users across the selected period — the same user is counted once per active day, not once total" style="cursor:help;opacity:0.55;font-size:0.78em;font-weight:400;">ⓘ</span> <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('platformUsersChart','Daily Unique Users by Platform')">⛶</button></div></h3>
                     <div class="card-body"><canvas id="platformUsersChart" height="220"></canvas></div>
                 </div>
             </div>
@@ -2999,12 +2999,18 @@
                     <div class="card-body"><canvas id="audienceAttChart" height="200"></canvas></div>
                 </div>
             </div>
-            <div class="chart-card">
-                <h3>🗣️ Locale Distribution <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
-                <div class="card-body"><table class="data-table" id="audienceLocaleTable">
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <h3>🖥️ Platform <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button><button class="card-btn" onclick="expandChart('audiencePlatformChart','Platform')">⛶</button></div></h3>
+                    <div class="card-body"><canvas id="audiencePlatformChart" height="220"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <h3>🗣️ Locale Distribution <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div></h3>
+                    <div class="card-body"><table class="data-table" id="audienceLocaleTable">
                     <thead><tr><th>Locale</th><th>Unique Users</th><th>Events</th></tr></thead>
                     <tbody><tr><td colspan="3" class="empty-state">Loading...</td></tr></tbody>
                 </table></div>
+                </div>
             </div>
         </div>
 
@@ -3012,41 +3018,54 @@
         <div id="players" class="tab-content">
             <div class="kpi-grid" id="playersKpis" style="margin-bottom:1.5rem"></div>
             <div class="chart-card">
-                <h3>Top Players by Activity <div class="card-actions">
-                    <button class="card-btn" onclick="loadTopPlayers()">↻ Refresh</button>
-                    <button class="export-btn" onclick="exportPlayers()">⬇ CSV</button>
-                    <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
-                </div></h3>          
+                <h3>All Players <span id="playersListMode" style="font-size:0.75rem;font-weight:400;color:var(--text-muted);margin-left:0.5rem;">— browse all users</span>
+                    <div class="card-actions">
+                        <button class="card-btn" onclick="playersResetAndLoad()">↻ Refresh</button>
+                        <button class="export-btn" onclick="exportPlayers()">⬇ CSV</button>
+                        <button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button>
+                    </div>
+                </h3>
                 <div class="card-body">
                     <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
-                        <input type="search" id="playersSearch" class="players-search" placeholder="Filter by User ID..." oninput="filterPlayers(this.value)" style="flex:1;min-width:200px;">
+                        <div style="display:flex;flex:1;min-width:240px;gap:0.5rem;">
+                            <input type="search" id="playersSearch" class="players-search"
+                                placeholder="Search by User ID or username (min 2 chars)…"
+                                style="flex:1;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:7px 12px;border-radius:6px;font-size:0.85rem;"
+                                oninput="playersSearchDebounced(this.value)">
+                            <button class="card-btn" id="playersClearSearch" onclick="playersClearSearch()" style="display:none;">✕ Clear</button>
+                        </div>
                         <label style="color:var(--text-secondary);font-size:0.85rem;">Per Page:
-                            <select id="playersPageSize" onchange="loadTopPlayers()" style="margin-left:0.5rem;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:6px 12px;border-radius:6px;">
+                            <select id="playersPageSize" onchange="playersResetAndLoad()" style="margin-left:0.5rem;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:6px 12px;border-radius:6px;">
                                 <option value="25" selected>25</option>
                                 <option value="50">50</option>
                                 <option value="100">100</option>
-                                <option value="200">200</option>
-                                <option value="500">500</option>
                             </select>
                         </label>
                     </div>
-                    <div id="playersPagination" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;"></div>
-                <table class="data-table" id="playersTable">
-                    <thead>
-                        <tr>
-                            <th class="sortable" onclick="sortTable('playersTable',0,this)">#</th>
-                            <th>User ID</th>
-                            <th class="sortable" onclick="sortTable('playersTable',2,this)">Events</th>
-                            <th class="sortable" onclick="sortTable('playersTable',3,this)">Quizzes</th>
-                            <th class="sortable" onclick="sortTable('playersTable',4,this)">Daily Q</th>
-                            <th class="sortable" onclick="sortTable('playersTable',5,this)">AI Events</th>
-                            <th class="sortable" onclick="sortTable('playersTable',6,this)">Sessions</th>
-                            <th class="sortable" onclick="sortTable('playersTable',7,this)">Purchases</th>
-                            <th class="sortable" onclick="sortTable('playersTable',8,this)">Last Active</th>
-                        </tr>
-                    </thead>
-                    <tbody><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:65%"></div></td></tr><tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:78%"></div></td></tr></tbody>
-                </table></div>
+                    <div id="playersPagination" style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap;"></div>
+                    <table class="data-table" id="playersTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>User ID</th>
+                                <th>Username</th>
+                                <th>LT Events</th>
+                                <th>LT Quizzes</th>
+                                <th>LT Sessions</th>
+                                <th>Platform</th>
+                                <th>Country</th>
+                                <th>Last Active</th>
+                            </tr>
+                        </thead>
+                        <tbody id="playersTableBody">
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:88%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:72%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:80%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:65%"></div></td></tr>
+                            <tr><td colspan="9"><div class="skeleton skeleton-row" style="height:11px;margin:7px 0;width:78%"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -5911,8 +5930,9 @@
                 document.getElementById('audienceHeaderKpis').innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">👥</div>
-                        <div class="label">Unique Users (${data.days || selectedDays}d)</div>
+                        <div class="label">Est. Unique Users (${data.days || selectedDays}d) <span title="Sum of daily unique users — same user may be counted on multiple days" style="cursor:help;opacity:0.6;font-size:0.8em;">ⓘ</span></div>
                         <div class="value">${formatNumber(data.unique_users || 0)}</div>
+                        <div class="trend" style="color:var(--text-muted);font-size:0.72rem">Upper bound — cross-day dedup not applied</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">📊</div>
@@ -5923,29 +5943,38 @@
                 `;
 
                 // Helper: render dimension as bar chart (top-N unique users).
-                const renderBar = (canvasId, dim, color) => {
+                // labelFn optionally transforms raw value strings for display.
+                const renderBar = (canvasId, dim, color, labelFn) => {
                     const slot = (data[dim] || []);
                     if (!slot.length) return;
-                    const labels = slot.map(s => s.value);
+                    const labels = slot.map(s => labelFn ? labelFn(s.value) : s.value);
                     const values = slot.map(s => s.unique_users || s.events);
                     if (charts[canvasId]) charts[canvasId].destroy();
                     charts[canvasId] = createBarChart(canvasId, labels, values, 'Unique users');
                 };
-                const renderDoughnut = (canvasId, dim) => {
+                const renderDoughnut = (canvasId, dim, labelFn) => {
                     const slot = (data[dim] || []);
                     if (!slot.length) return;
                     if (charts[canvasId]) charts[canvasId].destroy();
                     charts[canvasId] = createDoughnutChart(canvasId,
-                        slot.map(s => s.value),
+                        slot.map(s => labelFn ? labelFn(s.value) : s.value),
                         slot.map(s => s.unique_users || s.events));
                 };
 
-                renderBar('audienceCountryChart',     'country',        '#3b82f6');
-                renderDoughnut('audienceDeviceTierChart', 'device_tier');
-                renderDoughnut('audienceInstallChart',    'install_source');
-                renderBar('audienceAppVersionChart',  'app_version',    '#8b5cf6');
-                renderDoughnut('audienceConsentChart', 'consent_state');
-                renderDoughnut('audienceAttChart',     'att_status');
+                // Label normalisers for well-known dimension values.
+                const DEVICE_TIER_LABELS = { high: 'High-End', mid: 'Mid-Range', low: 'Low-End', unknown: 'Unknown' };
+                const CONSENT_LABELS     = { granted: 'Granted', denied: 'Denied', unknown: 'Unknown', not_applicable: 'N/A' };
+                const ATT_LABELS         = { authorized: 'Authorized', denied: 'Denied', restricted: 'Restricted', not_determined: 'Not Asked', not_applicable: 'N/A (non-iOS)', unknown: 'Unknown' };
+                const INSTALL_LABELS     = { organic: 'Organic', paid: 'Paid', referral: 'Referral', unknown: 'Unknown' };
+                const fmtDim = (map) => (v) => map[v] || (v ? v : 'Unknown');
+
+                renderBar('audienceCountryChart',     'country');
+                renderDoughnut('audienceDeviceTierChart', 'device_tier',   fmtDim(DEVICE_TIER_LABELS));
+                renderDoughnut('audienceInstallChart',    'install_source', fmtDim(INSTALL_LABELS));
+                renderBar('audienceAppVersionChart',  'app_version');
+                renderDoughnut('audienceConsentChart', 'consent_state',   fmtDim(CONSENT_LABELS));
+                renderDoughnut('audienceAttChart',     'att_status',       fmtDim(ATT_LABELS));
+                renderDoughnut('audiencePlatformChart','platform');
 
                 const localeSlot = data.locale || [];
                 const lTbody = document.querySelector('#audienceLocaleTable tbody');
@@ -7840,7 +7869,20 @@
         let _playersData  = null;
 
         function exportPlatforms() { if (_platformData) exportToCSV(_platformData, 'platforms.csv'); else showToast('Load the Platforms tab first', 'warn'); }
-        function exportPlayers()   { if (_playersData)  exportToCSV(_playersData,  'top_players.csv'); else showToast('Load the Players tab first', 'warn'); }
+        function exportPlayers() {
+            if (!_playersData || !_playersData.length) { showToast('Load the Players tab first', 'warn'); return; }
+            const rows = _playersData.map(p => ({
+                user_id: p.user_id,
+                username: p.username || '',
+                lt_events: p.lt_events || 0,
+                lt_quiz_plays: p.lt_quiz_plays || 0,
+                lt_sessions: p.lt_sessions || 0,
+                platform: p.platform || '',
+                country: p.country || '',
+                last_active_utc: p.last_active_utc || 0
+            }));
+            exportToCSV(rows, 'players_page.csv');
+        }
 
         // ─────────────────────────────────────────────────────────────────────
         // Platform Breakdown
@@ -7867,7 +7909,7 @@
                         options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:'right', labels:{ color:'#94a3b8', padding:12, boxWidth:14 } } } }
                     });
                     if (charts['platformUsersChart']) charts['platformUsersChart'].destroy();
-                    charts['platformUsersChart'] = createBarChart('platformUsersChart', labels, users, 'Unique Users');
+                    charts['platformUsersChart'] = createBarChart('platformUsersChart', labels, users, 'Daily Unique Users (sum across period)');
                 }
                 _heatmapClear('platformOsChart');
                 if (data.os_versions && data.os_versions.length > 0) {
@@ -7888,74 +7930,192 @@
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // Top Players
+        // Players — cursor-paginated browse of ALL users in game_player_analytics
+        // Each page is a single storageList call on the server; never loads more
+        // than one page at a time regardless of how many total users exist.
         // ─────────────────────────────────────────────────────────────────────
 
+        // Cursor stack: index 0 = null (first page), index N = cursor for page N+1.
+        // _playersCursorStack[page-1] is the cursor you pass to reach page `page`.
+        let _playersCursorStack = [null];  // stack[0]=null means "first page cursor"
         let _playersCurrentPage = 1;
-        let _playersTotalCount = 0;
+        let _playersSearchMode  = false;   // true when showing search results
+        let _playersSearchTerm  = '';
+        let _playersSearchTimer = null;
+
+        // _playersData holds the current page's rows for CSV export
+        // (overwritten on every page load / search)
 
         async function loadTopPlayers(direction = 'first') {
+            const limit = parseInt(document.getElementById('playersPageSize')?.value || '25', 10);
+
+            if (direction === 'first') {
+                _playersCursorStack = [null];
+                _playersCurrentPage = 1;
+            } else if (direction === 'prev') {
+                _playersCurrentPage = Math.max(1, _playersCurrentPage - 1);
+                // cursor for this page is stack[page-1]
+            } else if (direction === 'next') {
+                _playersCurrentPage++;
+            }
+
+            const cursor = _playersCursorStack[_playersCurrentPage - 1] || null;
+
+            document.getElementById('playersTableBody').innerHTML = skTable(9, 5);
+            document.getElementById('playersPagination').innerHTML = '';
+
             try {
-                const limit = parseInt(document.getElementById('playersPageSize')?.value || '25', 10);
-
-                if (direction === 'first') {
-                    _playersCurrentPage = 1;
-                } else if (direction === 'prev') {
-                    _playersCurrentPage = Math.max(1, _playersCurrentPage - 1);
-                } else if (direction === 'next') {
-                    _playersCurrentPage++;
-                }
-
-                document.querySelector('#playersTable tbody').innerHTML = skTable(9, 5);
-                const offset = (_playersCurrentPage - 1) * limit;
-                const data = await callRpc('analytics_top_players', { 
-                    days: selectedDays, 
-                    limit: limit * 10,
-                    ...getGamePayload() 
+                const data = await callRpc('analytics_player_list', {
+                    limit,
+                    cursor,
+                    ...getGamePayload()
                 });
 
                 if (data.error) {
-                    document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">${data.error}</td></tr>`;
-                    document.getElementById('playersPagination').innerHTML = '';
+                    document.getElementById('playersTableBody').innerHTML =
+                        `<tr><td colspan="9" class="empty-state">${escapeHtml(data.error)}</td></tr>`;
                     return;
                 }
 
-                _playersData = data.players || [];
-                _playersTotalCount = _playersData.length;
+                const players = data.players || [];
+                _playersData = players;
 
-                const paginated = _playersData.slice(offset, offset + limit);
-                const totalPages = Math.ceil(_playersTotalCount / limit);
+                // Store next cursor so the stack always has the cursor for page+1
+                const nextCursor = data.next_cursor || null;
+                if (_playersCursorStack.length <= _playersCurrentPage) {
+                    _playersCursorStack.push(nextCursor);
+                } else {
+                    _playersCursorStack[_playersCurrentPage] = nextCursor;
+                }
 
+                // KPI strip
                 document.getElementById('playersKpis').innerHTML = [
-                    { label: 'Active Players', value: formatNumber(data.total_active_users), icon: '🏃' },
-                    { label: 'Total Users Scanned', value: formatNumber(_playersTotalCount), icon: '🔬' },
-                    { label: 'Days Analyzed', value: data.days, icon: '📅' }
+                    { label: 'On This Page', value: formatNumber(players.length), icon: '👥' },
+                    { label: 'Page', value: _playersCurrentPage, icon: '📄' },
+                    { label: 'Page Size', value: limit, icon: '📋' }
                 ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.value}</div></div>`).join('');
 
-                if (paginated.length > 0) {
-                    renderPlayersRows(paginated, offset);
-                } else {
-                    document.querySelector('#playersTable tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No player activity found</td></tr>';
+                // List mode label
+                const modeEl = document.getElementById('playersListMode');
+                if (modeEl) modeEl.textContent = '— all users (page ' + _playersCurrentPage + ')';
+
+                renderPlayersRows(players, ((_playersCurrentPage - 1) * limit));
+
+                // Pagination controls
+                const hasPrev = _playersCurrentPage > 1;
+                const hasNext = !!nextCursor;
+                const paginationEl = document.getElementById('playersPagination');
+                paginationEl.innerHTML = `
+                    <button class="card-btn" onclick="loadTopPlayers('prev')" ${!hasPrev ? 'disabled style="opacity:0.4;cursor:default"' : ''}>← Prev</button>
+                    <span style="color:var(--text-secondary);font-size:0.85rem;padding:0 0.75rem;">Page ${_playersCurrentPage}</span>
+                    <button class="card-btn" onclick="loadTopPlayers('next')" ${!hasNext ? 'disabled style="opacity:0.4;cursor:default"' : ''}>Next →</button>
+                    <span style="color:var(--text-muted);font-size:0.78rem;margin-left:1rem;">${players.length} users on this page${hasNext ? ' · more available' : ' · last page'}</span>
+                `;
+            } catch(e) {
+                console.error('Players list error:', e);
+                document.getElementById('playersTableBody').innerHTML =
+                    `<tr><td colspan="9" class="empty-state">Error: ${escapeHtml(e.message)}</td></tr>`;
+            }
+        }
+
+        function playersResetAndLoad() {
+            // Clear search mode and reload from page 1
+            _playersSearchMode = false;
+            _playersSearchTerm = '';
+            const searchEl = document.getElementById('playersSearch');
+            if (searchEl) searchEl.value = '';
+            const clearBtn = document.getElementById('playersClearSearch');
+            if (clearBtn) clearBtn.style.display = 'none';
+            const modeEl = document.getElementById('playersListMode');
+            if (modeEl) modeEl.textContent = '— all users';
+            loadTopPlayers('first');
+        }
+
+        function playersClearSearch() {
+            playersResetAndLoad();
+        }
+
+        function playersSearchDebounced(val) {
+            clearTimeout(_playersSearchTimer);
+            _playersSearchTimer = setTimeout(() => playersDoSearch(val), 400);
+        }
+
+        async function playersDoSearch(q) {
+            const term = (q || '').trim();
+            const clearBtn = document.getElementById('playersClearSearch');
+            const modeEl = document.getElementById('playersListMode');
+
+            if (!term || term.length < 2) {
+                if (clearBtn) clearBtn.style.display = 'none';
+                if (modeEl) modeEl.textContent = '— all users';
+                if (_playersSearchMode) {
+                    _playersSearchMode = false;
+                    _playersSearchTerm = '';
+                    loadTopPlayers('first');
+                }
+                return;
+            }
+
+            if (clearBtn) clearBtn.style.display = '';
+            _playersSearchMode = true;
+            _playersSearchTerm = term;
+
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(term);
+            if (modeEl) modeEl.textContent = isUuid ? `— looking up user ID…` : `— search: "${term}"`;
+
+            document.getElementById('playersTableBody').innerHTML = skTable(9, 3);
+            document.getElementById('playersPagination').innerHTML = '';
+            document.getElementById('playersKpis').innerHTML = '';
+
+            try {
+                const data = await callRpc('analytics_admin_player_search', {
+                    q: term,
+                    limit: 50,
+                    ...getGamePayload()
+                });
+
+                if (data.error) {
+                    if (modeEl) modeEl.textContent = `— search: "${term}"`;
+                    document.getElementById('playersTableBody').innerHTML =
+                        `<tr><td colspan="9" class="empty-state">${escapeHtml(data.error)}</td></tr>`;
+                    return;
                 }
 
-                const hasPrev = _playersCurrentPage > 1;
-                const hasNext = _playersCurrentPage < totalPages;
+                const players = (data.players || []).map(p => ({
+                    user_id:        p.user_id,
+                    username:       p.username || '',
+                    lt_events:      p.lt_events || 0,
+                    lt_quiz_plays:  p.lt_quiz_plays || 0,
+                    lt_sessions:    p.lt_sessions || 0,
+                    platform:       p.platform || null,
+                    country:        p.country  || null,
+                    last_active_utc: p.last_active_utc || 0,
+                    favorite_mode:  p.favorite_mode || null
+                }));
+                _playersData = players;
+
+                if (modeEl) modeEl.textContent = players.length
+                    ? (isUuid ? `— user: ${term.slice(0,13)}…` : `— search: "${term}"`)
+                    : `— no results for "${term}"`;
+
+                document.getElementById('playersKpis').innerHTML = [
+                    { label: 'Matches Found', value: formatNumber(players.length), icon: '🔍' },
+                    { label: 'Search Term', value: escapeHtml(term.slice(0, 20) + (term.length > 20 ? '…' : '')), icon: '🔎' }
+                ].map(k => `<div class="kpi-card"><div class="icon">${k.icon}</div><div class="label">${k.label}</div><div class="value plain">${k.value}</div></div>`).join('');
+
+                renderPlayersRows(players, 0);
+
                 const paginationEl = document.getElementById('playersPagination');
-                if (paginationEl) {
-                    if (totalPages > 1) {
-                        paginationEl.innerHTML = `
-                            <button class="card-btn" onclick="loadTopPlayers('prev')" ${!hasPrev ? 'disabled style="opacity:0.5"' : ''}>← Previous</button>
-                            <span style="color:var(--text-secondary);font-size:0.85rem;padding:0 0.5rem;">Page ${_playersCurrentPage} of ${totalPages}</span>
-                            <button class="card-btn" onclick="loadTopPlayers('next')" ${!hasNext ? 'disabled style="opacity:0.5"' : ''}>Next →</button>
-                            <span style="color:var(--text-muted);font-size:0.8rem;margin-left:1rem;">Showing ${offset + 1}-${Math.min(offset + limit, _playersTotalCount)} of ${_playersTotalCount}</span>
-                        `;
-                    } else {
-                        paginationEl.innerHTML = '';
-                    }
+                if (players.length === 0) {
+                    paginationEl.innerHTML = `<span style="color:var(--text-muted);font-size:0.85rem;">No players found matching "${escapeHtml(term)}".</span>`;
+                } else {
+                    paginationEl.innerHTML = `<span style="color:var(--text-secondary);font-size:0.85rem;">${players.length} result${players.length !== 1 ? 's' : ''} for "${escapeHtml(term)}"${players.length === 50 ? ' (showing first 50)' : ''}</span>`;
                 }
+
             } catch(e) {
-                console.error('Top players error:', e);
-                document.querySelector('#playersTable tbody').innerHTML = `<tr><td colspan="9" class="empty-state">Failed: ${e.message}</td></tr>`;
+                if (modeEl) modeEl.textContent = `— search: "${term}"`;
+                document.getElementById('playersTableBody').innerHTML =
+                    `<tr><td colspan="9" class="empty-state">Search error: ${escapeHtml(e.message)}</td></tr>`;
             }
         }
 
@@ -9096,6 +9256,26 @@
                 });
                 if (ctxFields.every(f => ctx[f] != null)) break;
             }
+            // Backfill context fields from GPA doc when events window is empty or fields missing
+            if (gpa) {
+                const gpaCtxMap = {
+                    platform:       gpa.platform,
+                    country:        gpa.country,
+                    device_tier:    gpa.device_tier,
+                    device_model:   gpa.device_model,
+                    app_version:    gpa.app_version,
+                    install_source: gpa.install_source,
+                    locale:         gpa.locale,
+                    consent_state:  gpa.consent,
+                    att_status:     gpa.att_status,
+                    os_version:     gpa.os_version
+                };
+                for (const [f, v] of Object.entries(gpaCtxMap)) {
+                    if (ctx[f] == null && v != null && v !== '' && v !== 'unknown' && v !== '??') {
+                        ctx[f] = v;
+                    }
+                }
+            }
 
             // Roll up a small "lifetime" event-name distribution across the
             // returned timeline window (capped to 200 events server-side).
@@ -9111,17 +9291,24 @@
                 if (t && t < firstSeenUnix) firstSeenUnix = t;
             }
             if (firstSeenUnix === Infinity) firstSeenUnix = 0;
+            // Fallback First/Last event to GPA when the events window has no data
+            if (!firstSeenUnix && gpa && gpa.first_seen_utc) firstSeenUnix = gpa.first_seen_utc;
+            if (!lastSeenUnix  && gpa && gpa.last_active_utc) lastSeenUnix  = gpa.last_active_utc;
+
             const topEvents = Object.entries(evCounts)
                 .sort((a,b) => b[1] - a[1])
                 .slice(0, 8);
+
+            const gpaMoney  = gpa ? (gpa.money  || {}) : {};
+            const coinsEarned = gpaMoney.coins_earned != null ? gpaMoney.coins_earned : (gs.coins || 0);
 
             const headlineKpis = [
                 { l: 'Events (window)',  v: formatNumber(events.length) },
                 { l: 'LT Events',        v: formatNumber(gpa ? (gpa.lt_events||0) : (an.total_events||0)) },
                 { l: 'LT Quiz Plays',    v: formatNumber(gpa ? (gpa.lt_quiz_plays||0) : (an.quiz_completed||gs.quizzes_completed||0)) },
                 { l: 'LT Sessions',      v: formatNumber(gpa ? (gpa.lt_sessions||0) : (an.sessions||gs.sessions||0)) },
-                { l: 'Total Spend',      v: gpa ? '$'+(gpa.money&&gpa.money.spend_usd ? gpa.money.spend_usd.toFixed(2) : '0.00') : formatNumber(an.purchases||0) },
-                { l: 'Coins',            v: formatNumber(gs.coins || 0) },
+                { l: 'Total Spend',      v: '$' + ((gpaMoney.spend_usd || 0).toFixed(2)) },
+                { l: 'Coins Earned',     v: formatNumber(coinsEarned) },
                 { l: 'Leaderboards',     v: formatNumber(lbCount) },
                 { l: 'Distinct Events',  v: formatNumber(Object.keys(evCounts).length) }
             ];
@@ -9144,6 +9331,7 @@
                 ['Country',        ctx.country         || '—'],
                 ['Device Tier',    ctx.device_tier     || '—'],
                 ['Device Model',   ctx.device_model    || '—'],
+                ['OS Version',     ctx.os_version      || '—'],
                 ['App Version',    ctx.app_version     || '—'],
                 ['Locale',         ctx.locale          || '—'],
                 ['Install Source', ctx.install_source  || '—'],
@@ -9159,6 +9347,20 @@
             const errBanner = errMsg
                 ? `<div style="background:rgba(239,68,68,0.12);border:1px solid var(--error);color:var(--error);padding:0.6rem 0.8rem;border-radius:8px;margin-bottom:1rem;font-size:0.78rem">⚠ Profile RPC failed: ${escapeHtml(errMsg)} — showing event-derived data only.</div>`
                 : '';
+
+            const ltEvents = gpa ? (gpa.lt_events || 0) : (an.total_events || 0);
+            const isNewPlayer = ltEvents === 0 && events.length === 0 && !gpa;
+            const newPlayerBanner = isNewPlayer
+                ? `<div style="background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.35);color:var(--primary);padding:0.65rem 0.9rem;border-radius:8px;margin-bottom:1rem;font-size:0.8rem;display:flex;align-items:center;gap:0.6rem;">
+                    <span style="font-size:1.2rem;">👋</span>
+                    <div><strong>New Player</strong> — No events or analytics data found yet. This user has not played any games or triggered any tracked events.</div>
+                   </div>`
+                : (!gpa && ltEvents === 0
+                    ? `<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.35);color:#d97706;padding:0.65rem 0.9rem;border-radius:8px;margin-bottom:1rem;font-size:0.8rem;display:flex;align-items:center;gap:0.6rem;">
+                        <span style="font-size:1.2rem;">🌱</span>
+                        <div><strong>Early Player</strong> — Account exists but the GPA document has not been created yet. The player may not have completed a full session.</div>
+                       </div>`
+                    : '');
 
             const tlRows = events.length === 0
                 ? '<div class="pp-empty">No events found in the last ' + Math.max(30, selectedDays || 30) + ' days for this user.</div>'
@@ -9182,6 +9384,7 @@
 
             body.innerHTML = `
                 ${errBanner}
+                ${newPlayerBanner}
                 <div class="pp-section">
                     <h3>Headline</h3>
                     <div class="pp-kpis">
@@ -9209,7 +9412,11 @@
                     <div class="pp-meta-grid">
                         ${walletEntries.map(([k,v]) => `<div><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(String(v))}</div></div>`).join('')}
                     </div>
-                </div>` : ''}
+                </div>` : `
+                <div class="pp-section">
+                    <h3>Wallet</h3>
+                    <div class="pp-empty" style="color:var(--text-muted);font-size:13px;padding:10px 0;">No wallet balance found — user may not have earned any currency yet.</div>
+                </div>`}
 
                 ${gpa ? (() => {
                     const eng   = gpa.eng   || {};
@@ -9230,6 +9437,8 @@
                         <div><div class="k">Days Since Install</div><div class="v">${gpa.days_since_install||0}</div></div>
                         <div><div class="k">First Seen</div><div class="v" style="font-size:11px">${fmtUtc(gpa.first_seen_utc)}</div></div>
                         <div><div class="k">Last Active</div><div class="v" style="font-size:11px">${fmtUtc(gpa.last_active_utc)}</div></div>
+                        ${gpa.updated_utc ? `<div><div class="k">GPA Updated</div><div class="v" style="font-size:11px">${fmtUtc(gpa.updated_utc)}</div></div>` : ''}
+                        ${gpa.idem_key   ? `<div><div class="k">GPA Date Key</div><div class="v" style="font-size:13px">${escapeHtml(gpa.idem_key)}</div></div>` : ''}
                     </div>
                     <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr));margin-top:10px">
                         <div><div class="k">Streak (current)</div><div class="v">${eng.streak||0} days</div></div>
@@ -9238,6 +9447,9 @@
                         <div><div class="k">Total Correct</div><div class="v">${formatNumber(eng.total_correct||0)}</div></div>
                         <div><div class="k">Total Answered</div><div class="v">${formatNumber(eng.total_answered||0)}</div></div>
                         <div><div class="k">Last Score</div><div class="v">${eng.last_score != null ? eng.last_score : '—'}</div></div>
+                        ${eng.last_mode ? `<div><div class="k">Last Mode</div><div class="v" style="font-size:13px">${escapeHtml(eng.last_mode)}</div></div>` : ''}
+                        ${eng.fav_play_type ? `<div><div class="k">Fav Play Type</div><div class="v" style="font-size:13px">${escapeHtml(eng.fav_play_type)}</div></div>` : ''}
+                        ${eng.fav_play_type_n != null ? `<div><div class="k">Fav PT Plays</div><div class="v">${formatNumber(eng.fav_play_type_n)}</div></div>` : ''}
                     </div>
                     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
                         <span style="font-size:11px;color:var(--text-muted);margin-right:4px">Retention:</span>
@@ -9263,7 +9475,172 @@
                         ${money.last_iap_utc ? `<div><div class="k">Last IAP</div><div class="v" style="font-size:11px">${fmtUtc(money.last_iap_utc)}</div></div>` : ''}
                     </div>
                 </div>`;
-                })() : ''}
+                })() : `
+                <div class="pp-section">
+                    <h3>📊 GPA — Lifetime Engagement &amp; Monetization</h3>
+                    <div class="pp-empty" style="color:var(--text-muted);font-size:13px;padding:10px 0;display:flex;align-items:flex-start;gap:10px;">
+                        <div>
+                            <strong style="color:var(--text-secondary);">No GPA document found</strong><br>
+                            <span style="font-size:12px;">The Global Player Analytics document is created after a user completes their first full session. Lifetime stats, session history, quiz breakdowns, and monetisation data will appear here once available.</span>
+                        </div>
+                    </div>
+                </div>`}
+
+                ${(() => {
+                    if (!gpa) return '';
+                    const mc = gpa.mode_counts;
+                    if (!mc || typeof mc !== 'object') return '';
+                    const mcEntries = Object.entries(mc)
+                        .filter(([,v]) => v > 0)
+                        .sort((a, b) => b[1] - a[1]);
+                    if (!mcEntries.length) return `
+                <div class="pp-section">
+                    <h3>🎮 Quiz Mode Breakdown (lifetime)</h3>
+                    <div class="pp-empty" style="color:var(--text-muted);font-size:13px;padding:8px 0;">No quiz mode data recorded yet — plays across different modes will appear here.</div>
+                </div>`;
+                    return `
+                <div class="pp-section">
+                    <h3>🎮 Quiz Mode Breakdown (lifetime)</h3>
+                    <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+                        ${mcEntries.map(([mode, cnt]) => `<div><div class="k">${escapeHtml(mode)}</div><div class="v">${formatNumber(cnt)}</div></div>`).join('')}
+                    </div>
+                </div>`;
+                })()}
+
+                ${(() => {
+                    if (!gpa) return '';
+                    const ptc = gpa.play_type_counts;
+                    if (!ptc || typeof ptc !== 'object') return '';
+                    const ptEntries = Object.entries(ptc).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
+                    if (!ptEntries.length) return `
+                <div class="pp-section">
+                    <h3>🎯 Play Type Distribution (lifetime)</h3>
+                    <div class="pp-empty" style="color:var(--text-muted);font-size:13px;padding:8px 0;">No play type data yet — solo, live, and practice sessions will be tracked here.</div>
+                </div>`;
+                    const ptTotal = ptEntries.reduce((s,[,v]) => s+v, 0);
+                    return `
+                <div class="pp-section">
+                    <h3>🎯 Play Type Distribution (lifetime)</h3>
+                    <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+                        ${ptEntries.map(([type, cnt]) => {
+                            const pct = ptTotal > 0 ? Math.round(cnt/ptTotal*100) : 0;
+                            return `<div>
+                                <div class="k">${escapeHtml(type)}</div>
+                                <div style="display:flex;align-items:center;gap:8px;margin-top:2px;">
+                                    <div style="flex:1;height:5px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;">
+                                        <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:3px;"></div>
+                                    </div>
+                                    <span class="v" style="min-width:3rem;font-size:14px;">${formatNumber(cnt)}</span>
+                                    <span style="color:var(--text-muted);font-size:11px;">${pct}%</span>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+                })()}
+
+                ${(() => {
+                    if (!gpa) return '';
+                    const qic = gpa.quiz_id_counts;
+                    if (!qic || typeof qic !== 'object') return '';
+                    const qicEntries = Object.entries(qic).filter(([,v]) => v > 0).sort((a,b) => b[1]-a[1]);
+                    if (!qicEntries.length) return `
+                <div class="pp-section">
+                    <h3>🗂️ Quiz ID Breakdown (lifetime)</h3>
+                    <div class="pp-empty" style="color:var(--text-muted);font-size:13px;padding:8px 0;">No quiz-specific play data yet — individual quiz plays will be counted here.</div>
+                </div>`;
+                    return `
+                <div class="pp-section">
+                    <h3>🗂️ Quiz ID Breakdown (lifetime)</h3>
+                    <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
+                        ${qicEntries.map(([qid, cnt]) => `<div><div class="k">${escapeHtml(qid)}</div><div class="v">${formatNumber(cnt)}</div></div>`).join('')}
+                    </div>
+                </div>`;
+                })()}
+
+                ${(() => {
+                    if (!gpa) return '';
+                    const sessList = gpa.sessions;
+                    if (!Array.isArray(sessList) || !sessList.length) return `
+                <div class="pp-section">
+                    <h3>⏱️ Session History</h3>
+                    <div class="pp-empty" style="color:var(--text-muted);font-size:13px;padding:8px 0;">No sessions recorded in the GPA document yet.</div>
+                </div>`;
+                    const fmtTs = s => s ? new Date(s * 1000).toLocaleString() : '—';
+                    const fmtDur = s => {
+                        if (!s) return '0s';
+                        if (s < 60) return s + 's';
+                        if (s < 3600) return Math.floor(s/60) + 'm ' + (s%60) + 's';
+                        return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+                    };
+                    const sortedSessions = sessList.slice().sort((a,b) => (b.start||0)-(a.start||0));
+                    return `
+                <div class="pp-section">
+                    <h3>⏱️ Session History (${sessList.length} sessions in GPA window)</h3>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                            <thead>
+                                <tr style="color:var(--text-muted);border-bottom:1px solid var(--border);">
+                                    <th style="padding:5px 8px;text-align:left;">Session ID</th>
+                                    <th style="padding:5px 6px;text-align:left;">Start</th>
+                                    <th style="padding:5px 6px;text-align:left;">End</th>
+                                    <th style="padding:5px 6px;text-align:center;">Duration</th>
+                                    <th style="padding:5px 6px;text-align:center;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sortedSessions.map(s => `
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:4px 8px;font-family:monospace;font-size:11px;color:var(--text-muted)">${escapeHtml(s.sid||'—')}</td>
+                                    <td style="padding:4px 6px;font-size:11px;">${s.start ? fmtTs(s.start) : '—'}</td>
+                                    <td style="padding:4px 6px;font-size:11px;">${s.end ? fmtTs(s.end) : '—'}</td>
+                                    <td style="padding:4px 6px;text-align:center;font-weight:600;">${fmtDur(s.dur||0)}</td>
+                                    <td style="padding:4px 6px;text-align:center;">${s.active
+                                        ? `<span style="background:#10b98122;color:#10b981;border:1px solid #10b98144;border-radius:4px;padding:1px 7px;font-size:11px;font-weight:600;">active</span>`
+                                        : `<span style="background:var(--bg-tertiary);color:var(--text-muted);border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;">ended</span>`
+                                    }</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+                })()}
+
+                ${(() => {
+                    if (!gpa) return '';
+                    const crashes = gpa.crashes;
+                    if (!Array.isArray(crashes) || !crashes.length) return `
+                <div class="pp-section">
+                    <h3>💥 Crash Fingerprints</h3>
+                    <div class="pp-empty" style="color:#10b981;font-size:13px;padding:8px 0;">No crashes recorded in GPA — this player has had a stable experience.</div>
+                </div>`;
+                    const fmtTs = s => s ? new Date(s * 1000).toLocaleString() : '—';
+                    return `
+                <div class="pp-section">
+                    <h3>💥 Crash Fingerprints (${crashes.length})</h3>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                            <thead>
+                                <tr style="color:var(--text-muted);border-bottom:1px solid var(--border);">
+                                    <th style="padding:5px 8px;text-align:left;">Message</th>
+                                    <th style="padding:5px 6px;text-align:center;">Count</th>
+                                    <th style="padding:5px 6px;text-align:center;">First</th>
+                                    <th style="padding:5px 6px;text-align:center;">Last</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${crashes.slice(0, 10).map(c => `
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:4px 8px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(c.msg||'')}"><code style="font-size:11px;">${escapeHtml((c.msg||'').slice(0,80))}</code></td>
+                                    <td style="padding:4px 6px;text-align:center;color:var(--error);font-weight:700;">${c.n||1}</td>
+                                    <td style="padding:4px 6px;text-align:center;font-size:11px;">${fmtTs(c.first)}</td>
+                                    <td style="padding:4px 6px;text-align:center;font-size:11px;">${fmtTs(c.last)}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+                })()}
 
                 ${topEvents.length ? `
                 <div class="pp-section">
@@ -9271,7 +9648,58 @@
                     <div class="pp-meta-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
                         ${topEvents.map(([n,c]) => `<div><div class="k">${escapeHtml(n)}</div><div class="v">${formatNumber(c)}</div></div>`).join('')}
                     </div>
-                </div>` : ''}
+                </div>` : (events.length ? '' : `
+                <div class="pp-section">
+                    <h3>Most-Fired Events (window)</h3>
+                    <div class="pp-empty" style="color:var(--text-muted);font-size:13px;padding:8px 0;">No events in the selected time window — try expanding the date range.</div>
+                </div>`)}
+
+                ${(() => {
+                    // ── App Crash events from the events window (when gpa.crashes is empty) ──
+                    const crashEvs = events.filter(e => (e.name||e.event_name||'') === 'app_crash');
+                    if (!crashEvs.length) return '';
+                    const alreadyShown = gpa && Array.isArray(gpa.crashes) && gpa.crashes.length;
+                    if (alreadyShown) return '';
+                    const crashMap = {};
+                    for (const ev of crashEvs) {
+                        const p = ev.properties || {};
+                        const msg = (p.error_message || p.message || p.exception_message || '').slice(0, 120) || 'Unknown';
+                        const ts = ev.unix_timestamp || (ev.timestamp ? Math.floor(new Date(ev.timestamp).getTime()/1000) : 0);
+                        if (!crashMap[msg]) crashMap[msg] = { n: 0, first: ts, last: ts, error_type: p.error_type||'' };
+                        crashMap[msg].n++;
+                        if (ts && ts < crashMap[msg].first) crashMap[msg].first = ts;
+                        if (ts && ts > crashMap[msg].last)  crashMap[msg].last  = ts;
+                    }
+                    const crashEntries = Object.entries(crashMap).sort((a,b) => b[1].n - a[1].n);
+                    const fmtTs2 = s => s ? new Date(s*1000).toLocaleString() : '—';
+                    return `
+                <div class="pp-section">
+                    <h3>💥 Crash Events (window — ${crashEvs.length} total, ${crashEntries.length} unique)</h3>
+                    <div style="overflow-x:auto;">
+                        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                            <thead>
+                                <tr style="color:var(--text-muted);border-bottom:1px solid var(--border);">
+                                    <th style="padding:5px 8px;text-align:left;">Message</th>
+                                    <th style="padding:5px 6px;text-align:center;">Count</th>
+                                    <th style="padding:5px 6px;text-align:left;">Type</th>
+                                    <th style="padding:5px 6px;text-align:center;">First</th>
+                                    <th style="padding:5px 6px;text-align:center;">Last</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${crashEntries.slice(0, 12).map(([msg, c]) => `
+                                <tr style="border-bottom:1px solid var(--border);">
+                                    <td style="padding:4px 8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(msg)}"><code style="font-size:11px;">${escapeHtml(msg.slice(0,80))}</code></td>
+                                    <td style="padding:4px 6px;text-align:center;color:var(--error);font-weight:700;">${c.n}</td>
+                                    <td style="padding:4px 6px;font-size:11px;color:var(--text-muted);">${escapeHtml(c.error_type)}</td>
+                                    <td style="padding:4px 6px;text-align:center;font-size:11px;">${fmtTs2(c.first)}</td>
+                                    <td style="padding:4px 6px;text-align:center;font-size:11px;">${fmtTs2(c.last)}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+                })()}
 
                 ${(() => {
                     // ── Arcade subsection ──
@@ -9412,23 +9840,81 @@
                 if (p.quiz_mode)            bits.push(`mode=${p.quiz_mode}`);
                 if (p.score != null)        bits.push(`score=${p.score}`);
                 if (p.correct_count != null) bits.push(`✓${p.correct_count}/${p.total_questions || '?'}`);
+                if (p.quiz_outcome)         bits.push(p.quiz_outcome);
+                if (p.duration_seconds != null) bits.push(`${p.duration_seconds}s`);
+                if (p.quiz_id && !p.quiz_mode) bits.push(`id=${p.quiz_id}`);
+            } else if (lc === 'coins_earned') {
+                if (p.coins_earned != null) bits.push(`+${formatNumber(p.coins_earned)} coins`);
+                if (p.coin_source)          bits.push(`src=${p.coin_source}`);
+                if (p.balance_after != null) bits.push(`bal=${formatNumber(p.balance_after)}`);
+            } else if (lc === 'coins_spent') {
+                if (p.coins_spent != null)  bits.push(`-${formatNumber(p.coins_spent)} coins`);
+                if (p.spend_type)           bits.push(`type=${p.spend_type}`);
+                if (p.balance_after != null) bits.push(`bal=${formatNumber(p.balance_after)}`);
+            } else if (lc === 'balance_snapshot') {
+                if (p.balance_current != null) bits.push(`bal=${formatNumber(p.balance_current)}`);
+                if (p.snapshot_type)        bits.push(p.snapshot_type);
+            } else if (lc === 'paywall_shown') {
+                if (p.paywall_id)           bits.push(p.paywall_id);
+                if (p.entry_point)          bits.push(`entry=${p.entry_point}`);
+            } else if (lc === 'iap_started' || lc === 'iap_completed' || lc === 'iap_failed' || lc.indexOf('purchase') === 0) {
+                if (p.product_id)           bits.push(p.product_id);
+                if (p.price_usd)            bits.push(`$${p.price_usd}`);
+                if (p.revenue_usd)          bits.push(`$${p.revenue_usd}`);
             } else if (lc.indexOf('ad_') === 0) {
                 if (p.ad_type)      bits.push(p.ad_type);
                 if (p.ad_placement) bits.push(`@${p.ad_placement}`);
                 if (p.ad_network)   bits.push(`via ${p.ad_network}`);
                 if (p.revenue_usd)  bits.push(`$${p.revenue_usd}`);
-            } else if (lc.indexOf('iap') === 0 || lc.indexOf('purchase') === 0) {
-                if (p.product_id)   bits.push(p.product_id);
-                if (p.price_usd)    bits.push(`$${p.price_usd}`);
             } else if (lc === 'session_start' || lc === 'session_end') {
                 if (p.session_id)         bits.push(`#${String(p.session_id).slice(0,8)}`);
                 if (p.session_duration_sec != null) bits.push(`${p.session_duration_sec}s`);
-            } else if (lc.indexOf('error') !== -1 || lc.indexOf('fail') !== -1 || lc.indexOf('crash') !== -1) {
-                if (p.error_code || p.errorCode)   bits.push(p.error_code || p.errorCode);
-                if (p.endpoint)                    bits.push(p.endpoint);
-                if (p.error_message)               bits.push(String(p.error_message).slice(0, 80));
-            } else if (lc === 'screen_view' || lc === 'home_open') {
-                if (p.screen_name) bits.push(p.screen_name);
+                if (p.duration_sec != null) bits.push(`${p.duration_sec}s`);
+            } else if (lc === 'app_crash' || lc === 'error_logged') {
+                if (p.error_type)          bits.push(p.error_type);
+                if (p.error_code || p.errorCode) bits.push(p.error_code || p.errorCode);
+                if (p.error_message)       bits.push(String(p.error_message).slice(0, 80));
+                else if (p.message)        bits.push(String(p.message).slice(0, 80));
+            } else if (lc === 'memory_warning') {
+                if (p.memory_mb != null)   bits.push(`${p.memory_mb} MB`);
+            } else if (lc === 'screen_view' || lc === 'ui_screen_view' || lc === 'home_open') {
+                const screen = p.screen_name || p.screen || p.screen_id;
+                if (screen) bits.push(screen);
+            } else if (lc === 'screen_left' || lc === 'screen_time_spent') {
+                const screen = p.screen_name || p.screen || p.screen_id;
+                if (screen) bits.push(screen);
+                if (p.duration_ms != null) bits.push(`${(p.duration_ms/1000).toFixed(1)}s`);
+                if (p.time_spent_ms != null) bits.push(`${(p.time_spent_ms/1000).toFixed(1)}s`);
+            } else if (lc === 'home_button_tapped' || lc === 'ui_element_tapped') {
+                if (p.button_id || p.element_id) bits.push(p.button_id || p.element_id);
+                if (p.label || p.button_label)   bits.push(p.label || p.button_label);
+            } else if (lc === 'home_mode_tapped' || lc === 'home_live_quiz_tapped') {
+                if (p.mode)    bits.push(p.mode);
+                if (p.quiz_id) bits.push(`id=${p.quiz_id}`);
+            } else if (lc === 'media_question_started' || lc === 'media_question_completed') {
+                if (p.question_id) bits.push(`q=${p.question_id}`);
+                if (p.media_type)  bits.push(p.media_type);
+                if (p.is_correct != null) bits.push(p.is_correct ? '✓' : '✗');
+                if (p.time_taken_ms != null) bits.push(`${(p.time_taken_ms/1000).toFixed(1)}s`);
+            } else if (lc === 'scene_load_time') {
+                if (p.scene_name) bits.push(p.scene_name);
+                if (p.load_time_ms != null) bits.push(`${(p.load_time_ms/1000).toFixed(2)}s`);
+            } else if (lc === 'app_boot_complete') {
+                if (p.boot_time_ms != null) bits.push(`boot ${(p.boot_time_ms/1000).toFixed(2)}s`);
+            } else if (lc === 'app_background' || lc === 'app_foreground') {
+                if (p.screen) bits.push(p.screen);
+            } else if (lc === 'att_permission_result') {
+                if (p.att_status) bits.push(p.att_status);
+            } else if (lc === 'ab_ads_primary_network') {
+                if (p.network) bits.push(p.network);
+                if (p.variant) bits.push(`variant=${p.variant}`);
+            } else if (lc === 'home_viewed' || lc === 'profile_viewed') {
+                if (p.screen || p.screen_id) bits.push(p.screen || p.screen_id);
+            } else if (lc === 'home_first_action' || lc === 'ui_first_interaction') {
+                if (p.action || p.element_id) bits.push(p.action || p.element_id);
+            } else if (lc === 'cold_start_no_quiz' || lc === 'home_dwell_time') {
+                if (p.duration_ms != null) bits.push(`${(p.duration_ms/1000).toFixed(1)}s`);
+                if (p.dwell_ms != null) bits.push(`${(p.dwell_ms/1000).toFixed(1)}s`);
             }
             return bits.length
                 ? `<span style="color:var(--text-muted)">${escapeHtml(bits.join(' · '))}</span>`
@@ -9950,47 +10436,40 @@
         }
 
         // ─────────────────────────────────────────────────────────────────────
-        // Filter Players
+        // Players table renderer
         // ─────────────────────────────────────────────────────────────────────
 
         function renderPlayersRows(players, offset = 0) {
+            const tbody = document.getElementById('playersTableBody');
             if (!players || !players.length) {
-                document.querySelector('#playersTable tbody').innerHTML = '<tr><td colspan="9" class="empty-state">No matching players</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No players found</td></tr>';
                 return;
             }
-            document.querySelector('#playersTable tbody').innerHTML = players.map((p, i) => {
-                const actualIdx = offset + i;
-                const r = actualIdx < 3 ? `rank-${actualIdx+1}` : 'rank-other';
-                const medal = actualIdx === 0 ? '🥇' : actualIdx === 1 ? '🥈' : actualIdx === 2 ? '🥉' : actualIdx + 1;
+            tbody.innerHTML = players.map((p, i) => {
+                const rowNum = offset + i + 1;
+                const lastActive = p.last_active_utc && p.last_active_utc > 0
+                    ? new Date(p.last_active_utc * 1000).toLocaleDateString()
+                    : '—';
+                const platform = p.platform || '—';
+                const country  = p.country  || '—';
+                const username = p.username ? escapeHtml(p.username) : `<span style="color:var(--text-muted)">—</span>`;
                 return `<tr>
-                    <td><span class="rank-badge ${r}">${medal}</span></td>
-                    <td><a class="pp-uid-link" onclick="openPlayerProfile('${escapeHtml(p.user_id)}')" title="Open Player 360">${escapeHtml(p.user_id)}</a></td>
-                    <td><strong>${formatNumber(p.total_events)}</strong></td>
-                    <td>${formatNumber(p.quiz_completed)}</td>
-                    <td>${formatNumber(p.daily_quizzes)}</td>
-                    <td>${formatNumber(p.ai_events)}</td>
-                    <td>${formatNumber(p.sessions)}</td>
-                    <td>${p.purchases > 0 ? `<span style="color:var(--success)">💰 ${p.purchases}</span>` : '—'}</td>
-                    <td style="font-size:0.8rem;color:var(--text-muted)">${p.last_active}</td>
+                    <td style="color:var(--text-muted);font-size:0.8rem;">${rowNum}</td>
+                    <td><a class="pp-uid-link" onclick="openPlayerProfile('${escapeHtml(p.user_id)}')" title="Open Player 360 for ${escapeHtml(p.user_id)}">${escapeHtml(p.user_id.slice(0,13))}…</a></td>
+                    <td>${username}</td>
+                    <td><strong>${formatNumber(p.lt_events || 0)}</strong></td>
+                    <td>${formatNumber(p.lt_quiz_plays || 0)}</td>
+                    <td>${formatNumber(p.lt_sessions || 0)}</td>
+                    <td style="font-size:0.8rem;">${escapeHtml(platform)}</td>
+                    <td style="font-size:0.8rem;">${escapeHtml(country)}</td>
+                    <td style="font-size:0.78rem;color:var(--text-muted);">${lastActive}</td>
                 </tr>`;
             }).join('');
         }
 
         function filterPlayers(q) {
-            if (!_playersData) return;
-            const term = (q || '').toLowerCase().trim();
-            const filtered = term
-                ? _playersData.filter(p => p.user_id.toLowerCase().includes(term))
-                : _playersData;
-            
-            const limit = parseInt(document.getElementById('playersPageSize')?.value || '25', 10);
-            const paginated = filtered.slice(0, limit);
-            renderPlayersRows(paginated, 0);
-            
-            const paginationEl = document.getElementById('playersPagination');
-            if (paginationEl && term) {
-                paginationEl.innerHTML = `<span style="color:var(--text-secondary);font-size:0.85rem;">Showing ${paginated.length} of ${filtered.length} matching players</span>`;
-            }
+            // Legacy shim — now handled by playersSearchDebounced
+            playersSearchDebounced(q);
         }
 
         // ─────────────────────────────────────────────────────────────────────
