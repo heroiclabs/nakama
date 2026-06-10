@@ -33,9 +33,9 @@ import (
 	"github.com/heroiclabs/nakama-common/rtapi"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/heroiclabs/nakama/v3/console"
-	"github.com/jackc/pgx/v5"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/social"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -2185,7 +2185,10 @@ func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*ru
 	}
 
 	var pgxTx pgx.Tx
-	if len(tx) > 0 {
+	if len(tx) > 1 {
+		return nil, errors.New("expects at most one transaction")
+	}
+	if len(tx) == 1 && tx[0] != nil && tx[0].ID != "" {
 		var ok bool
 		pgxTx, ok = getTx(tx[0], &n.openTxs)
 		if !ok {
@@ -2251,7 +2254,10 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*r
 	}
 
 	var pgxTx pgx.Tx
-	if len(tx) > 0 {
+	if len(tx) > 1 {
+		return nil, errors.New("expects at most one transaction")
+	}
+	if len(tx) == 1 && tx[0] != nil && tx[0].ID != "" {
 		var ok bool
 		pgxTx, ok = getTx(tx[0], &n.openTxs)
 		if !ok {
@@ -2355,7 +2361,10 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*
 	}
 
 	var pgxTx pgx.Tx
-	if len(tx) > 0 {
+	if len(tx) > 1 {
+		return errors.New("expects at most one transaction")
+	}
+	if len(tx) == 1 && tx[0] != nil && tx[0].ID != "" {
 		var ok bool
 		pgxTx, ok = getTx(tx[0], &n.openTxs)
 		if !ok {
@@ -4601,7 +4610,7 @@ func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 }
 
 func (n *RuntimeGoNakamaModule) TxBegin(ctx context.Context) (*runtime.StorageTx, error) {
-	return txBegin(ctx, n.db, &n.openTxs)
+	return txBegin(ctx, n.logger, n.db, &n.openTxs)
 }
 
 func (n *RuntimeGoNakamaModule) TxCommit(ctx context.Context, tx *runtime.StorageTx) error {

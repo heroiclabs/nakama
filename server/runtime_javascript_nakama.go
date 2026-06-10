@@ -5489,7 +5489,7 @@ func (n *RuntimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) txBegin(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		tx, err := txBegin(n.ctx, n.db, &n.openTxs)
+		tx, err := txBegin(n.ctx, n.logger, n.db, &n.openTxs)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("failed to begin transaction: %s", err.Error())))
 		}

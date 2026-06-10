@@ -7013,7 +7013,7 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 // @return tx(string) A transaction handle to pass to storage_read_tx, storage_write_tx, storage_delete_tx, tx_commit, or tx_rollback.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) txBegin(l *lua.LState) int {
-	tx, err := txBegin(l.Context(), n.db, &n.openTxs)
+	tx, err := txBegin(l.Context(), n.logger, n.db, &n.openTxs)
 	if err != nil {
 		l.RaiseError("failed to begin transaction: %s", err.Error())
 		return 0

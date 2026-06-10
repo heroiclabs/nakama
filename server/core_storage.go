@@ -588,7 +588,10 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 
 	var objects *api.StorageObjects
 	err := ExecuteRetryablePgx(ctx, db, func(conn *pgx.Conn) error {
-		rows, _ := conn.Query(ctx, query, params...)
+		rows, err := conn.Query(ctx, query, params...)
+		if err != nil {
+			return fmt.Errorf("query failed: %w", err)
+		}
 		var scanErr error
 		objects, scanErr = scanRows(rows)
 		return scanErr
@@ -965,8 +968,8 @@ type openTx struct {
 
 // txBegin acquires a dedicated connection, begins a transaction on it,
 // and registers it in openTxs. A goroutine watches ctx and rolls back
-// automatically if the caller never commits or ro.
-func txBegin(ctx context.Context, db *sql.DB, openTxs *sync.Map) (*runtime.StorageTx, error) {
+// automatically if the caller forgets to commit.
+func txBegin(ctx context.Context, logger *zap.Logger, db *sql.DB, openTxs *sync.Map) (*runtime.StorageTx, error) {
 	conn, err := db.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -976,20 +979,31 @@ func txBegin(ctx context.Context, db *sql.DB, openTxs *sync.Map) (*runtime.Stora
 	doneCh := make(chan struct{})
 	var pgxTx pgx.Tx
 
+	// Open a dedicated connection for the TX
 	go func() {
 		defer conn.Close()
-		_ = conn.Raw(func(driverConn any) error {
+
+		beginTxFailed := false
+		err = conn.Raw(func(driverConn any) error {
 			pgxConn := driverConn.(*stdlib.Conn).Conn()
-			tx, err := pgxConn.BeginTx(context.Background(), pgx.TxOptions{})
+			tx, err := pgxConn.BeginTx(ctx, pgx.TxOptions{})
 			if err != nil {
 				txReadyCh <- err
+				beginTxFailed = true
 				return err
 			}
 			pgxTx = tx
 			txReadyCh <- nil
+
+			// This receive blocks until TX is committed or rolled back
 			<-doneCh
 			return nil
 		})
+
+		// conn.Raw errored before callback - send error to unblock txReadyCh
+		if err != nil && !beginTxFailed {
+			txReadyCh <- err
+		}
 	}()
 
 	if err := <-txReadyCh; err != nil {
@@ -999,11 +1013,14 @@ func txBegin(ctx context.Context, db *sql.DB, openTxs *sync.Map) (*runtime.Stora
 	txID := uuid.Must(uuid.NewV4()).String()
 	openTxs.Store(txID, &openTx{tx: pgxTx, doneCh: doneCh})
 
+	// Watch for cancelled context to rollback an tx's
 	go func() {
 		<-ctx.Done()
 		if val, loaded := openTxs.LoadAndDelete(txID); loaded {
 			entry := val.(*openTx)
-			_ = entry.tx.Rollback(context.Background())
+			if rollbackErr := entry.tx.Rollback(context.Background()); rollbackErr != nil {
+				logger.Warn("Failed to rollback transaction on context cancellation.", zap.String("tx_id", txID), zap.Error(rollbackErr))
+			}
 			close(entry.doneCh)
 		}
 	}()

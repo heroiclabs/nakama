@@ -2767,7 +2767,7 @@ func TestStorageTxCommit(t *testing.T) {
 	key := GenerateString()
 	var openTxs sync.Map
 
-	tx, err := txBegin(context.Background(), db, &openTxs)
+	tx, err := txBegin(context.Background(), logger, db, &openTxs)
 	assert.Nil(t, err, "txBegin failed")
 	assert.NotEmpty(t, tx.ID, "tx ID was empty")
 
@@ -2803,7 +2803,7 @@ func TestStorageTxRollback(t *testing.T) {
 	key := GenerateString()
 	var openTxs sync.Map
 
-	tx, err := txBegin(context.Background(), db, &openTxs)
+	tx, err := txBegin(context.Background(), logger, db, &openTxs)
 	assert.Nil(t, err, "txBegin failed")
 
 	pgxTx, ok := getTx(tx, &openTxs)
@@ -2841,7 +2841,7 @@ func TestStorageTxContextCancelRollback(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	tx, err := txBegin(ctx, db, &openTxs)
+	tx, err := txBegin(ctx, logger, db, &openTxs)
 	assert.Nil(t, err, "txBegin failed")
 
 	entry, _ := openTxs.Load(tx.ID)
