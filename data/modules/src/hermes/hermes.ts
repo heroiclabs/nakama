@@ -208,9 +208,27 @@ namespace Hermes {
       1 as nkruntime.ReadPermissionValues, 0 as nkruntime.WritePermissionValues);
   }
 
-  // In-app inbox notification the SPA + LegacyPush mirror to APNs/FCM. Code 1101
-  // is the Hermes morning-brief code (kept distinct from gameplay codes).
-  function notifyBrief(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, brief: Brief): void {
+  // Deliver the morning brief. Native (Unity) users with a registered push token
+  // get a real APNs/FCM push via LegacyPush.sendLocalizedPushToUser (which also
+  // writes the in-app inbox copy and respects quiet hours). Web users — and any
+  // user without a token or currently in quiet hours — fall back to an inbox-only
+  // notification (code 1101) so the SPA morning-brief surface always has content.
+  // The SPA reads the brief from storage (quizverse_hermes_brief_get), so the
+  // notification code is only a delivery hint, not the surface's data source.
+  function notifyBrief(ctx: nkruntime.Context, nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, brief: Brief): void {
+    var data: any = { deeplink: brief.cta.deeplink, kind: "hermes_brief", date: brief.date };
+    var pushed = false;
+    try {
+      // titleKey/bodyKey fall back to the literal string when absent from the
+      // push string table, so the composed headline/focus reach the device as-is.
+      pushed = LegacyPush.sendLocalizedPushToUser(
+        ctx, logger, nk, userId, "hermes_brief", brief.headline, brief.focus, {},
+        { data: data, gameId: "quizverse" }
+      );
+    } catch (err: any) {
+      logger.warn("[Hermes] device push failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+    }
+    if (pushed) return;   // sendLocalizedPushToUser already wrote the inbox copy.
     try {
       nk.notificationsSend([{
         userId: userId,
@@ -220,7 +238,7 @@ namespace Hermes {
         persistent: true,
       }]);
     } catch (err: any) {
-      logger.warn("[Hermes] notifyBrief failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+      logger.warn("[Hermes] notifyBrief inbox fallback failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
     }
   }
 
@@ -249,7 +267,7 @@ namespace Hermes {
 
     // Service callers (the nightly tick) also get a push; self-serve callers do
     // not (they're already on the surface that triggered the regen).
-    if (!ctx.userId && data.notify === true) notifyBrief(nk, logger, auth.userId, brief);
+    if (!ctx.userId && data.notify === true) notifyBrief(ctx, nk, logger, auth.userId, brief);
 
     return RpcHelpers.successResponse({ brief: brief });
   }
@@ -304,7 +322,7 @@ namespace Hermes {
         var brief = composeBrief(ctx, logger, nk, userId);
         storeBrief(nk, userId, brief);
         generated++;
-        if (doNotify) { notifyBrief(nk, logger, userId, brief); notified++; }
+        if (doNotify) { notifyBrief(ctx, nk, logger, userId, brief); notified++; }
       } catch (err: any) {
         failed++;
         logger.warn("[Hermes] nightly tick failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));

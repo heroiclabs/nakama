@@ -534,6 +534,21 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[TutorXStudyPlan] Failed to register: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Hermes nightly learning-loop agent (Play 3) ----
+    // Server-side persistent agent that composes a per-learner morning brief from
+    // durable Nakama state (entitlement + study-plan checklist + optional DeepTutor
+    // enrichment), persists it, and pushes a deep-linked notification. The nightly
+    // batch driver (quizverse_hermes_nightly_tick) is invoked by a k8s CronJob.
+    // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+    // pooled Goja VM (same rationale as TutorXProgress/StudyPlan above).
+    try {
+        logger.info("[Hermes] Registering quizverse_hermes_brief_get / _generate / _parent_recap / _nightly_tick RPCs...");
+        Hermes.register(initializer);
+        logger.info("[Hermes] Hermes nightly-loop RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[Hermes] Failed to register: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- Fantasy Cricket RPCs ----
     try {
         logger.info("[Fantasy] Registering Team RPCs...");
@@ -10128,6 +10143,342 @@ var QuizVerseGame;
         ]
     };
 })(QuizVerseGame || (QuizVerseGame = {}));
+// ---------------------------------------------------------------------------
+//  hermes.ts — QuizVerse "Hermes" nightly learning-loop agent (Play 3)
+//
+//  Hermes is the server-side persistent agent that turns one-off study sessions
+//  into a daily return loop. Every night a scheduler tick (driven by a k8s
+//  CronJob calling quizverse_hermes_nightly_tick) walks the opt-in registry,
+//  composes a per-learner "morning brief" from durable Nakama state (entitlement
+//  + study-plan checklist + predictor), optionally enriches it via DeepTutor /
+//  Simi, persists it, and pushes a deep-linked in-app notification so the learner
+//  re-enters the next morning to a ready-made plan.
+//
+//  Collections
+//    qv_hermes_brief     key "today"  (per-user)   — the latest generated brief
+//    qv_hermes_registry  key "users"  (SYSTEM_USER) — opt-in set { [userId]: ts }
+//
+//  RPCs (all IDs are literal at registration — Goja AST-walker requirement)
+//    quizverse_hermes_brief_get      user      → latest brief (auto opt-in)
+//    quizverse_hermes_brief_generate user|svc  → (re)build + store brief
+//    quizverse_hermes_parent_recap   user|svc  → parent-facing recap text
+//    quizverse_hermes_nightly_tick   service   → batch driver (CronJob entry)
+//
+//  Env (must be listed in RUNTIME_ENV_KEYS in docker-compose / k8s to be visible
+//  via ctx.env): HERMES_SERVICE_TOKEN, DEEPTUTOR_BASE_URL, DEEPTUTOR_SERVICE_TOKEN,
+//  SIMI_BASE_URL, SIMI_API_KEY. Every external call is best-effort and degrades
+//  to a deterministic local brief when the env var / dependency is absent.
+//
+//  Zero-defect notes: ES5 only (no arrow fns passed to registerRpc, no global
+//  mutable state), no Node built-ins, build + restart required to load.
+// ---------------------------------------------------------------------------
+var Hermes;
+(function (Hermes) {
+    var COLLECTION_BRIEF = "qv_hermes_brief";
+    var KEY_BRIEF = "today";
+    var COLLECTION_REGISTRY = "qv_hermes_registry";
+    var KEY_REGISTRY = "users";
+    var COLLECTION_ENTITLEMENTS = "qv_entitlements";
+    var KEY_SUBS = "subscriptions";
+    // Deep link the SPA + native widgets understand (see index-tutorx-v2.html
+    // _qvHandleDeepLink + QVWidgetBridge). hermes_brief opens the morning surface.
+    var DEEPLINK_BRIEF = "tutorx://hermes/brief";
+    // Batch cap per tick so one CronJob run can't monopolise a pod.
+    var NIGHTLY_BATCH_LIMIT = 500;
+    // ── small helpers ─────────────────────────────────────────────────────────
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function utcDateStr() { return new Date().toISOString().slice(0, 10); }
+    function envStr(ctx, key) {
+        return "" + ((ctx.env && ctx.env[key]) || "");
+    }
+    function isServiceCaller(ctx, payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var expected = envStr(ctx, "HERMES_SERVICE_TOKEN");
+        return expected.length > 0 && token === expected;
+    }
+    // user session → ctx.userId; service caller → payload.user_id.
+    function resolveUser(ctx, data) {
+        if (ctx.userId)
+            return { userId: ctx.userId };
+        if (!isServiceCaller(ctx, data))
+            return { userId: "", error: "not authorised", code: 401 };
+        var u = "" + (data.user_id || "");
+        if (!u)
+            return { userId: "", error: "user_id required for service caller", code: 400 };
+        return { userId: u };
+    }
+    function readRegistry(nk) {
+        try {
+            var r = Storage.readSystemJson(nk, COLLECTION_REGISTRY, KEY_REGISTRY);
+            if (r && r.users && typeof r.users === "object")
+                return r;
+        }
+        catch (_e) { /* fall through */ }
+        return { users: {} };
+    }
+    function registerUser(nk, userId) {
+        if (!userId)
+            return;
+        try {
+            var reg = readRegistry(nk);
+            reg.users[userId] = nowSec();
+            Storage.writeSystemJson(nk, COLLECTION_REGISTRY, KEY_REGISTRY, reg);
+        }
+        catch (_e) { /* best-effort */ }
+    }
+    // ── entitlement read (tone: trial nudge vs. paid) ───────────────────────────
+    function entitlementStatus(nk, userId) {
+        try {
+            var subs = Storage.readJson(nk, COLLECTION_ENTITLEMENTS, KEY_SUBS, userId);
+            if (!subs || !subs.tier)
+                return "free";
+            var status = "" + (subs.status || "");
+            if (subs.expiresAt) {
+                var expMs = new Date(subs.expiresAt).getTime();
+                if (!isNaN(expMs) && expMs < Date.now())
+                    return "expired";
+            }
+            if (status === "trialing")
+                return "trialing";
+            if (status === "active")
+                return "active";
+            return "free";
+        }
+        catch (_e) {
+            return "free";
+        }
+    }
+    // ── study-plan checklist progress (best-effort, defensive) ───────────────────
+    // The plan content lives in DeepTutor; only the per-user checklist state is in
+    // Nakama (tutorx_studyplan/<planId>). We scan the user's records and total the
+    // ticked tasks so the brief can report "you finished N tasks" without coupling
+    // to a specific planId we may not have at tick time.
+    function planProgress(nk, userId) {
+        var plans = 0, doneTasks = 0;
+        try {
+            var res = nk.storageList(userId, "tutorx_studyplan", 50);
+            var objs = (res && res.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var v = objs[i].value;
+                if (v && v.done && typeof v.done === "object") {
+                    plans++;
+                    for (var k in v.done) {
+                        if (Object.prototype.hasOwnProperty.call(v.done, k) && v.done[k] === true)
+                            doneTasks++;
+                    }
+                }
+            }
+        }
+        catch (_e) { /* no plans yet */ }
+        return { plans: plans, doneTasks: doneTasks };
+    }
+    // ── optional DeepTutor enrichment ────────────────────────────────────────────
+    // Pulls a one-line "what to focus on next" from the learner's DeepTutor memory.
+    // Returns "" on any failure so the brief always renders.
+    function deepTutorFocus(ctx, logger, nk, userId) {
+        var base = envStr(ctx, "DEEPTUTOR_BASE_URL");
+        if (!base)
+            return "";
+        try {
+            var url = base.replace(/\/+$/, "") + "/api/v1/memory/next-focus";
+            var headers = { "Content-Type": "application/json", "x-user-id": userId };
+            var svc = envStr(ctx, "DEEPTUTOR_SERVICE_TOKEN");
+            if (svc)
+                headers["Authorization"] = "Bearer " + svc;
+            var resp = nk.httpRequest(url, "post", headers, JSON.stringify({ user_id: userId }), 4000);
+            if (resp && resp.code >= 200 && resp.code < 300 && resp.body) {
+                var parsed = JSON.parse(resp.body);
+                var f = "" + ((parsed && (parsed.focus || parsed.next_focus || parsed.summary)) || "");
+                return f.slice(0, 240);
+            }
+        }
+        catch (err) {
+            logger.info("[Hermes] deepTutorFocus skipped: " + (err && err.message ? err.message : String(err)));
+        }
+        return "";
+    }
+    function composeBrief(ctx, logger, nk, userId) {
+        var status = entitlementStatus(nk, userId);
+        var prog = planProgress(nk, userId);
+        var focus = deepTutorFocus(ctx, logger, nk, userId);
+        var source = focus ? "deeptutor" : "local";
+        if (!focus) {
+            focus = prog.doneTasks > 0
+                ? "Pick up where you left off — you've cleared " + prog.doneTasks + " task" + (prog.doneTasks === 1 ? "" : "s") + ". One focused session keeps your streak alive."
+                : "Start with a 10-minute focused session on your weakest topic — momentum beats marathon study.";
+        }
+        var headline;
+        if (status === "trialing")
+            headline = "Your trial is working — here's today's win.";
+        else if (status === "active")
+            headline = "Good morning. Today's plan is ready.";
+        else if (status === "expired")
+            headline = "Your plan misses you. Pick up your prep where you left off.";
+        else
+            headline = "Good morning. Here's your fastest win for today.";
+        var ctaLabel = (status === "active" || status === "trialing") ? "Open today's plan" : "Resume my prep";
+        return {
+            date: utcDateStr(),
+            generated_unix: nowSec(),
+            status: status,
+            headline: headline,
+            focus: focus,
+            progress: prog,
+            cta: { label: ctaLabel, deeplink: DEEPLINK_BRIEF },
+            source: source,
+        };
+    }
+    function readBrief(nk, userId) {
+        try {
+            return Storage.readJson(nk, COLLECTION_BRIEF, KEY_BRIEF, userId);
+        }
+        catch (_e) {
+            return null;
+        }
+    }
+    function storeBrief(nk, userId, brief) {
+        // permissionRead:1 → owner can read their own brief; server-only writes.
+        Storage.writeJson(nk, COLLECTION_BRIEF, KEY_BRIEF, userId, brief, 1, 0);
+    }
+    // Deliver the morning brief. Native (Unity) users with a registered push token
+    // get a real APNs/FCM push via LegacyPush.sendLocalizedPushToUser (which also
+    // writes the in-app inbox copy and respects quiet hours). Web users — and any
+    // user without a token or currently in quiet hours — fall back to an inbox-only
+    // notification (code 1101) so the SPA morning-brief surface always has content.
+    // The SPA reads the brief from storage (quizverse_hermes_brief_get), so the
+    // notification code is only a delivery hint, not the surface's data source.
+    function notifyBrief(ctx, nk, logger, userId, brief) {
+        var data = { deeplink: brief.cta.deeplink, kind: "hermes_brief", date: brief.date };
+        var pushed = false;
+        try {
+            // titleKey/bodyKey fall back to the literal string when absent from the
+            // push string table, so the composed headline/focus reach the device as-is.
+            pushed = LegacyPush.sendLocalizedPushToUser(ctx, logger, nk, userId, "hermes_brief", brief.headline, brief.focus, {}, { data: data, gameId: "quizverse" });
+        }
+        catch (err) {
+            logger.warn("[Hermes] device push failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+        }
+        if (pushed)
+            return; // sendLocalizedPushToUser already wrote the inbox copy.
+        try {
+            nk.notificationsSend([{
+                    userId: userId,
+                    subject: brief.headline,
+                    content: { focus: brief.focus, deeplink: brief.cta.deeplink, kind: "hermes_brief", date: brief.date },
+                    code: 1101,
+                    persistent: true,
+                }]);
+        }
+        catch (err) {
+            logger.warn("[Hermes] notifyBrief inbox fallback failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+        }
+    }
+    // ── RPC: quizverse_hermes_brief_get ───────────────────────────────────────────
+    function rpcBriefGet(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        registerUser(nk, userId); // reading the brief opts you into the nightly loop
+        var brief = readBrief(nk, userId);
+        if (!brief) {
+            return RpcHelpers.successResponse({ has_brief: false, date: utcDateStr() });
+        }
+        return RpcHelpers.successResponse({ has_brief: true, brief: brief });
+    }
+    // ── RPC: quizverse_hermes_brief_generate ──────────────────────────────────────
+    function rpcBriefGenerate(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var auth = resolveUser(ctx, data);
+        if (auth.error)
+            return RpcHelpers.errorResponse(auth.error, auth.code);
+        var brief = composeBrief(ctx, logger, nk, auth.userId);
+        try {
+            storeBrief(nk, auth.userId, brief);
+        }
+        catch (err) {
+            logger.warn("[Hermes] storeBrief failed: " + (err && err.message ? err.message : String(err)));
+        }
+        registerUser(nk, auth.userId);
+        // Service callers (the nightly tick) also get a push; self-serve callers do
+        // not (they're already on the surface that triggered the regen).
+        if (!ctx.userId && data.notify === true)
+            notifyBrief(ctx, nk, logger, auth.userId, brief);
+        return RpcHelpers.successResponse({ brief: brief });
+    }
+    // ── RPC: quizverse_hermes_parent_recap ────────────────────────────────────────
+    function rpcParentRecap(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var auth = resolveUser(ctx, data);
+        if (auth.error)
+            return RpcHelpers.errorResponse(auth.error, auth.code);
+        var brief = readBrief(nk, auth.userId) || composeBrief(ctx, logger, nk, auth.userId);
+        var prog = brief.progress || { plans: 0, doneTasks: 0 };
+        var statusLine = brief.status === "trialing" ? "On a Pro trial — full adaptive prep is unlocked."
+            : brief.status === "active" ? "Pro plan active — full adaptive prep is unlocked."
+                : "On the free plan — upgrade unlocks the full adaptive plan.";
+        var recap = "This week your learner completed " + prog.doneTasks + " study task" + (prog.doneTasks === 1 ? "" : "s") +
+            " across " + prog.plans + " plan" + (prog.plans === 1 ? "" : "s") + ". " +
+            "Today's focus: " + brief.focus + " " + statusLine;
+        return RpcHelpers.successResponse({
+            recap: recap,
+            status: brief.status,
+            progress: prog,
+            cta: { label: "See full progress", deeplink: "tutorx://parent/recap" },
+            date: brief.date,
+        });
+    }
+    // ── RPC: quizverse_hermes_nightly_tick (service-only batch driver) ─────────────
+    function rpcNightlyTick(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data)) {
+            return RpcHelpers.errorResponse("not authorised", 401);
+        }
+        var reg = readRegistry(nk);
+        var ids = [];
+        for (var uid in reg.users) {
+            if (Object.prototype.hasOwnProperty.call(reg.users, uid))
+                ids.push(uid);
+        }
+        var limit = NIGHTLY_BATCH_LIMIT;
+        var generated = 0, notified = 0, failed = 0;
+        var doNotify = data.notify !== false; // default: send the morning push
+        for (var i = 0; i < ids.length && i < limit; i++) {
+            var userId = ids[i];
+            try {
+                var brief = composeBrief(ctx, logger, nk, userId);
+                storeBrief(nk, userId, brief);
+                generated++;
+                if (doNotify) {
+                    notifyBrief(ctx, nk, logger, userId, brief);
+                    notified++;
+                }
+            }
+            catch (err) {
+                failed++;
+                logger.warn("[Hermes] nightly tick failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+            }
+        }
+        logger.info("[Hermes] nightly tick: registered=" + ids.length + " generated=" + generated + " notified=" + notified + " failed=" + failed);
+        return RpcHelpers.successResponse({
+            registered: ids.length,
+            generated: generated,
+            notified: notified,
+            failed: failed,
+            batch_limit: limit,
+            date: utcDateStr(),
+        });
+    }
+    // ── Registration ──────────────────────────────────────────────────────────────
+    function register(initializer) {
+        // IMPORTANT: literal RPC IDs — the Nakama Goja AST walker can NOT resolve
+        // namespaced constants at registration time.
+        initializer.registerRpc("quizverse_hermes_brief_get", RpcHelpers.withCleanAuthError(rpcBriefGet));
+        initializer.registerRpc("quizverse_hermes_brief_generate", rpcBriefGenerate);
+        initializer.registerRpc("quizverse_hermes_parent_recap", rpcParentRecap);
+        initializer.registerRpc("quizverse_hermes_nightly_tick", rpcNightlyTick);
+    }
+    Hermes.register = register;
+})(Hermes || (Hermes = {}));
 var HiroAchievements;
 (function (HiroAchievements) {
     var DEFAULT_CONFIG = { achievements: {} };
@@ -15380,9 +15731,15 @@ var QvEntitlements;
                 return RpcHelpers.successResponse({ ignored: true, reason: "non-actionable event: " + eventType });
             }
             var expiresAt = resolveExpiry(event);
+            // Play 2 — opt-out trial. Stripe (or RC) flags a trial via period_type /
+            // an explicit trial bool. A trialing subscription still UNLOCKS (non-null
+            // tier) but is tagged "trialing" so analytics + the parent recap can tell
+            // a converting trial from a paid subscriber.
+            var isTrial = !!(event && (event.period_type === "trial" || event.period_type === "TRIAL" ||
+                event.trial === true || event.is_trial === true));
             var subRecord = {
                 tier: tier,
-                status: "active",
+                status: isTrial ? "trialing" : "active",
                 productId: productId,
                 store: store,
                 expiresAt: expiresAt,
@@ -15395,8 +15752,8 @@ var QvEntitlements;
                 existing.linkplayProPlus = true;
                 Storage.writeJson(nk, COLLECTION, KEY_ONE, targetUserId, existing);
             }
-            logger.info("[QvEntitlements] rc_sync: subscription granted for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
-            return RpcHelpers.successResponse({ tier: tier, status: "active", expiresAt: expiresAt });
+            logger.info("[QvEntitlements] rc_sync: subscription " + (isTrial ? "trial-granted" : "granted") + " for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
+            return RpcHelpers.successResponse({ tier: tier, status: isTrial ? "trialing" : "active", expiresAt: expiresAt });
         }
         catch (e) {
             logger.error("[QvEntitlements] rc_sync write error: " + (e && e.message ? e.message : String(e)));
@@ -16917,6 +17274,75 @@ var LearnerToolbelt;
         }
         return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
     }
+    // Play 2 — entitlement-aware quota (the "Phase D" promotion the identity
+    // resolver anticipated). A paid OR trialing subscriber reading their
+    // qv_entitlements subscription record is promoted free → pro, so the
+    // card-required trial actually unlocks the higher chat cap. Fully additive:
+    // if no record exists (or the id doesn't resolve), the caller stays "free".
+    function entitlementActiveForOwner(nk, ownerId) {
+        if (!ownerId)
+            return false;
+        try {
+            var rows = nk.storageRead([{
+                    collection: "qv_entitlements",
+                    key: "subscriptions",
+                    userId: ownerId,
+                }]);
+            if (!rows || rows.length === 0 || !rows[0].value)
+                return false;
+            var v = rows[0].value;
+            if (!v.tier)
+                return false;
+            var status = "" + (v.status || "");
+            if (status !== "active" && status !== "trialing")
+                return false;
+            if (v.expiresAt) {
+                var expMs = new Date(v.expiresAt).getTime();
+                if (!isNaN(expMs) && expMs < Date.now())
+                    return false;
+            }
+            return true;
+        }
+        catch (_e) {
+            return false;
+        }
+    }
+    function isProByEntitlement(nk, userId) {
+        if (!userId)
+            return false;
+        // 1) Canonical path: the entitlement is written under the Nakama account id
+        //    (rc_sync's app_user_id contract; the web SPA now bills against the
+        //    Nakama account id via _nkUserId()).
+        if (entitlementActiveForOwner(nk, userId))
+            return true;
+        // 2) Reconciliation: older grants — and any client that still posts the
+        //    device-auth id (the web USER_ID) — write the entitlement under a device
+        //    id linked to this Nakama account rather than the account id. The web
+        //    session is minted with authenticate/device, so that device id is on the
+        //    account. Resolve the account's devices and check each so a trialing
+        //    subscriber's higher chat cap unlocks regardless of which id was used.
+        try {
+            var account = nk.accountGetId(userId);
+            var devices = account && account.devices ? account.devices : null;
+            if (devices && devices.length) {
+                for (var i = 0; i < devices.length; i++) {
+                    var did = devices[i] && devices[i].id ? "" + devices[i].id : "";
+                    if (did && did !== userId && entitlementActiveForOwner(nk, did))
+                        return true;
+                }
+            }
+        }
+        catch (_e2) {
+            // accountGetId failures fail safe → caller stays "free".
+        }
+        return false;
+    }
+    function promoteIdentityByEntitlement(nk, ident) {
+        if (ident.tier === "free" && ident.sub && isProByEntitlement(nk, ident.sub)) {
+            ident.tier = "pro";
+        }
+        return ident;
+    }
     // § 3.13.1 deterministic state derivation. Same input → same mode.
     //
     //   if declared_intent == 'parent'                          → 'parent'
@@ -17833,13 +18259,15 @@ var LearnerToolbelt;
             var query = "" + (data.query || "");
             var country = ("" + (data.country_code || data.country || "")).toUpperCase();
             var locale = "" + (data.locale || "en");
+            var institutionType = "" + (data.institution_type || data.institutionType || "");
             var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
             if (query.length < 2)
                 return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
-            var hits = LearnerToolbelt.searchSchools(query, country, limit);
+            var hits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
             return safeWrap({
                 ok: true, status: hits.length > 0 ? "ok" : "no_results",
                 query: query, country_code: country, locale: locale,
+                institution_type: institutionType,
                 results: hits,
                 count: hits.length,
                 message: hits.length === 0 ? LearnerToolbelt.i18nString(locale, "school.no_results") : "",
@@ -18026,6 +18454,7 @@ var LearnerToolbelt;
             if (ident.error) {
                 return RpcHelpers.errorResponse(ident.error, 400);
             }
+            ident = promoteIdentityByEntitlement(nk, ident);
             var limit = limitForTier(ctx, ident.tier);
             // Sentinel: -1 → unlimited. The wire shape stays the same; we return
             // remaining = Number.MAX_SAFE_INTEGER (encoded as a large but safe int)
@@ -18177,6 +18606,7 @@ var LearnerToolbelt;
             if (ident.error) {
                 return RpcHelpers.errorResponse(ident.error, 400);
             }
+            ident = promoteIdentityByEntitlement(nk, ident);
             var limit = limitForTier(ctx, ident.tier);
             var unlimited = limit < 0;
             var dateStr = utcDateStr();
@@ -23818,6 +24248,10 @@ var LegacyPush;
         }
     }
     // ─── Send a localized push to one user (respects tokens, quiet hours, gates) ─
+    // Exported so sibling modules (e.g. Hermes morning brief) can deliver real
+    // device push (APNs/FCM) instead of an inbox-only notificationsSend. titleKey/
+    // bodyKey fall back to the literal string when absent from NOTIF_STRINGS
+    // (localize returns the key verbatim), so callers may pass composed copy.
     function sendLocalizedPushToUser(ctx, logger, nk, userId, eventType, titleKey, bodyKey, vars, opts) {
         opts = opts || {};
         if (!opts.skipQuietHours && isInQuietHours(nk, userId))
@@ -23860,6 +24294,7 @@ var LegacyPush;
         catch (_) { }
         return sent > 0;
     }
+    LegacyPush.sendLocalizedPushToUser = sendLocalizedPushToUser;
     // ─── S3 fetchers (mirror the URL shapes Unity already uses) ─────────────────
     var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
     function fetchDailyQuizForToday(nk, logger) {

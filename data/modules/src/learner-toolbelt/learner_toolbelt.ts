@@ -343,13 +343,13 @@ namespace LearnerToolbelt {
   // qv_entitlements subscription record is promoted free → pro, so the
   // card-required trial actually unlocks the higher chat cap. Fully additive:
   // if no record exists (or the id doesn't resolve), the caller stays "free".
-  function isProByEntitlement(nk: nkruntime.Nakama, userId: string): boolean {
-    if (!userId) return false;
+  function entitlementActiveForOwner(nk: nkruntime.Nakama, ownerId: string): boolean {
+    if (!ownerId) return false;
     try {
       var rows = nk.storageRead([{
         collection: "qv_entitlements",
         key: "subscriptions",
-        userId: userId,
+        userId: ownerId,
       }]);
       if (!rows || rows.length === 0 || !rows[0].value) return false;
       var v: any = rows[0].value;
@@ -364,6 +364,33 @@ namespace LearnerToolbelt {
     } catch (_e: any) {
       return false;
     }
+  }
+
+  function isProByEntitlement(nk: nkruntime.Nakama, userId: string): boolean {
+    if (!userId) return false;
+    // 1) Canonical path: the entitlement is written under the Nakama account id
+    //    (rc_sync's app_user_id contract; the web SPA now bills against the
+    //    Nakama account id via _nkUserId()).
+    if (entitlementActiveForOwner(nk, userId)) return true;
+    // 2) Reconciliation: older grants — and any client that still posts the
+    //    device-auth id (the web USER_ID) — write the entitlement under a device
+    //    id linked to this Nakama account rather than the account id. The web
+    //    session is minted with authenticate/device, so that device id is on the
+    //    account. Resolve the account's devices and check each so a trialing
+    //    subscriber's higher chat cap unlocks regardless of which id was used.
+    try {
+      var account: any = nk.accountGetId(userId);
+      var devices: any = account && account.devices ? account.devices : null;
+      if (devices && devices.length) {
+        for (var i = 0; i < devices.length; i++) {
+          var did = devices[i] && devices[i].id ? "" + devices[i].id : "";
+          if (did && did !== userId && entitlementActiveForOwner(nk, did)) return true;
+        }
+      }
+    } catch (_e2: any) {
+      // accountGetId failures fail safe → caller stays "free".
+    }
+    return false;
   }
 
   function promoteIdentityByEntitlement(nk: nkruntime.Nakama, ident: QuotaIdentity): QuotaIdentity {
@@ -1382,13 +1409,15 @@ namespace LearnerToolbelt {
       var query = "" + (data.query || "");
       var country = ("" + (data.country_code || data.country || "")).toUpperCase();
       var locale = "" + (data.locale || "en");
+      var institutionType = "" + (data.institution_type || data.institutionType || "");
       var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
       if (query.length < 2) return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
 
-      var hits = searchSchools(query, country, limit);
+      var hits = searchSchools(query, country, limit, institutionType);
       return safeWrap({
         ok: true, status: hits.length > 0 ? "ok" : "no_results",
         query: query, country_code: country, locale: locale,
+        institution_type: institutionType,
         results: hits,
         count: hits.length,
         message: hits.length === 0 ? i18nString(locale, "school.no_results") : "",
