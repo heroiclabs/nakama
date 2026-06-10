@@ -414,10 +414,31 @@ function rpcWalletTransferBetweenGameWallets(ctx, logger, nk, payload) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 var TUTORX_CONFIG = {
-    FREE_MESSAGES_PER_DAY: 3,
-    COST_PER_MESSAGE: 5,
+    FREE_MESSAGES_PER_DAY: 5,
+    COST_PER_MESSAGE: 20,
     COLLECTION: "tutorx_daily_usage"
 };
+
+/**
+ * Resolve which currency key holds the TutorX coin balance for a wallet.
+ * The mobile app uses currencies.game; legacy wallets only have currencies.tokens.
+ * CRITICAL: check_allowance, the free-message balance read and the paid-message
+ * debit must ALL use this same resolver. Previously they used three different
+ * rules (game||tokens vs game!==undefined vs mixed), so the balance could be
+ * validated against `tokens` but debited from `game` — driving `game` negative
+ * and making every later debit fail with insufficient_coins.
+ */
+function tutorxCurrencyKey(wallet) {
+    if (wallet && wallet.currencies && typeof wallet.currencies.game === "number") return "game";
+    return "tokens";
+}
+
+/** Read the TutorX coin balance from a wallet using the canonical key. */
+function tutorxCoinBalance(wallet) {
+    if (!wallet || !wallet.currencies) return 0;
+    var v = wallet.currencies[tutorxCurrencyKey(wallet)];
+    return (typeof v === "number") ? v : 0;
+}
 
 /**
  * RPC: Check if user can send TutorX AI message
@@ -464,7 +485,7 @@ function rpcTutorXCheckAllowance(ctx, logger, nk, payload) {
     var coinBalance = 0;
     try {
         var wallet = getGameWallet(nk, logger, userId, gameId);
-        coinBalance = (wallet.currencies && (wallet.currencies.game || wallet.currencies.tokens)) || 0;
+        coinBalance = tutorxCoinBalance(wallet);
     } catch (err) {
         utils.logWarn(logger, "tutorx_check_allowance: wallet read error: " + err.message);
     }
@@ -475,6 +496,7 @@ function rpcTutorXCheckAllowance(ctx, logger, nk, payload) {
         success: true,
         canUse: canUse,
         freeRemaining: freeRemaining,
+        freeLimit: TUTORX_CONFIG.FREE_MESSAGES_PER_DAY,
         coinBalance: coinBalance,
         costPerMsg: TUTORX_CONFIG.COST_PER_MESSAGE,
         usedToday: usage.usedToday,
@@ -537,7 +559,7 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
         }
 
         if (wallet) {
-            var currentBal = (wallet.currencies && (wallet.currencies.game || wallet.currencies.tokens)) || 0;
+            var currentBal = tutorxCoinBalance(wallet);
             if (currentBal < TUTORX_CONFIG.COST_PER_MESSAGE) {
                 return JSON.stringify({
                     success: false,
@@ -547,8 +569,7 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
                     timestamp: utils.getCurrentTimestamp()
                 });
             }
-            // Deduct from whichever currency key holds the balance
-            var currencyKey = (wallet.currencies && wallet.currencies.game !== undefined) ? "game" : "tokens";
+            var currencyKey = tutorxCurrencyKey(wallet);
             wallet.currencies[currencyKey] -= TUTORX_CONFIG.COST_PER_MESSAGE;
             coinCharged = TUTORX_CONFIG.COST_PER_MESSAGE;
             coinBalance = wallet.currencies[currencyKey];
@@ -570,7 +591,7 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
         // Free message — read wallet balance for the response without modifying it
         try {
             var w = getGameWallet(nk, logger, userId, gameId);
-            coinBalance = (w.currencies && (w.currencies.game !== undefined ? w.currencies.game : w.currencies.tokens)) || 0;
+            coinBalance = tutorxCoinBalance(w);
         } catch (err) {
             utils.logWarn(logger, "tutorx_record_usage: wallet read (balance-only) error: " + err.message);
         }
@@ -603,6 +624,7 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
         success: true,
         usedToday: usage.usedToday,
         freeRemaining: freeRemaining,
+        freeLimit: TUTORX_CONFIG.FREE_MESSAGES_PER_DAY,
         coinCharged: coinCharged,
         coinBalance: coinBalance,
         costPerMsg: TUTORX_CONFIG.COST_PER_MESSAGE,
