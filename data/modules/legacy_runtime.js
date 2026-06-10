@@ -24107,11 +24107,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[TutorX] Registered RPC: tutorx_check_allowance');
         initializer.registerRpc('tutorx_record_usage', rpcTutorXRecordUsage);
         logger.info('[TutorX] Registered RPC: tutorx_record_usage');
+        initializer.registerRpc('tutorx_session_refresh', rpcTutorXSessionRefresh);
+        logger.info('[TutorX] Registered RPC: tutorx_session_refresh');
         initializer.registerRpc('tutorx_get_config', rpcTutorXGetConfig);
         logger.info('[TutorX] Registered RPC: tutorx_get_config');
         initializer.registerRpc('tutorx_set_config', rpcTutorXSetConfig);
         logger.info('[TutorX] Registered RPC: tutorx_set_config (admin)');
-        logger.info('[TutorX] Successfully registered 4 TutorX AI Coin Gate RPCs');
+        logger.info('[TutorX] Successfully registered 5 TutorX AI Coin Gate RPCs');
     } catch (err) {
         logger.error('[TutorX] Failed to initialize: ' + err.message);
     }
