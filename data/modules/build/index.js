@@ -534,6 +534,33 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[TutorXStudyPlan] Failed to register: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Hermes nightly learning-loop agent (Play 3) ----
+    // Server-side persistent agent that composes a per-learner morning brief from
+    // durable Nakama state (entitlement + study-plan checklist + optional DeepTutor
+    // enrichment), persists it, and pushes a deep-linked notification. The nightly
+    // batch driver (quizverse_hermes_nightly_tick) is invoked by a k8s CronJob.
+    // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+    // pooled Goja VM (same rationale as TutorXProgress/StudyPlan above).
+    try {
+        logger.info("[Hermes] Registering quizverse_hermes_brief_get / _generate / _parent_recap / _nightly_tick RPCs...");
+        Hermes.register(initializer);
+        logger.info("[Hermes] Hermes nightly-loop RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[Hermes] Failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- Blog Quiz embeddable widget (link-building) ----
+    // quizverse_blog_embed_create / _get + quizverse_embed_quiz_complete / _claim_pending.
+    // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+    // pooled Goja VM (same rationale as Hermes above).
+    try {
+        logger.info("[BlogEmbed] Registering quizverse_blog_embed_create / _get / embed_quiz_complete / claim_pending RPCs...");
+        BlogEmbed.register(initializer);
+        logger.info("[BlogEmbed] Blog-quiz embed RPCs registered successfully");
+    }
+    catch (err) {
+        logger.error("[BlogEmbed] Failed to register: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- Fantasy Cricket RPCs ----
     try {
         logger.info("[Fantasy] Registering Team RPCs...");
@@ -6930,6 +6957,406 @@ var IntelliverseFriendsList;
     }
     IntelliverseFriendsList.register = register;
 })(IntelliverseFriendsList || (IntelliverseFriendsList = {}));
+// ---------------------------------------------------------------------------
+//  blog_embed.ts — QuizVerse "Blog Quiz" embeddable widget backend
+//
+//  Powers the link-building widget: a blogger pastes a blog URL (or raw
+//  content) on /widgets/blog-quiz, we generate a quiz from it ONCE, mint a
+//  permanent embed_id, and the blogger drops a <script> tag. Every reader on
+//  the partner site plays the SAME cached quiz; readers accrue *pending*
+//  QuizVerse coins that are credited only when they install / sign in to the
+//  app (decided by product: coins-on-claim, anti-farm + maximises installs).
+//
+//  Backlink loop: each embed renders a dofollow "Powered by QuizVerse" footer
+//  and a "claim your coins in the app" CTA, so partner sites get free
+//  interactive content + a reader incentive and QuizVerse gets a backlink.
+//
+//  RPCs (literal IDs at registration — Goja AST-walker requirement)
+//    quizverse_blog_embed_create     session (ghost ok) → content → quiz + embed_id
+//    quizverse_blog_embed_get        http_key/public    → cached quiz by embed_id
+//    quizverse_embed_quiz_complete   http_key/public    → record pending coins (device)
+//    quizverse_embed_claim_pending   session            → credit pending coins → wallet
+//
+//  Storage
+//    qv_blog_embeds  / <embed_id>     (SYSTEM) — the generated quiz + metadata
+//    qv_blog_embeds  / src_<hash>     (SYSTEM) — source-url dedup index → embed_id
+//    qv_embed_pending / <device_id>   (SYSTEM) — per-device pending/claimed ledger
+//
+//  Env (must be in RUNTIME_ENV_KEYS to be visible via ctx.env):
+//    ANTHROPIC_API_KEY and/or OPENAI_API_KEY — quiz generation LLM
+//
+//  Zero-defect notes: ES5 only (no arrow fns to registerRpc, no global mutable
+//  state, no Node built-ins), build + restart required to load.
+// ---------------------------------------------------------------------------
+var BlogEmbed;
+(function (BlogEmbed) {
+    var COLLECTION_EMBEDS = "qv_blog_embeds";
+    var COLLECTION_PENDING = "qv_embed_pending";
+    // Economy: one blog quiz earns a fixed reward, once per device per embed
+    // (lifetime), with a daily cap on distinct embeds to stop coin farming.
+    var COINS_PER_EMBED = 20;
+    var MAX_EMBEDS_PER_DAY = 10;
+    // Generation guardrails.
+    var MIN_CONTENT_CHARS = 200;
+    var MAX_CONTENT_CHARS = 12000;
+    var MAX_QUESTIONS = 8;
+    var DEFAULT_QUESTIONS = 5;
+    var OPTIONS_PER_Q = 4;
+    // ── small helpers ─────────────────────────────────────────────────────────
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function todayUtc() { return new Date().toISOString().slice(0, 10); }
+    function startOfTodayUnix() {
+        var d = new Date();
+        d.setUTCHours(0, 0, 0, 0);
+        return Math.floor(d.getTime() / 1000);
+    }
+    function envStr(ctx, key) {
+        return "" + ((ctx.env && ctx.env[key]) || "");
+    }
+    function clampInt(v, lo, hi, dflt) {
+        var n = parseInt("" + v, 10);
+        if (!isFinite(n))
+            return dflt;
+        if (n < lo)
+            return lo;
+        if (n > hi)
+            return hi;
+        return n;
+    }
+    function randId(prefix) {
+        return prefix + nowSec().toString(36) + "_" + Math.random().toString(36).slice(2, 10);
+    }
+    // Cheap deterministic hash for the source-url dedup index (djb2).
+    function hashStr(s) {
+        var h = 5381;
+        for (var i = 0; i < s.length; i++) {
+            h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+        }
+        return (h >>> 0).toString(36);
+    }
+    function hostFromUrl(url) {
+        try {
+            var m = ("" + url).match(/^https?:\/\/([^\/?#]+)/i);
+            return m ? m[1].toLowerCase() : "";
+        }
+        catch (_e) {
+            return "";
+        }
+    }
+    // ── LLM call (Anthropic preferred, OpenAI fallback) ─────────────────────────
+    // Returns the raw model text, or "" on any failure. Mirrors the provider
+    // shapes used by ai_player.js so we stay consistent across the runtime.
+    function callLlm(ctx, logger, nk, system, user) {
+        var anthropic = envStr(ctx, "ANTHROPIC_API_KEY");
+        var openai = envStr(ctx, "OPENAI_API_KEY");
+        var maxTokens = 2000;
+        try {
+            if (anthropic) {
+                var ra = nk.httpRequest("https://api.anthropic.com/v1/messages", "post", {
+                    "Content-Type": "application/json",
+                    "x-api-key": anthropic,
+                    "anthropic-version": "2023-06-01"
+                }, JSON.stringify({
+                    model: "claude-sonnet-4-20250514",
+                    max_tokens: maxTokens,
+                    system: system,
+                    messages: [{ role: "user", content: user }]
+                }), 20000);
+                if (ra && ra.code >= 200 && ra.code < 300 && ra.body) {
+                    var pa = JSON.parse(ra.body);
+                    if (pa && pa.content && pa.content.length > 0 && pa.content[0].text) {
+                        return "" + pa.content[0].text;
+                    }
+                }
+                else {
+                    logger.warn("[BlogEmbed] anthropic HTTP " + (ra ? ra.code : "?"));
+                }
+            }
+            if (openai) {
+                var ro = nk.httpRequest("https://api.openai.com/v1/chat/completions", "post", {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + openai
+                }, JSON.stringify({
+                    model: "gpt-4o-mini",
+                    max_tokens: maxTokens,
+                    messages: [
+                        { role: "system", content: system },
+                        { role: "user", content: user }
+                    ]
+                }), 20000);
+                if (ro && ro.code >= 200 && ro.code < 300 && ro.body) {
+                    var po = JSON.parse(ro.body);
+                    if (po && po.choices && po.choices.length > 0 && po.choices[0].message) {
+                        return "" + po.choices[0].message.content;
+                    }
+                }
+                else {
+                    logger.warn("[BlogEmbed] openai HTTP " + (ro ? ro.code : "?"));
+                }
+            }
+        }
+        catch (err) {
+            logger.error("[BlogEmbed] callLlm threw: " + (err && err.message ? err.message : String(err)));
+        }
+        return "";
+    }
+    // Extract the first JSON array from a model response (handles ```json fences).
+    function parseQuestionsJson(text) {
+        if (!text)
+            return [];
+        var t = "" + text;
+        var fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        if (fence && fence[1])
+            t = fence[1];
+        var start = t.indexOf("[");
+        var end = t.lastIndexOf("]");
+        if (start < 0 || end <= start)
+            return [];
+        try {
+            var arr = JSON.parse(t.slice(start, end + 1));
+            return (arr && arr.length) ? arr : [];
+        }
+        catch (_e) {
+            return [];
+        }
+    }
+    // Coerce + validate raw model questions into safe EmbedQuestion records.
+    function normalizeQuestions(raw, want) {
+        var out = [];
+        for (var i = 0; i < raw.length && out.length < want; i++) {
+            var q = raw[i] || {};
+            var prompt = "" + (q.prompt || q.question || "");
+            var opts = q.options || q.choices || [];
+            if (!prompt || !opts || opts.length !== OPTIONS_PER_Q)
+                continue;
+            var options = [];
+            var ok = true;
+            for (var j = 0; j < OPTIONS_PER_Q; j++) {
+                var o = "" + (opts[j] || "");
+                if (!o) {
+                    ok = false;
+                    break;
+                }
+                options.push(o);
+            }
+            if (!ok)
+                continue;
+            var ci = clampInt(q.correctIndex != null ? q.correctIndex : q.correct_index, 0, OPTIONS_PER_Q - 1, 0);
+            out.push({
+                id: "beq-" + (out.length + 1),
+                prompt: prompt.slice(0, 400),
+                options: options,
+                correctIndex: ci,
+                insight: ("" + (q.insight || q.explanation || "")).slice(0, 400)
+            });
+        }
+        return out;
+    }
+    function generateQuiz(ctx, logger, nk, content, title, locale, want) {
+        var system = "You are a quiz generator for QuizVerse. Given article content, write " + want +
+            " engaging multiple-choice questions that test comprehension of the article. " +
+            "Each question must have exactly " + OPTIONS_PER_Q + " options and one correct answer. " +
+            "Write in locale '" + locale + "'. Respond ONLY with a JSON array; each item: " +
+            '{"prompt": string, "options": [string x' + OPTIONS_PER_Q + '], "correctIndex": number (0-based), "insight": short explanation}.';
+        var user = "ARTICLE TITLE: " + (title || "(untitled)") + "\n\nARTICLE CONTENT:\n" + content.slice(0, MAX_CONTENT_CHARS);
+        var text = callLlm(ctx, logger, nk, system, user);
+        return normalizeQuestions(parseQuestionsJson(text), want);
+    }
+    // ── RPC: quizverse_blog_embed_create ────────────────────────────────────────
+    // Auth: any Nakama session (ghost ok — the generator page is open/no-login,
+    // the browser already holds a device-id ghost session). Rate-limiting lives
+    // in the Next.js /api/blog-quiz/generate route (per-IP).
+    function rpcCreate(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var content = "" + (data.content || data.text || "");
+        var url = "" + (data.url || "");
+        var title = ("" + (data.title || "")).slice(0, 200);
+        var locale = ("" + (data.locale || "en")).slice(0, 12);
+        var want = clampInt(data.num_questions, 3, MAX_QUESTIONS, DEFAULT_QUESTIONS);
+        if (content.length < MIN_CONTENT_CHARS) {
+            return RpcHelpers.errorResponse("content too short — need at least " + MIN_CONTENT_CHARS + " characters of blog text", 400);
+        }
+        // Dedup: same source URL → return the existing embed (idempotent, saves LLM
+        // spend and keeps one stable backlink target per blog post).
+        if (url) {
+            try {
+                var idxKey = "src_" + hashStr(url.toLowerCase());
+                var existing = Storage.readSystemJson(nk, COLLECTION_EMBEDS, idxKey);
+                if (existing && existing.embed_id) {
+                    var prev = Storage.readSystemJson(nk, COLLECTION_EMBEDS, existing.embed_id);
+                    if (prev && prev.questions && prev.questions.length > 0) {
+                        return RpcHelpers.successResponse({ embed_id: prev.embed_id, title: prev.title, quiz: prev, reused: true });
+                    }
+                }
+            }
+            catch (_e) { /* fall through to generate */ }
+        }
+        var questions = generateQuiz(ctx, logger, nk, content, title, locale, want);
+        if (!questions || questions.length === 0) {
+            return RpcHelpers.errorResponse("quiz_generation_failed — AI did not return usable questions", 502);
+        }
+        var embedId = randId("be_");
+        var quiz = {
+            embed_id: embedId,
+            title: title || (hostFromUrl(url) ? ("Quiz: " + hostFromUrl(url)) : "Blog Quiz"),
+            source_url: url,
+            source_host: hostFromUrl(url),
+            locale: locale,
+            questions: questions,
+            created_unix: nowSec(),
+            created_by: userId,
+            plays: 0
+        };
+        try {
+            Storage.writeSystemJson(nk, COLLECTION_EMBEDS, embedId, quiz);
+            if (url) {
+                Storage.writeSystemJson(nk, COLLECTION_EMBEDS, "src_" + hashStr(url.toLowerCase()), { embed_id: embedId, created_unix: nowSec() });
+            }
+        }
+        catch (err) {
+            logger.error("[BlogEmbed] store failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("store_failed", 500);
+        }
+        return RpcHelpers.successResponse({ embed_id: embedId, title: quiz.title, quiz: quiz, reused: false });
+    }
+    // ── RPC: quizverse_blog_embed_get ────────────────────────────────────────────
+    // Public (called server-to-server from /api/blog-quiz/[embedId] via http_key).
+    // Returns the cached quiz so any reader on any partner site can play it.
+    function rpcGet(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var embedId = "" + (data.embed_id || "");
+        if (!embedId)
+            return RpcHelpers.errorResponse("embed_id required", 400);
+        var quiz = Storage.readSystemJson(nk, COLLECTION_EMBEDS, embedId);
+        if (!quiz || !quiz.questions)
+            return RpcHelpers.errorResponse("embed not found", 404);
+        // best-effort play counter
+        try {
+            quiz.plays = (quiz.plays | 0) + 1;
+            Storage.writeSystemJson(nk, COLLECTION_EMBEDS, embedId, quiz);
+        }
+        catch (_e) { }
+        return RpcHelpers.successResponse({
+            embed_id: quiz.embed_id,
+            title: quiz.title,
+            locale: quiz.locale,
+            source_host: quiz.source_host,
+            coins_reward: COINS_PER_EMBED,
+            questions: quiz.questions
+        });
+    }
+    function readPending(nk, deviceId) {
+        try {
+            var p = Storage.readSystemJson(nk, COLLECTION_PENDING, deviceId);
+            if (p && p.earned)
+                return p;
+        }
+        catch (_e) { }
+        return { device_id: deviceId, pending_coins: 0, claimed_coins: 0, earned: {}, updated: 0 };
+    }
+    function countEarnedToday(ledger) {
+        var start = startOfTodayUnix();
+        var n = 0;
+        for (var k in ledger.earned) {
+            if (Object.prototype.hasOwnProperty.call(ledger.earned, k) && ledger.earned[k] && ledger.earned[k].ts >= start)
+                n++;
+        }
+        return n;
+    }
+    // ── RPC: quizverse_embed_quiz_complete ───────────────────────────────────────
+    // Public (server-to-server via http_key). Records pending coins for a device
+    // after it finishes a blog quiz. Idempotent per (embed_id, device): a given
+    // blog quiz rewards a given device once, ever. Daily cap on distinct embeds.
+    function rpcComplete(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var embedId = "" + (data.embed_id || "");
+        var deviceId = "" + (data.device_id || "");
+        var host = ("" + (data.host || "")).slice(0, 120);
+        if (!embedId || !deviceId)
+            return RpcHelpers.errorResponse("embed_id + device_id required", 400);
+        // Embed must exist (don't mint coins for fabricated embed ids).
+        var quiz = Storage.readSystemJson(nk, COLLECTION_EMBEDS, embedId);
+        if (!quiz)
+            return RpcHelpers.errorResponse("embed not found", 404);
+        var ledger = readPending(nk, deviceId);
+        if (ledger.earned[embedId]) {
+            return RpcHelpers.successResponse({ pending_coins: ledger.pending_coins, credited: 0, skipped: "already_earned" });
+        }
+        if (countEarnedToday(ledger) >= MAX_EMBEDS_PER_DAY) {
+            return RpcHelpers.successResponse({ pending_coins: ledger.pending_coins, credited: 0, skipped: "daily_cap" });
+        }
+        ledger.earned[embedId] = { coins: COINS_PER_EMBED, ts: nowSec(), host: host || quiz.source_host || "" };
+        ledger.pending_coins = (ledger.pending_coins | 0) + COINS_PER_EMBED;
+        ledger.updated = nowSec();
+        try {
+            Storage.writeSystemJson(nk, COLLECTION_PENDING, deviceId, ledger);
+        }
+        catch (err) {
+            logger.error("[BlogEmbed] pending write failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("pending_write_failed", 500);
+        }
+        return RpcHelpers.successResponse({ pending_coins: ledger.pending_coins, credited: COINS_PER_EMBED, reward: COINS_PER_EMBED });
+    }
+    // ── RPC: quizverse_embed_claim_pending ───────────────────────────────────────
+    // Auth: user session. Credits the device's pending coins into the caller's
+    // Nakama wallet (native `coins`), then zeroes pending (one-time).
+    //
+    // Security model: the embed runs on a third-party site, so the player's
+    // embed device-id differs from their app device-id. The high-entropy
+    // device_id therefore acts as a one-time *bearer claim token* (like a gift
+    // code) carried into the app via the CTA deep link. Whoever presents a valid
+    // session + the token claims the balance once; pending is zeroed on claim so
+    // it can't be double-spent. Stakes are low (soft currency, capped per day).
+    function rpcClaim(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var deviceId = "" + (data.device_id || "");
+        if (!deviceId)
+            return RpcHelpers.errorResponse("device_id required", 400);
+        var ledger = readPending(nk, deviceId);
+        var amount = ledger.pending_coins | 0;
+        if (amount <= 0) {
+            return RpcHelpers.successResponse({ credited: 0, pending_coins: 0, message: "nothing to claim" });
+        }
+        try {
+            nk.walletUpdate(userId, { coins: amount }, { source: "blog_embed_claim", device_id: deviceId, claimed_at: nowSec() }, true);
+        }
+        catch (err) {
+            logger.error("[BlogEmbed] walletUpdate failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("wallet_credit_failed", 500);
+        }
+        ledger.claimed_coins = (ledger.claimed_coins | 0) + amount;
+        ledger.pending_coins = 0;
+        ledger.updated = nowSec();
+        try {
+            Storage.writeSystemJson(nk, COLLECTION_PENDING, deviceId, ledger);
+        }
+        catch (_e) { /* coins already granted; best-effort */ }
+        return RpcHelpers.successResponse({ credited: amount, pending_coins: 0, currency: "coins", claimed_total: ledger.claimed_coins });
+    }
+    // ── Registration ──────────────────────────────────────────────────────────────
+    function register(initializer) {
+        function auth(fn) {
+            var wrapped = null;
+            return function (ctx, logger, nk, payload) {
+                if (!wrapped) {
+                    var strictFn = fn;
+                    wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+                        ? RpcHelpers.withCleanAuthError(strictFn)
+                        : strictFn;
+                }
+                return wrapped(ctx, logger, nk, payload);
+            };
+        }
+        // Literal RPC IDs — Goja AST walker cannot resolve namespaced constants.
+        initializer.registerRpc("quizverse_blog_embed_create", auth(rpcCreate));
+        initializer.registerRpc("quizverse_blog_embed_get", rpcGet);
+        initializer.registerRpc("quizverse_embed_quiz_complete", rpcComplete);
+        initializer.registerRpc("quizverse_embed_claim_pending", auth(rpcClaim));
+    }
+    BlogEmbed.register = register;
+})(BlogEmbed || (BlogEmbed = {}));
 // QuizVerse turn generator — implements the SyncTurnMatch IGenerator
 // contract. Produces one quiz question per turn, scores submissions,
 // and builds the QV_REVEAL payload that goes back to clients.
@@ -7473,7 +7900,11 @@ var QuizVerseLiveBanner;
     var CACHE_KEY = "banner";
     var CACHE_TTL_SEC = 60; // 1 min cache per user (hot path dedup)
     var NO_EVENT_TTL_SEC = 300; // 5 min cache when show=false (save DB reads)
-    var UPCOMING_WINDOW_SEC = 1800; // Show "upcoming" banner 30 min before start
+    // How early an UPCOMING event surfaces on the banner. Set generously so a
+    // public event shows as soon as it's published (not just 30 min before start).
+    // Change this single number to tighten/widen the horizon (e.g. 1800 = 30 min,
+    // 86400 = 1 day, 604800 = 7 days).
+    var UPCOMING_WINDOW_SEC = 604800; // 7 days — event shows right after publish
     var ENDING_SOON_SEC = 900; // "Ending soon" badge within 15 min of end
     var LIVE_URL_BASE = "https://live.quizverse.world/player";
     var QUIZVERSE_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
@@ -7545,6 +7976,20 @@ var QuizVerseLiveBanner;
         if (age < 1800)
             return "new"; // New in last 30 min
         return "hot";
+    }
+    // ── Human countdown label ─────────────────────────────────────────────────
+    // Renders a seconds-until value as a friendly "in 3 days" / "in 5h" / "in 12m"
+    // so far-future upcoming events don't show "Starts in 4320 min".
+    function formatCountdownLabel(secUntil) {
+        var s = Math.max(0, Math.floor(secUntil));
+        if (s >= 172800)
+            return Math.floor(s / 86400) + " days"; // 2d+
+        if (s >= 86400)
+            return "1 day";
+        if (s >= 3600)
+            return Math.floor(s / 3600) + "h";
+        var m = Math.floor(s / 60);
+        return (m < 1 ? 1 : m) + "m";
     }
     // ── Build CTA URL ─────────────────────────────────────────────────────────
     function buildCtaUrl(eventId, eventType, userId, sessionToken) {
@@ -7751,9 +8196,20 @@ var QuizVerseLiveBanner;
         return best;
     }
     function collectLiveEventsFromStorageList(nk, userId, maxPages, seen, out) {
+        // Nakama's JS runtime rejects an empty-string userId ("expects empty or
+        // valid user id"); to list across ALL users it must be `undefined`, not "".
+        var listUserId = (userId && userId.length > 0) ? userId : undefined;
         var cursor = "";
         for (var page = 0; page < maxPages; page++) {
-            var result = nk.storageList(userId, LIVE_EVENTS_COLLECTION, 50, cursor);
+            var result;
+            try {
+                result = nk.storageList(listUserId, LIVE_EVENTS_COLLECTION, 50, cursor);
+            }
+            catch (_e) {
+                // A rejected userId (or unsupported cross-user list) must not abort the
+                // whole creator scan — other sources (index, system, satori) still count.
+                break;
+            }
             var objects = (result && result.objects) ? result.objects : [];
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
@@ -7870,8 +8326,7 @@ var QuizVerseLiveBanner;
         // Build human subtitle
         var subtitle = description || title;
         if (status === "upcoming") {
-            var minUntil = Math.floor((startsAt - now) / 60);
-            subtitle = "Starts in " + minUntil + " min · " + title;
+            subtitle = "Starts in " + formatCountdownLabel(startsAt - now) + " · " + title;
         }
         else if (timeRemaining < 3600) {
             var minsLeft = Math.floor(timeRemaining / 60);
@@ -7902,18 +8357,107 @@ var QuizVerseLiveBanner;
             server_time: now
         };
     }
-    /** True when an event is in the live window right now (not just upcoming). */
-    function isLiveWindowActive(nk, logger, userId, gameId) {
+    /**
+     * True when any source currently has a banner-worthy event — either live
+     * right now OR upcoming within UPCOMING_WINDOW_SEC. Used to bust a stale
+     * `show=false` cache so a freshly-started (or about-to-start) public event
+     * surfaces without waiting out the no-event TTL.
+     */
+    function hasShowableEvent(nk, logger, userId, gameId) {
         var tournament = fetchTournamentCandidate(nk, logger, userId);
-        if (tournament && tournament.status === "active")
-            return true;
+        if (tournament)
+            return true; // fetch* only return active/upcoming candidates
         var creator = fetchCreatorCandidate(nk, logger);
-        if (creator && creator.status === "active")
+        if (creator)
             return true;
         var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
-        if (satori && satori.status === "active")
+        if (satori)
             return true;
         return false;
+    }
+    function creatorRecordDiagnostic(ev, now) {
+        var id = (ev && ev.id) ? String(ev.id) : "(no id)";
+        if (!ev || !ev.id) {
+            return { id: id, eligible: false, reason: "record has no id" };
+        }
+        var status = String(ev.status || "published").toLowerCase();
+        var visibility = ev.visibility ? String(ev.visibility).toLowerCase() : "(unset → treated as public)";
+        var gameId = ev.gameId || ev.game_id || "";
+        if (status === "draft" || status === "cancelled" ||
+            status === "distributed" || status === "funded" || status === "ended") {
+            return { id: id, eligible: false, reason: "status=" + status + " is not bannerable", status: status };
+        }
+        if (ev.visibility && String(ev.visibility).toLowerCase() === "private") {
+            return { id: id, eligible: false, reason: "visibility is private", status: status, visibility: visibility };
+        }
+        if (gameId && String(gameId) !== QUIZVERSE_GAME_ID) {
+            return {
+                id: id, eligible: false,
+                reason: "gameId " + gameId + " != QuizVerse (" + QUIZVERSE_GAME_ID + ")",
+                status: status, visibility: visibility, game_id: String(gameId)
+            };
+        }
+        var window = resolveCreatorEventWindow(ev);
+        if (!window) {
+            return { id: id, eligible: false, reason: "no valid start time / duration", status: status, visibility: visibility };
+        }
+        var timeStatus = classifyBannerTimeStatus(now, window.startAt, window.endAt);
+        if (!timeStatus) {
+            var reason = (now > window.endAt)
+                ? "ended " + (now - window.endAt) + "s ago"
+                : "starts in " + (window.startAt - now) + "s (beyond the " + UPCOMING_WINDOW_SEC + "s upcoming window)";
+            return {
+                id: id, eligible: false, reason: reason,
+                status: status, visibility: visibility,
+                starts_at: window.startAt, ends_at: window.endAt
+            };
+        }
+        return {
+            id: id, eligible: true, reason: timeStatus,
+            status: status, visibility: visibility,
+            starts_at: window.startAt, ends_at: window.endAt
+        };
+    }
+    function buildDiagnostics(nk, logger, userId, gameId) {
+        var now = Math.floor(Date.now() / 1000);
+        var out = {
+            server_time: now,
+            quizverse_game_id: QUIZVERSE_GAME_ID,
+            upcoming_window_sec: UPCOMING_WINDOW_SEC,
+            force_live_banner_off: FORCE_LIVE_BANNER_OFF,
+            tournament_candidate: null,
+            satori_candidate: null,
+            creator_records_scanned: 0,
+            creator_records_eligible: 0,
+            creator_records: []
+        };
+        try {
+            var seen = {};
+            var records = [];
+            collectSatoriCreatorEvents(nk, seen, records);
+            collectLiveEventsFromStorageList(nk, SYSTEM_USER, 2, seen, records);
+            collectLiveEventsFromStorageList(nk, "", 3, seen, records);
+            var creatorDiags = [];
+            var eligibleCount = 0;
+            for (var i = 0; i < records.length; i++) {
+                var d = creatorRecordDiagnostic(records[i], now);
+                if (d.eligible)
+                    eligibleCount++;
+                creatorDiags.push(d);
+            }
+            var tournament = fetchTournamentCandidate(nk, logger, userId);
+            var satori = fetchSatoriCandidate(nk, logger, userId, gameId);
+            out.tournament_candidate = tournament ? { id: tournament.id, status: tournament.status } : null;
+            out.satori_candidate = satori ? { id: satori.id, status: satori.status } : null;
+            out.creator_records_scanned = records.length;
+            out.creator_records_eligible = eligibleCount;
+            out.creator_records = creatorDiags;
+        }
+        catch (e) {
+            out.error = "diagnostics failed: " + (e && e.message ? e.message : String(e));
+            logger.warn("[LiveBanner] buildDiagnostics error: " + out.error);
+        }
+        return out;
     }
     function refreshCachedPayloadTimes(cached) {
         if (!cached || !cached.show || !cached.ends_at)
@@ -7938,9 +8482,16 @@ var QuizVerseLiveBanner;
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
         var gameId = (data && data.game_id) ? String(data.game_id) : QUIZVERSE_GAME_ID;
-        var forceRefresh = !!(data && data.force_refresh);
+        var debug = !!(data && data.debug);
+        // Debug calls always bypass the cache so diagnostics reflect live storage.
+        var forceRefresh = !!(data && data.force_refresh) || debug;
         if (FORCE_LIVE_BANNER_OFF) {
             var disabledPayload = emptyBannerPayload();
+            if (debug) {
+                disabledPayload.diagnostics = buildDiagnostics(nk, logger, userId, gameId);
+                logger.info("[LiveBanner] user=" + userId + " FORCE_LIVE_BANNER_OFF (debug) — kill-switch is ON, banner suppressed");
+                return RpcHelpers.successResponse(disabledPayload);
+            }
             writeCache(nk, userId, disabledPayload, NO_EVENT_TTL_SEC);
             logger.info("[LiveBanner] user=" + userId + " FORCE_LIVE_BANNER_OFF — show=false force_live=false");
             return RpcHelpers.successResponse(disabledPayload);
@@ -7949,9 +8500,10 @@ var QuizVerseLiveBanner;
         if (!forceRefresh) {
             var cached = readCache(nk, userId);
             if (cached !== null) {
-                // Stale no-banner cache: if an event went live after we cached false, rebuild now.
-                if (!cached.show && isLiveWindowActive(nk, logger, userId, gameId)) {
-                    logger.info("[LiveBanner] user=" + userId + " busting show=false cache — live event active");
+                // Stale no-banner cache: if an event is now live OR upcoming after we
+                // cached false, rebuild immediately instead of waiting out the TTL.
+                if (!cached.show && hasShowableEvent(nk, logger, userId, gameId)) {
+                    logger.info("[LiveBanner] user=" + userId + " busting show=false cache — showable event present");
                     cached = null;
                 }
                 else {
@@ -8002,6 +8554,12 @@ var QuizVerseLiveBanner;
                 server_time: Math.floor(Date.now() / 1000)
             };
             cacheTtl = NO_EVENT_TTL_SEC;
+        }
+        if (debug) {
+            // Don't cache debug results; return diagnostics alongside the real payload.
+            bannerPayload.diagnostics = buildDiagnostics(nk, logger, userId, gameId);
+            logger.info("[LiveBanner] user=" + userId + " (debug) show=" + bannerPayload.show + " type=" + bannerPayload.event_type + " creator_scanned=" + bannerPayload.diagnostics.creator_records_scanned + " eligible=" + bannerPayload.diagnostics.creator_records_eligible);
+            return RpcHelpers.successResponse(bannerPayload);
         }
         writeCache(nk, userId, bannerPayload, cacheTtl);
         logger.info("[LiveBanner] user=" + userId + " show=" + bannerPayload.show + " force_live=" + !!bannerPayload.force_live + " type=" + bannerPayload.event_type);
@@ -10128,6 +10686,354 @@ var QuizVerseGame;
         ]
     };
 })(QuizVerseGame || (QuizVerseGame = {}));
+// ---------------------------------------------------------------------------
+//  hermes.ts — QuizVerse "Hermes" nightly learning-loop agent (Play 3)
+//
+//  Hermes is the server-side persistent agent that turns one-off study sessions
+//  into a daily return loop. Every night a scheduler tick (driven by a k8s
+//  CronJob calling quizverse_hermes_nightly_tick) walks the opt-in registry,
+//  composes a per-learner "morning brief" from durable Nakama state (entitlement
+//  + study-plan checklist + predictor), optionally enriches it via DeepTutor /
+//  Simi, persists it, and pushes a deep-linked in-app notification so the learner
+//  re-enters the next morning to a ready-made plan.
+//
+//  Collections
+//    qv_hermes_brief     key "today"  (per-user)   — the latest generated brief
+//    qv_hermes_registry  key "users"  (SYSTEM_USER) — opt-in set { [userId]: ts }
+//
+//  RPCs (all IDs are literal at registration — Goja AST-walker requirement)
+//    quizverse_hermes_brief_get      user      → latest brief (auto opt-in)
+//    quizverse_hermes_brief_generate user|svc  → (re)build + store brief
+//    quizverse_hermes_parent_recap   user|svc  → parent-facing recap text
+//    quizverse_hermes_nightly_tick   service   → batch driver (CronJob entry)
+//
+//  Env (must be listed in RUNTIME_ENV_KEYS in docker-compose / k8s to be visible
+//  via ctx.env): HERMES_SERVICE_TOKEN, DEEPTUTOR_BASE_URL, DEEPTUTOR_SERVICE_TOKEN,
+//  SIMI_BASE_URL, SIMI_API_KEY. Every external call is best-effort and degrades
+//  to a deterministic local brief when the env var / dependency is absent.
+//
+//  Zero-defect notes: ES5 only (no arrow fns passed to registerRpc, no global
+//  mutable state), no Node built-ins, build + restart required to load.
+// ---------------------------------------------------------------------------
+var Hermes;
+(function (Hermes) {
+    var COLLECTION_BRIEF = "qv_hermes_brief";
+    var KEY_BRIEF = "today";
+    var COLLECTION_REGISTRY = "qv_hermes_registry";
+    var KEY_REGISTRY = "users";
+    var COLLECTION_ENTITLEMENTS = "qv_entitlements";
+    var KEY_SUBS = "subscriptions";
+    // Deep link the SPA + native widgets understand (see index-tutorx-v2.html
+    // _qvHandleDeepLink + QVWidgetBridge). hermes_brief opens the morning surface.
+    var DEEPLINK_BRIEF = "tutorx://hermes/brief";
+    // Batch cap per tick so one CronJob run can't monopolise a pod.
+    var NIGHTLY_BATCH_LIMIT = 500;
+    // ── small helpers ─────────────────────────────────────────────────────────
+    function nowSec() { return Math.floor(Date.now() / 1000); }
+    function utcDateStr() { return new Date().toISOString().slice(0, 10); }
+    function envStr(ctx, key) {
+        return "" + ((ctx.env && ctx.env[key]) || "");
+    }
+    function isServiceCaller(ctx, payload) {
+        var token = payload && payload.service_token;
+        if (!token)
+            return false;
+        var expected = envStr(ctx, "HERMES_SERVICE_TOKEN");
+        return expected.length > 0 && token === expected;
+    }
+    // user session → ctx.userId; service caller → payload.user_id.
+    function resolveUser(ctx, data) {
+        if (ctx.userId)
+            return { userId: ctx.userId };
+        if (!isServiceCaller(ctx, data))
+            return { userId: "", error: "not authorised", code: 401 };
+        var u = "" + (data.user_id || "");
+        if (!u)
+            return { userId: "", error: "user_id required for service caller", code: 400 };
+        return { userId: u };
+    }
+    function readRegistry(nk) {
+        try {
+            var r = Storage.readSystemJson(nk, COLLECTION_REGISTRY, KEY_REGISTRY);
+            if (r && r.users && typeof r.users === "object")
+                return r;
+        }
+        catch (_e) { /* fall through */ }
+        return { users: {} };
+    }
+    function registerUser(nk, userId) {
+        if (!userId)
+            return;
+        try {
+            var reg = readRegistry(nk);
+            reg.users[userId] = nowSec();
+            Storage.writeSystemJson(nk, COLLECTION_REGISTRY, KEY_REGISTRY, reg);
+        }
+        catch (_e) { /* best-effort */ }
+    }
+    // ── entitlement read (tone: trial nudge vs. paid) ───────────────────────────
+    function entitlementStatus(nk, userId) {
+        try {
+            var subs = Storage.readJson(nk, COLLECTION_ENTITLEMENTS, KEY_SUBS, userId);
+            if (!subs || !subs.tier)
+                return "free";
+            var status = "" + (subs.status || "");
+            if (subs.expiresAt) {
+                var expMs = new Date(subs.expiresAt).getTime();
+                if (!isNaN(expMs) && expMs < Date.now())
+                    return "expired";
+            }
+            if (status === "trialing")
+                return "trialing";
+            if (status === "active")
+                return "active";
+            return "free";
+        }
+        catch (_e) {
+            return "free";
+        }
+    }
+    // ── study-plan checklist progress (best-effort, defensive) ───────────────────
+    // The plan content lives in DeepTutor; only the per-user checklist state is in
+    // Nakama (tutorx_studyplan/<planId>). We scan the user's records and total the
+    // ticked tasks so the brief can report "you finished N tasks" without coupling
+    // to a specific planId we may not have at tick time.
+    function planProgress(nk, userId) {
+        var plans = 0, doneTasks = 0;
+        try {
+            var res = nk.storageList(userId, "tutorx_studyplan", 50);
+            var objs = (res && res.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var v = objs[i].value;
+                if (v && v.done && typeof v.done === "object") {
+                    plans++;
+                    for (var k in v.done) {
+                        if (Object.prototype.hasOwnProperty.call(v.done, k) && v.done[k] === true)
+                            doneTasks++;
+                    }
+                }
+            }
+        }
+        catch (_e) { /* no plans yet */ }
+        return { plans: plans, doneTasks: doneTasks };
+    }
+    // ── optional DeepTutor enrichment ────────────────────────────────────────────
+    // Pulls a one-line "what to focus on next" from the learner's DeepTutor memory.
+    // Returns "" on any failure so the brief always renders.
+    function deepTutorFocus(ctx, logger, nk, userId) {
+        var base = envStr(ctx, "DEEPTUTOR_BASE_URL");
+        if (!base)
+            return "";
+        try {
+            var url = base.replace(/\/+$/, "") + "/api/v1/memory/next-focus";
+            var headers = { "Content-Type": "application/json", "x-user-id": userId };
+            var svc = envStr(ctx, "DEEPTUTOR_SERVICE_TOKEN");
+            if (svc)
+                headers["Authorization"] = "Bearer " + svc;
+            var resp = nk.httpRequest(url, "post", headers, JSON.stringify({ user_id: userId }), 4000);
+            if (resp && resp.code >= 200 && resp.code < 300 && resp.body) {
+                var parsed = JSON.parse(resp.body);
+                var f = "" + ((parsed && (parsed.focus || parsed.next_focus || parsed.summary)) || "");
+                return f.slice(0, 240);
+            }
+        }
+        catch (err) {
+            logger.info("[Hermes] deepTutorFocus skipped: " + (err && err.message ? err.message : String(err)));
+        }
+        return "";
+    }
+    function composeBrief(ctx, logger, nk, userId) {
+        var status = entitlementStatus(nk, userId);
+        var prog = planProgress(nk, userId);
+        var focus = deepTutorFocus(ctx, logger, nk, userId);
+        var source = focus ? "deeptutor" : "local";
+        if (!focus) {
+            focus = prog.doneTasks > 0
+                ? "Pick up where you left off — you've cleared " + prog.doneTasks + " task" + (prog.doneTasks === 1 ? "" : "s") + ". One focused session keeps your streak alive."
+                : "Start with a 10-minute focused session on your weakest topic — momentum beats marathon study.";
+        }
+        var headline;
+        if (status === "trialing")
+            headline = "Your trial is working — here's today's win.";
+        else if (status === "active")
+            headline = "Good morning. Today's plan is ready.";
+        else if (status === "expired")
+            headline = "Your plan misses you. Pick up your prep where you left off.";
+        else
+            headline = "Good morning. Here's your fastest win for today.";
+        var ctaLabel = (status === "active" || status === "trialing") ? "Open today's plan" : "Resume my prep";
+        return {
+            date: utcDateStr(),
+            generated_unix: nowSec(),
+            status: status,
+            headline: headline,
+            focus: focus,
+            progress: prog,
+            cta: { label: ctaLabel, deeplink: DEEPLINK_BRIEF },
+            source: source,
+        };
+    }
+    function readBrief(nk, userId) {
+        try {
+            return Storage.readJson(nk, COLLECTION_BRIEF, KEY_BRIEF, userId);
+        }
+        catch (_e) {
+            return null;
+        }
+    }
+    function storeBrief(nk, userId, brief) {
+        // permissionRead:1 → owner can read their own brief; server-only writes.
+        Storage.writeJson(nk, COLLECTION_BRIEF, KEY_BRIEF, userId, brief, 1, 0);
+    }
+    // Deliver the morning brief. Native (Unity) users with a registered push token
+    // get a real APNs/FCM push via LegacyPush.sendLocalizedPushToUser (which also
+    // writes the in-app inbox copy and respects quiet hours). Web users — and any
+    // user without a token or currently in quiet hours — fall back to an inbox-only
+    // notification (code 1101) so the SPA morning-brief surface always has content.
+    // The SPA reads the brief from storage (quizverse_hermes_brief_get), so the
+    // notification code is only a delivery hint, not the surface's data source.
+    function notifyBrief(ctx, nk, logger, userId, brief) {
+        var data = { deeplink: brief.cta.deeplink, kind: "hermes_brief", date: brief.date };
+        var pushed = false;
+        try {
+            // titleKey/bodyKey fall back to the literal string when absent from the
+            // push string table, so the composed headline/focus reach the device as-is.
+            pushed = LegacyPush.sendLocalizedPushToUser(ctx, logger, nk, userId, "hermes_brief", brief.headline, brief.focus, {}, { data: data, gameId: "quizverse" });
+        }
+        catch (err) {
+            logger.warn("[Hermes] device push failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+        }
+        if (pushed)
+            return; // sendLocalizedPushToUser already wrote the inbox copy.
+        try {
+            nk.notificationsSend([{
+                    userId: userId,
+                    subject: brief.headline,
+                    content: { focus: brief.focus, deeplink: brief.cta.deeplink, kind: "hermes_brief", date: brief.date },
+                    code: 1101,
+                    persistent: true,
+                }]);
+        }
+        catch (err) {
+            logger.warn("[Hermes] notifyBrief inbox fallback failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+        }
+    }
+    // ── RPC: quizverse_hermes_brief_get ───────────────────────────────────────────
+    function rpcBriefGet(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        registerUser(nk, userId); // reading the brief opts you into the nightly loop
+        var brief = readBrief(nk, userId);
+        if (!brief) {
+            return RpcHelpers.successResponse({ has_brief: false, date: utcDateStr() });
+        }
+        return RpcHelpers.successResponse({ has_brief: true, brief: brief });
+    }
+    // ── RPC: quizverse_hermes_brief_generate ──────────────────────────────────────
+    function rpcBriefGenerate(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var auth = resolveUser(ctx, data);
+        if (auth.error)
+            return RpcHelpers.errorResponse(auth.error, auth.code);
+        var brief = composeBrief(ctx, logger, nk, auth.userId);
+        try {
+            storeBrief(nk, auth.userId, brief);
+        }
+        catch (err) {
+            logger.warn("[Hermes] storeBrief failed: " + (err && err.message ? err.message : String(err)));
+        }
+        registerUser(nk, auth.userId);
+        // Service callers (the nightly tick) also get a push; self-serve callers do
+        // not (they're already on the surface that triggered the regen).
+        if (!ctx.userId && data.notify === true)
+            notifyBrief(ctx, nk, logger, auth.userId, brief);
+        return RpcHelpers.successResponse({ brief: brief });
+    }
+    // ── RPC: quizverse_hermes_parent_recap ────────────────────────────────────────
+    function rpcParentRecap(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var auth = resolveUser(ctx, data);
+        if (auth.error)
+            return RpcHelpers.errorResponse(auth.error, auth.code);
+        var brief = readBrief(nk, auth.userId) || composeBrief(ctx, logger, nk, auth.userId);
+        var prog = brief.progress || { plans: 0, doneTasks: 0 };
+        var statusLine = brief.status === "trialing" ? "On a Pro trial — full adaptive prep is unlocked."
+            : brief.status === "active" ? "Pro plan active — full adaptive prep is unlocked."
+                : "On the free plan — upgrade unlocks the full adaptive plan.";
+        var recap = "This week your learner completed " + prog.doneTasks + " study task" + (prog.doneTasks === 1 ? "" : "s") +
+            " across " + prog.plans + " plan" + (prog.plans === 1 ? "" : "s") + ". " +
+            "Today's focus: " + brief.focus + " " + statusLine;
+        return RpcHelpers.successResponse({
+            recap: recap,
+            status: brief.status,
+            progress: prog,
+            cta: { label: "See full progress", deeplink: "tutorx://parent/recap" },
+            date: brief.date,
+        });
+    }
+    // ── RPC: quizverse_hermes_nightly_tick (service-only batch driver) ─────────────
+    function rpcNightlyTick(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data)) {
+            return RpcHelpers.errorResponse("not authorised", 401);
+        }
+        var reg = readRegistry(nk);
+        var ids = [];
+        for (var uid in reg.users) {
+            if (Object.prototype.hasOwnProperty.call(reg.users, uid))
+                ids.push(uid);
+        }
+        var limit = NIGHTLY_BATCH_LIMIT;
+        var generated = 0, notified = 0, failed = 0;
+        var doNotify = data.notify !== false; // default: send the morning push
+        for (var i = 0; i < ids.length && i < limit; i++) {
+            var userId = ids[i];
+            try {
+                var brief = composeBrief(ctx, logger, nk, userId);
+                storeBrief(nk, userId, brief);
+                generated++;
+                if (doNotify) {
+                    notifyBrief(ctx, nk, logger, userId, brief);
+                    notified++;
+                }
+            }
+            catch (err) {
+                failed++;
+                logger.warn("[Hermes] nightly tick failed for user=" + userId + ": " + (err && err.message ? err.message : String(err)));
+            }
+        }
+        logger.info("[Hermes] nightly tick: registered=" + ids.length + " generated=" + generated + " notified=" + notified + " failed=" + failed);
+        return RpcHelpers.successResponse({
+            registered: ids.length,
+            generated: generated,
+            notified: notified,
+            failed: failed,
+            batch_limit: limit,
+            date: utcDateStr(),
+        });
+    }
+    // ── Registration ──────────────────────────────────────────────────────────────
+    function register(initializer) {
+        function auth(fn) {
+            var wrapped = null;
+            return function (ctx, logger, nk, payload) {
+                if (!wrapped) {
+                    var strictFn = fn;
+                    wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+                        ? RpcHelpers.withCleanAuthError(strictFn)
+                        : strictFn;
+                }
+                return wrapped(ctx, logger, nk, payload);
+            };
+        }
+        // IMPORTANT: literal RPC IDs — the Nakama Goja AST walker can NOT resolve
+        // namespaced constants at registration time.
+        initializer.registerRpc("quizverse_hermes_brief_get", auth(rpcBriefGet));
+        initializer.registerRpc("quizverse_hermes_brief_generate", rpcBriefGenerate);
+        initializer.registerRpc("quizverse_hermes_parent_recap", rpcParentRecap);
+        initializer.registerRpc("quizverse_hermes_nightly_tick", rpcNightlyTick);
+    }
+    Hermes.register = register;
+})(Hermes || (Hermes = {}));
 var HiroAchievements;
 (function (HiroAchievements) {
     var DEFAULT_CONFIG = { achievements: {} };
@@ -15380,9 +16286,15 @@ var QvEntitlements;
                 return RpcHelpers.successResponse({ ignored: true, reason: "non-actionable event: " + eventType });
             }
             var expiresAt = resolveExpiry(event);
+            // Play 2 — opt-out trial. Stripe (or RC) flags a trial via period_type /
+            // an explicit trial bool. A trialing subscription still UNLOCKS (non-null
+            // tier) but is tagged "trialing" so analytics + the parent recap can tell
+            // a converting trial from a paid subscriber.
+            var isTrial = !!(event && (event.period_type === "trial" || event.period_type === "TRIAL" ||
+                event.trial === true || event.is_trial === true));
             var subRecord = {
                 tier: tier,
-                status: "active",
+                status: isTrial ? "trialing" : "active",
                 productId: productId,
                 store: store,
                 expiresAt: expiresAt,
@@ -15395,8 +16307,8 @@ var QvEntitlements;
                 existing.linkplayProPlus = true;
                 Storage.writeJson(nk, COLLECTION, KEY_ONE, targetUserId, existing);
             }
-            logger.info("[QvEntitlements] rc_sync: subscription granted for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
-            return RpcHelpers.successResponse({ tier: tier, status: "active", expiresAt: expiresAt });
+            logger.info("[QvEntitlements] rc_sync: subscription " + (isTrial ? "trial-granted" : "granted") + " for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
+            return RpcHelpers.successResponse({ tier: tier, status: isTrial ? "trialing" : "active", expiresAt: expiresAt });
         }
         catch (e) {
             logger.error("[QvEntitlements] rc_sync write error: " + (e && e.message ? e.message : String(e)));
@@ -16917,6 +17829,75 @@ var LearnerToolbelt;
         }
         return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
     }
+    // Play 2 — entitlement-aware quota (the "Phase D" promotion the identity
+    // resolver anticipated). A paid OR trialing subscriber reading their
+    // qv_entitlements subscription record is promoted free → pro, so the
+    // card-required trial actually unlocks the higher chat cap. Fully additive:
+    // if no record exists (or the id doesn't resolve), the caller stays "free".
+    function entitlementActiveForOwner(nk, ownerId) {
+        if (!ownerId)
+            return false;
+        try {
+            var rows = nk.storageRead([{
+                    collection: "qv_entitlements",
+                    key: "subscriptions",
+                    userId: ownerId,
+                }]);
+            if (!rows || rows.length === 0 || !rows[0].value)
+                return false;
+            var v = rows[0].value;
+            if (!v.tier)
+                return false;
+            var status = "" + (v.status || "");
+            if (status !== "active" && status !== "trialing")
+                return false;
+            if (v.expiresAt) {
+                var expMs = new Date(v.expiresAt).getTime();
+                if (!isNaN(expMs) && expMs < Date.now())
+                    return false;
+            }
+            return true;
+        }
+        catch (_e) {
+            return false;
+        }
+    }
+    function isProByEntitlement(nk, userId) {
+        if (!userId)
+            return false;
+        // 1) Canonical path: the entitlement is written under the Nakama account id
+        //    (rc_sync's app_user_id contract; the web SPA now bills against the
+        //    Nakama account id via _nkUserId()).
+        if (entitlementActiveForOwner(nk, userId))
+            return true;
+        // 2) Reconciliation: older grants — and any client that still posts the
+        //    device-auth id (the web USER_ID) — write the entitlement under a device
+        //    id linked to this Nakama account rather than the account id. The web
+        //    session is minted with authenticate/device, so that device id is on the
+        //    account. Resolve the account's devices and check each so a trialing
+        //    subscriber's higher chat cap unlocks regardless of which id was used.
+        try {
+            var account = nk.accountGetId(userId);
+            var devices = account && account.devices ? account.devices : null;
+            if (devices && devices.length) {
+                for (var i = 0; i < devices.length; i++) {
+                    var did = devices[i] && devices[i].id ? "" + devices[i].id : "";
+                    if (did && did !== userId && entitlementActiveForOwner(nk, did))
+                        return true;
+                }
+            }
+        }
+        catch (_e2) {
+            // accountGetId failures fail safe → caller stays "free".
+        }
+        return false;
+    }
+    function promoteIdentityByEntitlement(nk, ident) {
+        if (ident.tier === "free" && ident.sub && isProByEntitlement(nk, ident.sub)) {
+            ident.tier = "pro";
+        }
+        return ident;
+    }
     // § 3.13.1 deterministic state derivation. Same input → same mode.
     //
     //   if declared_intent == 'parent'                          → 'parent'
@@ -17833,13 +18814,15 @@ var LearnerToolbelt;
             var query = "" + (data.query || "");
             var country = ("" + (data.country_code || data.country || "")).toUpperCase();
             var locale = "" + (data.locale || "en");
+            var institutionType = "" + (data.institution_type || data.institutionType || "");
             var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
             if (query.length < 2)
                 return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
-            var hits = LearnerToolbelt.searchSchools(query, country, limit);
+            var hits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
             return safeWrap({
                 ok: true, status: hits.length > 0 ? "ok" : "no_results",
                 query: query, country_code: country, locale: locale,
+                institution_type: institutionType,
                 results: hits,
                 count: hits.length,
                 message: hits.length === 0 ? LearnerToolbelt.i18nString(locale, "school.no_results") : "",
@@ -18026,6 +19009,7 @@ var LearnerToolbelt;
             if (ident.error) {
                 return RpcHelpers.errorResponse(ident.error, 400);
             }
+            ident = promoteIdentityByEntitlement(nk, ident);
             var limit = limitForTier(ctx, ident.tier);
             // Sentinel: -1 → unlimited. The wire shape stays the same; we return
             // remaining = Number.MAX_SAFE_INTEGER (encoded as a large but safe int)
@@ -18177,6 +19161,7 @@ var LearnerToolbelt;
             if (ident.error) {
                 return RpcHelpers.errorResponse(ident.error, 400);
             }
+            ident = promoteIdentityByEntitlement(nk, ident);
             var limit = limitForTier(ctx, ident.tier);
             var unlimited = limit < 0;
             var dateStr = utcDateStr();
@@ -19396,6 +20381,20 @@ var LearnerToolbelt;
             city: city, state_region: region, country_code: country,
             board: board, grade_band: band,
             lat: null, lng: null, language_of_instruction: lang,
+            institution_type: "school",
+        };
+    }
+    // College / university constructor. `system` slots into the `board` field
+    // (e.g. "ivy-league", "iit", "iim", "russell-group", "go8") so the existing
+    // board-aware ranking + UI subtitle keep working; grade_band is fixed to
+    // "higher-ed".
+    function mkCollege(id, source, name, city, region, country, system, lang) {
+        return {
+            school_id: id, source: source, display_name: name,
+            city: city, state_region: region, country_code: country,
+            board: system, grade_band: "higher-ed",
+            lat: null, lng: null, language_of_instruction: lang,
+            institution_type: "college",
         };
     }
     // ── Fixture ──────────────────────────────────────────────────────────────
@@ -19573,6 +20572,140 @@ var LearnerToolbelt;
             LearnerToolbelt.SCHOOL_FIXTURE.push(mk("freetext-seed:" + cc.toLowerCase() + "-placeholder", "freetext", "(generic placeholder — " + cc + ")", "—", "—", cc, null, "k-12", null));
         }
     })();
+    // ── College / university fixture ───────────────────────────────────────────
+    // Curated set of well-known higher-ed institutions across the same priority
+    // country groups as the school fixture. Demo-grade subset (matching the K-12
+    // approach) — the full IPEDS/AISHE/HESA ingest lands with the Phase-B school
+    // ingest. `source` mirrors the authoritative registry per country.
+    LearnerToolbelt.COLLEGE_FIXTURE = [
+        // ── US: top universities (IPEDS) ──
+        mkCollege("ipeds:166027", "ipeds", "Harvard University", "Cambridge", "MA", "US", "ivy-league", "en"),
+        mkCollege("ipeds:166683", "ipeds", "Massachusetts Institute of Technology", "Cambridge", "MA", "US", "us-private", "en"),
+        mkCollege("ipeds:243744", "ipeds", "Stanford University", "Stanford", "CA", "US", "us-private", "en"),
+        mkCollege("ipeds:130794", "ipeds", "Yale University", "New Haven", "CT", "US", "ivy-league", "en"),
+        mkCollege("ipeds:186131", "ipeds", "Princeton University", "Princeton", "NJ", "US", "ivy-league", "en"),
+        mkCollege("ipeds:190150", "ipeds", "Columbia University", "New York", "NY", "US", "ivy-league", "en"),
+        mkCollege("ipeds:110635", "ipeds", "University of California, Berkeley", "Berkeley", "CA", "US", "us-public", "en"),
+        mkCollege("ipeds:110662", "ipeds", "University of California, Los Angeles", "Los Angeles", "CA", "US", "us-public", "en"),
+        mkCollege("ipeds:170976", "ipeds", "University of Michigan", "Ann Arbor", "MI", "US", "us-public", "en"),
+        mkCollege("ipeds:193900", "ipeds", "New York University", "New York", "NY", "US", "us-private", "en"),
+        mkCollege("ipeds:144050", "ipeds", "University of Chicago", "Chicago", "IL", "US", "us-private", "en"),
+        mkCollege("ipeds:110404", "ipeds", "California Institute of Technology", "Pasadena", "CA", "US", "us-private", "en"),
+        mkCollege("ipeds:190415", "ipeds", "Cornell University", "Ithaca", "NY", "US", "ivy-league", "en"),
+        mkCollege("ipeds:215062", "ipeds", "University of Pennsylvania", "Philadelphia", "PA", "US", "ivy-league", "en"),
+        mkCollege("ipeds:217156", "ipeds", "Brown University", "Providence", "RI", "US", "ivy-league", "en"),
+        mkCollege("ipeds:198419", "ipeds", "Duke University", "Durham", "NC", "US", "us-private", "en"),
+        mkCollege("ipeds:147767", "ipeds", "Northwestern University", "Evanston", "IL", "US", "us-private", "en"),
+        mkCollege("ipeds:162928", "ipeds", "Johns Hopkins University", "Baltimore", "MD", "US", "us-private", "en"),
+        mkCollege("ipeds:211440", "ipeds", "Carnegie Mellon University", "Pittsburgh", "PA", "US", "us-private", "en"),
+        mkCollege("ipeds:139755", "ipeds", "Georgia Institute of Technology", "Atlanta", "GA", "US", "us-public", "en"),
+        mkCollege("ipeds:228778", "ipeds", "University of Texas at Austin", "Austin", "TX", "US", "us-public", "en"),
+        mkCollege("ipeds:236948", "ipeds", "University of Washington", "Seattle", "WA", "US", "us-public", "en"),
+        mkCollege("ipeds:145637", "ipeds", "University of Illinois Urbana-Champaign", "Champaign", "IL", "US", "us-public", "en"),
+        mkCollege("ipeds:123961", "ipeds", "University of Southern California", "Los Angeles", "CA", "US", "us-private", "en"),
+        mkCollege("ipeds:134130", "ipeds", "University of Florida", "Gainesville", "FL", "US", "us-public", "en"),
+        mkCollege("ipeds:164988", "ipeds", "Boston University", "Boston", "MA", "US", "us-private", "en"),
+        mkCollege("ipeds:243780", "ipeds", "Purdue University", "West Lafayette", "IN", "US", "us-public", "en"),
+        mkCollege("ipeds:240444", "ipeds", "University of Wisconsin-Madison", "Madison", "WI", "US", "us-public", "en"),
+        mkCollege("ipeds:204796", "ipeds", "Ohio State University", "Columbus", "OH", "US", "us-public", "en"),
+        mkCollege("ipeds:104151", "ipeds", "Arizona State University", "Tempe", "AZ", "US", "us-public", "en"),
+        // ── India: IITs, IIMs, central + top private (AISHE) ──
+        mkCollege("aishe:U-0451", "aishe", "Indian Institute of Technology Bombay", "Mumbai", "Maharashtra", "IN", "iit", "en"),
+        mkCollege("aishe:U-0452", "aishe", "Indian Institute of Technology Delhi", "New Delhi", "Delhi", "IN", "iit", "en"),
+        mkCollege("aishe:U-0453", "aishe", "Indian Institute of Technology Madras", "Chennai", "TN", "IN", "iit", "en"),
+        mkCollege("aishe:U-0454", "aishe", "Indian Institute of Technology Kanpur", "Kanpur", "UP", "IN", "iit", "en"),
+        mkCollege("aishe:U-0455", "aishe", "Indian Institute of Technology Kharagpur", "Kharagpur", "WB", "IN", "iit", "en"),
+        mkCollege("aishe:U-0456", "aishe", "Indian Institute of Technology Roorkee", "Roorkee", "Uttarakhand", "IN", "iit", "en"),
+        mkCollege("aishe:U-0457", "aishe", "Indian Institute of Technology Guwahati", "Guwahati", "Assam", "IN", "iit", "en"),
+        mkCollege("aishe:U-0458", "aishe", "Indian Institute of Technology Hyderabad", "Hyderabad", "Telangana", "IN", "iit", "en"),
+        mkCollege("aishe:U-0460", "aishe", "Indian Institute of Science", "Bangalore", "Karnataka", "IN", "central", "en"),
+        mkCollege("aishe:U-0461", "aishe", "All India Institute of Medical Sciences, Delhi", "New Delhi", "Delhi", "IN", "central", "en"),
+        mkCollege("aishe:U-0462", "aishe", "University of Delhi", "New Delhi", "Delhi", "IN", "central", "en"),
+        mkCollege("aishe:U-0463", "aishe", "Jawaharlal Nehru University", "New Delhi", "Delhi", "IN", "central", "en"),
+        mkCollege("aishe:U-0464", "aishe", "Birla Institute of Technology and Science, Pilani", "Pilani", "Rajasthan", "IN", "deemed", "en"),
+        mkCollege("aishe:U-0465", "aishe", "National Institute of Technology, Tiruchirappalli", "Tiruchirappalli", "TN", "IN", "nit", "en"),
+        mkCollege("aishe:U-0466", "aishe", "Vellore Institute of Technology", "Vellore", "TN", "IN", "deemed", "en"),
+        mkCollege("aishe:U-0467", "aishe", "Anna University", "Chennai", "TN", "IN", "state", "en"),
+        mkCollege("aishe:U-0468", "aishe", "Jadavpur University", "Kolkata", "WB", "IN", "state", "en"),
+        mkCollege("aishe:U-0469", "aishe", "University of Mumbai", "Mumbai", "Maharashtra", "IN", "state", "en"),
+        mkCollege("aishe:U-0470", "aishe", "Manipal Academy of Higher Education", "Manipal", "Karnataka", "IN", "deemed", "en"),
+        mkCollege("aishe:U-0471", "aishe", "SRM Institute of Science and Technology", "Chennai", "TN", "IN", "deemed", "en"),
+        mkCollege("aishe:U-0472", "aishe", "Amity University", "Noida", "UP", "IN", "private", "en"),
+        mkCollege("aishe:U-0473", "aishe", "Christ University", "Bangalore", "Karnataka", "IN", "deemed", "en"),
+        mkCollege("aishe:U-0474", "aishe", "Ashoka University", "Sonipat", "Haryana", "IN", "private", "en"),
+        mkCollege("aishe:U-0475", "aishe", "Shiv Nadar University", "Greater Noida", "UP", "IN", "private", "en"),
+        mkCollege("aishe:C-0476", "aishe", "Lady Shri Ram College for Women", "New Delhi", "Delhi", "IN", "du-college", "en"),
+        mkCollege("aishe:C-0477", "aishe", "St. Stephen's College", "New Delhi", "Delhi", "IN", "du-college", "en"),
+        mkCollege("aishe:C-0478", "aishe", "Hindu College", "New Delhi", "Delhi", "IN", "du-college", "en"),
+        mkCollege("aishe:C-0479", "aishe", "Loyola College", "Chennai", "TN", "IN", "autonomous", "en"),
+        mkCollege("aishe:U-0480", "aishe", "Indian Institute of Management Ahmedabad", "Ahmedabad", "Gujarat", "IN", "iim", "en"),
+        mkCollege("aishe:U-0481", "aishe", "Indian Institute of Management Bangalore", "Bangalore", "Karnataka", "IN", "iim", "en"),
+        mkCollege("aishe:U-0482", "aishe", "Indian Institute of Management Calcutta", "Kolkata", "WB", "IN", "iim", "en"),
+        // ── UK: Russell Group + top (HESA) ──
+        mkCollege("hesa-uk:0001", "hesa-uk", "University of Oxford", "Oxford", "Oxfordshire", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0002", "hesa-uk", "University of Cambridge", "Cambridge", "Cambridgeshire", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0003", "hesa-uk", "Imperial College London", "London", "Greater London", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0004", "hesa-uk", "University College London", "London", "Greater London", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0005", "hesa-uk", "London School of Economics and Political Science", "London", "Greater London", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0006", "hesa-uk", "University of Edinburgh", "Edinburgh", "Scotland", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0007", "hesa-uk", "King's College London", "London", "Greater London", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0008", "hesa-uk", "University of Manchester", "Manchester", "Greater Manchester", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0009", "hesa-uk", "University of Warwick", "Coventry", "West Midlands", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0010", "hesa-uk", "University of Bristol", "Bristol", "Bristol", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0011", "hesa-uk", "University of Glasgow", "Glasgow", "Scotland", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0012", "hesa-uk", "Durham University", "Durham", "County Durham", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0013", "hesa-uk", "University of Birmingham", "Birmingham", "West Midlands", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0014", "hesa-uk", "University of Leeds", "Leeds", "West Yorkshire", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0015", "hesa-uk", "University of Sheffield", "Sheffield", "South Yorkshire", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0016", "hesa-uk", "University of Nottingham", "Nottingham", "Nottinghamshire", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0017", "hesa-uk", "University of Southampton", "Southampton", "Hampshire", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0018", "hesa-uk", "Queen Mary University of London", "London", "Greater London", "UK", "russell-group", "en"),
+        mkCollege("hesa-uk:0019", "hesa-uk", "University of St Andrews", "St Andrews", "Scotland", "UK", "uk-ancient", "en"),
+        mkCollege("hesa-uk:0020", "hesa-uk", "Lancaster University", "Lancaster", "Lancashire", "UK", "uk-public", "en"),
+        // ── Singapore ──
+        mkCollege("moe-sg-he:0001", "moe-sg", "National University of Singapore", "Singapore", "Central", "SG", "sg-autonomous", "en"),
+        mkCollege("moe-sg-he:0002", "moe-sg", "Nanyang Technological University", "Singapore", "West", "SG", "sg-autonomous", "en"),
+        mkCollege("moe-sg-he:0003", "moe-sg", "Singapore Management University", "Singapore", "Central", "SG", "sg-autonomous", "en"),
+        mkCollege("moe-sg-he:0004", "moe-sg", "Singapore University of Technology and Design", "Singapore", "East", "SG", "sg-autonomous", "en"),
+        mkCollege("moe-sg-he:0005", "moe-sg", "Singapore Institute of Technology", "Singapore", "Central", "SG", "sg-autonomous", "en"),
+        // ── Brazil ──
+        mkCollege("inep-he:0001", "inep", "Universidade de São Paulo", "São Paulo", "SP", "BR", "br-public", "pt"),
+        mkCollege("inep-he:0002", "inep", "Universidade Estadual de Campinas", "Campinas", "SP", "BR", "br-public", "pt"),
+        mkCollege("inep-he:0003", "inep", "Universidade Federal do Rio de Janeiro", "Rio de Janeiro", "RJ", "BR", "br-public", "pt"),
+        mkCollege("inep-he:0004", "inep", "Universidade Estadual Paulista", "São Paulo", "SP", "BR", "br-public", "pt"),
+        mkCollege("inep-he:0005", "inep", "Pontifícia Universidade Católica de São Paulo", "São Paulo", "SP", "BR", "br-private", "pt"),
+        // ── Other (CA / AU / DE / FR / AE / JP / KR) ──
+        mkCollege("freetext-seed:he-ca-001", "freetext", "University of Toronto", "Toronto", "Ontario", "CA", "ca-public", "en"),
+        mkCollege("freetext-seed:he-ca-002", "freetext", "University of British Columbia", "Vancouver", "BC", "CA", "ca-public", "en"),
+        mkCollege("freetext-seed:he-ca-003", "freetext", "McGill University", "Montreal", "Quebec", "CA", "ca-public", "en"),
+        mkCollege("freetext-seed:he-ca-004", "freetext", "University of Waterloo", "Waterloo", "Ontario", "CA", "ca-public", "en"),
+        mkCollege("freetext-seed:he-ca-005", "freetext", "University of Alberta", "Edmonton", "Alberta", "CA", "ca-public", "en"),
+        mkCollege("freetext-seed:he-au-001", "freetext", "University of Melbourne", "Melbourne", "Victoria", "AU", "go8", "en"),
+        mkCollege("freetext-seed:he-au-002", "freetext", "University of Sydney", "Sydney", "NSW", "AU", "go8", "en"),
+        mkCollege("freetext-seed:he-au-003", "freetext", "Australian National University", "Canberra", "ACT", "AU", "go8", "en"),
+        mkCollege("freetext-seed:he-au-004", "freetext", "University of New South Wales", "Sydney", "NSW", "AU", "go8", "en"),
+        mkCollege("freetext-seed:he-au-005", "freetext", "Monash University", "Melbourne", "Victoria", "AU", "go8", "en"),
+        mkCollege("freetext-seed:he-de-001", "freetext", "Technical University of Munich", "Munich", "Bavaria", "DE", "de-public", "de"),
+        mkCollege("freetext-seed:he-de-002", "freetext", "Ludwig Maximilian University of Munich", "Munich", "Bavaria", "DE", "de-public", "de"),
+        mkCollege("freetext-seed:he-de-003", "freetext", "Heidelberg University", "Heidelberg", "Baden-Württemberg", "DE", "de-public", "de"),
+        mkCollege("freetext-seed:he-de-004", "freetext", "RWTH Aachen University", "Aachen", "North Rhine-Westphalia", "DE", "de-public", "de"),
+        mkCollege("freetext-seed:he-fr-001", "freetext", "Sorbonne University", "Paris", "Île-de-France", "FR", "fr-public", "fr"),
+        mkCollege("freetext-seed:he-fr-002", "freetext", "École Polytechnique", "Palaiseau", "Île-de-France", "FR", "fr-grande-ecole", "fr"),
+        mkCollege("freetext-seed:he-fr-003", "freetext", "Sciences Po", "Paris", "Île-de-France", "FR", "fr-grande-ecole", "fr"),
+        mkCollege("freetext-seed:he-ae-001", "freetext", "Khalifa University", "Abu Dhabi", "Abu Dhabi", "AE", "ae-public", "en"),
+        mkCollege("freetext-seed:he-ae-002", "freetext", "American University of Sharjah", "Sharjah", "Sharjah", "AE", "ae-private", "en"),
+        mkCollege("freetext-seed:he-jp-001", "freetext", "University of Tokyo", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
+        mkCollege("freetext-seed:he-jp-002", "freetext", "Kyoto University", "Kyoto", "Kyoto", "JP", "jp-national", "ja"),
+        mkCollege("freetext-seed:he-kr-001", "freetext", "Seoul National University", "Seoul", "Seoul", "KR", "kr-national", "ko"),
+        mkCollege("freetext-seed:he-kr-002", "freetext", "Korea Advanced Institute of Science and Technology", "Daejeon", "Daejeon", "KR", "kr-national", "ko"),
+    ];
+    // Merge colleges into the single searchable fixture so getSchoolById and
+    // searchSchools cover both institution types from one index.
+    (function mergeColleges() {
+        for (var ci = 0; ci < LearnerToolbelt.COLLEGE_FIXTURE.length; ci++) {
+            LearnerToolbelt.SCHOOL_FIXTURE.push(LearnerToolbelt.COLLEGE_FIXTURE[ci]);
+        }
+    })();
     function normalize(s) {
         // Lowercase, drop punctuation (so "R.K. Puram" → "rk puram"), collapse ws.
         return ("" + (s || "")).toLowerCase().replace(/[.,;:'"()]/g, "").replace(/\s+/g, " ").trim();
@@ -19628,15 +20761,22 @@ var LearnerToolbelt;
         }
         return prev[bLen];
     }
-    function searchSchools(query, countryCode, limit) {
+    // `institutionType` filters the index: "school" → K-12 only, "college" →
+    // higher-ed only, "" / "all" / undefined → both (the dual-finder default).
+    function searchSchools(query, countryCode, limit, institutionType) {
         var q = normalize(query);
         var cc = ("" + (countryCode || "")).toUpperCase();
+        var typeFilter = ("" + (institutionType || "")).toLowerCase();
+        if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both")
+            typeFilter = "";
         var qTokens = q.split(/\s+/).filter(function (t) { return t.length > 0; });
         var hits = [];
         var qCompact = q.replace(/\s+/g, "");
         for (var i = 0; i < LearnerToolbelt.SCHOOL_FIXTURE.length; i++) {
             var rec = LearnerToolbelt.SCHOOL_FIXTURE[i];
             if (cc && rec.country_code !== cc)
+                continue;
+            if (typeFilter && rec.institution_type !== typeFilter)
                 continue;
             var name = normalize(rec.display_name);
             var acro = acronymOf(name);
@@ -19704,6 +20844,7 @@ var LearnerToolbelt;
                 country_code: rec.country_code,
                 board: rec.board,
                 source: rec.source,
+                institution_type: rec.institution_type,
                 score: score,
             });
         }
@@ -23851,6 +24992,10 @@ var LegacyPush;
         }
     }
     // ─── Send a localized push to one user (respects tokens, quiet hours, gates) ─
+    // Exported so sibling modules (e.g. Hermes morning brief) can deliver real
+    // device push (APNs/FCM) instead of an inbox-only notificationsSend. titleKey/
+    // bodyKey fall back to the literal string when absent from NOTIF_STRINGS
+    // (localize returns the key verbatim), so callers may pass composed copy.
     function sendLocalizedPushToUser(ctx, logger, nk, userId, eventType, titleKey, bodyKey, vars, opts) {
         opts = opts || {};
         if (!opts.skipQuietHours && isInQuietHours(nk, userId))
@@ -23893,6 +25038,7 @@ var LegacyPush;
         catch (_) { }
         return sent > 0;
     }
+    LegacyPush.sendLocalizedPushToUser = sendLocalizedPushToUser;
     // ─── S3 fetchers (mirror the URL shapes Unity already uses) ─────────────────
     var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
     function fetchDailyQuizForToday(nk, logger) {

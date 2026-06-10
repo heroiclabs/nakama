@@ -338,6 +338,68 @@ namespace LearnerToolbelt {
     return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
   }
 
+  // Play 2 — entitlement-aware quota (the "Phase D" promotion the identity
+  // resolver anticipated). A paid OR trialing subscriber reading their
+  // qv_entitlements subscription record is promoted free → pro, so the
+  // card-required trial actually unlocks the higher chat cap. Fully additive:
+  // if no record exists (or the id doesn't resolve), the caller stays "free".
+  function entitlementActiveForOwner(nk: nkruntime.Nakama, ownerId: string): boolean {
+    if (!ownerId) return false;
+    try {
+      var rows = nk.storageRead([{
+        collection: "qv_entitlements",
+        key: "subscriptions",
+        userId: ownerId,
+      }]);
+      if (!rows || rows.length === 0 || !rows[0].value) return false;
+      var v: any = rows[0].value;
+      if (!v.tier) return false;
+      var status = "" + (v.status || "");
+      if (status !== "active" && status !== "trialing") return false;
+      if (v.expiresAt) {
+        var expMs = new Date(v.expiresAt).getTime();
+        if (!isNaN(expMs) && expMs < Date.now()) return false;
+      }
+      return true;
+    } catch (_e: any) {
+      return false;
+    }
+  }
+
+  function isProByEntitlement(nk: nkruntime.Nakama, userId: string): boolean {
+    if (!userId) return false;
+    // 1) Canonical path: the entitlement is written under the Nakama account id
+    //    (rc_sync's app_user_id contract; the web SPA now bills against the
+    //    Nakama account id via _nkUserId()).
+    if (entitlementActiveForOwner(nk, userId)) return true;
+    // 2) Reconciliation: older grants — and any client that still posts the
+    //    device-auth id (the web USER_ID) — write the entitlement under a device
+    //    id linked to this Nakama account rather than the account id. The web
+    //    session is minted with authenticate/device, so that device id is on the
+    //    account. Resolve the account's devices and check each so a trialing
+    //    subscriber's higher chat cap unlocks regardless of which id was used.
+    try {
+      var account: any = nk.accountGetId(userId);
+      var devices: any = account && account.devices ? account.devices : null;
+      if (devices && devices.length) {
+        for (var i = 0; i < devices.length; i++) {
+          var did = devices[i] && devices[i].id ? "" + devices[i].id : "";
+          if (did && did !== userId && entitlementActiveForOwner(nk, did)) return true;
+        }
+      }
+    } catch (_e2: any) {
+      // accountGetId failures fail safe → caller stays "free".
+    }
+    return false;
+  }
+
+  function promoteIdentityByEntitlement(nk: nkruntime.Nakama, ident: QuotaIdentity): QuotaIdentity {
+    if (ident.tier === "free" && ident.sub && isProByEntitlement(nk, ident.sub)) {
+      ident.tier = "pro";
+    }
+    return ident;
+  }
+
   // ── No-exam fallback — pure logic helpers (§ 2.5 / § 3.13) ────────────────
   //
   // These are kept as pure functions (no nk / ctx / logger) so the
@@ -1347,13 +1409,15 @@ namespace LearnerToolbelt {
       var query = "" + (data.query || "");
       var country = ("" + (data.country_code || data.country || "")).toUpperCase();
       var locale = "" + (data.locale || "en");
+      var institutionType = "" + (data.institution_type || data.institutionType || "");
       var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
       if (query.length < 2) return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
 
-      var hits = searchSchools(query, country, limit);
+      var hits = searchSchools(query, country, limit, institutionType);
       return safeWrap({
         ok: true, status: hits.length > 0 ? "ok" : "no_results",
         query: query, country_code: country, locale: locale,
+        institution_type: institutionType,
         results: hits,
         count: hits.length,
         message: hits.length === 0 ? i18nString(locale, "school.no_results") : "",
@@ -1540,6 +1604,7 @@ namespace LearnerToolbelt {
       if (ident.error) {
         return RpcHelpers.errorResponse(ident.error, 400);
       }
+      ident = promoteIdentityByEntitlement(nk, ident);
 
       var limit = limitForTier(ctx, ident.tier);
       // Sentinel: -1 → unlimited. The wire shape stays the same; we return
@@ -1700,6 +1765,7 @@ namespace LearnerToolbelt {
       if (ident.error) {
         return RpcHelpers.errorResponse(ident.error, 400);
       }
+      ident = promoteIdentityByEntitlement(nk, ident);
 
       var limit = limitForTier(ctx, ident.tier);
       var unlimited = limit < 0;

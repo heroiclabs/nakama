@@ -35,8 +35,8 @@ var HW_COLLECTION = "qv_home_widgets";
 var HW_KEY = "config_v1";
 var HW_MAX_WIDGETS = 24;      // sane cap — a Home screen won't hold more
 var HW_MAX_STR = 160;         // clamp any single string field
-var HW_KINDS = { countdown: 1, gpa: 1, studyplan: 1, school: 1, guided: 1, reminders: 1, streak: 1, stats: 1, predictor: 1 };
-var HW_STYLES = { number: 1, ring: 1, flip: 1, minimal: 1, checklist: 1, stats: 1 };
+var HW_KINDS = { countdown: 1, gpa: 1, studyplan: 1, school: 1, guided: 1, reminders: 1, streak: 1, stats: 1, predictor: 1, shortcut: 1 };
+var HW_STYLES = { number: 1, ring: 1, flip: 1, minimal: 1, checklist: 1, stats: 1, shortcut: 1 };
 var HW_THEMES = { aurora: 1, sunset: 1, ocean: 1, forest: 1, rose: 1, mono: 1 };
 var HW_SIZES = { s: 1, m: 1, l: 1 };
 var HW_ANIMS = { pulse: 1, glow: 1, float: 1, shimmer: 1, none: 1 };
@@ -103,6 +103,11 @@ function hwSanitizeWidget(w) {
         milestones: w.milestones === true,
         brand: w.brand !== false
     };
+    // Tappable shortcut tiles (Book Engine, Quiz, Notebook, …) carry an explicit
+    // SPA deeplink + icon set by the web Desk; preserve them so cross-device sync
+    // and native rendering route the tap correctly instead of falling back to home.
+    if (w.deeplink) cfg.deeplink = hwStr(w.deeplink, "");
+    if (w.icon) cfg.icon = hwStr(w.icon, "");
     return cfg;
 }
 
@@ -192,7 +197,12 @@ var HW_DEEPLINK = {
     predictor: "quizverse://predictor"
 };
 
-function hwDeeplink(kind) {
+// A shortcut widget stores its own SPA deeplink (quizverse://<page>); prefer it so
+// new learning surfaces (book/quiz/notebook/research/visualize/…) route correctly
+// without needing an entry per page in the kind→deeplink table.
+function hwDeeplink(w) {
+    if (w && w.deeplink) return w.deeplink;
+    var kind = w && w.kind ? w.kind : w;
     return HW_DEEPLINK[kind] || "quizverse://home";
 }
 
@@ -249,7 +259,8 @@ function hwRenderWidget(w) {
         unit: unit,
         sub: sub,
         frac: frac,
-        deeplink: hwDeeplink(w.kind)
+        icon: w.icon || "",
+        deeplink: hwDeeplink(w)
     };
 }
 

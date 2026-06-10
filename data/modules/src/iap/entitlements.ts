@@ -278,9 +278,15 @@ namespace QvEntitlements {
       }
 
       var expiresAt = resolveExpiry(event);
+      // Play 2 — opt-out trial. Stripe (or RC) flags a trial via period_type /
+      // an explicit trial bool. A trialing subscription still UNLOCKS (non-null
+      // tier) but is tagged "trialing" so analytics + the parent recap can tell
+      // a converting trial from a paid subscriber.
+      var isTrial = !!(event && (event.period_type === "trial" || event.period_type === "TRIAL" ||
+                                 event.trial === true || event.is_trial === true));
       var subRecord = {
         tier:      tier,
-        status:    "active",
+        status:    isTrial ? "trialing" : "active",
         productId: productId,
         store:     store,
         expiresAt: expiresAt,
@@ -296,8 +302,8 @@ namespace QvEntitlements {
         Storage.writeJson(nk, COLLECTION, KEY_ONE, targetUserId, existing);
       }
 
-      logger.info("[QvEntitlements] rc_sync: subscription granted for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
-      return RpcHelpers.successResponse({ tier: tier, status: "active", expiresAt: expiresAt });
+      logger.info("[QvEntitlements] rc_sync: subscription " + (isTrial ? "trial-granted" : "granted") + " for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (expiresAt || "lifetime"));
+      return RpcHelpers.successResponse({ tier: tier, status: isTrial ? "trialing" : "active", expiresAt: expiresAt });
 
     } catch (e: any) {
       logger.error("[QvEntitlements] rc_sync write error: " + (e && e.message ? e.message : String(e)));

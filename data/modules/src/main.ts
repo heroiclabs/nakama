@@ -595,6 +595,33 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[TutorXStudyPlan] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Hermes nightly learning-loop agent (Play 3) ----
+  // Server-side persistent agent that composes a per-learner morning brief from
+  // durable Nakama state (entitlement + study-plan checklist + optional DeepTutor
+  // enrichment), persists it, and pushes a deep-linked notification. The nightly
+  // batch driver (quizverse_hermes_nightly_tick) is invoked by a k8s CronJob.
+  // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+  // pooled Goja VM (same rationale as TutorXProgress/StudyPlan above).
+  try {
+    logger.info("[Hermes] Registering quizverse_hermes_brief_get / _generate / _parent_recap / _nightly_tick RPCs...");
+    Hermes.register(initializer);
+    logger.info("[Hermes] Hermes nightly-loop RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[Hermes] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- Blog Quiz embeddable widget (link-building) ----
+  // quizverse_blog_embed_create / _get + quizverse_embed_quiz_complete / _claim_pending.
+  // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+  // pooled Goja VM (same rationale as Hermes above).
+  try {
+    logger.info("[BlogEmbed] Registering quizverse_blog_embed_create / _get / embed_quiz_complete / claim_pending RPCs...");
+    BlogEmbed.register(initializer);
+    logger.info("[BlogEmbed] Blog-quiz embed RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[BlogEmbed] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Fantasy Cricket RPCs ----
   try {
     logger.info("[Fantasy] Registering Team RPCs...");

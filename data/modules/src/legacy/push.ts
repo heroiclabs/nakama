@@ -908,7 +908,11 @@ namespace LegacyPush {
   }
 
   // ─── Send a localized push to one user (respects tokens, quiet hours, gates) ─
-  function sendLocalizedPushToUser(
+  // Exported so sibling modules (e.g. Hermes morning brief) can deliver real
+  // device push (APNs/FCM) instead of an inbox-only notificationsSend. titleKey/
+  // bodyKey fall back to the literal string when absent from NOTIF_STRINGS
+  // (localize returns the key verbatim), so callers may pass composed copy.
+  export function sendLocalizedPushToUser(
     ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
     userId: string, eventType: string, titleKey: string, bodyKey: string,
     vars: any, opts?: { skipQuietHours?: boolean; gameId?: string; data?: any }

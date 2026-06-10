@@ -4913,6 +4913,19 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
     });
 }
 
+// ── Friend Quests stub handlers ─────────────────────────────────────────────
+// The Friend Quests feature was never implemented, but its registration and an
+// UNGUARDED Hiro friend-quests bridge reference (__rpc_friend_quest_get_state)
+// both expect these handlers to exist. Define minimal, safe stubs that return a
+// valid "feature not enabled" response so registration succeeds (no startup
+// error) and the symbol stays defined. Replace with real logic to ship the feature.
+function rpcFriendQuestGetState(ctx, logger, nk, payload) {
+    return JSON.stringify({ success: true, enabled: false, quests: [], active: null });
+}
+function rpcFriendQuestComplete(ctx, logger, nk, payload) {
+    return JSON.stringify({ success: false, enabled: false, error: 'friend_quests_not_enabled' });
+}
+
 /**
  * RPC: Claim daily reward
  * @param {object} ctx - Request context
@@ -25026,13 +25039,19 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     // v3.0 NEW RPCs â€” Friend Quests (2 RPCs)
     // ============================================================================
+    // Friend Quests handlers (rpcFriendQuestGetState / rpcFriendQuestComplete) were
+    // never implemented; they are now defined as safe stubs at module scope (search
+    // "Friend Quests stub handlers"). Registration is kept so the
+    // __rpc_friend_quest_get_state symbol stays defined — the Hiro friend-quests
+    // bridge references it UNGUARDED in InitModule, so removing it would throw a
+    // ReferenceError at startup and take down the JS runtime.
     try {
         logger.info('[FriendQuests] Initializing Friend Quest Module...');
         initializer.registerRpc('friend_quest_get_state', rpcFriendQuestGetState);
         logger.info('[FriendQuests] Registered RPC: friend_quest_get_state');
         initializer.registerRpc('friend_quest_complete', rpcFriendQuestComplete);
         logger.info('[FriendQuests] Registered RPC: friend_quest_complete');
-        logger.info('[FriendQuests] Successfully registered 2 Friend Quest RPCs');
+        logger.info('[FriendQuests] Successfully registered 2 Friend Quest RPCs (stub)');
     } catch (err) {
         logger.error('[FriendQuests] Failed to initialize: ' + err.message);
     }

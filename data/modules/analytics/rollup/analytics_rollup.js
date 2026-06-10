@@ -262,14 +262,29 @@ function arScanEventsForDate(nk, logger, dateStr) {
     var truncated = false;
     var cursor = null;
     var pagesScanned = 0;
-    var maxPages = 100;         // cap: 100 pages × 100 = 10k objects / day; keeps well under the 30s RPC gateway timeout
+    // The dashboard-fanout copies (dash_*) accumulate across all days in one
+    // collection, so a day's rollup must page the whole collection and filter by
+    // timestamp in-memory. The old fixed 100-page (10k-object) cap made every
+    // backfill day abort once the collection grew past 10k objects. Govern by a
+    // wall-clock budget that stays safely under the 30s RPC gateway timeout
+    // instead, with a large hard page ceiling only as an anti-runaway guard.
+    // This is strictly safer than the old cap: worst case it still reports
+    // `truncated` (the caller hard-fails rather than writing a partial rollup).
     var pageSize = 100;
+    var maxPages = 5000;        // anti-runaway ceiling (≈500k objects); the time budget below is the real governor
+    var scanBudgetMs = 22000;   // stop at 22s to leave headroom under the 30s gateway timeout
+    var startMs = Date.now();
     var dayStart = Math.floor(new Date(dateStr + "T00:00:00.000Z").getTime() / 1000);
     var dayEnd = dayStart + 86400;
+    var page = null;
 
     for (var p = 0; p < maxPages; p++) {
+        if (Date.now() - startMs > scanBudgetMs) {
+            // Ran out of time budget before exhausting the collection.
+            if (page && page.cursor) truncated = true;
+            break;
+        }
         pagesScanned++;
-        var page;
         try {
             page = nk.storageList(AR_SYSTEM_USER, AR_EVENTS_COLLECTION, pageSize, cursor);
         } catch (e) {
