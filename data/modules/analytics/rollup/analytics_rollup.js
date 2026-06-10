@@ -280,7 +280,11 @@ function arScanEventsForDate(nk, logger, dateStr, startCursor) {
     // instead of aborting.
     var pageSize = 100;
     var maxPages = 5000;        // anti-runaway ceiling (≈500k objects); the time budget below is the real governor
-    var scanBudgetMs = 22000;   // stop at 22s to leave headroom under the 30s gateway timeout
+    // 15s, not 22s: in prod the HTTP context dies at ~22s (observed 2026-06-10:
+    // responses written after that get "empty reply" and storage ops fail with
+    // "context canceled"), so leave real headroom for checkpoint writes and the
+    // response itself.
+    var scanBudgetMs = 15000;
     var startMs = Date.now();
     var dayStart = Math.floor(new Date(dateStr + "T00:00:00.000Z").getTime() / 1000);
     var dayEnd = dayStart + 86400;
@@ -1251,18 +1255,26 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     var priorScanned  = (checkpoint && checkpoint.scannedSoFar) || 0;
     var priorChunks   = (checkpoint && checkpoint.chunkCount) || 0;
     var priorEvents   = (checkpoint && checkpoint.eventsSoFar) || 0;
+    var scanAlreadyComplete = !!(checkpoint && checkpoint.scanComplete);
     if (checkpoint) {
-        logger.info("[analytics_rollup] resuming scan for " + dateStr +
+        logger.info("[analytics_rollup] resuming " + (scanAlreadyComplete ? "finalize" : "scan") +
+                    " for " + dateStr +
                     " from checkpoint: scannedSoFar=" + priorScanned +
                     " eventsSoFar=" + priorEvents + " chunks=" + priorChunks);
     }
 
     var scanResult;
-    try {
-        scanResult = arScanEventsForDate(nk, logger, dateStr, startCursor);
-    } catch (e) {
-        logger.error("[analytics_rollup] scan failed: " + e.message);
-        return arErr("Scan failed: " + e.message, 500);
+    if (scanAlreadyComplete) {
+        // A previous invocation finished the scan and staged all events in
+        // chunks; this invocation is compute-only (fast — no collection walk).
+        scanResult = { events: [], scanned: 0, truncated: false, nextCursor: null };
+    } else {
+        try {
+            scanResult = arScanEventsForDate(nk, logger, dateStr, startCursor);
+        } catch (e) {
+            logger.error("[analytics_rollup] scan failed: " + e.message);
+            return arErr("Scan failed: " + e.message, 500);
+        }
     }
 
     var totalScanned = priorScanned + scanResult.scanned;
@@ -1303,9 +1315,48 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         });
     }
 
+    // Scan finished the collection in THIS invocation after one or more
+    // resumed passes. Do NOT compute inline: a resumed scan has already burned
+    // most of the request budget, and in prod the HTTP context dies at ~22s —
+    // every storage op after that fails with "context canceled" (observed
+    // 2026-06-10: 52× failed analytics_rollup_yearly lists, zero rollups
+    // written). Stage the final events and let the NEXT invocation do the
+    // compute+write phase with a fresh, idle context.
+    if (!scanAlreadyComplete && checkpoint) {
+        var finChunkCount = arScanCheckpointAppendEvents(nk, logger, dateStr, scanResult.events, priorChunks);
+        if (finChunkCount < 0) {
+            return arErr("Scan-complete checkpoint write failed for " + dateStr, 500);
+        }
+        var finEvents = priorEvents + scanResult.events.length;
+        var wFin = arWriteOne(nk, AR_META_COLLECTION, arScanCheckpointKey(dateStr), AR_SYSTEM_USER, {
+            date: dateStr,
+            cursor: null,
+            scanComplete: true,
+            scannedSoFar: totalScanned,
+            chunkCount: finChunkCount,
+            eventsSoFar: finEvents,
+            updatedAt: new Date().toISOString()
+        });
+        if (wFin !== true) {
+            return arErr("Scan-complete checkpoint write failed for " + dateStr + ": " + (wFin.error || "write failed"), 500);
+        }
+        logger.info("[analytics_rollup] scan COMPLETE for " + dateStr +
+                    " (scanned=" + totalScanned + ", events=" + finEvents +
+                    ", chunks=" + finChunkCount + ") — compute deferred to next invocation.");
+        return arOk({
+            date: dateStr,
+            partial: true,
+            complete: false,
+            stage: "scan_complete",
+            events_scanned: totalScanned,
+            events_matched_so_far: finEvents,
+            hint: "Scan finished; invoke analytics_rollup_run again with the same date to compute and write the rollup."
+        });
+    }
+
     var events = scanResult.events;
 
-    // Scan completed — merge events accumulated by earlier partial invocations.
+    // Compute phase — merge events accumulated by earlier partial invocations.
     if (priorChunks > 0) {
         var resumedEvents = arScanCheckpointLoadEvents(nk, logger, dateStr, priorChunks);
         events = resumedEvents.concat(events);
