@@ -250,17 +250,24 @@ function arWriteOne(nk, collection, key, userId, value) {
 
 /**
  * Streams analytics_events under SYSTEM_USER and collects records falling on `dateStr`.
- * Returns { events: [...], scanned, truncated }.
+ * Returns { events: [...], scanned, truncated, nextCursor }.
  *
  * Note: we rely on the dashboard-fanout copy written by persistNormalizedEvent,
- * which is keyed as `dash_<YYYY-MM-DD>_<eventName>_...`. Scanning under SYSTEM_USER
- * avoids cross-user reads and is the cheapest path.
+ * which is keyed as `dash_<gameId>_<YYYY-MM-DD>_...`. Scanning under SYSTEM_USER
+ * avoids cross-user reads and is the cheapest path. Nakama's JS nk.storageList
+ * has no key-prefix filtering, so we must walk the whole collection and filter
+ * in memory; there is no per-day key index to read instead.
+ *
+ * `startCursor` (optional) resumes a previous truncated scan. When the page
+ * cap is hit, `truncated` is true and `nextCursor` is the storageList cursor
+ * to resume from — the caller checkpoints it and re-invokes later instead of
+ * aborting (see rpcAnalyticsRollupRun).
  */
-function arScanEventsForDate(nk, logger, dateStr) {
+function arScanEventsForDate(nk, logger, dateStr, startCursor) {
     var events = [];
     var scanned = 0;
     var truncated = false;
-    var cursor = null;
+    var cursor = startCursor || null;
     var pagesScanned = 0;
     // The dashboard-fanout copies (dash_*) accumulate across all days in one
     // collection, so a day's rollup must page the whole collection and filter by
@@ -268,8 +275,9 @@ function arScanEventsForDate(nk, logger, dateStr) {
     // backfill day abort once the collection grew past 10k objects. Govern by a
     // wall-clock budget that stays safely under the 30s RPC gateway timeout
     // instead, with a large hard page ceiling only as an anti-runaway guard.
-    // This is strictly safer than the old cap: worst case it still reports
-    // `truncated` (the caller hard-fails rather than writing a partial rollup).
+    // When the budget runs out mid-collection, the caller checkpoints
+    // `nextCursor` and resumes on the next invocation (see rpcAnalyticsRollupRun)
+    // instead of aborting.
     var pageSize = 100;
     var maxPages = 5000;        // anti-runaway ceiling (≈500k objects); the time budget below is the real governor
     var scanBudgetMs = 22000;   // stop at 22s to leave headroom under the 30s gateway timeout
@@ -322,7 +330,73 @@ function arScanEventsForDate(nk, logger, dateStr) {
     }
 
     if (pagesScanned >= maxPages && page && page.cursor) truncated = true;
-    return { events: events, scanned: scanned, truncated: truncated };
+    // `cursor` already holds the last page's cursor (assigned at loop bottom),
+    // i.e. the exact resume point for the next invocation.
+    return { events: events, scanned: scanned, truncated: truncated, nextCursor: truncated ? cursor : null };
+}
+
+// ─── Core: resumable-scan checkpoint (analytics_rollup_meta) ───────────────
+//
+// When a day's event scan exceeds the per-invocation page cap, we persist the
+// storageList cursor plus the events accumulated so far instead of aborting
+// with 507. The next analytics_rollup_run invocation for the same date
+// resumes from the saved cursor and merges. Events are stored in chunked docs
+// (AR_SCAN_CHUNK_SIZE each) so no single storage value grows unbounded.
+//
+//   analytics_rollup_meta  key: scan_checkpoint_<YYYY-MM-DD>   {cursor, scannedSoFar, chunkCount, eventsSoFar, updatedAt}
+//   analytics_rollup_meta  key: scan_events_<YYYY-MM-DD>_<n>   {events: [...]}
+
+var AR_SCAN_CHUNK_SIZE = 1000;
+
+function arScanCheckpointKey(dateStr) { return "scan_checkpoint_" + dateStr; }
+
+function arScanCheckpointRead(nk, dateStr) {
+    return arReadOne(nk, AR_META_COLLECTION, arScanCheckpointKey(dateStr), AR_SYSTEM_USER);
+}
+
+/**
+ * Appends `events` to the checkpoint's chunked event store, starting at chunk
+ * index `startChunk`. Returns the new total chunk count, or -1 on write error.
+ */
+function arScanCheckpointAppendEvents(nk, logger, dateStr, events, startChunk) {
+    var chunk = startChunk;
+    for (var i = 0; i < events.length; i += AR_SCAN_CHUNK_SIZE) {
+        var slice = events.slice(i, i + AR_SCAN_CHUNK_SIZE);
+        var w = arWriteOne(nk, AR_META_COLLECTION, "scan_events_" + dateStr + "_" + chunk, AR_SYSTEM_USER, { events: slice });
+        if (w !== true) {
+            logger.error("[analytics_rollup] checkpoint chunk write failed for " + dateStr + " chunk=" + chunk + ": " + (w.error || "write failed"));
+            return -1;
+        }
+        chunk++;
+    }
+    return chunk;
+}
+
+/** Reads all persisted event chunks for a date back into one array. */
+function arScanCheckpointLoadEvents(nk, logger, dateStr, chunkCount) {
+    var out = [];
+    for (var c = 0; c < chunkCount; c++) {
+        var doc = arReadOne(nk, AR_META_COLLECTION, "scan_events_" + dateStr + "_" + c, AR_SYSTEM_USER);
+        if (doc && doc.events && doc.events.length) {
+            for (var i = 0; i < doc.events.length; i++) out.push(doc.events[i]);
+        } else {
+            logger.warn("[analytics_rollup] checkpoint chunk missing/empty for " + dateStr + " chunk=" + c);
+        }
+    }
+    return out;
+}
+
+/** Deletes the checkpoint doc and all event chunks for a date. Best-effort. */
+function arScanCheckpointClear(nk, logger, dateStr, chunkCount) {
+    try {
+        var dels = [{ collection: AR_META_COLLECTION, key: arScanCheckpointKey(dateStr), userId: AR_SYSTEM_USER }];
+        for (var c = 0; c < (chunkCount || 0); c++) {
+            dels.push({ collection: AR_META_COLLECTION, key: "scan_events_" + dateStr + "_" + c, userId: AR_SYSTEM_USER });
+        }
+        nk.storageDelete(dels);
+    } catch (e) {
+        logger.warn("[analytics_rollup] checkpoint clear failed for " + dateStr + ": " + (e.message || e));
+    }
 }
 
 // ─── Core: first-seen upsert for per-day new_users + retention cohorts ──────
@@ -1171,23 +1245,74 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
 
     logger.info("[analytics_rollup] run date=" + dateStr);
 
+    // Resume a previous truncated scan for this date if a checkpoint exists.
+    var checkpoint = arScanCheckpointRead(nk, dateStr);
+    var startCursor   = (checkpoint && checkpoint.cursor) || null;
+    var priorScanned  = (checkpoint && checkpoint.scannedSoFar) || 0;
+    var priorChunks   = (checkpoint && checkpoint.chunkCount) || 0;
+    var priorEvents   = (checkpoint && checkpoint.eventsSoFar) || 0;
+    if (checkpoint) {
+        logger.info("[analytics_rollup] resuming scan for " + dateStr +
+                    " from checkpoint: scannedSoFar=" + priorScanned +
+                    " eventsSoFar=" + priorEvents + " chunks=" + priorChunks);
+    }
+
     var scanResult;
     try {
-        scanResult = arScanEventsForDate(nk, logger, dateStr);
+        scanResult = arScanEventsForDate(nk, logger, dateStr, startCursor);
     } catch (e) {
         logger.error("[analytics_rollup] scan failed: " + e.message);
         return arErr("Scan failed: " + e.message, 500);
     }
 
-    // Hard-fail on truncation: a truncated scan means the rollup is incomplete.
-    // The cron job checks for this and will retry/alert. Operator must raise
-    // maxPages in arScanEventsForDate or partition by game.
+    var totalScanned = priorScanned + scanResult.scanned;
+
+    // Page-cap hit: instead of aborting (the old HTTP-507 path), persist a
+    // checkpoint {cursor, accumulated events, scannedSoFar} and return a
+    // partial/continue response. The next invocation for the same dateStr
+    // resumes from the saved cursor; the rollup is only written once the
+    // scan completes. Keeps each invocation inside the 30s RPC budget.
     if (scanResult.truncated) {
-        logger.error("[analytics_rollup] scan truncated at " + scanResult.scanned + " events — rollup aborted for " + dateStr);
-        return arErr("Event scan truncated at " + scanResult.scanned + " objects; increase maxPages or partition by gameId", 507);
+        var newChunkCount = arScanCheckpointAppendEvents(nk, logger, dateStr, scanResult.events, priorChunks);
+        if (newChunkCount < 0) {
+            return arErr("Scan checkpoint write failed for " + dateStr + " — partial progress not saved", 500);
+        }
+        var totalEventsSoFar = priorEvents + scanResult.events.length;
+        var wCp = arWriteOne(nk, AR_META_COLLECTION, arScanCheckpointKey(dateStr), AR_SYSTEM_USER, {
+            date: dateStr,
+            cursor: scanResult.nextCursor,
+            scannedSoFar: totalScanned,
+            chunkCount: newChunkCount,
+            eventsSoFar: totalEventsSoFar,
+            updatedAt: new Date().toISOString()
+        });
+        if (wCp !== true) {
+            return arErr("Scan checkpoint write failed for " + dateStr + ": " + (wCp.error || "write failed"), 500);
+        }
+        logger.warn("[analytics_rollup] scan page-cap reached for " + dateStr +
+                    " — checkpointed (scanned=" + totalScanned +
+                    ", events=" + totalEventsSoFar + ", chunks=" + newChunkCount +
+                    "). Re-invoke analytics_rollup_run for the same date to continue.");
+        return arOk({
+            date: dateStr,
+            partial: true,
+            complete: false,
+            events_scanned: totalScanned,
+            events_matched_so_far: totalEventsSoFar,
+            hint: "Scan checkpointed mid-collection; invoke analytics_rollup_run again with the same date to resume."
+        });
     }
 
     var events = scanResult.events;
+
+    // Scan completed — merge events accumulated by earlier partial invocations.
+    if (priorChunks > 0) {
+        var resumedEvents = arScanCheckpointLoadEvents(nk, logger, dateStr, priorChunks);
+        events = resumedEvents.concat(events);
+        logger.info("[analytics_rollup] merged " + resumedEvents.length +
+                    " checkpointed events with " + scanResult.events.length +
+                    " from final scan pass for " + dateStr);
+    }
 
     // Build list of gameIds present in this date's events, plus optional explicit list.
     // Canonicalize via arResolveGameId so callers passing legacy slugs (e.g. "quizverse")
@@ -1362,13 +1487,20 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         logger.warn("[analytics_rollup] platform_totals write failed: " + eTot.message);
     }
 
+    // Scan + rollup completed — drop the resumable-scan checkpoint (if any)
+    // so a future re-run for this date starts a fresh scan.
+    if (checkpoint) {
+        arScanCheckpointClear(nk, logger, dateStr, priorChunks);
+    }
+
     // Record success marker.
     arWriteOne(nk, AR_META_COLLECTION, "last_success", AR_SYSTEM_USER, {
         date: dateStr,
         gameIds: gameIds,
-        eventsScanned: scanResult.scanned,
+        eventsScanned: totalScanned,
         eventsMatched: events.length,
-        truncated: scanResult.truncated,
+        truncated: false,
+        resumedFromCheckpoint: !!checkpoint,
         timestamp: new Date().toISOString(),
         bypass: gate.bypass
     });
@@ -1376,14 +1508,16 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     logger.info("[analytics_rollup] done date=" + dateStr +
                 " games=" + gameIds.length +
                 " events=" + events.length +
-                " scanned=" + scanResult.scanned);
+                " scanned=" + totalScanned);
 
     return arOk({
         date: dateStr,
+        partial: false,
+        complete: true,
         games_rolled_up: gameIds.length,
         events_matched: events.length,
-        events_scanned: scanResult.scanned,
-        truncated: scanResult.truncated,
+        events_scanned: totalScanned,
+        truncated: false,
         written: written
     });
 }
@@ -1430,6 +1564,9 @@ function rpcAnalyticsRollupBackfill(ctx, logger, nk, payload) {
             results.push({
                 date: dates[i],
                 success: !!parsed.success,
+                // partial=true means the scan checkpointed mid-day; re-run the
+                // backfill (or analytics_rollup_run for that date) to resume.
+                partial: !!parsed.partial,
                 events_matched: parsed.events_matched || 0,
                 games: parsed.games_rolled_up || 0
             });
