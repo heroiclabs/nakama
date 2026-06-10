@@ -35,6 +35,7 @@ import (
 	"github.com/heroiclabs/nakama/v3/console"
 	"github.com/heroiclabs/nakama/v3/internal/cronexpr"
 	"github.com/heroiclabs/nakama/v3/social"
+	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -66,6 +67,7 @@ type RuntimeGoNakamaModule struct {
 	satori               runtime.Satori
 	fleetManager         runtime.FleetManager
 	storageIndex         StorageIndex
+	openTxs              sync.Map
 }
 
 func NewRuntimeGoNakamaModule(logger *zap.Logger, db *sql.DB, protojsonMarshaler *protojson.MarshalOptions, config Config, socialClient *social.Client, leaderboardCache LeaderboardCache, leaderboardRankCache LeaderboardRankCache, leaderboardScheduler LeaderboardScheduler, sessionRegistry SessionRegistry, sessionCache SessionCache, statusRegistry StatusRegistry, matchRegistry MatchRegistry, partyRegistry PartyRegistry, tracker Tracker, metrics Metrics, streamManager StreamManager, router MessageRouter, storageIndex StorageIndex, satoriClient runtime.Satori) *RuntimeGoNakamaModule {
@@ -2150,9 +2152,10 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, callerID, userI
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @return objects([]*api.StorageObject) A list of storage objects matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*runtime.StorageRead) ([]*api.StorageObject, error) {
+func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*runtime.StorageRead, tx ...*runtime.StorageTx) ([]*api.StorageObject, error) {
 	size := len(objectIDs)
 	if size == 0 {
 		return make([]*api.StorageObject, 0), nil
@@ -2182,7 +2185,19 @@ func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*ru
 		}
 	}
 
-	objects, err := StorageReadObjects(ctx, n.logger, n.db, uuid.Nil, reads)
+	var pgxTx pgx.Tx
+	if len(tx) > 1 {
+		return nil, errors.New("expects at most one transaction")
+	}
+	if len(tx) == 1 && tx[0] != nil && tx[0].ID != "" {
+		var ok bool
+		pgxTx, ok = getTx(tx[0], &n.openTxs)
+		if !ok {
+			return nil, errors.New("transaction not found or already closed")
+		}
+	}
+
+	objects, err := StorageReadObjects(ctx, n.logger, n.db, uuid.Nil, reads, pgxTx)
 	if err != nil {
 		return nil, err
 	}
@@ -2194,9 +2209,10 @@ func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*ru
 // @summary Write one or more objects by their collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageWrite) An array of object identifiers to be written.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @return acks([]*api.StorageObjectAck) A list of acks with the version of the written objects.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*runtime.StorageWrite) ([]*api.StorageObjectAck, error) {
+func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*runtime.StorageWrite, tx ...*runtime.StorageTx) ([]*api.StorageObjectAck, error) {
 	size := len(objectIDs)
 	if size == 0 {
 		return make([]*api.StorageObjectAck, 0), nil
@@ -2239,7 +2255,19 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*r
 		ops = append(ops, op)
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, n.metrics, n.storageIndex, true, ops)
+	var pgxTx pgx.Tx
+	if len(tx) > 1 {
+		return nil, errors.New("expects at most one transaction")
+	}
+	if len(tx) == 1 && tx[0] != nil && tx[0].ID != "" {
+		var ok bool
+		pgxTx, ok = getTx(tx[0], &n.openTxs)
+		if !ok {
+			return nil, errors.New("transaction not found or already closed")
+		}
+	}
+
+	acks, _, err := StorageWriteObjects(ctx, n.logger, n.db, n.metrics, n.storageIndex, true, ops, pgxTx)
 	if err != nil {
 		return nil, err
 	}
@@ -2251,6 +2279,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*r
 // @summary Write a set of storage object changes with retries.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @param updateFn(type=function) A function that applies changes to the read storage objects.
 // @param maxRetries(type=int) Maximum number of retries to attempt if a version conflict is detected. Must be a value between 0 and 10.
 // @return acks([]*api.StorageObjectAck) A list of acks with the version of the written objects.
@@ -2296,8 +2325,9 @@ func (n *RuntimeGoNakamaModule) StorageWriteRetry(ctx context.Context, objectIDs
 // @summary Remove one or more objects by their collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageDelete) An array of object identifiers to be deleted.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @return error(error) An optional error value if an error occurred.
-func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*runtime.StorageDelete) error {
+func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*runtime.StorageDelete, tx ...*runtime.StorageTx) error {
 	size := len(objectIDs)
 	if size == 0 {
 		return nil
@@ -2334,7 +2364,19 @@ func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*
 		ops = append(ops, op)
 	}
 
-	_, err := StorageDeleteObjects(ctx, n.logger, n.db, n.storageIndex, true, ops)
+	var pgxTx pgx.Tx
+	if len(tx) > 1 {
+		return errors.New("expects at most one transaction")
+	}
+	if len(tx) == 1 && tx[0] != nil && tx[0].ID != "" {
+		var ok bool
+		pgxTx, ok = getTx(tx[0], &n.openTxs)
+		if !ok {
+			return errors.New("transaction not found or already closed")
+		}
+	}
+
+	_, err := StorageDeleteObjects(ctx, n.logger, n.db, n.storageIndex, true, ops, pgxTx)
 
 	return err
 }
@@ -4569,4 +4611,16 @@ func (n *RuntimeGoNakamaModule) GetSatori() runtime.Satori {
 // @return fleetManager(runtime.FleetManager) The Fleet Manager client.
 func (n *RuntimeGoNakamaModule) GetFleetManager() runtime.FleetManager {
 	return n.fleetManager
+}
+
+func (n *RuntimeGoNakamaModule) TxBegin(ctx context.Context) (*runtime.StorageTx, error) {
+	return txBegin(ctx, n.logger, n.db, &n.openTxs)
+}
+
+func (n *RuntimeGoNakamaModule) TxCommit(ctx context.Context, tx *runtime.StorageTx) error {
+	return txCommit(ctx, tx, &n.openTxs)
+}
+
+func (n *RuntimeGoNakamaModule) TxRollback(ctx context.Context, tx *runtime.StorageTx) error {
+	return txRollback(ctx, tx, &n.openTxs)
 }

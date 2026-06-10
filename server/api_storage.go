@@ -136,7 +136,7 @@ func (s *ApiServer) ReadStorageObjects(ctx context.Context, in *api.ReadStorageO
 		}
 	}
 
-	objects, err := StorageReadObjects(ctx, logger, s.db, userID, in.GetObjectIds())
+	objects, err := StorageReadObjects(ctx, logger, s.db, userID, in.GetObjectIds(), nil)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "Error reading storage objects.")
 	}
@@ -217,7 +217,7 @@ func (s *ApiServer) WriteStorageObjects(ctx context.Context, in *api.WriteStorag
 		})
 	}
 
-	acks, code, err := StorageWriteObjects(ctx, logger, s.db, s.metrics, s.storageIndex, false, ops)
+	acks, code, err := StorageWriteObjects(ctx, logger, s.db, s.metrics, s.storageIndex, false, ops, nil)
 	if err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error writing storage objects.")
@@ -283,7 +283,7 @@ func (s *ApiServer) DeleteStorageObjects(ctx context.Context, in *api.DeleteStor
 		})
 	}
 
-	if code, err := StorageDeleteObjects(ctx, logger, s.db, s.storageIndex, false, ops); err != nil {
+	if code, err := StorageDeleteObjects(ctx, logger, s.db, s.storageIndex, false, ops, nil); err != nil {
 		if code == codes.Internal {
 			return nil, status.Error(codes.Internal, "Error deleting storage objects.")
 		}

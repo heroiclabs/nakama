@@ -200,7 +200,7 @@ func importStorageJSON(ctx context.Context, logger *zap.Logger, db *sql.DB, metr
 		return nil
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, storageIndex, true, ops)
+	acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, storageIndex, true, ops, nil)
 	if err != nil {
 		logger.Warn("Failed to write imported records.", zap.Error(err))
 		return errors.New("could not import records due to an internal error - please consult server logs")
@@ -300,7 +300,7 @@ func importStorageCSV(ctx context.Context, logger *zap.Logger, db *sql.DB, metri
 		return nil
 	}
 
-	acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, storageIndex, true, ops)
+	acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, storageIndex, true, ops, nil)
 	if err != nil {
 		logger.Warn("Failed to write imported records.", zap.Error(err))
 		return errors.New("could not import records due to an internal error - please consult server logs")

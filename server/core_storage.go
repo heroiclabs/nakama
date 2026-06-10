@@ -29,12 +29,15 @@ import (
 	"sort"
 	"time"
 
+	"sync"
+
 	"github.com/gofrs/uuid/v5"
 	"github.com/heroiclabs/nakama-common/api"
 	"github.com/heroiclabs/nakama-common/runtime"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/stdlib"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -425,7 +428,7 @@ type storageQueryArg struct {
 	param  any
 }
 
-func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId) (*api.StorageObjects, error) {
+func StorageReadObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, caller uuid.UUID, objectIDs []*api.ReadStorageObjectId, tx pgx.Tx) (*api.StorageObjects, error) {
 	if len(objectIDs) == 0 {
 		return &api.StorageObjects{}, nil
 	}
@@ -548,9 +551,7 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 		params = append(params, caller)
 	}
 
-	var objects *api.StorageObjects
-	err := ExecuteRetryablePgx(ctx, db, func(conn *pgx.Conn) error {
-		rows, _ := conn.Query(ctx, query, params...)
+	scanRows := func(rows pgx.Rows) (*api.StorageObjects, error) {
 		defer rows.Close()
 		funcObjects := &api.StorageObjects{Objects: make([]*api.StorageObject, 0, len(objectIDs))}
 		for rows.Next() {
@@ -559,7 +560,7 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 			var updateTime pgtype.Timestamptz
 
 			if err := rows.Scan(&o.Collection, &o.Key, &o.UserId, &o.Value, &o.Version, &o.PermissionRead, &o.PermissionWrite, &createTime, &updateTime); err != nil {
-				return err
+				return nil, err
 			}
 
 			o.CreateTime.Seconds = createTime.Time.Unix()
@@ -571,18 +572,51 @@ SELECT collection, key, user_id, value, version, read, write, create_time, updat
 			if !errors.Is(err, context.Canceled) {
 				logger.Error("Could not read storage objects.", zap.Error(err))
 			}
-			return err
+			return nil, err
 		}
-		objects = funcObjects
-		return nil
+		return funcObjects, nil
+	}
+
+	// If custom tx was handed in execute that instead.
+	if tx != nil {
+		rows, err := tx.Query(ctx, query, params...)
+		if err != nil {
+			return nil, err
+		}
+		return scanRows(rows)
+	}
+
+	var objects *api.StorageObjects
+	err := ExecuteRetryablePgx(ctx, db, func(conn *pgx.Conn) error {
+		rows, err := conn.Query(ctx, query, params...)
+		if err != nil {
+			return fmt.Errorf("query failed: %w", err)
+		}
+		var scanErr error
+		objects, scanErr = scanRows(rows)
+		return scanErr
 	})
 
 	return objects, err
 }
 
-func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, storageIndex StorageIndex, authoritativeWrite bool, ops StorageOpWrites) (*api.StorageObjectAcks, codes.Code, error) {
+func StorageWriteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, storageIndex StorageIndex, authoritativeWrite bool, ops StorageOpWrites, tx pgx.Tx) (*api.StorageObjectAcks, codes.Code, error) {
 	var acks []*api.StorageObjectAck
 	var sortedWrites StorageOpWrites
+
+	// If custom tx was handed in execute that instead.
+	if tx != nil {
+		var writeErr error
+		sortedWrites, acks, writeErr = storageWriteObjects(ctx, logger, metrics, tx, authoritativeWrite, ops)
+		if writeErr != nil {
+			if errors.Is(writeErr, runtime.ErrStorageRejectedVersion) || errors.Is(writeErr, runtime.ErrStorageRejectedPermission) {
+				return nil, codes.InvalidArgument, writeErr
+			}
+			return nil, codes.Internal, writeErr
+		}
+		storageIndexWrite(ctx, storageIndex, sortedWrites, acks)
+		return &api.StorageObjectAcks{Acks: acks}, codes.OK, nil
+	}
 
 	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
 		// If the transaction is retried ensure we wipe any acks that may have been prepared by previous attempts.
@@ -684,7 +718,7 @@ func storageWriteObjects(ctx context.Context, logger *zap.Logger, metrics Metric
 
 func StorageWriteWithRetries(ctx context.Context, logger *zap.Logger, db *sql.DB, metrics Metrics, storageIndex StorageIndex, objectIDs []*api.ReadStorageObjectId, updateFn func(objects []*api.StorageObject) ([]*runtime.StorageWrite, error), maxRetries int) (*api.StorageObjectAcks, error) {
 	for retryCount := 0; retryCount <= maxRetries; retryCount++ {
-		objs, err := StorageReadObjects(ctx, logger, db, uuid.Nil, objectIDs)
+		objs, err := StorageReadObjects(ctx, logger, db, uuid.Nil, objectIDs, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -730,7 +764,7 @@ func StorageWriteWithRetries(ctx context.Context, logger *zap.Logger, db *sql.DB
 			ops = append(ops, op)
 		}
 
-		acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, storageIndex, true, ops)
+		acks, _, err := StorageWriteObjects(ctx, logger, db, metrics, storageIndex, true, ops, nil)
 		if err != nil {
 			if errors.Is(err, runtime.ErrStorageRejectedVersion) {
 				backoff := min(int64(2<<retryCount)*int64(time.Millisecond), int64(20*time.Millisecond))
@@ -837,7 +871,16 @@ func storagePrepBatch(batch *pgx.Batch, authoritativeWrite bool, op *StorageOpWr
 	batch.Queue(query, params...)
 }
 
-func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, storageIndex StorageIndex, authoritativeDelete bool, ops StorageOpDeletes) (codes.Code, error) {
+func StorageDeleteObjects(ctx context.Context, logger *zap.Logger, db *sql.DB, storageIndex StorageIndex, authoritativeDelete bool, ops StorageOpDeletes, tx pgx.Tx) (codes.Code, error) {
+	// If custom tx was handed in execute that instead.
+	if tx != nil {
+		if err := storageDeleteObjects(ctx, logger, tx, authoritativeDelete, ops); err != nil {
+			return codes.Internal, err
+		}
+		storageIndex.Delete(ctx, ops)
+		return codes.OK, nil
+	}
+
 	if err := ExecuteInTxPgx(ctx, db, func(tx pgx.Tx) error {
 		deleteErr := storageDeleteObjects(ctx, logger, tx, authoritativeDelete, ops)
 		if deleteErr != nil {
@@ -914,4 +957,105 @@ func storageIndexWrite(ctx context.Context, storageIndex StorageIndex, ops Stora
 	}
 
 	storageIndex.Write(ctx, sw)
+}
+
+// openTx holds an in-progress database transaction and the channel used to
+// release the underlying connection once the transaction is closed.
+type openTx struct {
+	tx     pgx.Tx
+	doneCh chan struct{}
+}
+
+// txBegin acquires a dedicated connection, begins a transaction on it,
+// and registers it in openTxs. A goroutine watches ctx and rolls back
+// automatically if the caller forgets to commit.
+func txBegin(ctx context.Context, logger *zap.Logger, db *sql.DB, openTxs *sync.Map) (*runtime.StorageTx, error) {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	txReadyCh := make(chan error, 1)
+	doneCh := make(chan struct{})
+	var pgxTx pgx.Tx
+
+	// Open a dedicated connection for the TX
+	go func() {
+		defer conn.Close()
+
+		beginTxFailed := false
+		err = conn.Raw(func(driverConn any) error {
+			pgxConn := driverConn.(*stdlib.Conn).Conn()
+			tx, err := pgxConn.BeginTx(ctx, pgx.TxOptions{})
+			if err != nil {
+				txReadyCh <- err
+				beginTxFailed = true
+				return err
+			}
+			pgxTx = tx
+			txReadyCh <- nil
+
+			// This receive blocks until TX is committed or rolled back
+			<-doneCh
+			return nil
+		})
+
+		// conn.Raw errored before callback - send error to unblock txReadyCh
+		if err != nil && !beginTxFailed {
+			txReadyCh <- err
+		}
+	}()
+
+	if err := <-txReadyCh; err != nil {
+		return nil, err
+	}
+
+	txID := uuid.Must(uuid.NewV4()).String()
+	openTxs.Store(txID, &openTx{tx: pgxTx, doneCh: doneCh})
+
+	// Watch for cancelled context to rollback an tx's
+	go func() {
+		<-ctx.Done()
+		if val, loaded := openTxs.LoadAndDelete(txID); loaded {
+			entry := val.(*openTx)
+			if rollbackErr := entry.tx.Rollback(context.Background()); rollbackErr != nil {
+				logger.Warn("Failed to rollback transaction on context cancellation.", zap.String("tx_id", txID), zap.Error(rollbackErr))
+			}
+			close(entry.doneCh)
+		}
+	}()
+
+	return &runtime.StorageTx{ID: txID}, nil
+}
+
+// txCommit commits the transaction and releases its connection.
+func txCommit(ctx context.Context, tx *runtime.StorageTx, openTxs *sync.Map) error {
+	val, loaded := openTxs.LoadAndDelete(tx.ID)
+	if !loaded {
+		return errors.New("transaction not found or already closed")
+	}
+	entry := val.(*openTx)
+	err := entry.tx.Commit(ctx)
+	close(entry.doneCh)
+	return err
+}
+
+// txRollback rolls back the transaction and releases its connection.
+func txRollback(ctx context.Context, tx *runtime.StorageTx, openTxs *sync.Map) error {
+	val, loaded := openTxs.LoadAndDelete(tx.ID)
+	if !loaded {
+		return errors.New("transaction not found or already closed")
+	}
+	entry := val.(*openTx)
+	err := entry.tx.Rollback(ctx)
+	close(entry.doneCh)
+	return err
+}
+
+func getTx(tx *runtime.StorageTx, openTxs *sync.Map) (pgx.Tx, bool) {
+	val, loaded := openTxs.Load(tx.ID)
+	if !loaded {
+		return nil, false
+	}
+	return val.(*openTx).tx, true
 }
