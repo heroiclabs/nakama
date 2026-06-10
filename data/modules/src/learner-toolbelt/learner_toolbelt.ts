@@ -338,6 +338,41 @@ namespace LearnerToolbelt {
     return getQuotaLimit(ctx, "LT_QUOTA_AUTH_CHAT_PER_DAY", DEFAULT_QUOTA_AUTH_CHAT_PER_DAY);
   }
 
+  // Play 2 — entitlement-aware quota (the "Phase D" promotion the identity
+  // resolver anticipated). A paid OR trialing subscriber reading their
+  // qv_entitlements subscription record is promoted free → pro, so the
+  // card-required trial actually unlocks the higher chat cap. Fully additive:
+  // if no record exists (or the id doesn't resolve), the caller stays "free".
+  function isProByEntitlement(nk: nkruntime.Nakama, userId: string): boolean {
+    if (!userId) return false;
+    try {
+      var rows = nk.storageRead([{
+        collection: "qv_entitlements",
+        key: "subscriptions",
+        userId: userId,
+      }]);
+      if (!rows || rows.length === 0 || !rows[0].value) return false;
+      var v: any = rows[0].value;
+      if (!v.tier) return false;
+      var status = "" + (v.status || "");
+      if (status !== "active" && status !== "trialing") return false;
+      if (v.expiresAt) {
+        var expMs = new Date(v.expiresAt).getTime();
+        if (!isNaN(expMs) && expMs < Date.now()) return false;
+      }
+      return true;
+    } catch (_e: any) {
+      return false;
+    }
+  }
+
+  function promoteIdentityByEntitlement(nk: nkruntime.Nakama, ident: QuotaIdentity): QuotaIdentity {
+    if (ident.tier === "free" && ident.sub && isProByEntitlement(nk, ident.sub)) {
+      ident.tier = "pro";
+    }
+    return ident;
+  }
+
   // ── No-exam fallback — pure logic helpers (§ 2.5 / § 3.13) ────────────────
   //
   // These are kept as pure functions (no nk / ctx / logger) so the
@@ -1540,6 +1575,7 @@ namespace LearnerToolbelt {
       if (ident.error) {
         return RpcHelpers.errorResponse(ident.error, 400);
       }
+      ident = promoteIdentityByEntitlement(nk, ident);
 
       var limit = limitForTier(ctx, ident.tier);
       // Sentinel: -1 → unlimited. The wire shape stays the same; we return
@@ -1700,6 +1736,7 @@ namespace LearnerToolbelt {
       if (ident.error) {
         return RpcHelpers.errorResponse(ident.error, 400);
       }
+      ident = promoteIdentityByEntitlement(nk, ident);
 
       var limit = limitForTier(ctx, ident.tier);
       var unlimited = limit < 0;
