@@ -35,6 +35,11 @@ namespace LearnerToolbelt {
     lat: number | null;
     lng: number | null;
     language_of_instruction: string | null;
+    // "school" (K-12) or "college" (higher-ed / university). Defaulted on
+    // every fixture row so the dual School & College Finder can filter and
+    // badge results. Existing K-12 rows are minted via mk() → "school";
+    // colleges/universities via mkCollege() → "college".
+    institution_type: string;
   }
 
   function mk(id: string, source: string, name: string, city: string, region: string, country: string, board: string | null, band: string, lang: string | null): SchoolRecord {
@@ -43,6 +48,21 @@ namespace LearnerToolbelt {
       city: city, state_region: region, country_code: country,
       board: board, grade_band: band,
       lat: null, lng: null, language_of_instruction: lang,
+      institution_type: "school",
+    };
+  }
+
+  // College / university constructor. `system` slots into the `board` field
+  // (e.g. "ivy-league", "iit", "iim", "russell-group", "go8") so the existing
+  // board-aware ranking + UI subtitle keep working; grade_band is fixed to
+  // "higher-ed".
+  function mkCollege(id: string, source: string, name: string, city: string, region: string, country: string, system: string | null, lang: string | null): SchoolRecord {
+    return {
+      school_id: id, source: source, display_name: name,
+      city: city, state_region: region, country_code: country,
+      board: system, grade_band: "higher-ed",
+      lat: null, lng: null, language_of_instruction: lang,
+      institution_type: "college",
     };
   }
 
@@ -245,6 +265,147 @@ namespace LearnerToolbelt {
     }
   })();
 
+  // ── College / university fixture ───────────────────────────────────────────
+  // Curated set of well-known higher-ed institutions across the same priority
+  // country groups as the school fixture. Demo-grade subset (matching the K-12
+  // approach) — the full IPEDS/AISHE/HESA ingest lands with the Phase-B school
+  // ingest. `source` mirrors the authoritative registry per country.
+  export var COLLEGE_FIXTURE: SchoolRecord[] = [
+    // ── US: top universities (IPEDS) ──
+    mkCollege("ipeds:166027", "ipeds", "Harvard University", "Cambridge", "MA", "US", "ivy-league", "en"),
+    mkCollege("ipeds:166683", "ipeds", "Massachusetts Institute of Technology", "Cambridge", "MA", "US", "us-private", "en"),
+    mkCollege("ipeds:243744", "ipeds", "Stanford University", "Stanford", "CA", "US", "us-private", "en"),
+    mkCollege("ipeds:130794", "ipeds", "Yale University", "New Haven", "CT", "US", "ivy-league", "en"),
+    mkCollege("ipeds:186131", "ipeds", "Princeton University", "Princeton", "NJ", "US", "ivy-league", "en"),
+    mkCollege("ipeds:190150", "ipeds", "Columbia University", "New York", "NY", "US", "ivy-league", "en"),
+    mkCollege("ipeds:110635", "ipeds", "University of California, Berkeley", "Berkeley", "CA", "US", "us-public", "en"),
+    mkCollege("ipeds:110662", "ipeds", "University of California, Los Angeles", "Los Angeles", "CA", "US", "us-public", "en"),
+    mkCollege("ipeds:170976", "ipeds", "University of Michigan", "Ann Arbor", "MI", "US", "us-public", "en"),
+    mkCollege("ipeds:193900", "ipeds", "New York University", "New York", "NY", "US", "us-private", "en"),
+    mkCollege("ipeds:144050", "ipeds", "University of Chicago", "Chicago", "IL", "US", "us-private", "en"),
+    mkCollege("ipeds:110404", "ipeds", "California Institute of Technology", "Pasadena", "CA", "US", "us-private", "en"),
+    mkCollege("ipeds:190415", "ipeds", "Cornell University", "Ithaca", "NY", "US", "ivy-league", "en"),
+    mkCollege("ipeds:215062", "ipeds", "University of Pennsylvania", "Philadelphia", "PA", "US", "ivy-league", "en"),
+    mkCollege("ipeds:217156", "ipeds", "Brown University", "Providence", "RI", "US", "ivy-league", "en"),
+    mkCollege("ipeds:198419", "ipeds", "Duke University", "Durham", "NC", "US", "us-private", "en"),
+    mkCollege("ipeds:147767", "ipeds", "Northwestern University", "Evanston", "IL", "US", "us-private", "en"),
+    mkCollege("ipeds:162928", "ipeds", "Johns Hopkins University", "Baltimore", "MD", "US", "us-private", "en"),
+    mkCollege("ipeds:211440", "ipeds", "Carnegie Mellon University", "Pittsburgh", "PA", "US", "us-private", "en"),
+    mkCollege("ipeds:139755", "ipeds", "Georgia Institute of Technology", "Atlanta", "GA", "US", "us-public", "en"),
+    mkCollege("ipeds:228778", "ipeds", "University of Texas at Austin", "Austin", "TX", "US", "us-public", "en"),
+    mkCollege("ipeds:236948", "ipeds", "University of Washington", "Seattle", "WA", "US", "us-public", "en"),
+    mkCollege("ipeds:145637", "ipeds", "University of Illinois Urbana-Champaign", "Champaign", "IL", "US", "us-public", "en"),
+    mkCollege("ipeds:123961", "ipeds", "University of Southern California", "Los Angeles", "CA", "US", "us-private", "en"),
+    mkCollege("ipeds:134130", "ipeds", "University of Florida", "Gainesville", "FL", "US", "us-public", "en"),
+    mkCollege("ipeds:164988", "ipeds", "Boston University", "Boston", "MA", "US", "us-private", "en"),
+    mkCollege("ipeds:243780", "ipeds", "Purdue University", "West Lafayette", "IN", "US", "us-public", "en"),
+    mkCollege("ipeds:240444", "ipeds", "University of Wisconsin-Madison", "Madison", "WI", "US", "us-public", "en"),
+    mkCollege("ipeds:204796", "ipeds", "Ohio State University", "Columbus", "OH", "US", "us-public", "en"),
+    mkCollege("ipeds:104151", "ipeds", "Arizona State University", "Tempe", "AZ", "US", "us-public", "en"),
+
+    // ── India: IITs, IIMs, central + top private (AISHE) ──
+    mkCollege("aishe:U-0451", "aishe", "Indian Institute of Technology Bombay", "Mumbai", "Maharashtra", "IN", "iit", "en"),
+    mkCollege("aishe:U-0452", "aishe", "Indian Institute of Technology Delhi", "New Delhi", "Delhi", "IN", "iit", "en"),
+    mkCollege("aishe:U-0453", "aishe", "Indian Institute of Technology Madras", "Chennai", "TN", "IN", "iit", "en"),
+    mkCollege("aishe:U-0454", "aishe", "Indian Institute of Technology Kanpur", "Kanpur", "UP", "IN", "iit", "en"),
+    mkCollege("aishe:U-0455", "aishe", "Indian Institute of Technology Kharagpur", "Kharagpur", "WB", "IN", "iit", "en"),
+    mkCollege("aishe:U-0456", "aishe", "Indian Institute of Technology Roorkee", "Roorkee", "Uttarakhand", "IN", "iit", "en"),
+    mkCollege("aishe:U-0457", "aishe", "Indian Institute of Technology Guwahati", "Guwahati", "Assam", "IN", "iit", "en"),
+    mkCollege("aishe:U-0458", "aishe", "Indian Institute of Technology Hyderabad", "Hyderabad", "Telangana", "IN", "iit", "en"),
+    mkCollege("aishe:U-0460", "aishe", "Indian Institute of Science", "Bangalore", "Karnataka", "IN", "central", "en"),
+    mkCollege("aishe:U-0461", "aishe", "All India Institute of Medical Sciences, Delhi", "New Delhi", "Delhi", "IN", "central", "en"),
+    mkCollege("aishe:U-0462", "aishe", "University of Delhi", "New Delhi", "Delhi", "IN", "central", "en"),
+    mkCollege("aishe:U-0463", "aishe", "Jawaharlal Nehru University", "New Delhi", "Delhi", "IN", "central", "en"),
+    mkCollege("aishe:U-0464", "aishe", "Birla Institute of Technology and Science, Pilani", "Pilani", "Rajasthan", "IN", "deemed", "en"),
+    mkCollege("aishe:U-0465", "aishe", "National Institute of Technology, Tiruchirappalli", "Tiruchirappalli", "TN", "IN", "nit", "en"),
+    mkCollege("aishe:U-0466", "aishe", "Vellore Institute of Technology", "Vellore", "TN", "IN", "deemed", "en"),
+    mkCollege("aishe:U-0467", "aishe", "Anna University", "Chennai", "TN", "IN", "state", "en"),
+    mkCollege("aishe:U-0468", "aishe", "Jadavpur University", "Kolkata", "WB", "IN", "state", "en"),
+    mkCollege("aishe:U-0469", "aishe", "University of Mumbai", "Mumbai", "Maharashtra", "IN", "state", "en"),
+    mkCollege("aishe:U-0470", "aishe", "Manipal Academy of Higher Education", "Manipal", "Karnataka", "IN", "deemed", "en"),
+    mkCollege("aishe:U-0471", "aishe", "SRM Institute of Science and Technology", "Chennai", "TN", "IN", "deemed", "en"),
+    mkCollege("aishe:U-0472", "aishe", "Amity University", "Noida", "UP", "IN", "private", "en"),
+    mkCollege("aishe:U-0473", "aishe", "Christ University", "Bangalore", "Karnataka", "IN", "deemed", "en"),
+    mkCollege("aishe:U-0474", "aishe", "Ashoka University", "Sonipat", "Haryana", "IN", "private", "en"),
+    mkCollege("aishe:U-0475", "aishe", "Shiv Nadar University", "Greater Noida", "UP", "IN", "private", "en"),
+    mkCollege("aishe:C-0476", "aishe", "Lady Shri Ram College for Women", "New Delhi", "Delhi", "IN", "du-college", "en"),
+    mkCollege("aishe:C-0477", "aishe", "St. Stephen's College", "New Delhi", "Delhi", "IN", "du-college", "en"),
+    mkCollege("aishe:C-0478", "aishe", "Hindu College", "New Delhi", "Delhi", "IN", "du-college", "en"),
+    mkCollege("aishe:C-0479", "aishe", "Loyola College", "Chennai", "TN", "IN", "autonomous", "en"),
+    mkCollege("aishe:U-0480", "aishe", "Indian Institute of Management Ahmedabad", "Ahmedabad", "Gujarat", "IN", "iim", "en"),
+    mkCollege("aishe:U-0481", "aishe", "Indian Institute of Management Bangalore", "Bangalore", "Karnataka", "IN", "iim", "en"),
+    mkCollege("aishe:U-0482", "aishe", "Indian Institute of Management Calcutta", "Kolkata", "WB", "IN", "iim", "en"),
+
+    // ── UK: Russell Group + top (HESA) ──
+    mkCollege("hesa-uk:0001", "hesa-uk", "University of Oxford", "Oxford", "Oxfordshire", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0002", "hesa-uk", "University of Cambridge", "Cambridge", "Cambridgeshire", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0003", "hesa-uk", "Imperial College London", "London", "Greater London", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0004", "hesa-uk", "University College London", "London", "Greater London", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0005", "hesa-uk", "London School of Economics and Political Science", "London", "Greater London", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0006", "hesa-uk", "University of Edinburgh", "Edinburgh", "Scotland", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0007", "hesa-uk", "King's College London", "London", "Greater London", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0008", "hesa-uk", "University of Manchester", "Manchester", "Greater Manchester", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0009", "hesa-uk", "University of Warwick", "Coventry", "West Midlands", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0010", "hesa-uk", "University of Bristol", "Bristol", "Bristol", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0011", "hesa-uk", "University of Glasgow", "Glasgow", "Scotland", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0012", "hesa-uk", "Durham University", "Durham", "County Durham", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0013", "hesa-uk", "University of Birmingham", "Birmingham", "West Midlands", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0014", "hesa-uk", "University of Leeds", "Leeds", "West Yorkshire", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0015", "hesa-uk", "University of Sheffield", "Sheffield", "South Yorkshire", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0016", "hesa-uk", "University of Nottingham", "Nottingham", "Nottinghamshire", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0017", "hesa-uk", "University of Southampton", "Southampton", "Hampshire", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0018", "hesa-uk", "Queen Mary University of London", "London", "Greater London", "UK", "russell-group", "en"),
+    mkCollege("hesa-uk:0019", "hesa-uk", "University of St Andrews", "St Andrews", "Scotland", "UK", "uk-ancient", "en"),
+    mkCollege("hesa-uk:0020", "hesa-uk", "Lancaster University", "Lancaster", "Lancashire", "UK", "uk-public", "en"),
+
+    // ── Singapore ──
+    mkCollege("moe-sg-he:0001", "moe-sg", "National University of Singapore", "Singapore", "Central", "SG", "sg-autonomous", "en"),
+    mkCollege("moe-sg-he:0002", "moe-sg", "Nanyang Technological University", "Singapore", "West", "SG", "sg-autonomous", "en"),
+    mkCollege("moe-sg-he:0003", "moe-sg", "Singapore Management University", "Singapore", "Central", "SG", "sg-autonomous", "en"),
+    mkCollege("moe-sg-he:0004", "moe-sg", "Singapore University of Technology and Design", "Singapore", "East", "SG", "sg-autonomous", "en"),
+    mkCollege("moe-sg-he:0005", "moe-sg", "Singapore Institute of Technology", "Singapore", "Central", "SG", "sg-autonomous", "en"),
+
+    // ── Brazil ──
+    mkCollege("inep-he:0001", "inep", "Universidade de São Paulo", "São Paulo", "SP", "BR", "br-public", "pt"),
+    mkCollege("inep-he:0002", "inep", "Universidade Estadual de Campinas", "Campinas", "SP", "BR", "br-public", "pt"),
+    mkCollege("inep-he:0003", "inep", "Universidade Federal do Rio de Janeiro", "Rio de Janeiro", "RJ", "BR", "br-public", "pt"),
+    mkCollege("inep-he:0004", "inep", "Universidade Estadual Paulista", "São Paulo", "SP", "BR", "br-public", "pt"),
+    mkCollege("inep-he:0005", "inep", "Pontifícia Universidade Católica de São Paulo", "São Paulo", "SP", "BR", "br-private", "pt"),
+
+    // ── Other (CA / AU / DE / FR / AE / JP / KR) ──
+    mkCollege("freetext-seed:he-ca-001", "freetext", "University of Toronto", "Toronto", "Ontario", "CA", "ca-public", "en"),
+    mkCollege("freetext-seed:he-ca-002", "freetext", "University of British Columbia", "Vancouver", "BC", "CA", "ca-public", "en"),
+    mkCollege("freetext-seed:he-ca-003", "freetext", "McGill University", "Montreal", "Quebec", "CA", "ca-public", "en"),
+    mkCollege("freetext-seed:he-ca-004", "freetext", "University of Waterloo", "Waterloo", "Ontario", "CA", "ca-public", "en"),
+    mkCollege("freetext-seed:he-ca-005", "freetext", "University of Alberta", "Edmonton", "Alberta", "CA", "ca-public", "en"),
+    mkCollege("freetext-seed:he-au-001", "freetext", "University of Melbourne", "Melbourne", "Victoria", "AU", "go8", "en"),
+    mkCollege("freetext-seed:he-au-002", "freetext", "University of Sydney", "Sydney", "NSW", "AU", "go8", "en"),
+    mkCollege("freetext-seed:he-au-003", "freetext", "Australian National University", "Canberra", "ACT", "AU", "go8", "en"),
+    mkCollege("freetext-seed:he-au-004", "freetext", "University of New South Wales", "Sydney", "NSW", "AU", "go8", "en"),
+    mkCollege("freetext-seed:he-au-005", "freetext", "Monash University", "Melbourne", "Victoria", "AU", "go8", "en"),
+    mkCollege("freetext-seed:he-de-001", "freetext", "Technical University of Munich", "Munich", "Bavaria", "DE", "de-public", "de"),
+    mkCollege("freetext-seed:he-de-002", "freetext", "Ludwig Maximilian University of Munich", "Munich", "Bavaria", "DE", "de-public", "de"),
+    mkCollege("freetext-seed:he-de-003", "freetext", "Heidelberg University", "Heidelberg", "Baden-Württemberg", "DE", "de-public", "de"),
+    mkCollege("freetext-seed:he-de-004", "freetext", "RWTH Aachen University", "Aachen", "North Rhine-Westphalia", "DE", "de-public", "de"),
+    mkCollege("freetext-seed:he-fr-001", "freetext", "Sorbonne University", "Paris", "Île-de-France", "FR", "fr-public", "fr"),
+    mkCollege("freetext-seed:he-fr-002", "freetext", "École Polytechnique", "Palaiseau", "Île-de-France", "FR", "fr-grande-ecole", "fr"),
+    mkCollege("freetext-seed:he-fr-003", "freetext", "Sciences Po", "Paris", "Île-de-France", "FR", "fr-grande-ecole", "fr"),
+    mkCollege("freetext-seed:he-ae-001", "freetext", "Khalifa University", "Abu Dhabi", "Abu Dhabi", "AE", "ae-public", "en"),
+    mkCollege("freetext-seed:he-ae-002", "freetext", "American University of Sharjah", "Sharjah", "Sharjah", "AE", "ae-private", "en"),
+    mkCollege("freetext-seed:he-jp-001", "freetext", "University of Tokyo", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
+    mkCollege("freetext-seed:he-jp-002", "freetext", "Kyoto University", "Kyoto", "Kyoto", "JP", "jp-national", "ja"),
+    mkCollege("freetext-seed:he-kr-001", "freetext", "Seoul National University", "Seoul", "Seoul", "KR", "kr-national", "ko"),
+    mkCollege("freetext-seed:he-kr-002", "freetext", "Korea Advanced Institute of Science and Technology", "Daejeon", "Daejeon", "KR", "kr-national", "ko"),
+  ];
+
+  // Merge colleges into the single searchable fixture so getSchoolById and
+  // searchSchools cover both institution types from one index.
+  (function mergeColleges() {
+    for (var ci = 0; ci < COLLEGE_FIXTURE.length; ci++) {
+      SCHOOL_FIXTURE.push(COLLEGE_FIXTURE[ci]);
+    }
+  })();
+
   // ── Search ranking (plan § 6.4) ──────────────────────────────────────────
   export interface SchoolSearchHit {
     school_id: string;
@@ -254,6 +415,7 @@ namespace LearnerToolbelt {
     country_code: string;
     board: string | null;
     source: string;
+    institution_type: string;
     score: number;
   }
 
@@ -306,9 +468,13 @@ namespace LearnerToolbelt {
     return prev[bLen];
   }
 
-  export function searchSchools(query: string, countryCode: string, limit: number): SchoolSearchHit[] {
+  // `institutionType` filters the index: "school" → K-12 only, "college" →
+  // higher-ed only, "" / "all" / undefined → both (the dual-finder default).
+  export function searchSchools(query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[] {
     var q = normalize(query);
     var cc = ("" + (countryCode || "")).toUpperCase();
+    var typeFilter = ("" + (institutionType || "")).toLowerCase();
+    if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both") typeFilter = "";
     var qTokens = q.split(/\s+/).filter(function (t) { return t.length > 0; });
     var hits: SchoolSearchHit[] = [];
 
@@ -316,6 +482,7 @@ namespace LearnerToolbelt {
     for (var i = 0; i < SCHOOL_FIXTURE.length; i++) {
       var rec = SCHOOL_FIXTURE[i];
       if (cc && rec.country_code !== cc) continue;
+      if (typeFilter && rec.institution_type !== typeFilter) continue;
       var name = normalize(rec.display_name);
       var acro = acronymOf(name);
       var score = 0;
@@ -372,6 +539,7 @@ namespace LearnerToolbelt {
         country_code: rec.country_code,
         board: rec.board,
         source: rec.source,
+        institution_type: rec.institution_type,
         score: score,
       });
     }

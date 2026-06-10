@@ -780,6 +780,9 @@ declare namespace QuizVerseGame {
     var DefaultInit: IInit;
     var SEED_PACK: IPack;
 }
+declare namespace Hermes {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace HiroAchievements {
     function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.AchievementsConfig;
     function addProgress(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, achievementId: string, amount: number, gameId?: string): Hiro.UserAchievementProgress | null;
@@ -1216,6 +1219,11 @@ declare namespace LegacyPlayer {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyPush {
+    export function sendLocalizedPushToUser(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, titleKey: string, bodyKey: string, vars: any, opts?: {
+        skipQuietHours?: boolean;
+        gameId?: string;
+        data?: any;
+    }): boolean;
     function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronWeeklyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronIdleWinback(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
