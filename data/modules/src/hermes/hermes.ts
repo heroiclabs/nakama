@@ -342,9 +342,29 @@ namespace Hermes {
 
   // ── Registration ──────────────────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer): void {
+    // withCleanAuthError wraps a handler once at registration time, but when
+    // register() is auto-invoked at IIFE scope by the postbuild script,
+    // RpcHelpers may not be initialised yet — it lives in a later IIFE and the
+    // 'hermes' module sorts before 'shared' on Linux (case-sensitive readdir),
+    // so an eager RpcHelpers.withCleanAuthError(...) here throws at startup and
+    // takes down the entire JS runtime. Use a lazy wrapper (same pattern as
+    // quests/quest_engine.ts) so the wrap is deferred to first-call time.
+    type StrictRpc = (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string;
+    function auth(fn: nkruntime.RpcFunction): nkruntime.RpcFunction {
+      var wrapped: StrictRpc | null = null;
+      return function(ctx, logger, nk, payload): string {
+        if (!wrapped) {
+          const strictFn = fn as StrictRpc;
+          wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+            ? RpcHelpers.withCleanAuthError(strictFn)
+            : strictFn;
+        }
+        return wrapped(ctx, logger, nk, payload);
+      };
+    }
     // IMPORTANT: literal RPC IDs — the Nakama Goja AST walker can NOT resolve
     // namespaced constants at registration time.
-    initializer.registerRpc("quizverse_hermes_brief_get", RpcHelpers.withCleanAuthError(rpcBriefGet));
+    initializer.registerRpc("quizverse_hermes_brief_get", auth(rpcBriefGet));
     initializer.registerRpc("quizverse_hermes_brief_generate", rpcBriefGenerate);
     initializer.registerRpc("quizverse_hermes_parent_recap", rpcParentRecap);
     initializer.registerRpc("quizverse_hermes_nightly_tick", rpcNightlyTick);
