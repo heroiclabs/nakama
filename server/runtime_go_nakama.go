@@ -2152,6 +2152,7 @@ func (n *RuntimeGoNakamaModule) StorageList(ctx context.Context, callerID, userI
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @return objects([]*api.StorageObject) A list of storage objects matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*runtime.StorageRead, tx ...*runtime.StorageTx) ([]*api.StorageObject, error) {
@@ -2208,6 +2209,7 @@ func (n *RuntimeGoNakamaModule) StorageRead(ctx context.Context, objectIDs []*ru
 // @summary Write one or more objects by their collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageWrite) An array of object identifiers to be written.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @return acks([]*api.StorageObjectAck) A list of acks with the version of the written objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*runtime.StorageWrite, tx ...*runtime.StorageTx) ([]*api.StorageObjectAck, error) {
@@ -2277,6 +2279,7 @@ func (n *RuntimeGoNakamaModule) StorageWrite(ctx context.Context, objectIDs []*r
 // @summary Write a set of storage object changes with retries.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageRead) An array of object identifiers to be fetched.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @param updateFn(type=function) A function that applies changes to the read storage objects.
 // @param maxRetries(type=int) Maximum number of retries to attempt if a version conflict is detected. Must be a value between 0 and 10.
 // @return acks([]*api.StorageObjectAck) A list of acks with the version of the written objects.
@@ -2322,6 +2325,7 @@ func (n *RuntimeGoNakamaModule) StorageWriteRetry(ctx context.Context, objectIDs
 // @summary Remove one or more objects by their collection/keyname and optional user.
 // @param ctx(type=context.Context) The context object represents information about the server and requester.
 // @param objectIDs(type=[]*runtime.StorageDelete) An array of object identifiers to be deleted.
+// @param tx(type=...*runtime.StorageTx, optional=true) An optional transaction handle from TxBegin.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) StorageDelete(ctx context.Context, objectIDs []*runtime.StorageDelete, tx ...*runtime.StorageTx) error {
 	size := len(objectIDs)
