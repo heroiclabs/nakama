@@ -610,6 +610,18 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[Hermes] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Blog Quiz embeddable widget (link-building) ----
+  // quizverse_blog_embed_create / _get + quizverse_embed_quiz_complete / _claim_pending.
+  // Single-arg register() so postbuild's autoInvokeRegister re-runs it on every
+  // pooled Goja VM (same rationale as Hermes above).
+  try {
+    logger.info("[BlogEmbed] Registering quizverse_blog_embed_create / _get / embed_quiz_complete / claim_pending RPCs...");
+    BlogEmbed.register(initializer);
+    logger.info("[BlogEmbed] Blog-quiz embed RPCs registered successfully");
+  } catch (err: any) {
+    logger.error("[BlogEmbed] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Fantasy Cricket RPCs ----
   try {
     logger.info("[Fantasy] Registering Team RPCs...");
