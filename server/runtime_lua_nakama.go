@@ -7009,8 +7009,8 @@ func (n *RuntimeLuaNakamaModule) storageDelete(l *lua.LState) int {
 }
 
 // @group storage
-// @summary Begin a database transaction for use with storage tx functions. The transaction is automatically rolled back if the RPC ends without a commit.
-// @return tx(string) A transaction handle to pass to storage_read_tx, storage_write_tx, storage_delete_tx, tx_commit, or tx_rollback.
+// @summary Begin a database transaction for use with storage functions. The transaction is automatically rolled back if the RPC ends without a commit.
+// @return tx(string) A transaction handle to pass to storage_read, storage_write, storage_delete, tx_commit, or tx_rollback.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) txBegin(l *lua.LState) int {
 	tx, err := txBegin(l.Context(), n.logger, n.db, &n.openTxs)

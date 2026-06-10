@@ -4870,6 +4870,7 @@ func (n *RuntimeJavascriptNakamaModule) storageList(r *goja.Runtime) func(goja.F
 // @group storage
 // @summary Fetch one or more records by their bucket/collection/keyname and optional user.
 // @param objectIDs(type=nkruntime.StorageReadRequest[]) An array of object identifiers to be fetched.
+// @param tx(type=string, optional=true) An optional transaction handle from txBegin.
 // @return objects(nkruntime.StorageObject[]) A list of storage records matching the parameters criteria.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -4983,6 +4984,7 @@ func (n *RuntimeJavascriptNakamaModule) storageRead(r *goja.Runtime) func(goja.F
 // @group storage
 // @summary Write one or more objects by their collection/keyname and optional user.
 // @param objectIDs(type=nkruntime.StorageWriteRequest[]) An array of object identifiers to be written.
+// @param tx(type=string, optional=true) An optional transaction handle from txBegin.
 // @return acks(nkruntime.StorageWriteAck[]) A list of acks with the version of the written objects.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) storageWrite(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
@@ -5389,6 +5391,7 @@ func jsArrayToStorageOpWrites(dataSlice []map[string]any) (StorageOpWrites, erro
 // @group storage
 // @summary Remove one or more objects by their collection/keyname and optional user.
 // @param objectIDs(type=nkruntime.StorageDeleteRequest[]) An array of object identifiers to be deleted.
+// @param tx(type=string, optional=true) An optional transaction handle from txBegin.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) storageDelete(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
