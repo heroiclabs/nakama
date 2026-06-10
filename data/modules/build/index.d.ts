@@ -643,6 +643,9 @@ declare namespace IntelliverseFriends {
 declare namespace IntelliverseFriendsList {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace BlogEmbed {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QuizVerseGenerator {
     function registerNk(nk: nkruntime.Nakama): void;
     function buildAll(): MpKernelSyncTurn.IGenerator[];
@@ -1082,8 +1085,10 @@ declare namespace LearnerToolbelt {
         lat: number | null;
         lng: number | null;
         language_of_instruction: string | null;
+        institution_type: string;
     }
     var SCHOOL_FIXTURE: SchoolRecord[];
+    var COLLEGE_FIXTURE: SchoolRecord[];
     interface SchoolSearchHit {
         school_id: string;
         display_name: string;
@@ -1092,9 +1097,10 @@ declare namespace LearnerToolbelt {
         country_code: string;
         board: string | null;
         source: string;
+        institution_type: string;
         score: number;
     }
-    function searchSchools(query: string, countryCode: string, limit: number): SchoolSearchHit[];
+    function searchSchools(query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[];
     function getSchoolById(schoolId: string): SchoolRecord | null;
 }
 declare namespace PerExamConfig {
