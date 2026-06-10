@@ -40041,13 +40041,55 @@ var SatoriCreatorEvents;
             return def.status;
         if (def.status === "draft" || def.status === "funded")
             return def.status;
-        var now = Math.floor(Date.now() / 1000);
+        var now = serverNowSec();
         var endAt = def.scheduledAt + (def.duration * 60);
         if (now < def.scheduledAt)
             return "published";
         if (now > endAt)
             return "ended";
         return "live";
+    }
+    /** Authoritative server unix time (seconds) for cross-device countdown sync. */
+    function serverNowSec() {
+        return Math.floor(Date.now() / 1000);
+    }
+    function eventTimingFields(def, now) {
+        var startAt = def.scheduledAt || 0;
+        var durMin = def.duration || 30;
+        var endAt = startAt + durMin * 60;
+        var startsInSec = startAt > now ? startAt - now : 0;
+        var endsInSec = endAt > now ? endAt - now : 0;
+        return { endAt: endAt, startsInSec: startsInSec, endsInSec: endsInSec };
+    }
+    function toPublicEventRow(def, status, userState, now) {
+        var timing = eventTimingFields(def, now);
+        return {
+            id: def.id,
+            creatorId: def.creatorId,
+            title: def.title,
+            description: def.description,
+            category: def.category,
+            customTopic: def.customTopic || "",
+            gameMode: def.gameMode,
+            scheduledAt: def.scheduledAt,
+            duration: def.duration,
+            endAt: timing.endAt,
+            startsInSec: timing.startsInSec,
+            endsInSec: timing.endsInSec,
+            region: def.region,
+            entryFee: def.entryFee,
+            prizePool: def.prizePool,
+            prizes: def.prizes,
+            promoVideoUrl: def.promoVideoUrl || "",
+            deepLinkUrl: def.deepLinkUrl || "",
+            status: status,
+            participantCount: def.participantCount,
+            questionCount: def.questions ? def.questions.length : 0,
+            joined: userState ? !!userState.joinedAt : false,
+            score: userState ? userState.score : 0,
+            tierEarned: userState ? userState.tierEarned || "" : "",
+            claimed: userState ? !!userState.claimedAt : false,
+        };
     }
     // ---- RPCs ----
     function rpcList(ctx, logger, nk, payload) {
@@ -40056,6 +40098,7 @@ var SatoriCreatorEvents;
         var filterStatus = data.status || null;
         var index = getEventsIndex(nk);
         var userStates = getUserStates(nk, userId);
+        var now = serverNowSec();
         var result = [];
         for (var i = 0; i < index.eventIds.length; i++) {
             var eventId = index.eventIds[i];
@@ -40068,34 +40111,31 @@ var SatoriCreatorEvents;
             if (status === "draft" || status === "funded")
                 continue;
             var userState = userStates[eventId];
-            var endAt = def.scheduledAt + (def.duration * 60);
-            result.push({
-                id: def.id,
-                creatorId: def.creatorId,
-                title: def.title,
-                description: def.description,
-                category: def.category,
-                customTopic: def.customTopic || "",
-                gameMode: def.gameMode,
-                scheduledAt: def.scheduledAt,
-                duration: def.duration,
-                endAt: endAt,
-                region: def.region,
-                entryFee: def.entryFee,
-                prizePool: def.prizePool,
-                prizes: def.prizes,
-                promoVideoUrl: def.promoVideoUrl || "",
-                deepLinkUrl: def.deepLinkUrl || "",
-                status: status,
-                participantCount: def.participantCount,
-                questionCount: def.questions ? def.questions.length : 0,
-                joined: userState ? !!userState.joinedAt : false,
-                score: userState ? userState.score : 0,
-                tierEarned: userState ? userState.tierEarned || "" : "",
-                claimed: userState ? !!userState.claimedAt : false,
-            });
+            result.push(toPublicEventRow(def, status, userState, now));
         }
-        return RpcHelpers.successResponse({ events: result });
+        return RpcHelpers.successResponse({ events: result, server_time: now });
+    }
+    function rpcGet(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, String(data.eventId));
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        var now = serverNowSec();
+        var status = computeEffectiveStatus(def);
+        var userStates = getUserStates(nk, userId);
+        var userState = userStates[def.id] || null;
+        return RpcHelpers.successResponse({
+            event: toPublicEventRow(def, status, userState, now),
+            server_time: now,
+        });
+    }
+    function rpcServerClock(ctx, logger, nk, payload) {
+        RpcHelpers.requireUserId(ctx);
+        var now = serverNowSec();
+        return RpcHelpers.successResponse({ server_time: now });
     }
     function rpcJoin(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -41296,6 +41336,8 @@ var SatoriCreatorEvents;
             runtimeInitializer.registerBeforeStorageWrite(beforeStorageWrite);
         }
         initializer.registerRpc("creator_event_list", rpcList);
+        initializer.registerRpc("creator_event_get", rpcGet);
+        initializer.registerRpc("creator_event_clock", rpcServerClock);
         initializer.registerRpc("creator_event_join", rpcJoin);
         initializer.registerRpc("creator_event_can_play", rpcCanPlay);
         initializer.registerRpc("creator_event_submit", rpcSubmit);
@@ -41458,6 +41500,21 @@ var SatoriCreatorEvents;
             cursor = (page && page.cursor) || "";
             pages++;
         } while (cursor && pages < 5);
+        // 5b. storageList can lag behind storageRead — always include caller's own answer
+        var selfInList = false;
+        for (var sj = 0; sj < allAnswers.length; sj++) {
+            if (allAnswers[sj].userId === userId) {
+                selfInList = true;
+                break;
+            }
+        }
+        if (!selfInList && myAnswer) {
+            allAnswers.push({
+                userId: userId,
+                score: typeof myAnswer.score === "number" ? myAnswer.score : 0,
+                submitMs: typeof myAnswer.submitMs === "number" ? myAnswer.submitMs : 0,
+            });
+        }
         // 6. Sort: score desc, submit-time asc (ties broken by speed)
         allAnswers.sort(function (a, b) {
             if (a.score !== b.score)
@@ -41472,7 +41529,7 @@ var SatoriCreatorEvents;
             }
         }
         if (myRank === 0) {
-            return RpcHelpers.errorResponse("Could not determine your rank — answer record missing");
+            return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
         }
         // 7. Pick tier + compute reward
         var tier = findTierForRank(def.giftCardPrizes && def.giftCardPrizes.tiers, myRank);
