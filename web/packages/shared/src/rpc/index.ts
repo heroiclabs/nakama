@@ -4,7 +4,29 @@ export * as nakama from "./nakama";
 export * as hiro from "./hiro";
 export * as satori from "./satori";
 export * as quizverse from "./quizverse";
-export type { FeatureFlag, LiveEvent } from "./satori";
+export type {
+  FeatureFlag,
+  LiveEvent,
+  ExperimentResults,
+  ExperimentVariantResult,
+  ExperimentComparison,
+  DebuggerEvent,
+  DebuggerNameStat,
+  EventTailResponse,
+  EventSearchResponse,
+  EventDebuggerFilters,
+  AudienceEstimate,
+  IdentityInspection,
+  IdentityTimelineEvent,
+  IdentityExperimentAssignment,
+  FunnelDefinition,
+  FunnelStepResult,
+  FunnelResult,
+  RetentionCohort,
+  RetentionVariantRow,
+  RetentionResult,
+  SatoriDirectStatus,
+} from "./satori";
 export type {
   CreatorEvent,
   CreatorEventStats,

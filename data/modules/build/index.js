@@ -112,8 +112,12 @@ function InitModule(ctx, logger, nk, initializer) {
         LegacyLeaderboards.register(initializer);
         logger.info("[Legacy] Registering game registry RPCs...");
         LegacyGameRegistry.register(initializer);
-        logger.info("[Legacy] Registering daily rewards RPCs...");
-        LegacyDailyRewards.register(initializer);
+        // QVBF_166: LegacyDailyRewards de-registered here.
+        // daily_rewards/daily_rewards.js owns both daily_rewards_get_status and
+        // daily_rewards_claim. Keeping both registrations caused the two handlers
+        // to race for the same RPC name, producing mismatched reward tables.
+        // logger.info("[Legacy] Registering daily rewards RPCs...");
+        // LegacyDailyRewards.register(initializer);
         logger.info("[Legacy] Registering quiz RPCs...");
         LegacyQuiz.register(initializer);
         logger.info("[Legacy] Registering game entry RPCs...");
@@ -209,6 +213,18 @@ function InitModule(ctx, logger, nk, initializer) {
         //   _tsRpcList below so the legacy bridge cannot shadow them. ────────
         logger.info("[Friends] Registering canonical friends_list + list_blocked_users...");
         IntelliverseFriendsList.register(initializer);
+        // ── Player Presence + Cross-Game Messages ─────────────────────────────
+        // Owns `ivx_set_player_presence`, `ivx_get_cross_game_messages`, and
+        // `ivx_mark_message_read`. The legacy handler in legacy_runtime.js
+        // wrote presence to `player_presence/current`, but find_friends.ts and
+        // friends_list.ts both read from `player_presence/status` — the wrong
+        // key made everyone appear permanently offline. This TS module writes
+        // to the correct key and uses the canonical { online, lastSeenMs }
+        // schema that the friend-search modules expect. All three RPC IDs are
+        // pinned in __TS_OWNED_RPCS by postbuild so the legacy stubs are
+        // suppressed before they can shadow them.
+        logger.info("[IvxPresence] Registering ivx_set_player_presence / ivx_get_cross_game_messages / ivx_mark_message_read RPCs...");
+        IvxPresence.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
         LegacyGroups.register(initializer);
         logger.info("[Legacy] Registering push RPCs...");
@@ -451,10 +467,16 @@ function InitModule(ctx, logger, nk, initializer) {
         }
         logger.info("[Satori] Registering Audiences RPCs...");
         SatoriAudiences.register(initializer);
+        logger.info("[Satori] Registering Audience Estimator RPCs...");
+        SatoriAudienceEstimate.register(initializer);
+        logger.info("[Satori] Registering Identity Inspector RPCs...");
+        SatoriIdentityInspector.register(initializer);
         logger.info("[Satori] Registering Feature Flags RPCs...");
         SatoriFeatureFlags.register(initializer);
         logger.info("[Satori] Registering Experiments RPCs...");
         SatoriExperiments.register(initializer);
+        logger.info("[Satori] Registering Experiment Results RPCs (conversions + significance)...");
+        SatoriExperimentResults.register(initializer);
         logger.info("[Satori] Registering Live Events RPCs...");
         SatoriLiveEvents.register(initializer);
         logger.info("[Satori] Registering Creator Events RPCs...");
@@ -471,6 +493,14 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriTaxonomy.register(initializer);
         logger.info("[Satori] Registering Data Lake RPCs...");
         SatoriDataLake.register(initializer);
+        logger.info("[Satori] Registering Event Debugger RPCs (live tail + search)...");
+        SatoriEventDebugger.register(initializer);
+        logger.info("[Satori] Registering Funnels RPCs...");
+        SatoriFunnels.register(initializer);
+        logger.info("[Satori] Registering Retention RPCs...");
+        SatoriRetention.register(initializer);
+        logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
+        SatoriDirectControl.register(initializer);
         logger.info("[Satori] All Satori systems registered successfully");
     }
     catch (err) {
@@ -6957,6 +6987,248 @@ var IntelliverseFriendsList;
     }
     IntelliverseFriendsList.register = register;
 })(IntelliverseFriendsList || (IntelliverseFriendsList = {}));
+// ============================================================================
+// src/friends/player_presence.ts — Player Presence + Cross-Game Messages
+// ============================================================================
+// PRODUCTION-READY | First-class TS module | Single source of truth
+//
+// Owns three RPCs:
+//
+//   ivx_set_player_presence
+//   -----------------------
+//   Called by the Unity SDK (IVXNManager) on session start and game-change.
+//   Writes the caller's presence record to `player_presence/status` using
+//   the canonical schema read by `find_friends.ts` and `friends_list.ts`:
+//
+//     { online: true, lastSeenMs: number, gameId: string, gameName: string }
+//
+//   The legacy handler in `legacy_runtime.js` (rpcIvxSetPlayerPresence) wrote
+//   to `player_presence/current` with a different schema — the wrong key means
+//   find_friends and friends_list ALWAYS reported everyone as offline. This
+//   module is the authoritative replacement; `ivx_set_player_presence` is
+//   pinned in __TS_OWNED_RPCS via postbuild so the legacy stub is suppressed.
+//
+//   Request:  { gameId?: string, gameName?: string }
+//   Response: { success, userId, gameId, gameName, timestamp }
+//
+//   ivx_get_cross_game_messages
+//   ---------------------------
+//   Returns pending cross-game messages (e.g. game-challenge notifications
+//   sent by friends in other IVX titles). Each message is stored as an
+//   individual document in the `cross_game_messages` collection so that
+//   marking one read does not require a read-modify-write on a shared array
+//   (race-free, works across replicated Nakama pods).
+//
+//   Request:  { limit?: int (1..200, default 50) }
+//   Response: { success, userId, messages: CrossGameMessage[], count, timestamp }
+//
+//   ivx_mark_message_read
+//   ---------------------
+//   Deletes a single cross-game message by its storage key, preventing it from
+//   appearing in future `ivx_get_cross_game_messages` responses.
+//
+//   Request:  { messageKey: string }
+//   Response: { success, messageKey, timestamp }
+//
+// Storage layout
+// --------------
+//   player_presence / status      (per userId)  — online heartbeat
+//   cross_game_messages / <key>   (per userId)  — per-message documents
+// ============================================================================
+var IvxPresence;
+(function (IvxPresence) {
+    // ── Presence constants ────────────────────────────────────────────────────
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    // ── Cross-game message constants ──────────────────────────────────────────
+    var MESSAGES_COLLECTION = "cross_game_messages";
+    var MESSAGES_LIST_LIMIT = 200;
+    var MESSAGES_DEFAULT_LIMIT = 50;
+    // ── Stable error codes ────────────────────────────────────────────────────
+    var ERR_UNAUTHENTICATED = "unauthenticated";
+    var ERR_INVALID_PAYLOAD = "invalid_payload";
+    var ERR_MISSING_FIELD = "missing_field";
+    var ERR_INTERNAL = "internal_error";
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function ok(data) {
+        return JSON.stringify(data);
+    }
+    function fail(message, errorCode) {
+        return JSON.stringify({ success: false, error: message, errorCode: errorCode });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return { ok: true, data: {} };
+        try {
+            return { ok: true, data: JSON.parse(payload) };
+        }
+        catch (e) {
+            return { ok: false, error: "Invalid JSON payload: " + (e.message || String(e)) };
+        }
+    }
+    // ── RPC: ivx_set_player_presence ─────────────────────────────────────────
+    // Writes a canonical presence record to `player_presence/status`.
+    // This is the correct key read by find_friends.ts and friends_list.ts.
+    function rpcSetPlayerPresence(ctx, logger, nk, payload) {
+        if (!ctx || !ctx.userId) {
+            return fail("Authentication required", ERR_UNAUTHENTICATED);
+        }
+        var parsed = parsePayload(payload);
+        if (!parsed.ok) {
+            return fail(parsed.error || "bad payload", ERR_INVALID_PAYLOAD);
+        }
+        var data = parsed.data || {};
+        var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+        var gameName = (typeof data.gameName === "string" && data.gameName) ? data.gameName : "";
+        var nowMs = Date.now();
+        var presence = {
+            online: true,
+            lastSeenMs: nowMs,
+            gameId: gameId,
+            gameName: gameName,
+            updatedAt: Math.floor(nowMs / 1000)
+        };
+        try {
+            nk.storageWrite([{
+                    collection: PRESENCE_COLLECTION,
+                    key: PRESENCE_KEY,
+                    userId: ctx.userId,
+                    value: presence,
+                    permissionRead: 2,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (e) {
+            logger.error("[IvxPresence] storageWrite failed for userId=" + ctx.userId + ": " + (e.message || String(e)));
+            return fail("Failed to write presence", ERR_INTERNAL);
+        }
+        var timestamp = new Date(nowMs).toISOString();
+        if (logger && logger.debug) {
+            logger.debug("[IvxPresence] presence set userId=" + ctx.userId + " gameId=" + gameId);
+        }
+        return ok({
+            success: true,
+            userId: ctx.userId,
+            gameId: gameId,
+            gameName: gameName,
+            timestamp: timestamp
+        });
+    }
+    IvxPresence.rpcSetPlayerPresence = rpcSetPlayerPresence;
+    // ── RPC: ivx_get_cross_game_messages ─────────────────────────────────────
+    // Lists individual message documents from the `cross_game_messages`
+    // collection (one Nakama storage object per message, keyed by sender+ts).
+    function rpcGetCrossGameMessages(ctx, logger, nk, payload) {
+        if (!ctx || !ctx.userId) {
+            return fail("Authentication required", ERR_UNAUTHENTICATED);
+        }
+        var parsed = parsePayload(payload);
+        if (!parsed.ok) {
+            return fail(parsed.error || "bad payload", ERR_INVALID_PAYLOAD);
+        }
+        var data = parsed.data || {};
+        var limit = (typeof data.limit === "number" && data.limit > 0 && data.limit <= MESSAGES_LIST_LIMIT)
+            ? Math.floor(data.limit)
+            : MESSAGES_DEFAULT_LIMIT;
+        var nowMs = Date.now();
+        var timestamp = new Date(nowMs).toISOString();
+        var messages = [];
+        try {
+            // List all documents in the collection owned by this user.
+            // nk.storageList returns objects in ascending createTime order.
+            var cursor = null;
+            do {
+                var page = null;
+                try {
+                    page = nk.storageList(ctx.userId, MESSAGES_COLLECTION, limit, cursor || "");
+                }
+                catch (e) {
+                    logger.error("[IvxPresence] storageList failed for userId=" + ctx.userId + ": " + (e.message || String(e)));
+                    break;
+                }
+                if (!page || !page.objects)
+                    break;
+                for (var i = 0; i < page.objects.length; i++) {
+                    var obj = page.objects[i];
+                    if (!obj || !obj.value)
+                        continue;
+                    var msg = obj.value;
+                    // Stamp the storageKey so the client can pass it to ivx_mark_message_read.
+                    msg.storageKey = obj.key;
+                    messages.push(msg);
+                }
+                cursor = page.cursor || null;
+                // Stop once we have enough messages (limit) or exhaust the collection.
+                if (messages.length >= limit)
+                    break;
+            } while (cursor);
+        }
+        catch (e) {
+            logger.error("[IvxPresence] get_cross_game_messages error for userId=" + ctx.userId + ": " + (e.message || String(e)));
+            return fail("Failed to retrieve messages", ERR_INTERNAL);
+        }
+        // Trim to limit (in case multiple pages pushed us over).
+        if (messages.length > limit) {
+            messages = messages.slice(0, limit);
+        }
+        if (logger && logger.debug) {
+            logger.debug("[IvxPresence] get_cross_game_messages userId=" + ctx.userId + " count=" + messages.length);
+        }
+        return ok({
+            success: true,
+            userId: ctx.userId,
+            messages: messages,
+            count: messages.length,
+            timestamp: timestamp
+        });
+    }
+    IvxPresence.rpcGetCrossGameMessages = rpcGetCrossGameMessages;
+    // ── RPC: ivx_mark_message_read ────────────────────────────────────────────
+    // Deletes the message document from the `cross_game_messages` collection.
+    // Idempotent: if the key does not exist the call still succeeds.
+    function rpcMarkMessageRead(ctx, logger, nk, payload) {
+        if (!ctx || !ctx.userId) {
+            return fail("Authentication required", ERR_UNAUTHENTICATED);
+        }
+        var parsed = parsePayload(payload);
+        if (!parsed.ok) {
+            return fail(parsed.error || "bad payload", ERR_INVALID_PAYLOAD);
+        }
+        var data = parsed.data || {};
+        var messageKey = typeof data.messageKey === "string" ? data.messageKey.trim() : "";
+        if (!messageKey) {
+            return fail("messageKey is required", ERR_MISSING_FIELD);
+        }
+        try {
+            nk.storageDelete([{
+                    collection: MESSAGES_COLLECTION,
+                    key: messageKey,
+                    userId: ctx.userId
+                }]);
+        }
+        catch (e) {
+            logger.error("[IvxPresence] storageDelete failed for userId=" + ctx.userId + " key=" + messageKey + ": " + (e.message || String(e)));
+            return fail("Failed to delete message", ERR_INTERNAL);
+        }
+        var timestamp = new Date().toISOString();
+        if (logger && logger.debug) {
+            logger.debug("[IvxPresence] mark_message_read userId=" + ctx.userId + " key=" + messageKey);
+        }
+        return ok({
+            success: true,
+            messageKey: messageKey,
+            timestamp: timestamp
+        });
+    }
+    IvxPresence.rpcMarkMessageRead = rpcMarkMessageRead;
+    // ── Public registration ───────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("ivx_set_player_presence", rpcSetPlayerPresence);
+        initializer.registerRpc("ivx_get_cross_game_messages", rpcGetCrossGameMessages);
+        initializer.registerRpc("ivx_mark_message_read", rpcMarkMessageRead);
+    }
+    IvxPresence.register = register;
+})(IvxPresence || (IvxPresence = {}));
 // ---------------------------------------------------------------------------
 //  blog_embed.ts — QuizVerse "Blog Quiz" embeddable widget backend
 //
@@ -39142,6 +39414,134 @@ var AnalyticsAlerts;
     }
     AnalyticsAlerts.register = register;
 })(AnalyticsAlerts || (AnalyticsAlerts = {}));
+// ---------------------------------------------------------------------------
+// Satori Direct Control — admin kill-switch for the Satori Cloud event
+// mirror (data/modules/satori_direct/satori_direct.js).
+//
+// The legacy module gates every outbound HTTP call to satoricloud.io on the
+// `satori_configs/satori_direct` storage object ({ enabled: boolean }, cached
+// 60s in each VM). These RPCs flip and report that flag, so the paid Satori
+// instance can be cut off without a redeploy — and re-enabled just as fast.
+// ---------------------------------------------------------------------------
+var SatoriDirectControl;
+(function (SatoriDirectControl) {
+    var CONFIG_KEY = "satori_direct";
+    function readConfig(nk) {
+        var cfg = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, CONFIG_KEY);
+        if (!cfg || cfg.enabled === undefined)
+            return { enabled: true };
+        return cfg;
+    }
+    // satori_direct_status — current mirror state.
+    function rpcStatus(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var cfg = readConfig(nk);
+        return RpcHelpers.successResponse({
+            enabled: cfg.enabled !== false,
+            updatedAt: cfg.updatedAt || null,
+            updatedBy: cfg.updatedBy || null,
+            note: "Controls outbound event mirroring to the hosted Satori Cloud instance. Takes effect within ~60s on all pods."
+        });
+    }
+    // satori_direct_toggle — Payload: { enabled: boolean }
+    function rpcToggle(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (data.enabled === undefined)
+            return RpcHelpers.errorResponse("enabled (boolean) required");
+        var cfg = {
+            enabled: !!data.enabled,
+            updatedAt: Math.floor(Date.now() / 1000),
+            updatedBy: ctx.userId || "server"
+        };
+        Storage.writeSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, CONFIG_KEY, cfg);
+        logger.info("[SatoriDirectControl] Satori Cloud mirror %s by %s", cfg.enabled ? "ENABLED" : "DISABLED", cfg.updatedBy);
+        return RpcHelpers.successResponse({ enabled: cfg.enabled, updatedAt: cfg.updatedAt });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_direct_status", rpcStatus);
+        initializer.registerRpc("satori_direct_toggle", rpcToggle);
+    }
+    SatoriDirectControl.register = register;
+})(SatoriDirectControl || (SatoriDirectControl = {}));
+// ---------------------------------------------------------------------------
+// Satori Audience Estimator — admin-only size estimates for audience
+// definitions, matching the hosted Satori console's "audience size" readout.
+//
+// Strategy: page through `satori_identity_props` (one object per user who has
+// ever sent an event) and evaluate the audience rule against each user's
+// already-loaded property map (SatoriAudiences.matchesWithProps — zero extra
+// reads per user). The scan is page-capped, so on very large player bases the
+// result degrades to a clearly-flagged extrapolated estimate instead of
+// hanging a VM.
+// ---------------------------------------------------------------------------
+var SatoriAudienceEstimate;
+(function (SatoriAudienceEstimate) {
+    var PAGE_SIZE = 100;
+    var DEFAULT_PAGES = 100; // 10K identities
+    var MAX_PAGES = 400;
+    var SAMPLE_LIMIT = 10;
+    // satori_audiences_estimate — Payload: { audienceId, game_id?, max_pages? }
+    function rpcEstimate(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var audienceId = data.audienceId || data.audience_id;
+        if (!audienceId)
+            return RpcHelpers.errorResponse("audienceId required");
+        var gameId = RpcHelpers.gameId(data);
+        var def = SatoriAudiences.getDefinition(nk, audienceId, gameId);
+        if (!def)
+            return RpcHelpers.errorResponse("Audience '" + audienceId + "' not found");
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || DEFAULT_PAGES, 1), MAX_PAGES);
+        var scanned = 0;
+        var matched = 0;
+        var sample = [];
+        var cursor = "";
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList("", Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.key !== "props" || !obj.value || !obj.userId)
+                    continue;
+                scanned++;
+                var props = obj.value;
+                var allProps = {};
+                for (var k in (props.defaultProperties || {}))
+                    allProps[k] = props.defaultProperties[k];
+                for (var ck in (props.customProperties || {}))
+                    allProps[ck] = props.customProperties[ck];
+                for (var pk in (props.computedProperties || {}))
+                    allProps[pk] = props.computedProperties[pk];
+                if (SatoriAudiences.matchesWithProps(def, obj.userId, allProps)) {
+                    matched++;
+                    if (sample.length < SAMPLE_LIMIT)
+                        sample.push(obj.userId);
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        var matchRate = scanned > 0 ? matched / scanned : 0;
+        return RpcHelpers.successResponse({
+            audienceId: audienceId,
+            name: def.name || audienceId,
+            estimatedSize: matched,
+            scannedIdentities: scanned,
+            matchRate: matchRate,
+            sampleUserIds: sample,
+            truncated: truncated
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_audiences_estimate", rpcEstimate);
+    }
+    SatoriAudienceEstimate.register = register;
+})(SatoriAudienceEstimate || (SatoriAudienceEstimate = {}));
 var SatoriAudiences;
 (function (SatoriAudiences) {
     function getAudienceDefinitions(nk, gameId) {
@@ -39264,6 +39664,36 @@ var SatoriAudiences;
         return evaluateRule(allProps, def.rule);
     }
     SatoriAudiences.isInAudience = isInAudience;
+    function getDefinition(nk, audienceId, gameId) {
+        var audiences = getAudienceDefinitions(nk, gameId);
+        return audiences[audienceId] || null;
+    }
+    SatoriAudiences.getDefinition = getDefinition;
+    // Same membership semantics as isInAudience, but evaluates against an
+    // already-loaded property map — lets bulk scans (audience size estimator)
+    // avoid one extra storage read per user.
+    function matchesWithProps(def, userId, allProps) {
+        if (def.excludeIds && def.excludeIds.indexOf(userId) >= 0)
+            return false;
+        if (def.includeIds && def.includeIds.indexOf(userId) >= 0)
+            return true;
+        if (def.samplePct !== undefined && def.samplePct < 100) {
+            var hash = 0;
+            var seed = userId + ":" + def.id;
+            for (var c = 0; c < seed.length; c++) {
+                hash = ((hash << 5) - hash) + seed.charCodeAt(c);
+                hash = hash & 0x7FFFFFFF;
+            }
+            if ((hash % 100) >= def.samplePct)
+                return false;
+        }
+        if (allProps["first_seen"] && allProps["first_seen_days_ago"] === undefined) {
+            var firstSeen = new Date(allProps["first_seen"]).getTime();
+            allProps["first_seen_days_ago"] = String(Math.floor((Date.now() - firstSeen) / 86400000));
+        }
+        return evaluateRule(allProps, def.rule);
+    }
+    SatoriAudiences.matchesWithProps = matchesWithProps;
     function getExplicitIncludeIds(nk, audienceId, gameId) {
         var audiences = getAudienceDefinitions(nk, gameId);
         var def = audiences[audienceId];
@@ -39577,6 +40007,17 @@ var SatoriDataLake;
 })(SatoriDataLake || (SatoriDataLake = {}));
 var SatoriEventCapture;
 (function (SatoriEventCapture) {
+    // Inverted-timestamp event keys: storageList returns keys in ascending
+    // order, so an inverted (descending-time) key makes scans see the NEWEST
+    // events first. The "0" prefix sorts before legacy "ev_2026-…"/"ev_ext_…"
+    // keys in any collation, so window-bounded scans (retention, funnels,
+    // experiment results, debugger search) reach recent data before page caps.
+    function eventKey(tsMs, id) {
+        var inv = "" + (100000000000000 - tsMs);
+        while (inv.length < 14)
+            inv = "0" + inv;
+        return "ev_0" + inv + "_" + id;
+    }
     function appendToUserHistory(nk, userId, event) {
         var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
         if (!history)
@@ -39598,7 +40039,7 @@ var SatoriEventCapture;
             return;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-        var key = "ev_" + dateStr + "_" + userId + "_" + Date.now();
+        var key = eventKey(Date.now(), userId);
         var record = {
             userId: userId,
             name: event.name,
@@ -39619,6 +40060,7 @@ var SatoriEventCapture;
         SatoriMetrics.processEvent(nk, logger, userId, event.name, event.metadata || {});
         SatoriWebhooks.dispatch(nk, logger, "event:" + event.name, record);
         SatoriDataLake.exportBatch(nk, logger, [record]);
+        SatoriEventDebugger.record(nk, record);
     }
     SatoriEventCapture.captureEvent = captureEvent;
     function captureEvents(nk, logger, userId, events) {
@@ -39633,7 +40075,7 @@ var SatoriEventCapture;
             }
             validEvents.push(event);
             var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-            var key = "ev_" + dateStr + "_" + userId + "_" + (Date.now() + i);
+            var key = eventKey(Date.now() + i, userId);
             var record = {
                 userId: userId,
                 name: event.name,
@@ -39659,6 +40101,7 @@ var SatoriEventCapture;
             SatoriIdentities.onEvent(nk, logger, userId, validEvents[j]);
             SatoriMetrics.processEvent(nk, logger, userId, validEvents[j].name, validEvents[j].metadata || {});
             SatoriWebhooks.dispatch(nk, logger, "event:" + validEvents[j].name, exportRecords[j]);
+            SatoriEventDebugger.record(nk, exportRecords[j]);
         }
         if (exportRecords.length > 0) {
             SatoriDataLake.exportBatch(nk, logger, exportRecords);
@@ -39760,7 +40203,7 @@ var SatoriEventCapture;
             return false;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-        var key = "ev_ext_" + dateStr + "_" + identityId + "_" + Date.now();
+        var key = eventKey(Date.now(), identityId);
         var record = {
             identityId: identityId,
             name: event.name,
@@ -39780,6 +40223,7 @@ var SatoriEventCapture;
         SatoriMetrics.processEvent(nk, logger, identityId, event.name, event.metadata || {});
         SatoriWebhooks.dispatch(nk, logger, "event:" + event.name, record);
         SatoriDataLake.exportBatch(nk, logger, [record]);
+        SatoriEventDebugger.record(nk, record);
         return true;
     }
     function rpcEventExternal(ctx, logger, nk, payload) {
@@ -39829,6 +40273,506 @@ var SatoriEventCapture;
     }
     SatoriEventCapture.register = register;
 })(SatoriEventCapture || (SatoriEventCapture = {}));
+// ---------------------------------------------------------------------------
+// Satori Event Debugger — admin live tail + historical search over captured
+// events. Replaces the Satori Cloud console "Taxonomy → Debugger" workflow.
+//
+// Two data paths:
+//   1. LIVE TAIL  — a rolling ring buffer (last RECENT_MAX events) maintained
+//      by SatoriEventCapture at ingest time. One storage read per tail call,
+//      so the admin UI can poll every few seconds without scanning.
+//   2. SEARCH     — paged scan of the `satori_events` collection (records are
+//      keyed ev_<date>_<userId>_<ts> under SYSTEM_USER). Bounded by max_pages
+//      so a runaway query can never hang a VM.
+//
+// Both RPCs are admin-only. The tail response also reports, per event name,
+// whether a taxonomy schema exists — the UI uses that for the one-click
+// "register in taxonomy" action (which calls the existing
+// `satori_taxonomy_upsert` RPC).
+// ---------------------------------------------------------------------------
+var SatoriEventDebugger;
+(function (SatoriEventDebugger) {
+    var RECENT_COLLECTION = "satori_debugger";
+    var RECENT_KEY = "recent_events";
+    var RECENT_MAX = 300;
+    var SEARCH_PAGE_SIZE = 100;
+    var SEARCH_DEFAULT_PAGES = 320; // covers the legacy (oldest-first) key tail
+    var SEARCH_MAX_PAGES = 800;
+    var SEARCH_MAX_RESULTS = 500;
+    // Normalize second-resolution timestamps to milliseconds so the UI can
+    // sort/format uniformly (clients send ms, some server paths send seconds).
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    // ---- Live tail ring buffer (called from SatoriEventCapture) ----
+    function record(nk, event) {
+        try {
+            var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, RECENT_KEY);
+            if (!buf || !buf.events)
+                buf = { events: [] };
+            buf.events.push(event);
+            if (buf.events.length > RECENT_MAX) {
+                buf.events = buf.events.slice(buf.events.length - RECENT_MAX);
+            }
+            Storage.writeSystemJson(nk, RECENT_COLLECTION, RECENT_KEY, buf);
+        }
+        catch (err) {
+            // Debugger plumbing must never break event ingest.
+        }
+    }
+    SatoriEventDebugger.record = record;
+    // ---- Filtering ----
+    function matches(ev, filters) {
+        if (filters.name && ev.name !== filters.name)
+            return false;
+        if (filters.nameContains && ev.name.indexOf(filters.nameContains) === -1)
+            return false;
+        if (filters.userId && ev.userId !== filters.userId && ev.identityId !== filters.userId)
+            return false;
+        if (filters.sinceMs && toMs(ev.timestamp) < filters.sinceMs)
+            return false;
+        if (filters.untilMs && toMs(ev.timestamp) > filters.untilMs)
+            return false;
+        if (filters.externalOnly && !ev.external)
+            return false;
+        return true;
+    }
+    function parseFilters(data) {
+        return {
+            name: data.name || undefined,
+            nameContains: data.name_contains || data.nameContains || undefined,
+            userId: data.user_id || data.userId || undefined,
+            sinceMs: data.since_ms || data.sinceMs || undefined,
+            untilMs: data.until_ms || data.untilMs || undefined,
+            externalOnly: !!(data.external_only || data.externalOnly)
+        };
+    }
+    function schemaStatus(nk, events) {
+        var taxonomy = ConfigLoader.loadSatoriConfig(nk, "taxonomy", { schemas: {} });
+        var schemas = (taxonomy && taxonomy.schemas) || {};
+        var counts = {};
+        for (var i = 0; i < events.length; i++) {
+            counts[events[i].name] = (counts[events[i].name] || 0) + 1;
+        }
+        var names = [];
+        for (var name in counts) {
+            names.push({ name: name, count: counts[name], hasSchema: !!schemas[name] });
+        }
+        names.sort(function (a, b) { return b.count - a.count; });
+        return names;
+    }
+    // ---- RPCs ----
+    // satori_events_tail — latest events from the ring buffer, newest first.
+    // Payload: { limit?, name?, name_contains?, user_id?, since_ms?, external_only? }
+    function rpcTail(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), RECENT_MAX);
+        var filters = parseFilters(data);
+        var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, RECENT_KEY);
+        var all = (buf && buf.events) || [];
+        var matched = [];
+        for (var i = all.length - 1; i >= 0 && matched.length < limit; i--) {
+            if (matches(all[i], filters))
+                matched.push(all[i]);
+        }
+        var out = [];
+        for (var j = 0; j < matched.length; j++) {
+            var ev = matched[j];
+            out.push({
+                name: ev.name,
+                userId: ev.userId || ev.identityId || "",
+                timestampMs: toMs(ev.timestamp),
+                metadata: ev.metadata || {},
+                external: !!ev.external
+            });
+        }
+        return RpcHelpers.successResponse({
+            events: out,
+            names: schemaStatus(nk, matched),
+            bufferSize: all.length,
+            bufferMax: RECENT_MAX
+        });
+    }
+    // satori_events_search — bounded historical scan over satori_events.
+    // Payload: { limit?, max_pages?, cursor?, name?, name_contains?, user_id?,
+    //            since_ms?, until_ms?, external_only? }
+    function rpcSearch(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 200, 1), SEARCH_MAX_RESULTS);
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || SEARCH_DEFAULT_PAGES, 1), SEARCH_MAX_PAGES);
+        var filters = parseFilters(data);
+        var matched = [];
+        var cursor = data.cursor || "";
+        var scannedRecords = 0;
+        var pages = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, SEARCH_PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            pages++;
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scannedRecords++;
+                var ev = obj.value;
+                if (matches(ev, filters))
+                    matched.push(ev);
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+            if (matched.length >= SEARCH_MAX_RESULTS) {
+                truncated = true;
+                break;
+            }
+        }
+        if (cursor && pages >= maxPages)
+            truncated = true;
+        matched.sort(function (a, b) { return toMs(b.timestamp) - toMs(a.timestamp); });
+        if (matched.length > limit) {
+            matched = matched.slice(0, limit);
+            truncated = true;
+        }
+        var out = [];
+        for (var j = 0; j < matched.length; j++) {
+            var m = matched[j];
+            out.push({
+                name: m.name,
+                userId: m.userId || m.identityId || "",
+                timestampMs: toMs(m.timestamp),
+                metadata: m.metadata || {},
+                external: !!m.external
+            });
+        }
+        return RpcHelpers.successResponse({
+            events: out,
+            names: schemaStatus(nk, matched),
+            scannedPages: pages,
+            scannedRecords: scannedRecords,
+            truncated: truncated,
+            nextCursor: cursor || null
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_events_tail", rpcTail);
+        initializer.registerRpc("satori_events_search", rpcSearch);
+    }
+    SatoriEventDebugger.register = register;
+})(SatoriEventDebugger || (SatoriEventDebugger = {}));
+// ---------------------------------------------------------------------------
+// Satori Experiment Results — conversion counting + statistical significance
+// for A/B experiments, plus a declare-winner action. Closes the biggest gap
+// vs the hosted Satori console (which reports per-variant results).
+//
+// Data sources (no schema changes):
+//   - Assignments: `satori_assignments` collection, one object per user
+//     (key = gameKey(gameId, "assignments")), written by SatoriExperiments
+//     on first getVariant() call → gives EXPOSURES per variant.
+//   - Goal events: `satori_events` collection under SYSTEM_USER (records
+//     keyed ev_*), written by SatoriEventCapture → gives CONVERSIONS
+//     (first goal event at/after the user's assignment time).
+//
+// Significance: two-proportion z-test of each variant against the control
+// (variant whose id/name is "control", else the first variant). Two-tailed
+// p-value via the Abramowitz–Stegun erf approximation. 95% => significant.
+//
+// Both scans are page-capped so a huge dataset degrades to a truncated
+// (clearly flagged) estimate instead of hanging a VM.
+// ---------------------------------------------------------------------------
+var SatoriExperimentResults;
+(function (SatoriExperimentResults) {
+    var PAGE_SIZE = 100;
+    var ASSIGNMENT_MAX_PAGES = 200; // 20K users
+    var EVENTS_DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var EVENTS_MAX_PAGES = 800;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function variantKeyOf(variant) {
+        return (variant && (variant.id || variant.name)) || "";
+    }
+    // ---- Normal CDF via erf (Abramowitz & Stegun 7.1.26) ----
+    function erf(x) {
+        var sign = x < 0 ? -1 : 1;
+        x = Math.abs(x);
+        var a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+        var a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+        var t = 1 / (1 + p * x);
+        var y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+        return sign * y;
+    }
+    function normalCdf(z) {
+        return 0.5 * (1 + erf(z / Math.SQRT2));
+    }
+    // Two-proportion z-test. Returns null when sample sizes are too small.
+    function zTest(c1, n1, c2, n2) {
+        if (n1 < 1 || n2 < 1)
+            return null;
+        var p1 = c1 / n1;
+        var p2 = c2 / n2;
+        var pooled = (c1 + c2) / (n1 + n2);
+        var se = Math.sqrt(pooled * (1 - pooled) * (1 / n1 + 1 / n2));
+        if (se === 0)
+            return null;
+        var z = (p2 - p1) / se;
+        var pValue = 2 * (1 - normalCdf(Math.abs(z)));
+        return { z: z, pValue: pValue };
+    }
+    // ---- Data collection ----
+    function loadExperimentDef(nk, experimentId, gameId) {
+        var experiments = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
+        return experiments[experimentId] || null;
+    }
+    // Scan all users' assignment objects, collect userId → assignment for this
+    // experiment. Assignment objects are stored per-user, so we list across
+    // owners with an empty userId. Exported for reuse by funnels/retention
+    // variant segmentation.
+    function collectAssignments(nk, experimentId, gameId) {
+        var expectedKey = Constants.gameKey(gameId, "assignments");
+        var byUser = {};
+        var cursor = "";
+        var truncated = false;
+        var scanned = 0;
+        for (var p = 0; p < ASSIGNMENT_MAX_PAGES; p++) {
+            var page = nk.storageList("", Constants.SATORI_ASSIGNMENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.key !== expectedKey || !obj.value || !obj.userId)
+                    continue;
+                scanned++;
+                var assignments = obj.value.assignments || {};
+                var a = assignments[experimentId];
+                if (!a || !a.variantId)
+                    continue;
+                byUser[obj.userId] = {
+                    variantKey: a.variantId,
+                    assignedAtMs: toMs(a.assignedAt || 0)
+                };
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        return { byUser: byUser, truncated: truncated, scanned: scanned };
+    }
+    SatoriExperimentResults.collectAssignments = collectAssignments;
+    // Scan goal events; a user converts when their FIRST goal event happens at
+    // or after their assignment time. Also tallies total goal-event volume.
+    function collectConversions(nk, goalEvent, byUser, maxPages) {
+        var convertedUsers = {};
+        var totalGoalEvents = 0;
+        var scannedRecords = 0;
+        var cursor = "";
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scannedRecords++;
+                var rec = obj.value;
+                if (rec.name !== goalEvent)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                if (!uid)
+                    continue;
+                var assignment = byUser[uid];
+                if (!assignment)
+                    continue;
+                totalGoalEvents++;
+                if (toMs(rec.timestamp) >= assignment.assignedAtMs) {
+                    convertedUsers[uid] = true;
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        return { convertedUsers: convertedUsers, totalGoalEvents: totalGoalEvents, truncated: truncated, scannedRecords: scannedRecords };
+    }
+    // ---- RPCs ----
+    // satori_experiments_results — per-variant exposures, conversions, rates,
+    // z-test vs control, and a recommendation.
+    // Payload: { experimentId, game_id?, goal_event?, max_event_pages? }
+    function rpcResults(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.experimentId && !data.experiment_id)
+            return RpcHelpers.errorResponse("experimentId required");
+        var experimentId = data.experimentId || data.experiment_id;
+        var gameId = RpcHelpers.gameId(data);
+        var def = loadExperimentDef(nk, experimentId, gameId);
+        if (!def)
+            return RpcHelpers.errorResponse("Experiment '" + experimentId + "' not found");
+        var goalEvent = data.goal_event || data.goalEvent || def.goalEvent || def.goalMetric;
+        if (!goalEvent) {
+            return RpcHelpers.errorResponse("No goal event: pass goal_event or set goalMetric on the experiment definition");
+        }
+        var variants = def.variants || [];
+        if (variants.length < 2)
+            return RpcHelpers.errorResponse("Experiment needs at least 2 variants for results");
+        var maxEventPages = Math.min(Math.max(parseInt(data.max_event_pages, 10) || EVENTS_DEFAULT_PAGES, 1), EVENTS_MAX_PAGES);
+        var assignmentScan = collectAssignments(nk, experimentId, gameId);
+        var conversionScan = collectConversions(nk, goalEvent, assignmentScan.byUser, maxEventPages);
+        // Tally per variant.
+        var exposures = {};
+        var conversions = {};
+        for (var uid in assignmentScan.byUser) {
+            var vk = assignmentScan.byUser[uid].variantKey;
+            exposures[vk] = (exposures[vk] || 0) + 1;
+            if (conversionScan.convertedUsers[uid]) {
+                conversions[vk] = (conversions[vk] || 0) + 1;
+            }
+        }
+        // Control = variant with id/name "control", else first.
+        var controlKey = variantKeyOf(variants[0]);
+        for (var c = 0; c < variants.length; c++) {
+            var key = variantKeyOf(variants[c]);
+            if (key === "control" || (variants[c].name || "").toLowerCase() === "control") {
+                controlKey = key;
+                break;
+            }
+        }
+        var variantRows = [];
+        for (var v = 0; v < variants.length; v++) {
+            var vKey = variantKeyOf(variants[v]);
+            var n = exposures[vKey] || 0;
+            var conv = conversions[vKey] || 0;
+            variantRows.push({
+                id: vKey,
+                name: variants[v].name || vKey,
+                isControl: vKey === controlKey,
+                exposures: n,
+                conversions: conv,
+                rate: n > 0 ? conv / n : 0
+            });
+        }
+        // Compare every non-control variant to control.
+        var cN = exposures[controlKey] || 0;
+        var cConv = conversions[controlKey] || 0;
+        var cRate = cN > 0 ? cConv / cN : 0;
+        var comparisons = [];
+        var winner = null;
+        var bestLift = 0;
+        for (var w = 0; w < variantRows.length; w++) {
+            var row = variantRows[w];
+            if (row.isControl)
+                continue;
+            var test = zTest(cConv, cN, row.conversions, row.exposures);
+            var lift = cRate > 0 ? (row.rate - cRate) / cRate : (row.rate > 0 ? 1 : 0);
+            var significant = !!(test && test.pValue < 0.05);
+            comparisons.push({
+                variantId: row.id,
+                controlId: controlKey,
+                lift: lift,
+                zScore: test ? test.z : null,
+                pValue: test ? test.pValue : null,
+                significant: significant,
+                confidence: test ? (1 - test.pValue) : null
+            });
+            if (significant && row.rate > cRate && lift > bestLift) {
+                winner = row.id;
+                bestLift = lift;
+            }
+        }
+        var recommendation;
+        if (winner) {
+            recommendation = "Variant '" + winner + "' beats control with 95% confidence — consider declaring it the winner.";
+        }
+        else {
+            var anySignificantLoss = false;
+            for (var s = 0; s < comparisons.length; s++) {
+                if (comparisons[s].significant && comparisons[s].lift < 0)
+                    anySignificantLoss = true;
+            }
+            recommendation = anySignificantLoss
+                ? "Control significantly outperforms at least one variant — consider declaring control the winner."
+                : "No statistically significant difference yet — keep the experiment running.";
+        }
+        return RpcHelpers.successResponse({
+            experimentId: experimentId,
+            name: def.name || experimentId,
+            status: def.status || "unknown",
+            goalEvent: goalEvent,
+            winnerVariantId: def.winnerVariantId || null,
+            variants: variantRows,
+            comparisons: comparisons,
+            suggestedWinner: winner,
+            recommendation: recommendation,
+            scan: {
+                assignmentObjectsScanned: assignmentScan.scanned,
+                assignmentsTruncated: assignmentScan.truncated,
+                eventRecordsScanned: conversionScan.scannedRecords,
+                eventsTruncated: conversionScan.truncated,
+                totalGoalEvents: conversionScan.totalGoalEvents
+            }
+        });
+    }
+    // satori_experiments_declare_winner — end the experiment and record the
+    // winning variant on its definition.
+    // Payload: { experimentId, variantId, game_id? }
+    function rpcDeclareWinner(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var experimentId = data.experimentId || data.experiment_id;
+        var variantId = data.variantId || data.variant_id;
+        if (!experimentId || !variantId)
+            return RpcHelpers.errorResponse("experimentId and variantId required");
+        var gameId = RpcHelpers.gameId(data);
+        // Resolve the exact config key the definition lives under (scoped first,
+        // then global) so we write back to the same object we read.
+        var scopedKey = Constants.gameKey(gameId, "experiments");
+        var configKey = scopedKey;
+        var experiments = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, scopedKey);
+        if ((!experiments || !experiments[experimentId]) && scopedKey !== "experiments") {
+            configKey = "experiments";
+            experiments = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, configKey);
+        }
+        if (!experiments || !experiments[experimentId]) {
+            return RpcHelpers.errorResponse("Experiment '" + experimentId + "' not found");
+        }
+        var def = experiments[experimentId];
+        var validVariant = false;
+        var defVariants = def.variants || [];
+        for (var i = 0; i < defVariants.length; i++) {
+            if (variantKeyOf(defVariants[i]) === variantId) {
+                validVariant = true;
+                break;
+            }
+        }
+        if (!validVariant)
+            return RpcHelpers.errorResponse("Variant '" + variantId + "' not found on experiment");
+        var now = Math.floor(Date.now() / 1000);
+        def.status = "ended";
+        def.winnerVariantId = variantId;
+        def.endedAt = now;
+        def.updatedAt = now;
+        experiments[experimentId] = def;
+        Storage.writeSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, configKey, experiments);
+        ConfigLoader.invalidateCache(configKey);
+        logger.info("[ExperimentResults] '%s' ended, winner='%s' (by admin)", experimentId, variantId);
+        return RpcHelpers.successResponse({ experimentId: experimentId, winnerVariantId: variantId, status: "ended" });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_experiments_results", rpcResults);
+        initializer.registerRpc("satori_experiments_declare_winner", rpcDeclareWinner);
+    }
+    SatoriExperimentResults.register = register;
+})(SatoriExperimentResults || (SatoriExperimentResults = {}));
 var SatoriExperiments;
 (function (SatoriExperiments) {
     function getExperiments(nk, gameId) {
@@ -40071,6 +41015,248 @@ var SatoriFeatureFlags;
     }
     SatoriFeatureFlags.register = register;
 })(SatoriFeatureFlags || (SatoriFeatureFlags = {}));
+// ---------------------------------------------------------------------------
+// Satori Funnels — saved funnel definitions + on-demand conversion analysis
+// over captured events, matching the hosted Satori console's funnel surface.
+//
+// A funnel is an ordered list of event names. A user "completes" step N when
+// they have an occurrence of step N's event at/after their step N-1 event
+// (and within the optional time window measured from step 0).
+//
+// Optional variant segmentation: pass an experimentId to split the funnel by
+// the variant each user was assigned (reuses the assignment scan from
+// SatoriExperimentResults).
+//
+// All scans are page-capped; truncation is flagged in the response.
+// ---------------------------------------------------------------------------
+var SatoriFunnels;
+(function (SatoriFunnels) {
+    var PAGE_SIZE = 100;
+    var EVENTS_DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var EVENTS_MAX_PAGES = 800;
+    var MAX_STEPS = 8;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function getFunnels(nk, gameId) {
+        return ConfigLoader.loadSatoriConfigForGame(nk, "funnels", gameId, {});
+    }
+    // ---- Core computation ----
+    function computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowMs) {
+        var stepSet = {};
+        for (var s = 0; s < steps.length; s++)
+            stepSet[steps[s]] = s;
+        // userId → per-step sorted-ish timestamp lists (only steps we care about).
+        var perUser = {};
+        var cursor = "";
+        var scannedRecords = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scannedRecords++;
+                var rec = obj.value;
+                var stepIdx = stepSet[rec.name];
+                if (stepIdx === undefined)
+                    continue;
+                var ts = toMs(rec.timestamp);
+                if (ts < sinceMs || ts > untilMs)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                if (!uid)
+                    continue;
+                if (assignments && !assignments[uid])
+                    continue;
+                if (!perUser[uid]) {
+                    perUser[uid] = [];
+                    for (var k = 0; k < steps.length; k++)
+                        perUser[uid].push([]);
+                }
+                perUser[uid][stepIdx].push(ts);
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        // Walk each user's funnel.
+        var stepUsers = [];
+        var stepUsersByVariant = {};
+        for (var z = 0; z < steps.length; z++)
+            stepUsers.push(0);
+        for (var uid2 in perUser) {
+            var lists = perUser[uid2];
+            for (var sl = 0; sl < lists.length; sl++) {
+                lists[sl].sort(function (a, b) { return a - b; });
+            }
+            if (lists[0].length === 0)
+                continue;
+            var variantKey = null;
+            if (assignments) {
+                variantKey = assignments[uid2].variantKey;
+                if (!stepUsersByVariant[variantKey]) {
+                    stepUsersByVariant[variantKey] = [];
+                    for (var zv = 0; zv < steps.length; zv++)
+                        stepUsersByVariant[variantKey].push(0);
+                }
+            }
+            var startTs = lists[0][0];
+            var deadline = windowMs ? startTs + windowMs : Number.MAX_VALUE;
+            var prevTs = startTs;
+            var reached = 0;
+            for (var st = 0; st < steps.length; st++) {
+                if (st === 0) {
+                    reached = 1;
+                }
+                else {
+                    // first occurrence at/after the previous step (and before deadline)
+                    var found = -1;
+                    for (var t = 0; t < lists[st].length; t++) {
+                        if (lists[st][t] >= prevTs && lists[st][t] <= deadline) {
+                            found = lists[st][t];
+                            break;
+                        }
+                    }
+                    if (found < 0)
+                        break;
+                    prevTs = found;
+                    reached = st + 1;
+                }
+                stepUsers[st]++;
+                if (variantKey !== null)
+                    stepUsersByVariant[variantKey][st]++;
+            }
+        }
+        var stepRows = [];
+        for (var r = 0; r < steps.length; r++) {
+            stepRows.push({
+                name: steps[r],
+                users: stepUsers[r],
+                conversionFromStart: stepUsers[0] > 0 ? stepUsers[r] / stepUsers[0] : 0,
+                conversionFromPrevious: r === 0 ? 1 : (stepUsers[r - 1] > 0 ? stepUsers[r] / stepUsers[r - 1] : 0)
+            });
+        }
+        var byVariant = null;
+        if (assignments) {
+            byVariant = {};
+            for (var vk in stepUsersByVariant) {
+                var counts = stepUsersByVariant[vk];
+                var rows = [];
+                for (var rv = 0; rv < steps.length; rv++) {
+                    rows.push({
+                        name: steps[rv],
+                        users: counts[rv],
+                        conversionFromStart: counts[0] > 0 ? counts[rv] / counts[0] : 0
+                    });
+                }
+                byVariant[vk] = rows;
+            }
+        }
+        return {
+            steps: stepRows,
+            entered: stepUsers[0],
+            completed: stepUsers[steps.length - 1],
+            overallConversion: stepUsers[0] > 0 ? stepUsers[steps.length - 1] / stepUsers[0] : 0,
+            byVariant: byVariant,
+            scannedRecords: scannedRecords,
+            truncated: truncated
+        };
+    }
+    // ---- RPCs ----
+    function rpcList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var funnels = getFunnels(nk, RpcHelpers.gameId(data));
+        var list = [];
+        for (var id in funnels)
+            list.push(funnels[id]);
+        return RpcHelpers.successResponse({ funnels: list });
+    }
+    function rpcSave(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var steps = data.steps || [];
+        if (!data.id || !data.name)
+            return RpcHelpers.errorResponse("id and name required");
+        if (!Array.isArray(steps) || steps.length < 2)
+            return RpcHelpers.errorResponse("steps[] requires at least 2 event names");
+        if (steps.length > MAX_STEPS)
+            return RpcHelpers.errorResponse("steps[] supports at most " + MAX_STEPS + " events");
+        var gameId = RpcHelpers.gameId(data);
+        var funnels = getFunnels(nk, gameId);
+        var now = Math.floor(Date.now() / 1000);
+        funnels[data.id] = {
+            id: data.id,
+            name: data.name,
+            description: data.description || "",
+            steps: steps,
+            windowHours: data.windowHours ? Number(data.windowHours) : undefined,
+            createdAt: (funnels[data.id] && funnels[data.id].createdAt) || now,
+            updatedAt: now
+        };
+        ConfigLoader.saveSatoriConfigForGame(nk, "funnels", gameId, funnels);
+        return RpcHelpers.successResponse({ funnel: funnels[data.id] });
+    }
+    function rpcDelete(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.id)
+            return RpcHelpers.errorResponse("id required");
+        var gameId = RpcHelpers.gameId(data);
+        var funnels = getFunnels(nk, gameId);
+        delete funnels[data.id];
+        ConfigLoader.saveSatoriConfigForGame(nk, "funnels", gameId, funnels);
+        return RpcHelpers.successResponse({ deleted: data.id });
+    }
+    // satori_funnels_compute — Payload: { funnelId? | steps[], since_ms?,
+    //   until_ms?, experiment_id?, game_id?, max_pages? }
+    function rpcCompute(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var steps = data.steps || [];
+        var windowHours = data.window_hours ? Number(data.window_hours) : undefined;
+        if (data.funnelId || data.funnel_id) {
+            var def = getFunnels(nk, gameId)[data.funnelId || data.funnel_id];
+            if (!def)
+                return RpcHelpers.errorResponse("Funnel not found");
+            steps = def.steps;
+            if (windowHours === undefined)
+                windowHours = def.windowHours;
+        }
+        if (!Array.isArray(steps) || steps.length < 2)
+            return RpcHelpers.errorResponse("steps[] (>=2) or funnelId required");
+        if (steps.length > MAX_STEPS)
+            return RpcHelpers.errorResponse("steps[] supports at most " + MAX_STEPS + " events");
+        var sinceMs = Number(data.since_ms || data.sinceMs) || (Date.now() - 7 * 86400000);
+        var untilMs = Number(data.until_ms || data.untilMs) || Date.now();
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || EVENTS_DEFAULT_PAGES, 1), EVENTS_MAX_PAGES);
+        var assignments = null;
+        var experimentId = data.experiment_id || data.experimentId;
+        if (experimentId) {
+            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+        }
+        var result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
+        result.sinceMs = sinceMs;
+        result.untilMs = untilMs;
+        result.experimentId = experimentId || null;
+        return RpcHelpers.successResponse(result);
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_funnels_list", rpcList);
+        initializer.registerRpc("satori_funnels_save", rpcSave);
+        initializer.registerRpc("satori_funnels_delete", rpcDelete);
+        initializer.registerRpc("satori_funnels_compute", rpcCompute);
+    }
+    SatoriFunnels.register = register;
+})(SatoriFunnels || (SatoriFunnels = {}));
 var SatoriIdentities;
 (function (SatoriIdentities) {
     function getProperties(nk, userId) {
@@ -40150,6 +41336,146 @@ var SatoriIdentities;
     }
     SatoriIdentities.register = register;
 })(SatoriIdentities || (SatoriIdentities = {}));
+// ---------------------------------------------------------------------------
+// Satori Identity Inspector — admin-only 360° view of one identity, matching
+// the hosted Satori console's "Identities" drill-down:
+//   - account basics (when the ID resolves to a Nakama user)
+//   - identity properties (default / custom / computed)
+//   - recent event timeline (per-user rolling history, newest first)
+//   - audience memberships (evaluated live against current definitions)
+//   - experiment assignments (across all game scopes)
+// One RPC, a handful of point reads — safe to call from the admin UI on click.
+// ---------------------------------------------------------------------------
+var SatoriIdentityInspector;
+(function (SatoriIdentityInspector) {
+    var TIMELINE_DEFAULT = 100;
+    var TIMELINE_MAX = 500;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    // satori_identity_inspect — Payload: { user_id, game_id?, timeline_limit? }
+    function rpcInspect(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var userId = data.user_id || data.userId;
+        if (!userId)
+            return RpcHelpers.errorResponse("user_id required");
+        var gameId = RpcHelpers.gameId(data);
+        var timelineLimit = Math.min(Math.max(parseInt(data.timeline_limit, 10) || TIMELINE_DEFAULT, 1), TIMELINE_MAX);
+        // Account basics — external/synthetic identities won't resolve; that's fine.
+        var account = null;
+        try {
+            var acct = nk.accountGetId(userId);
+            if (acct && acct.user) {
+                account = {
+                    username: acct.user.username || "",
+                    displayName: acct.user.displayName || "",
+                    createTime: acct.user.createTime || 0,
+                    online: !!acct.user.online
+                };
+            }
+        }
+        catch (err) {
+            // Not a Nakama user UUID (e.g. QR-studio synthetic identity) — skip.
+        }
+        // Identity properties.
+        var props = SatoriIdentities.getAllProperties(nk, userId);
+        var allProps = {};
+        for (var k in (props.defaultProperties || {}))
+            allProps[k] = props.defaultProperties[k];
+        for (var ck in (props.customProperties || {}))
+            allProps[ck] = props.customProperties[ck];
+        for (var pk in (props.computedProperties || {}))
+            allProps[pk] = props.computedProperties[pk];
+        // Recent event timeline (rolling per-user history, capped at 500 at write
+        // time by SatoriEventCapture). Newest first.
+        var timeline = [];
+        var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
+        var events = (history && history.events) || [];
+        for (var i = events.length - 1; i >= 0 && timeline.length < timelineLimit; i--) {
+            timeline.push({
+                name: events[i].name,
+                timestampMs: toMs(events[i].timestamp),
+                metadata: events[i].metadata || {}
+            });
+        }
+        // Audience memberships — evaluated against current definitions using the
+        // props we already loaded (no per-audience storage reads).
+        var memberships = [];
+        var audienceIds = [];
+        var defs = listAudienceDefs(nk, gameId);
+        for (var aid in defs) {
+            audienceIds.push(aid);
+            if (SatoriAudiences.matchesWithProps(defs[aid], userId, allProps)) {
+                memberships.push(aid);
+            }
+        }
+        // Experiment assignments — one storage object per game scope.
+        var assignments = [];
+        try {
+            var page = nk.storageList(userId, Constants.SATORI_ASSIGNMENTS_COLLECTION, 50);
+            var objects = (page && page.objects) || [];
+            for (var o = 0; o < objects.length; o++) {
+                var scopeKey = objects[o].key; // "assignments" or "<gameId>:assignments"
+                var scoped = objects[o].value.assignments || {};
+                for (var expId in scoped) {
+                    assignments.push({
+                        experimentId: expId,
+                        variantId: scoped[expId].variantId,
+                        assignedAtMs: toMs(scoped[expId].assignedAt || 0),
+                        scope: scopeKey === "assignments" ? "global" : scopeKey.split(":")[0]
+                    });
+                }
+            }
+        }
+        catch (err) {
+            logger.warn("[IdentityInspector] assignments read failed for %s: %s", userId, err.message || String(err));
+        }
+        return RpcHelpers.successResponse({
+            userId: userId,
+            account: account,
+            properties: {
+                defaultProperties: props.defaultProperties || {},
+                customProperties: props.customProperties || {},
+                computedProperties: props.computedProperties || {}
+            },
+            timeline: timeline,
+            timelineTotal: events.length,
+            audiences: memberships,
+            audiencesEvaluated: audienceIds.length,
+            experiments: assignments
+        });
+    }
+    // Local mirror of SatoriAudiences' definition loading (that namespace keeps
+    // it private); ConfigLoader caching makes this cheap.
+    function listAudienceDefs(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "audiences", gameId, {});
+        var source = raw && raw.audiences ? raw.audiences : (raw || {});
+        var out = {};
+        for (var id in source) {
+            var def = source[id] || {};
+            var fullDef = SatoriAudiences.getDefinition(nk, def.id || id, gameId);
+            if (fullDef)
+                out[fullDef.id] = fullDef;
+        }
+        // Include built-in defaults even when no custom config exists.
+        var builtins = ["new_players", "returning_players", "spenders"];
+        for (var b = 0; b < builtins.length; b++) {
+            if (!out[builtins[b]]) {
+                var builtinDef = SatoriAudiences.getDefinition(nk, builtins[b], gameId);
+                if (builtinDef)
+                    out[builtins[b]] = builtinDef;
+            }
+        }
+        return out;
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_identity_inspect", rpcInspect);
+    }
+    SatoriIdentityInspector.register = register;
+})(SatoriIdentityInspector || (SatoriIdentityInspector = {}));
 var SatoriCreatorEvents;
 (function (SatoriCreatorEvents) {
     // ---- Types ----
@@ -40884,6 +42210,7 @@ var SatoriCreatorEvents;
                 claimedAt: state.claimedAt,
                 eventTitle: def.title,
                 region: def.region,
+                email: deliveryEmail || "",
             };
             try {
                 Storage.writeSystemJson(nk, "prize_fulfillments", data.eventId + ":" + userId, fulfillmentRecord);
@@ -41511,6 +42838,8 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
         initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+        initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
+        initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
     }
     SatoriCreatorEvents.register = register;
     /**
@@ -41661,6 +42990,41 @@ var SatoriCreatorEvents;
                 submitMs: typeof myAnswer.submitMs === "number" ? myAnswer.submitMs : 0,
             });
         }
+        // 5c. Premature-claim guard — the same storageList lag that 5b works
+        // around for the caller ALSO hides other players' answers right after
+        // the event ends. Ranking against that incomplete list hands a rank-1
+        // prize to whoever claims first (real bug: player ranked #2 on the
+        // final leaderboard claimed a #1-tier prize). While inside a short
+        // grace window after the end, require the answer list to cover the
+        // joined participant count; otherwise return the rank-sync error so
+        // the client's pending-retry flow claims again once the list settles.
+        var CLAIM_GRACE_SEC = 120;
+        if (nowSec < endAt + CLAIM_GRACE_SEC) {
+            var participantCount = 0;
+            var pCursor = "";
+            var pPages = 0;
+            do {
+                var pPage;
+                try {
+                    pPage = nk.storageList("", "event_participants", 100, pCursor);
+                }
+                catch (perr) {
+                    logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
+                    break;
+                }
+                var pObjs = (pPage && pPage.objects) || [];
+                for (var pi = 0; pi < pObjs.length; pi++) {
+                    if (pObjs[pi] && pObjs[pi].key === eventId)
+                        participantCount++;
+                }
+                pCursor = (pPage && pPage.cursor) || "";
+                pPages++;
+            } while (pCursor && pPages < 5);
+            if (participantCount > allAnswers.length) {
+                logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (grace window)", userId, eventId, participantCount, allAnswers.length);
+                return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
+            }
+        }
         // 6. Sort: score desc, submit-time asc (ties broken by speed)
         allAnswers.sort(function (a, b) {
             if (a.score !== b.score)
@@ -41677,8 +43041,19 @@ var SatoriCreatorEvents;
         if (myRank === 0) {
             return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
         }
+        // Parse delivery email early — the fulfillment queue record needs it so
+        // the admin voucher pipeline knows where to send the gift card code.
+        var deliveryEmail = "";
+        if (typeof data.email === "string") {
+            var em = data.email.trim();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+                deliveryEmail = em;
+        }
         // 7. Pick tier + compute reward
         var tier = findTierForRank(def.giftCardPrizes && def.giftCardPrizes.tiers, myRank);
+        if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0 && !tier) {
+            return RpcHelpers.errorResponse("No prize for rank " + myRank + " — this event only rewards top 10");
+        }
         var xutGranted = 0;
         var giftCard = null;
         if (tier) {
@@ -41714,6 +43089,7 @@ var SatoriCreatorEvents;
                         eventTitle: def.title || "",
                         region: def.region || (def.giftCardPrizes && def.giftCardPrizes.region) || "global",
                         source: "spa_claim",
+                        email: deliveryEmail || "",
                     });
                     logger.info("[CreatorEvent SPA] Gift card queued: user=%s event=%s tier=%s prize=%s", userId, eventId, tier.rank, tier.prize);
                 }
@@ -41735,13 +43111,7 @@ var SatoriCreatorEvents;
         catch (cerr) {
             logger.warn("[CreatorEvent SPA] failed to write claim record: %s", cerr.message || String(cerr));
         }
-        // 9. Best-effort SES email
-        var deliveryEmail = "";
-        if (typeof data.email === "string") {
-            var em = data.email.trim();
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
-                deliveryEmail = em;
-        }
+        // 9. Best-effort SES email (deliveryEmail parsed above, before step 7)
         var deliveryName = "";
         if (typeof data.playerName === "string") {
             deliveryName = data.playerName.trim().slice(0, 120);
@@ -41827,6 +43197,130 @@ var SatoriCreatorEvents;
             email: emailRequested
                 ? { requested: true, sent: emailSent, error: emailError || undefined, to: deliveryEmail }
                 : { requested: false, sent: false },
+        });
+    }
+    // ────────────────────────────────────────────────────────────────────
+    //  Prize fulfillment pipeline (admin / service-to-service)
+    //
+    //  The claim RPCs above queue gift-card wins into the system-owned
+    //  `prize_fulfillments` collection with status "pending". These two
+    //  RPCs let the QuizVerse web admin dashboard (Next.js) consume that
+    //  queue and settle each record after a real voucher is issued via
+    //  Reloadly:
+    //
+    //    creator_event_fulfillments_list   → list queue (filter by status)
+    //    creator_event_fulfillment_settle  → mark fulfilled/failed + mirror
+    //                                        voucher status onto the player's
+    //                                        claim record for the SPA UI
+    //
+    //  Both are gated by NAKAMA_WEBHOOK_SECRET (already in RUNTIME_ENV_KEYS)
+    //  passed as payload.service_token — same pattern as brain_coins settle.
+    // ────────────────────────────────────────────────────────────────────
+    function isFulfillServiceCaller(ctx, data) {
+        var token = data && data.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["NAKAMA_WEBHOOK_SECRET"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    function rpcFulfillmentsList(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isFulfillServiceCaller(ctx, data)) {
+            return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+        }
+        var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+        var limit = Math.min(100, Math.max(1, Number(data.limit) || 100));
+        var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
+        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
+        var rows = [];
+        var objs = (res && res.objects) || [];
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value || {};
+            if (statusFilter && v.status !== statusFilter)
+                continue;
+            rows.push({
+                key: objs[i].key,
+                userId: v.userId || "",
+                eventId: v.eventId || "",
+                eventTitle: v.eventTitle || "",
+                rank: v.rank || 0,
+                giftCard: v.giftCard || null,
+                status: v.status || "pending",
+                region: v.region || "",
+                email: v.email || "",
+                source: v.source || "",
+                queuedAt: v.queuedAt || v.claimedAt || 0,
+                settledAt: v.settledAt || 0,
+                voucher: v.voucher || null,
+                error: v.error || "",
+            });
+        }
+        return RpcHelpers.successResponse({
+            fulfillments: rows,
+            cursor: (res && res.cursor) || "",
+        });
+    }
+    function rpcFulfillmentSettle(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isFulfillServiceCaller(ctx, data)) {
+            return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+        }
+        if (!data.eventId || !data.userId) {
+            return RpcHelpers.errorResponse("eventId and userId required");
+        }
+        var status = data.status === "fulfilled" ? "fulfilled" : (data.status === "failed" ? "failed" : "");
+        if (!status) {
+            return RpcHelpers.errorResponse("status must be 'fulfilled' or 'failed'");
+        }
+        var eventId = String(data.eventId);
+        var targetUserId = String(data.userId);
+        var fKey = eventId + ":" + targetUserId;
+        var rec = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+        if (!rec) {
+            return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+        }
+        var settledAt = Math.floor(Date.now() / 1000);
+        rec.status = status;
+        rec.settledAt = settledAt;
+        if (status === "fulfilled") {
+            // Never store the full card code server-side — it is delivered by email.
+            rec.voucher = {
+                provider: String(data.provider || "reloadly"),
+                orderId: String(data.orderId || ""),
+                deliveredTo: String(data.deliveredTo || rec.email || ""),
+                cardLast4: String(data.cardLast4 || ""),
+                codeDelivered: !!data.codeDelivered,
+            };
+            rec.error = "";
+        }
+        else {
+            rec.error = String(data.error || "fulfillment failed");
+        }
+        Storage.writeSystemJson(nk, "prize_fulfillments", fKey, rec);
+        logger.info("[CreatorEvent] Fulfillment settled: key=%s status=%s order=%s", fKey, status, (rec.voucher && rec.voucher.orderId) || "-");
+        // Mirror onto the player's claim record so the SPA "My Prizes" card can
+        // show "Voucher sent" without another server round-trip.
+        try {
+            var claimKey = "claim_" + eventId;
+            var claim = Storage.readJson(nk, "creator_event_claims", claimKey, targetUserId);
+            if (claim) {
+                claim.voucher = {
+                    status: status,
+                    provider: (rec.voucher && rec.voucher.provider) || "reloadly",
+                    deliveredTo: (rec.voucher && rec.voucher.deliveredTo) || "",
+                    settledAt: settledAt,
+                };
+                Storage.writeJson(nk, "creator_event_claims", claimKey, targetUserId, claim);
+            }
+        }
+        catch (merr) {
+            logger.warn("[CreatorEvent] Failed to mirror voucher onto claim record: %s", merr.message || String(merr));
+        }
+        return RpcHelpers.successResponse({
+            success: true,
+            key: fKey,
+            status: status,
+            settledAt: settledAt,
         });
     }
 })(SatoriCreatorEvents || (SatoriCreatorEvents = {}));
@@ -42455,6 +43949,171 @@ var SatoriMetrics;
     }
     SatoriMetrics.registerEventHandlers = registerEventHandlers;
 })(SatoriMetrics || (SatoriMetrics = {}));
+// ---------------------------------------------------------------------------
+// Satori Retention — activity-based D1/D3/D7 retention cohorts computed from
+// captured events, with optional segmentation by experiment variant.
+//
+// Cohort = users whose first activity (within the scan window) falls on a
+// given date. A user "retains" on D+N when they have any event on that date.
+// Note: users whose true first session predates the scan window will appear
+// as new — figures are window-relative, which is the standard trade-off for
+// log-scan retention. The response carries the window so the UI can label it.
+//
+// Scan is page-capped and truncation is flagged.
+// ---------------------------------------------------------------------------
+var SatoriRetention;
+(function (SatoriRetention) {
+    var PAGE_SIZE = 100;
+    var DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var MAX_PAGES = 800;
+    var MAX_DAYS = 30;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    function addDays(dateStr, days) {
+        var d = new Date(dateStr + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().slice(0, 10);
+    }
+    // satori_retention_compute — Payload: { days?, game_id?, experiment_id?, max_pages? }
+    function rpcCompute(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), MAX_DAYS);
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || DEFAULT_PAGES, 1), MAX_PAGES);
+        var gameId = RpcHelpers.gameId(data);
+        var nowMs = Date.now();
+        var sinceMs = nowMs - days * 86400000;
+        var todayStr = dateStrOf(nowMs);
+        var assignments = null;
+        var experimentId = data.experiment_id || data.experimentId;
+        if (experimentId) {
+            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+        }
+        // userId → { first: dateStr, dates: set }
+        var perUser = {};
+        var cursor = "";
+        var scannedRecords = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scannedRecords++;
+                var rec = obj.value;
+                var ts = toMs(rec.timestamp);
+                if (ts < sinceMs || ts > nowMs)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                if (!uid)
+                    continue;
+                if (assignments && !assignments[uid])
+                    continue;
+                var dStr = rec.date || dateStrOf(ts);
+                var entry = perUser[uid];
+                if (!entry) {
+                    entry = { first: dStr, dates: {} };
+                    perUser[uid] = entry;
+                }
+                entry.dates[dStr] = true;
+                if (dStr < entry.first)
+                    entry.first = dStr;
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        // Cohorts by first-active date.
+        var cohorts = {};
+        var byVariant = {};
+        for (var uid2 in perUser) {
+            var u = perUser[uid2];
+            if (!cohorts[u.first])
+                cohorts[u.first] = { size: 0, d1: 0, d3: 0, d7: 0 };
+            var c = cohorts[u.first];
+            c.size++;
+            var r1 = !!u.dates[addDays(u.first, 1)];
+            var r3 = !!u.dates[addDays(u.first, 3)];
+            var r7 = !!u.dates[addDays(u.first, 7)];
+            if (r1)
+                c.d1++;
+            if (r3)
+                c.d3++;
+            if (r7)
+                c.d7++;
+            if (assignments) {
+                var vk = assignments[uid2].variantKey;
+                if (!byVariant[vk])
+                    byVariant[vk] = { size: 0, d1: 0, d3: 0, d7: 0, d1Eligible: 0, d3Eligible: 0, d7Eligible: 0 };
+                var v = byVariant[vk];
+                v.size++;
+                // Only count toward DN rate when D+N has already passed.
+                if (addDays(u.first, 1) <= todayStr) {
+                    v.d1Eligible++;
+                    if (r1)
+                        v.d1++;
+                }
+                if (addDays(u.first, 3) <= todayStr) {
+                    v.d3Eligible++;
+                    if (r3)
+                        v.d3++;
+                }
+                if (addDays(u.first, 7) <= todayStr) {
+                    v.d7Eligible++;
+                    if (r7)
+                        v.d7++;
+                }
+            }
+        }
+        var cohortRows = [];
+        for (var dateKey in cohorts) {
+            var row = cohorts[dateKey];
+            cohortRows.push({
+                date: dateKey,
+                size: row.size,
+                d1Rate: addDays(dateKey, 1) <= todayStr ? row.d1 / row.size : null,
+                d3Rate: addDays(dateKey, 3) <= todayStr ? row.d3 / row.size : null,
+                d7Rate: addDays(dateKey, 7) <= todayStr ? row.d7 / row.size : null
+            });
+        }
+        cohortRows.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        var variantRows = [];
+        for (var vk2 in byVariant) {
+            var vr = byVariant[vk2];
+            variantRows.push({
+                variantId: vk2,
+                size: vr.size,
+                d1Rate: vr.d1Eligible > 0 ? vr.d1 / vr.d1Eligible : null,
+                d3Rate: vr.d3Eligible > 0 ? vr.d3 / vr.d3Eligible : null,
+                d7Rate: vr.d7Eligible > 0 ? vr.d7 / vr.d7Eligible : null
+            });
+        }
+        return RpcHelpers.successResponse({
+            windowDays: days,
+            sinceMs: sinceMs,
+            experimentId: experimentId || null,
+            cohorts: cohortRows,
+            byVariant: experimentId ? variantRows : null,
+            totalUsers: Object.keys(perUser).length,
+            scannedRecords: scannedRecords,
+            truncated: truncated
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_retention_compute", rpcCompute);
+    }
+    SatoriRetention.register = register;
+})(SatoriRetention || (SatoriRetention = {}));
 var SatoriTaxonomy;
 (function (SatoriTaxonomy) {
     var DEFAULT_CONFIG = {

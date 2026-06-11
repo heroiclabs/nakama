@@ -19,27 +19,31 @@
  * - Milestone at Day 3 (first power-up affordable) creates mid-week retention hook
  * - Day 7 jackpot encourages full week completion (4x Day 1 reward)
  */
+// QVBF_166: Each row now carries a `game` field (coins — the primary game
+// currency displayed in the reward popup and granted to the wallet).
+// `tokens` is kept for legacy compatibility but is NOT granted to the wallet.
+// The client reads `reward.game` for the coin amount shown in the toast.
 var REWARD_CONFIGS = {
     // Default rewards for any game - BALANCED FOR ENGAGEMENT + MONETIZATION
     "default": [
-        { day: 1, xp: 50, tokens: 40, description: "Welcome Back!" },
-        { day: 2, xp: 75, tokens: 50, description: "Day 2 Reward" },
-        { day: 3, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
-        { day: 4, xp: 150, tokens: 80, description: "Halfway There!" },
-        { day: 5, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
-        { day: 6, xp: 275, tokens: 125, description: "Almost There!" },
-        { day: 7, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
+        { day: 1, game: 40,  xp: 50,  tokens: 40,  description: "Welcome Back!" },
+        { day: 2, game: 50,  xp: 75,  tokens: 50,  description: "Day 2 Reward" },
+        { day: 3, game: 65,  xp: 100, tokens: 65,  description: "Power-Up Unlocked! \uD83D\uDCAA" },
+        { day: 4, game: 80,  xp: 150, tokens: 80,  description: "Halfway There!" },
+        { day: 5, game: 100, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! \uD83D\uDD25" },
+        { day: 6, game: 125, xp: 275, tokens: 125, description: "Almost There!" },
+        { day: 7, game: 200, xp: 400, tokens: 200, nft: "weekly_badge", description: "\uD83C\uDF89 Weekly Champion!" }
     ],
-    
+
     // QuizVerse specific - CORRECT GAME ID
     "126bf539-dae2-4bcf-964d-316c0fa1f92b": [
-        { day: 1, xp: 50, tokens: 40, description: "Welcome Back!" },
-        { day: 2, xp: 75, tokens: 50, description: "Day 2 Reward" },
-        { day: 3, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
-        { day: 4, xp: 150, tokens: 80, description: "Halfway There!" },
-        { day: 5, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
-        { day: 6, xp: 275, tokens: 125, description: "Almost There!" },
-        { day: 7, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
+        { day: 1, game: 40,  xp: 50,  tokens: 40,  description: "Welcome Back!" },
+        { day: 2, game: 50,  xp: 75,  tokens: 50,  description: "Day 2 Reward" },
+        { day: 3, game: 65,  xp: 100, tokens: 65,  description: "Power-Up Unlocked! \uD83D\uDCAA" },
+        { day: 4, game: 80,  xp: 150, tokens: 80,  description: "Halfway There!" },
+        { day: 5, game: 100, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! \uD83D\uDD25" },
+        { day: 6, game: 125, xp: 275, tokens: 125, description: "Almost There!" },
+        { day: 7, game: 200, xp: 400, tokens: 200, nft: "weekly_badge", description: "\uD83C\uDF89 Weekly Champion!" }
     ]
 };
 
@@ -198,14 +202,19 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
     var nextDay = streakData.currentStreak + 1;
     var nextReward = getRewardForDay(gameId, nextDay);
     
+    // QVBF_166: field names must match C# DailyRewardStatus [JsonProperty] attributes.
+    // C# model maps "streak" → currentStreak, "canClaim" → canClaimToday.
+    // Keep legacy aliases alongside for any old clients still in the wild.
     return JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
-        currentStreak: streakData.currentStreak,
+        streak: streakData.currentStreak,          // canonical — C# [JsonProperty("streak")]
+        currentStreak: streakData.currentStreak,   // legacy alias
         totalClaims: streakData.totalClaims,
         lastClaimTimestamp: streakData.lastClaimTimestamp,
-        canClaimToday: claimCheck.canClaim,
+        canClaim: claimCheck.canClaim,             // canonical — C# [JsonProperty("canClaim")]
+        canClaimToday: claimCheck.canClaim,        // legacy alias
         claimReason: claimCheck.reason,
         nextReward: nextReward,
         timestamp: utils.getCurrentTimestamp()
@@ -286,10 +295,11 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     
     utils.logInfo(logger, "User " + userId + " claimed day " + streakData.currentStreak + " reward for game " + gameId);
     
-    // Grant rewards to wallet (tokens mapped to coins)
+    // QVBF_166: Grant `game` (coins) to the wallet using the `game` currency key.
+    // Previously mapped tokens→coins which was wrong when `game` and `tokens` differ.
     var walletChanges = {};
-    if (reward.tokens) walletChanges.coins = reward.tokens;
-    if (reward.xp) walletChanges.xp = reward.xp;
+    if (reward.game) walletChanges.game = reward.game;
+    if (reward.xp)   walletChanges.xp   = reward.xp;
     if (Object.keys(walletChanges).length > 0) {
         try {
             nk.walletUpdate(userId, walletChanges, { source: "daily_reward", day: streakData.currentStreak, gameId: gameId }, true);
@@ -298,12 +308,16 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
             logger.error("[DailyRewards] Wallet grant failed: " + walletErr.message);
         }
     }
-    
+
+    // QVBF_166: emit both `streak`/`newStreak` so C# DailyRewardClaim
+    // [JsonProperty("streak")] → newStreak deserializes the correct value.
     return JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
-        currentStreak: streakData.currentStreak,
+        streak: streakData.currentStreak,        // canonical — C# [JsonProperty("streak")] → newStreak
+        newStreak: streakData.currentStreak,     // legacy alias
+        currentStreak: streakData.currentStreak, // extra alias for safety
         totalClaims: streakData.totalClaims,
         reward: reward,
         walletGranted: walletChanges,

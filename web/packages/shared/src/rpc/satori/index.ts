@@ -154,6 +154,329 @@ export function broadcastMessage(
   return callRpc("admin_satori_message_broadcast", message, opts);
 }
 
+/* ── Experiment results (conversions + significance) ──────────────── */
+
+export interface ExperimentVariantResult {
+  id: string;
+  name: string;
+  isControl: boolean;
+  exposures: number;
+  conversions: number;
+  rate: number;
+}
+
+export interface ExperimentComparison {
+  variantId: string;
+  controlId: string;
+  lift: number;
+  zScore: number | null;
+  pValue: number | null;
+  significant: boolean;
+  confidence: number | null;
+}
+
+export interface ExperimentResults {
+  experimentId: string;
+  name: string;
+  status: string;
+  goalEvent: string;
+  winnerVariantId: string | null;
+  variants: ExperimentVariantResult[];
+  comparisons: ExperimentComparison[];
+  suggestedWinner: string | null;
+  recommendation: string;
+  scan: {
+    assignmentObjectsScanned: number;
+    assignmentsTruncated: boolean;
+    eventRecordsScanned: number;
+    eventsTruncated: boolean;
+    totalGoalEvents: number;
+  };
+}
+
+export function getExperimentResults(
+  params: { experimentId: string; goal_event?: string; game_id?: string },
+  opts: RpcOptions,
+): Promise<ExperimentResults> {
+  return callRpc("satori_experiments_results", params, opts).then((value) =>
+    unwrapData<ExperimentResults>(value),
+  );
+}
+
+export function declareExperimentWinner(
+  params: { experimentId: string; variantId: string; game_id?: string },
+  opts: RpcOptions,
+) {
+  return callRpc("satori_experiments_declare_winner", params, opts);
+}
+
+/* ── Event debugger (live tail + search) ──────────────────────────── */
+
+export interface DebuggerEvent {
+  name: string;
+  userId: string;
+  timestampMs: number;
+  metadata: Record<string, unknown>;
+  external: boolean;
+}
+
+export interface DebuggerNameStat {
+  name: string;
+  count: number;
+  hasSchema: boolean;
+}
+
+export interface EventTailResponse {
+  events: DebuggerEvent[];
+  names: DebuggerNameStat[];
+  bufferSize: number;
+  bufferMax: number;
+}
+
+export interface EventSearchResponse {
+  events: DebuggerEvent[];
+  names: DebuggerNameStat[];
+  scannedPages: number;
+  scannedRecords: number;
+  truncated: boolean;
+  nextCursor: string | null;
+}
+
+export interface EventDebuggerFilters {
+  limit?: number;
+  name?: string;
+  name_contains?: string;
+  user_id?: string;
+  since_ms?: number;
+  until_ms?: number;
+  external_only?: boolean;
+}
+
+export function tailEvents(
+  filters: EventDebuggerFilters,
+  opts: RpcOptions,
+): Promise<EventTailResponse> {
+  return callRpc("satori_events_tail", filters, opts).then((value) =>
+    unwrapData<EventTailResponse>(value),
+  );
+}
+
+export function searchEvents(
+  filters: EventDebuggerFilters & { max_pages?: number; cursor?: string },
+  opts: RpcOptions,
+): Promise<EventSearchResponse> {
+  return callRpc("satori_events_search", filters, opts).then((value) =>
+    unwrapData<EventSearchResponse>(value),
+  );
+}
+
+export function upsertTaxonomySchema(
+  schema: {
+    name: string;
+    description?: string;
+    category?: string;
+    requiredMetadata?: string[];
+    optionalMetadata?: string[];
+  },
+  opts: RpcOptions,
+) {
+  return callRpc("satori_taxonomy_upsert", schema, opts);
+}
+
+/* ── Audience size estimate ───────────────────────────────────────── */
+
+export interface AudienceEstimate {
+  audienceId: string;
+  name: string;
+  estimatedSize: number;
+  scannedIdentities: number;
+  matchRate: number;
+  sampleUserIds: string[];
+  truncated: boolean;
+}
+
+export function estimateAudience(
+  params: { audienceId: string; game_id?: string; max_pages?: number },
+  opts: RpcOptions,
+): Promise<AudienceEstimate> {
+  return callRpc("satori_audiences_estimate", params, opts).then((value) =>
+    unwrapData<AudienceEstimate>(value),
+  );
+}
+
+/* ── Identity inspector ───────────────────────────────────────────── */
+
+export interface IdentityTimelineEvent {
+  name: string;
+  timestampMs: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface IdentityExperimentAssignment {
+  experimentId: string;
+  variantId: string;
+  assignedAtMs: number;
+  scope: string;
+}
+
+export interface IdentityInspection {
+  userId: string;
+  account: {
+    username: string;
+    displayName: string;
+    createTime: number;
+    online: boolean;
+  } | null;
+  properties: {
+    defaultProperties: Record<string, string>;
+    customProperties: Record<string, string>;
+    computedProperties: Record<string, string>;
+  };
+  timeline: IdentityTimelineEvent[];
+  timelineTotal: number;
+  audiences: string[];
+  audiencesEvaluated: number;
+  experiments: IdentityExperimentAssignment[];
+}
+
+export function inspectIdentity(
+  params: { user_id: string; game_id?: string; timeline_limit?: number },
+  opts: RpcOptions,
+): Promise<IdentityInspection> {
+  return callRpc("satori_identity_inspect", params, opts).then((value) =>
+    unwrapData<IdentityInspection>(value),
+  );
+}
+
+/* ── Funnels ──────────────────────────────────────────────────────── */
+
+export interface FunnelDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  steps: string[];
+  windowHours?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface FunnelStepResult {
+  name: string;
+  users: number;
+  conversionFromStart: number;
+  conversionFromPrevious?: number;
+}
+
+export interface FunnelResult {
+  steps: FunnelStepResult[];
+  entered: number;
+  completed: number;
+  overallConversion: number;
+  byVariant: Record<string, FunnelStepResult[]> | null;
+  scannedRecords: number;
+  truncated: boolean;
+  sinceMs: number;
+  untilMs: number;
+  experimentId: string | null;
+}
+
+export function listFunnels(opts: RpcOptions, gameId?: string): Promise<{ funnels: FunnelDefinition[] }> {
+  return callRpc("satori_funnels_list", { game_id: gameId }, opts).then((value) =>
+    unwrapData<{ funnels: FunnelDefinition[] }>(value),
+  );
+}
+
+export function saveFunnel(
+  params: {
+    id: string;
+    name: string;
+    description?: string;
+    steps: string[];
+    windowHours?: number;
+    game_id?: string;
+  },
+  opts: RpcOptions,
+) {
+  return callRpc("satori_funnels_save", params, opts);
+}
+
+export function deleteFunnel(params: { id: string; game_id?: string }, opts: RpcOptions) {
+  return callRpc("satori_funnels_delete", params, opts);
+}
+
+export function computeFunnel(
+  params: {
+    funnelId?: string;
+    steps?: string[];
+    since_ms?: number;
+    until_ms?: number;
+    window_hours?: number;
+    experiment_id?: string;
+    game_id?: string;
+  },
+  opts: RpcOptions,
+): Promise<FunnelResult> {
+  return callRpc("satori_funnels_compute", params, opts).then((value) =>
+    unwrapData<FunnelResult>(value),
+  );
+}
+
+/* ── Retention ────────────────────────────────────────────────────── */
+
+export interface RetentionCohort {
+  date: string;
+  size: number;
+  d1Rate: number | null;
+  d3Rate: number | null;
+  d7Rate: number | null;
+}
+
+export interface RetentionVariantRow {
+  variantId: string;
+  size: number;
+  d1Rate: number | null;
+  d3Rate: number | null;
+  d7Rate: number | null;
+}
+
+export interface RetentionResult {
+  windowDays: number;
+  sinceMs: number;
+  experimentId: string | null;
+  cohorts: RetentionCohort[];
+  byVariant: RetentionVariantRow[] | null;
+  totalUsers: number;
+  scannedRecords: number;
+  truncated: boolean;
+}
+
+export function computeRetention(
+  params: { days?: number; experiment_id?: string; game_id?: string },
+  opts: RpcOptions,
+): Promise<RetentionResult> {
+  return callRpc("satori_retention_compute", params, opts).then((value) =>
+    unwrapData<RetentionResult>(value),
+  );
+}
+
+/* ── Satori Cloud mirror kill-switch ──────────────────────────────── */
+
+export interface SatoriDirectStatus {
+  enabled: boolean;
+  updatedAt: number | null;
+  updatedBy: string | null;
+}
+
+export function getSatoriDirectStatus(opts: RpcOptions): Promise<SatoriDirectStatus> {
+  return callRpc("satori_direct_status", {}, opts).then((value) =>
+    unwrapData<SatoriDirectStatus>(value),
+  );
+}
+
+export function toggleSatoriDirect(enabled: boolean, opts: RpcOptions) {
+  return callRpc("satori_direct_toggle", { enabled }, opts);
+}
+
 export function getMetrics(opts: RpcOptions) {
   return satoriRpc("metrics", "get", {}, opts);
 }

@@ -9,6 +9,7 @@ import {
 } from "@nakama/shared";
 import type { RpcOptions, NakamaUser } from "@nakama/shared";
 import { cn } from "@/lib/utils";
+import { useIframeAuth } from "@/lib/useIframeAuth";
 import {
   BarChart3,
   Activity,
@@ -1713,48 +1714,14 @@ export function AnalyticsPage() {
 /*  Standalone Dashboard tab — embeds the canonical analytics.html.    */
 /* ------------------------------------------------------------------ */
 
-interface AdminLoginResult {
-  success?: boolean;
-  token?: string;
-  username?: string;
-  expiresAt?: number;
-  error?: string;
-}
-
 function StandaloneDashboardTab() {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const tokenSentRef = useRef(false);
-
-  const postTokenToIframe = useCallback(async () => {
-    if (tokenSentRef.current) return;
-    try {
-      const result = await callRpc<Record<string, unknown>, AdminLoginResult>(
-        "admin_login",
-        {},
-        serverKeyAuth(),
-      );
-      if (result?.token && iframeRef.current?.contentWindow) {
-        tokenSentRef.current = true;
-        iframeRef.current.contentWindow.postMessage(
-          {
-            type: "IVX_ADMIN_TOKEN",
-            token: result.token,
-            username: result.username ?? "admin",
-            expiresAt: result.expiresAt ?? null,
-          },
-          new URL(STANDALONE_DASHBOARD_URL).origin,
-        );
-      }
-    } catch {
-      // If the RPC proxy can't call admin_login directly, the iframe will
-      // show its own login screen as a fallback.
-    }
-  }, []);
-
-  const handleIframeLoad = useCallback(() => {
-    tokenSentRef.current = false;
-    postTokenToIframe();
-  }, [postTokenToIframe]);
+  const { iframeRef, handleIframeLoad } = useIframeAuth({
+    targetUrl: STANDALONE_DASHBOARD_URL,
+    enabled: true,
+    onError: (error) => {
+      console.warn("Iframe auth failed, iframe will show login screen:", error);
+    },
+  });
 
   return (
     <div className="space-y-3">
