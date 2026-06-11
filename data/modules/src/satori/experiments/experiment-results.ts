@@ -25,7 +25,7 @@ namespace SatoriExperimentResults {
   var EVENTS_DEFAULT_PAGES = 100;  // 10K event records
   var EVENTS_MAX_PAGES = 400;
 
-  interface AssignmentInfo {
+  export interface AssignmentInfo {
     variantKey: string;
     assignedAtMs: number;
   }
@@ -77,8 +77,9 @@ namespace SatoriExperimentResults {
 
   // Scan all users' assignment objects, collect userId → assignment for this
   // experiment. Assignment objects are stored per-user, so we list across
-  // owners with an empty userId.
-  function collectAssignments(nk: nkruntime.Nakama, experimentId: string, gameId?: string): { byUser: { [userId: string]: AssignmentInfo }; truncated: boolean; scanned: number } {
+  // owners with an empty userId. Exported for reuse by funnels/retention
+  // variant segmentation.
+  export function collectAssignments(nk: nkruntime.Nakama, experimentId: string, gameId?: string): { byUser: { [userId: string]: AssignmentInfo }; truncated: boolean; scanned: number } {
     var expectedKey = Constants.gameKey(gameId, "assignments");
     var byUser: { [userId: string]: AssignmentInfo } = {};
     var cursor = "";

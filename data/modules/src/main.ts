@@ -544,6 +544,15 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Satori] Registering Event Debugger RPCs (live tail + search)...");
     SatoriEventDebugger.register(initializer);
 
+    logger.info("[Satori] Registering Funnels RPCs...");
+    SatoriFunnels.register(initializer);
+
+    logger.info("[Satori] Registering Retention RPCs...");
+    SatoriRetention.register(initializer);
+
+    logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
+    SatoriDirectControl.register(initializer);
+
     logger.info("[Satori] All Satori systems registered successfully");
   } catch (err: any) {
     logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));

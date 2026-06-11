@@ -3342,6 +3342,9 @@ declare namespace AnalyticsAlerts {
     function instrumentInitializer(initializer: nkruntime.Initializer, logger: nkruntime.Logger): nkruntime.Initializer;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriDirectControl {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriAudienceEstimate {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3380,6 +3383,17 @@ declare namespace SatoriEventDebugger {
     export {};
 }
 declare namespace SatoriExperimentResults {
+    interface AssignmentInfo {
+        variantKey: string;
+        assignedAtMs: number;
+    }
+    function collectAssignments(nk: nkruntime.Nakama, experimentId: string, gameId?: string): {
+        byUser: {
+            [userId: string]: AssignmentInfo;
+        };
+        truncated: boolean;
+        scanned: number;
+    };
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriExperiments {
@@ -3389,6 +3403,9 @@ declare namespace SatoriExperiments {
 declare namespace SatoriFeatureFlags {
     function getFlag(nk: nkruntime.Nakama, userId: string, flagName: string, defaultValue?: string, gameId?: string): Satori.Flag;
     function getAllFlags(nk: nkruntime.Nakama, userId: string, gameId?: string): Satori.Flag[];
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriFunnels {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriIdentities {
@@ -3418,6 +3435,9 @@ declare namespace SatoriMetrics {
     }): void;
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
+}
+declare namespace SatoriRetention {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriTaxonomy {
     interface ValidationResult {

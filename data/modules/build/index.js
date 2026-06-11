@@ -479,6 +479,12 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriDataLake.register(initializer);
         logger.info("[Satori] Registering Event Debugger RPCs (live tail + search)...");
         SatoriEventDebugger.register(initializer);
+        logger.info("[Satori] Registering Funnels RPCs...");
+        SatoriFunnels.register(initializer);
+        logger.info("[Satori] Registering Retention RPCs...");
+        SatoriRetention.register(initializer);
+        logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
+        SatoriDirectControl.register(initializer);
         logger.info("[Satori] All Satori systems registered successfully");
     }
     catch (err) {
@@ -39151,6 +39157,56 @@ var AnalyticsAlerts;
     AnalyticsAlerts.register = register;
 })(AnalyticsAlerts || (AnalyticsAlerts = {}));
 // ---------------------------------------------------------------------------
+// Satori Direct Control — admin kill-switch for the Satori Cloud event
+// mirror (data/modules/satori_direct/satori_direct.js).
+//
+// The legacy module gates every outbound HTTP call to satoricloud.io on the
+// `satori_configs/satori_direct` storage object ({ enabled: boolean }, cached
+// 60s in each VM). These RPCs flip and report that flag, so the paid Satori
+// instance can be cut off without a redeploy — and re-enabled just as fast.
+// ---------------------------------------------------------------------------
+var SatoriDirectControl;
+(function (SatoriDirectControl) {
+    var CONFIG_KEY = "satori_direct";
+    function readConfig(nk) {
+        var cfg = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, CONFIG_KEY);
+        if (!cfg || cfg.enabled === undefined)
+            return { enabled: true };
+        return cfg;
+    }
+    // satori_direct_status — current mirror state.
+    function rpcStatus(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var cfg = readConfig(nk);
+        return RpcHelpers.successResponse({
+            enabled: cfg.enabled !== false,
+            updatedAt: cfg.updatedAt || null,
+            updatedBy: cfg.updatedBy || null,
+            note: "Controls outbound event mirroring to the hosted Satori Cloud instance. Takes effect within ~60s on all pods."
+        });
+    }
+    // satori_direct_toggle — Payload: { enabled: boolean }
+    function rpcToggle(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (data.enabled === undefined)
+            return RpcHelpers.errorResponse("enabled (boolean) required");
+        var cfg = {
+            enabled: !!data.enabled,
+            updatedAt: Math.floor(Date.now() / 1000),
+            updatedBy: ctx.userId || "server"
+        };
+        Storage.writeSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, CONFIG_KEY, cfg);
+        logger.info("[SatoriDirectControl] Satori Cloud mirror %s by %s", cfg.enabled ? "ENABLED" : "DISABLED", cfg.updatedBy);
+        return RpcHelpers.successResponse({ enabled: cfg.enabled, updatedAt: cfg.updatedAt });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_direct_status", rpcStatus);
+        initializer.registerRpc("satori_direct_toggle", rpcToggle);
+    }
+    SatoriDirectControl.register = register;
+})(SatoriDirectControl || (SatoriDirectControl = {}));
+// ---------------------------------------------------------------------------
 // Satori Audience Estimator — admin-only size estimates for audience
 // definitions, matching the hosted Satori console's "audience size" readout.
 //
@@ -40207,7 +40263,8 @@ var SatoriExperimentResults;
     }
     // Scan all users' assignment objects, collect userId → assignment for this
     // experiment. Assignment objects are stored per-user, so we list across
-    // owners with an empty userId.
+    // owners with an empty userId. Exported for reuse by funnels/retention
+    // variant segmentation.
     function collectAssignments(nk, experimentId, gameId) {
         var expectedKey = Constants.gameKey(gameId, "assignments");
         var byUser = {};
@@ -40239,6 +40296,7 @@ var SatoriExperimentResults;
             truncated = true;
         return { byUser: byUser, truncated: truncated, scanned: scanned };
     }
+    SatoriExperimentResults.collectAssignments = collectAssignments;
     // Scan goal events; a user converts when their FIRST goal event happens at
     // or after their assignment time. Also tallies total goal-event volume.
     function collectConversions(nk, goalEvent, byUser, maxPages) {
@@ -40688,6 +40746,248 @@ var SatoriFeatureFlags;
     }
     SatoriFeatureFlags.register = register;
 })(SatoriFeatureFlags || (SatoriFeatureFlags = {}));
+// ---------------------------------------------------------------------------
+// Satori Funnels — saved funnel definitions + on-demand conversion analysis
+// over captured events, matching the hosted Satori console's funnel surface.
+//
+// A funnel is an ordered list of event names. A user "completes" step N when
+// they have an occurrence of step N's event at/after their step N-1 event
+// (and within the optional time window measured from step 0).
+//
+// Optional variant segmentation: pass an experimentId to split the funnel by
+// the variant each user was assigned (reuses the assignment scan from
+// SatoriExperimentResults).
+//
+// All scans are page-capped; truncation is flagged in the response.
+// ---------------------------------------------------------------------------
+var SatoriFunnels;
+(function (SatoriFunnels) {
+    var PAGE_SIZE = 100;
+    var EVENTS_DEFAULT_PAGES = 100; // 10K event records
+    var EVENTS_MAX_PAGES = 400;
+    var MAX_STEPS = 8;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function getFunnels(nk, gameId) {
+        return ConfigLoader.loadSatoriConfigForGame(nk, "funnels", gameId, {});
+    }
+    // ---- Core computation ----
+    function computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowMs) {
+        var stepSet = {};
+        for (var s = 0; s < steps.length; s++)
+            stepSet[steps[s]] = s;
+        // userId → per-step sorted-ish timestamp lists (only steps we care about).
+        var perUser = {};
+        var cursor = "";
+        var scannedRecords = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scannedRecords++;
+                var rec = obj.value;
+                var stepIdx = stepSet[rec.name];
+                if (stepIdx === undefined)
+                    continue;
+                var ts = toMs(rec.timestamp);
+                if (ts < sinceMs || ts > untilMs)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                if (!uid)
+                    continue;
+                if (assignments && !assignments[uid])
+                    continue;
+                if (!perUser[uid]) {
+                    perUser[uid] = [];
+                    for (var k = 0; k < steps.length; k++)
+                        perUser[uid].push([]);
+                }
+                perUser[uid][stepIdx].push(ts);
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        // Walk each user's funnel.
+        var stepUsers = [];
+        var stepUsersByVariant = {};
+        for (var z = 0; z < steps.length; z++)
+            stepUsers.push(0);
+        for (var uid2 in perUser) {
+            var lists = perUser[uid2];
+            for (var sl = 0; sl < lists.length; sl++) {
+                lists[sl].sort(function (a, b) { return a - b; });
+            }
+            if (lists[0].length === 0)
+                continue;
+            var variantKey = null;
+            if (assignments) {
+                variantKey = assignments[uid2].variantKey;
+                if (!stepUsersByVariant[variantKey]) {
+                    stepUsersByVariant[variantKey] = [];
+                    for (var zv = 0; zv < steps.length; zv++)
+                        stepUsersByVariant[variantKey].push(0);
+                }
+            }
+            var startTs = lists[0][0];
+            var deadline = windowMs ? startTs + windowMs : Number.MAX_VALUE;
+            var prevTs = startTs;
+            var reached = 0;
+            for (var st = 0; st < steps.length; st++) {
+                if (st === 0) {
+                    reached = 1;
+                }
+                else {
+                    // first occurrence at/after the previous step (and before deadline)
+                    var found = -1;
+                    for (var t = 0; t < lists[st].length; t++) {
+                        if (lists[st][t] >= prevTs && lists[st][t] <= deadline) {
+                            found = lists[st][t];
+                            break;
+                        }
+                    }
+                    if (found < 0)
+                        break;
+                    prevTs = found;
+                    reached = st + 1;
+                }
+                stepUsers[st]++;
+                if (variantKey !== null)
+                    stepUsersByVariant[variantKey][st]++;
+            }
+        }
+        var stepRows = [];
+        for (var r = 0; r < steps.length; r++) {
+            stepRows.push({
+                name: steps[r],
+                users: stepUsers[r],
+                conversionFromStart: stepUsers[0] > 0 ? stepUsers[r] / stepUsers[0] : 0,
+                conversionFromPrevious: r === 0 ? 1 : (stepUsers[r - 1] > 0 ? stepUsers[r] / stepUsers[r - 1] : 0)
+            });
+        }
+        var byVariant = null;
+        if (assignments) {
+            byVariant = {};
+            for (var vk in stepUsersByVariant) {
+                var counts = stepUsersByVariant[vk];
+                var rows = [];
+                for (var rv = 0; rv < steps.length; rv++) {
+                    rows.push({
+                        name: steps[rv],
+                        users: counts[rv],
+                        conversionFromStart: counts[0] > 0 ? counts[rv] / counts[0] : 0
+                    });
+                }
+                byVariant[vk] = rows;
+            }
+        }
+        return {
+            steps: stepRows,
+            entered: stepUsers[0],
+            completed: stepUsers[steps.length - 1],
+            overallConversion: stepUsers[0] > 0 ? stepUsers[steps.length - 1] / stepUsers[0] : 0,
+            byVariant: byVariant,
+            scannedRecords: scannedRecords,
+            truncated: truncated
+        };
+    }
+    // ---- RPCs ----
+    function rpcList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var funnels = getFunnels(nk, RpcHelpers.gameId(data));
+        var list = [];
+        for (var id in funnels)
+            list.push(funnels[id]);
+        return RpcHelpers.successResponse({ funnels: list });
+    }
+    function rpcSave(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var steps = data.steps || [];
+        if (!data.id || !data.name)
+            return RpcHelpers.errorResponse("id and name required");
+        if (!Array.isArray(steps) || steps.length < 2)
+            return RpcHelpers.errorResponse("steps[] requires at least 2 event names");
+        if (steps.length > MAX_STEPS)
+            return RpcHelpers.errorResponse("steps[] supports at most " + MAX_STEPS + " events");
+        var gameId = RpcHelpers.gameId(data);
+        var funnels = getFunnels(nk, gameId);
+        var now = Math.floor(Date.now() / 1000);
+        funnels[data.id] = {
+            id: data.id,
+            name: data.name,
+            description: data.description || "",
+            steps: steps,
+            windowHours: data.windowHours ? Number(data.windowHours) : undefined,
+            createdAt: (funnels[data.id] && funnels[data.id].createdAt) || now,
+            updatedAt: now
+        };
+        ConfigLoader.saveSatoriConfigForGame(nk, "funnels", gameId, funnels);
+        return RpcHelpers.successResponse({ funnel: funnels[data.id] });
+    }
+    function rpcDelete(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.id)
+            return RpcHelpers.errorResponse("id required");
+        var gameId = RpcHelpers.gameId(data);
+        var funnels = getFunnels(nk, gameId);
+        delete funnels[data.id];
+        ConfigLoader.saveSatoriConfigForGame(nk, "funnels", gameId, funnels);
+        return RpcHelpers.successResponse({ deleted: data.id });
+    }
+    // satori_funnels_compute — Payload: { funnelId? | steps[], since_ms?,
+    //   until_ms?, experiment_id?, game_id?, max_pages? }
+    function rpcCompute(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var steps = data.steps || [];
+        var windowHours = data.window_hours ? Number(data.window_hours) : undefined;
+        if (data.funnelId || data.funnel_id) {
+            var def = getFunnels(nk, gameId)[data.funnelId || data.funnel_id];
+            if (!def)
+                return RpcHelpers.errorResponse("Funnel not found");
+            steps = def.steps;
+            if (windowHours === undefined)
+                windowHours = def.windowHours;
+        }
+        if (!Array.isArray(steps) || steps.length < 2)
+            return RpcHelpers.errorResponse("steps[] (>=2) or funnelId required");
+        if (steps.length > MAX_STEPS)
+            return RpcHelpers.errorResponse("steps[] supports at most " + MAX_STEPS + " events");
+        var sinceMs = Number(data.since_ms || data.sinceMs) || (Date.now() - 7 * 86400000);
+        var untilMs = Number(data.until_ms || data.untilMs) || Date.now();
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || EVENTS_DEFAULT_PAGES, 1), EVENTS_MAX_PAGES);
+        var assignments = null;
+        var experimentId = data.experiment_id || data.experimentId;
+        if (experimentId) {
+            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+        }
+        var result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
+        result.sinceMs = sinceMs;
+        result.untilMs = untilMs;
+        result.experimentId = experimentId || null;
+        return RpcHelpers.successResponse(result);
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_funnels_list", rpcList);
+        initializer.registerRpc("satori_funnels_save", rpcSave);
+        initializer.registerRpc("satori_funnels_delete", rpcDelete);
+        initializer.registerRpc("satori_funnels_compute", rpcCompute);
+    }
+    SatoriFunnels.register = register;
+})(SatoriFunnels || (SatoriFunnels = {}));
 var SatoriIdentities;
 (function (SatoriIdentities) {
     function getProperties(nk, userId) {
@@ -43207,6 +43507,171 @@ var SatoriMetrics;
     }
     SatoriMetrics.registerEventHandlers = registerEventHandlers;
 })(SatoriMetrics || (SatoriMetrics = {}));
+// ---------------------------------------------------------------------------
+// Satori Retention — activity-based D1/D3/D7 retention cohorts computed from
+// captured events, with optional segmentation by experiment variant.
+//
+// Cohort = users whose first activity (within the scan window) falls on a
+// given date. A user "retains" on D+N when they have any event on that date.
+// Note: users whose true first session predates the scan window will appear
+// as new — figures are window-relative, which is the standard trade-off for
+// log-scan retention. The response carries the window so the UI can label it.
+//
+// Scan is page-capped and truncation is flagged.
+// ---------------------------------------------------------------------------
+var SatoriRetention;
+(function (SatoriRetention) {
+    var PAGE_SIZE = 100;
+    var DEFAULT_PAGES = 150; // 15K event records
+    var MAX_PAGES = 400;
+    var MAX_DAYS = 30;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    function addDays(dateStr, days) {
+        var d = new Date(dateStr + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().slice(0, 10);
+    }
+    // satori_retention_compute — Payload: { days?, game_id?, experiment_id?, max_pages? }
+    function rpcCompute(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), MAX_DAYS);
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || DEFAULT_PAGES, 1), MAX_PAGES);
+        var gameId = RpcHelpers.gameId(data);
+        var nowMs = Date.now();
+        var sinceMs = nowMs - days * 86400000;
+        var todayStr = dateStrOf(nowMs);
+        var assignments = null;
+        var experimentId = data.experiment_id || data.experimentId;
+        if (experimentId) {
+            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+        }
+        // userId → { first: dateStr, dates: set }
+        var perUser = {};
+        var cursor = "";
+        var scannedRecords = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scannedRecords++;
+                var rec = obj.value;
+                var ts = toMs(rec.timestamp);
+                if (ts < sinceMs || ts > nowMs)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                if (!uid)
+                    continue;
+                if (assignments && !assignments[uid])
+                    continue;
+                var dStr = rec.date || dateStrOf(ts);
+                var entry = perUser[uid];
+                if (!entry) {
+                    entry = { first: dStr, dates: {} };
+                    perUser[uid] = entry;
+                }
+                entry.dates[dStr] = true;
+                if (dStr < entry.first)
+                    entry.first = dStr;
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        // Cohorts by first-active date.
+        var cohorts = {};
+        var byVariant = {};
+        for (var uid2 in perUser) {
+            var u = perUser[uid2];
+            if (!cohorts[u.first])
+                cohorts[u.first] = { size: 0, d1: 0, d3: 0, d7: 0 };
+            var c = cohorts[u.first];
+            c.size++;
+            var r1 = !!u.dates[addDays(u.first, 1)];
+            var r3 = !!u.dates[addDays(u.first, 3)];
+            var r7 = !!u.dates[addDays(u.first, 7)];
+            if (r1)
+                c.d1++;
+            if (r3)
+                c.d3++;
+            if (r7)
+                c.d7++;
+            if (assignments) {
+                var vk = assignments[uid2].variantKey;
+                if (!byVariant[vk])
+                    byVariant[vk] = { size: 0, d1: 0, d3: 0, d7: 0, d1Eligible: 0, d3Eligible: 0, d7Eligible: 0 };
+                var v = byVariant[vk];
+                v.size++;
+                // Only count toward DN rate when D+N has already passed.
+                if (addDays(u.first, 1) <= todayStr) {
+                    v.d1Eligible++;
+                    if (r1)
+                        v.d1++;
+                }
+                if (addDays(u.first, 3) <= todayStr) {
+                    v.d3Eligible++;
+                    if (r3)
+                        v.d3++;
+                }
+                if (addDays(u.first, 7) <= todayStr) {
+                    v.d7Eligible++;
+                    if (r7)
+                        v.d7++;
+                }
+            }
+        }
+        var cohortRows = [];
+        for (var dateKey in cohorts) {
+            var row = cohorts[dateKey];
+            cohortRows.push({
+                date: dateKey,
+                size: row.size,
+                d1Rate: addDays(dateKey, 1) <= todayStr ? row.d1 / row.size : null,
+                d3Rate: addDays(dateKey, 3) <= todayStr ? row.d3 / row.size : null,
+                d7Rate: addDays(dateKey, 7) <= todayStr ? row.d7 / row.size : null
+            });
+        }
+        cohortRows.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        var variantRows = [];
+        for (var vk2 in byVariant) {
+            var vr = byVariant[vk2];
+            variantRows.push({
+                variantId: vk2,
+                size: vr.size,
+                d1Rate: vr.d1Eligible > 0 ? vr.d1 / vr.d1Eligible : null,
+                d3Rate: vr.d3Eligible > 0 ? vr.d3 / vr.d3Eligible : null,
+                d7Rate: vr.d7Eligible > 0 ? vr.d7 / vr.d7Eligible : null
+            });
+        }
+        return RpcHelpers.successResponse({
+            windowDays: days,
+            sinceMs: sinceMs,
+            experimentId: experimentId || null,
+            cohorts: cohortRows,
+            byVariant: experimentId ? variantRows : null,
+            totalUsers: Object.keys(perUser).length,
+            scannedRecords: scannedRecords,
+            truncated: truncated
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_retention_compute", rpcCompute);
+    }
+    SatoriRetention.register = register;
+})(SatoriRetention || (SatoriRetention = {}));
 var SatoriTaxonomy;
 (function (SatoriTaxonomy) {
     var DEFAULT_CONFIG = {
