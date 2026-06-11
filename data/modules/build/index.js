@@ -6992,10 +6992,24 @@ var BlogEmbed;
 (function (BlogEmbed) {
     var COLLECTION_EMBEDS = "qv_blog_embeds";
     var COLLECTION_PENDING = "qv_embed_pending";
+    // First-party (quizverse.world blog) reward ledger — keyed by the reader's
+    // own Nakama account id (ghost or signed-in), distinct from the third-party
+    // device-pending ledger above.
+    var COLLECTION_QUIZ_CLAIMS = "qv_blog_quiz_claims";
     // Economy: one blog quiz earns a fixed reward, once per device per embed
     // (lifetime), with a daily cap on distinct embeds to stop coin farming.
     var COINS_PER_EMBED = 20;
     var MAX_EMBEDS_PER_DAY = 10;
+    // First-party blog post reward (the "Test Your Knowledge → earn coins" card
+    // on quizverse.world/blog/*). Bigger than the third-party embed reward
+    // because the reader is onboarding directly into our own account/wallet.
+    // Server-clamped: we never trust a client-supplied amount above this.
+    var BLOG_QUIZ_REWARD_MAX = 500;
+    var BLOG_QUIZ_REWARD_DFLT = 500;
+    // Fraction of questions a reader must get right to unlock the reward.
+    var BLOG_QUIZ_PASS_RATIO = 0.6;
+    // Anti-farm: distinct blog quizzes a single account can be rewarded for / day.
+    var BLOG_QUIZ_MAX_PER_DAY = 10;
     // Generation guardrails.
     var MIN_CONTENT_CHARS = 200;
     var MAX_CONTENT_CHARS = 12000;
@@ -7043,60 +7057,114 @@ var BlogEmbed;
             return "";
         }
     }
-    // ── LLM call (Anthropic preferred, OpenAI fallback) ─────────────────────────
+    // ── LLM call (self-hosted qwen3 vLLM first, then OpenAI/Anthropic) ──────────
     // Returns the raw model text, or "" on any failure. Mirrors the provider
-    // shapes used by ai_player.js so we stay consistent across the runtime.
+    // selection in ai_player.js: the prod JS runtime's canonical LLM is the
+    // in-cluster, keyless qwen3 vLLM (LLM_PROVIDER=qwen3, QWEN3_BASE_URL/
+    // QWEN3_MODEL from ctx.env). OPENAI_API_KEY / ANTHROPIC_API_KEY are NOT in
+    // Nakama's runtime.env in prod, so relying on them alone made generation
+    // silently fail (ctx.env returns ""). We honour LLM_PROVIDER but always fall
+    // back to qwen3 so blog-quiz generation works on the self-hosted stack.
+    var QWEN3_DEFAULT_BASE_URL = "http://vllm-coder-pro.content-factory.svc.cluster.local:8000";
+    var QWEN3_DEFAULT_MODEL = "Qwen/Qwen3-7B-Instruct";
     function callLlm(ctx, logger, nk, system, user) {
         var anthropic = envStr(ctx, "ANTHROPIC_API_KEY");
         var openai = envStr(ctx, "OPENAI_API_KEY");
         var maxTokens = 2000;
-        try {
-            if (anthropic) {
-                var ra = nk.httpRequest("https://api.anthropic.com/v1/messages", "post", {
-                    "Content-Type": "application/json",
-                    "x-api-key": anthropic,
-                    "anthropic-version": "2023-06-01"
-                }, JSON.stringify({
-                    model: "claude-sonnet-4-20250514",
-                    max_tokens: maxTokens,
-                    system: system,
-                    messages: [{ role: "user", content: user }]
-                }), 20000);
-                if (ra && ra.code >= 200 && ra.code < 300 && ra.body) {
-                    var pa = JSON.parse(ra.body);
-                    if (pa && pa.content && pa.content.length > 0 && pa.content[0].text) {
-                        return "" + pa.content[0].text;
-                    }
-                }
-                else {
-                    logger.warn("[BlogEmbed] anthropic HTTP " + (ra ? ra.code : "?"));
-                }
+        // Build the attempt order: preferred provider first, then qwen3 (keyless,
+        // self-hosted), then any keyed cloud provider that happens to be set.
+        var preferred = ("" + ((ctx.env && ctx.env["LLM_PROVIDER"]) || "qwen3")).toLowerCase();
+        var order = [];
+        function pushUnique(p) {
+            for (var k = 0; k < order.length; k++) {
+                if (order[k] === p)
+                    return;
             }
-            if (openai) {
-                var ro = nk.httpRequest("https://api.openai.com/v1/chat/completions", "post", {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + openai
-                }, JSON.stringify({
-                    model: "gpt-4o-mini",
-                    max_tokens: maxTokens,
-                    messages: [
-                        { role: "system", content: system },
-                        { role: "user", content: user }
-                    ]
-                }), 20000);
-                if (ro && ro.code >= 200 && ro.code < 300 && ro.body) {
-                    var po = JSON.parse(ro.body);
-                    if (po && po.choices && po.choices.length > 0 && po.choices[0].message) {
-                        return "" + po.choices[0].message.content;
-                    }
-                }
-                else {
-                    logger.warn("[BlogEmbed] openai HTTP " + (ro ? ro.code : "?"));
-                }
-            }
+            order.push(p);
         }
-        catch (err) {
-            logger.error("[BlogEmbed] callLlm threw: " + (err && err.message ? err.message : String(err)));
+        pushUnique(preferred);
+        pushUnique("qwen3");
+        pushUnique("claude");
+        pushUnique("openai");
+        for (var oi = 0; oi < order.length; oi++) {
+            var name = order[oi];
+            try {
+                if (name === "qwen3") {
+                    // Self-hosted vLLM (OpenAI-compatible). 18s keeps the whole RPC under
+                    // the Next.js /api/blog-quiz/generate 22s client timeout.
+                    var qBase = ("" + ((ctx.env && ctx.env["QWEN3_BASE_URL"]) || QWEN3_DEFAULT_BASE_URL)).replace(/\/$/, "");
+                    var qModel = "" + ((ctx.env && ctx.env["QWEN3_MODEL"]) || QWEN3_DEFAULT_MODEL);
+                    var rq = nk.httpRequest(qBase + "/v1/chat/completions", "post", {
+                        "Content-Type": "application/json"
+                    }, JSON.stringify({
+                        model: qModel,
+                        max_tokens: maxTokens,
+                        messages: [
+                            { role: "system", content: system },
+                            { role: "user", content: user }
+                        ],
+                        chat_template_kwargs: { enable_thinking: false }
+                    }), 18000);
+                    if (rq && rq.code >= 200 && rq.code < 300 && rq.body) {
+                        var pq = JSON.parse(rq.body);
+                        if (pq && pq.choices && pq.choices.length > 0 && pq.choices[0].message) {
+                            var tq = "" + pq.choices[0].message.content;
+                            if (tq)
+                                return tq;
+                        }
+                    }
+                    else {
+                        logger.warn("[BlogEmbed] qwen3 HTTP " + (rq ? rq.code : "?"));
+                    }
+                    continue;
+                }
+                if (name === "claude" && anthropic) {
+                    var ra = nk.httpRequest("https://api.anthropic.com/v1/messages", "post", {
+                        "Content-Type": "application/json",
+                        "x-api-key": anthropic,
+                        "anthropic-version": "2023-06-01"
+                    }, JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: maxTokens,
+                        system: system,
+                        messages: [{ role: "user", content: user }]
+                    }), 20000);
+                    if (ra && ra.code >= 200 && ra.code < 300 && ra.body) {
+                        var pa = JSON.parse(ra.body);
+                        if (pa && pa.content && pa.content.length > 0 && pa.content[0].text) {
+                            return "" + pa.content[0].text;
+                        }
+                    }
+                    else {
+                        logger.warn("[BlogEmbed] anthropic HTTP " + (ra ? ra.code : "?"));
+                    }
+                }
+                if (name === "openai" && openai) {
+                    var ro = nk.httpRequest("https://api.openai.com/v1/chat/completions", "post", {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + openai
+                    }, JSON.stringify({
+                        model: "gpt-4o-mini",
+                        max_tokens: maxTokens,
+                        messages: [
+                            { role: "system", content: system },
+                            { role: "user", content: user }
+                        ]
+                    }), 20000);
+                    if (ro && ro.code >= 200 && ro.code < 300 && ro.body) {
+                        var po = JSON.parse(ro.body);
+                        if (po && po.choices && po.choices.length > 0 && po.choices[0].message) {
+                            return "" + po.choices[0].message.content;
+                        }
+                    }
+                    else {
+                        logger.warn("[BlogEmbed] openai HTTP " + (ro ? ro.code : "?"));
+                    }
+                }
+            }
+            catch (err) {
+                logger.error("[BlogEmbed] callLlm threw: " + (err && err.message ? err.message : String(err)));
+            }
         }
         return "";
     }
@@ -7335,6 +7403,78 @@ var BlogEmbed;
         catch (_e) { /* coins already granted; best-effort */ }
         return RpcHelpers.successResponse({ credited: amount, pending_coins: 0, currency: "coins", claimed_total: ledger.claimed_coins });
     }
+    function readClaims(nk, userId) {
+        try {
+            var p = Storage.readSystemJson(nk, COLLECTION_QUIZ_CLAIMS, userId);
+            if (p && p.claimed)
+                return p;
+        }
+        catch (_e) { }
+        return { user_id: userId, total_coins: 0, claimed: {}, updated: 0 };
+    }
+    function countClaimedToday(ledger) {
+        var start = startOfTodayUnix();
+        var n = 0;
+        for (var k in ledger.claimed) {
+            if (Object.prototype.hasOwnProperty.call(ledger.claimed, k) && ledger.claimed[k] && ledger.claimed[k].ts >= start)
+                n++;
+        }
+        return n;
+    }
+    // ── RPC: quizverse_blog_quiz_reward ──────────────────────────────────────────
+    // Auth: any Nakama session (ghost ok — the blog reader holds a device-id ghost
+    // session, which IS a real account/wallet that merges into their Cognito
+    // account on sign-in via account_merge_ghost_to_cognito).
+    //
+    // Flow: the quizverse.world blog post generates a quiz (quizverse_blog_embed_create),
+    // the reader plays it inline, and on a passing score this RPC credits the
+    // configured reward straight into the caller's wallet — once per (account,
+    // embed) for life, with a daily cap on distinct quizzes (anti-farm).
+    //
+    // Body: { embed_id, correct, total, reward?, source? }
+    function rpcReward(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var embedId = "" + (data.embed_id || "");
+        var correct = clampInt(data.correct, 0, 100, 0);
+        var total = clampInt(data.total, 1, 100, 1);
+        // Reward is server-clamped — never trust the client past the cap.
+        var reward = clampInt(data.reward, 0, BLOG_QUIZ_REWARD_MAX, BLOG_QUIZ_REWARD_DFLT);
+        var source = ("" + (data.source || "blog_post")).slice(0, 120);
+        if (!embedId)
+            return RpcHelpers.errorResponse("embed_id required", 400);
+        // Embed must exist (don't mint coins for fabricated quiz ids).
+        var quiz = Storage.readSystemJson(nk, COLLECTION_EMBEDS, embedId);
+        if (!quiz)
+            return RpcHelpers.errorResponse("embed not found", 404);
+        // Passing score gate — "answer correctly to earn coins".
+        var passed = (correct / total) >= BLOG_QUIZ_PASS_RATIO;
+        if (!passed) {
+            return RpcHelpers.successResponse({ credited: 0, reward: reward, passed: false, pass_ratio: BLOG_QUIZ_PASS_RATIO, reason: "score_below_threshold" });
+        }
+        var ledger = readClaims(nk, userId);
+        if (ledger.claimed[embedId]) {
+            return RpcHelpers.successResponse({ credited: 0, reward: reward, passed: true, already_claimed: true, total_coins: ledger.total_coins });
+        }
+        if (countClaimedToday(ledger) >= BLOG_QUIZ_MAX_PER_DAY) {
+            return RpcHelpers.successResponse({ credited: 0, reward: reward, passed: true, skipped: "daily_cap" });
+        }
+        try {
+            nk.walletUpdate(userId, { coins: reward }, { source: source, embed_id: embedId, correct: correct, total: total, rewarded_at: nowSec() }, true);
+        }
+        catch (err) {
+            logger.error("[BlogEmbed] reward walletUpdate failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("wallet_credit_failed", 500);
+        }
+        ledger.claimed[embedId] = { coins: reward, ts: nowSec(), correct: correct, total: total };
+        ledger.total_coins = (ledger.total_coins | 0) + reward;
+        ledger.updated = nowSec();
+        try {
+            Storage.writeSystemJson(nk, COLLECTION_QUIZ_CLAIMS, userId, ledger);
+        }
+        catch (_e) { /* coins already granted; best-effort */ }
+        return RpcHelpers.successResponse({ credited: reward, reward: reward, passed: true, currency: "coins", total_coins: ledger.total_coins });
+    }
     // ── Registration ──────────────────────────────────────────────────────────────
     function register(initializer) {
         function auth(fn) {
@@ -7354,6 +7494,7 @@ var BlogEmbed;
         initializer.registerRpc("quizverse_blog_embed_get", rpcGet);
         initializer.registerRpc("quizverse_embed_quiz_complete", rpcComplete);
         initializer.registerRpc("quizverse_embed_claim_pending", auth(rpcClaim));
+        initializer.registerRpc("quizverse_blog_quiz_reward", auth(rpcReward));
     }
     BlogEmbed.register = register;
 })(BlogEmbed || (BlogEmbed = {}));
@@ -40012,6 +40153,40 @@ var SatoriIdentities;
 var SatoriCreatorEvents;
 (function (SatoriCreatorEvents) {
     // ---- Types ----
+    /** Rank → tier keys to try (most specific first; legacy top_10/all kept for USA pool). */
+    function tierLookupKeysForRank(rank) {
+        var keys = [];
+        if (rank === 1)
+            keys.push("1st");
+        else if (rank === 2)
+            keys.push("2nd");
+        else if (rank === 3)
+            keys.push("3rd");
+        else if (rank === 4)
+            keys.push("4th");
+        else if (rank === 5)
+            keys.push("5th");
+        else if (rank >= 6 && rank <= 10)
+            keys.push("6_10");
+        if (rank > 3 && rank <= 10)
+            keys.push("top_10");
+        if (rank > 10)
+            keys.push("all");
+        return keys;
+    }
+    function findGiftCardTierForRank(tiers, rank) {
+        if (!tiers || tiers.length === 0)
+            return null;
+        var keys = tierLookupKeysForRank(rank);
+        for (var ki = 0; ki < keys.length; ki++) {
+            for (var i = 0; i < tiers.length; i++) {
+                var t = tiers[i];
+                if (t && t.rank === keys[ki])
+                    return t;
+            }
+        }
+        return null;
+    }
     var COLLECTION = "satori_creator_events";
     var LEADERBOARD_PREFIX = "creator_event_";
     var TIER_ORDER = ["platinum", "gold", "silver", "bronze", "participation"];
@@ -40692,24 +40867,9 @@ var SatoriCreatorEvents;
         // Gift card fulfillment lookup
         var giftCardTier = null;
         if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0) {
-            var rankStr = state.rank === 1 ? "1st"
-                : state.rank === 2 ? "2nd"
-                    : state.rank === 3 ? "3rd"
-                        : (state.rank || 99) <= 10 ? "top_10"
-                            : "all";
-            for (var gti = 0; gti < def.giftCardPrizes.tiers.length; gti++) {
-                if (def.giftCardPrizes.tiers[gti].rank === rankStr) {
-                    giftCardTier = def.giftCardPrizes.tiers[gti];
-                    break;
-                }
-            }
-            if (!giftCardTier) {
-                for (var gti2 = 0; gti2 < def.giftCardPrizes.tiers.length; gti2++) {
-                    if (def.giftCardPrizes.tiers[gti2].rank === "all") {
-                        giftCardTier = def.giftCardPrizes.tiers[gti2];
-                        break;
-                    }
-                }
+            var matched = findGiftCardTierForRank(def.giftCardPrizes.tiers, state.rank || 0);
+            if (matched && matched.fulfillment !== "nakama") {
+                giftCardTier = matched;
             }
         }
         // Store pending gift card fulfillment record so admin/n8n can process it
@@ -41400,32 +41560,18 @@ var SatoriCreatorEvents;
                 "Earn more XUT or pick a different funding method.");
         }
     }
-    function rankToTierKey(rank) {
-        if (rank === 1)
-            return "1st";
-        if (rank === 2)
-            return "2nd";
-        if (rank === 3)
-            return "3rd";
-        if (rank > 0 && rank <= 10)
-            return "top_10";
-        return "all";
-    }
     function findTierForRank(tiers, rank) {
         if (!tiers || tiers.length === 0)
             return null;
-        var key = rankToTierKey(rank);
-        var fallback = null;
-        for (var i = 0; i < tiers.length; i++) {
-            var t = tiers[i];
-            if (!t || !t.rank)
-                continue;
-            if (t.rank === key)
-                return t;
-            if (t.rank === "all")
-                fallback = t;
+        var keys = tierLookupKeysForRank(rank);
+        for (var ki = 0; ki < keys.length; ki++) {
+            for (var i = 0; i < tiers.length; i++) {
+                var t = tiers[i];
+                if (t && t.rank === keys[ki])
+                    return t;
+            }
         }
-        return fallback;
+        return null;
     }
     function spaGiftCardTier(rank) {
         // Map server rank → quests-api SES "tier" enum (cosmetic for the email).

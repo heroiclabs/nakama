@@ -23,7 +23,7 @@ namespace SatoriCreatorEvents {
   }
 
   interface GiftCardTier {
-    rank: string;       // "1st", "2nd", "3rd", "top_10", "all"
+    rank: string;       // "1st", "2nd", "3rd", "4th", "5th", "6_10", "top_10", "all"
     prize: string;      // "Amazon India ₹1,000"
     brand: string;      // "amazon_in", "swiggy", "google_play", "starbucks"
     value: number;
@@ -36,6 +36,32 @@ namespace SatoriCreatorEvents {
     tiers: GiftCardTier[];
     totalValue: number;
     totalCurrency: string;
+  }
+
+  /** Rank → tier keys to try (most specific first; legacy top_10/all kept for USA pool). */
+  function tierLookupKeysForRank(rank: number): string[] {
+    var keys: string[] = [];
+    if (rank === 1) keys.push("1st");
+    else if (rank === 2) keys.push("2nd");
+    else if (rank === 3) keys.push("3rd");
+    else if (rank === 4) keys.push("4th");
+    else if (rank === 5) keys.push("5th");
+    else if (rank >= 6 && rank <= 10) keys.push("6_10");
+    if (rank > 3 && rank <= 10) keys.push("top_10");
+    if (rank > 10) keys.push("all");
+    return keys;
+  }
+
+  function findGiftCardTierForRank(tiers: GiftCardTier[] | undefined, rank: number): GiftCardTier | null {
+    if (!tiers || tiers.length === 0) return null;
+    var keys = tierLookupKeysForRank(rank);
+    for (var ki = 0; ki < keys.length; ki++) {
+      for (var i = 0; i < tiers.length; i++) {
+        var t = tiers[i];
+        if (t && t.rank === keys[ki]) return t;
+      }
+    }
+    return null;
   }
 
   interface PrizeFunding {
@@ -831,24 +857,9 @@ namespace SatoriCreatorEvents {
     // Gift card fulfillment lookup
     var giftCardTier: GiftCardTier | null = null;
     if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0) {
-      var rankStr = state.rank === 1 ? "1st"
-        : state.rank === 2 ? "2nd"
-        : state.rank === 3 ? "3rd"
-        : (state.rank || 99) <= 10 ? "top_10"
-        : "all";
-      for (var gti = 0; gti < def.giftCardPrizes.tiers.length; gti++) {
-        if (def.giftCardPrizes.tiers[gti].rank === rankStr) {
-          giftCardTier = def.giftCardPrizes.tiers[gti];
-          break;
-        }
-      }
-      if (!giftCardTier) {
-        for (var gti2 = 0; gti2 < def.giftCardPrizes.tiers.length; gti2++) {
-          if (def.giftCardPrizes.tiers[gti2].rank === "all") {
-            giftCardTier = def.giftCardPrizes.tiers[gti2];
-            break;
-          }
-        }
+      var matched = findGiftCardTierForRank(def.giftCardPrizes.tiers, state.rank || 0);
+      if (matched && matched.fulfillment !== "nakama") {
+        giftCardTier = matched;
       }
     }
 
@@ -1642,25 +1653,16 @@ namespace SatoriCreatorEvents {
     elapsedSec?: number;
   }
 
-  function rankToTierKey(rank: number): string {
-    if (rank === 1) return "1st";
-    if (rank === 2) return "2nd";
-    if (rank === 3) return "3rd";
-    if (rank > 0 && rank <= 10) return "top_10";
-    return "all";
-  }
-
   function findTierForRank(tiers: SpaEventTier[] | undefined, rank: number): SpaEventTier | null {
     if (!tiers || tiers.length === 0) return null;
-    var key = rankToTierKey(rank);
-    var fallback: SpaEventTier | null = null;
-    for (var i = 0; i < tiers.length; i++) {
-      var t = tiers[i];
-      if (!t || !t.rank) continue;
-      if (t.rank === key) return t;
-      if (t.rank === "all") fallback = t;
+    var keys = tierLookupKeysForRank(rank);
+    for (var ki = 0; ki < keys.length; ki++) {
+      for (var i = 0; i < tiers.length; i++) {
+        var t = tiers[i];
+        if (t && t.rank === keys[ki]) return t;
+      }
     }
-    return fallback;
+    return null;
   }
 
   function spaGiftCardTier(rank: number): string {
@@ -1767,6 +1769,9 @@ namespace SatoriCreatorEvents {
 
     // 7. Pick tier + compute reward
     var tier = findTierForRank(def.giftCardPrizes && def.giftCardPrizes.tiers, myRank);
+    if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0 && !tier) {
+      return RpcHelpers.errorResponse("No prize for rank " + myRank + " — this event only rewards top 10");
+    }
     var xutGranted = 0;
     var giftCard: SpaEventTier | null = null;
 
