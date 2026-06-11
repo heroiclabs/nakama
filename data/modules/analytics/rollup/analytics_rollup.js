@@ -339,6 +339,68 @@ function arScanEventsForDate(nk, logger, dateStr, startCursor) {
     return { events: events, scanned: scanned, truncated: truncated, nextCursor: truncated ? cursor : null };
 }
 
+/**
+ * Multi-date variant of arScanEventsForDate: one collection walk that buckets
+ * matched events by their UTC date for every date in [fromUnix, toUnix).
+ * A 23-day backfill costs ONE walk of analytics_events instead of 23
+ * (observed prod scan rate is only ~230 objects/sec, so per-date walks of a
+ * 180k+ object collection make backfills take hours per date).
+ *
+ * Returns { byDate: {"YYYY-MM-DD": [events]}, scanned, truncated, nextCursor }.
+ */
+function arScanEventsForRange(nk, logger, fromUnix, toUnix, startCursor) {
+    var byDate = {};
+    var scanned = 0;
+    var truncated = false;
+    var cursor = startCursor || null;
+    var pagesScanned = 0;
+    var pageSize = 100;
+    var maxPages = 5000;
+    var scanBudgetMs = 15000;
+    var startMs = Date.now();
+    var page = null;
+
+    for (var p = 0; p < maxPages; p++) {
+        if (Date.now() - startMs > scanBudgetMs) {
+            if (page && page.cursor) truncated = true;
+            break;
+        }
+        pagesScanned++;
+        try {
+            page = nk.storageList(AR_SYSTEM_USER, AR_EVENTS_COLLECTION, pageSize, cursor);
+        } catch (e) {
+            logger.warn("[analytics_rollup] storageList failed: " + e.message);
+            break;
+        }
+        if (!page || !page.objects || page.objects.length === 0) break;
+
+        for (var i = 0; i < page.objects.length; i++) {
+            scanned++;
+            var o = page.objects[i];
+            if (!o || !o.value) continue;
+            if (!o.key || o.key.indexOf("dash_") !== 0) continue;
+
+            var ev = o.value;
+            var unix = ev.unixTimestamp;
+            if (!unix && ev.timestamp) unix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
+            if (!unix) continue;
+            if (unix < fromUnix || unix >= toUnix) continue;
+
+            if (ev.gameId) ev.gameId = arResolveGameId(ev.gameId);
+
+            var dStr = arIsoDate(new Date(unix * 1000));
+            if (!byDate[dStr]) byDate[dStr] = [];
+            byDate[dStr].push(ev);
+        }
+
+        if (!page.cursor) break;
+        cursor = page.cursor;
+    }
+
+    if (pagesScanned >= maxPages && page && page.cursor) truncated = true;
+    return { byDate: byDate, scanned: scanned, truncated: truncated, nextCursor: truncated ? cursor : null };
+}
+
 // ─── Core: resumable-scan checkpoint (analytics_rollup_meta) ───────────────
 //
 // When a day's event scan exceeds the per-invocation page cap, we persist the
@@ -1365,6 +1427,25 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
                     " from final scan pass for " + dateStr);
     }
 
+    var comp = arComputeAndWriteRollup(nk, logger, dateStr, events, data.gameIds, totalScanned, !!checkpoint, gate.bypass);
+    if (!comp.ok) return arErr(comp.error, comp.code || 500);
+
+    // Scan + rollup completed — drop the resumable-scan checkpoint (if any)
+    // so a future re-run for this date starts a fresh scan.
+    if (checkpoint) {
+        arScanCheckpointClear(nk, logger, dateStr, priorChunks);
+    }
+
+    return arOk(comp.result);
+}
+
+/**
+ * Compute + write phase for one date's rollup, operating on the fully
+ * collected in-memory `events` array. Shared by rpcAnalyticsRollupRun
+ * (single-date path) and rpcAnalyticsRollupBackfill (multi-date staged path).
+ * Returns {ok:true, result} or {ok:false, error, code}.
+ */
+function arComputeAndWriteRollup(nk, logger, dateStr, events, extraGameIds, totalScanned, resumedFromCheckpoint, bypass) {
     // Build list of gameIds present in this date's events, plus optional explicit list.
     // Canonicalize via arResolveGameId so callers passing legacy slugs (e.g. "quizverse")
     // don't create a duplicate rollup bucket alongside the UUID-keyed events.
@@ -1372,9 +1453,9 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     for (var i = 0; i < events.length; i++) {
         if (events[i].gameId) gameIdSet[arResolveGameId(events[i].gameId)] = true;
     }
-    if (Array.isArray(data.gameIds)) {
-        for (var gi = 0; gi < data.gameIds.length; gi++) {
-            if (data.gameIds[gi]) gameIdSet[arResolveGameId(data.gameIds[gi])] = true;
+    if (Array.isArray(extraGameIds)) {
+        for (var gi = 0; gi < extraGameIds.length; gi++) {
+            if (extraGameIds[gi]) gameIdSet[arResolveGameId(extraGameIds[gi])] = true;
         }
     }
     var gameIds = Object.keys(gameIdSet);
@@ -1516,7 +1597,7 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
     // or the dashboard will show incomplete data as if the rollup finished cleanly.
     if (writeErrors.length > 0) {
         logger.error("[analytics_rollup] critical write failures for " + dateStr + ": " + writeErrors.join("; "));
-        return arErr("Rollup write failures: " + writeErrors.join("; "), 500);
+        return { ok: false, error: "Rollup write failures: " + writeErrors.join("; "), code: 500 };
     }
 
     // ── Cumulative lifetime counters ──────────────────────────────────────
@@ -1538,12 +1619,6 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         logger.warn("[analytics_rollup] platform_totals write failed: " + eTot.message);
     }
 
-    // Scan + rollup completed — drop the resumable-scan checkpoint (if any)
-    // so a future re-run for this date starts a fresh scan.
-    if (checkpoint) {
-        arScanCheckpointClear(nk, logger, dateStr, priorChunks);
-    }
-
     // Record success marker.
     arWriteOne(nk, AR_META_COLLECTION, "last_success", AR_SYSTEM_USER, {
         date: dateStr,
@@ -1551,9 +1626,9 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         eventsScanned: totalScanned,
         eventsMatched: events.length,
         truncated: false,
-        resumedFromCheckpoint: !!checkpoint,
+        resumedFromCheckpoint: !!resumedFromCheckpoint,
         timestamp: new Date().toISOString(),
-        bypass: gate.bypass
+        bypass: bypass
     });
 
     logger.info("[analytics_rollup] done date=" + dateStr +
@@ -1561,20 +1636,41 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
                 " events=" + events.length +
                 " scanned=" + totalScanned);
 
-    return arOk({
-        date: dateStr,
-        partial: false,
-        complete: true,
-        games_rolled_up: gameIds.length,
-        events_matched: events.length,
-        events_scanned: totalScanned,
-        truncated: false,
-        written: written
-    });
+    return {
+        ok: true,
+        result: {
+            date: dateStr,
+            partial: false,
+            complete: true,
+            games_rolled_up: gameIds.length,
+            events_matched: events.length,
+            events_scanned: totalScanned,
+            truncated: false,
+            written: written
+        }
+    };
 }
 
 // ─── RPC: analytics_rollup_backfill ───────────────────────
 
+// Resumable multi-date backfill. ONE collection walk buckets events for every
+// date in [from, to] (instead of N full walks — at the observed ~230 obj/sec
+// prod scan rate a per-date walk of a 180k+ object collection takes ~15 min,
+// so the old loop-over-rpcAnalyticsRollupRun body could never finish inside a
+// request). Each invocation does one budgeted slice of work and checkpoints:
+//
+//   phase 1 (scan):    resume cursor → walk ≤15s → append per-date event
+//                      chunks → save cursor. Repeat until collection exhausted.
+//   phase 2 (compute): one date per invocation — load its chunks, run
+//                      arComputeAndWriteRollup on a fresh context, mark done.
+//
+// Drive it by calling this RPC repeatedly with the same {from,to} until the
+// response has complete:true. Pass reset:true to abandon a previous range.
+//
+//   analytics_rollup_meta key: backfill_checkpoint
+//     { from, to, cursor, scannedSoFar, scanComplete,
+//       chunks: {date: chunkCount}, eventsSoFar: {date: n},
+//       computed: [dates], updatedAt }
 function rpcAnalyticsRollupBackfill(ctx, logger, nk, payload) {
     if (!arFeatureEnabled(ctx)) return arErr("Rollup feature disabled", 503);
 
@@ -1588,42 +1684,158 @@ function rpcAnalyticsRollupBackfill(ctx, logger, nk, payload) {
     var dates = arDateRange(data.from, data.to);
     if (dates.length === 0) return arErr("Empty date range", 400);
     if (dates.length > 90) return arErr("Backfill range too large (max 90 days)", 400);
-    // Note: for backfills >7 days via the dashboard, use the analytics_cron sidecar
-    // or call this RPC in 7-day chunks. The cron sidecar has no gateway timeout.
 
-    // Canonicalize caller-supplied gameIds once at the entry point so each
-    // per-date run downstream sees UUIDs even if the operator passed slugs.
-    var aliasedGameIds = null;
-    if (Array.isArray(data.gameIds)) {
-        aliasedGameIds = [];
-        for (var ag = 0; ag < data.gameIds.length; ag++) {
-            if (data.gameIds[ag]) aliasedGameIds.push(arResolveGameId(data.gameIds[ag]));
+    var BF_KEY = "backfill_checkpoint";
+    var bf = arReadOne(nk, AR_META_COLLECTION, BF_KEY, AR_SYSTEM_USER);
+
+    // Stale/foreign checkpoint handling.
+    if (bf && (bf.from !== data.from || bf.to !== data.to)) {
+        if (!data.reset) {
+            return arErr("A backfill checkpoint exists for " + bf.from + ".." + bf.to +
+                         "; pass reset:true to abandon it.", 409);
         }
+        arBackfillClear(nk, logger, bf);
+        bf = null;
+    }
+    if (bf && data.reset) {
+        arBackfillClear(nk, logger, bf);
+        bf = null;
     }
 
-    var results = [];
-    for (var i = 0; i < dates.length; i++) {
-        var runPayload = { date: dates[i], dashboard_secret: data.dashboard_secret, gameIds: aliasedGameIds };
-        var raw;
-        try { raw = rpcAnalyticsRollupRun(ctx, logger, nk, JSON.stringify(runPayload)); }
-        catch (e) {
-            results.push({ date: dates[i], success: false, error: e.message });
-            continue;
+    if (!bf) {
+        // Fresh start: also clear any stale single-date checkpoints for the
+        // range left behind by earlier per-date attempts, so chunk keys don't
+        // mix events from different scans.
+        for (var di = 0; di < dates.length; di++) {
+            var stale = arScanCheckpointRead(nk, dates[di]);
+            if (stale) arScanCheckpointClear(nk, logger, dates[di], stale.chunkCount || 0);
         }
-        try {
-            var parsed = JSON.parse(raw);
-            results.push({
-                date: dates[i],
-                success: !!parsed.success,
-                // partial=true means the scan checkpointed mid-day; re-run the
-                // backfill (or analytics_rollup_run for that date) to resume.
-                partial: !!parsed.partial,
-                events_matched: parsed.events_matched || 0,
-                games: parsed.games_rolled_up || 0
+        bf = { from: data.from, to: data.to, cursor: null, scannedSoFar: 0,
+               scanComplete: false, chunks: {}, eventsSoFar: {}, computed: [] };
+    }
+
+    // ── Phase 1: scan slice ────────────────────────────────────────────────
+    if (!bf.scanComplete) {
+        var fromUnix = Math.floor(new Date(data.from + "T00:00:00.000Z").getTime() / 1000);
+        var toUnix   = Math.floor(new Date(data.to   + "T00:00:00.000Z").getTime() / 1000) + 86400;
+        var scan = arScanEventsForRange(nk, logger, fromUnix, toUnix, bf.cursor || null);
+
+        var matchedThisSlice = 0;
+        for (var dStr in scan.byDate) {
+            if (!scan.byDate.hasOwnProperty(dStr)) continue;
+            var evs = scan.byDate[dStr];
+            matchedThisSlice += evs.length;
+            var prevChunks = bf.chunks[dStr] || 0;
+            var newCount = arScanCheckpointAppendEvents(nk, logger, dStr, evs, prevChunks);
+            if (newCount < 0) return arErr("Backfill chunk write failed for " + dStr, 500);
+            bf.chunks[dStr] = newCount;
+            bf.eventsSoFar[dStr] = (bf.eventsSoFar[dStr] || 0) + evs.length;
+        }
+
+        bf.scannedSoFar = (bf.scannedSoFar || 0) + scan.scanned;
+        bf.cursor = scan.nextCursor;
+        bf.scanComplete = !scan.truncated;
+        bf.updatedAt = new Date().toISOString();
+        var wBf = arWriteOne(nk, AR_META_COLLECTION, BF_KEY, AR_SYSTEM_USER, bf);
+        if (wBf !== true) return arErr("Backfill checkpoint write failed: " + (wBf.error || "write failed"), 500);
+
+        logger.info("[analytics_rollup] backfill scan slice: scannedSoFar=" + bf.scannedSoFar +
+                    " matchedThisSlice=" + matchedThisSlice +
+                    " scanComplete=" + bf.scanComplete);
+        return arOk({
+            partial: true, complete: false, stage: bf.scanComplete ? "scan_complete" : "scan",
+            from: data.from, to: data.to,
+            events_scanned: bf.scannedSoFar,
+            dates_with_events: Object.keys(bf.chunks).length,
+            hint: "Invoke again to continue."
+        });
+    }
+
+    // ── Phase 2: compute one date per invocation ───────────────────────────
+    var doneSet = {};
+    for (var ci = 0; ci < bf.computed.length; ci++) doneSet[bf.computed[ci]] = true;
+    var nextDate = null;
+    for (var ni = 0; ni < dates.length; ni++) {
+        if (!doneSet[dates[ni]]) { nextDate = dates[ni]; break; }
+    }
+
+    if (nextDate !== null) {
+        var chunkCount = bf.chunks[nextDate] || 0;
+        var events = chunkCount > 0 ? arScanCheckpointLoadEvents(nk, logger, nextDate, chunkCount) : [];
+
+        var aliasedGameIds = null;
+        if (Array.isArray(data.gameIds)) {
+            aliasedGameIds = [];
+            for (var ag = 0; ag < data.gameIds.length; ag++) {
+                if (data.gameIds[ag]) aliasedGameIds.push(arResolveGameId(data.gameIds[ag]));
+            }
+        }
+
+        var comp = arComputeAndWriteRollup(nk, logger, nextDate, events, aliasedGameIds,
+                                           bf.scannedSoFar, true, gate.bypass);
+        if (!comp.ok) return arErr("Backfill compute failed for " + nextDate + ": " + comp.error, comp.code || 500);
+
+        // Free this date's chunks (keep the backfill checkpoint doc itself).
+        if (chunkCount > 0) {
+            try {
+                var dels = [];
+                for (var dc = 0; dc < chunkCount; dc++) {
+                    dels.push({ collection: AR_META_COLLECTION, key: "scan_events_" + nextDate + "_" + dc, userId: AR_SYSTEM_USER });
+                }
+                nk.storageDelete(dels);
+            } catch (eDel) {
+                logger.warn("[analytics_rollup] backfill chunk cleanup failed for " + nextDate + ": " + (eDel.message || eDel));
+            }
+        }
+
+        bf.computed.push(nextDate);
+        bf.updatedAt = new Date().toISOString();
+        var wBf2 = arWriteOne(nk, AR_META_COLLECTION, BF_KEY, AR_SYSTEM_USER, bf);
+        if (wBf2 !== true) return arErr("Backfill checkpoint write failed after compute: " + (wBf2.error || "write failed"), 500);
+
+        var remaining = dates.length - bf.computed.length;
+        logger.info("[analytics_rollup] backfill computed " + nextDate +
+                    " (events=" + events.length + ", remaining=" + remaining + ")");
+        if (remaining > 0) {
+            return arOk({
+                partial: true, complete: false, stage: "compute",
+                date: nextDate, events_matched: events.length,
+                computed: bf.computed.length, remaining: remaining,
+                hint: "Invoke again to compute the next date."
             });
-        } catch (e) { results.push({ date: dates[i], success: false, error: "parse" }); }
+        }
+        // fall through: that was the last date
     }
-    return arOk({ backfilled: results.length, results: results });
+
+    // ── All dates computed: clear checkpoint, report ───────────────────────
+    var summary = { computed: bf.computed.slice(), events_scanned: bf.scannedSoFar, eventsByDate: bf.eventsSoFar };
+    arBackfillClear(nk, logger, bf);
+    logger.info("[analytics_rollup] backfill COMPLETE " + data.from + ".." + data.to +
+                " (" + summary.computed.length + " dates, scanned=" + summary.events_scanned + ")");
+    return arOk({
+        partial: false, complete: true,
+        from: data.from, to: data.to,
+        backfilled: summary.computed.length,
+        events_scanned: summary.events_scanned,
+        events_by_date: summary.eventsByDate
+    });
+}
+
+/** Deletes the backfill checkpoint doc and any remaining per-date chunks. */
+function arBackfillClear(nk, logger, bf) {
+    try {
+        var dels = [{ collection: AR_META_COLLECTION, key: "backfill_checkpoint", userId: AR_SYSTEM_USER }];
+        var chunks = (bf && bf.chunks) || {};
+        for (var dStr in chunks) {
+            if (!chunks.hasOwnProperty(dStr)) continue;
+            for (var c = 0; c < (chunks[dStr] || 0); c++) {
+                dels.push({ collection: AR_META_COLLECTION, key: "scan_events_" + dStr + "_" + c, userId: AR_SYSTEM_USER });
+            }
+        }
+        nk.storageDelete(dels);
+    } catch (e) {
+        logger.warn("[analytics_rollup] backfill checkpoint clear failed: " + (e.message || e));
+    }
 }
 
 // ─── RPC: analytics_rollup_status ─────────────────────────
