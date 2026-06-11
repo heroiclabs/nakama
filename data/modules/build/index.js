@@ -39749,6 +39749,17 @@ var SatoriDataLake;
 })(SatoriDataLake || (SatoriDataLake = {}));
 var SatoriEventCapture;
 (function (SatoriEventCapture) {
+    // Inverted-timestamp event keys: storageList returns keys in ascending
+    // order, so an inverted (descending-time) key makes scans see the NEWEST
+    // events first. The "0" prefix sorts before legacy "ev_2026-…"/"ev_ext_…"
+    // keys in any collation, so window-bounded scans (retention, funnels,
+    // experiment results, debugger search) reach recent data before page caps.
+    function eventKey(tsMs, id) {
+        var inv = "" + (100000000000000 - tsMs);
+        while (inv.length < 14)
+            inv = "0" + inv;
+        return "ev_0" + inv + "_" + id;
+    }
     function appendToUserHistory(nk, userId, event) {
         var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
         if (!history)
@@ -39770,7 +39781,7 @@ var SatoriEventCapture;
             return;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-        var key = "ev_" + dateStr + "_" + userId + "_" + Date.now();
+        var key = eventKey(Date.now(), userId);
         var record = {
             userId: userId,
             name: event.name,
@@ -39806,7 +39817,7 @@ var SatoriEventCapture;
             }
             validEvents.push(event);
             var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-            var key = "ev_" + dateStr + "_" + userId + "_" + (Date.now() + i);
+            var key = eventKey(Date.now() + i, userId);
             var record = {
                 userId: userId,
                 name: event.name,
@@ -39934,7 +39945,7 @@ var SatoriEventCapture;
             return false;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-        var key = "ev_ext_" + dateStr + "_" + identityId + "_" + Date.now();
+        var key = eventKey(Date.now(), identityId);
         var record = {
             identityId: identityId,
             name: event.name,
@@ -40027,8 +40038,8 @@ var SatoriEventDebugger;
     var RECENT_KEY = "recent_events";
     var RECENT_MAX = 300;
     var SEARCH_PAGE_SIZE = 100;
-    var SEARCH_DEFAULT_PAGES = 50;
-    var SEARCH_MAX_PAGES = 200;
+    var SEARCH_DEFAULT_PAGES = 320; // covers the legacy (oldest-first) key tail
+    var SEARCH_MAX_PAGES = 800;
     var SEARCH_MAX_RESULTS = 500;
     // Normalize second-resolution timestamps to milliseconds so the UI can
     // sort/format uniformly (clients send ms, some server paths send seconds).
@@ -40219,8 +40230,8 @@ var SatoriExperimentResults;
 (function (SatoriExperimentResults) {
     var PAGE_SIZE = 100;
     var ASSIGNMENT_MAX_PAGES = 200; // 20K users
-    var EVENTS_DEFAULT_PAGES = 100; // 10K event records
-    var EVENTS_MAX_PAGES = 400;
+    var EVENTS_DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var EVENTS_MAX_PAGES = 800;
     function toMs(ts) {
         if (!ts)
             return 0;
@@ -40763,8 +40774,8 @@ var SatoriFeatureFlags;
 var SatoriFunnels;
 (function (SatoriFunnels) {
     var PAGE_SIZE = 100;
-    var EVENTS_DEFAULT_PAGES = 100; // 10K event records
-    var EVENTS_MAX_PAGES = 400;
+    var EVENTS_DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var EVENTS_MAX_PAGES = 800;
     var MAX_STEPS = 8;
     function toMs(ts) {
         if (!ts)
@@ -43522,8 +43533,8 @@ var SatoriMetrics;
 var SatoriRetention;
 (function (SatoriRetention) {
     var PAGE_SIZE = 100;
-    var DEFAULT_PAGES = 150; // 15K event records
-    var MAX_PAGES = 400;
+    var DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var MAX_PAGES = 800;
     var MAX_DAYS = 30;
     function toMs(ts) {
         if (!ts)

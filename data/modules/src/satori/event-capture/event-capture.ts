@@ -1,5 +1,16 @@
 namespace SatoriEventCapture {
 
+  // Inverted-timestamp event keys: storageList returns keys in ascending
+  // order, so an inverted (descending-time) key makes scans see the NEWEST
+  // events first. The "0" prefix sorts before legacy "ev_2026-…"/"ev_ext_…"
+  // keys in any collation, so window-bounded scans (retention, funnels,
+  // experiment results, debugger search) reach recent data before page caps.
+  function eventKey(tsMs: number, id: string): string {
+    var inv = "" + (100000000000000 - tsMs);
+    while (inv.length < 14) inv = "0" + inv;
+    return "ev_0" + inv + "_" + id;
+  }
+
   function appendToUserHistory(nk: nkruntime.Nakama, userId: string, event: Satori.CapturedEvent): void {
     var history = Storage.readJson<{ events: any[] }>(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
     if (!history) history = { events: [] };
@@ -22,7 +33,7 @@ namespace SatoriEventCapture {
     }
 
     var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-    var key = "ev_" + dateStr + "_" + userId + "_" + Date.now();
+    var key = eventKey(Date.now(), userId);
     var record = {
       userId: userId,
       name: event.name,
@@ -62,7 +73,7 @@ namespace SatoriEventCapture {
       validEvents.push(event);
 
       var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-      var key = "ev_" + dateStr + "_" + userId + "_" + (Date.now() + i);
+      var key = eventKey(Date.now() + i, userId);
       var record = {
         userId: userId,
         name: event.name,
@@ -196,7 +207,7 @@ namespace SatoriEventCapture {
     }
 
     var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-    var key = "ev_ext_" + dateStr + "_" + identityId + "_" + Date.now();
+    var key = eventKey(Date.now(), identityId);
     var record = {
       identityId: identityId,
       name: event.name,

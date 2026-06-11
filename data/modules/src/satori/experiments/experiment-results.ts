@@ -22,8 +22,8 @@ namespace SatoriExperimentResults {
 
   var PAGE_SIZE = 100;
   var ASSIGNMENT_MAX_PAGES = 200;  // 20K users
-  var EVENTS_DEFAULT_PAGES = 100;  // 10K event records
-  var EVENTS_MAX_PAGES = 400;
+  var EVENTS_DEFAULT_PAGES = 320;  // 32K event records — covers the legacy (oldest-first) key tail
+  var EVENTS_MAX_PAGES = 800;
 
   export interface AssignmentInfo {
     variantKey: string;
