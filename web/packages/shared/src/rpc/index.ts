@@ -15,6 +15,10 @@ export type {
   EventTailResponse,
   EventSearchResponse,
   EventDebuggerFilters,
+  AudienceEstimate,
+  IdentityInspection,
+  IdentityTimelineEvent,
+  IdentityExperimentAssignment,
 } from "./satori";
 export type {
   CreatorEvent,

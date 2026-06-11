@@ -283,6 +283,71 @@ export function upsertTaxonomySchema(
   return callRpc("satori_taxonomy_upsert", schema, opts);
 }
 
+/* ── Audience size estimate ───────────────────────────────────────── */
+
+export interface AudienceEstimate {
+  audienceId: string;
+  name: string;
+  estimatedSize: number;
+  scannedIdentities: number;
+  matchRate: number;
+  sampleUserIds: string[];
+  truncated: boolean;
+}
+
+export function estimateAudience(
+  params: { audienceId: string; game_id?: string; max_pages?: number },
+  opts: RpcOptions,
+): Promise<AudienceEstimate> {
+  return callRpc("satori_audiences_estimate", params, opts).then((value) =>
+    unwrapData<AudienceEstimate>(value),
+  );
+}
+
+/* ── Identity inspector ───────────────────────────────────────────── */
+
+export interface IdentityTimelineEvent {
+  name: string;
+  timestampMs: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface IdentityExperimentAssignment {
+  experimentId: string;
+  variantId: string;
+  assignedAtMs: number;
+  scope: string;
+}
+
+export interface IdentityInspection {
+  userId: string;
+  account: {
+    username: string;
+    displayName: string;
+    createTime: number;
+    online: boolean;
+  } | null;
+  properties: {
+    defaultProperties: Record<string, string>;
+    customProperties: Record<string, string>;
+    computedProperties: Record<string, string>;
+  };
+  timeline: IdentityTimelineEvent[];
+  timelineTotal: number;
+  audiences: string[];
+  audiencesEvaluated: number;
+  experiments: IdentityExperimentAssignment[];
+}
+
+export function inspectIdentity(
+  params: { user_id: string; game_id?: string; timeline_limit?: number },
+  opts: RpcOptions,
+): Promise<IdentityInspection> {
+  return callRpc("satori_identity_inspect", params, opts).then((value) =>
+    unwrapData<IdentityInspection>(value),
+  );
+}
+
 export function getMetrics(opts: RpcOptions) {
   return satoriRpc("metrics", "get", {}, opts);
 }

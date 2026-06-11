@@ -502,6 +502,12 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Satori] Registering Audiences RPCs...");
     SatoriAudiences.register(initializer);
 
+    logger.info("[Satori] Registering Audience Estimator RPCs...");
+    SatoriAudienceEstimate.register(initializer);
+
+    logger.info("[Satori] Registering Identity Inspector RPCs...");
+    SatoriIdentityInspector.register(initializer);
+
     logger.info("[Satori] Registering Feature Flags RPCs...");
     SatoriFeatureFlags.register(initializer);
 

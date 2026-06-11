@@ -3342,8 +3342,15 @@ declare namespace AnalyticsAlerts {
     function instrumentInitializer(initializer: nkruntime.Initializer, logger: nkruntime.Logger): nkruntime.Initializer;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriAudienceEstimate {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriAudiences {
     function isInAudience(nk: nkruntime.Nakama, userId: string, audienceId: string, gameId?: string): boolean;
+    function getDefinition(nk: nkruntime.Nakama, audienceId: string, gameId?: string): Satori.AudienceDefinition | null;
+    function matchesWithProps(def: Satori.AudienceDefinition, userId: string, allProps: {
+        [key: string]: string;
+    }): boolean;
     function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string, gameId?: string): string[];
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3388,6 +3395,9 @@ declare namespace SatoriIdentities {
     function onEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, event: Satori.CapturedEvent): void;
     function getProperty(nk: nkruntime.Nakama, userId: string, key: string): string | null;
     function getAllProperties(nk: nkruntime.Nakama, userId: string): Satori.IdentityProperties;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriIdentityInspector {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriCreatorEvents {
