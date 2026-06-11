@@ -57,7 +57,10 @@ var NQ_KEY_PREFIX = "articles_v5_"; // v5: url, unix publishedAt, clean desc, co
 var NQ_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var NQ_CACHE_TTL_SECONDS = 6 * 60 * 60; // 6 hours — keeps all APIs within free-tier budgets
 var NQ_HTTP_TIMEOUT_MS = 8000;
-var NQ_MIN_ARTICLES = 8;
+// QVBF_158: 4 is the minimum viable for a quiz round (title + 3 distractors) and matches
+// the reality of free-tier APIs on less-covered countries (Middle East, Africa, SE Asia).
+// The NewsAPI last-resort fallback is still triggered when the combined count is < 4.
+var NQ_MIN_ARTICLES = 4;
 var NQ_MAX_PER_CATEGORY = 10;
 var NQ_GNEWS_FETCH_CATS = 8; // fetch all 8 categories — 6h cache keeps daily quota safe
 var NQ_MAX_ARTICLES = 50;    // hard cap before caching — enough variety for quiz rounds

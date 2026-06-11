@@ -113,8 +113,12 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Legacy] Registering game registry RPCs...");
     LegacyGameRegistry.register(initializer);
 
-    logger.info("[Legacy] Registering daily rewards RPCs...");
-    LegacyDailyRewards.register(initializer);
+    // QVBF_166: LegacyDailyRewards de-registered here.
+    // daily_rewards/daily_rewards.js owns both daily_rewards_get_status and
+    // daily_rewards_claim. Keeping both registrations caused the two handlers
+    // to race for the same RPC name, producing mismatched reward tables.
+    // logger.info("[Legacy] Registering daily rewards RPCs...");
+    // LegacyDailyRewards.register(initializer);
 
     logger.info("[Legacy] Registering quiz RPCs...");
     LegacyQuiz.register(initializer);
@@ -224,6 +228,19 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     //   _tsRpcList below so the legacy bridge cannot shadow them. ────────
     logger.info("[Friends] Registering canonical friends_list + list_blocked_users...");
     IntelliverseFriendsList.register(initializer);
+
+    // ── Player Presence + Cross-Game Messages ─────────────────────────────
+    // Owns `ivx_set_player_presence`, `ivx_get_cross_game_messages`, and
+    // `ivx_mark_message_read`. The legacy handler in legacy_runtime.js
+    // wrote presence to `player_presence/current`, but find_friends.ts and
+    // friends_list.ts both read from `player_presence/status` — the wrong
+    // key made everyone appear permanently offline. This TS module writes
+    // to the correct key and uses the canonical { online, lastSeenMs }
+    // schema that the friend-search modules expect. All three RPC IDs are
+    // pinned in __TS_OWNED_RPCS by postbuild so the legacy stubs are
+    // suppressed before they can shadow them.
+    logger.info("[IvxPresence] Registering ivx_set_player_presence / ivx_get_cross_game_messages / ivx_mark_message_read RPCs...");
+    IvxPresence.register(initializer);
 
     logger.info("[Legacy] Registering groups RPCs...");
     LegacyGroups.register(initializer);
