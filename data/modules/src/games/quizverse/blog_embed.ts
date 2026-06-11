@@ -34,11 +34,26 @@ namespace BlogEmbed {
 
   var COLLECTION_EMBEDS  = "qv_blog_embeds";
   var COLLECTION_PENDING = "qv_embed_pending";
+  // First-party (quizverse.world blog) reward ledger — keyed by the reader's
+  // own Nakama account id (ghost or signed-in), distinct from the third-party
+  // device-pending ledger above.
+  var COLLECTION_QUIZ_CLAIMS = "qv_blog_quiz_claims";
 
   // Economy: one blog quiz earns a fixed reward, once per device per embed
   // (lifetime), with a daily cap on distinct embeds to stop coin farming.
   var COINS_PER_EMBED    = 20;
   var MAX_EMBEDS_PER_DAY = 10;
+
+  // First-party blog post reward (the "Test Your Knowledge → earn coins" card
+  // on quizverse.world/blog/*). Bigger than the third-party embed reward
+  // because the reader is onboarding directly into our own account/wallet.
+  // Server-clamped: we never trust a client-supplied amount above this.
+  var BLOG_QUIZ_REWARD_MAX  = 500;
+  var BLOG_QUIZ_REWARD_DFLT = 500;
+  // Fraction of questions a reader must get right to unlock the reward.
+  var BLOG_QUIZ_PASS_RATIO  = 0.6;
+  // Anti-farm: distinct blog quizzes a single account can be rewarded for / day.
+  var BLOG_QUIZ_MAX_PER_DAY = 10;
   // Generation guardrails.
   var MIN_CONTENT_CHARS  = 200;
   var MAX_CONTENT_CHARS  = 12000;
@@ -398,6 +413,85 @@ namespace BlogEmbed {
     return RpcHelpers.successResponse({ credited: amount, pending_coins: 0, currency: "coins", claimed_total: ledger.claimed_coins });
   }
 
+  // ── first-party blog-post reward ledger (per reader account) ────────────────
+  interface QuizClaimLedger {
+    user_id: string;
+    total_coins: number;
+    claimed: { [embedId: string]: { coins: number; ts: number; correct: number; total: number } };
+    updated: number;
+  }
+  function readClaims(nk: nkruntime.Nakama, userId: string): QuizClaimLedger {
+    try {
+      var p = Storage.readSystemJson<QuizClaimLedger>(nk, COLLECTION_QUIZ_CLAIMS, userId);
+      if (p && p.claimed) return p;
+    } catch (_e: any) { }
+    return { user_id: userId, total_coins: 0, claimed: {}, updated: 0 };
+  }
+  function countClaimedToday(ledger: QuizClaimLedger): number {
+    var start = startOfTodayUnix();
+    var n = 0;
+    for (var k in ledger.claimed) {
+      if (Object.prototype.hasOwnProperty.call(ledger.claimed, k) && ledger.claimed[k] && ledger.claimed[k].ts >= start) n++;
+    }
+    return n;
+  }
+
+  // ── RPC: quizverse_blog_quiz_reward ──────────────────────────────────────────
+  // Auth: any Nakama session (ghost ok — the blog reader holds a device-id ghost
+  // session, which IS a real account/wallet that merges into their Cognito
+  // account on sign-in via account_merge_ghost_to_cognito).
+  //
+  // Flow: the quizverse.world blog post generates a quiz (quizverse_blog_embed_create),
+  // the reader plays it inline, and on a passing score this RPC credits the
+  // configured reward straight into the caller's wallet — once per (account,
+  // embed) for life, with a daily cap on distinct quizzes (anti-farm).
+  //
+  // Body: { embed_id, correct, total, reward?, source? }
+  function rpcReward(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+
+    var embedId = "" + (data.embed_id || "");
+    var correct = clampInt(data.correct, 0, 100, 0);
+    var total = clampInt(data.total, 1, 100, 1);
+    // Reward is server-clamped — never trust the client past the cap.
+    var reward = clampInt(data.reward, 0, BLOG_QUIZ_REWARD_MAX, BLOG_QUIZ_REWARD_DFLT);
+    var source = ("" + (data.source || "blog_post")).slice(0, 120);
+    if (!embedId) return RpcHelpers.errorResponse("embed_id required", 400);
+
+    // Embed must exist (don't mint coins for fabricated quiz ids).
+    var quiz = Storage.readSystemJson<EmbedQuiz>(nk, COLLECTION_EMBEDS, embedId);
+    if (!quiz) return RpcHelpers.errorResponse("embed not found", 404);
+
+    // Passing score gate — "answer correctly to earn coins".
+    var passed = (correct / total) >= BLOG_QUIZ_PASS_RATIO;
+    if (!passed) {
+      return RpcHelpers.successResponse({ credited: 0, reward: reward, passed: false, pass_ratio: BLOG_QUIZ_PASS_RATIO, reason: "score_below_threshold" });
+    }
+
+    var ledger = readClaims(nk, userId);
+    if (ledger.claimed[embedId]) {
+      return RpcHelpers.successResponse({ credited: 0, reward: reward, passed: true, already_claimed: true, total_coins: ledger.total_coins });
+    }
+    if (countClaimedToday(ledger) >= BLOG_QUIZ_MAX_PER_DAY) {
+      return RpcHelpers.successResponse({ credited: 0, reward: reward, passed: true, skipped: "daily_cap" });
+    }
+
+    try {
+      nk.walletUpdate(userId, { coins: reward }, { source: source, embed_id: embedId, correct: correct, total: total, rewarded_at: nowSec() }, true);
+    } catch (err: any) {
+      logger.error("[BlogEmbed] reward walletUpdate failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("wallet_credit_failed", 500);
+    }
+
+    ledger.claimed[embedId] = { coins: reward, ts: nowSec(), correct: correct, total: total };
+    ledger.total_coins = (ledger.total_coins | 0) + reward;
+    ledger.updated = nowSec();
+    try { Storage.writeSystemJson(nk, COLLECTION_QUIZ_CLAIMS, userId, ledger); } catch (_e: any) { /* coins already granted; best-effort */ }
+
+    return RpcHelpers.successResponse({ credited: reward, reward: reward, passed: true, currency: "coins", total_coins: ledger.total_coins });
+  }
+
   // ── Registration ──────────────────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer): void {
     // withCleanAuthError wraps a handler once at registration time, but when
@@ -425,5 +519,6 @@ namespace BlogEmbed {
     initializer.registerRpc("quizverse_blog_embed_get", rpcGet);
     initializer.registerRpc("quizverse_embed_quiz_complete", rpcComplete);
     initializer.registerRpc("quizverse_embed_claim_pending", auth(rpcClaim));
+    initializer.registerRpc("quizverse_blog_quiz_reward", auth(rpcReward));
   }
 }
