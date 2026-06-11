@@ -112,8 +112,12 @@ function InitModule(ctx, logger, nk, initializer) {
         LegacyLeaderboards.register(initializer);
         logger.info("[Legacy] Registering game registry RPCs...");
         LegacyGameRegistry.register(initializer);
-        logger.info("[Legacy] Registering daily rewards RPCs...");
-        LegacyDailyRewards.register(initializer);
+        // QVBF_166: LegacyDailyRewards de-registered here.
+        // daily_rewards/daily_rewards.js owns both daily_rewards_get_status and
+        // daily_rewards_claim. Keeping both registrations caused the two handlers
+        // to race for the same RPC name, producing mismatched reward tables.
+        // logger.info("[Legacy] Registering daily rewards RPCs...");
+        // LegacyDailyRewards.register(initializer);
         logger.info("[Legacy] Registering quiz RPCs...");
         LegacyQuiz.register(initializer);
         logger.info("[Legacy] Registering game entry RPCs...");
