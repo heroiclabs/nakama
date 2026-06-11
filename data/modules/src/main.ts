@@ -508,6 +508,9 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Satori] Registering Experiments RPCs...");
     SatoriExperiments.register(initializer);
 
+    logger.info("[Satori] Registering Experiment Results RPCs (conversions + significance)...");
+    SatoriExperimentResults.register(initializer);
+
     logger.info("[Satori] Registering Live Events RPCs...");
     SatoriLiveEvents.register(initializer);
 
@@ -531,6 +534,9 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
     logger.info("[Satori] Registering Data Lake RPCs...");
     SatoriDataLake.register(initializer);
+
+    logger.info("[Satori] Registering Event Debugger RPCs (live tail + search)...");
+    SatoriEventDebugger.register(initializer);
 
     logger.info("[Satori] All Satori systems registered successfully");
   } catch (err: any) {

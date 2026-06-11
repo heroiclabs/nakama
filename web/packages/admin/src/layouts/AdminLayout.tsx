@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
+  Activity,
   LayoutDashboard,
   Users,
   Puzzle,
@@ -63,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Feature Flags", to: "/flags", icon: Flag },
       { label: "Live Events", to: "/events", icon: CalendarClock },
+      { label: "Event Debugger", to: "/event-debugger", icon: Activity },
       { label: "Experiments", to: "/experiments", icon: FlaskConical },
       { label: "Audiences", to: "/audiences", icon: UsersRound },
       { label: "Messages", to: "/messages", icon: MessageSquare },

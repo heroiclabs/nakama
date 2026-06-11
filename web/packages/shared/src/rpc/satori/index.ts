@@ -154,6 +154,135 @@ export function broadcastMessage(
   return callRpc("admin_satori_message_broadcast", message, opts);
 }
 
+/* ── Experiment results (conversions + significance) ──────────────── */
+
+export interface ExperimentVariantResult {
+  id: string;
+  name: string;
+  isControl: boolean;
+  exposures: number;
+  conversions: number;
+  rate: number;
+}
+
+export interface ExperimentComparison {
+  variantId: string;
+  controlId: string;
+  lift: number;
+  zScore: number | null;
+  pValue: number | null;
+  significant: boolean;
+  confidence: number | null;
+}
+
+export interface ExperimentResults {
+  experimentId: string;
+  name: string;
+  status: string;
+  goalEvent: string;
+  winnerVariantId: string | null;
+  variants: ExperimentVariantResult[];
+  comparisons: ExperimentComparison[];
+  suggestedWinner: string | null;
+  recommendation: string;
+  scan: {
+    assignmentObjectsScanned: number;
+    assignmentsTruncated: boolean;
+    eventRecordsScanned: number;
+    eventsTruncated: boolean;
+    totalGoalEvents: number;
+  };
+}
+
+export function getExperimentResults(
+  params: { experimentId: string; goal_event?: string; game_id?: string },
+  opts: RpcOptions,
+): Promise<ExperimentResults> {
+  return callRpc("satori_experiments_results", params, opts).then((value) =>
+    unwrapData<ExperimentResults>(value),
+  );
+}
+
+export function declareExperimentWinner(
+  params: { experimentId: string; variantId: string; game_id?: string },
+  opts: RpcOptions,
+) {
+  return callRpc("satori_experiments_declare_winner", params, opts);
+}
+
+/* ── Event debugger (live tail + search) ──────────────────────────── */
+
+export interface DebuggerEvent {
+  name: string;
+  userId: string;
+  timestampMs: number;
+  metadata: Record<string, unknown>;
+  external: boolean;
+}
+
+export interface DebuggerNameStat {
+  name: string;
+  count: number;
+  hasSchema: boolean;
+}
+
+export interface EventTailResponse {
+  events: DebuggerEvent[];
+  names: DebuggerNameStat[];
+  bufferSize: number;
+  bufferMax: number;
+}
+
+export interface EventSearchResponse {
+  events: DebuggerEvent[];
+  names: DebuggerNameStat[];
+  scannedPages: number;
+  scannedRecords: number;
+  truncated: boolean;
+  nextCursor: string | null;
+}
+
+export interface EventDebuggerFilters {
+  limit?: number;
+  name?: string;
+  name_contains?: string;
+  user_id?: string;
+  since_ms?: number;
+  until_ms?: number;
+  external_only?: boolean;
+}
+
+export function tailEvents(
+  filters: EventDebuggerFilters,
+  opts: RpcOptions,
+): Promise<EventTailResponse> {
+  return callRpc("satori_events_tail", filters, opts).then((value) =>
+    unwrapData<EventTailResponse>(value),
+  );
+}
+
+export function searchEvents(
+  filters: EventDebuggerFilters & { max_pages?: number; cursor?: string },
+  opts: RpcOptions,
+): Promise<EventSearchResponse> {
+  return callRpc("satori_events_search", filters, opts).then((value) =>
+    unwrapData<EventSearchResponse>(value),
+  );
+}
+
+export function upsertTaxonomySchema(
+  schema: {
+    name: string;
+    description?: string;
+    category?: string;
+    requiredMetadata?: string[];
+    optionalMetadata?: string[];
+  },
+  opts: RpcOptions,
+) {
+  return callRpc("satori_taxonomy_upsert", schema, opts);
+}
+
 export function getMetrics(opts: RpcOptions) {
   return satoriRpc("metrics", "get", {}, opts);
 }

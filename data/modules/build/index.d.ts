@@ -3356,6 +3356,25 @@ declare namespace SatoriEventCapture {
     function captureEvents(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, events: Satori.CapturedEvent[]): void;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriEventDebugger {
+    interface DebugEvent {
+        userId?: string;
+        identityId?: string;
+        name: string;
+        timestamp: number;
+        metadata: {
+            [key: string]: any;
+        };
+        date?: string;
+        external?: boolean;
+    }
+    export function record(nk: nkruntime.Nakama, event: DebugEvent): void;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
+}
+declare namespace SatoriExperimentResults {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriExperiments {
     function getVariant(nk: nkruntime.Nakama, userId: string, experimentId: string, gameId?: string): Satori.ExperimentVariant | null;
     function register(initializer: nkruntime.Initializer): void;

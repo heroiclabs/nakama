@@ -45,6 +45,7 @@ namespace SatoriEventCapture {
     SatoriMetrics.processEvent(nk, logger, userId, event.name, event.metadata || {});
     SatoriWebhooks.dispatch(nk, logger, "event:" + event.name, record);
     SatoriDataLake.exportBatch(nk, logger, [record]);
+    SatoriEventDebugger.record(nk, record);
   }
 
   export function captureEvents(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, events: Satori.CapturedEvent[]): void {
@@ -88,6 +89,7 @@ namespace SatoriEventCapture {
       SatoriIdentities.onEvent(nk, logger, userId, validEvents[j]);
       SatoriMetrics.processEvent(nk, logger, userId, validEvents[j].name, validEvents[j].metadata || {});
       SatoriWebhooks.dispatch(nk, logger, "event:" + validEvents[j].name, exportRecords[j]);
+      SatoriEventDebugger.record(nk, exportRecords[j]);
     }
     if (exportRecords.length > 0) {
       SatoriDataLake.exportBatch(nk, logger, exportRecords);
@@ -216,6 +218,7 @@ namespace SatoriEventCapture {
     SatoriMetrics.processEvent(nk, logger, identityId, event.name, event.metadata || {});
     SatoriWebhooks.dispatch(nk, logger, "event:" + event.name, record);
     SatoriDataLake.exportBatch(nk, logger, [record]);
+    SatoriEventDebugger.record(nk, record);
     return true;
   }
 
