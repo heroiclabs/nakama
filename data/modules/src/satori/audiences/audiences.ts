@@ -123,6 +123,36 @@ namespace SatoriAudiences {
     return evaluateRule(allProps, def.rule);
   }
 
+  export function getDefinition(nk: nkruntime.Nakama, audienceId: string, gameId?: string): Satori.AudienceDefinition | null {
+    var audiences = getAudienceDefinitions(nk, gameId);
+    return audiences[audienceId] || null;
+  }
+
+  // Same membership semantics as isInAudience, but evaluates against an
+  // already-loaded property map — lets bulk scans (audience size estimator)
+  // avoid one extra storage read per user.
+  export function matchesWithProps(def: Satori.AudienceDefinition, userId: string, allProps: { [key: string]: string }): boolean {
+    if (def.excludeIds && def.excludeIds.indexOf(userId) >= 0) return false;
+    if (def.includeIds && def.includeIds.indexOf(userId) >= 0) return true;
+
+    if (def.samplePct !== undefined && def.samplePct < 100) {
+      var hash = 0;
+      var seed = userId + ":" + def.id;
+      for (var c = 0; c < seed.length; c++) {
+        hash = ((hash << 5) - hash) + seed.charCodeAt(c);
+        hash = hash & 0x7FFFFFFF;
+      }
+      if ((hash % 100) >= def.samplePct) return false;
+    }
+
+    if (allProps["first_seen"] && allProps["first_seen_days_ago"] === undefined) {
+      var firstSeen = new Date(allProps["first_seen"]).getTime();
+      allProps["first_seen_days_ago"] = String(Math.floor((Date.now() - firstSeen) / 86400000));
+    }
+
+    return evaluateRule(allProps, def.rule);
+  }
+
   export function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string, gameId?: string): string[] {
     var audiences = getAudienceDefinitions(nk, gameId);
     var def = audiences[audienceId];

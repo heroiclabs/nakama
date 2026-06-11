@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   Users,
   Search,
@@ -15,8 +15,14 @@ import {
   FileJson,
   ChevronDown,
   ChevronRight,
+  Calculator,
 } from "lucide-react";
-import { serverKeyAuth, satori, type Audience } from "@nakama/shared";
+import {
+  serverKeyAuth,
+  satori,
+  type Audience,
+  type AudienceEstimate,
+} from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
 const GLOBAL_CONFIG_SCOPE = "global";
@@ -103,10 +109,19 @@ function JsonBlock({ data, label }: { data?: Record<string, unknown>; label: str
 
 interface AudienceCardProps {
   audience: Audience;
+  gameScope: string;
 }
 
-function AudienceCard({ audience: aud }: AudienceCardProps) {
+function AudienceCard({ audience: aud, gameScope }: AudienceCardProps) {
   const { copied, copy } = useCopyToClipboard();
+  const estimate = useMutation({
+    mutationFn: () =>
+      satori.estimateAudience(
+        { audienceId: aud.id, game_id: rpcGameId(gameScope) },
+        serverKeyAuth(),
+      ),
+  });
+  const est: AudienceEstimate | undefined = estimate.data;
 
   return (
     <div className="group rounded-lg border border-border bg-card p-4 transition-colors hover:border-border/80">
@@ -141,6 +156,52 @@ function AudienceCard({ audience: aud }: AudienceCardProps) {
             {aud.description}
           </p>
         )}
+
+        {/* Size estimate */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => estimate.mutate()}
+            disabled={estimate.isPending}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          >
+            {estimate.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Calculator className="h-3 w-3" />
+            )}
+            {est ? "Re-estimate" : "Estimate size"}
+          </button>
+          {est && (
+            <>
+              <span className="text-xs font-semibold tabular-nums">
+                ≈ {formatNumber(est.estimatedSize)} users
+              </span>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                ({(est.matchRate * 100).toFixed(1)}% of{" "}
+                {formatNumber(est.scannedIdentities)} scanned identities)
+              </span>
+              <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${Math.min(est.matchRate * 100, 100)}%` }}
+                />
+              </div>
+              {est.truncated && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-amber-500">
+                  <AlertTriangle className="h-3 w-3" />
+                  partial scan
+                </span>
+              )}
+            </>
+          )}
+          {estimate.isError && (
+            <span className="text-xs text-destructive">
+              {estimate.error instanceof Error
+                ? estimate.error.message
+                : "Estimate failed"}
+            </span>
+          )}
+        </div>
 
         {/* Meta row */}
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -342,7 +403,7 @@ export function AudiencesPage() {
             {total !== 1 && "s"}
           </p>
           {filtered.map((aud) => (
-            <AudienceCard key={aud.id} audience={aud} />
+            <AudienceCard key={aud.id} audience={aud} gameScope={gameScope} />
           ))}
         </div>
       )}

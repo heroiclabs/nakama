@@ -451,6 +451,10 @@ function InitModule(ctx, logger, nk, initializer) {
         }
         logger.info("[Satori] Registering Audiences RPCs...");
         SatoriAudiences.register(initializer);
+        logger.info("[Satori] Registering Audience Estimator RPCs...");
+        SatoriAudienceEstimate.register(initializer);
+        logger.info("[Satori] Registering Identity Inspector RPCs...");
+        SatoriIdentityInspector.register(initializer);
         logger.info("[Satori] Registering Feature Flags RPCs...");
         SatoriFeatureFlags.register(initializer);
         logger.info("[Satori] Registering Experiments RPCs...");
@@ -39146,6 +39150,84 @@ var AnalyticsAlerts;
     }
     AnalyticsAlerts.register = register;
 })(AnalyticsAlerts || (AnalyticsAlerts = {}));
+// ---------------------------------------------------------------------------
+// Satori Audience Estimator — admin-only size estimates for audience
+// definitions, matching the hosted Satori console's "audience size" readout.
+//
+// Strategy: page through `satori_identity_props` (one object per user who has
+// ever sent an event) and evaluate the audience rule against each user's
+// already-loaded property map (SatoriAudiences.matchesWithProps — zero extra
+// reads per user). The scan is page-capped, so on very large player bases the
+// result degrades to a clearly-flagged extrapolated estimate instead of
+// hanging a VM.
+// ---------------------------------------------------------------------------
+var SatoriAudienceEstimate;
+(function (SatoriAudienceEstimate) {
+    var PAGE_SIZE = 100;
+    var DEFAULT_PAGES = 100; // 10K identities
+    var MAX_PAGES = 400;
+    var SAMPLE_LIMIT = 10;
+    // satori_audiences_estimate — Payload: { audienceId, game_id?, max_pages? }
+    function rpcEstimate(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var audienceId = data.audienceId || data.audience_id;
+        if (!audienceId)
+            return RpcHelpers.errorResponse("audienceId required");
+        var gameId = RpcHelpers.gameId(data);
+        var def = SatoriAudiences.getDefinition(nk, audienceId, gameId);
+        if (!def)
+            return RpcHelpers.errorResponse("Audience '" + audienceId + "' not found");
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || DEFAULT_PAGES, 1), MAX_PAGES);
+        var scanned = 0;
+        var matched = 0;
+        var sample = [];
+        var cursor = "";
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList("", Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.key !== "props" || !obj.value || !obj.userId)
+                    continue;
+                scanned++;
+                var props = obj.value;
+                var allProps = {};
+                for (var k in (props.defaultProperties || {}))
+                    allProps[k] = props.defaultProperties[k];
+                for (var ck in (props.customProperties || {}))
+                    allProps[ck] = props.customProperties[ck];
+                for (var pk in (props.computedProperties || {}))
+                    allProps[pk] = props.computedProperties[pk];
+                if (SatoriAudiences.matchesWithProps(def, obj.userId, allProps)) {
+                    matched++;
+                    if (sample.length < SAMPLE_LIMIT)
+                        sample.push(obj.userId);
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        var matchRate = scanned > 0 ? matched / scanned : 0;
+        return RpcHelpers.successResponse({
+            audienceId: audienceId,
+            name: def.name || audienceId,
+            estimatedSize: matched,
+            scannedIdentities: scanned,
+            matchRate: matchRate,
+            sampleUserIds: sample,
+            truncated: truncated
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_audiences_estimate", rpcEstimate);
+    }
+    SatoriAudienceEstimate.register = register;
+})(SatoriAudienceEstimate || (SatoriAudienceEstimate = {}));
 var SatoriAudiences;
 (function (SatoriAudiences) {
     function getAudienceDefinitions(nk, gameId) {
@@ -39268,6 +39350,36 @@ var SatoriAudiences;
         return evaluateRule(allProps, def.rule);
     }
     SatoriAudiences.isInAudience = isInAudience;
+    function getDefinition(nk, audienceId, gameId) {
+        var audiences = getAudienceDefinitions(nk, gameId);
+        return audiences[audienceId] || null;
+    }
+    SatoriAudiences.getDefinition = getDefinition;
+    // Same membership semantics as isInAudience, but evaluates against an
+    // already-loaded property map — lets bulk scans (audience size estimator)
+    // avoid one extra storage read per user.
+    function matchesWithProps(def, userId, allProps) {
+        if (def.excludeIds && def.excludeIds.indexOf(userId) >= 0)
+            return false;
+        if (def.includeIds && def.includeIds.indexOf(userId) >= 0)
+            return true;
+        if (def.samplePct !== undefined && def.samplePct < 100) {
+            var hash = 0;
+            var seed = userId + ":" + def.id;
+            for (var c = 0; c < seed.length; c++) {
+                hash = ((hash << 5) - hash) + seed.charCodeAt(c);
+                hash = hash & 0x7FFFFFFF;
+            }
+            if ((hash % 100) >= def.samplePct)
+                return false;
+        }
+        if (allProps["first_seen"] && allProps["first_seen_days_ago"] === undefined) {
+            var firstSeen = new Date(allProps["first_seen"]).getTime();
+            allProps["first_seen_days_ago"] = String(Math.floor((Date.now() - firstSeen) / 86400000));
+        }
+        return evaluateRule(allProps, def.rule);
+    }
+    SatoriAudiences.matchesWithProps = matchesWithProps;
     function getExplicitIncludeIds(nk, audienceId, gameId) {
         var audiences = getAudienceDefinitions(nk, gameId);
         var def = audiences[audienceId];
@@ -40655,6 +40767,146 @@ var SatoriIdentities;
     }
     SatoriIdentities.register = register;
 })(SatoriIdentities || (SatoriIdentities = {}));
+// ---------------------------------------------------------------------------
+// Satori Identity Inspector — admin-only 360° view of one identity, matching
+// the hosted Satori console's "Identities" drill-down:
+//   - account basics (when the ID resolves to a Nakama user)
+//   - identity properties (default / custom / computed)
+//   - recent event timeline (per-user rolling history, newest first)
+//   - audience memberships (evaluated live against current definitions)
+//   - experiment assignments (across all game scopes)
+// One RPC, a handful of point reads — safe to call from the admin UI on click.
+// ---------------------------------------------------------------------------
+var SatoriIdentityInspector;
+(function (SatoriIdentityInspector) {
+    var TIMELINE_DEFAULT = 100;
+    var TIMELINE_MAX = 500;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    // satori_identity_inspect — Payload: { user_id, game_id?, timeline_limit? }
+    function rpcInspect(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var userId = data.user_id || data.userId;
+        if (!userId)
+            return RpcHelpers.errorResponse("user_id required");
+        var gameId = RpcHelpers.gameId(data);
+        var timelineLimit = Math.min(Math.max(parseInt(data.timeline_limit, 10) || TIMELINE_DEFAULT, 1), TIMELINE_MAX);
+        // Account basics — external/synthetic identities won't resolve; that's fine.
+        var account = null;
+        try {
+            var acct = nk.accountGetId(userId);
+            if (acct && acct.user) {
+                account = {
+                    username: acct.user.username || "",
+                    displayName: acct.user.displayName || "",
+                    createTime: acct.user.createTime || 0,
+                    online: !!acct.user.online
+                };
+            }
+        }
+        catch (err) {
+            // Not a Nakama user UUID (e.g. QR-studio synthetic identity) — skip.
+        }
+        // Identity properties.
+        var props = SatoriIdentities.getAllProperties(nk, userId);
+        var allProps = {};
+        for (var k in (props.defaultProperties || {}))
+            allProps[k] = props.defaultProperties[k];
+        for (var ck in (props.customProperties || {}))
+            allProps[ck] = props.customProperties[ck];
+        for (var pk in (props.computedProperties || {}))
+            allProps[pk] = props.computedProperties[pk];
+        // Recent event timeline (rolling per-user history, capped at 500 at write
+        // time by SatoriEventCapture). Newest first.
+        var timeline = [];
+        var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
+        var events = (history && history.events) || [];
+        for (var i = events.length - 1; i >= 0 && timeline.length < timelineLimit; i--) {
+            timeline.push({
+                name: events[i].name,
+                timestampMs: toMs(events[i].timestamp),
+                metadata: events[i].metadata || {}
+            });
+        }
+        // Audience memberships — evaluated against current definitions using the
+        // props we already loaded (no per-audience storage reads).
+        var memberships = [];
+        var audienceIds = [];
+        var defs = listAudienceDefs(nk, gameId);
+        for (var aid in defs) {
+            audienceIds.push(aid);
+            if (SatoriAudiences.matchesWithProps(defs[aid], userId, allProps)) {
+                memberships.push(aid);
+            }
+        }
+        // Experiment assignments — one storage object per game scope.
+        var assignments = [];
+        try {
+            var page = nk.storageList(userId, Constants.SATORI_ASSIGNMENTS_COLLECTION, 50);
+            var objects = (page && page.objects) || [];
+            for (var o = 0; o < objects.length; o++) {
+                var scopeKey = objects[o].key; // "assignments" or "<gameId>:assignments"
+                var scoped = objects[o].value.assignments || {};
+                for (var expId in scoped) {
+                    assignments.push({
+                        experimentId: expId,
+                        variantId: scoped[expId].variantId,
+                        assignedAtMs: toMs(scoped[expId].assignedAt || 0),
+                        scope: scopeKey === "assignments" ? "global" : scopeKey.split(":")[0]
+                    });
+                }
+            }
+        }
+        catch (err) {
+            logger.warn("[IdentityInspector] assignments read failed for %s: %s", userId, err.message || String(err));
+        }
+        return RpcHelpers.successResponse({
+            userId: userId,
+            account: account,
+            properties: {
+                defaultProperties: props.defaultProperties || {},
+                customProperties: props.customProperties || {},
+                computedProperties: props.computedProperties || {}
+            },
+            timeline: timeline,
+            timelineTotal: events.length,
+            audiences: memberships,
+            audiencesEvaluated: audienceIds.length,
+            experiments: assignments
+        });
+    }
+    // Local mirror of SatoriAudiences' definition loading (that namespace keeps
+    // it private); ConfigLoader caching makes this cheap.
+    function listAudienceDefs(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "audiences", gameId, {});
+        var source = raw && raw.audiences ? raw.audiences : (raw || {});
+        var out = {};
+        for (var id in source) {
+            var def = source[id] || {};
+            var fullDef = SatoriAudiences.getDefinition(nk, def.id || id, gameId);
+            if (fullDef)
+                out[fullDef.id] = fullDef;
+        }
+        // Include built-in defaults even when no custom config exists.
+        var builtins = ["new_players", "returning_players", "spenders"];
+        for (var b = 0; b < builtins.length; b++) {
+            if (!out[builtins[b]]) {
+                var builtinDef = SatoriAudiences.getDefinition(nk, builtins[b], gameId);
+                if (builtinDef)
+                    out[builtins[b]] = builtinDef;
+            }
+        }
+        return out;
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_identity_inspect", rpcInspect);
+    }
+    SatoriIdentityInspector.register = register;
+})(SatoriIdentityInspector || (SatoriIdentityInspector = {}));
 var SatoriCreatorEvents;
 (function (SatoriCreatorEvents) {
     // ---- Types ----

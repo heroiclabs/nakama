@@ -20,6 +20,7 @@ import {
   type DebuggerNameStat,
   type EventTailResponse,
   type EventSearchResponse,
+  type IdentityInspection,
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
@@ -42,45 +43,254 @@ function formatTime(ms: number) {
   }
 }
 
+/* ── Identity drawer ───────────────────────────────────────────────── */
+
+function PropsTable({
+  title,
+  props,
+}: {
+  title: string;
+  props: Record<string, string>;
+}) {
+  const keys = Object.keys(props);
+  if (keys.length === 0) return null;
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-medium text-muted-foreground">{title}</p>
+      <div className="overflow-hidden rounded-md border border-border">
+        {keys.map((k) => (
+          <div
+            key={k}
+            className="flex items-center gap-2 border-b border-border px-2.5 py-1.5 text-xs last:border-b-0"
+          >
+            <span className="w-44 shrink-0 truncate font-mono text-muted-foreground">
+              {k}
+            </span>
+            <span className="min-w-0 flex-1 truncate font-mono">{props[k]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IdentityDrawer({
+  userId,
+  onClose,
+}: {
+  userId: string;
+  onClose: () => void;
+}) {
+  const inspection = useQuery({
+    queryKey: ["satori", "identity-inspect", userId],
+    queryFn: () =>
+      satori.inspectIdentity({ user_id: userId }, serverKeyAuth()),
+  });
+  const data: IdentityInspection | undefined = inspection.data;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm">
+      <div className="flex h-full w-full max-w-xl flex-col border-l border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold">Identity</h3>
+            <p className="truncate font-mono text-xs text-muted-foreground">
+              {userId}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-5 overflow-y-auto p-5">
+          {inspection.isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : inspection.isError ? (
+            <p className="flex items-center gap-2 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              {inspection.error instanceof Error
+                ? inspection.error.message
+                : "Failed to inspect identity"}
+            </p>
+          ) : data ? (
+            <>
+              {/* Account */}
+              {data.account ? (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="font-semibold">
+                    {data.account.displayName || data.account.username || "—"}
+                  </span>
+                  {data.account.username && (
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                      @{data.account.username}
+                    </code>
+                  )}
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                      data.account.online
+                        ? "bg-emerald-500/10 text-emerald-500"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "h-1.5 w-1.5 rounded-full",
+                        data.account.online ? "bg-emerald-500" : "bg-muted-foreground",
+                      )}
+                    />
+                    {data.account.online ? "online" : "offline"}
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  External / synthetic identity — no Nakama account record.
+                </p>
+              )}
+
+              {/* Audiences + experiments */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                    Audiences ({data.audiences.length}/{data.audiencesEvaluated})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {data.audiences.length === 0 ? (
+                      <span className="text-xs text-muted-foreground/60">none</span>
+                    ) : (
+                      data.audiences.map((a) => (
+                        <span
+                          key={a}
+                          className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary"
+                        >
+                          {a}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                    Experiments ({data.experiments.length})
+                  </p>
+                  <div className="space-y-1">
+                    {data.experiments.length === 0 ? (
+                      <span className="text-xs text-muted-foreground/60">none</span>
+                    ) : (
+                      data.experiments.map((e) => (
+                        <div
+                          key={`${e.scope}-${e.experimentId}`}
+                          className="flex items-center gap-1.5 text-[11px]"
+                        >
+                          <span className="truncate font-mono">{e.experimentId}</span>
+                          <span className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono text-violet-500">
+                            {e.variantId}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Properties */}
+              <PropsTable title="Default properties" props={data.properties.defaultProperties} />
+              <PropsTable title="Custom properties" props={data.properties.customProperties} />
+              <PropsTable title="Computed properties" props={data.properties.computedProperties} />
+
+              {/* Timeline */}
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  Event timeline (showing {data.timeline.length} of {data.timelineTotal})
+                </p>
+                {data.timeline.length === 0 ? (
+                  <p className="text-xs text-muted-foreground/60">
+                    No events recorded for this identity.
+                  </p>
+                ) : (
+                  <div className="overflow-hidden rounded-md border border-border">
+                    {data.timeline.map((ev, i) => (
+                      <div
+                        key={`${ev.timestampMs}-${i}`}
+                        className="flex items-center gap-3 border-b border-border px-2.5 py-1.5 text-xs last:border-b-0"
+                      >
+                        <span className="w-36 shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+                          {formatTime(ev.timestampMs)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate font-mono font-medium">
+                          {ev.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Event row ─────────────────────────────────────────────────────── */
 
-function EventRow({ event }: { event: DebuggerEvent }) {
+function EventRow({
+  event,
+  onInspect,
+}: {
+  event: DebuggerEvent;
+  onInspect: (userId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const hasMeta = event.metadata && Object.keys(event.metadata).length > 0;
 
   return (
     <div className="border-b border-border last:border-b-0">
-      <button
-        onClick={() => hasMeta && setOpen((o) => !o)}
-        className={cn(
-          "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
-          hasMeta && "hover:bg-accent/50",
-        )}
-      >
-        <span className="w-4 shrink-0 text-muted-foreground">
-          {hasMeta ? (
-            open ? (
-              <ChevronDown className="h-3.5 w-3.5" />
-            ) : (
-              <ChevronRight className="h-3.5 w-3.5" />
-            )
-          ) : null}
-        </span>
-        <span className="w-40 shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-          {formatTime(event.timestampMs)}
-        </span>
-        <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
-          {event.name}
-        </span>
+      <div className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm">
+        <button
+          onClick={() => hasMeta && setOpen((o) => !o)}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-3 text-left",
+            hasMeta && "cursor-pointer hover:opacity-80",
+          )}
+        >
+          <span className="w-4 shrink-0 text-muted-foreground">
+            {hasMeta ? (
+              open ? (
+                <ChevronDown className="h-3.5 w-3.5" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5" />
+              )
+            ) : null}
+          </span>
+          <span className="w-40 shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+            {formatTime(event.timestampMs)}
+          </span>
+          <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
+            {event.name}
+          </span>
+        </button>
         {event.external && (
           <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-violet-500">
             external
           </span>
         )}
-        <span className="w-64 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-          {event.userId}
-        </span>
-      </button>
+        <button
+          onClick={() => event.userId && onInspect(event.userId)}
+          disabled={!event.userId}
+          className="w-64 shrink-0 truncate text-left font-mono text-[11px] text-muted-foreground transition-colors hover:text-primary hover:underline disabled:no-underline"
+          title="Inspect identity"
+        >
+          {event.userId || "—"}
+        </button>
+      </div>
       {open && hasMeta && (
         <pre className="mx-10 mb-2 overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-[11px] text-muted-foreground">
           {JSON.stringify(event.metadata, null, 2)}
@@ -170,6 +380,7 @@ export function EventDebuggerPage() {
   const [nameContains, setNameContains] = useState("");
   const [userFilter, setUserFilter] = useState("");
   const [sinceHours, setSinceHours] = useState(24);
+  const [inspecting, setInspecting] = useState<string | null>(null);
 
   const filters = useMemo(
     () => ({
@@ -354,7 +565,11 @@ export function EventDebuggerPage() {
               </div>
               <div className="max-h-[60vh] overflow-y-auto">
                 {events.map((ev, i) => (
-                  <EventRow key={`${ev.timestampMs}-${ev.name}-${i}`} event={ev} />
+                  <EventRow
+                    key={`${ev.timestampMs}-${ev.name}-${i}`}
+                    event={ev}
+                    onInspect={setInspecting}
+                  />
                 ))}
               </div>
             </>
@@ -363,6 +578,10 @@ export function EventDebuggerPage() {
 
         <NameStats names={names} onFilter={setNameFilter} activeName={nameFilter} />
       </div>
+
+      {inspecting && (
+        <IdentityDrawer userId={inspecting} onClose={() => setInspecting(null)} />
+      )}
     </div>
   );
 }
