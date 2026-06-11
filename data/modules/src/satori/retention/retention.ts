@@ -13,8 +13,8 @@
 namespace SatoriRetention {
 
   var PAGE_SIZE = 100;
-  var DEFAULT_PAGES = 150;  // 15K event records
-  var MAX_PAGES = 400;
+  var DEFAULT_PAGES = 320;  // 32K event records — covers the legacy (oldest-first) key tail
+  var MAX_PAGES = 800;
   var MAX_DAYS = 30;
 
   function toMs(ts: number): number {

@@ -22,8 +22,8 @@ namespace SatoriEventDebugger {
   var RECENT_MAX = 300;
 
   var SEARCH_PAGE_SIZE = 100;
-  var SEARCH_DEFAULT_PAGES = 50;
-  var SEARCH_MAX_PAGES = 200;
+  var SEARCH_DEFAULT_PAGES = 320;  // covers the legacy (oldest-first) key tail
+  var SEARCH_MAX_PAGES = 800;
   var SEARCH_MAX_RESULTS = 500;
 
   interface DebugEvent {
