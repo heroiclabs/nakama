@@ -117,15 +117,66 @@ namespace BlogEmbed {
     plays: number;
   }
 
-  // ── LLM call (Anthropic preferred, OpenAI fallback) ─────────────────────────
+  // ── LLM call (self-hosted qwen3 vLLM first, then OpenAI/Anthropic) ──────────
   // Returns the raw model text, or "" on any failure. Mirrors the provider
-  // shapes used by ai_player.js so we stay consistent across the runtime.
+  // selection in ai_player.js: the prod JS runtime's canonical LLM is the
+  // in-cluster, keyless qwen3 vLLM (LLM_PROVIDER=qwen3, QWEN3_BASE_URL/
+  // QWEN3_MODEL from ctx.env). OPENAI_API_KEY / ANTHROPIC_API_KEY are NOT in
+  // Nakama's runtime.env in prod, so relying on them alone made generation
+  // silently fail (ctx.env returns ""). We honour LLM_PROVIDER but always fall
+  // back to qwen3 so blog-quiz generation works on the self-hosted stack.
+  var QWEN3_DEFAULT_BASE_URL = "http://vllm-coder-pro.content-factory.svc.cluster.local:8000";
+  var QWEN3_DEFAULT_MODEL    = "Qwen/Qwen3-7B-Instruct";
+
   function callLlm(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, system: string, user: string): string {
     var anthropic = envStr(ctx, "ANTHROPIC_API_KEY");
     var openai = envStr(ctx, "OPENAI_API_KEY");
     var maxTokens = 2000;
-    try {
-      if (anthropic) {
+
+    // Build the attempt order: preferred provider first, then qwen3 (keyless,
+    // self-hosted), then any keyed cloud provider that happens to be set.
+    var preferred = ("" + ((ctx.env && ctx.env["LLM_PROVIDER"]) || "qwen3")).toLowerCase();
+    var order: string[] = [];
+    function pushUnique(p: string): void {
+      for (var k = 0; k < order.length; k++) { if (order[k] === p) return; }
+      order.push(p);
+    }
+    pushUnique(preferred);
+    pushUnique("qwen3");
+    pushUnique("claude");
+    pushUnique("openai");
+
+    for (var oi = 0; oi < order.length; oi++) {
+      var name = order[oi];
+      try {
+        if (name === "qwen3") {
+          // Self-hosted vLLM (OpenAI-compatible). 18s keeps the whole RPC under
+          // the Next.js /api/blog-quiz/generate 22s client timeout.
+          var qBase = ("" + ((ctx.env && ctx.env["QWEN3_BASE_URL"]) || QWEN3_DEFAULT_BASE_URL)).replace(/\/$/, "");
+          var qModel = "" + ((ctx.env && ctx.env["QWEN3_MODEL"]) || QWEN3_DEFAULT_MODEL);
+          var rq = nk.httpRequest(qBase + "/v1/chat/completions", "post", {
+            "Content-Type": "application/json"
+          }, JSON.stringify({
+            model: qModel,
+            max_tokens: maxTokens,
+            messages: [
+              { role: "system", content: system },
+              { role: "user", content: user }
+            ],
+            chat_template_kwargs: { enable_thinking: false }
+          }), 18000);
+          if (rq && rq.code >= 200 && rq.code < 300 && rq.body) {
+            var pq: any = JSON.parse(rq.body);
+            if (pq && pq.choices && pq.choices.length > 0 && pq.choices[0].message) {
+              var tq = "" + pq.choices[0].message.content;
+              if (tq) return tq;
+            }
+          } else {
+            logger.warn("[BlogEmbed] qwen3 HTTP " + (rq ? rq.code : "?"));
+          }
+          continue;
+        }
+      if (name === "claude" && anthropic) {
         var ra = nk.httpRequest("https://api.anthropic.com/v1/messages", "post", {
           "Content-Type": "application/json",
           "x-api-key": anthropic,
@@ -145,7 +196,7 @@ namespace BlogEmbed {
           logger.warn("[BlogEmbed] anthropic HTTP " + (ra ? ra.code : "?"));
         }
       }
-      if (openai) {
+      if (name === "openai" && openai) {
         var ro = nk.httpRequest("https://api.openai.com/v1/chat/completions", "post", {
           "Content-Type": "application/json",
           "Authorization": "Bearer " + openai
@@ -166,8 +217,9 @@ namespace BlogEmbed {
           logger.warn("[BlogEmbed] openai HTTP " + (ro ? ro.code : "?"));
         }
       }
-    } catch (err: any) {
-      logger.error("[BlogEmbed] callLlm threw: " + (err && err.message ? err.message : String(err)));
+      } catch (err: any) {
+        logger.error("[BlogEmbed] callLlm threw: " + (err && err.message ? err.message : String(err)));
+      }
     }
     return "";
   }
