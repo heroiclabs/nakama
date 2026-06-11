@@ -11,6 +11,7 @@ const SatoriConfigPage = lazy(() => import("./pages/SatoriConfigPage"));
 const FlagsPage = lazy(() => import("./pages/FlagsPage"));
 const EventsPage = lazy(() => import("./pages/EventsPage"));
 const EventDebuggerPage = lazy(() => import("./pages/EventDebuggerPage"));
+const FunnelsPage = lazy(() => import("./pages/FunnelsPage"));
 const ExperimentsPage = lazy(() => import("./pages/ExperimentsPage"));
 const AudiencesPage = lazy(() => import("./pages/AudiencesPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
@@ -56,6 +57,7 @@ function ProtectedRoutes() {
         <Route path="flags" element={<FlagsPage />} />
         <Route path="events" element={<EventsPage />} />
         <Route path="event-debugger" element={<EventDebuggerPage />} />
+        <Route path="funnels" element={<FunnelsPage />} />
         <Route path="experiments" element={<ExperimentsPage />} />
         <Route path="audiences" element={<AudiencesPage />} />
         <Route path="messages" element={<MessagesPage />} />

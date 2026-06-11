@@ -196,9 +196,44 @@ function sdTimeout(ctx) {
     return (t > 0) ? t : SD_TIMEOUT_MS;
 }
 
+// ─── Kill-switch ────────────────────────────────────────────────────────
+// Admin-controlled gate for ALL outbound Satori Cloud traffic. Reads
+// satori_configs/satori_direct ({enabled:boolean}, system user), cached 60s
+// per VM. Toggled via the satori_direct_toggle RPC (see
+// src/satori/satori-direct-control.ts) — lets ops cut the paid Satori
+// mirror without a redeploy. Default (missing/unreadable config) is ON to
+// preserve existing behaviour.
+var SD_KILLSWITCH = { value: null, loadedAt: 0 };
+function sdCloudEnabled(nk) {
+    var now = Date.now();
+    if (SD_KILLSWITCH.value !== null && (now - SD_KILLSWITCH.loadedAt) < 60000) {
+        return SD_KILLSWITCH.value;
+    }
+    var enabled = true;
+    try {
+        var rows = nk.storageRead([{
+            collection: "satori_configs",
+            key: "satori_direct",
+            userId: "00000000-0000-0000-0000-000000000000"
+        }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.enabled === false) {
+            enabled = false;
+        }
+    } catch (e) {
+        // Storage hiccup — keep last known value if any, else default ON.
+        if (SD_KILLSWITCH.value !== null) return SD_KILLSWITCH.value;
+    }
+    SD_KILLSWITCH.value = enabled;
+    SD_KILLSWITCH.loadedAt = now;
+    return enabled;
+}
+
 // Wraps nk.httpRequest with sane defaults + structured error reporting.
 // Returns { ok, code, body } — ok=true if 2xx, false otherwise.
 function sdHttp(ctx, nk, logger, method, path, headers, body) {
+    if (!sdCloudEnabled(nk)) {
+        return { ok: false, code: 0, body: "satori_direct disabled by admin kill-switch", killswitch: true };
+    }
     var url = sdUrl(ctx, path);
     var hdrs = headers || {};
     hdrs["Content-Type"] = "application/json";

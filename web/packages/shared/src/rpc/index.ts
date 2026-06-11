@@ -19,6 +19,13 @@ export type {
   IdentityInspection,
   IdentityTimelineEvent,
   IdentityExperimentAssignment,
+  FunnelDefinition,
+  FunnelStepResult,
+  FunnelResult,
+  RetentionCohort,
+  RetentionVariantRow,
+  RetentionResult,
+  SatoriDirectStatus,
 } from "./satori";
 export type {
   CreatorEvent,
