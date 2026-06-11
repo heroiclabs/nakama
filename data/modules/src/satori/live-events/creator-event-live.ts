@@ -875,6 +875,7 @@ namespace SatoriCreatorEvents {
         claimedAt: state.claimedAt,
         eventTitle: def.title,
         region: def.region,
+        email: deliveryEmail || "",
       };
       try {
         Storage.writeSystemJson(nk, "prize_fulfillments", data.eventId + ":" + userId, fulfillmentRecord);
@@ -1535,6 +1536,8 @@ namespace SatoriCreatorEvents {
     initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
     initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
     initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+    initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
+    initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
   }
 
   /**
@@ -1753,6 +1756,42 @@ namespace SatoriCreatorEvents {
       });
     }
 
+    // 5c. Premature-claim guard — the same storageList lag that 5b works
+    // around for the caller ALSO hides other players' answers right after
+    // the event ends. Ranking against that incomplete list hands a rank-1
+    // prize to whoever claims first (real bug: player ranked #2 on the
+    // final leaderboard claimed a #1-tier prize). While inside a short
+    // grace window after the end, require the answer list to cover the
+    // joined participant count; otherwise return the rank-sync error so
+    // the client's pending-retry flow claims again once the list settles.
+    var CLAIM_GRACE_SEC = 120;
+    if (nowSec < endAt + CLAIM_GRACE_SEC) {
+      var participantCount = 0;
+      var pCursor = "";
+      var pPages = 0;
+      do {
+        var pPage: any;
+        try {
+          pPage = nk.storageList("", "event_participants", 100, pCursor);
+        } catch (perr: any) {
+          logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
+          break;
+        }
+        var pObjs = (pPage && pPage.objects) || [];
+        for (var pi = 0; pi < pObjs.length; pi++) {
+          if (pObjs[pi] && pObjs[pi].key === eventId) participantCount++;
+        }
+        pCursor = (pPage && pPage.cursor) || "";
+        pPages++;
+      } while (pCursor && pPages < 5);
+
+      if (participantCount > allAnswers.length) {
+        logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (grace window)",
+          userId, eventId, participantCount, allAnswers.length);
+        return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
+      }
+    }
+
     // 6. Sort: score desc, submit-time asc (ties broken by speed)
     allAnswers.sort(function (a, b) {
       if (a.score !== b.score) return b.score - a.score;
@@ -1765,6 +1804,14 @@ namespace SatoriCreatorEvents {
     }
     if (myRank === 0) {
       return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
+    }
+
+    // Parse delivery email early — the fulfillment queue record needs it so
+    // the admin voucher pipeline knows where to send the gift card code.
+    var deliveryEmail = "";
+    if (typeof data.email === "string") {
+      var em = (data.email as string).trim();
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) deliveryEmail = em;
     }
 
     // 7. Pick tier + compute reward
@@ -1806,6 +1853,7 @@ namespace SatoriCreatorEvents {
             eventTitle: def.title || "",
             region: def.region || (def.giftCardPrizes && def.giftCardPrizes.region) || "global",
             source: "spa_claim",
+            email: deliveryEmail || "",
           });
           logger.info("[CreatorEvent SPA] Gift card queued: user=%s event=%s tier=%s prize=%s",
             userId, eventId, tier.rank, tier.prize);
@@ -1828,12 +1876,7 @@ namespace SatoriCreatorEvents {
       logger.warn("[CreatorEvent SPA] failed to write claim record: %s", cerr.message || String(cerr));
     }
 
-    // 9. Best-effort SES email
-    var deliveryEmail = "";
-    if (typeof data.email === "string") {
-      var em = (data.email as string).trim();
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) deliveryEmail = em;
-    }
+    // 9. Best-effort SES email (deliveryEmail parsed above, before step 7)
     var deliveryName = "";
     if (typeof data.playerName === "string") {
       deliveryName = (data.playerName as string).trim().slice(0, 120);
@@ -1919,6 +1962,136 @@ namespace SatoriCreatorEvents {
       email: emailRequested
         ? { requested: true, sent: emailSent, error: emailError || undefined, to: deliveryEmail }
         : { requested: false, sent: false },
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  //  Prize fulfillment pipeline (admin / service-to-service)
+  //
+  //  The claim RPCs above queue gift-card wins into the system-owned
+  //  `prize_fulfillments` collection with status "pending". These two
+  //  RPCs let the QuizVerse web admin dashboard (Next.js) consume that
+  //  queue and settle each record after a real voucher is issued via
+  //  Reloadly:
+  //
+  //    creator_event_fulfillments_list   → list queue (filter by status)
+  //    creator_event_fulfillment_settle  → mark fulfilled/failed + mirror
+  //                                        voucher status onto the player's
+  //                                        claim record for the SPA UI
+  //
+  //  Both are gated by NAKAMA_WEBHOOK_SECRET (already in RUNTIME_ENV_KEYS)
+  //  passed as payload.service_token — same pattern as brain_coins settle.
+  // ────────────────────────────────────────────────────────────────────
+
+  function isFulfillServiceCaller(ctx: nkruntime.Context, data: any): boolean {
+    var token = data && data.service_token;
+    if (!token) return false;
+    var expected = "" + ((ctx.env && ctx.env["NAKAMA_WEBHOOK_SECRET"]) || "");
+    return expected.length > 0 && token === expected;
+  }
+
+  function rpcFulfillmentsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!isFulfillServiceCaller(ctx, data)) {
+      return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+    }
+    var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+    var limit = Math.min(100, Math.max(1, Number(data.limit) || 100));
+    var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
+
+    var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
+    var rows: any[] = [];
+    var objs = (res && res.objects) || [];
+    for (var i = 0; i < objs.length; i++) {
+      var v: any = objs[i].value || {};
+      if (statusFilter && v.status !== statusFilter) continue;
+      rows.push({
+        key: objs[i].key,
+        userId: v.userId || "",
+        eventId: v.eventId || "",
+        eventTitle: v.eventTitle || "",
+        rank: v.rank || 0,
+        giftCard: v.giftCard || null,
+        status: v.status || "pending",
+        region: v.region || "",
+        email: v.email || "",
+        source: v.source || "",
+        queuedAt: v.queuedAt || v.claimedAt || 0,
+        settledAt: v.settledAt || 0,
+        voucher: v.voucher || null,
+        error: v.error || "",
+      });
+    }
+    return RpcHelpers.successResponse({
+      fulfillments: rows,
+      cursor: (res && res.cursor) || "",
+    });
+  }
+
+  function rpcFulfillmentSettle(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!isFulfillServiceCaller(ctx, data)) {
+      return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+    }
+    if (!data.eventId || !data.userId) {
+      return RpcHelpers.errorResponse("eventId and userId required");
+    }
+    var status = data.status === "fulfilled" ? "fulfilled" : (data.status === "failed" ? "failed" : "");
+    if (!status) {
+      return RpcHelpers.errorResponse("status must be 'fulfilled' or 'failed'");
+    }
+
+    var eventId = String(data.eventId);
+    var targetUserId = String(data.userId);
+    var fKey = eventId + ":" + targetUserId;
+    var rec = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+    if (!rec) {
+      return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+    }
+
+    var settledAt = Math.floor(Date.now() / 1000);
+    rec.status = status;
+    rec.settledAt = settledAt;
+    if (status === "fulfilled") {
+      // Never store the full card code server-side — it is delivered by email.
+      rec.voucher = {
+        provider: String(data.provider || "reloadly"),
+        orderId: String(data.orderId || ""),
+        deliveredTo: String(data.deliveredTo || rec.email || ""),
+        cardLast4: String(data.cardLast4 || ""),
+        codeDelivered: !!data.codeDelivered,
+      };
+      rec.error = "";
+    } else {
+      rec.error = String(data.error || "fulfillment failed");
+    }
+    Storage.writeSystemJson(nk, "prize_fulfillments", fKey, rec);
+    logger.info("[CreatorEvent] Fulfillment settled: key=%s status=%s order=%s",
+      fKey, status, (rec.voucher && rec.voucher.orderId) || "-");
+
+    // Mirror onto the player's claim record so the SPA "My Prizes" card can
+    // show "Voucher sent" without another server round-trip.
+    try {
+      var claimKey = "claim_" + eventId;
+      var claim = Storage.readJson<any>(nk, "creator_event_claims", claimKey, targetUserId);
+      if (claim) {
+        claim.voucher = {
+          status: status,
+          provider: (rec.voucher && rec.voucher.provider) || "reloadly",
+          deliveredTo: (rec.voucher && rec.voucher.deliveredTo) || "",
+          settledAt: settledAt,
+        };
+        Storage.writeJson(nk, "creator_event_claims", claimKey, targetUserId, claim);
+      }
+    } catch (merr: any) {
+      logger.warn("[CreatorEvent] Failed to mirror voucher onto claim record: %s", merr.message || String(merr));
+    }
+
+    return RpcHelpers.successResponse({
+      success: true,
+      key: fKey,
+      status: status,
+      settledAt: settledAt,
     });
   }
 }
