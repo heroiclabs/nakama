@@ -643,6 +643,12 @@ declare namespace IntelliverseFriends {
 declare namespace IntelliverseFriendsList {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace IvxPresence {
+    function rpcSetPlayerPresence(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcGetCrossGameMessages(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcMarkMessageRead(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace BlogEmbed {
     function register(initializer: nkruntime.Initializer): void;
 }
