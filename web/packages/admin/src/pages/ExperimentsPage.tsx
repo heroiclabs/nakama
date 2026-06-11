@@ -26,6 +26,7 @@ import {
   satori,
   type Experiment,
   type ExperimentVariant,
+  type ExperimentResults,
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
@@ -407,12 +408,261 @@ function ExperimentForm({
   );
 }
 
+/* ── Results Modal ────────────────────────────────────────────────── */
+
+function significanceBadge(pValue: number | null, significant: boolean) {
+  if (pValue === null) {
+    return (
+      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+        insufficient data
+      </span>
+    );
+  }
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-[10px] font-medium",
+        significant
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      )}
+    >
+      {significant ? "significant" : "not significant"} · p=
+      {pValue < 0.001 ? "<0.001" : pValue.toFixed(3)}
+    </span>
+  );
+}
+
+interface ResultsModalProps {
+  experiment: Experiment;
+  gameScope: string;
+  onClose: () => void;
+}
+
+function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
+  const qc = useQueryClient();
+  const [goalEvent, setGoalEvent] = useState("");
+
+  const results = useQuery({
+    queryKey: ["satori", "experiment-results", gameScope, experiment.id, goalEvent],
+    queryFn: () =>
+      satori.getExperimentResults(
+        {
+          experimentId: experiment.id,
+          ...(goalEvent.trim() ? { goal_event: goalEvent.trim() } : {}),
+          game_id: rpcGameId(gameScope),
+        },
+        serverKeyAuth(),
+      ),
+    retry: false,
+  });
+
+  const declareWinner = useMutation({
+    mutationFn: (variantId: string) =>
+      satori.declareExperimentWinner(
+        { experimentId: experiment.id, variantId, game_id: rpcGameId(gameScope) },
+        serverKeyAuth(),
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["satori", "experiments", gameScope] });
+      qc.invalidateQueries({
+        queryKey: ["satori", "experiment-results", gameScope, experiment.id],
+      });
+    },
+  });
+
+  const data: ExperimentResults | undefined = results.data;
+  const needsGoalEvent =
+    results.isError &&
+    results.error instanceof Error &&
+    /goal event/i.test(results.error.message ?? "");
+  const maxRate = data ? Math.max(...data.variants.map((v) => v.rate), 0.0001) : 1;
+
+  const handleDeclare = (variantId: string) => {
+    if (
+      !window.confirm(
+        `Declare "${variantId}" the winner and END experiment "${experiment.id}" in production?`,
+      )
+    ) {
+      return;
+    }
+    declareWinner.mutate(variantId);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              Results — {experiment.name}
+            </h3>
+            {data && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Goal event: <code className="font-mono">{data.goalEvent}</code>
+                {data.winnerVariantId && (
+                  <span className="ml-2 font-medium text-emerald-500">
+                    Winner declared: {data.winnerVariantId}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {results.isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : needsGoalEvent || (results.isError && !data) ? (
+          <div className="space-y-4">
+            {needsGoalEvent ? (
+              <p className="text-sm text-muted-foreground">
+                This experiment has no <code className="font-mono">goalMetric</code>{" "}
+                configured. Enter the event name that counts as a conversion (e.g.{" "}
+                <code className="font-mono">store_purchase</code>):
+              </p>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                {results.error instanceof Error
+                  ? results.error.message
+                  : "Failed to load results"}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <input
+                value={goalEvent}
+                onChange={(e) => setGoalEvent(e.target.value)}
+                placeholder="goal event name, e.g. store_purchase"
+                className="h-10 flex-1 rounded-md border border-border bg-background px-3 font-mono text-sm outline-none placeholder:font-sans focus:border-primary"
+              />
+              <button
+                onClick={() => results.refetch()}
+                disabled={!goalEvent.trim()}
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Compute
+              </button>
+            </div>
+          </div>
+        ) : data ? (
+          <div className="space-y-5">
+            {/* Recommendation */}
+            <div
+              className={cn(
+                "rounded-lg border p-3 text-sm",
+                data.suggestedWinner
+                  ? "border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300"
+                  : "border-border bg-muted/40 text-muted-foreground",
+              )}
+            >
+              {data.recommendation}
+            </div>
+
+            {/* Variant rows */}
+            <div className="space-y-2">
+              {data.variants.map((v) => {
+                const comparison = data.comparisons.find((c) => c.variantId === v.id);
+                return (
+                  <div
+                    key={v.id}
+                    className={cn(
+                      "rounded-lg border border-border p-3",
+                      data.suggestedWinner === v.id && "border-emerald-500/50",
+                      data.winnerVariantId === v.id && "border-emerald-500 bg-emerald-500/5",
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold">{v.name}</span>
+                      {v.isControl && (
+                        <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-blue-500">
+                          control
+                        </span>
+                      )}
+                      {data.winnerVariantId === v.id && (
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-500">
+                          winner
+                        </span>
+                      )}
+                      {comparison && significanceBadge(comparison.pValue, comparison.significant)}
+                      {comparison && comparison.pValue !== null && (
+                        <span
+                          className={cn(
+                            "text-xs font-medium tabular-nums",
+                            comparison.lift > 0 ? "text-emerald-500" : "text-rose-500",
+                          )}
+                        >
+                          {comparison.lift > 0 ? "+" : ""}
+                          {(comparison.lift * 100).toFixed(1)}% vs control
+                        </span>
+                      )}
+                      <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                        {v.conversions.toLocaleString()} / {v.exposures.toLocaleString()}{" "}
+                        converted · {(v.rate * 100).toFixed(2)}%
+                      </span>
+                      {!data.winnerVariantId && (
+                        <button
+                          onClick={() => handleDeclare(v.id)}
+                          disabled={declareWinner.isPending}
+                          className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground transition-colors hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:text-emerald-600"
+                        >
+                          {declareWinner.isPending ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Check className="h-3 w-3" />
+                          )}
+                          Declare winner
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn(
+                          "h-full rounded-full",
+                          v.isControl ? "bg-blue-500" : "bg-emerald-500",
+                        )}
+                        style={{ width: `${Math.min((v.rate / maxRate) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Scan caveats */}
+            <p className="text-[11px] text-muted-foreground">
+              Scanned {data.scan.assignmentObjectsScanned.toLocaleString()} assignment
+              objects and {data.scan.eventRecordsScanned.toLocaleString()} event records
+              ({data.scan.totalGoalEvents.toLocaleString()} goal events).
+              {(data.scan.assignmentsTruncated || data.scan.eventsTruncated) && (
+                <span className="ml-1 text-amber-500">
+                  Scan truncated — figures are a lower-bound estimate.
+                </span>
+              )}
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 /* ── Experiment Card ──────────────────────────────────────────────── */
 
 interface ExperimentCardProps {
   experiment: Experiment;
   onEdit: (exp: Experiment) => void;
   onToggle: (exp: Experiment) => void;
+  onResults: (exp: Experiment) => void;
   isToggling: boolean;
 }
 
@@ -420,6 +670,7 @@ function ExperimentCard({
   experiment: exp,
   onEdit,
   onToggle,
+  onResults,
   isToggling,
 }: ExperimentCardProps) {
   const { copied, copy } = useCopyToClipboard();
@@ -548,14 +799,23 @@ function ExperimentCard({
           </div>
         </div>
 
-        {/* Edit */}
-        <button
-          onClick={() => onEdit(exp)}
-          className="shrink-0 rounded-md p-2 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-hover:opacity-100"
-          title="Edit experiment"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
+        {/* Actions */}
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={() => onResults(exp)}
+            className="rounded-md p-2 text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
+            title="View results & significance"
+          >
+            <BarChart3 className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onEdit(exp)}
+            className="rounded-md p-2 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-hover:opacity-100"
+            title="Edit experiment"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -677,6 +937,7 @@ export function ExperimentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Experiment | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [resultsFor, setResultsFor] = useState<Experiment | null>(null);
 
   const filtered = useMemo(() => {
     let list = experiments.data ?? [];
@@ -873,10 +1134,20 @@ export function ExperimentsPage() {
                 setShowForm(true);
               }}
               onToggle={handleToggle}
+              onResults={setResultsFor}
               isToggling={togglingId === exp.id}
             />
           ))}
         </div>
+      )}
+
+      {/* Results Modal */}
+      {resultsFor && (
+        <ResultsModal
+          experiment={resultsFor}
+          gameScope={gameScope}
+          onClose={() => setResultsFor(null)}
+        />
       )}
 
       {/* Form Modal */}
