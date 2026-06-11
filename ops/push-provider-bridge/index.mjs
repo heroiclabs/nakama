@@ -138,15 +138,39 @@ async function registerEndpoint(body) {
     isSandbox: !!wantSandbox,
   });
 
-  const result = await sns.send(new CreatePlatformEndpointCommand({
-    PlatformApplicationArn: appArn,
-    Token: token,
-    CustomUserData: customUserData,
-  }));
+  let endpointArn;
+  try {
+    const result = await sns.send(new CreatePlatformEndpointCommand({
+      PlatformApplicationArn: appArn,
+      Token: token,
+      CustomUserData: customUserData,
+    }));
+    endpointArn = result.EndpointArn;
+  } catch (createError) {
+    // Token already registered against a different endpoint → SNS throws
+    // "Invalid parameter: Token Reason: Endpoint <arn> already exists with
+    // the same Token, but different attributes." Recover by parsing the
+    // existing endpoint ARN out of the message and re-enabling it, same as
+    // lambda-functions/register-endpoint/index.mjs. SDK v3 surfaces the
+    // error name as 'InvalidParameter' (sometimes only .Code).
+    const errName = createError.name || createError.Code || "";
+    const isAlreadyExists =
+      /InvalidParameter/i.test(errName) &&
+      /already exists/i.test(createError.message || "");
+    if (!isAlreadyExists) throw createError;
 
-  if (result.EndpointArn) {
+    const arnMatch = (createError.message || "").match(/arn:aws:sns:[a-z0-9-]+:\d+:[^\s"',]+/i);
+    if (!arnMatch) {
+      console.error(`[push-provider-bridge] SNS reported "already exists" but ARN could not be parsed. Raw: ${createError.message}`);
+      throw createError;
+    }
+    endpointArn = arnMatch[0];
+    console.warn(`[push-provider-bridge] endpoint collision — reusing existing arn=${endpointArn}`);
+  }
+
+  if (endpointArn) {
     await sns.send(new SetEndpointAttributesCommand({
-      EndpointArn: result.EndpointArn,
+      EndpointArn: endpointArn,
       Attributes: { Enabled: "true", Token: token, CustomUserData: customUserData },
     }));
   }
@@ -158,7 +182,7 @@ async function registerEndpoint(body) {
     declaredPlatform,
     detectedFormat,
     isSandbox: !!wantSandbox,
-    endpointArn: result.EndpointArn,
+    endpointArn,
   });
 }
 

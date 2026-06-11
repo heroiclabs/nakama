@@ -632,6 +632,48 @@ function rpcTutorXRecordUsage(ctx, logger, nk, payload) {
     });
 }
 
+/**
+ * RPC: Refresh (re-issue) the caller's own session token.
+ * The TutorX webview receives a Nakama session token from the Unity app via
+ * deep link, but has no refresh_token — once that token expires the web can
+ * no longer bill AI usage and has to ask the user to reopen the app.
+ * This RPC lets the web exchange a STILL-VALID token for a fresh one
+ * (proactive keep-alive). It only ever issues a token for ctx.userId, so a
+ * caller can never mint a session for another account.
+ * Payload: {} — Response: { success, token, exp, userId }
+ */
+var TUTORX_SESSION_REFRESH_TTL_SEC = 3600; // 1 hour per refresh; web renews every ~2 min
+
+function rpcTutorXSessionRefresh(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+
+    var exp = Math.floor(Date.now() / 1000) + TUTORX_SESSION_REFRESH_TTL_SEC;
+    var token;
+    try {
+        var result = nk.authenticateTokenGenerate(userId, ctx.username || "", exp);
+        token = result && (result.token || result.Token);
+    } catch (err) {
+        utils.logError(logger, "tutorx_session_refresh: token generate failed: " + err.message);
+        return utils.handleError(ctx, null, "Failed to refresh session");
+    }
+    if (!token) {
+        return utils.handleError(ctx, null, "Failed to refresh session");
+    }
+
+    utils.logInfo(logger, "tutorx_session_refresh: re-issued session for user=" + userId + " exp=" + exp);
+
+    return JSON.stringify({
+        success: true,
+        token: token,
+        exp: exp,
+        userId: userId,
+        timestamp: utils.getCurrentTimestamp()
+    });
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // WALLET BALANCE RPC (existing)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -75,6 +75,13 @@ var SI_DEFAULT_GAME_ID  = "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse
 // cron call doesn't hammer Satori with redundant PUT /v1/properties.
 var SI_RESYNC_INTERVAL_SEC = 24 * 3600; // 24 hours
 
+// Re-probe backoff for users that had NO GPA doc at sync time. The old code
+// wrote synced_at on the no_gpa path even though nothing was pushed, which
+// blocked retries for the full 24h window. We now record probed_at instead,
+// and only skip if the last probe was within this much shorter interval —
+// so a user whose GPA doc appears minutes later gets synced within the hour.
+var SI_NO_GPA_PROBE_INTERVAL_SEC = 3600; // 1 hour
+
 // Max users to sync per batch call (caller can request less).
 var SI_BATCH_MAX = 500;
 var SI_BATCH_DEFAULT = 100;
@@ -353,6 +360,14 @@ function siSyncUser(ctx, nk, logger, userId, gameId) {
         return { ok: true, skipped: true, reason: "recently_synced" };
     }
 
+    // no_gpa probes use a much shorter backoff than full syncs: skip only if
+    // we probed (and found no GPA) within the last hour. Do NOT consult
+    // synced_at here — a no_gpa probe never pushed anything to Satori.
+    var lastProbe = state.probed_at || 0;
+    if ((nowSec - lastProbe) < SI_NO_GPA_PROBE_INTERVAL_SEC) {
+        return { ok: true, skipped: true, reason: "recently_probed" };
+    }
+
     // Read GPA.
     var gpaKey = gameId + ":" + userId;
     var gpa    = null;
@@ -362,9 +377,13 @@ function siSyncUser(ctx, nk, logger, userId, gameId) {
     } catch (e) { /* not found */ }
 
     if (!gpa) {
-        // No GPA doc yet — record an empty sync so we don't keep probing.
+        // No GPA doc yet — record probed_at (NOT synced_at: nothing was
+        // pushed) so the next tick retries after the short probe backoff
+        // instead of being blocked for the full 24h re-sync window.
         siWriteOne(nk, SI_STATE_COLLECTION, stateKey, SI_SYSTEM_USER, {
-            user_id: userId, game_id: gameId, synced_at: nowSec,
+            user_id: userId, game_id: gameId,
+            synced_at: lastSync,
+            probed_at: nowSec,
             reason: "no_gpa"
         });
         return { ok: true, skipped: true, reason: "no_gpa" };
@@ -500,6 +519,13 @@ function rpcSatoriIdentityBatch(ctx, logger, nk, payload) {
     var errors     = 0;
     var nextCursor = null;
     var processed  = 0;
+    // Per-reason skip tally (recently_synced, recently_probed, no_gpa,
+    // game_id_filter, ...) so ops can see WHY records skip, not just counts.
+    var skipReasons = {};
+    function siTallySkip(reason) {
+        var r = reason || "unknown";
+        skipReasons[r] = (skipReasons[r] || 0) + 1;
+    }
 
     try {
         var scanLimit = limit * 3; // scan 3x more than needed to account for skips
@@ -517,7 +543,7 @@ function rpcSatoriIdentityBatch(ctx, logger, nk, payload) {
             if (!userId) continue;
 
             // Filter by game_id if specified.
-            if (gameId && gameId !== "all" && docGameId !== gameId) { skipped++; continue; }
+            if (gameId && gameId !== "all" && docGameId !== gameId) { skipped++; siTallySkip("game_id_filter"); continue; }
 
             processed++;
             if (synced >= limit) break; // reached the sync quota for this call
@@ -533,6 +559,7 @@ function rpcSatoriIdentityBatch(ctx, logger, nk, payload) {
                 var r = siSyncUser(ctx, nk, logger, userId, docGameId);
                 if (r.skipped) {
                     skipped++;
+                    siTallySkip(r.reason);
                 } else if (r.ok) {
                     synced++;
                 } else {
@@ -553,6 +580,7 @@ function rpcSatoriIdentityBatch(ctx, logger, nk, payload) {
     return siOk({
         synced:     synced,
         skipped:    skipped,
+        skip_reasons: skipReasons,
         errors:     errors,
         processed:  processed,
         next_cursor: nextCursor || null,
@@ -675,6 +703,11 @@ function rpcSatoriGetFlags(ctx, logger, nk, payload) {
 var siPiggybackNextAllowedSec  = 0;   // process-local: 0 = run immediately
 var SI_PIGGYBACK_DEBOUNCE_SEC  = 3600; // 1 h between piggyback runs
 var SI_PIGGYBACK_BATCH_LIMIT   = 50;   // users per piggyback tick
+// Well-known key in SI_STATE_COLLECTION storing the storageList cursor the
+// piggyback batch should resume from. Without this, every tick restarted
+// from the FIRST page of game_player_analytics, so only the first ~150 GPA
+// docs were ever considered and the rest of the population never synced.
+var SI_PIGGYBACK_CURSOR_KEY    = "__piggyback_cursor__";
 
 function siAutoRunIfNeeded(ctx, nk, logger) {
     try {
@@ -682,18 +715,40 @@ function siAutoRunIfNeeded(ctx, nk, logger) {
         if (now < siPiggybackNextAllowedSec) return null;
         siPiggybackNextAllowedSec = now + SI_PIGGYBACK_DEBOUNCE_SEC;
 
+        // Resume the GPA scan from where the previous tick left off (persisted,
+        // so it advances across process restarts too). When the cursor is
+        // exhausted we wrap back to the start of the collection.
+        var savedCursor = "";
+        try {
+            var curDoc = siReadOne(nk, SI_STATE_COLLECTION, SI_PIGGYBACK_CURSOR_KEY, SI_SYSTEM_USER);
+            if (curDoc && typeof curDoc.cursor === "string") savedCursor = curDoc.cursor;
+        } catch (eCur) { /* best-effort — fall back to start */ }
+
         // Use a system-user context so the admin gate always passes.
         // siAutoRunIfNeeded is only called from rpcAnalyticsLogEvent (internal
         // path) — never from a client RPC. The process-local debounce already
         // rate-limits to at most one batch per hour, so no abuse surface here.
         var sysCtx = { userId: SI_SYSTEM_USER, env: (ctx && ctx.env) || {} };
-        var batchData = { limit: SI_PIGGYBACK_BATCH_LIMIT };
+        var batchData = { limit: SI_PIGGYBACK_BATCH_LIMIT, cursor: savedCursor };
         var fakePayload = JSON.stringify(batchData);
         var result = JSON.parse(rpcSatoriIdentityBatch(sysCtx, logger, nk, fakePayload) || "{}");
+
+        // Persist the next cursor so the following tick continues through the
+        // population. An exhausted cursor (no next_cursor) wraps to "".
+        try {
+            siWriteOne(nk, SI_STATE_COLLECTION, SI_PIGGYBACK_CURSOR_KEY, SI_SYSTEM_USER, {
+                cursor: (result && result.next_cursor) ? String(result.next_cursor) : "",
+                updated_at: new Date().toISOString()
+            });
+        } catch (eCw) { /* best-effort */ }
+
         if (logger && logger.info) {
             logger.info("[satori_identity] piggyback synced=" + (result.synced || 0) +
                         " skipped=" + (result.skipped || 0) +
-                        " errors=" + (result.errors || 0));
+                        " errors=" + (result.errors || 0) +
+                        " skip_reasons=" + JSON.stringify(result.skip_reasons || {}) +
+                        " resumed_cursor=" + (savedCursor ? "yes" : "no") +
+                        " wrapped=" + ((result && result.next_cursor) ? "no" : "yes"));
         }
 
         // Write a sync heartbeat so the Pipeline Health freshness check knows
@@ -708,6 +763,7 @@ function siAutoRunIfNeeded(ctx, nk, logger) {
                     timestamp:  new Date().toISOString(),
                     synced:     result.synced  || 0,
                     skipped:    result.skipped || 0,
+                    skip_reasons: result.skip_reasons || {},
                     errors:     result.errors  || 0,
                     has_more:   result.has_more || false
                 },

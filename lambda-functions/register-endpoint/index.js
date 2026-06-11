@@ -113,7 +113,9 @@ exports.handler = async (event) => {
             console.log(`Created new SNS endpoint: ${endpointArn}`);
         } catch (createError) {
             if (createError.code === 'InvalidParameter' && createError.message.includes('already exists')) {
-                const arnMatch = createError.message.match(/arn:aws:sns:[^:]+:[^:]+:[^:]+:[^:]+:[^:]+/);
+                // 5-segment endpoint ARN: arn:aws:sns:<region>:<account>:endpoint/<plat>/<app>/<uuid>.
+                // The old 8-colon regex never matched a real SNS endpoint ARN.
+                const arnMatch = createError.message.match(/arn:aws:sns:[a-z0-9-]+:\d+:[^\s"',]+/i);
                 if (arnMatch) {
                     endpointArn = arnMatch[0];
                     console.log(`Using existing SNS endpoint: ${endpointArn}`);

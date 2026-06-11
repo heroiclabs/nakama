@@ -23661,6 +23661,204 @@ function rpcLeagueProcessSeason(ctx, logger, nk, payload) {
 // 10 quest types, server-authoritative generation from friends list
 // Storage: collection="friend_quests", key="quest_state_{userId}"
 // ============================================================================
+//
+// Minimal-but-functional implementation. The Unity client has migrated to the
+// Quest Engine (quest_engine.ts, see docs/QUEST_ENGINE_KT.md) for friend-
+// category quests, but the standalone SDK still routes through these handlers
+// (sdk_aliases.js: hiro_friend_quests_get_active → __rpc_friend_quest_get_state),
+// so the registrations below must resolve to real functions. Storage pattern
+// mirrors friend_streaks.js (user-owned doc, permissionRead 1 / write 0).
+// NOTE: reward/economy wiring on completion is intentionally deferred —
+// completion only marks the quest done (follow-up: grant via reward engine).
+
+var FQ_COLLECTION = 'friend_quests';
+var FQ_MAX_QUESTS = 3;
+var FQ_QUEST_DURATION_MS = 7 * 86400000; // quests expire 7 days after generation
+var FQ_QUEST_TYPES = ['play_with_friend', 'challenge_friend', 'nudge_friend'];
+
+function fqStorageKey(userId) {
+    return 'quest_state_' + userId;
+}
+
+function fqReadState(nk, logger, userId) {
+    try {
+        var records = nk.storageRead([{
+            collection: FQ_COLLECTION,
+            key: fqStorageKey(userId),
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            return records[0].value;
+        }
+    } catch (err) {
+        logger.warn('[FriendQuests] Storage read failed: ' + err.message);
+    }
+    return null;
+}
+
+function fqWriteState(nk, logger, userId, data) {
+    try {
+        nk.storageWrite([{
+            collection: FQ_COLLECTION,
+            key: fqStorageKey(userId),
+            userId: userId,
+            value: data,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        logger.error('[FriendQuests] Storage write failed: ' + err.message);
+        return false;
+    }
+}
+
+function fqError(msg) {
+    return JSON.stringify({ success: false, error: msg });
+}
+
+// Generate 1-3 simple quests from the player's friends list. Friendless
+// players still get one quest (friendId null → any-friend interaction).
+function fqGenerateQuests(nk, logger, userId) {
+    var friends = [];
+    try {
+        var fl = nk.friendsList(userId, 20, 0, null); // state 0 = mutual friends
+        if (fl && fl.friends) {
+            for (var i = 0; i < fl.friends.length; i++) {
+                var f = fl.friends[i];
+                if (f && f.user && f.user.id) friends.push(f.user.id);
+            }
+        }
+    } catch (err) {
+        logger.warn('[FriendQuests] friendsList failed: ' + err.message);
+    }
+
+    var now = Date.now();
+    var quests = [];
+    var count = Math.min(FQ_MAX_QUESTS, Math.max(1, friends.length));
+    for (var q = 0; q < count; q++) {
+        quests.push({
+            id: 'fq_' + now + '_' + q,
+            type: FQ_QUEST_TYPES[q % FQ_QUEST_TYPES.length],
+            friendId: friends.length > 0 ? friends[q % friends.length] : null,
+            target: 1,
+            progress: 0,
+            completedAt: null,
+            createdAt: new Date(now).toISOString(),
+            expiresAt: new Date(now + FQ_QUEST_DURATION_MS).toISOString()
+        });
+    }
+    return quests;
+}
+
+// Remove expired, uncompleted quests in place. Returns true if any were removed.
+function fqPruneExpired(state) {
+    if (!state || !state.quests) return false;
+    var now = Date.now();
+    var kept = [];
+    for (var i = 0; i < state.quests.length; i++) {
+        var q = state.quests[i];
+        var expired = q.expiresAt && new Date(q.expiresAt).getTime() < now && !q.completedAt;
+        if (!expired) kept.push(q);
+    }
+    var changed = kept.length !== state.quests.length;
+    state.quests = kept;
+    return changed;
+}
+
+function rpcFriendQuestGetState(ctx, logger, nk, payload) {
+    try {
+        if (!ctx.userId) return fqError('User not authenticated');
+
+        var state = fqReadState(nk, logger, ctx.userId);
+        var changed = false;
+
+        if (!state || !state.quests) {
+            state = {
+                quests: fqGenerateQuests(nk, logger, ctx.userId),
+                generatedAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            changed = true;
+        } else {
+            changed = fqPruneExpired(state);
+            // All quests expired/cleared → regenerate a fresh set.
+            var hasActive = false;
+            for (var i = 0; i < state.quests.length; i++) {
+                if (!state.quests[i].completedAt) { hasActive = true; break; }
+            }
+            if (!hasActive) {
+                state.quests = state.quests.concat(fqGenerateQuests(nk, logger, ctx.userId));
+                state.generatedAt = new Date().toISOString();
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            state.updatedAt = new Date().toISOString();
+            fqWriteState(nk, logger, ctx.userId, state);
+        }
+
+        return JSON.stringify({
+            success: true,
+            quests: state.quests,
+            generatedAt: state.generatedAt,
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        logger.error('[FriendQuests] friend_quest_get_state: ' + err.message);
+        return fqError(err.message);
+    }
+}
+
+function rpcFriendQuestComplete(ctx, logger, nk, payload) {
+    try {
+        if (!ctx.userId) return fqError('User not authenticated');
+
+        var input;
+        try { input = JSON.parse(payload || '{}'); } catch (e) { return fqError('Invalid JSON'); }
+        var questId = input.quest_id || input.questId;
+        if (!questId) return fqError('Missing quest_id');
+
+        var state = fqReadState(nk, logger, ctx.userId);
+        if (!state || !state.quests) {
+            return fqError('No quest state — call friend_quest_get_state first');
+        }
+
+        var quest = null;
+        for (var i = 0; i < state.quests.length; i++) {
+            if (state.quests[i].id === questId) { quest = state.quests[i]; break; }
+        }
+        if (!quest) return fqError('Quest not found: ' + questId);
+        if (quest.completedAt) return fqError('Quest already completed');
+        if (quest.expiresAt && new Date(quest.expiresAt).getTime() < Date.now()) {
+            return fqError('Quest expired');
+        }
+
+        quest.progress = quest.target;
+        quest.completedAt = new Date().toISOString();
+        state.updatedAt = new Date().toISOString();
+
+        if (!fqWriteState(nk, logger, ctx.userId, state)) {
+            return fqError('Failed to save quest state');
+        }
+
+        logger.info('[FriendQuests] ' + ctx.userId + ' completed quest ' + questId +
+                    ' (type=' + quest.type + ')');
+
+        // Rewards intentionally NOT granted here — economy wiring is a
+        // follow-up; this only marks the quest complete server-side.
+        return JSON.stringify({
+            success: true,
+            ok: true,
+            quest: quest,
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        logger.error('[FriendQuests] friend_quest_complete: ' + err.message);
+        return fqError(err.message);
+    }
+}
 
 // Stub: quizverseUpdateUserProfile - TODO: implement actual function
 var quizverseUpdateUserProfile = function(ctx, logger, nk, payload) {
@@ -24107,11 +24305,13 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[TutorX] Registered RPC: tutorx_check_allowance');
         initializer.registerRpc('tutorx_record_usage', rpcTutorXRecordUsage);
         logger.info('[TutorX] Registered RPC: tutorx_record_usage');
+        initializer.registerRpc('tutorx_session_refresh', rpcTutorXSessionRefresh);
+        logger.info('[TutorX] Registered RPC: tutorx_session_refresh');
         initializer.registerRpc('tutorx_get_config', rpcTutorXGetConfig);
         logger.info('[TutorX] Registered RPC: tutorx_get_config');
         initializer.registerRpc('tutorx_set_config', rpcTutorXSetConfig);
         logger.info('[TutorX] Registered RPC: tutorx_set_config (admin)');
-        logger.info('[TutorX] Successfully registered 4 TutorX AI Coin Gate RPCs');
+        logger.info('[TutorX] Successfully registered 5 TutorX AI Coin Gate RPCs');
     } catch (err) {
         logger.error('[TutorX] Failed to initialize: ' + err.message);
     }

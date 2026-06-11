@@ -174,8 +174,16 @@ export const handler = async (event) => {
             // non-colon, non-whitespace, non-quote suffix so the
             // `endpoint/GCM/<app>/<uuid>` resource portion (which contains
             // `/` not `:`) is captured intact.
+            //
+            // Error-name fix: AWS SDK v3 surfaces this error with
+            // name 'InvalidParameter' (sometimes only .Code), NOT the v2-style
+            // 'InvalidParameterException' the old guard checked — so the
+            // recovery branch below never fired and every collision fell
+            // through to the 500 path. Match any InvalidParameter* variant
+            // on either .name or .Code.
+            const errName = createError.name || createError.Code || '';
             const isAlreadyExists =
-                createError.name === 'InvalidParameterException' &&
+                /InvalidParameter/i.test(errName) &&
                 /already exists/i.test(createError.message || '');
             if (isAlreadyExists) {
                 const arnMatch = (createError.message || '').match(
