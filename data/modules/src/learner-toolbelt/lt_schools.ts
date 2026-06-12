@@ -790,23 +790,34 @@ namespace LearnerToolbelt {
   export function bootstrapSchoolsTable(nk: nkruntime.Nakama, logger: nkruntime.Logger): void {
     var statements: { sql: string; label: string }[] = [
       {
+        // pg_trgm powers the fast substring index below. Required on PostgreSQL
+        // (prod); CockroachDB ships trigram support natively but accepts this as
+        // a no-op/known statement. Best-effort — the index step degrades to a
+        // btree+seq-scan path if the extension is unavailable.
+        label: "extension pg_trgm",
+        sql: "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+      },
+      {
+        // NOTE: column type is TEXT, not CockroachDB's STRING alias — prod runs
+        // PostgreSQL, which rejects STRING (SQLSTATE 42704). TEXT is valid in
+        // both engines. INT8/FLOAT8 are accepted by both as well.
         label: "table lt_schools",
         sql:
           "CREATE TABLE IF NOT EXISTS lt_schools (" +
-          "  school_id    STRING PRIMARY KEY," +
-          "  source       STRING NOT NULL," +
-          "  display_name STRING NOT NULL," +
-          "  name_norm    STRING NOT NULL," +
-          "  acronym      STRING," +
-          "  city         STRING," +
-          "  state_region STRING," +
-          "  country_code STRING NOT NULL," +
-          "  level        STRING NOT NULL DEFAULT 'school'," +
-          "  board        STRING," +
-          "  grade_band   STRING," +
+          "  school_id    TEXT PRIMARY KEY," +
+          "  source       TEXT NOT NULL," +
+          "  display_name TEXT NOT NULL," +
+          "  name_norm    TEXT NOT NULL," +
+          "  acronym      TEXT," +
+          "  city         TEXT," +
+          "  state_region TEXT," +
+          "  country_code TEXT NOT NULL," +
+          "  level        TEXT NOT NULL DEFAULT 'school'," +
+          "  board        TEXT," +
+          "  grade_band   TEXT," +
           "  lat          FLOAT8," +
           "  lng          FLOAT8," +
-          "  language     STRING," +
+          "  language     TEXT," +
           "  popularity   INT8 DEFAULT 0" +
           ")",
       },
@@ -824,8 +835,9 @@ namespace LearnerToolbelt {
       },
       {
         // Trigram GIN index makes `name_norm LIKE '%q%'` substring search fast on
-        // ~177k rows. Native in CockroachDB v22.2+ (no extension needed). Best
-        // effort — if unavailable the search still works via the btree indexes.
+        // ~177k rows. Needs pg_trgm (created above) on PostgreSQL; native in
+        // CockroachDB v22.2+. Best effort — if unavailable the search still works
+        // via the btree indexes + seq scan.
         label: "index idx_lt_schools_name_trgm",
         sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_name_trgm ON lt_schools USING GIN (name_norm gin_trgm_ops)",
       },
