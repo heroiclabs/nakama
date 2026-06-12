@@ -21315,6 +21315,27 @@ var LearnerToolbelt;
         }
         return out;
     }
+    // Strict acronym: first letter of each ≥3-char token, SKIPPING connective
+    // tokens ("of", "de", "the", "and" all have ≤3 chars... we drop ≤2-char
+    // tokens and the 3-char words "the"/"and") — this is how real-world
+    // university acronyms are formed:
+    //   "massachusetts institute of technology"      → "mit"
+    //   "universidad nacional autónoma de méxico"    → "unam"
+    //   "lahore university of management sciences"   → "lums"
+    //   "hong kong university of science and technology" → "hkust"
+    function acronymStrict(normalizedName) {
+        var tokens = normalizedName.split(" ");
+        var out = "";
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (!t || t.length <= 2)
+                continue;
+            if (t === "the" || t === "and")
+                continue;
+            out += t.charAt(0);
+        }
+        return out;
+    }
     // Tiny Levenshtein distance — bounded at maxDist so we can early-exit.
     function editDistance(a, b, maxDist) {
         if (a === b)
@@ -21369,6 +21390,7 @@ var LearnerToolbelt;
                 continue;
             var name = normalize(rec.display_name);
             var acro = acronymOf(name);
+            var acroStrict = acronymStrict(name);
             var score = 0;
             if (name === q) {
                 score = 1000;
@@ -21379,10 +21401,13 @@ var LearnerToolbelt;
             else if (q.length >= 2 && name.indexOf(q) > 0) {
                 score = 500;
             }
-            else if (qCompact.length >= 3 && (acro === qCompact || acro.indexOf(qCompact) === 0)) {
+            else if (qCompact.length >= 3 &&
+                (acro === qCompact || acro.indexOf(qCompact) === 0 ||
+                    acroStrict === qCompact || acroStrict.indexOf(qCompact) === 0)) {
                 // Acronym match — covers "dpsrkp" → "Delhi Public School RK Puram",
-                // "dps" → all DPS branches, "njc" → "Nanyang JC", etc.
-                score = (acro === qCompact) ? 850 : 600;
+                // "dps" → all DPS branches, "njc" → "Nanyang JC", and via the strict
+                // variant "mit" / "unam" / "lums" / "kaist" / "hkust" / "unsw" etc.
+                score = (acro === qCompact || acroStrict === qCompact) ? 850 : 600;
             }
             else {
                 // Per-token substring or per-token acronym-substring.
@@ -21398,8 +21423,12 @@ var LearnerToolbelt;
                         hits2++;
                         continue;
                     }
-                    // Acronym slide: any window-of-tok.length over `acro` matches?
-                    if (tok.length <= acro.length && acro.indexOf(tok) >= 0)
+                    // Acronym slide: any window-of-tok.length over either acronym?
+                    if (tok.length <= acro.length && acro.indexOf(tok) >= 0) {
+                        hits2++;
+                        continue;
+                    }
+                    if (tok.length <= acroStrict.length && acroStrict.indexOf(tok) >= 0)
                         hits2++;
                 }
                 if (hits2 === qTokens.length && qTokens.length > 0) {
