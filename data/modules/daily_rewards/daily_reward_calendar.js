@@ -207,3 +207,15 @@ function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
         return JSON.stringify({ success: false, error: err.message });
     }
 }
+
+// ============================================================================
+// Registration (QVBF_51)
+// ============================================================================
+// This RPC was merged into index.js but NEVER registered — it was dead code.
+// postbuild.js renames this InitModule -> __ModuleInit_N (never executes) and
+// uses the literal registerRpc call below to wire __rpc_daily_reward_get_calendar
+// into the master InitModule. See daily_rewards.js for the full mechanism.
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("daily_reward_get_calendar", rpcDailyRewardGetCalendar);
+    logger.info("[DailyRewardCalendar] Module InitModule registered: 1 RPC");
+}

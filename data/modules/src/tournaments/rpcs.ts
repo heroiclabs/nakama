@@ -556,7 +556,8 @@ namespace TournamentRpcs {
       var username = "";
       try {
         var acc = nk.accountsGetId([userId]);
-        if (acc && acc.length > 0) username = "" + (acc[0].user.username || "");
+        // QVBF_114: prefer displayName so leaderboards show the friendly name.
+        if (acc && acc.length > 0) username = "" + ((acc[0].user as any).displayName || acc[0].user.username || "");
       } catch (_) { }
       TournamentLeaderboard.recordSubmit(nk, slug, userId, username, entry.score);
 

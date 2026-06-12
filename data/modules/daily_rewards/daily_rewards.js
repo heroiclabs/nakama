@@ -67,11 +67,45 @@ function getStreakData(nk, logger, userId, gameId) {
             userId: userId,
             gameId: gameId,
             currentStreak: 0,
+            bestStreak: 0,
             lastClaimTimestamp: 0,
             totalClaims: 0,
+            claimHistory: [],
             createdAt: utils.getCurrentTimestamp()
         };
+
+        // QVBF_51 migration: while the TS LegacyDailyRewards handler was
+        // (wrongly) serving daily_rewards_claim, it wrote streak state to
+        // collection "daily_rewards", key "status_{userId}" as
+        // { day, lastClaimDate: "YYYY-MM-DD", streak, rewards[] }.
+        // Seed from that record once so those users don't lose their streak.
+        try {
+            var tsStatus = utils.readStorage(nk, logger, "daily_rewards", "status_" + userId, userId);
+            if (tsStatus && tsStatus.streak > 0 && tsStatus.lastClaimDate) {
+                var migratedTs = Math.floor(new Date(tsStatus.lastClaimDate).getTime() / 1000);
+                if (migratedTs > 0) {
+                    data.currentStreak = tsStatus.streak;
+                    data.bestStreak = tsStatus.streak;
+                    data.lastClaimTimestamp = migratedTs;
+                    data.totalClaims = (tsStatus.rewards && tsStatus.rewards.length) || tsStatus.streak;
+                    if (tsStatus.rewards && tsStatus.rewards.length) {
+                        for (var ri = 0; ri < tsStatus.rewards.length && ri < 90; ri++) {
+                            if (tsStatus.rewards[ri] && tsStatus.rewards[ri].date) {
+                                data.claimHistory.push(tsStatus.rewards[ri].date);
+                            }
+                        }
+                    }
+                    utils.logInfo(logger, "[DailyRewards] Migrated TS-legacy streak for " + userId + ": streak=" + tsStatus.streak);
+                }
+            }
+        } catch (migErr) {
+            utils.logWarn(logger, "[DailyRewards] TS-legacy migration skipped: " + migErr.message);
+        }
     }
+
+    // Backfill fields for records created before QVBF_51
+    if (typeof data.bestStreak !== "number") data.bestStreak = data.currentStreak || 0;
+    if (!data.claimHistory) data.claimHistory = [];
     
     return data;
 }
@@ -211,6 +245,7 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
         gameId: gameId,
         streak: streakData.currentStreak,          // canonical — C# [JsonProperty("streak")]
         currentStreak: streakData.currentStreak,   // legacy alias
+        bestStreak: streakData.bestStreak || 0,    // QVBF_51: lifetime best for dashboard
         totalClaims: streakData.totalClaims,
         lastClaimTimestamp: streakData.lastClaimTimestamp,
         canClaim: claimCheck.canClaim,             // canonical — C# [JsonProperty("canClaim")]
@@ -272,6 +307,25 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     streakData.lastClaimTimestamp = utils.getUnixTimestamp();
     streakData.totalClaims += 1;
     streakData.updatedAt = utils.getCurrentTimestamp();
+
+    // QVBF_51: track lifetime best streak for the dashboard "Best Streak" card
+    if (streakData.currentStreak > (streakData.bestStreak || 0)) {
+        streakData.bestStreak = streakData.currentStreak;
+    }
+
+    // QVBF_51: append claim date (UTC YYYY-MM-DD) for the activity heatmap.
+    // Capped at 90 entries (~3 months) to keep the storage record small.
+    var claimDate = new Date(streakData.lastClaimTimestamp * 1000);
+    var claimDateStr = claimDate.getUTCFullYear() + "-" +
+        (claimDate.getUTCMonth() + 1 < 10 ? "0" : "") + (claimDate.getUTCMonth() + 1) + "-" +
+        (claimDate.getUTCDate() < 10 ? "0" : "") + claimDate.getUTCDate();
+    if (!streakData.claimHistory) streakData.claimHistory = [];
+    if (streakData.claimHistory[streakData.claimHistory.length - 1] !== claimDateStr) {
+        streakData.claimHistory.push(claimDateStr);
+        while (streakData.claimHistory.length > 90) {
+            streakData.claimHistory.shift();
+        }
+    }
     
     // Get reward for current day
     var reward = getRewardForDay(gameId, streakData.currentStreak);
@@ -318,9 +372,77 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
         streak: streakData.currentStreak,        // canonical — C# [JsonProperty("streak")] → newStreak
         newStreak: streakData.currentStreak,     // legacy alias
         currentStreak: streakData.currentStreak, // extra alias for safety
+        bestStreak: streakData.bestStreak || 0,  // QVBF_51: lifetime best
         totalClaims: streakData.totalClaims,
         reward: reward,
         walletGranted: walletChanges,
         claimedAt: utils.getCurrentTimestamp()
     });
+}
+
+/**
+ * RPC: Get claim history (QVBF_51 — feeds the Streak Dashboard activity
+ * heatmap and Best Streak card).
+ * @param {string} payload - JSON payload with { gameId: "uuid" }
+ * @returns {string} JSON response with claimHistory (UTC YYYY-MM-DD, max 90)
+ */
+function rpcDailyRewardsGetHistory(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC daily_rewards_get_history called");
+
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+
+    var gameId = data.gameId;
+    if (!utils.isValidUUID(gameId)) {
+        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    }
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+
+    var streakData = getStreakData(nk, logger, userId, gameId);
+    streakData = updateStreakStatus(streakData);
+
+    return JSON.stringify({
+        success: true,
+        userId: userId,
+        gameId: gameId,
+        currentStreak: streakData.currentStreak,
+        bestStreak: streakData.bestStreak || 0,
+        totalClaims: streakData.totalClaims,
+        claimHistory: streakData.claimHistory || [],
+        timestamp: utils.getCurrentTimestamp()
+    });
+}
+
+// ============================================================================
+// Registration (QVBF_51)
+// ============================================================================
+// postbuild.js renames this `InitModule` -> `__ModuleInit_N` so it never
+// executes directly. Its purpose is to expose literal registerRpc calls so
+// postbuild can:
+//   1) detect the RPC ids and create __rpc_* stub variables
+//   2) rewrite each call into a guarded `__rpc_id = __rpc_id || handler`
+//   3) replay those assignments at global scope BEFORE legacy fallbacks
+//      (modules-first ordering), so THESE handlers win the stub race
+//   4) emit `initializer.registerRpc("<id>", __rpc_<id>)` in the master InitModule
+//
+// Before this block existed, daily_rewards_get_status / daily_rewards_claim
+// were silently served by the stale TS LegacyDailyRewards copy (wrong response
+// envelope -> Unity always saw streak 0; root cause of QVBF_51).
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("daily_rewards_get_status", rpcDailyRewardsGetStatus);
+    initializer.registerRpc("daily_rewards_claim", rpcDailyRewardsClaim);
+    initializer.registerRpc("daily_rewards_get_history", rpcDailyRewardsGetHistory);
+    logger.info("[DailyRewards] Module InitModule registered: 3 RPCs");
 }

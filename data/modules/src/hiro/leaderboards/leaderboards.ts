@@ -51,13 +51,22 @@ namespace HiroLeaderboards {
       metadata.city = data.location.city || "";
     }
 
+    // QVBF_114: snapshot displayName (not raw username) into the record so
+    // clients that render record.username directly show the friendly name.
+    var lbUsername = ctx.username;
     try {
-      nk.leaderboardRecordWrite(data.leaderboardId, userId, ctx.username, data.score, data.subscore || 0, metadata, undefined);
+      var lbUsers = nk.usersGetId([userId]);
+      if (lbUsers && lbUsers.length > 0)
+        lbUsername = (lbUsers[0] as any).displayName || lbUsers[0].username || ctx.username;
+    } catch (_) { /* keep ctx.username */ }
+
+    try {
+      nk.leaderboardRecordWrite(data.leaderboardId, userId, lbUsername, data.score, data.subscore || 0, metadata, undefined);
     } catch (e: any) {
       try {
         var sort: nkruntime.SortOrder = def.sortOrder === "asc" ? nkruntime.SortOrder.ASCENDING : nkruntime.SortOrder.DESCENDING;
         nk.leaderboardCreate(data.leaderboardId, false, sort, operator);
-        nk.leaderboardRecordWrite(data.leaderboardId, userId, ctx.username, data.score, data.subscore || 0, metadata, undefined);
+        nk.leaderboardRecordWrite(data.leaderboardId, userId, lbUsername, data.score, data.subscore || 0, metadata, undefined);
       } catch (e2: any) {
         return RpcHelpers.errorResponse("Failed to submit score: " + (e2.message || String(e2)));
       }

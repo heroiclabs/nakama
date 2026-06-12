@@ -15222,14 +15222,23 @@ var HiroLeaderboards;
             metadata.region = data.location.region || "";
             metadata.city = data.location.city || "";
         }
+        // QVBF_114: snapshot displayName (not raw username) into the record so
+        // clients that render record.username directly show the friendly name.
+        var lbUsername = ctx.username;
         try {
-            nk.leaderboardRecordWrite(data.leaderboardId, userId, ctx.username, data.score, data.subscore || 0, metadata, undefined);
+            var lbUsers = nk.usersGetId([userId]);
+            if (lbUsers && lbUsers.length > 0)
+                lbUsername = lbUsers[0].displayName || lbUsers[0].username || ctx.username;
+        }
+        catch (_) { /* keep ctx.username */ }
+        try {
+            nk.leaderboardRecordWrite(data.leaderboardId, userId, lbUsername, data.score, data.subscore || 0, metadata, undefined);
         }
         catch (e) {
             try {
                 var sort = def.sortOrder === "asc" ? "ascending" /* nkruntime.SortOrder.ASCENDING */ : "descending" /* nkruntime.SortOrder.DESCENDING */;
                 nk.leaderboardCreate(data.leaderboardId, false, sort, operator);
-                nk.leaderboardRecordWrite(data.leaderboardId, userId, ctx.username, data.score, data.subscore || 0, metadata, undefined);
+                nk.leaderboardRecordWrite(data.leaderboardId, userId, lbUsername, data.score, data.subscore || 0, metadata, undefined);
             }
             catch (e2) {
                 return RpcHelpers.errorResponse("Failed to submit score: " + (e2.message || String(e2)));
@@ -22546,9 +22555,21 @@ var LegacyDailyRewards;
             reward: rewardConfig
         });
     }
+    // QVBF_51 / QVBF_166: registration REMOVED for real.
+    //
+    // main.ts stopped calling LegacyDailyRewards.register() (QVBF_166), but
+    // postbuild's auto-invoke (section 3b) injects `register();` at IIFE scope,
+    // so the two registerRpc literals below kept winning the __rpc_* stub race
+    // with an UNGUARDED assignment. Result in production:
+    //   - response shape { success, data: {...} } — Unity's flat DailyRewardStatus
+    //     model deserialized currentStreak=0 / canClaimToday=false on every call
+    //     (the QVBF_51 "streak stuck at 0" bug)
+    //   - state stored in `daily_rewards/status_{userId}` instead of the
+    //     canonical `daily_streaks` collection.
+    // The canonical handlers live in data/modules/daily_rewards/daily_rewards.js
+    // and are registered there. Do NOT re-add registerRpc calls here.
     function register(initializer) {
-        initializer.registerRpc("daily_rewards_get_status", rpcGetStatus);
-        initializer.registerRpc("daily_rewards_claim", rpcClaim);
+        // Intentionally empty — see comment above.
     }
     LegacyDailyRewards.register = register;
 })(LegacyDailyRewards || (LegacyDailyRewards = {}));
@@ -24454,7 +24475,19 @@ var LegacyPlayer;
         if (!/^[a-z0-9_]+$/.test(username))
             return JSON.stringify({ success: false, error: "Use only letters, numbers, and underscores", error_code: "USERNAME_INVALID" });
         try {
-            nk.accountUpdateId(userId, username, null, null, null, null, null);
+            // QVBF_114: if displayName was empty or just mirrored the old username,
+            // keep it in sync — otherwise read-time enrichment (leaderboards, chat,
+            // async challenges) keeps resurfacing the old handle forever.
+            var newDisplayName = null;
+            try {
+                var curAccount = nk.accountGetId(userId);
+                var curUsername = (curAccount && curAccount.user && curAccount.user.username) || "";
+                var curDisplayName = (curAccount && curAccount.user && curAccount.user.displayName) || "";
+                if (!curDisplayName || curDisplayName === curUsername)
+                    newDisplayName = username;
+            }
+            catch (_) { /* fall back to username-only update */ }
+            nk.accountUpdateId(userId, username, newDisplayName, null, null, null, null);
             var syncResult = LegacyUserMgmtSync.pushProfile(nk, logger, userId, String(data._cognito_jwt || ""), { userName: username });
             return RpcHelpers.successResponse({ username: username, userMgmtSync: syncResult });
         }
@@ -47390,8 +47423,9 @@ var Referrals;
             var username = "";
             try {
                 var acc = nk.accountsGetId([ownerId]);
+                // QVBF_114: prefer displayName so leaderboards show the friendly name.
                 if (acc && acc.length > 0)
-                    username = "" + (acc[0].user.username || "");
+                    username = "" + (acc[0].user.displayName || acc[0].user.username || "");
             }
             catch (_) { }
             nk.leaderboardRecordWrite(Referrals.LEADERBOARD_ID, ownerId, username, 1);
@@ -48111,8 +48145,9 @@ var TournamentRpcs;
             var username = "";
             try {
                 var acc = nk.accountsGetId([userId]);
+                // QVBF_114: prefer displayName so leaderboards show the friendly name.
                 if (acc && acc.length > 0)
-                    username = "" + (acc[0].user.username || "");
+                    username = "" + (acc[0].user.displayName || acc[0].user.username || "");
             }
             catch (_) { }
             TournamentLeaderboard.recordSubmit(nk, slug, userId, username, entry.score);

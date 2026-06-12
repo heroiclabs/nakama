@@ -19655,7 +19655,29 @@ function asyncChallengeValidateUser(ctx, request) {
  * @param {object} session - Internal session storage object
  * @returns {object} Unity-compatible session data
  */
-function asyncChallengeSessionToUnityFormat(session) {
+function asyncChallengeSessionToUnityFormat(session, nk) {
+    // QVBF_154: re-resolve player names at read time so a renamed player is
+    // never shown with the name snapshotted into the session at create/join.
+    // Lookup failure (deleted account, transient error) keeps stored names.
+    if (nk) {
+        try {
+            var freshIds = [];
+            if (session.creatorId) freshIds.push(session.creatorId);
+            if (session.opponentId) freshIds.push(session.opponentId);
+            if (freshIds.length > 0) {
+                var freshUsers = nk.usersGetId(freshIds) || [];
+                for (var fu = 0; fu < freshUsers.length; fu++) {
+                    var freshName = freshUsers[fu].displayName || freshUsers[fu].username || '';
+                    if (!freshName) continue;
+                    if (freshUsers[fu].userId === session.creatorId) session.creatorName = freshName;
+                    if (freshUsers[fu].userId === session.opponentId) session.opponentName = freshName;
+                }
+            }
+        } catch (freshErr) {
+            // non-fatal: fall back to snapshotted names
+        }
+    }
+
     var now = Date.now();
     var status = typeof session.status === 'number' ? session.status : 0;
 
@@ -19911,7 +19933,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Challenge created successfully',
-            data: asyncChallengeSessionToUnityFormat(sessionStorage)
+            data: asyncChallengeSessionToUnityFormat(sessionStorage, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Create error: ' + err.message);
@@ -20086,7 +20108,7 @@ function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Successfully joined challenge',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Join error: ' + err.message);
@@ -20231,7 +20253,7 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Challenge retrieved',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Get error: ' + err.message);
@@ -20521,7 +20543,7 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Results submitted successfully',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Submit error: ' + err.message);
@@ -20594,7 +20616,7 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
                 continue;
             }
 
-            sessions.push(asyncChallengeSessionToUnityFormat(session));
+            sessions.push(asyncChallengeSessionToUnityFormat(session, nk));
         }
 
         // Also get sessions where user is opponent (via opponent index — O(1) lookups)
@@ -20630,7 +20652,7 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
                                     continue;
                                 }
 
-                                sessions.push(asyncChallengeSessionToUnityFormat(allSession));
+                                sessions.push(asyncChallengeSessionToUnityFormat(allSession, nk));
                             }
                         }
                     } catch (opReadErr) {
@@ -20675,7 +20697,7 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
                                 if (sessions[dd].sessionId === sqVal.sessionId) { alreadyAdded = true; break; }
                             }
                             if (!alreadyAdded) {
-                                sessions.push(asyncChallengeSessionToUnityFormat(sqVal));
+                                sessions.push(asyncChallengeSessionToUnityFormat(sqVal, nk));
                                 // Backfill index
                                 try { asyncChallengeIndexOpponent(nk, userId, sqVal.sessionId, sqVal.creatorId); } catch (bf) { /* non-critical */ }
                             }
@@ -20856,7 +20878,7 @@ function rpcAsyncChallengeCancel(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Challenge cancelled successfully',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Cancel error: ' + err.message);
@@ -21135,7 +21157,7 @@ function rpcAsyncChallengeRematch(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Rematch challenge created',
-            data: asyncChallengeSessionToUnityFormat(newSessionStorage)
+            data: asyncChallengeSessionToUnityFormat(newSessionStorage, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Rematch error: ' + err.message);

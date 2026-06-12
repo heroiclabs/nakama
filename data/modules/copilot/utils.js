@@ -74,6 +74,9 @@ var utils = {
     getUnixTimestamp: typeof getUnixTimestamp === 'function' ? getUnixTimestamp : null,
     getCurrentTimestamp: typeof getCurrentTimestamp === 'function' ? getCurrentTimestamp : null,
     getStartOfDay: typeof getStartOfDay === 'function' ? getStartOfDay : null,
+    // QVBF_51: daily_rewards.js calls utils.isWithinHours() in updateStreakStatus().
+    // This key was missing, so the modern daily-rewards handlers threw at runtime.
+    isWithinHours: typeof isWithinHours === 'function' ? isWithinHours : null,
     makeGameStorageKey: typeof makeGameStorageKey === 'function' ? makeGameStorageKey : null,
     readStorage: typeof readStorage === 'function' ? readStorage : null,
     writeStorage: typeof writeStorage === 'function' ? writeStorage : null

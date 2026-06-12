@@ -155,8 +155,20 @@ namespace LegacyDailyRewards {
     });
   }
 
+  // QVBF_51 / QVBF_166: registration REMOVED for real.
+  //
+  // main.ts stopped calling LegacyDailyRewards.register() (QVBF_166), but
+  // postbuild's auto-invoke (section 3b) injects `register();` at IIFE scope,
+  // so the two registerRpc literals below kept winning the __rpc_* stub race
+  // with an UNGUARDED assignment. Result in production:
+  //   - response shape { success, data: {...} } — Unity's flat DailyRewardStatus
+  //     model deserialized currentStreak=0 / canClaimToday=false on every call
+  //     (the QVBF_51 "streak stuck at 0" bug)
+  //   - state stored in `daily_rewards/status_{userId}` instead of the
+  //     canonical `daily_streaks` collection.
+  // The canonical handlers live in data/modules/daily_rewards/daily_rewards.js
+  // and are registered there. Do NOT re-add registerRpc calls here.
   export function register(initializer: nkruntime.Initializer): void {
-    initializer.registerRpc("daily_rewards_get_status", rpcGetStatus);
-    initializer.registerRpc("daily_rewards_claim", rpcClaim);
+    // Intentionally empty — see comment above.
   }
 }

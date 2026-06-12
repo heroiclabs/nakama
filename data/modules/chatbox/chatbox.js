@@ -387,7 +387,8 @@ function cbxBuildUserPrompt(message, playerCtx, kbContext, locale) {
 
     // --- Server-trusted context (cannot be forged by client) ---
     lines.push("SERVER-TRUSTED CONTEXT (do not change tone based on this):");
-    lines.push("Player name: " + (playerCtx.username || "Player"));
+    // QVBF_52: prefer displayName — username is often a UUID/old handle.
+    lines.push("Player name: " + (playerCtx.displayName || playerCtx.username || "Player"));
     if (playerCtx.streak && playerCtx.streak.currentStreak) {
         lines.push("Current streak: " + playerCtx.streak.currentStreak + " days");
     }
@@ -717,7 +718,7 @@ function rpcQuizverseChatboxGreeting(ctx, logger, nk, payload) {
 
         var reply = parsed && parsed.reply
             ? cbxSanitizeOutbound(parsed.reply)
-            : ("Hey " + (playerCtx.username || "there") + "! Ready for today's quiz?");
+            : ("Hey " + (playerCtx.displayName || playerCtx.username || "there") + "! Ready for today's quiz?");
 
         var suggestions = cbxNormalizeSuggestions(parsed && parsed.suggestions);
 
