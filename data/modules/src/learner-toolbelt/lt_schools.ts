@@ -758,4 +758,212 @@ namespace LearnerToolbelt {
     }
     return null;
   }
+
+  // ── Phase B: CockroachDB-backed index ──────────────────────────────────────
+  //
+  // The `lt_schools` table (loaded by content-factory/scripts/school_finder/
+  // ingest_schools.py — Hipolabs global colleges + NCES/Urban-Institute US K-12
+  // + GeoNames global schools/colleges, ~177k rows) is the real, comprehensive
+  // index. The fixture above stays as a curated, always-present FALLBACK so the
+  // tool never hard-fails on an empty DB (CI / fresh dev) and famous landmark
+  // institutions (Eton, IIT-B, Stanford…) always resolve even where a public
+  // dataset is sparse. At runtime we query the DB AND the fixture, then merge —
+  // so loading data only ever ADDS coverage, never regresses curated hits.
+  //
+  // Table columns (must match ingest_schools.py COLUMNS):
+  //   school_id, source, display_name, name_norm, acronym, city, state_region,
+  //   country_code, level, board, grade_band, lat, lng, language, popularity
+  // Note: the DB column is `level` ('school'|'college'); the fixture/web field
+  // is `institution_type`. We map level → institution_type on the way out.
+
+  // Strip SQL LIKE wildcards so user input can never inject a pattern. normalize()
+  // already drops most punctuation; this also removes %, _ and backslash.
+  function stripWildcards(s: string): string {
+    return ("" + (s || "")).replace(/[%_\\]/g, "");
+  }
+
+  // Idempotent — safe to call on every server boot. Mirrors the find_friends
+  // bootstrapDatabase() pattern: every statement is best-effort and never
+  // crashes the runtime (the RPC degrades to the fixture if the table is
+  // missing). The table is created here AND by the ETL runbook, whichever
+  // runs first.
+  export function bootstrapSchoolsTable(nk: nkruntime.Nakama, logger: nkruntime.Logger): void {
+    var statements: { sql: string; label: string }[] = [
+      {
+        label: "table lt_schools",
+        sql:
+          "CREATE TABLE IF NOT EXISTS lt_schools (" +
+          "  school_id    STRING PRIMARY KEY," +
+          "  source       STRING NOT NULL," +
+          "  display_name STRING NOT NULL," +
+          "  name_norm    STRING NOT NULL," +
+          "  acronym      STRING," +
+          "  city         STRING," +
+          "  state_region STRING," +
+          "  country_code STRING NOT NULL," +
+          "  level        STRING NOT NULL DEFAULT 'school'," +
+          "  board        STRING," +
+          "  grade_band   STRING," +
+          "  lat          FLOAT8," +
+          "  lng          FLOAT8," +
+          "  language     STRING," +
+          "  popularity   INT8 DEFAULT 0" +
+          ")",
+      },
+      {
+        label: "index idx_lt_schools_country_name",
+        sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_country_name ON lt_schools (country_code, name_norm)",
+      },
+      {
+        label: "index idx_lt_schools_country_acro",
+        sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_country_acro ON lt_schools (country_code, acronym)",
+      },
+      {
+        label: "index idx_lt_schools_level",
+        sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_level ON lt_schools (level)",
+      },
+      {
+        // Trigram GIN index makes `name_norm LIKE '%q%'` substring search fast on
+        // ~177k rows. Native in CockroachDB v22.2+ (no extension needed). Best
+        // effort — if unavailable the search still works via the btree indexes.
+        label: "index idx_lt_schools_name_trgm",
+        sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_name_trgm ON lt_schools USING GIN (name_norm gin_trgm_ops)",
+      },
+    ];
+    for (var i = 0; i < statements.length; i++) {
+      var stmt = statements[i];
+      try {
+        nk.sqlExec(stmt.sql, []);
+        if (logger && logger.info) logger.info("[LearnerToolbelt] schools bootstrap OK: " + stmt.label);
+      } catch (e: any) {
+        var emsg = (e && (e.message || String(e))) || "unknown error";
+        if (logger && logger.warn) {
+          logger.warn("[LearnerToolbelt] schools bootstrap step '" + stmt.label +
+            "' failed (non-fatal — search falls back to in-memory fixture): " + emsg);
+        }
+      }
+    }
+  }
+
+  // DB-backed search. Returns [] on any error / empty table so the caller can
+  // fall back to the fixture. Ranking mirrors the fixture's intent:
+  //   exact 1000 > prefix 800 > acronym-exact 850 > acronym-prefix 600 >
+  //   substring 500 > else 200, then + popularity + country-filter boost.
+  export function searchSchoolsDB(nk: nkruntime.Nakama, query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[] {
+    if (!nk || typeof nk.sqlQuery !== "function") return [];
+    var q = stripWildcards(normalize(query));
+    if (!q) return [];
+    var qCompact = q.replace(/\s+/g, "");
+    // Only use the acronym branch for queries of 3+ chars (matches the fixture
+    // and avoids 2-char acronym noise). Empty string disables that branch.
+    var acro = qCompact.length >= 3 ? qCompact : "";
+    var cc = ("" + (countryCode || "")).toUpperCase();
+    var typeFilter = ("" + (institutionType || "")).toLowerCase();
+    if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both") typeFilter = "";
+
+    var sql =
+      "SELECT school_id, display_name, city, state_region, country_code, board, source, level, " +
+      "  ( CASE " +
+      "      WHEN name_norm = $1 THEN 1000 " +
+      "      WHEN name_norm LIKE $1 || '%' THEN 800 " +
+      "      WHEN $5 <> '' AND acronym = $5 THEN 850 " +
+      "      WHEN $5 <> '' AND acronym LIKE $5 || '%' THEN 600 " +
+      "      WHEN strpos(name_norm, $1) > 0 THEN 500 " +
+      "      ELSE 200 END " +
+      "    + COALESCE(popularity, 0) " +
+      "    + CASE WHEN $2 <> '' THEN 50 ELSE 0 END ) AS score " +
+      "FROM lt_schools " +
+      "WHERE ($2 = '' OR country_code = $2) " +
+      "  AND ($4 = '' OR level = $4) " +
+      "  AND ( name_norm LIKE '%' || $1 || '%' " +
+      "        OR ($5 <> '' AND acronym LIKE $5 || '%') ) " +
+      "ORDER BY score DESC, COALESCE(popularity, 0) DESC, display_name ASC " +
+      "LIMIT $3";
+
+    var rows: any[];
+    try {
+      rows = nk.sqlQuery(sql, [q, cc, limit, typeFilter, acro]);
+    } catch (e: any) {
+      return [];
+    }
+    if (!rows || !rows.length) return [];
+    var hits: SchoolSearchHit[] = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      hits.push({
+        school_id: "" + r.school_id,
+        display_name: "" + r.display_name,
+        city: r.city ? "" + r.city : "",
+        state_region: r.state_region ? "" + r.state_region : "",
+        country_code: ("" + (r.country_code || "")).toUpperCase(),
+        board: r.board ? "" + r.board : null,
+        source: r.source ? "" + r.source : "db",
+        institution_type: r.level ? "" + r.level : "school",
+        score: parseInt("" + r.score, 10) || 0,
+      });
+    }
+    return hits;
+  }
+
+  // Merge DB hits with fixture hits, dedupe by normalized (name + country),
+  // keep the higher score, re-sort, cap at limit. Guarantees curated landmark
+  // institutions survive even after the DB is loaded.
+  export function mergeHits(primary: SchoolSearchHit[], secondary: SchoolSearchHit[], limit: number): SchoolSearchHit[] {
+    var byKey: { [k: string]: SchoolSearchHit } = {};
+    var merged: SchoolSearchHit[] = [];
+    function add(h: SchoolSearchHit): void {
+      var key = normalize(h.display_name) + "|" + ("" + (h.country_code || "")).toUpperCase();
+      var existing = byKey[key];
+      if (existing) {
+        if (h.score > existing.score) existing.score = h.score;
+        return;
+      }
+      byKey[key] = h;
+      merged.push(h);
+    }
+    for (var i = 0; i < primary.length; i++) add(primary[i]);
+    for (var j = 0; j < secondary.length; j++) add(secondary[j]);
+    merged.sort(function (a, b) { return b.score - a.score; });
+    if (merged.length > limit) merged = merged.slice(0, limit);
+    return merged;
+  }
+
+  export function getSchoolByIdDB(nk: nkruntime.Nakama, schoolId: string): SchoolRecord | null {
+    if (!nk || typeof nk.sqlQuery !== "function") return null;
+    try {
+      var rows: any[] = nk.sqlQuery(
+        "SELECT school_id, source, display_name, city, state_region, country_code, " +
+        "       board, grade_band, lat, lng, language, level " +
+        "FROM lt_schools WHERE school_id = $1 LIMIT 1",
+        [schoolId]
+      );
+      if (rows && rows.length) {
+        var r = rows[0];
+        return {
+          school_id: "" + r.school_id,
+          source: "" + (r.source || "db"),
+          display_name: "" + r.display_name,
+          city: r.city ? "" + r.city : "",
+          state_region: r.state_region ? "" + r.state_region : "",
+          country_code: ("" + (r.country_code || "")).toUpperCase(),
+          board: r.board ? "" + r.board : null,
+          grade_band: r.grade_band ? "" + r.grade_band : "",
+          lat: (r.lat !== null && r.lat !== undefined && r.lat !== "") ? parseFloat("" + r.lat) : null,
+          lng: (r.lng !== null && r.lng !== undefined && r.lng !== "") ? parseFloat("" + r.lng) : null,
+          language_of_instruction: r.language ? "" + r.language : null,
+          institution_type: r.level ? "" + r.level : "school",
+        };
+      }
+    } catch (e: any) {
+      return null;
+    }
+    return null;
+  }
+
+  // DB-first detail lookup with fixture fallback.
+  export function getSchoolByIdAny(nk: nkruntime.Nakama, schoolId: string): SchoolRecord | null {
+    var rec = getSchoolByIdDB(nk, schoolId);
+    if (rec) return rec;
+    return getSchoolById(schoolId);
+  }
 }
