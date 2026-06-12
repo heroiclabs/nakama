@@ -24356,11 +24356,17 @@ var LegacyMultiGame;
 //      indefinitely until the process exits.
 //
 //  Multi-replica safety:
-//    * Each Nakama pod creates its own scheduler match on boot.
-//    * All five cron handlers already deduplicate per-user via the
-//      `notif_send_markers` storage collection — first writer wins, others
-//      see hasMarker() and skip. Worst-case cost across N pods is a few
-//      extra storage reads per minute.
+//    * Each Nakama pod creates its own scheduler match on boot (resilience:
+//      cron keeps firing through partial outages / rolling deploys).
+//    * Because N pods fire the SAME task at the SAME cadence boundary, the
+//      per-user notif_send_markers dedup ALONE is not enough — it is written
+//      AFTER the push is sent, so simultaneous pods all pass hasMarker() and
+//      all send (prod symptom: daily quiz delivered 4–5×, one per live pod).
+//    * dispatchSafely() therefore takes a cluster-wide CAS lock per
+//      (task, period) via tryAcquireDispatchLock(): every pod computes the
+//      same clock-aligned bucket and races to claim one system-owned storage
+//      row (Nakama version OCC). Exactly ONE pod wins and dispatches; the
+//      others skip. Per-user markers stay as a secondary cross-period guard.
 //
 //  Cadence (per-task):
 //    Each task carries its own quiet-hours window check inside the cron
@@ -24408,10 +24414,56 @@ var LegacyNotifScheduler;
         return true;
     }
     LegacyNotifScheduler.shouldDispatch = shouldDispatch;
+    // ── Cluster-wide dispatch lock ─────────────────────────────────────────────
+    // Each Nakama pod runs its OWN scheduler match (by design, for resilience),
+    // so at every cadence boundary up to N pods fire the SAME task within the
+    // same instant. The per-user notif_send_markers dedup is written AFTER the
+    // push is sent, so concurrent pods all pass hasMarker() and all send before
+    // any marker exists — production symptom: users received the daily quiz 4–5×
+    // (one push per live pod). This lock makes each (task, period) idempotent
+    // across the whole cluster: every pod computes the same period bucket and
+    // races to claim a single system-owned storage row via optimistic
+    // concurrency (version CAS). Exactly one pod wins and dispatches; the rest
+    // skip. The per-user markers remain as a secondary, cross-period safety net.
+    var DISPATCH_LOCK_COLLECTION = "notif_cron_dispatch_lock";
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    function tryAcquireDispatchLock(nk, taskName, periodMin) {
+        // Clock-aligned bucket: identical for every pod inside the same period, so
+        // simultaneous dispatchers collide on one storage key and CAS picks a
+        // single winner.
+        var bucket = Math.floor(nowMinute() / periodMin);
+        try {
+            var recs = nk.storageRead([{ collection: DISPATCH_LOCK_COLLECTION, key: taskName, userId: SYSTEM_USER_ID }]);
+            var cur = (recs && recs.length > 0) ? recs[0] : null;
+            if (cur && cur.value && cur.value.bucket === bucket) {
+                // Another pod already claimed (and is running/ran) this period.
+                return false;
+            }
+            // create-if-absent ("*") or compare-and-set against the version we read.
+            // Nakama storageWrite throws on a version mismatch, so only ONE of the
+            // racing pods succeeds; the losers land in catch and skip.
+            nk.storageWrite([{
+                    collection: DISPATCH_LOCK_COLLECTION, key: taskName, userId: SYSTEM_USER_ID,
+                    value: { bucket: bucket, at: Date.now() },
+                    version: (cur && cur.version) ? cur.version : "*",
+                    permissionRead: 2, permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (_e) {
+            // Version conflict (we lost the race) or transient storage error — either
+            // way do not dispatch; a sibling pod has it, or the next tick retries.
+            return false;
+        }
+    }
+    LegacyNotifScheduler.tryAcquireDispatchLock = tryAcquireDispatchLock;
     // Wrap each cron call in try/catch so one task's exception cannot kill the
     // scheduler match. The handlers return JSON strings on success; we ignore
-    // them. Non-fatal logging only.
-    function dispatchSafely(taskName, fn, ctx, logger, nk) {
+    // them. Non-fatal logging only. `periodMin` MUST match the shouldDispatch
+    // cadence so the cluster lock buckets line up across pods.
+    function dispatchSafely(taskName, fn, ctx, logger, nk, periodMin) {
+        if (!tryAcquireDispatchLock(nk, taskName, periodMin))
+            return;
         try {
             var ret = fn(ctx, logger, nk, "");
             logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
@@ -24454,20 +24506,20 @@ var LegacyNotifScheduler;
     LegacyNotifScheduler.matchLeaveImpl = matchLeaveImpl;
     function matchLoopImpl(ctx, logger, nk, _dispatcher, _tick, state, _messages) {
         if (shouldDispatch(state, "daily_quiz", 30))
-            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk);
+            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "weekly_quiz", 60))
-            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk);
+            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk, 60);
         if (shouldDispatch(state, "idle_winback", 30))
-            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk);
+            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "streak_warning", 30))
-            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
+            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "motivation", 60))
-            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk);
+            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk, 60);
         if (shouldDispatch(state, "reminders", 5))
-            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk);
+            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk, 5);
         if (shouldDispatch(state, "review_due", 30))
-            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk);
-        if (shouldDispatch(state, "flush_pending_push", 30)) {
+            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk, 30);
+        if (shouldDispatch(state, "flush_pending_push", 30) && tryAcquireDispatchLock(nk, "flush_pending_push", 30)) {
             try {
                 LegacyPush.flushPendingRegistrations(ctx, logger, nk);
             }
