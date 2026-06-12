@@ -2068,9 +2068,9 @@ func deleteRelationship(ctx context.Context, logger *zap.Logger, tx *sql.Tx, use
 DELETE FROM group_edge
 WHERE
 	(
-		(source_id = $1::UUID AND destination_id = $2::UUID AND state > 1)
+		(source_id = $1::UUID AND destination_id = $2::UUID AND state > 0)
 		OR
-		(source_id = $2::UUID AND destination_id = $1::UUID AND state > 1)
+		(source_id = $2::UUID AND destination_id = $1::UUID AND state > 0)
 	)
 RETURNING state`
 
