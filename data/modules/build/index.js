@@ -21118,8 +21118,180 @@ var LearnerToolbelt;
         mkCollege("freetext-seed:he-ae-002", "freetext", "American University of Sharjah", "Sharjah", "Sharjah", "AE", "ae-private", "en"),
         mkCollege("freetext-seed:he-jp-001", "freetext", "University of Tokyo", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
         mkCollege("freetext-seed:he-jp-002", "freetext", "Kyoto University", "Kyoto", "Kyoto", "JP", "jp-national", "ja"),
+        mkCollege("freetext-seed:he-jp-003", "freetext", "Osaka University", "Osaka", "Osaka", "JP", "jp-national", "ja"),
+        mkCollege("freetext-seed:he-jp-004", "freetext", "Tokyo Institute of Technology", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
         mkCollege("freetext-seed:he-kr-001", "freetext", "Seoul National University", "Seoul", "Seoul", "KR", "kr-national", "ko"),
         mkCollege("freetext-seed:he-kr-002", "freetext", "Korea Advanced Institute of Science and Technology", "Daejeon", "Daejeon", "KR", "kr-national", "ko"),
+        mkCollege("freetext-seed:he-kr-003", "freetext", "Yonsei University", "Seoul", "Seoul", "KR", "kr-private", "ko"),
+        mkCollege("freetext-seed:he-kr-004", "freetext", "Korea University", "Seoul", "Seoul", "KR", "kr-private", "ko"),
+        // ── Geo-gap expansion (2026-06): top universities for every remaining
+        // priority geo in the web COUNTRIES dropdown, so the "Colleges" filter
+        // returns real institutions worldwide instead of only 12 countries.
+        // Demo-grade curated rows (same as above) until the Phase-B registry
+        // ingest; source stays "freetext" for non-registry countries.
+        // ── Southeast & South Asia ──
+        mkCollege("freetext-seed:he-id-001", "freetext", "Universitas Indonesia", "Depok", "West Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-002", "freetext", "Institut Teknologi Bandung", "Bandung", "West Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-003", "freetext", "Universitas Gadjah Mada", "Yogyakarta", "Yogyakarta", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-004", "freetext", "Institut Pertanian Bogor", "Bogor", "West Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-005", "freetext", "Universitas Airlangga", "Surabaya", "East Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-vn-001", "freetext", "Vietnam National University, Hanoi", "Hanoi", "Hanoi", "VN", "vn-public", "vi"),
+        mkCollege("freetext-seed:he-vn-002", "freetext", "Vietnam National University, Ho Chi Minh City", "Ho Chi Minh City", "Ho Chi Minh", "VN", "vn-public", "vi"),
+        mkCollege("freetext-seed:he-vn-003", "freetext", "Hanoi University of Science and Technology", "Hanoi", "Hanoi", "VN", "vn-public", "vi"),
+        mkCollege("freetext-seed:he-th-001", "freetext", "Chulalongkorn University", "Bangkok", "Bangkok", "TH", "th-public", "th"),
+        mkCollege("freetext-seed:he-th-002", "freetext", "Mahidol University", "Nakhon Pathom", "Bangkok Metro", "TH", "th-public", "th"),
+        mkCollege("freetext-seed:he-th-003", "freetext", "Thammasat University", "Bangkok", "Bangkok", "TH", "th-public", "th"),
+        mkCollege("freetext-seed:he-my-001", "freetext", "University of Malaya", "Kuala Lumpur", "KL", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-my-002", "freetext", "Universiti Kebangsaan Malaysia", "Bangi", "Selangor", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-my-003", "freetext", "Universiti Sains Malaysia", "George Town", "Penang", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-my-004", "freetext", "Universiti Teknologi Malaysia", "Johor Bahru", "Johor", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-ph-001", "freetext", "University of the Philippines Diliman", "Quezon City", "Metro Manila", "PH", "ph-public", "en"),
+        mkCollege("freetext-seed:he-ph-002", "freetext", "Ateneo de Manila University", "Quezon City", "Metro Manila", "PH", "ph-private", "en"),
+        mkCollege("freetext-seed:he-ph-003", "freetext", "De La Salle University", "Manila", "Metro Manila", "PH", "ph-private", "en"),
+        mkCollege("freetext-seed:he-pk-001", "freetext", "Quaid-i-Azam University", "Islamabad", "Islamabad", "PK", "pk-public", "en"),
+        mkCollege("freetext-seed:he-pk-002", "freetext", "Lahore University of Management Sciences", "Lahore", "Punjab", "PK", "pk-private", "en"),
+        mkCollege("freetext-seed:he-pk-003", "freetext", "National University of Sciences and Technology", "Islamabad", "Islamabad", "PK", "pk-public", "en"),
+        mkCollege("freetext-seed:he-pk-004", "freetext", "University of the Punjab", "Lahore", "Punjab", "PK", "pk-public", "en"),
+        mkCollege("freetext-seed:he-bd-001", "freetext", "University of Dhaka", "Dhaka", "Dhaka", "BD", "bd-public", "bn"),
+        mkCollege("freetext-seed:he-bd-002", "freetext", "Bangladesh University of Engineering and Technology", "Dhaka", "Dhaka", "BD", "bd-public", "bn"),
+        mkCollege("freetext-seed:he-bd-003", "freetext", "North South University", "Dhaka", "Dhaka", "BD", "bd-private", "en"),
+        mkCollege("freetext-seed:he-lk-001", "freetext", "University of Colombo", "Colombo", "Western", "LK", "lk-public", "en"),
+        mkCollege("freetext-seed:he-lk-002", "freetext", "University of Peradeniya", "Kandy", "Central", "LK", "lk-public", "en"),
+        mkCollege("freetext-seed:he-np-001", "freetext", "Tribhuvan University", "Kathmandu", "Bagmati", "NP", "np-public", "ne"),
+        // ── East Asia ──
+        mkCollege("freetext-seed:he-cn-001", "freetext", "Tsinghua University", "Beijing", "Beijing", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-002", "freetext", "Peking University", "Beijing", "Beijing", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-003", "freetext", "Fudan University", "Shanghai", "Shanghai", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-004", "freetext", "Shanghai Jiao Tong University", "Shanghai", "Shanghai", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-005", "freetext", "Zhejiang University", "Hangzhou", "Zhejiang", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-hk-001", "freetext", "University of Hong Kong", "Hong Kong", "HK Island", "HK", "hk-public", "en"),
+        mkCollege("freetext-seed:he-hk-002", "freetext", "Hong Kong University of Science and Technology", "Hong Kong", "Kowloon", "HK", "hk-public", "en"),
+        mkCollege("freetext-seed:he-hk-003", "freetext", "Chinese University of Hong Kong", "Hong Kong", "New Territories", "HK", "hk-public", "en"),
+        mkCollege("freetext-seed:he-tw-001", "freetext", "National Taiwan University", "Taipei", "Taipei", "TW", "tw-public", "zh"),
+        mkCollege("freetext-seed:he-tw-002", "freetext", "National Tsing Hua University", "Hsinchu", "Hsinchu", "TW", "tw-public", "zh"),
+        // ── Europe ──
+        mkCollege("freetext-seed:he-es-001", "freetext", "Universidad Complutense de Madrid", "Madrid", "Madrid", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-es-002", "freetext", "Universitat de Barcelona", "Barcelona", "Catalonia", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-es-003", "freetext", "Universidad Autónoma de Madrid", "Madrid", "Madrid", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-es-004", "freetext", "Universitat Politècnica de Catalunya", "Barcelona", "Catalonia", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-it-001", "freetext", "Università di Bologna", "Bologna", "Emilia-Romagna", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-it-002", "freetext", "Sapienza Università di Roma", "Rome", "Lazio", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-it-003", "freetext", "Politecnico di Milano", "Milan", "Lombardy", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-it-004", "freetext", "Università degli Studi di Milano", "Milan", "Lombardy", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-nl-001", "freetext", "Delft University of Technology", "Delft", "South Holland", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-nl-002", "freetext", "University of Amsterdam", "Amsterdam", "North Holland", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-nl-003", "freetext", "Utrecht University", "Utrecht", "Utrecht", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-nl-004", "freetext", "Leiden University", "Leiden", "South Holland", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-se-001", "freetext", "KTH Royal Institute of Technology", "Stockholm", "Stockholm", "SE", "se-public", "en"),
+        mkCollege("freetext-seed:he-se-002", "freetext", "Lund University", "Lund", "Skåne", "SE", "se-public", "en"),
+        mkCollege("freetext-seed:he-se-003", "freetext", "Uppsala University", "Uppsala", "Uppsala", "SE", "se-public", "en"),
+        mkCollege("freetext-seed:he-ch-001", "freetext", "ETH Zurich", "Zurich", "Zurich", "CH", "ch-federal", "en"),
+        mkCollege("freetext-seed:he-ch-002", "freetext", "EPFL", "Lausanne", "Vaud", "CH", "ch-federal", "en"),
+        mkCollege("freetext-seed:he-ch-003", "freetext", "University of Zurich", "Zurich", "Zurich", "CH", "ch-public", "de"),
+        mkCollege("freetext-seed:he-ch-004", "freetext", "University of Geneva", "Geneva", "Geneva", "CH", "ch-public", "fr"),
+        mkCollege("freetext-seed:he-at-001", "freetext", "University of Vienna", "Vienna", "Vienna", "AT", "at-public", "de"),
+        mkCollege("freetext-seed:he-at-002", "freetext", "TU Wien", "Vienna", "Vienna", "AT", "at-public", "de"),
+        mkCollege("freetext-seed:he-be-001", "freetext", "KU Leuven", "Leuven", "Flemish Brabant", "BE", "be-public", "nl"),
+        mkCollege("freetext-seed:he-be-002", "freetext", "Ghent University", "Ghent", "East Flanders", "BE", "be-public", "nl"),
+        mkCollege("freetext-seed:he-be-003", "freetext", "UCLouvain", "Louvain-la-Neuve", "Walloon Brabant", "BE", "be-public", "fr"),
+        mkCollege("freetext-seed:he-dk-001", "freetext", "University of Copenhagen", "Copenhagen", "Capital Region", "DK", "dk-public", "en"),
+        mkCollege("freetext-seed:he-dk-002", "freetext", "Technical University of Denmark", "Kongens Lyngby", "Capital Region", "DK", "dk-public", "en"),
+        mkCollege("freetext-seed:he-dk-003", "freetext", "Aarhus University", "Aarhus", "Central Denmark", "DK", "dk-public", "en"),
+        mkCollege("freetext-seed:he-fi-001", "freetext", "University of Helsinki", "Helsinki", "Uusimaa", "FI", "fi-public", "fi"),
+        mkCollege("freetext-seed:he-fi-002", "freetext", "Aalto University", "Espoo", "Uusimaa", "FI", "fi-public", "en"),
+        mkCollege("freetext-seed:he-no-001", "freetext", "University of Oslo", "Oslo", "Oslo", "NO", "no-public", "no"),
+        mkCollege("freetext-seed:he-no-002", "freetext", "Norwegian University of Science and Technology", "Trondheim", "Trøndelag", "NO", "no-public", "no"),
+        mkCollege("freetext-seed:he-pt-001", "freetext", "University of Lisbon", "Lisbon", "Lisbon", "PT", "pt-public", "pt"),
+        mkCollege("freetext-seed:he-pt-002", "freetext", "University of Porto", "Porto", "Porto", "PT", "pt-public", "pt"),
+        mkCollege("freetext-seed:he-gr-001", "freetext", "National and Kapodistrian University of Athens", "Athens", "Attica", "GR", "gr-public", "el"),
+        mkCollege("freetext-seed:he-gr-002", "freetext", "Aristotle University of Thessaloniki", "Thessaloniki", "Central Macedonia", "GR", "gr-public", "el"),
+        mkCollege("freetext-seed:he-pl-001", "freetext", "University of Warsaw", "Warsaw", "Masovia", "PL", "pl-public", "pl"),
+        mkCollege("freetext-seed:he-pl-002", "freetext", "Jagiellonian University", "Kraków", "Lesser Poland", "PL", "pl-public", "pl"),
+        mkCollege("freetext-seed:he-pl-003", "freetext", "Warsaw University of Technology", "Warsaw", "Masovia", "PL", "pl-public", "pl"),
+        mkCollege("freetext-seed:he-cz-001", "freetext", "Charles University", "Prague", "Prague", "CZ", "cz-public", "cs"),
+        mkCollege("freetext-seed:he-cz-002", "freetext", "Czech Technical University in Prague", "Prague", "Prague", "CZ", "cz-public", "cs"),
+        mkCollege("freetext-seed:he-hu-001", "freetext", "Eötvös Loránd University", "Budapest", "Budapest", "HU", "hu-public", "hu"),
+        mkCollege("freetext-seed:he-hu-002", "freetext", "Budapest University of Technology and Economics", "Budapest", "Budapest", "HU", "hu-public", "hu"),
+        mkCollege("freetext-seed:he-ro-001", "freetext", "University of Bucharest", "Bucharest", "Bucharest", "RO", "ro-public", "ro"),
+        mkCollege("freetext-seed:he-ro-002", "freetext", "Babeș-Bolyai University", "Cluj-Napoca", "Cluj", "RO", "ro-public", "ro"),
+        mkCollege("freetext-seed:he-ru-001", "freetext", "Lomonosov Moscow State University", "Moscow", "Moscow", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ru-002", "freetext", "Saint Petersburg State University", "Saint Petersburg", "Saint Petersburg", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ru-003", "freetext", "Moscow Institute of Physics and Technology", "Dolgoprudny", "Moscow Oblast", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ru-004", "freetext", "HSE University", "Moscow", "Moscow", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ua-001", "freetext", "Taras Shevchenko National University of Kyiv", "Kyiv", "Kyiv", "UA", "ua-public", "uk"),
+        mkCollege("freetext-seed:he-ua-002", "freetext", "Igor Sikorsky Kyiv Polytechnic Institute", "Kyiv", "Kyiv", "UA", "ua-public", "uk"),
+        mkCollege("freetext-seed:he-ie-001", "freetext", "Trinity College Dublin", "Dublin", "Leinster", "IE", "ie-public", "en"),
+        mkCollege("freetext-seed:he-ie-002", "freetext", "University College Dublin", "Dublin", "Leinster", "IE", "ie-public", "en"),
+        mkCollege("freetext-seed:he-fr-004", "freetext", "Université Paris-Saclay", "Gif-sur-Yvette", "Île-de-France", "FR", "fr-public", "fr"),
+        // ── Middle East & Central Asia ──
+        mkCollege("freetext-seed:he-tr-001", "freetext", "Boğaziçi University", "Istanbul", "Istanbul", "TR", "tr-public", "tr"),
+        mkCollege("freetext-seed:he-tr-002", "freetext", "Middle East Technical University", "Ankara", "Ankara", "TR", "tr-public", "en"),
+        mkCollege("freetext-seed:he-tr-003", "freetext", "Istanbul Technical University", "Istanbul", "Istanbul", "TR", "tr-public", "tr"),
+        mkCollege("freetext-seed:he-tr-004", "freetext", "Koç University", "Istanbul", "Istanbul", "TR", "tr-private", "en"),
+        mkCollege("freetext-seed:he-il-001", "freetext", "Hebrew University of Jerusalem", "Jerusalem", "Jerusalem", "IL", "il-public", "he"),
+        mkCollege("freetext-seed:he-il-002", "freetext", "Technion — Israel Institute of Technology", "Haifa", "Haifa", "IL", "il-public", "he"),
+        mkCollege("freetext-seed:he-il-003", "freetext", "Tel Aviv University", "Tel Aviv", "Tel Aviv", "IL", "il-public", "he"),
+        mkCollege("freetext-seed:he-sa-001", "freetext", "King Saud University", "Riyadh", "Riyadh", "SA", "sa-public", "ar"),
+        mkCollege("freetext-seed:he-sa-002", "freetext", "King Fahd University of Petroleum and Minerals", "Dhahran", "Eastern Province", "SA", "sa-public", "en"),
+        mkCollege("freetext-seed:he-sa-003", "freetext", "King Abdullah University of Science and Technology", "Thuwal", "Makkah", "SA", "sa-public", "en"),
+        mkCollege("freetext-seed:he-qa-001", "freetext", "Qatar University", "Doha", "Doha", "QA", "qa-public", "ar"),
+        mkCollege("freetext-seed:he-kw-001", "freetext", "Kuwait University", "Kuwait City", "Al Asimah", "KW", "kw-public", "ar"),
+        mkCollege("freetext-seed:he-jo-001", "freetext", "University of Jordan", "Amman", "Amman", "JO", "jo-public", "ar"),
+        mkCollege("freetext-seed:he-lb-001", "freetext", "American University of Beirut", "Beirut", "Beirut", "LB", "lb-private", "en"),
+        mkCollege("freetext-seed:he-ae-003", "freetext", "United Arab Emirates University", "Al Ain", "Abu Dhabi", "AE", "ae-public", "en"),
+        mkCollege("freetext-seed:he-ir-001", "freetext", "University of Tehran", "Tehran", "Tehran", "IR", "ir-public", "fa"),
+        mkCollege("freetext-seed:he-ir-002", "freetext", "Sharif University of Technology", "Tehran", "Tehran", "IR", "ir-public", "fa"),
+        mkCollege("freetext-seed:he-iq-001", "freetext", "University of Baghdad", "Baghdad", "Baghdad", "IQ", "iq-public", "ar"),
+        mkCollege("freetext-seed:he-kz-001", "freetext", "Nazarbayev University", "Astana", "Astana", "KZ", "kz-autonomous", "en"),
+        mkCollege("freetext-seed:he-kz-002", "freetext", "Al-Farabi Kazakh National University", "Almaty", "Almaty", "KZ", "kz-public", "kk"),
+        mkCollege("freetext-seed:he-uz-001", "freetext", "National University of Uzbekistan", "Tashkent", "Tashkent", "UZ", "uz-public", "uz"),
+        // ── Africa ──
+        mkCollege("freetext-seed:he-eg-001", "freetext", "Cairo University", "Giza", "Giza", "EG", "eg-public", "ar"),
+        mkCollege("freetext-seed:he-eg-002", "freetext", "American University in Cairo", "New Cairo", "Cairo", "EG", "eg-private", "en"),
+        mkCollege("freetext-seed:he-eg-003", "freetext", "Ain Shams University", "Cairo", "Cairo", "EG", "eg-public", "ar"),
+        mkCollege("freetext-seed:he-ma-001", "freetext", "Mohammed V University", "Rabat", "Rabat-Salé", "MA", "ma-public", "fr"),
+        mkCollege("freetext-seed:he-ma-002", "freetext", "Al Akhawayn University", "Ifrane", "Fès-Meknès", "MA", "ma-private", "en"),
+        mkCollege("freetext-seed:he-tn-001", "freetext", "University of Tunis", "Tunis", "Tunis", "TN", "tn-public", "fr"),
+        mkCollege("freetext-seed:he-dz-001", "freetext", "University of Algiers", "Algiers", "Algiers", "DZ", "dz-public", "fr"),
+        mkCollege("freetext-seed:he-ng-001", "freetext", "University of Lagos", "Lagos", "Lagos", "NG", "ng-public", "en"),
+        mkCollege("freetext-seed:he-ng-002", "freetext", "University of Ibadan", "Ibadan", "Oyo", "NG", "ng-public", "en"),
+        mkCollege("freetext-seed:he-ng-003", "freetext", "Ahmadu Bello University", "Zaria", "Kaduna", "NG", "ng-public", "en"),
+        mkCollege("freetext-seed:he-ng-004", "freetext", "Covenant University", "Ota", "Ogun", "NG", "ng-private", "en"),
+        mkCollege("freetext-seed:he-gh-001", "freetext", "University of Ghana", "Accra", "Greater Accra", "GH", "gh-public", "en"),
+        mkCollege("freetext-seed:he-gh-002", "freetext", "Kwame Nkrumah University of Science and Technology", "Kumasi", "Ashanti", "GH", "gh-public", "en"),
+        mkCollege("freetext-seed:he-ke-001", "freetext", "University of Nairobi", "Nairobi", "Nairobi", "KE", "ke-public", "en"),
+        mkCollege("freetext-seed:he-ke-002", "freetext", "Kenyatta University", "Nairobi", "Nairobi", "KE", "ke-public", "en"),
+        mkCollege("freetext-seed:he-ke-003", "freetext", "Strathmore University", "Nairobi", "Nairobi", "KE", "ke-private", "en"),
+        mkCollege("freetext-seed:he-tz-001", "freetext", "University of Dar es Salaam", "Dar es Salaam", "Dar es Salaam", "TZ", "tz-public", "en"),
+        mkCollege("freetext-seed:he-ug-001", "freetext", "Makerere University", "Kampala", "Central", "UG", "ug-public", "en"),
+        mkCollege("freetext-seed:he-et-001", "freetext", "Addis Ababa University", "Addis Ababa", "Addis Ababa", "ET", "et-public", "en"),
+        mkCollege("freetext-seed:he-za-001", "freetext", "University of Cape Town", "Cape Town", "Western Cape", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-za-002", "freetext", "University of the Witwatersrand", "Johannesburg", "Gauteng", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-za-003", "freetext", "Stellenbosch University", "Stellenbosch", "Western Cape", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-za-004", "freetext", "University of Pretoria", "Pretoria", "Gauteng", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-zw-001", "freetext", "University of Zimbabwe", "Harare", "Harare", "ZW", "zw-public", "en"),
+        mkCollege("freetext-seed:he-zm-001", "freetext", "University of Zambia", "Lusaka", "Lusaka", "ZM", "zm-public", "en"),
+        // ── Americas & Oceania ──
+        mkCollege("freetext-seed:he-mx-001", "freetext", "Universidad Nacional Autónoma de México", "Mexico City", "CDMX", "MX", "mx-public", "es"),
+        mkCollege("freetext-seed:he-mx-002", "freetext", "Tecnológico de Monterrey", "Monterrey", "Nuevo León", "MX", "mx-private", "es"),
+        mkCollege("freetext-seed:he-mx-003", "freetext", "Instituto Politécnico Nacional", "Mexico City", "CDMX", "MX", "mx-public", "es"),
+        mkCollege("freetext-seed:he-mx-004", "freetext", "Universidad de Guadalajara", "Guadalajara", "Jalisco", "MX", "mx-public", "es"),
+        mkCollege("freetext-seed:he-ar-001", "freetext", "Universidad de Buenos Aires", "Buenos Aires", "CABA", "AR", "ar-public", "es"),
+        mkCollege("freetext-seed:he-ar-002", "freetext", "Universidad Nacional de Córdoba", "Córdoba", "Córdoba", "AR", "ar-public", "es"),
+        mkCollege("freetext-seed:he-cl-001", "freetext", "Pontificia Universidad Católica de Chile", "Santiago", "Santiago Metro", "CL", "cl-private", "es"),
+        mkCollege("freetext-seed:he-cl-002", "freetext", "Universidad de Chile", "Santiago", "Santiago Metro", "CL", "cl-public", "es"),
+        mkCollege("freetext-seed:he-co-001", "freetext", "Universidad Nacional de Colombia", "Bogotá", "Bogotá", "CO", "co-public", "es"),
+        mkCollege("freetext-seed:he-co-002", "freetext", "Universidad de los Andes", "Bogotá", "Bogotá", "CO", "co-private", "es"),
+        mkCollege("freetext-seed:he-pe-001", "freetext", "Pontificia Universidad Católica del Perú", "Lima", "Lima", "PE", "pe-private", "es"),
+        mkCollege("freetext-seed:he-pe-002", "freetext", "Universidad Nacional Mayor de San Marcos", "Lima", "Lima", "PE", "pe-public", "es"),
+        mkCollege("freetext-seed:he-uy-001", "freetext", "Universidad de la República", "Montevideo", "Montevideo", "UY", "uy-public", "es"),
+        mkCollege("freetext-seed:he-ec-001", "freetext", "Universidad San Francisco de Quito", "Quito", "Pichincha", "EC", "ec-private", "es"),
+        mkCollege("freetext-seed:he-ve-001", "freetext", "Universidad Central de Venezuela", "Caracas", "Capital District", "VE", "ve-public", "es"),
+        mkCollege("freetext-seed:he-cr-001", "freetext", "Universidad de Costa Rica", "San José", "San José", "CR", "cr-public", "es"),
+        mkCollege("freetext-seed:he-gt-001", "freetext", "Universidad de San Carlos de Guatemala", "Guatemala City", "Guatemala", "GT", "gt-public", "es"),
+        mkCollege("freetext-seed:he-nz-001", "freetext", "University of Auckland", "Auckland", "Auckland", "NZ", "nz-public", "en"),
+        mkCollege("freetext-seed:he-nz-002", "freetext", "University of Otago", "Dunedin", "Otago", "NZ", "nz-public", "en"),
+        mkCollege("freetext-seed:he-nz-003", "freetext", "Victoria University of Wellington", "Wellington", "Wellington", "NZ", "nz-public", "en"),
     ];
     // Merge colleges into the single searchable fixture so getSchoolById and
     // searchSchools cover both institution types from one index.
@@ -21149,6 +21321,27 @@ var LearnerToolbelt;
             else {
                 out += t.charAt(0);
             }
+        }
+        return out;
+    }
+    // Strict acronym: first letter of each ≥3-char token, SKIPPING connective
+    // tokens ("of", "de", "the", "and" all have ≤3 chars... we drop ≤2-char
+    // tokens and the 3-char words "the"/"and") — this is how real-world
+    // university acronyms are formed:
+    //   "massachusetts institute of technology"      → "mit"
+    //   "universidad nacional autónoma de méxico"    → "unam"
+    //   "lahore university of management sciences"   → "lums"
+    //   "hong kong university of science and technology" → "hkust"
+    function acronymStrict(normalizedName) {
+        var tokens = normalizedName.split(" ");
+        var out = "";
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (!t || t.length <= 2)
+                continue;
+            if (t === "the" || t === "and")
+                continue;
+            out += t.charAt(0);
         }
         return out;
     }
@@ -21188,6 +21381,10 @@ var LearnerToolbelt;
     function searchSchools(query, countryCode, limit, institutionType) {
         var q = normalize(query);
         var cc = ("" + (countryCode || "")).toUpperCase();
+        // ISO-3166 says GB; the UK fixture rows (and some legacy callers) say UK.
+        // Treat them as the same country so GB visitors actually see UK schools.
+        if (cc === "GB")
+            cc = "UK";
         var typeFilter = ("" + (institutionType || "")).toLowerCase();
         if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both")
             typeFilter = "";
@@ -21202,6 +21399,7 @@ var LearnerToolbelt;
                 continue;
             var name = normalize(rec.display_name);
             var acro = acronymOf(name);
+            var acroStrict = acronymStrict(name);
             var score = 0;
             if (name === q) {
                 score = 1000;
@@ -21212,10 +21410,13 @@ var LearnerToolbelt;
             else if (q.length >= 2 && name.indexOf(q) > 0) {
                 score = 500;
             }
-            else if (qCompact.length >= 3 && (acro === qCompact || acro.indexOf(qCompact) === 0)) {
+            else if (qCompact.length >= 3 &&
+                (acro === qCompact || acro.indexOf(qCompact) === 0 ||
+                    acroStrict === qCompact || acroStrict.indexOf(qCompact) === 0)) {
                 // Acronym match — covers "dpsrkp" → "Delhi Public School RK Puram",
-                // "dps" → all DPS branches, "njc" → "Nanyang JC", etc.
-                score = (acro === qCompact) ? 850 : 600;
+                // "dps" → all DPS branches, "njc" → "Nanyang JC", and via the strict
+                // variant "mit" / "unam" / "lums" / "kaist" / "hkust" / "unsw" etc.
+                score = (acro === qCompact || acroStrict === qCompact) ? 850 : 600;
             }
             else {
                 // Per-token substring or per-token acronym-substring.
@@ -21231,8 +21432,12 @@ var LearnerToolbelt;
                         hits2++;
                         continue;
                     }
-                    // Acronym slide: any window-of-tok.length over `acro` matches?
-                    if (tok.length <= acro.length && acro.indexOf(tok) >= 0)
+                    // Acronym slide: any window-of-tok.length over either acronym?
+                    if (tok.length <= acro.length && acro.indexOf(tok) >= 0) {
+                        hits2++;
+                        continue;
+                    }
+                    if (tok.length <= acroStrict.length && acroStrict.indexOf(tok) >= 0)
                         hits2++;
                 }
                 if (hits2 === qTokens.length && qTokens.length > 0) {
@@ -24172,11 +24377,17 @@ var LegacyMultiGame;
 //      indefinitely until the process exits.
 //
 //  Multi-replica safety:
-//    * Each Nakama pod creates its own scheduler match on boot.
-//    * All five cron handlers already deduplicate per-user via the
-//      `notif_send_markers` storage collection — first writer wins, others
-//      see hasMarker() and skip. Worst-case cost across N pods is a few
-//      extra storage reads per minute.
+//    * Each Nakama pod creates its own scheduler match on boot (resilience:
+//      cron keeps firing through partial outages / rolling deploys).
+//    * Because N pods fire the SAME task at the SAME cadence boundary, the
+//      per-user notif_send_markers dedup ALONE is not enough — it is written
+//      AFTER the push is sent, so simultaneous pods all pass hasMarker() and
+//      all send (prod symptom: daily quiz delivered 4–5×, one per live pod).
+//    * dispatchSafely() therefore takes a cluster-wide CAS lock per
+//      (task, period) via tryAcquireDispatchLock(): every pod computes the
+//      same clock-aligned bucket and races to claim one system-owned storage
+//      row (Nakama version OCC). Exactly ONE pod wins and dispatches; the
+//      others skip. Per-user markers stay as a secondary cross-period guard.
 //
 //  Cadence (per-task):
 //    Each task carries its own quiet-hours window check inside the cron
@@ -24224,10 +24435,56 @@ var LegacyNotifScheduler;
         return true;
     }
     LegacyNotifScheduler.shouldDispatch = shouldDispatch;
+    // ── Cluster-wide dispatch lock ─────────────────────────────────────────────
+    // Each Nakama pod runs its OWN scheduler match (by design, for resilience),
+    // so at every cadence boundary up to N pods fire the SAME task within the
+    // same instant. The per-user notif_send_markers dedup is written AFTER the
+    // push is sent, so concurrent pods all pass hasMarker() and all send before
+    // any marker exists — production symptom: users received the daily quiz 4–5×
+    // (one push per live pod). This lock makes each (task, period) idempotent
+    // across the whole cluster: every pod computes the same period bucket and
+    // races to claim a single system-owned storage row via optimistic
+    // concurrency (version CAS). Exactly one pod wins and dispatches; the rest
+    // skip. The per-user markers remain as a secondary, cross-period safety net.
+    var DISPATCH_LOCK_COLLECTION = "notif_cron_dispatch_lock";
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    function tryAcquireDispatchLock(nk, taskName, periodMin) {
+        // Clock-aligned bucket: identical for every pod inside the same period, so
+        // simultaneous dispatchers collide on one storage key and CAS picks a
+        // single winner.
+        var bucket = Math.floor(nowMinute() / periodMin);
+        try {
+            var recs = nk.storageRead([{ collection: DISPATCH_LOCK_COLLECTION, key: taskName, userId: SYSTEM_USER_ID }]);
+            var cur = (recs && recs.length > 0) ? recs[0] : null;
+            if (cur && cur.value && cur.value.bucket === bucket) {
+                // Another pod already claimed (and is running/ran) this period.
+                return false;
+            }
+            // create-if-absent ("*") or compare-and-set against the version we read.
+            // Nakama storageWrite throws on a version mismatch, so only ONE of the
+            // racing pods succeeds; the losers land in catch and skip.
+            nk.storageWrite([{
+                    collection: DISPATCH_LOCK_COLLECTION, key: taskName, userId: SYSTEM_USER_ID,
+                    value: { bucket: bucket, at: Date.now() },
+                    version: (cur && cur.version) ? cur.version : "*",
+                    permissionRead: 2, permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (_e) {
+            // Version conflict (we lost the race) or transient storage error — either
+            // way do not dispatch; a sibling pod has it, or the next tick retries.
+            return false;
+        }
+    }
+    LegacyNotifScheduler.tryAcquireDispatchLock = tryAcquireDispatchLock;
     // Wrap each cron call in try/catch so one task's exception cannot kill the
     // scheduler match. The handlers return JSON strings on success; we ignore
-    // them. Non-fatal logging only.
-    function dispatchSafely(taskName, fn, ctx, logger, nk) {
+    // them. Non-fatal logging only. `periodMin` MUST match the shouldDispatch
+    // cadence so the cluster lock buckets line up across pods.
+    function dispatchSafely(taskName, fn, ctx, logger, nk, periodMin) {
+        if (!tryAcquireDispatchLock(nk, taskName, periodMin))
+            return;
         try {
             var ret = fn(ctx, logger, nk, "");
             logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
@@ -24270,20 +24527,20 @@ var LegacyNotifScheduler;
     LegacyNotifScheduler.matchLeaveImpl = matchLeaveImpl;
     function matchLoopImpl(ctx, logger, nk, _dispatcher, _tick, state, _messages) {
         if (shouldDispatch(state, "daily_quiz", 30))
-            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk);
+            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "weekly_quiz", 60))
-            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk);
+            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk, 60);
         if (shouldDispatch(state, "idle_winback", 30))
-            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk);
+            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "streak_warning", 30))
-            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
+            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "motivation", 60))
-            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk);
+            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk, 60);
         if (shouldDispatch(state, "reminders", 5))
-            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk);
+            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk, 5);
         if (shouldDispatch(state, "review_due", 30))
-            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk);
-        if (shouldDispatch(state, "flush_pending_push", 30)) {
+            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk, 30);
+        if (shouldDispatch(state, "flush_pending_push", 30) && tryAcquireDispatchLock(nk, "flush_pending_push", 30)) {
             try {
                 LegacyPush.flushPendingRegistrations(ctx, logger, nk);
             }
@@ -40040,6 +40297,17 @@ var SatoriDataLake;
 })(SatoriDataLake || (SatoriDataLake = {}));
 var SatoriEventCapture;
 (function (SatoriEventCapture) {
+    // Inverted-timestamp event keys: storageList returns keys in ascending
+    // order, so an inverted (descending-time) key makes scans see the NEWEST
+    // events first. The "0" prefix sorts before legacy "ev_2026-…"/"ev_ext_…"
+    // keys in any collation, so window-bounded scans (retention, funnels,
+    // experiment results, debugger search) reach recent data before page caps.
+    function eventKey(tsMs, id) {
+        var inv = "" + (100000000000000 - tsMs);
+        while (inv.length < 14)
+            inv = "0" + inv;
+        return "ev_0" + inv + "_" + id;
+    }
     function appendToUserHistory(nk, userId, event) {
         var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
         if (!history)
@@ -40061,7 +40329,7 @@ var SatoriEventCapture;
             return;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-        var key = "ev_" + dateStr + "_" + userId + "_" + Date.now();
+        var key = eventKey(Date.now(), userId);
         var record = {
             userId: userId,
             name: event.name,
@@ -40097,7 +40365,7 @@ var SatoriEventCapture;
             }
             validEvents.push(event);
             var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-            var key = "ev_" + dateStr + "_" + userId + "_" + (Date.now() + i);
+            var key = eventKey(Date.now() + i, userId);
             var record = {
                 userId: userId,
                 name: event.name,
@@ -40225,7 +40493,7 @@ var SatoriEventCapture;
             return false;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
-        var key = "ev_ext_" + dateStr + "_" + identityId + "_" + Date.now();
+        var key = eventKey(Date.now(), identityId);
         var record = {
             identityId: identityId,
             name: event.name,
@@ -40318,8 +40586,8 @@ var SatoriEventDebugger;
     var RECENT_KEY = "recent_events";
     var RECENT_MAX = 300;
     var SEARCH_PAGE_SIZE = 100;
-    var SEARCH_DEFAULT_PAGES = 50;
-    var SEARCH_MAX_PAGES = 200;
+    var SEARCH_DEFAULT_PAGES = 320; // covers the legacy (oldest-first) key tail
+    var SEARCH_MAX_PAGES = 800;
     var SEARCH_MAX_RESULTS = 500;
     // Normalize second-resolution timestamps to milliseconds so the UI can
     // sort/format uniformly (clients send ms, some server paths send seconds).
@@ -40510,8 +40778,8 @@ var SatoriExperimentResults;
 (function (SatoriExperimentResults) {
     var PAGE_SIZE = 100;
     var ASSIGNMENT_MAX_PAGES = 200; // 20K users
-    var EVENTS_DEFAULT_PAGES = 100; // 10K event records
-    var EVENTS_MAX_PAGES = 400;
+    var EVENTS_DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var EVENTS_MAX_PAGES = 800;
     function toMs(ts) {
         if (!ts)
             return 0;
@@ -41054,8 +41322,8 @@ var SatoriFeatureFlags;
 var SatoriFunnels;
 (function (SatoriFunnels) {
     var PAGE_SIZE = 100;
-    var EVENTS_DEFAULT_PAGES = 100; // 10K event records
-    var EVENTS_MAX_PAGES = 400;
+    var EVENTS_DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var EVENTS_MAX_PAGES = 800;
     var MAX_STEPS = 8;
     function toMs(ts) {
         if (!ts)
@@ -41501,6 +41769,40 @@ var SatoriIdentityInspector;
 var SatoriCreatorEvents;
 (function (SatoriCreatorEvents) {
     // ---- Types ----
+    /** Rank → tier keys to try (most specific first; legacy top_10/all kept for USA pool). */
+    function tierLookupKeysForRank(rank) {
+        var keys = [];
+        if (rank === 1)
+            keys.push("1st");
+        else if (rank === 2)
+            keys.push("2nd");
+        else if (rank === 3)
+            keys.push("3rd");
+        else if (rank === 4)
+            keys.push("4th");
+        else if (rank === 5)
+            keys.push("5th");
+        else if (rank >= 6 && rank <= 10)
+            keys.push("6_10");
+        if (rank > 3 && rank <= 10)
+            keys.push("top_10");
+        if (rank > 10)
+            keys.push("all");
+        return keys;
+    }
+    function findGiftCardTierForRank(tiers, rank) {
+        if (!tiers || tiers.length === 0)
+            return null;
+        var keys = tierLookupKeysForRank(rank);
+        for (var ki = 0; ki < keys.length; ki++) {
+            for (var i = 0; i < tiers.length; i++) {
+                var t = tiers[i];
+                if (t && t.rank === keys[ki])
+                    return t;
+            }
+        }
+        return null;
+    }
     var COLLECTION = "satori_creator_events";
     var LEADERBOARD_PREFIX = "creator_event_";
     var TIER_ORDER = ["platinum", "gold", "silver", "bronze", "participation"];
@@ -42181,24 +42483,9 @@ var SatoriCreatorEvents;
         // Gift card fulfillment lookup
         var giftCardTier = null;
         if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0) {
-            var rankStr = state.rank === 1 ? "1st"
-                : state.rank === 2 ? "2nd"
-                    : state.rank === 3 ? "3rd"
-                        : (state.rank || 99) <= 10 ? "top_10"
-                            : "all";
-            for (var gti = 0; gti < def.giftCardPrizes.tiers.length; gti++) {
-                if (def.giftCardPrizes.tiers[gti].rank === rankStr) {
-                    giftCardTier = def.giftCardPrizes.tiers[gti];
-                    break;
-                }
-            }
-            if (!giftCardTier) {
-                for (var gti2 = 0; gti2 < def.giftCardPrizes.tiers.length; gti2++) {
-                    if (def.giftCardPrizes.tiers[gti2].rank === "all") {
-                        giftCardTier = def.giftCardPrizes.tiers[gti2];
-                        break;
-                    }
-                }
+            var matched = findGiftCardTierForRank(def.giftCardPrizes.tiers, state.rank || 0);
+            if (matched && matched.fulfillment !== "nakama") {
+                giftCardTier = matched;
             }
         }
         // Store pending gift card fulfillment record so admin/n8n can process it
@@ -42213,6 +42500,7 @@ var SatoriCreatorEvents;
                 claimedAt: state.claimedAt,
                 eventTitle: def.title,
                 region: def.region,
+                email: deliveryEmail || "",
             };
             try {
                 Storage.writeSystemJson(nk, "prize_fulfillments", data.eventId + ":" + userId, fulfillmentRecord);
@@ -42840,6 +43128,8 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
         initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+        initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
+        initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
     }
     SatoriCreatorEvents.register = register;
     /**
@@ -42889,32 +43179,18 @@ var SatoriCreatorEvents;
                 "Earn more XUT or pick a different funding method.");
         }
     }
-    function rankToTierKey(rank) {
-        if (rank === 1)
-            return "1st";
-        if (rank === 2)
-            return "2nd";
-        if (rank === 3)
-            return "3rd";
-        if (rank > 0 && rank <= 10)
-            return "top_10";
-        return "all";
-    }
     function findTierForRank(tiers, rank) {
         if (!tiers || tiers.length === 0)
             return null;
-        var key = rankToTierKey(rank);
-        var fallback = null;
-        for (var i = 0; i < tiers.length; i++) {
-            var t = tiers[i];
-            if (!t || !t.rank)
-                continue;
-            if (t.rank === key)
-                return t;
-            if (t.rank === "all")
-                fallback = t;
+        var keys = tierLookupKeysForRank(rank);
+        for (var ki = 0; ki < keys.length; ki++) {
+            for (var i = 0; i < tiers.length; i++) {
+                var t = tiers[i];
+                if (t && t.rank === keys[ki])
+                    return t;
+            }
         }
-        return fallback;
+        return null;
     }
     function spaGiftCardTier(rank) {
         // Map server rank → quests-api SES "tier" enum (cosmetic for the email).
@@ -43004,6 +43280,41 @@ var SatoriCreatorEvents;
                 submitMs: typeof myAnswer.submitMs === "number" ? myAnswer.submitMs : 0,
             });
         }
+        // 5c. Premature-claim guard — the same storageList lag that 5b works
+        // around for the caller ALSO hides other players' answers right after
+        // the event ends. Ranking against that incomplete list hands a rank-1
+        // prize to whoever claims first (real bug: player ranked #2 on the
+        // final leaderboard claimed a #1-tier prize). While inside a short
+        // grace window after the end, require the answer list to cover the
+        // joined participant count; otherwise return the rank-sync error so
+        // the client's pending-retry flow claims again once the list settles.
+        var CLAIM_GRACE_SEC = 120;
+        if (nowSec < endAt + CLAIM_GRACE_SEC) {
+            var participantCount = 0;
+            var pCursor = "";
+            var pPages = 0;
+            do {
+                var pPage;
+                try {
+                    pPage = nk.storageList("", "event_participants", 100, pCursor);
+                }
+                catch (perr) {
+                    logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
+                    break;
+                }
+                var pObjs = (pPage && pPage.objects) || [];
+                for (var pi = 0; pi < pObjs.length; pi++) {
+                    if (pObjs[pi] && pObjs[pi].key === eventId)
+                        participantCount++;
+                }
+                pCursor = (pPage && pPage.cursor) || "";
+                pPages++;
+            } while (pCursor && pPages < 5);
+            if (participantCount > allAnswers.length) {
+                logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (grace window)", userId, eventId, participantCount, allAnswers.length);
+                return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
+            }
+        }
         // 6. Sort: score desc, submit-time asc (ties broken by speed)
         allAnswers.sort(function (a, b) {
             if (a.score !== b.score)
@@ -43020,8 +43331,19 @@ var SatoriCreatorEvents;
         if (myRank === 0) {
             return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
         }
+        // Parse delivery email early — the fulfillment queue record needs it so
+        // the admin voucher pipeline knows where to send the gift card code.
+        var deliveryEmail = "";
+        if (typeof data.email === "string") {
+            var em = data.email.trim();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+                deliveryEmail = em;
+        }
         // 7. Pick tier + compute reward
         var tier = findTierForRank(def.giftCardPrizes && def.giftCardPrizes.tiers, myRank);
+        if (def.giftCardPrizes && def.giftCardPrizes.tiers && def.giftCardPrizes.tiers.length > 0 && !tier) {
+            return RpcHelpers.errorResponse("No prize for rank " + myRank + " — this event only rewards top 10");
+        }
         var xutGranted = 0;
         var giftCard = null;
         if (tier) {
@@ -43057,6 +43379,7 @@ var SatoriCreatorEvents;
                         eventTitle: def.title || "",
                         region: def.region || (def.giftCardPrizes && def.giftCardPrizes.region) || "global",
                         source: "spa_claim",
+                        email: deliveryEmail || "",
                     });
                     logger.info("[CreatorEvent SPA] Gift card queued: user=%s event=%s tier=%s prize=%s", userId, eventId, tier.rank, tier.prize);
                 }
@@ -43078,13 +43401,7 @@ var SatoriCreatorEvents;
         catch (cerr) {
             logger.warn("[CreatorEvent SPA] failed to write claim record: %s", cerr.message || String(cerr));
         }
-        // 9. Best-effort SES email
-        var deliveryEmail = "";
-        if (typeof data.email === "string") {
-            var em = data.email.trim();
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
-                deliveryEmail = em;
-        }
+        // 9. Best-effort SES email (deliveryEmail parsed above, before step 7)
         var deliveryName = "";
         if (typeof data.playerName === "string") {
             deliveryName = data.playerName.trim().slice(0, 120);
@@ -43170,6 +43487,130 @@ var SatoriCreatorEvents;
             email: emailRequested
                 ? { requested: true, sent: emailSent, error: emailError || undefined, to: deliveryEmail }
                 : { requested: false, sent: false },
+        });
+    }
+    // ────────────────────────────────────────────────────────────────────
+    //  Prize fulfillment pipeline (admin / service-to-service)
+    //
+    //  The claim RPCs above queue gift-card wins into the system-owned
+    //  `prize_fulfillments` collection with status "pending". These two
+    //  RPCs let the QuizVerse web admin dashboard (Next.js) consume that
+    //  queue and settle each record after a real voucher is issued via
+    //  Reloadly:
+    //
+    //    creator_event_fulfillments_list   → list queue (filter by status)
+    //    creator_event_fulfillment_settle  → mark fulfilled/failed + mirror
+    //                                        voucher status onto the player's
+    //                                        claim record for the SPA UI
+    //
+    //  Both are gated by NAKAMA_WEBHOOK_SECRET (already in RUNTIME_ENV_KEYS)
+    //  passed as payload.service_token — same pattern as brain_coins settle.
+    // ────────────────────────────────────────────────────────────────────
+    function isFulfillServiceCaller(ctx, data) {
+        var token = data && data.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["NAKAMA_WEBHOOK_SECRET"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    function rpcFulfillmentsList(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isFulfillServiceCaller(ctx, data)) {
+            return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+        }
+        var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+        var limit = Math.min(100, Math.max(1, Number(data.limit) || 100));
+        var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
+        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
+        var rows = [];
+        var objs = (res && res.objects) || [];
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value || {};
+            if (statusFilter && v.status !== statusFilter)
+                continue;
+            rows.push({
+                key: objs[i].key,
+                userId: v.userId || "",
+                eventId: v.eventId || "",
+                eventTitle: v.eventTitle || "",
+                rank: v.rank || 0,
+                giftCard: v.giftCard || null,
+                status: v.status || "pending",
+                region: v.region || "",
+                email: v.email || "",
+                source: v.source || "",
+                queuedAt: v.queuedAt || v.claimedAt || 0,
+                settledAt: v.settledAt || 0,
+                voucher: v.voucher || null,
+                error: v.error || "",
+            });
+        }
+        return RpcHelpers.successResponse({
+            fulfillments: rows,
+            cursor: (res && res.cursor) || "",
+        });
+    }
+    function rpcFulfillmentSettle(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isFulfillServiceCaller(ctx, data)) {
+            return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+        }
+        if (!data.eventId || !data.userId) {
+            return RpcHelpers.errorResponse("eventId and userId required");
+        }
+        var status = data.status === "fulfilled" ? "fulfilled" : (data.status === "failed" ? "failed" : "");
+        if (!status) {
+            return RpcHelpers.errorResponse("status must be 'fulfilled' or 'failed'");
+        }
+        var eventId = String(data.eventId);
+        var targetUserId = String(data.userId);
+        var fKey = eventId + ":" + targetUserId;
+        var rec = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+        if (!rec) {
+            return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+        }
+        var settledAt = Math.floor(Date.now() / 1000);
+        rec.status = status;
+        rec.settledAt = settledAt;
+        if (status === "fulfilled") {
+            // Never store the full card code server-side — it is delivered by email.
+            rec.voucher = {
+                provider: String(data.provider || "reloadly"),
+                orderId: String(data.orderId || ""),
+                deliveredTo: String(data.deliveredTo || rec.email || ""),
+                cardLast4: String(data.cardLast4 || ""),
+                codeDelivered: !!data.codeDelivered,
+            };
+            rec.error = "";
+        }
+        else {
+            rec.error = String(data.error || "fulfillment failed");
+        }
+        Storage.writeSystemJson(nk, "prize_fulfillments", fKey, rec);
+        logger.info("[CreatorEvent] Fulfillment settled: key=%s status=%s order=%s", fKey, status, (rec.voucher && rec.voucher.orderId) || "-");
+        // Mirror onto the player's claim record so the SPA "My Prizes" card can
+        // show "Voucher sent" without another server round-trip.
+        try {
+            var claimKey = "claim_" + eventId;
+            var claim = Storage.readJson(nk, "creator_event_claims", claimKey, targetUserId);
+            if (claim) {
+                claim.voucher = {
+                    status: status,
+                    provider: (rec.voucher && rec.voucher.provider) || "reloadly",
+                    deliveredTo: (rec.voucher && rec.voucher.deliveredTo) || "",
+                    settledAt: settledAt,
+                };
+                Storage.writeJson(nk, "creator_event_claims", claimKey, targetUserId, claim);
+            }
+        }
+        catch (merr) {
+            logger.warn("[CreatorEvent] Failed to mirror voucher onto claim record: %s", merr.message || String(merr));
+        }
+        return RpcHelpers.successResponse({
+            success: true,
+            key: fKey,
+            status: status,
+            settledAt: settledAt,
         });
     }
 })(SatoriCreatorEvents || (SatoriCreatorEvents = {}));
@@ -43813,8 +44254,8 @@ var SatoriMetrics;
 var SatoriRetention;
 (function (SatoriRetention) {
     var PAGE_SIZE = 100;
-    var DEFAULT_PAGES = 150; // 15K event records
-    var MAX_PAGES = 400;
+    var DEFAULT_PAGES = 320; // 32K event records — covers the legacy (oldest-first) key tail
+    var MAX_PAGES = 800;
     var MAX_DAYS = 30;
     function toMs(ts) {
         if (!ts)

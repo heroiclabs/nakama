@@ -394,8 +394,181 @@ namespace LearnerToolbelt {
     mkCollege("freetext-seed:he-ae-002", "freetext", "American University of Sharjah", "Sharjah", "Sharjah", "AE", "ae-private", "en"),
     mkCollege("freetext-seed:he-jp-001", "freetext", "University of Tokyo", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
     mkCollege("freetext-seed:he-jp-002", "freetext", "Kyoto University", "Kyoto", "Kyoto", "JP", "jp-national", "ja"),
+    mkCollege("freetext-seed:he-jp-003", "freetext", "Osaka University", "Osaka", "Osaka", "JP", "jp-national", "ja"),
+    mkCollege("freetext-seed:he-jp-004", "freetext", "Tokyo Institute of Technology", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
     mkCollege("freetext-seed:he-kr-001", "freetext", "Seoul National University", "Seoul", "Seoul", "KR", "kr-national", "ko"),
     mkCollege("freetext-seed:he-kr-002", "freetext", "Korea Advanced Institute of Science and Technology", "Daejeon", "Daejeon", "KR", "kr-national", "ko"),
+    mkCollege("freetext-seed:he-kr-003", "freetext", "Yonsei University", "Seoul", "Seoul", "KR", "kr-private", "ko"),
+    mkCollege("freetext-seed:he-kr-004", "freetext", "Korea University", "Seoul", "Seoul", "KR", "kr-private", "ko"),
+
+    // ── Geo-gap expansion (2026-06): top universities for every remaining
+    // priority geo in the web COUNTRIES dropdown, so the "Colleges" filter
+    // returns real institutions worldwide instead of only 12 countries.
+    // Demo-grade curated rows (same as above) until the Phase-B registry
+    // ingest; source stays "freetext" for non-registry countries.
+    // ── Southeast & South Asia ──
+    mkCollege("freetext-seed:he-id-001", "freetext", "Universitas Indonesia", "Depok", "West Java", "ID", "id-public", "id"),
+    mkCollege("freetext-seed:he-id-002", "freetext", "Institut Teknologi Bandung", "Bandung", "West Java", "ID", "id-public", "id"),
+    mkCollege("freetext-seed:he-id-003", "freetext", "Universitas Gadjah Mada", "Yogyakarta", "Yogyakarta", "ID", "id-public", "id"),
+    mkCollege("freetext-seed:he-id-004", "freetext", "Institut Pertanian Bogor", "Bogor", "West Java", "ID", "id-public", "id"),
+    mkCollege("freetext-seed:he-id-005", "freetext", "Universitas Airlangga", "Surabaya", "East Java", "ID", "id-public", "id"),
+    mkCollege("freetext-seed:he-vn-001", "freetext", "Vietnam National University, Hanoi", "Hanoi", "Hanoi", "VN", "vn-public", "vi"),
+    mkCollege("freetext-seed:he-vn-002", "freetext", "Vietnam National University, Ho Chi Minh City", "Ho Chi Minh City", "Ho Chi Minh", "VN", "vn-public", "vi"),
+    mkCollege("freetext-seed:he-vn-003", "freetext", "Hanoi University of Science and Technology", "Hanoi", "Hanoi", "VN", "vn-public", "vi"),
+    mkCollege("freetext-seed:he-th-001", "freetext", "Chulalongkorn University", "Bangkok", "Bangkok", "TH", "th-public", "th"),
+    mkCollege("freetext-seed:he-th-002", "freetext", "Mahidol University", "Nakhon Pathom", "Bangkok Metro", "TH", "th-public", "th"),
+    mkCollege("freetext-seed:he-th-003", "freetext", "Thammasat University", "Bangkok", "Bangkok", "TH", "th-public", "th"),
+    mkCollege("freetext-seed:he-my-001", "freetext", "University of Malaya", "Kuala Lumpur", "KL", "MY", "my-public", "ms"),
+    mkCollege("freetext-seed:he-my-002", "freetext", "Universiti Kebangsaan Malaysia", "Bangi", "Selangor", "MY", "my-public", "ms"),
+    mkCollege("freetext-seed:he-my-003", "freetext", "Universiti Sains Malaysia", "George Town", "Penang", "MY", "my-public", "ms"),
+    mkCollege("freetext-seed:he-my-004", "freetext", "Universiti Teknologi Malaysia", "Johor Bahru", "Johor", "MY", "my-public", "ms"),
+    mkCollege("freetext-seed:he-ph-001", "freetext", "University of the Philippines Diliman", "Quezon City", "Metro Manila", "PH", "ph-public", "en"),
+    mkCollege("freetext-seed:he-ph-002", "freetext", "Ateneo de Manila University", "Quezon City", "Metro Manila", "PH", "ph-private", "en"),
+    mkCollege("freetext-seed:he-ph-003", "freetext", "De La Salle University", "Manila", "Metro Manila", "PH", "ph-private", "en"),
+    mkCollege("freetext-seed:he-pk-001", "freetext", "Quaid-i-Azam University", "Islamabad", "Islamabad", "PK", "pk-public", "en"),
+    mkCollege("freetext-seed:he-pk-002", "freetext", "Lahore University of Management Sciences", "Lahore", "Punjab", "PK", "pk-private", "en"),
+    mkCollege("freetext-seed:he-pk-003", "freetext", "National University of Sciences and Technology", "Islamabad", "Islamabad", "PK", "pk-public", "en"),
+    mkCollege("freetext-seed:he-pk-004", "freetext", "University of the Punjab", "Lahore", "Punjab", "PK", "pk-public", "en"),
+    mkCollege("freetext-seed:he-bd-001", "freetext", "University of Dhaka", "Dhaka", "Dhaka", "BD", "bd-public", "bn"),
+    mkCollege("freetext-seed:he-bd-002", "freetext", "Bangladesh University of Engineering and Technology", "Dhaka", "Dhaka", "BD", "bd-public", "bn"),
+    mkCollege("freetext-seed:he-bd-003", "freetext", "North South University", "Dhaka", "Dhaka", "BD", "bd-private", "en"),
+    mkCollege("freetext-seed:he-lk-001", "freetext", "University of Colombo", "Colombo", "Western", "LK", "lk-public", "en"),
+    mkCollege("freetext-seed:he-lk-002", "freetext", "University of Peradeniya", "Kandy", "Central", "LK", "lk-public", "en"),
+    mkCollege("freetext-seed:he-np-001", "freetext", "Tribhuvan University", "Kathmandu", "Bagmati", "NP", "np-public", "ne"),
+    // ── East Asia ──
+    mkCollege("freetext-seed:he-cn-001", "freetext", "Tsinghua University", "Beijing", "Beijing", "CN", "cn-c9", "zh"),
+    mkCollege("freetext-seed:he-cn-002", "freetext", "Peking University", "Beijing", "Beijing", "CN", "cn-c9", "zh"),
+    mkCollege("freetext-seed:he-cn-003", "freetext", "Fudan University", "Shanghai", "Shanghai", "CN", "cn-c9", "zh"),
+    mkCollege("freetext-seed:he-cn-004", "freetext", "Shanghai Jiao Tong University", "Shanghai", "Shanghai", "CN", "cn-c9", "zh"),
+    mkCollege("freetext-seed:he-cn-005", "freetext", "Zhejiang University", "Hangzhou", "Zhejiang", "CN", "cn-c9", "zh"),
+    mkCollege("freetext-seed:he-hk-001", "freetext", "University of Hong Kong", "Hong Kong", "HK Island", "HK", "hk-public", "en"),
+    mkCollege("freetext-seed:he-hk-002", "freetext", "Hong Kong University of Science and Technology", "Hong Kong", "Kowloon", "HK", "hk-public", "en"),
+    mkCollege("freetext-seed:he-hk-003", "freetext", "Chinese University of Hong Kong", "Hong Kong", "New Territories", "HK", "hk-public", "en"),
+    mkCollege("freetext-seed:he-tw-001", "freetext", "National Taiwan University", "Taipei", "Taipei", "TW", "tw-public", "zh"),
+    mkCollege("freetext-seed:he-tw-002", "freetext", "National Tsing Hua University", "Hsinchu", "Hsinchu", "TW", "tw-public", "zh"),
+    // ── Europe ──
+    mkCollege("freetext-seed:he-es-001", "freetext", "Universidad Complutense de Madrid", "Madrid", "Madrid", "ES", "es-public", "es"),
+    mkCollege("freetext-seed:he-es-002", "freetext", "Universitat de Barcelona", "Barcelona", "Catalonia", "ES", "es-public", "es"),
+    mkCollege("freetext-seed:he-es-003", "freetext", "Universidad Autónoma de Madrid", "Madrid", "Madrid", "ES", "es-public", "es"),
+    mkCollege("freetext-seed:he-es-004", "freetext", "Universitat Politècnica de Catalunya", "Barcelona", "Catalonia", "ES", "es-public", "es"),
+    mkCollege("freetext-seed:he-it-001", "freetext", "Università di Bologna", "Bologna", "Emilia-Romagna", "IT", "it-public", "it"),
+    mkCollege("freetext-seed:he-it-002", "freetext", "Sapienza Università di Roma", "Rome", "Lazio", "IT", "it-public", "it"),
+    mkCollege("freetext-seed:he-it-003", "freetext", "Politecnico di Milano", "Milan", "Lombardy", "IT", "it-public", "it"),
+    mkCollege("freetext-seed:he-it-004", "freetext", "Università degli Studi di Milano", "Milan", "Lombardy", "IT", "it-public", "it"),
+    mkCollege("freetext-seed:he-nl-001", "freetext", "Delft University of Technology", "Delft", "South Holland", "NL", "nl-public", "en"),
+    mkCollege("freetext-seed:he-nl-002", "freetext", "University of Amsterdam", "Amsterdam", "North Holland", "NL", "nl-public", "en"),
+    mkCollege("freetext-seed:he-nl-003", "freetext", "Utrecht University", "Utrecht", "Utrecht", "NL", "nl-public", "en"),
+    mkCollege("freetext-seed:he-nl-004", "freetext", "Leiden University", "Leiden", "South Holland", "NL", "nl-public", "en"),
+    mkCollege("freetext-seed:he-se-001", "freetext", "KTH Royal Institute of Technology", "Stockholm", "Stockholm", "SE", "se-public", "en"),
+    mkCollege("freetext-seed:he-se-002", "freetext", "Lund University", "Lund", "Skåne", "SE", "se-public", "en"),
+    mkCollege("freetext-seed:he-se-003", "freetext", "Uppsala University", "Uppsala", "Uppsala", "SE", "se-public", "en"),
+    mkCollege("freetext-seed:he-ch-001", "freetext", "ETH Zurich", "Zurich", "Zurich", "CH", "ch-federal", "en"),
+    mkCollege("freetext-seed:he-ch-002", "freetext", "EPFL", "Lausanne", "Vaud", "CH", "ch-federal", "en"),
+    mkCollege("freetext-seed:he-ch-003", "freetext", "University of Zurich", "Zurich", "Zurich", "CH", "ch-public", "de"),
+    mkCollege("freetext-seed:he-ch-004", "freetext", "University of Geneva", "Geneva", "Geneva", "CH", "ch-public", "fr"),
+    mkCollege("freetext-seed:he-at-001", "freetext", "University of Vienna", "Vienna", "Vienna", "AT", "at-public", "de"),
+    mkCollege("freetext-seed:he-at-002", "freetext", "TU Wien", "Vienna", "Vienna", "AT", "at-public", "de"),
+    mkCollege("freetext-seed:he-be-001", "freetext", "KU Leuven", "Leuven", "Flemish Brabant", "BE", "be-public", "nl"),
+    mkCollege("freetext-seed:he-be-002", "freetext", "Ghent University", "Ghent", "East Flanders", "BE", "be-public", "nl"),
+    mkCollege("freetext-seed:he-be-003", "freetext", "UCLouvain", "Louvain-la-Neuve", "Walloon Brabant", "BE", "be-public", "fr"),
+    mkCollege("freetext-seed:he-dk-001", "freetext", "University of Copenhagen", "Copenhagen", "Capital Region", "DK", "dk-public", "en"),
+    mkCollege("freetext-seed:he-dk-002", "freetext", "Technical University of Denmark", "Kongens Lyngby", "Capital Region", "DK", "dk-public", "en"),
+    mkCollege("freetext-seed:he-dk-003", "freetext", "Aarhus University", "Aarhus", "Central Denmark", "DK", "dk-public", "en"),
+    mkCollege("freetext-seed:he-fi-001", "freetext", "University of Helsinki", "Helsinki", "Uusimaa", "FI", "fi-public", "fi"),
+    mkCollege("freetext-seed:he-fi-002", "freetext", "Aalto University", "Espoo", "Uusimaa", "FI", "fi-public", "en"),
+    mkCollege("freetext-seed:he-no-001", "freetext", "University of Oslo", "Oslo", "Oslo", "NO", "no-public", "no"),
+    mkCollege("freetext-seed:he-no-002", "freetext", "Norwegian University of Science and Technology", "Trondheim", "Trøndelag", "NO", "no-public", "no"),
+    mkCollege("freetext-seed:he-pt-001", "freetext", "University of Lisbon", "Lisbon", "Lisbon", "PT", "pt-public", "pt"),
+    mkCollege("freetext-seed:he-pt-002", "freetext", "University of Porto", "Porto", "Porto", "PT", "pt-public", "pt"),
+    mkCollege("freetext-seed:he-gr-001", "freetext", "National and Kapodistrian University of Athens", "Athens", "Attica", "GR", "gr-public", "el"),
+    mkCollege("freetext-seed:he-gr-002", "freetext", "Aristotle University of Thessaloniki", "Thessaloniki", "Central Macedonia", "GR", "gr-public", "el"),
+    mkCollege("freetext-seed:he-pl-001", "freetext", "University of Warsaw", "Warsaw", "Masovia", "PL", "pl-public", "pl"),
+    mkCollege("freetext-seed:he-pl-002", "freetext", "Jagiellonian University", "Kraków", "Lesser Poland", "PL", "pl-public", "pl"),
+    mkCollege("freetext-seed:he-pl-003", "freetext", "Warsaw University of Technology", "Warsaw", "Masovia", "PL", "pl-public", "pl"),
+    mkCollege("freetext-seed:he-cz-001", "freetext", "Charles University", "Prague", "Prague", "CZ", "cz-public", "cs"),
+    mkCollege("freetext-seed:he-cz-002", "freetext", "Czech Technical University in Prague", "Prague", "Prague", "CZ", "cz-public", "cs"),
+    mkCollege("freetext-seed:he-hu-001", "freetext", "Eötvös Loránd University", "Budapest", "Budapest", "HU", "hu-public", "hu"),
+    mkCollege("freetext-seed:he-hu-002", "freetext", "Budapest University of Technology and Economics", "Budapest", "Budapest", "HU", "hu-public", "hu"),
+    mkCollege("freetext-seed:he-ro-001", "freetext", "University of Bucharest", "Bucharest", "Bucharest", "RO", "ro-public", "ro"),
+    mkCollege("freetext-seed:he-ro-002", "freetext", "Babeș-Bolyai University", "Cluj-Napoca", "Cluj", "RO", "ro-public", "ro"),
+    mkCollege("freetext-seed:he-ru-001", "freetext", "Lomonosov Moscow State University", "Moscow", "Moscow", "RU", "ru-public", "ru"),
+    mkCollege("freetext-seed:he-ru-002", "freetext", "Saint Petersburg State University", "Saint Petersburg", "Saint Petersburg", "RU", "ru-public", "ru"),
+    mkCollege("freetext-seed:he-ru-003", "freetext", "Moscow Institute of Physics and Technology", "Dolgoprudny", "Moscow Oblast", "RU", "ru-public", "ru"),
+    mkCollege("freetext-seed:he-ru-004", "freetext", "HSE University", "Moscow", "Moscow", "RU", "ru-public", "ru"),
+    mkCollege("freetext-seed:he-ua-001", "freetext", "Taras Shevchenko National University of Kyiv", "Kyiv", "Kyiv", "UA", "ua-public", "uk"),
+    mkCollege("freetext-seed:he-ua-002", "freetext", "Igor Sikorsky Kyiv Polytechnic Institute", "Kyiv", "Kyiv", "UA", "ua-public", "uk"),
+    mkCollege("freetext-seed:he-ie-001", "freetext", "Trinity College Dublin", "Dublin", "Leinster", "IE", "ie-public", "en"),
+    mkCollege("freetext-seed:he-ie-002", "freetext", "University College Dublin", "Dublin", "Leinster", "IE", "ie-public", "en"),
+    mkCollege("freetext-seed:he-fr-004", "freetext", "Université Paris-Saclay", "Gif-sur-Yvette", "Île-de-France", "FR", "fr-public", "fr"),
+    // ── Middle East & Central Asia ──
+    mkCollege("freetext-seed:he-tr-001", "freetext", "Boğaziçi University", "Istanbul", "Istanbul", "TR", "tr-public", "tr"),
+    mkCollege("freetext-seed:he-tr-002", "freetext", "Middle East Technical University", "Ankara", "Ankara", "TR", "tr-public", "en"),
+    mkCollege("freetext-seed:he-tr-003", "freetext", "Istanbul Technical University", "Istanbul", "Istanbul", "TR", "tr-public", "tr"),
+    mkCollege("freetext-seed:he-tr-004", "freetext", "Koç University", "Istanbul", "Istanbul", "TR", "tr-private", "en"),
+    mkCollege("freetext-seed:he-il-001", "freetext", "Hebrew University of Jerusalem", "Jerusalem", "Jerusalem", "IL", "il-public", "he"),
+    mkCollege("freetext-seed:he-il-002", "freetext", "Technion — Israel Institute of Technology", "Haifa", "Haifa", "IL", "il-public", "he"),
+    mkCollege("freetext-seed:he-il-003", "freetext", "Tel Aviv University", "Tel Aviv", "Tel Aviv", "IL", "il-public", "he"),
+    mkCollege("freetext-seed:he-sa-001", "freetext", "King Saud University", "Riyadh", "Riyadh", "SA", "sa-public", "ar"),
+    mkCollege("freetext-seed:he-sa-002", "freetext", "King Fahd University of Petroleum and Minerals", "Dhahran", "Eastern Province", "SA", "sa-public", "en"),
+    mkCollege("freetext-seed:he-sa-003", "freetext", "King Abdullah University of Science and Technology", "Thuwal", "Makkah", "SA", "sa-public", "en"),
+    mkCollege("freetext-seed:he-qa-001", "freetext", "Qatar University", "Doha", "Doha", "QA", "qa-public", "ar"),
+    mkCollege("freetext-seed:he-kw-001", "freetext", "Kuwait University", "Kuwait City", "Al Asimah", "KW", "kw-public", "ar"),
+    mkCollege("freetext-seed:he-jo-001", "freetext", "University of Jordan", "Amman", "Amman", "JO", "jo-public", "ar"),
+    mkCollege("freetext-seed:he-lb-001", "freetext", "American University of Beirut", "Beirut", "Beirut", "LB", "lb-private", "en"),
+    mkCollege("freetext-seed:he-ae-003", "freetext", "United Arab Emirates University", "Al Ain", "Abu Dhabi", "AE", "ae-public", "en"),
+    mkCollege("freetext-seed:he-ir-001", "freetext", "University of Tehran", "Tehran", "Tehran", "IR", "ir-public", "fa"),
+    mkCollege("freetext-seed:he-ir-002", "freetext", "Sharif University of Technology", "Tehran", "Tehran", "IR", "ir-public", "fa"),
+    mkCollege("freetext-seed:he-iq-001", "freetext", "University of Baghdad", "Baghdad", "Baghdad", "IQ", "iq-public", "ar"),
+    mkCollege("freetext-seed:he-kz-001", "freetext", "Nazarbayev University", "Astana", "Astana", "KZ", "kz-autonomous", "en"),
+    mkCollege("freetext-seed:he-kz-002", "freetext", "Al-Farabi Kazakh National University", "Almaty", "Almaty", "KZ", "kz-public", "kk"),
+    mkCollege("freetext-seed:he-uz-001", "freetext", "National University of Uzbekistan", "Tashkent", "Tashkent", "UZ", "uz-public", "uz"),
+    // ── Africa ──
+    mkCollege("freetext-seed:he-eg-001", "freetext", "Cairo University", "Giza", "Giza", "EG", "eg-public", "ar"),
+    mkCollege("freetext-seed:he-eg-002", "freetext", "American University in Cairo", "New Cairo", "Cairo", "EG", "eg-private", "en"),
+    mkCollege("freetext-seed:he-eg-003", "freetext", "Ain Shams University", "Cairo", "Cairo", "EG", "eg-public", "ar"),
+    mkCollege("freetext-seed:he-ma-001", "freetext", "Mohammed V University", "Rabat", "Rabat-Salé", "MA", "ma-public", "fr"),
+    mkCollege("freetext-seed:he-ma-002", "freetext", "Al Akhawayn University", "Ifrane", "Fès-Meknès", "MA", "ma-private", "en"),
+    mkCollege("freetext-seed:he-tn-001", "freetext", "University of Tunis", "Tunis", "Tunis", "TN", "tn-public", "fr"),
+    mkCollege("freetext-seed:he-dz-001", "freetext", "University of Algiers", "Algiers", "Algiers", "DZ", "dz-public", "fr"),
+    mkCollege("freetext-seed:he-ng-001", "freetext", "University of Lagos", "Lagos", "Lagos", "NG", "ng-public", "en"),
+    mkCollege("freetext-seed:he-ng-002", "freetext", "University of Ibadan", "Ibadan", "Oyo", "NG", "ng-public", "en"),
+    mkCollege("freetext-seed:he-ng-003", "freetext", "Ahmadu Bello University", "Zaria", "Kaduna", "NG", "ng-public", "en"),
+    mkCollege("freetext-seed:he-ng-004", "freetext", "Covenant University", "Ota", "Ogun", "NG", "ng-private", "en"),
+    mkCollege("freetext-seed:he-gh-001", "freetext", "University of Ghana", "Accra", "Greater Accra", "GH", "gh-public", "en"),
+    mkCollege("freetext-seed:he-gh-002", "freetext", "Kwame Nkrumah University of Science and Technology", "Kumasi", "Ashanti", "GH", "gh-public", "en"),
+    mkCollege("freetext-seed:he-ke-001", "freetext", "University of Nairobi", "Nairobi", "Nairobi", "KE", "ke-public", "en"),
+    mkCollege("freetext-seed:he-ke-002", "freetext", "Kenyatta University", "Nairobi", "Nairobi", "KE", "ke-public", "en"),
+    mkCollege("freetext-seed:he-ke-003", "freetext", "Strathmore University", "Nairobi", "Nairobi", "KE", "ke-private", "en"),
+    mkCollege("freetext-seed:he-tz-001", "freetext", "University of Dar es Salaam", "Dar es Salaam", "Dar es Salaam", "TZ", "tz-public", "en"),
+    mkCollege("freetext-seed:he-ug-001", "freetext", "Makerere University", "Kampala", "Central", "UG", "ug-public", "en"),
+    mkCollege("freetext-seed:he-et-001", "freetext", "Addis Ababa University", "Addis Ababa", "Addis Ababa", "ET", "et-public", "en"),
+    mkCollege("freetext-seed:he-za-001", "freetext", "University of Cape Town", "Cape Town", "Western Cape", "ZA", "za-public", "en"),
+    mkCollege("freetext-seed:he-za-002", "freetext", "University of the Witwatersrand", "Johannesburg", "Gauteng", "ZA", "za-public", "en"),
+    mkCollege("freetext-seed:he-za-003", "freetext", "Stellenbosch University", "Stellenbosch", "Western Cape", "ZA", "za-public", "en"),
+    mkCollege("freetext-seed:he-za-004", "freetext", "University of Pretoria", "Pretoria", "Gauteng", "ZA", "za-public", "en"),
+    mkCollege("freetext-seed:he-zw-001", "freetext", "University of Zimbabwe", "Harare", "Harare", "ZW", "zw-public", "en"),
+    mkCollege("freetext-seed:he-zm-001", "freetext", "University of Zambia", "Lusaka", "Lusaka", "ZM", "zm-public", "en"),
+    // ── Americas & Oceania ──
+    mkCollege("freetext-seed:he-mx-001", "freetext", "Universidad Nacional Autónoma de México", "Mexico City", "CDMX", "MX", "mx-public", "es"),
+    mkCollege("freetext-seed:he-mx-002", "freetext", "Tecnológico de Monterrey", "Monterrey", "Nuevo León", "MX", "mx-private", "es"),
+    mkCollege("freetext-seed:he-mx-003", "freetext", "Instituto Politécnico Nacional", "Mexico City", "CDMX", "MX", "mx-public", "es"),
+    mkCollege("freetext-seed:he-mx-004", "freetext", "Universidad de Guadalajara", "Guadalajara", "Jalisco", "MX", "mx-public", "es"),
+    mkCollege("freetext-seed:he-ar-001", "freetext", "Universidad de Buenos Aires", "Buenos Aires", "CABA", "AR", "ar-public", "es"),
+    mkCollege("freetext-seed:he-ar-002", "freetext", "Universidad Nacional de Córdoba", "Córdoba", "Córdoba", "AR", "ar-public", "es"),
+    mkCollege("freetext-seed:he-cl-001", "freetext", "Pontificia Universidad Católica de Chile", "Santiago", "Santiago Metro", "CL", "cl-private", "es"),
+    mkCollege("freetext-seed:he-cl-002", "freetext", "Universidad de Chile", "Santiago", "Santiago Metro", "CL", "cl-public", "es"),
+    mkCollege("freetext-seed:he-co-001", "freetext", "Universidad Nacional de Colombia", "Bogotá", "Bogotá", "CO", "co-public", "es"),
+    mkCollege("freetext-seed:he-co-002", "freetext", "Universidad de los Andes", "Bogotá", "Bogotá", "CO", "co-private", "es"),
+    mkCollege("freetext-seed:he-pe-001", "freetext", "Pontificia Universidad Católica del Perú", "Lima", "Lima", "PE", "pe-private", "es"),
+    mkCollege("freetext-seed:he-pe-002", "freetext", "Universidad Nacional Mayor de San Marcos", "Lima", "Lima", "PE", "pe-public", "es"),
+    mkCollege("freetext-seed:he-uy-001", "freetext", "Universidad de la República", "Montevideo", "Montevideo", "UY", "uy-public", "es"),
+    mkCollege("freetext-seed:he-ec-001", "freetext", "Universidad San Francisco de Quito", "Quito", "Pichincha", "EC", "ec-private", "es"),
+    mkCollege("freetext-seed:he-ve-001", "freetext", "Universidad Central de Venezuela", "Caracas", "Capital District", "VE", "ve-public", "es"),
+    mkCollege("freetext-seed:he-cr-001", "freetext", "Universidad de Costa Rica", "San José", "San José", "CR", "cr-public", "es"),
+    mkCollege("freetext-seed:he-gt-001", "freetext", "Universidad de San Carlos de Guatemala", "Guatemala City", "Guatemala", "GT", "gt-public", "es"),
+    mkCollege("freetext-seed:he-nz-001", "freetext", "University of Auckland", "Auckland", "Auckland", "NZ", "nz-public", "en"),
+    mkCollege("freetext-seed:he-nz-002", "freetext", "University of Otago", "Dunedin", "Otago", "NZ", "nz-public", "en"),
+    mkCollege("freetext-seed:he-nz-003", "freetext", "Victoria University of Wellington", "Wellington", "Wellington", "NZ", "nz-public", "en"),
   ];
 
   // Merge colleges into the single searchable fixture so getSchoolById and
@@ -443,6 +616,26 @@ namespace LearnerToolbelt {
     return out;
   }
 
+  // Strict acronym: first letter of each ≥3-char token, SKIPPING connective
+  // tokens ("of", "de", "the", "and" all have ≤3 chars... we drop ≤2-char
+  // tokens and the 3-char words "the"/"and") — this is how real-world
+  // university acronyms are formed:
+  //   "massachusetts institute of technology"      → "mit"
+  //   "universidad nacional autónoma de méxico"    → "unam"
+  //   "lahore university of management sciences"   → "lums"
+  //   "hong kong university of science and technology" → "hkust"
+  function acronymStrict(normalizedName: string): string {
+    var tokens = normalizedName.split(" ");
+    var out = "";
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (!t || t.length <= 2) continue;
+      if (t === "the" || t === "and") continue;
+      out += t.charAt(0);
+    }
+    return out;
+  }
+
   // Tiny Levenshtein distance — bounded at maxDist so we can early-exit.
   function editDistance(a: string, b: string, maxDist: number): number {
     if (a === b) return 0;
@@ -473,6 +666,9 @@ namespace LearnerToolbelt {
   export function searchSchools(query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[] {
     var q = normalize(query);
     var cc = ("" + (countryCode || "")).toUpperCase();
+    // ISO-3166 says GB; the UK fixture rows (and some legacy callers) say UK.
+    // Treat them as the same country so GB visitors actually see UK schools.
+    if (cc === "GB") cc = "UK";
     var typeFilter = ("" + (institutionType || "")).toLowerCase();
     if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both") typeFilter = "";
     var qTokens = q.split(/\s+/).filter(function (t) { return t.length > 0; });
@@ -485,6 +681,7 @@ namespace LearnerToolbelt {
       if (typeFilter && rec.institution_type !== typeFilter) continue;
       var name = normalize(rec.display_name);
       var acro = acronymOf(name);
+      var acroStrict = acronymStrict(name);
       var score = 0;
 
       if (name === q) {
@@ -493,10 +690,15 @@ namespace LearnerToolbelt {
         score = 800;
       } else if (q.length >= 2 && name.indexOf(q) > 0) {
         score = 500;
-      } else if (qCompact.length >= 3 && (acro === qCompact || acro.indexOf(qCompact) === 0)) {
+      } else if (
+        qCompact.length >= 3 &&
+        (acro === qCompact || acro.indexOf(qCompact) === 0 ||
+         acroStrict === qCompact || acroStrict.indexOf(qCompact) === 0)
+      ) {
         // Acronym match — covers "dpsrkp" → "Delhi Public School RK Puram",
-        // "dps" → all DPS branches, "njc" → "Nanyang JC", etc.
-        score = (acro === qCompact) ? 850 : 600;
+        // "dps" → all DPS branches, "njc" → "Nanyang JC", and via the strict
+        // variant "mit" / "unam" / "lums" / "kaist" / "hkust" / "unsw" etc.
+        score = (acro === qCompact || acroStrict === qCompact) ? 850 : 600;
       } else {
         // Per-token substring or per-token acronym-substring.
         // "DPS RKP" (two tokens) → "dps" is the acronym of "delhi public school"
@@ -507,8 +709,9 @@ namespace LearnerToolbelt {
           var tok = qTokens[t];
           if (tok.length < 2) continue;
           if (name.indexOf(tok) >= 0) { hits2++; continue; }
-          // Acronym slide: any window-of-tok.length over `acro` matches?
-          if (tok.length <= acro.length && acro.indexOf(tok) >= 0) hits2++;
+          // Acronym slide: any window-of-tok.length over either acronym?
+          if (tok.length <= acro.length && acro.indexOf(tok) >= 0) { hits2++; continue; }
+          if (tok.length <= acroStrict.length && acroStrict.indexOf(tok) >= 0) hits2++;
         }
         if (hits2 === qTokens.length && qTokens.length > 0) {
           score = qTokens.length >= 2 ? 700 : 350;

@@ -1192,7 +1192,8 @@ declare namespace LegacyNotifScheduler {
     }
     function nowMinute(): number;
     function shouldDispatch(state: SchedulerState, task: string, periodMin: number): boolean;
-    function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    function tryAcquireDispatchLock(nk: nkruntime.Nakama, taskName: string, periodMin: number): boolean;
+    function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama, periodMin: number): void;
     function matchInitImpl(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _params: {
         [k: string]: string;
     }): {
