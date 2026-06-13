@@ -377,6 +377,11 @@ function InitModule(ctx, logger, nk, initializer) {
         // quiz-verse repo).
         logger.info("[LearnerToolbelt] Registering Learner Toolbelt RPCs (13 RPCs: predict, countdown, GPA, school)...");
         try {
+            // Phase B: ensure the lt_schools table + indexes exist so the School &
+            // College Finder serves the real ~177k-row index (loaded by the
+            // content-factory ETL). Idempotent + non-fatal — search degrades to the
+            // in-memory fixture if this fails.
+            LearnerToolbelt.bootstrapSchoolsTable(nk, logger);
             LearnerToolbelt.register(initializer);
             logger.info("[LearnerToolbelt] lt_score_predict, lt_exam_countdown_{get,set,clear}, lt_exam_calendar_get, lt_gpa_{compute,save,get}, lt_school_{search,get_detail,set_user_school,get_user_school,freetext_submit} registered");
         }
@@ -19230,7 +19235,7 @@ var LearnerToolbelt;
     // ────────────────────────────────────────────────────────────────────────
     // RPC: lt_school_search (Wave 4 — anonymous OK)
     // ────────────────────────────────────────────────────────────────────────
-    function rpcSchoolSearch(_ctx, logger, _nk, payload) {
+    function rpcSchoolSearch(_ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var query = "" + (data.query || "");
@@ -19240,11 +19245,27 @@ var LearnerToolbelt;
             var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
             if (query.length < 2)
                 return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
-            var hits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
+            // Phase B: query the real CockroachDB index first (ingest_schools.py loads
+            // ~177k schools + global colleges). The in-memory fixture is merged in as a
+            // no-regression fallback, so curated landmark institutions always resolve
+            // and an empty/unavailable DB never breaks the tool.
+            var dbHits = LearnerToolbelt.searchSchoolsDB(nk, query, country, limit, institutionType);
+            var hits;
+            var source;
+            if (dbHits.length > 0) {
+                var fixtureHits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
+                hits = LearnerToolbelt.mergeHits(dbHits, fixtureHits, limit);
+                source = "db";
+            }
+            else {
+                hits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
+                source = "fixture";
+            }
             return safeWrap({
                 ok: true, status: hits.length > 0 ? "ok" : "no_results",
                 query: query, country_code: country, locale: locale,
                 institution_type: institutionType,
+                source: source,
                 results: hits,
                 count: hits.length,
                 message: hits.length === 0 ? LearnerToolbelt.i18nString(locale, "school.no_results") : "",
@@ -19258,13 +19279,13 @@ var LearnerToolbelt;
     // ────────────────────────────────────────────────────────────────────────
     // RPC: lt_school_get_detail (Wave 4 — anonymous OK)
     // ────────────────────────────────────────────────────────────────────────
-    function rpcSchoolGetDetail(_ctx, logger, _nk, payload) {
+    function rpcSchoolGetDetail(_ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var schoolId = "" + (data.school_id || "");
             if (!schoolId)
                 return RpcHelpers.errorResponse("school_id required", 400);
-            var rec = LearnerToolbelt.getSchoolById(schoolId);
+            var rec = LearnerToolbelt.getSchoolByIdAny(nk, schoolId);
             if (!rec)
                 return safeWrap({ ok: true, status: "not_found", school_id: schoolId, found: false });
             return safeWrap({ ok: true, status: "ok", found: true, school: rec });
@@ -19286,9 +19307,9 @@ var LearnerToolbelt;
             var schoolId = "" + (data.school_id || "");
             if (!schoolId)
                 return RpcHelpers.errorResponse("school_id required", 400);
-            // Resolve verified-ness — fixture hits are verified; freetext entries
+            // Resolve verified-ness — DB + fixture hits are verified; freetext entries
             // remain provisional until ai-content reviews.
-            var rec = LearnerToolbelt.getSchoolById(schoolId);
+            var rec = LearnerToolbelt.getSchoolByIdAny(nk, schoolId);
             var verified = !!rec;
             var record = {
                 school_id: schoolId,
@@ -21489,6 +21510,231 @@ var LearnerToolbelt;
         return null;
     }
     LearnerToolbelt.getSchoolById = getSchoolById;
+    // ── Phase B: CockroachDB-backed index ──────────────────────────────────────
+    //
+    // The `lt_schools` table (loaded by content-factory/scripts/school_finder/
+    // ingest_schools.py — Hipolabs global colleges + NCES/Urban-Institute US K-12
+    // + GeoNames global schools/colleges, ~177k rows) is the real, comprehensive
+    // index. The fixture above stays as a curated, always-present FALLBACK so the
+    // tool never hard-fails on an empty DB (CI / fresh dev) and famous landmark
+    // institutions (Eton, IIT-B, Stanford…) always resolve even where a public
+    // dataset is sparse. At runtime we query the DB AND the fixture, then merge —
+    // so loading data only ever ADDS coverage, never regresses curated hits.
+    //
+    // Table columns (must match ingest_schools.py COLUMNS):
+    //   school_id, source, display_name, name_norm, acronym, city, state_region,
+    //   country_code, level, board, grade_band, lat, lng, language, popularity
+    // Note: the DB column is `level` ('school'|'college'); the fixture/web field
+    // is `institution_type`. We map level → institution_type on the way out.
+    // Strip SQL LIKE wildcards so user input can never inject a pattern. normalize()
+    // already drops most punctuation; this also removes %, _ and backslash.
+    function stripWildcards(s) {
+        return ("" + (s || "")).replace(/[%_\\]/g, "");
+    }
+    // Idempotent — safe to call on every server boot. Mirrors the find_friends
+    // bootstrapDatabase() pattern: every statement is best-effort and never
+    // crashes the runtime (the RPC degrades to the fixture if the table is
+    // missing). The table is created here AND by the ETL runbook, whichever
+    // runs first.
+    function bootstrapSchoolsTable(nk, logger) {
+        var statements = [
+            {
+                // pg_trgm powers the fast substring index below. Required on PostgreSQL
+                // (prod); CockroachDB ships trigram support natively but accepts this as
+                // a no-op/known statement. Best-effort — the index step degrades to a
+                // btree+seq-scan path if the extension is unavailable.
+                label: "extension pg_trgm",
+                sql: "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+            },
+            {
+                // NOTE: column type is TEXT, not CockroachDB's STRING alias — prod runs
+                // PostgreSQL, which rejects STRING (SQLSTATE 42704). TEXT is valid in
+                // both engines. INT8/FLOAT8 are accepted by both as well.
+                label: "table lt_schools",
+                sql: "CREATE TABLE IF NOT EXISTS lt_schools (" +
+                    "  school_id    TEXT PRIMARY KEY," +
+                    "  source       TEXT NOT NULL," +
+                    "  display_name TEXT NOT NULL," +
+                    "  name_norm    TEXT NOT NULL," +
+                    "  acronym      TEXT," +
+                    "  city         TEXT," +
+                    "  state_region TEXT," +
+                    "  country_code TEXT NOT NULL," +
+                    "  level        TEXT NOT NULL DEFAULT 'school'," +
+                    "  board        TEXT," +
+                    "  grade_band   TEXT," +
+                    "  lat          FLOAT8," +
+                    "  lng          FLOAT8," +
+                    "  language     TEXT," +
+                    "  popularity   INT8 DEFAULT 0" +
+                    ")",
+            },
+            {
+                label: "index idx_lt_schools_country_name",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_country_name ON lt_schools (country_code, name_norm)",
+            },
+            {
+                label: "index idx_lt_schools_country_acro",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_country_acro ON lt_schools (country_code, acronym)",
+            },
+            {
+                label: "index idx_lt_schools_level",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_level ON lt_schools (level)",
+            },
+            {
+                // Trigram GIN index makes `name_norm LIKE '%q%'` substring search fast on
+                // ~177k rows. Needs pg_trgm (created above) on PostgreSQL; native in
+                // CockroachDB v22.2+. Best effort — if unavailable the search still works
+                // via the btree indexes + seq scan.
+                label: "index idx_lt_schools_name_trgm",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_name_trgm ON lt_schools USING GIN (name_norm gin_trgm_ops)",
+            },
+        ];
+        for (var i = 0; i < statements.length; i++) {
+            var stmt = statements[i];
+            try {
+                nk.sqlExec(stmt.sql, []);
+                if (logger && logger.info)
+                    logger.info("[LearnerToolbelt] schools bootstrap OK: " + stmt.label);
+            }
+            catch (e) {
+                var emsg = (e && (e.message || String(e))) || "unknown error";
+                if (logger && logger.warn) {
+                    logger.warn("[LearnerToolbelt] schools bootstrap step '" + stmt.label +
+                        "' failed (non-fatal — search falls back to in-memory fixture): " + emsg);
+                }
+            }
+        }
+    }
+    LearnerToolbelt.bootstrapSchoolsTable = bootstrapSchoolsTable;
+    // DB-backed search. Returns [] on any error / empty table so the caller can
+    // fall back to the fixture. Ranking mirrors the fixture's intent:
+    //   exact 1000 > prefix 800 > acronym-exact 850 > acronym-prefix 600 >
+    //   substring 500 > else 200, then + popularity + country-filter boost.
+    function searchSchoolsDB(nk, query, countryCode, limit, institutionType) {
+        if (!nk || typeof nk.sqlQuery !== "function")
+            return [];
+        var q = stripWildcards(normalize(query));
+        if (!q)
+            return [];
+        var qCompact = q.replace(/\s+/g, "");
+        // Only use the acronym branch for queries of 3+ chars (matches the fixture
+        // and avoids 2-char acronym noise). Empty string disables that branch.
+        var acro = qCompact.length >= 3 ? qCompact : "";
+        var cc = ("" + (countryCode || "")).toUpperCase();
+        var typeFilter = ("" + (institutionType || "")).toLowerCase();
+        if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both")
+            typeFilter = "";
+        var sql = "SELECT school_id, display_name, city, state_region, country_code, board, source, level, " +
+            "  ( CASE " +
+            "      WHEN name_norm = $1 THEN 1000 " +
+            "      WHEN name_norm LIKE $1 || '%' THEN 800 " +
+            "      WHEN $5 <> '' AND acronym = $5 THEN 850 " +
+            "      WHEN $5 <> '' AND acronym LIKE $5 || '%' THEN 600 " +
+            "      WHEN strpos(name_norm, $1) > 0 THEN 500 " +
+            "      ELSE 200 END " +
+            "    + COALESCE(popularity, 0) " +
+            "    + CASE WHEN $2 <> '' THEN 50 ELSE 0 END ) AS score " +
+            "FROM lt_schools " +
+            "WHERE ($2 = '' OR country_code = $2) " +
+            "  AND ($4 = '' OR level = $4) " +
+            "  AND ( name_norm LIKE '%' || $1 || '%' " +
+            "        OR ($5 <> '' AND acronym LIKE $5 || '%') ) " +
+            "ORDER BY score DESC, COALESCE(popularity, 0) DESC, display_name ASC " +
+            "LIMIT $3";
+        var rows;
+        try {
+            rows = nk.sqlQuery(sql, [q, cc, limit, typeFilter, acro]);
+        }
+        catch (e) {
+            return [];
+        }
+        if (!rows || !rows.length)
+            return [];
+        var hits = [];
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            hits.push({
+                school_id: "" + r.school_id,
+                display_name: "" + r.display_name,
+                city: r.city ? "" + r.city : "",
+                state_region: r.state_region ? "" + r.state_region : "",
+                country_code: ("" + (r.country_code || "")).toUpperCase(),
+                board: r.board ? "" + r.board : null,
+                source: r.source ? "" + r.source : "db",
+                institution_type: r.level ? "" + r.level : "school",
+                score: parseInt("" + r.score, 10) || 0,
+            });
+        }
+        return hits;
+    }
+    LearnerToolbelt.searchSchoolsDB = searchSchoolsDB;
+    // Merge DB hits with fixture hits, dedupe by normalized (name + country),
+    // keep the higher score, re-sort, cap at limit. Guarantees curated landmark
+    // institutions survive even after the DB is loaded.
+    function mergeHits(primary, secondary, limit) {
+        var byKey = {};
+        var merged = [];
+        function add(h) {
+            var key = normalize(h.display_name) + "|" + ("" + (h.country_code || "")).toUpperCase();
+            var existing = byKey[key];
+            if (existing) {
+                if (h.score > existing.score)
+                    existing.score = h.score;
+                return;
+            }
+            byKey[key] = h;
+            merged.push(h);
+        }
+        for (var i = 0; i < primary.length; i++)
+            add(primary[i]);
+        for (var j = 0; j < secondary.length; j++)
+            add(secondary[j]);
+        merged.sort(function (a, b) { return b.score - a.score; });
+        if (merged.length > limit)
+            merged = merged.slice(0, limit);
+        return merged;
+    }
+    LearnerToolbelt.mergeHits = mergeHits;
+    function getSchoolByIdDB(nk, schoolId) {
+        if (!nk || typeof nk.sqlQuery !== "function")
+            return null;
+        try {
+            var rows = nk.sqlQuery("SELECT school_id, source, display_name, city, state_region, country_code, " +
+                "       board, grade_band, lat, lng, language, level " +
+                "FROM lt_schools WHERE school_id = $1 LIMIT 1", [schoolId]);
+            if (rows && rows.length) {
+                var r = rows[0];
+                return {
+                    school_id: "" + r.school_id,
+                    source: "" + (r.source || "db"),
+                    display_name: "" + r.display_name,
+                    city: r.city ? "" + r.city : "",
+                    state_region: r.state_region ? "" + r.state_region : "",
+                    country_code: ("" + (r.country_code || "")).toUpperCase(),
+                    board: r.board ? "" + r.board : null,
+                    grade_band: r.grade_band ? "" + r.grade_band : "",
+                    lat: (r.lat !== null && r.lat !== undefined && r.lat !== "") ? parseFloat("" + r.lat) : null,
+                    lng: (r.lng !== null && r.lng !== undefined && r.lng !== "") ? parseFloat("" + r.lng) : null,
+                    language_of_instruction: r.language ? "" + r.language : null,
+                    institution_type: r.level ? "" + r.level : "school",
+                };
+            }
+        }
+        catch (e) {
+            return null;
+        }
+        return null;
+    }
+    LearnerToolbelt.getSchoolByIdDB = getSchoolByIdDB;
+    // DB-first detail lookup with fixture fallback.
+    function getSchoolByIdAny(nk, schoolId) {
+        var rec = getSchoolByIdDB(nk, schoolId);
+        if (rec)
+            return rec;
+        return getSchoolById(schoolId);
+    }
+    LearnerToolbelt.getSchoolByIdAny = getSchoolByIdAny;
 })(LearnerToolbelt || (LearnerToolbelt = {}));
 // per-exam-config.ts
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24911,6 +25157,39 @@ var LegacyPush;
         }
         return { kept: kept, dropped: dropped };
     }
+    // Collapse a user's token list to ONE deliverable endpoint per platform —
+    // the most recently updated one. Root-cause of the "two notifications
+    // continuously" bug: a device that reinstalls or refreshes its FCM/APNs
+    // token gets a NEW SNS endpoint ARN, while the OLD endpoint stays enabled
+    // for a while. Both ARNs then deliver to the SAME physical device, so a
+    // single daily-quiz send fires the push twice (or more). Audit on prod
+    // (2026-06-13) found 94 users with multiple ARNs and ALL 94 were on the
+    // same platform (0 genuine cross-platform multi-device) — i.e. every one
+    // was a stale-token duplicate. Keeping only the newest endpoint per
+    // platform dedups same-device reinstalls to a single push while still
+    // delivering to a real iOS + Android pair (one survivor per platform).
+    function dedupeTokensByPlatform(tokens) {
+        if (!tokens || tokens.length === 0)
+            return [];
+        var byPlatform = {};
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (!t || typeof t.endpointArn !== "string" || t.endpointArn.length === 0)
+                continue;
+            var plat = platformFromArn(t.endpointArn) || normalizePlatform(t.platform);
+            var prev = byPlatform[plat];
+            var tUpd = typeof t.updatedAt === "number" ? t.updatedAt : 0;
+            var pUpd = prev && typeof prev.updatedAt === "number" ? prev.updatedAt : 0;
+            if (!prev || tUpd >= pUpd)
+                byPlatform[plat] = t;
+        }
+        var out = [];
+        for (var k in byPlatform) {
+            if (Object.prototype.hasOwnProperty.call(byPlatform, k))
+                out.push(byPlatform[k]);
+        }
+        return out;
+    }
     // Native APNs tokens are hex-encoded (64 or 160 chars). Anything else —
     // notably the `<id>:APA91b...`-shaped strings that Firebase Messaging
     // returns even on iOS — is an FCM token and MUST be routed to the GCM
@@ -25284,9 +25563,13 @@ var LegacyPush;
                 }
                 logger.info("[Push] push_send_event: endpoints=[%s]", platforms.join(", "));
             }
+            // Dedup to one endpoint per platform (newest) so a device with stale +
+            // fresh SNS endpoints does not receive the same push twice. Same
+            // root-cause fix as the daily-quiz cron path. See dedupeTokensByPlatform.
+            var deliverableTokens = dedupeTokensByPlatform(tokensData.tokens);
             var providerResults = [];
-            for (var i = 0; i < tokensData.tokens.length; i++) {
-                var t = tokensData.tokens[i];
+            for (var i = 0; i < deliverableTokens.length; i++) {
+                var t = deliverableTokens[i];
                 var providerResult = sendProviderPush(ctx, logger, nk, t, {
                     title: title,
                     body: body,
@@ -25721,9 +26004,16 @@ var LegacyPush;
                     mergedData[k] = opts.data[k];
             }
         }
+        // Dedup to one endpoint per platform (newest). Without this, users who
+        // reinstalled or refreshed their FCM token carry multiple SNS endpoint
+        // ARNs that all still reach the same device → the daily-quiz push lands
+        // 2+ times ("two notifications continuously"). See dedupeTokensByPlatform.
+        var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+        if (deliverable.length === 0)
+            return false;
         var sent = 0;
-        for (var i = 0; i < tokensData.tokens.length; i++) {
-            var t = tokensData.tokens[i];
+        for (var i = 0; i < deliverable.length; i++) {
+            var t = deliverable[i];
             var providerResult = sendProviderPush(ctx, logger, nk, t, {
                 title: title, body: body, data: mergedData,
                 gameId: opts.gameId || "quizverse", eventType: eventType
@@ -49038,6 +49328,9 @@ var TournamentRpcs;
             state: state || null,
             eligible: !!userId && countryAllowed && !stateBlocked && !ageBlocked,
             age_blocked: ageBlocked,
+            // Distinguishes "no verified DOB yet → show Verify-your-age CTA" from
+            // "verified DOB on file but under min_age → hard block".
+            dob_on_file: !!ageInfo.dob_iso,
             state_blocked: stateBlocked,
             country_blocked: !countryAllowed,
             entered: !!entry,
@@ -49047,6 +49340,55 @@ var TournamentRpcs;
             balance_bc: balance.balance,
             served_at: nowSec(),
         });
+    }
+    // ── RPC: kyc_profile_sync (service-only) ────────────────────────────────────
+    // Called by quests-economy when a Veriff/Didit KYC verification is approved.
+    // Writes the ID-verified date of birth into the user's account metadata —
+    // the single source the tournament age gate (readUserDob) reads from.
+    // Clients can never call this directly: account metadata is only writable
+    // server-side, and the RPC additionally requires the shared service token.
+    function rpcKycProfileSync(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var userId = "" + (data.user_id || "");
+        var dobIso = "" + (data.dob_iso || "");
+        var provider = "" + (data.kyc_provider || "unknown");
+        if (!userId)
+            return RpcHelpers.errorResponse("user_id required", 400);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dobIso))
+            return RpcHelpers.errorResponse("dob_iso must be YYYY-MM-DD", 400);
+        var dob = new Date(dobIso + "T00:00:00Z");
+        var now = new Date();
+        if (isNaN(dob.getTime()))
+            return RpcHelpers.errorResponse("dob_iso is not a valid date", 400);
+        if (dob.getTime() > now.getTime())
+            return RpcHelpers.errorResponse("dob_iso cannot be in the future", 400);
+        if (dob.getUTCFullYear() < now.getUTCFullYear() - 120)
+            return RpcHelpers.errorResponse("dob_iso is implausibly old", 400);
+        var metadata = {};
+        try {
+            var accounts = nk.accountsGetId([userId]);
+            if (!accounts || accounts.length === 0)
+                return RpcHelpers.errorResponse("account not found", 404);
+            metadata = accounts[0].user.metadata || {};
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("account lookup failed", 404);
+        }
+        metadata["dob_iso"] = dobIso;
+        metadata["kyc_verified"] = true;
+        metadata["kyc_provider"] = provider;
+        metadata["kyc_verified_at"] = nowSec();
+        try {
+            nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
+        }
+        catch (e) {
+            logger.error("kyc_profile_sync: accountUpdateId failed for %s: %s", userId, e.message);
+            return RpcHelpers.errorResponse("metadata update failed", 500);
+        }
+        logger.info("kyc_profile_sync: dob set for user %s via %s", userId, provider);
+        return RpcHelpers.successResponse({ ok: true, user_id: userId, dob_iso: dobIso, kyc_provider: provider });
     }
     // ── RPC: tournament_bracket_seed_topN (service-only) ────────────────────────
     // Pushes the top-N entrants from the qualifier leaderboard into the Bracket
@@ -49922,6 +50264,7 @@ var TournamentRpcs;
         initializer.registerRpc("tournament_list", rpcList);
         initializer.registerRpc("tournament_get", rpcGet);
         initializer.registerRpc("tournament_caller_status", rpcCallerStatus);
+        initializer.registerRpc("kyc_profile_sync", rpcKycProfileSync);
         initializer.registerRpc("tournament_bracket_state", rpcBracketState);
         initializer.registerRpc("tournament_pre_enroll", auth(rpcPreEnroll));
         initializer.registerRpc("tournament_enter", auth(rpcEnter));

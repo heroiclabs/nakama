@@ -113,6 +113,36 @@ namespace LegacyPush {
     return { kept: kept, dropped: dropped };
   }
 
+  // Collapse a user's token list to ONE deliverable endpoint per platform —
+  // the most recently updated one. Root-cause of the "two notifications
+  // continuously" bug: a device that reinstalls or refreshes its FCM/APNs
+  // token gets a NEW SNS endpoint ARN, while the OLD endpoint stays enabled
+  // for a while. Both ARNs then deliver to the SAME physical device, so a
+  // single daily-quiz send fires the push twice (or more). Audit on prod
+  // (2026-06-13) found 94 users with multiple ARNs and ALL 94 were on the
+  // same platform (0 genuine cross-platform multi-device) — i.e. every one
+  // was a stale-token duplicate. Keeping only the newest endpoint per
+  // platform dedups same-device reinstalls to a single push while still
+  // delivering to a real iOS + Android pair (one survivor per platform).
+  function dedupeTokensByPlatform(tokens: any[]): any[] {
+    if (!tokens || tokens.length === 0) return [];
+    var byPlatform: { [p: string]: any } = {};
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (!t || typeof t.endpointArn !== "string" || t.endpointArn.length === 0) continue;
+      var plat = platformFromArn(t.endpointArn) || normalizePlatform(t.platform);
+      var prev = byPlatform[plat];
+      var tUpd = typeof t.updatedAt === "number" ? t.updatedAt : 0;
+      var pUpd = prev && typeof prev.updatedAt === "number" ? prev.updatedAt : 0;
+      if (!prev || tUpd >= pUpd) byPlatform[plat] = t;
+    }
+    var out: any[] = [];
+    for (var k in byPlatform) {
+      if (Object.prototype.hasOwnProperty.call(byPlatform, k)) out.push(byPlatform[k]);
+    }
+    return out;
+  }
+
   // Native APNs tokens are hex-encoded (64 or 160 chars). Anything else —
   // notably the `<id>:APA91b...`-shaped strings that Firebase Messaging
   // returns even on iOS — is an FCM token and MUST be routed to the GCM
@@ -501,9 +531,13 @@ namespace LegacyPush {
         }
         logger.info("[Push] push_send_event: endpoints=[%s]", platforms.join(", "));
       }
+      // Dedup to one endpoint per platform (newest) so a device with stale +
+      // fresh SNS endpoints does not receive the same push twice. Same
+      // root-cause fix as the daily-quiz cron path. See dedupeTokensByPlatform.
+      var deliverableTokens = dedupeTokensByPlatform(tokensData.tokens);
       var providerResults: any[] = [];
-      for (var i = 0; i < tokensData.tokens.length; i++) {
-        var t: any = tokensData.tokens[i];
+      for (var i = 0; i < deliverableTokens.length; i++) {
+        var t: any = deliverableTokens[i];
         var providerResult = sendProviderPush(ctx, logger, nk, t, {
           title: title,
           body: body,
@@ -937,9 +971,16 @@ namespace LegacyPush {
       }
     }
 
+    // Dedup to one endpoint per platform (newest). Without this, users who
+    // reinstalled or refreshed their FCM token carry multiple SNS endpoint
+    // ARNs that all still reach the same device → the daily-quiz push lands
+    // 2+ times ("two notifications continuously"). See dedupeTokensByPlatform.
+    var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+    if (deliverable.length === 0) return false;
+
     var sent = 0;
-    for (var i = 0; i < tokensData.tokens.length; i++) {
-      var t: any = tokensData.tokens[i];
+    for (var i = 0; i < deliverable.length; i++) {
+      var t: any = deliverable[i];
       var providerResult = sendProviderPush(ctx, logger, nk, t, {
         title: title, body: body, data: mergedData,
         gameId: opts.gameId || "quizverse", eventType: eventType

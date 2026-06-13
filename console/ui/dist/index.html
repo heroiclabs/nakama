@@ -207,6 +207,23 @@
 
         window.__ivxAnalytics = { show: showAnalyticsFrame, hide: hideAnalyticsFrame };
       })();
+      
+      // Listen for iframe auto-login (postMessage from parent wrapper when embedded)
+      (function() {
+        window.addEventListener("message", function(event) {
+          if (event.data?.type === "IVX_NAKAMA_CONSOLE_SESSION" && event.data?.token) {
+            try {
+              localStorage.setItem("SESSION_TOKENS", JSON.stringify({
+                accessToken: event.data.token,
+                refreshToken: null
+              }));
+              console.log("[nakama-console] auto-login: session token stored");
+              // Refresh page to load with new session
+              setTimeout(function() { window.location.reload(); }, 100);
+            } catch(e) { console.error("[nakama-console] auto-login failed:", e); }
+          }
+        });
+      })();
     </script>
   </head>
   <body>

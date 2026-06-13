@@ -1403,7 +1403,7 @@ namespace LearnerToolbelt {
   // ────────────────────────────────────────────────────────────────────────
   // RPC: lt_school_search (Wave 4 — anonymous OK)
   // ────────────────────────────────────────────────────────────────────────
-  function rpcSchoolSearch(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, payload: string): string {
+  function rpcSchoolSearch(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     try {
       var data = RpcHelpers.parseRpcPayload(payload);
       var query = "" + (data.query || "");
@@ -1413,11 +1413,27 @@ namespace LearnerToolbelt {
       var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
       if (query.length < 2) return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
 
-      var hits = searchSchools(query, country, limit, institutionType);
+      // Phase B: query the real CockroachDB index first (ingest_schools.py loads
+      // ~177k schools + global colleges). The in-memory fixture is merged in as a
+      // no-regression fallback, so curated landmark institutions always resolve
+      // and an empty/unavailable DB never breaks the tool.
+      var dbHits = searchSchoolsDB(nk, query, country, limit, institutionType);
+      var hits: SchoolSearchHit[];
+      var source: string;
+      if (dbHits.length > 0) {
+        var fixtureHits = searchSchools(query, country, limit, institutionType);
+        hits = mergeHits(dbHits, fixtureHits, limit);
+        source = "db";
+      } else {
+        hits = searchSchools(query, country, limit, institutionType);
+        source = "fixture";
+      }
+
       return safeWrap({
         ok: true, status: hits.length > 0 ? "ok" : "no_results",
         query: query, country_code: country, locale: locale,
         institution_type: institutionType,
+        source: source,
         results: hits,
         count: hits.length,
         message: hits.length === 0 ? i18nString(locale, "school.no_results") : "",
@@ -1431,12 +1447,12 @@ namespace LearnerToolbelt {
   // ────────────────────────────────────────────────────────────────────────
   // RPC: lt_school_get_detail (Wave 4 — anonymous OK)
   // ────────────────────────────────────────────────────────────────────────
-  function rpcSchoolGetDetail(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, payload: string): string {
+  function rpcSchoolGetDetail(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     try {
       var data = RpcHelpers.parseRpcPayload(payload);
       var schoolId = "" + (data.school_id || "");
       if (!schoolId) return RpcHelpers.errorResponse("school_id required", 400);
-      var rec = getSchoolById(schoolId);
+      var rec = getSchoolByIdAny(nk, schoolId);
       if (!rec) return safeWrap({ ok: true, status: "not_found", school_id: schoolId, found: false });
       return safeWrap({ ok: true, status: "ok", found: true, school: rec });
     } catch (err: any) {
@@ -1457,9 +1473,9 @@ namespace LearnerToolbelt {
       var schoolId = "" + (data.school_id || "");
       if (!schoolId) return RpcHelpers.errorResponse("school_id required", 400);
 
-      // Resolve verified-ness — fixture hits are verified; freetext entries
+      // Resolve verified-ness — DB + fixture hits are verified; freetext entries
       // remain provisional until ai-content reviews.
-      var rec = getSchoolById(schoolId);
+      var rec = getSchoolByIdAny(nk, schoolId);
       var verified = !!rec;
       var record: UserSchoolRecord = {
         school_id: schoolId,
