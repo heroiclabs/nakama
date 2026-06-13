@@ -7,6 +7,16 @@ declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logg
 // stub-shadowing bug, see legacy_runtime.js comment).
 declare var __TS_OWNED_RPCS: { [id: string]: boolean } | undefined;
 
+// Group membership cross-device sync after-hooks. Defined as global-scope
+// functions in data/modules/groups/groups.js (a discovered module → hoisted to
+// the VM global object). They MUST be registered from here rather than from
+// groups.js's own InitModule: postbuild.js renames discovered-module InitModule
+// functions to __ModuleInit_N and never calls them, and its AST bridge only
+// forwards registerRpc / registerMatch — registerAfterJoinGroup /
+// registerAfterLeaveGroup calls placed there would be silently dropped.
+declare function groupAfterJoinHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.JoinGroupRequest): void;
+declare function groupAfterLeaveHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.LeaveGroupRequest): void;
+
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
   logger.info("========================================");
   logger.info("IntelliVerse-X Nakama Runtime v2.0");
@@ -244,6 +254,29 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
     logger.info("[Legacy] Registering groups RPCs...");
     LegacyGroups.register(initializer);
+
+    // ── Group membership cross-device sync hooks ──────────────────────────
+    // After a successful built-in JoinGroup / LeaveGroup, send the acting user
+    // a self-notification (code 500 / 501) so ALL of their open sockets — i.e.
+    // their other devices — refresh "My Groups" in real time. Without this,
+    // only the device that performed the action knows the membership changed.
+    // Handlers live in data/modules/groups/groups.js (global scope).
+    try {
+      if (typeof groupAfterJoinHook === "function") {
+        initializer.registerAfterJoinGroup(groupAfterJoinHook);
+        logger.info("[Groups] registerAfterJoinGroup hook installed (cross-device sync, code 500)");
+      } else {
+        logger.warn("[Groups] groupAfterJoinHook not found — cross-device join sync disabled");
+      }
+      if (typeof groupAfterLeaveHook === "function") {
+        initializer.registerAfterLeaveGroup(groupAfterLeaveHook);
+        logger.info("[Groups] registerAfterLeaveGroup hook installed (cross-device sync, code 501)");
+      } else {
+        logger.warn("[Groups] groupAfterLeaveHook not found — cross-device leave sync disabled");
+      }
+    } catch (err: any) {
+      logger.error("[Groups] Failed to install group membership sync hooks: " + (err && err.message ? err.message : String(err)));
+    }
 
     logger.info("[Legacy] Registering push RPCs...");
     LegacyPush.register(initializer);

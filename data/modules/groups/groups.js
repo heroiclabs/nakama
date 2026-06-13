@@ -1079,10 +1079,159 @@ function generateActivityId() {
     }) + '_' + d.toString(36);
 }
 
+// ============================================================================
+// Group membership cross-device sync notifications
+// ----------------------------------------------------------------------------
+// Nakama's built-in JoinGroup / LeaveGroup RPCs change membership on the server
+// but only the *device that performed the action* finds out (the Unity client
+// fires GroupsNakamaService.OnGroupJoined/OnGroupLeft locally). A second device
+// signed into the SAME account never learns its "My Groups" list changed until
+// the next manual refresh / OnEnable.
+//
+// To close that gap we register registerAfterJoinGroup / registerAfterLeaveGroup
+// hooks (see src/main.ts) that send the acting user a *self-notification*. Every
+// socket the user has open — including their other devices — receives it in
+// real time via the standard notification stream, and the client refreshes its
+// group list.
+//
+// Numeric code range for group notifications: 500-599 (friends own 1-499,
+// satori live events 1001, hermes 1101, push default 7001 — all avoided).
+// ============================================================================
+
+var GROUP_NOTIF_CODE = {
+    GROUP_JOINED: 500, // user (this account) joined a group — refresh My Groups
+    GROUP_LEFT:   501  // user (this account) left a group — refresh My Groups
+};
+
+var GROUP_NOTIF_SUBJECT = {
+    GROUP_JOINED: 'group_joined',
+    GROUP_LEFT:   'group_left'
+};
+
+var GROUP_NOTIF_TITLE = {
+    GROUP_JOINED: 'Group Joined',
+    GROUP_LEFT:   'Group Left'
+};
+
+/**
+ * Send a single group membership sync notification to a user.
+ * Self-targeted (sender === recipient) so it fans out to all of that user's
+ * open sockets / devices. Non-persistent: this is a live sync signal, not an
+ * inbox item, so it must never accumulate in the notification list.
+ *
+ * Never throws — a notification failure must not roll back the membership
+ * change that already succeeded on the server.
+ *
+ * @param {nkruntime.Nakama} nk
+ * @param {nkruntime.Logger} logger
+ * @param {string} subjectKey  one of GROUP_NOTIF_SUBJECT keys ("GROUP_JOINED" | "GROUP_LEFT")
+ * @param {string} userId      recipient (== acting user)
+ * @param {string} groupId
+ * @param {object} extra        optional extra fields merged into content
+ */
+function sendGroupSyncNotification(nk, logger, subjectKey, userId, groupId, extra) {
+    try {
+        if (!GROUP_NOTIF_SUBJECT.hasOwnProperty(subjectKey)) {
+            return false;
+        }
+        if (!userId || !groupId) {
+            return false;
+        }
+
+        var subject = GROUP_NOTIF_SUBJECT[subjectKey];
+        var code    = GROUP_NOTIF_CODE[subjectKey];
+        var title   = GROUP_NOTIF_TITLE[subjectKey];
+
+        var content = {
+            type:    subject,
+            title:   title,
+            code:    code,
+            groupId: groupId
+        };
+        if (extra) {
+            for (var k in extra) {
+                if (Object.prototype.hasOwnProperty.call(extra, k)) {
+                    content[k] = extra[k];
+                }
+            }
+        }
+
+        nk.notificationsSend([{
+            userId:     userId,
+            subject:    subject,
+            content:    content,
+            code:       code,
+            // Self-notification: the recipient IS the sender. Fans out to every
+            // socket the account has open (their other devices).
+            sender:     userId,
+            // Non-persistent: pure live-sync signal, not an inbox row.
+            persistent: false
+        }]);
+
+        return true;
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn('[Groups] sendGroupSyncNotification(' + subjectKey + ') failed for ' +
+                userId + '/' + groupId + ': ' + (err && err.message ? err.message : String(err)));
+        }
+        return false;
+    }
+}
+
+/**
+ * After-hook for Nakama's built-in JoinGroup RPC.
+ * Registered from src/main.ts via initializer.registerAfterJoinGroup(...).
+ * Fires only after a successful join, so we can unconditionally notify.
+ *
+ * Signature matches nkruntime.AfterHookFunction<void, JoinGroupRequest>:
+ *   (ctx, logger, nk, data, request)
+ * `request.groupId` is the joined group; `ctx.userId` is the acting account.
+ */
+function groupAfterJoinHook(ctx, logger, nk, data, request) {
+    try {
+        var userId  = ctx && ctx.userId;
+        var groupId = request && request.groupId;
+        if (!userId || !groupId) return;
+        sendGroupSyncNotification(nk, logger, 'GROUP_JOINED', userId, groupId);
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn('[Groups] groupAfterJoinHook failed: ' +
+                (err && err.message ? err.message : String(err)));
+        }
+    }
+}
+
+/**
+ * After-hook for Nakama's built-in LeaveGroup RPC.
+ * Registered from src/main.ts via initializer.registerAfterLeaveGroup(...).
+ *
+ * Signature matches nkruntime.AfterHookFunction<void, LeaveGroupRequest>.
+ */
+function groupAfterLeaveHook(ctx, logger, nk, data, request) {
+    try {
+        var userId  = ctx && ctx.userId;
+        var groupId = request && request.groupId;
+        if (!userId || !groupId) return;
+        sendGroupSyncNotification(nk, logger, 'GROUP_LEFT', userId, groupId);
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn('[Groups] groupAfterLeaveHook failed: ' +
+                (err && err.message ? err.message : String(err)));
+        }
+    }
+}
+
 /**
  * InitModule — registers the two RPCs that have no legacy_runtime counterpart.
  * postbuild.js renames this to __ModuleInit_N and emits the calls verbatim
  * into its generated InitModule wrapper, so Nakama's AST walker sees them.
+ *
+ * NOTE: the registerAfterJoinGroup / registerAfterLeaveGroup hooks for the
+ * membership sync notifications are NOT registered here — postbuild renames
+ * this function to __ModuleInit_N and never calls it, and its AST bridge only
+ * forwards registerRpc / registerMatch calls. The hooks are therefore wired up
+ * in src/main.ts (the TS __OriginalInitModule, which IS executed) pointing at
+ * the global groupAfterJoinHook / groupAfterLeaveHook functions above.
  */
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("get_group_details", rpcGetGroupDetails);
