@@ -1108,6 +1108,11 @@ declare namespace LearnerToolbelt {
     }
     function searchSchools(query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[];
     function getSchoolById(schoolId: string): SchoolRecord | null;
+    function bootstrapSchoolsTable(nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+    function searchSchoolsDB(nk: nkruntime.Nakama, query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[];
+    function mergeHits(primary: SchoolSearchHit[], secondary: SchoolSearchHit[], limit: number): SchoolSearchHit[];
+    function getSchoolByIdDB(nk: nkruntime.Nakama, schoolId: string): SchoolRecord | null;
+    function getSchoolByIdAny(nk: nkruntime.Nakama, schoolId: string): SchoolRecord | null;
 }
 declare namespace PerExamConfig {
     type PredictorMethod = 'irt-2pl' | 'concordance' | 'ap-composite' | 'irt-section-adaptive' | 'irt-focus-edition' | 'percentile-4section' | 'raw-to-scaled-120-180' | 'cutoff-band' | 'mbe-mee-mpt-composite' | 'nta-percentile-to-air' | 'marks-vs-rank-curve' | 'section-percentile-to-oa' | 'gate-score-formula' | 'prelims-cutoff-band' | 'marks-to-nlu-rank' | 'nta-percentile-multisubject' | 'written-cutoff-only' | 'tier-1-2-composite' | 'phase-1-2-cutoff' | 'bayes-fallback' | 'uk-boundary';
