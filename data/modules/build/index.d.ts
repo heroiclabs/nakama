@@ -2,6 +2,8 @@ declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logg
 declare var __TS_OWNED_RPCS: {
     [id: string]: boolean;
 } | undefined;
+declare function groupAfterJoinHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.JoinGroupRequest): void;
+declare function groupAfterLeaveHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.LeaveGroupRequest): void;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 declare namespace AiPipelines {
     function register(initializer: nkruntime.Initializer): void;
@@ -638,6 +640,9 @@ declare namespace IntelliverseFriends {
      *     because they reference `gin_trgm_ops`. Same degradation path.
      */
     function bootstrapDatabase(nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace IntelliverseNearbyPlayers {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace IntelliverseFriendsList {
@@ -3589,6 +3594,27 @@ declare namespace GeoTier {
      * Returns the tier string (t1/t2/t3). Uses cache, never blocks on API.
      */
     function getUserTier(nk: nkruntime.Nakama, userId: string): string;
+    /**
+     * Returns the user's cached ISO-3166 alpha-2 country code (e.g. "US",
+     * "IN") from the 30-day geo cache, or "" when there is no fresh cache
+     * entry. Never blocks on the IP-API HTTP call — callers that need a
+     * guaranteed resolution should invoke the `country_tier_get` RPC first
+     * (which resolves + caches), then read this. Used by the "People Near
+     * You" suggestion RPC to scope candidates to the same country without
+     * introducing any new permission or storage surface.
+     *
+     * Returns "" for the "XX" fallback sentinel too, so callers can treat
+     * an unknown geo as "no nearby scoping possible".
+     */
+    function getUserCountry(nk: nkruntime.Nakama, userId: string): string;
+    /**
+     * Resolve + cache the user's country in one call (cache-first, then
+     * IP-API fallback). Returns the resolved alpha-2 code, or "" when even
+     * the IP lookup fails (geo unknown). Unlike getUserCountry this WILL
+     * perform the HTTP lookup on a cache miss, so the very first "People
+     * Near You" load for a brand-new user still scopes correctly.
+     */
+    function resolveUserCountry(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace JsRuntimeHealth {

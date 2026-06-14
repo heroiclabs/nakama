@@ -832,15 +832,20 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         }
     } catch (e) { /* swallow */ }
 
-    // Satori identity piggyback (Phase 8 wiring, 2026-05): debounced 1 h.
-    // Keeps Satori trait properties (skill_band, churn_risk, spend_tier, …)
-    // fresh without any external cron dependency. The 1-h gate means this
-    // fires at most once per Nakama process per hour, regardless of traffic.
-    try {
-        if (typeof siAutoRunIfNeeded === "function") {
-            siAutoRunIfNeeded(ctx, nk, logger);
-        }
-    } catch (e) { /* swallow */ }
+    // Satori identity sync (Phase 8) is NO LONGER piggybacked here.
+    //
+    // Why removed (2026-06-14): the 1-h debounce gate (siPiggybackNextAllowedSec)
+    // was a *module-level* variable. Goja's VM pool hands each RPC call a fresh
+    // module-scope snapshot, so that gate reset to 0 on essentially every call
+    // and never engaged. As a result rpcSatoriIdentityBatch — which does up to
+    // 50 users × (Satori auth + identity-properties HTTP round-trips) — ran on
+    // a large fraction of analytics_log_event calls, blocking the synchronous
+    // response for multiple seconds and tripping the client's 12 s timeout.
+    //
+    // Identity sync now runs strictly out-of-band via the DASHBOARD_SECRET /
+    // admin-guarded `satori_identity_auto_kick` RPC (mirrors analytics_auto_kick),
+    // driven by the external scheduler. Trait freshness is preserved without
+    // putting unbounded external HTTP on the user-facing ingest path.
 
     var resp = {
         success:          accepted > 0 || rejected === 0,

@@ -19,6 +19,52 @@ var GROUP_ROLES = {
     MEMBER: 2      // Regular member
 };
 
+// ----------------------------------------------------------------------------
+// QuizVerse group-creation economy
+// ----------------------------------------------------------------------------
+// Creating a group costs coins (the same single-currency "coins" wallet used by
+// the rest of QuizVerse — see chatbox.js / badges.js). The charge MUST happen
+// server-side: the Unity client previously called Nakama's built-in CreateGroup
+// directly, which let a player create unlimited groups for free and never
+// persisted the chosen badge or privacy policy. create_quizverse_group fixes
+// all three.
+var QV_GROUP_CURRENCY_KEY = "coins";
+var QV_GROUP_CREATE_COST = 500;
+
+// Privacy policies. Nakama groups only model open (true) vs closed (false), so
+// "private" and "invite_only" both map to open=false and are distinguished by
+// metadata.joinPolicy. The client UI offers three states.
+var QV_GROUP_JOIN_POLICY = {
+    OPEN: "open",                // anyone can join instantly (Nakama open=true)
+    PRIVATE: "private",          // request to join, owner/admin approves (open=false)
+    INVITE_ONLY: "invite_only"   // join only via explicit invite (open=false)
+};
+
+function qvNormalizeJoinPolicy(raw) {
+    var p = (raw === undefined || raw === null) ? "" : String(raw).toLowerCase().trim();
+    if (p === QV_GROUP_JOIN_POLICY.OPEN) return QV_GROUP_JOIN_POLICY.OPEN;
+    if (p === QV_GROUP_JOIN_POLICY.PRIVATE) return QV_GROUP_JOIN_POLICY.PRIVATE;
+    if (p === QV_GROUP_JOIN_POLICY.INVITE_ONLY) return QV_GROUP_JOIN_POLICY.INVITE_ONLY;
+    // Back-compat: accept a raw boolean `open` style value.
+    if (p === "true") return QV_GROUP_JOIN_POLICY.OPEN;
+    if (p === "false") return QV_GROUP_JOIN_POLICY.PRIVATE;
+    return QV_GROUP_JOIN_POLICY.OPEN; // default: open
+}
+
+function qvGetCoinBalance(nk, userId) {
+    try {
+        var account = nk.accountGetId(userId);
+        if (account && account.wallet) {
+            // account.wallet may be a JSON string or an object depending on the
+            // Nakama runtime version — handle both.
+            var w = typeof account.wallet === "string" ? JSON.parse(account.wallet) : account.wallet;
+            var bal = parseInt(w[QV_GROUP_CURRENCY_KEY], 10);
+            return isNaN(bal) ? 0 : bal;
+        }
+    } catch (e) { /* treat as zero balance */ }
+    return 0;
+}
+
 // Group metadata structure
 function createGroupMetadata(gameId, groupType, customData) {
     return {
@@ -146,6 +192,188 @@ function rpcCreateGameGroup(ctx, logger, nk, payload) {
             success: false,
             error: "An unexpected error occurred"
         });
+    }
+}
+
+/**
+ * RPC: create_quizverse_group
+ * Create a QuizVerse group/clan, charging the creator the group-creation coin
+ * cost and persisting the chosen badge + privacy (join) policy in metadata.
+ *
+ * This replaces the client calling Nakama's built-in CreateGroup directly,
+ * which (a) charged nothing, (b) dropped the selected badge, and (c) could only
+ * express open vs closed — losing the invite-only state.
+ *
+ * Flow (charge is atomic + refunded on failure):
+ *   1. Validate name / badge / privacy.
+ *   2. Check coin balance >= QV_GROUP_CREATE_COST.
+ *   3. Deduct coins (nk.walletUpdate throws if it would go negative).
+ *   4. Create the group with metadata.joinPolicy + metadata.badge.
+ *   5. On create failure AFTER a successful charge, refund the coins.
+ *   6. Initialise the group's shared wallet.
+ */
+function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
+    try {
+        if (!ctx.userId) {
+            return JSON.stringify({ success: false, error: "Authentication required" });
+        }
+
+        var data;
+        try {
+            data = JSON.parse(payload || "{}");
+        } catch (err) {
+            return JSON.stringify({ success: false, error: "Invalid JSON payload" });
+        }
+
+        // --- Validate inputs -------------------------------------------------
+        var name = (data.name === undefined || data.name === null) ? "" : String(data.name).trim();
+        if (name.length === 0) {
+            return JSON.stringify({ success: false, error: "Missing required field: name" });
+        }
+        if (name.length > 64) {
+            return JSON.stringify({ success: false, error: "Group name too long (max 64 characters)" });
+        }
+
+        var gameId = data.gameId || "quizverse";
+        var description = data.description ? String(data.description).substring(0, 512) : "";
+        var avatarUrl = data.avatarUrl || "";
+        var langTag = data.langTag || "en";
+        var badge = data.badge ? String(data.badge).substring(0, 64) : "";
+        var maxCount = parseInt(data.maxCount, 10);
+        if (isNaN(maxCount) || maxCount <= 0) maxCount = 100;
+        if (maxCount > 100) maxCount = 100;
+
+        var joinPolicy = qvNormalizeJoinPolicy(data.privacy !== undefined ? data.privacy : data.joinPolicy);
+        // Nakama "open" means anyone joins instantly. Only the OPEN policy maps
+        // to that; private & invite-only are closed groups gated by metadata.
+        var nakamaOpen = (joinPolicy === QV_GROUP_JOIN_POLICY.OPEN);
+
+        // --- Charge coins (balance check + atomic deduct) --------------------
+        var balanceBefore = qvGetCoinBalance(nk, ctx.userId);
+        if (balanceBefore < QV_GROUP_CREATE_COST) {
+            return JSON.stringify({
+                success: false,
+                error: "insufficient_coins",
+                required: QV_GROUP_CREATE_COST,
+                balance: balanceBefore
+            });
+        }
+
+        var charged = false;
+        try {
+            var deductChangeset = {};
+            deductChangeset[QV_GROUP_CURRENCY_KEY] = -QV_GROUP_CREATE_COST;
+            // walletUpdate throws if the balance would go negative, so a
+            // concurrent spend between the check and here is safe (only one wins).
+            nk.walletUpdate(ctx.userId, deductChangeset, {
+                reason: "group_create",
+                gameId: gameId
+            }, false);
+            charged = true;
+        } catch (err) {
+            logger.warn("[Groups] Coin charge failed for group create by " + ctx.userId +
+                ": " + (err && err.message ? err.message : String(err)));
+            return JSON.stringify({
+                success: false,
+                error: "insufficient_coins",
+                required: QV_GROUP_CREATE_COST,
+                balance: qvGetCoinBalance(nk, ctx.userId)
+            });
+        }
+
+        // --- Build metadata + create the group -------------------------------
+        var metadata = createGroupMetadata(gameId, data.groupType || "guild", data.customData);
+        metadata.badge = badge;
+        metadata.joinPolicy = joinPolicy;
+
+        var group;
+        try {
+            group = nk.groupCreate(
+                ctx.userId,
+                name,
+                description,
+                avatarUrl,
+                langTag,
+                JSON.stringify(metadata),
+                nakamaOpen,
+                maxCount
+            );
+        } catch (err) {
+            // Refund the coins we already deducted — the player must not be
+            // charged for a group that was never created.
+            if (charged) {
+                try {
+                    var refundChangeset = {};
+                    refundChangeset[QV_GROUP_CURRENCY_KEY] = QV_GROUP_CREATE_COST;
+                    nk.walletUpdate(ctx.userId, refundChangeset, {
+                        reason: "group_create_refund",
+                        gameId: gameId
+                    }, false);
+                } catch (refundErr) {
+                    logger.error("[Groups] CRITICAL: failed to refund " + QV_GROUP_CREATE_COST +
+                        " coins to " + ctx.userId + " after group create failure: " +
+                        (refundErr && refundErr.message ? refundErr.message : String(refundErr)));
+                }
+            }
+            logger.error("[Groups] Failed to create group: " + (err && err.message ? err.message : String(err)));
+            return JSON.stringify({
+                success: false,
+                error: "Failed to create group"
+            });
+        }
+
+        // --- Initialise the group's shared wallet ----------------------------
+        try {
+            var walletKey = "group_wallet_" + group.id;
+            nk.storageWrite([{
+                collection: "group_wallets",
+                key: walletKey,
+                userId: "00000000-0000-0000-0000-000000000000",
+                value: {
+                    groupId: group.id,
+                    gameId: gameId,
+                    currencies: { tokens: 0, xp: 0 },
+                    createdAt: new Date().toISOString()
+                },
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+        } catch (err) {
+            // Non-fatal: wallet is lazily created on first read too.
+            logger.warn("[Groups] Failed to create group wallet: " + err.message);
+        }
+
+        var balanceAfter = qvGetCoinBalance(nk, ctx.userId);
+        logger.info("[Groups] Created QuizVerse group " + group.id + " for " + ctx.userId +
+            " (cost " + QV_GROUP_CREATE_COST + ", policy " + joinPolicy + ")");
+
+        return JSON.stringify({
+            success: true,
+            group: {
+                id: group.id,
+                creatorId: group.creatorId,
+                name: group.name,
+                description: group.description,
+                avatarUrl: group.avatarUrl,
+                langTag: group.langTag,
+                open: group.open,
+                edgeCount: group.edgeCount,
+                maxCount: group.maxCount,
+                createTime: group.createTime,
+                updateTime: group.updateTime,
+                metadata: metadata,
+                badge: badge,
+                joinPolicy: joinPolicy
+            },
+            coinsSpent: QV_GROUP_CREATE_COST,
+            walletBalance: balanceAfter,
+            timestamp: new Date().toISOString()
+        });
+
+    } catch (err) {
+        logger.error("[Groups] Unexpected error in rpcCreateQuizverseGroup: " +
+            (err && err.message ? err.message : String(err)));
+        return JSON.stringify({ success: false, error: "An unexpected error occurred" });
     }
 }
 
@@ -436,6 +664,7 @@ function rpcUpdateGroupWallet(ctx, logger, nk, payload) {
         }
 
         var wallet = records[0].value;
+        var walletVersion = records[0].version || "";
         var currentBalance = wallet.currencies[currency] || 0;
         var newBalance;
 
@@ -458,20 +687,29 @@ function rpcUpdateGroupWallet(ctx, logger, nk, payload) {
 
         wallet.currencies[currency] = newBalance;
 
-        // Update wallet
+        // Update wallet with optimistic concurrency control: pass the version we
+        // read so a concurrent wallet update (two admins, or a quest payout
+        // racing a manual edit) cannot silently clobber each other. If the
+        // version no longer matches, the write throws and we report a retryable
+        // conflict instead of losing currency.
         try {
-            nk.storageWrite([{
+            var walletWrite = {
                 collection: "group_wallets",
                 key: walletKey,
                 userId: "00000000-0000-0000-0000-000000000000",
                 value: wallet,
                 permissionRead: 1,
                 permissionWrite: 0
-            }]);
+            };
+            if (walletVersion) walletWrite.version = walletVersion;
+            nk.storageWrite([walletWrite]);
         } catch (err) {
+            logger.warn("[Groups] Group wallet write conflict for " + groupId + ": " +
+                (err && err.message ? err.message : String(err)));
             return JSON.stringify({
                 success: false,
-                error: "Failed to update group wallet"
+                error: "Wallet update conflict, please retry",
+                retryable: true
             });
         }
 
@@ -585,6 +823,70 @@ function getRoleName(state) {
     if (state === GROUP_ROLES.ADMIN) return "Admin";
     if (state === GROUP_ROLES.MEMBER) return "Member";
     return "Unknown";
+}
+
+// ----------------------------------------------------------------------------
+// Membership / authorization helpers
+// ----------------------------------------------------------------------------
+
+/**
+ * Resolve the acting user's role in a group from the server side.
+ *
+ * Returns an object: { isMember, role, isAdmin, isOwner, joinRequestPending }.
+ * `role` is the Nakama group edge state (0 owner / 1 admin / 2 member / 3 join
+ * request) or null when the user has no edge to the group at all.
+ *
+ * A pending join request (state 3) is NOT treated as membership.
+ *
+ * Never throws — on any lookup failure it returns the "not a member" shape so
+ * callers fail closed (deny) rather than open.
+ */
+function getUserGroupRole(nk, logger, userId, groupId) {
+    var result = {
+        isMember: false,
+        role: null,
+        isAdmin: false,
+        isOwner: false,
+        joinRequestPending: false
+    };
+    if (!userId || !groupId) return result;
+
+    try {
+        var userGroups = nk.userGroupsList(userId);
+        if (userGroups && userGroups.userGroups) {
+            for (var i = 0; i < userGroups.userGroups.length; i++) {
+                var ug = userGroups.userGroups[i];
+                if (ug && ug.group && ug.group.id === groupId) {
+                    result.role = ug.state;
+                    if (ug.state === 3) {
+                        result.joinRequestPending = true;
+                    } else {
+                        result.isMember = true;
+                        result.isOwner = (ug.state === GROUP_ROLES.OWNER);
+                        result.isAdmin = (ug.state === GROUP_ROLES.OWNER || ug.state === GROUP_ROLES.ADMIN);
+                    }
+                    break;
+                }
+            }
+        }
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn("[Groups] getUserGroupRole failed for " + userId + "/" + groupId +
+                ": " + (err && err.message ? err.message : String(err)));
+        }
+    }
+    return result;
+}
+
+/**
+ * Per-group activity collection name. Storing each group's activity in its own
+ * collection means rpcGetGroupDetails reads only THAT group's records
+ * (storageList scoped to the collection) instead of scanning every group's
+ * activity globally and filtering in memory — the previous O(all groups)
+ * behaviour that could push a busy group's recent rows past the scan limit.
+ */
+function groupActivityCollection(groupId) {
+    return "group_activity_" + groupId;
 }
 
 /**
@@ -703,26 +1005,81 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
             try {
                 var groupMembers = nk.groupUsersList(groupId, memberLimit, null, "");
                 if (groupMembers && groupMembers.groupUsers) {
+                    // First pass: collect raw member rows so we can batch a single
+                    // usersGetId for their player metadata (real level) instead of
+                    // one account read per member.
+                    var rawMembers = [];
+                    var memberIds = [];
                     for (var j = 0; j < groupMembers.groupUsers.length; j++) {
                         var gu = groupMembers.groupUsers[j];
                         if (!gu || !gu.user) continue;
-                        
-                        // Safe extraction with defaults
-                        var userId = gu.user.id || "";
-                        var username = gu.user.username || "user_" + j;
-                        var displayName = gu.user.displayName || username;
-                        var avatarUrl = gu.user.avatarUrl || "";
-                        var role = typeof gu.state === "number" ? gu.state : GROUP_ROLES.MEMBER;
-                        
-                        members.push({
-                            userId: userId,
-                            username: username,
-                            displayName: displayName,
-                            avatarUrl: avatarUrl,
-                            role: role,
-                            roleName: getRoleName(role),
+
+                        var rawId = gu.user.id || "";
+                        rawMembers.push({
+                            userId: rawId,
+                            username: gu.user.username || ("user_" + j),
+                            displayName: gu.user.displayName || gu.user.username || ("user_" + j),
+                            avatarUrl: gu.user.avatarUrl || "",
+                            role: typeof gu.state === "number" ? gu.state : GROUP_ROLES.MEMBER,
                             online: gu.user.online === true,
-                            joinedAt: gu.user.createTime || null
+                            joinedAt: gu.user.createTime || null,
+                            metadata: gu.user.metadata || null
+                        });
+                        if (rawId) memberIds.push(rawId);
+                    }
+
+                    // Batch-resolve player level from account metadata. groupUsersList
+                    // sometimes omits metadata, so a single usersGetId fills the gap.
+                    // Level is the only real per-player stat QuizVerse tracks; wins /
+                    // trophies do not exist per player, so they are intentionally
+                    // NOT returned (the client renders a level-only chip).
+                    var levelById = {};
+                    if (memberIds.length > 0) {
+                        try {
+                            var memberUsers = nk.usersGetId(memberIds);
+                            if (memberUsers) {
+                                for (var mu = 0; mu < memberUsers.length; mu++) {
+                                    var u = memberUsers[mu];
+                                    if (!u || !u.userId) continue;
+                                    var lvl = 1;
+                                    try {
+                                        var md = u.metadata
+                                            ? (typeof u.metadata === "string" ? JSON.parse(u.metadata) : u.metadata)
+                                            : {};
+                                        lvl = Math.max(1, parseInt(md.level, 10) || 1);
+                                    } catch (_) { lvl = 1; }
+                                    levelById[u.userId] = lvl;
+                                }
+                            }
+                        } catch (err) {
+                            logger.warn("[Groups] usersGetId for member levels failed: " + err.message);
+                        }
+                    }
+
+                    for (var r = 0; r < rawMembers.length; r++) {
+                        var rm = rawMembers[r];
+                        var memberLevel = levelById[rm.userId];
+                        if (memberLevel === undefined) {
+                            // Fall back to inline metadata from groupUsersList if present.
+                            memberLevel = 1;
+                            try {
+                                var inlineMd = rm.metadata
+                                    ? (typeof rm.metadata === "string" ? JSON.parse(rm.metadata) : rm.metadata)
+                                    : {};
+                                memberLevel = Math.max(1, parseInt(inlineMd.level, 10) || 1);
+                            } catch (_) { memberLevel = 1; }
+                        }
+
+                        members.push({
+                            userId: rm.userId,
+                            username: rm.username,
+                            displayName: rm.displayName,
+                            avatarUrl: rm.avatarUrl,
+                            role: rm.role,
+                            roleName: getRoleName(rm.role),
+                            online: rm.online,
+                            joinedAt: rm.joinedAt,
+                            level: memberLevel
                         });
                     }
                 }
@@ -736,29 +1093,59 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
         if (includeActivity && canViewPrivateDetails) {
             try {
                 var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
-                var activityRecords = nk.storageList(SYSTEM_USER_ID, "group_activity", activityLimit, "");
-                
+
+                // Primary: read ONLY this group's activity collection (scoped —
+                // no global scan across every group's records).
                 var allActivity = [];
-                if (activityRecords && activityRecords.objects) {
-                    allActivity = activityRecords.objects;
-                } else if (activityRecords && Array.isArray(activityRecords)) {
-                    allActivity = activityRecords;
+                try {
+                    var scopedRecords = nk.storageList(SYSTEM_USER_ID, groupActivityCollection(groupId), activityLimit, "");
+                    if (scopedRecords && scopedRecords.objects) {
+                        allActivity = scopedRecords.objects;
+                    } else if (scopedRecords && Array.isArray(scopedRecords)) {
+                        allActivity = scopedRecords;
+                    }
+                } catch (scopeErr) {
+                    logger.warn("[Groups] Scoped activity read failed: " + scopeErr.message);
                 }
-                
+
+                // Backward-compat: if the per-group collection is empty (e.g. only
+                // legacy records written before the per-group split exist), fall
+                // back to the old global collection and filter by group_id.
+                if (allActivity.length === 0) {
+                    try {
+                        var legacyRecords = nk.storageList(SYSTEM_USER_ID, "group_activity", activityLimit, "");
+                        var legacyAll = [];
+                        if (legacyRecords && legacyRecords.objects) {
+                            legacyAll = legacyRecords.objects;
+                        } else if (legacyRecords && Array.isArray(legacyRecords)) {
+                            legacyAll = legacyRecords;
+                        }
+                        for (var lg = 0; lg < legacyAll.length; lg++) {
+                            var lgVal = legacyAll[lg] && (legacyAll[lg].value || legacyAll[lg]);
+                            if (lgVal && lgVal.group_id === groupId) {
+                                allActivity.push(legacyAll[lg]);
+                            }
+                        }
+                    } catch (legacyErr) {
+                        logger.warn("[Groups] Legacy activity read failed: " + legacyErr.message);
+                    }
+                }
+
                 for (var k = 0; k < allActivity.length; k++) {
                     var actRecord = allActivity[k];
                     if (!actRecord) continue;
-                    
+
                     var act = actRecord.value || actRecord;
-                    if (!act || act.group_id !== groupId) continue;
-                    
-                    // Safe extraction of activity fields
+                    // Defensive: per-group collection should only contain this
+                    // group's rows, but guard anyway.
+                    if (!act || (act.group_id && act.group_id !== groupId)) continue;
+
                     activity.push({
                         user_id: act.user_id || "",
                         action: act.action || "unknown",
                         details: act.details || {},
                         timestamp: act.timestamp || new Date().toISOString(),
-                        group_id: act.group_id
+                        group_id: act.group_id || groupId
                     });
                 }
                 
@@ -981,14 +1368,26 @@ function rpcLogGroupActivity(ctx, logger, nk, payload) {
             });
         }
 
+        // AUTHORIZATION: only members of the group may log activity for it.
+        // Without this check any authenticated user could spam another group's
+        // activity feed and (via the XP path below) inflate its level/XP using
+        // the system-context groupUpdate. Fail closed.
+        var actorRole = getUserGroupRole(nk, logger, ctx.userId, groupId);
+        if (!actorRole.isMember) {
+            return JSON.stringify({
+                success: false,
+                error: "Only group members can log activity"
+            });
+        }
+
         var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
         var activityId = generateActivityId();
-        
+
         // Sanitize and validate xpEarned
         var xpEarned = parseInt(data.xpEarned, 10);
         if (isNaN(xpEarned) || xpEarned < 0) xpEarned = 0;
         if (xpEarned > 10000) xpEarned = 10000; // Cap to prevent abuse
-        
+
         var activity = {
             id: activityId,
             group_id: groupId,
@@ -1001,7 +1400,7 @@ function rpcLogGroupActivity(ctx, logger, nk, payload) {
 
         try {
             nk.storageWrite([{
-                collection: "group_activity",
+                collection: groupActivityCollection(groupId),
                 key: activityId,
                 userId: SYSTEM_USER_ID,
                 value: activity,
@@ -1236,4 +1635,5 @@ function groupAfterLeaveHook(ctx, logger, nk, data, request) {
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("get_group_details", rpcGetGroupDetails);
     initializer.registerRpc("log_group_activity", rpcLogGroupActivity);
+    initializer.registerRpc("create_quizverse_group", rpcCreateQuizverseGroup);
 }

@@ -205,6 +205,14 @@ function InitModule(ctx, logger, nk, initializer) {
         IntelliverseFriends.bootstrapDatabase(nk, logger);
         logger.info("[Friends] Registering intelliverse_find_friends RPC...");
         IntelliverseFriends.register(initializer);
+        // ── "People Near You" friend suggestions (same-country, not-yet-friends).
+        //   Lives in src/friends/find_nearby_players.ts and registers
+        //   `intelliverse_find_nearby_players`. Reuses the GeoTier cache for the
+        //   caller's country and the canonical player_presence/status presence
+        //   schema, and is auto-pinned in __TS_OWNED_RPCS by postbuild so the
+        //   legacy bridge cannot shadow it. ────────────────────────────────────
+        logger.info("[Friends] Registering intelliverse_find_nearby_players RPC...");
+        IntelliverseNearbyPlayers.register(initializer);
         // ── Phase-4 C1+H1: canonical friends_list + list_blocked_users with
         //   flat shape + presence/relationship enrichment. Replaces the
         //   6-line passthrough that used to live in LegacyFriends.rpcFriendsList
@@ -227,6 +235,31 @@ function InitModule(ctx, logger, nk, initializer) {
         IvxPresence.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
         LegacyGroups.register(initializer);
+        // ── Group membership cross-device sync hooks ──────────────────────────
+        // After a successful built-in JoinGroup / LeaveGroup, send the acting user
+        // a self-notification (code 500 / 501) so ALL of their open sockets — i.e.
+        // their other devices — refresh "My Groups" in real time. Without this,
+        // only the device that performed the action knows the membership changed.
+        // Handlers live in data/modules/groups/groups.js (global scope).
+        try {
+            if (typeof groupAfterJoinHook === "function") {
+                initializer.registerAfterJoinGroup(groupAfterJoinHook);
+                logger.info("[Groups] registerAfterJoinGroup hook installed (cross-device sync, code 500)");
+            }
+            else {
+                logger.warn("[Groups] groupAfterJoinHook not found — cross-device join sync disabled");
+            }
+            if (typeof groupAfterLeaveHook === "function") {
+                initializer.registerAfterLeaveGroup(groupAfterLeaveHook);
+                logger.info("[Groups] registerAfterLeaveGroup hook installed (cross-device sync, code 501)");
+            }
+            else {
+                logger.warn("[Groups] groupAfterLeaveHook not found — cross-device leave sync disabled");
+            }
+        }
+        catch (err) {
+            logger.error("[Groups] Failed to install group membership sync hooks: " + (err && err.message ? err.message : String(err)));
+        }
         logger.info("[Legacy] Registering push RPCs...");
         LegacyPush.register(initializer);
         logger.info("[Legacy] Registering notification scheduler match...");
@@ -6657,6 +6690,339 @@ var IntelliverseFriends;
     }
     IntelliverseFriends.register = register;
 })(IntelliverseFriends || (IntelliverseFriends = {}));
+// ============================================================================
+// src/friends/find_nearby_players.ts — "People Near You" suggestions RPC
+// ============================================================================
+// PRODUCTION-READY | First-class TS module | Single source of truth
+//
+// RPC ID
+// ------
+//   intelliverse_find_nearby_players   (canonical, snake_case)
+//
+// Purpose
+// -------
+// Powers the "People Near You" friend-suggestion strip on the Social Zone
+// FRIENDS tab. Returns a short list of *other* players in the SAME COUNTRY
+// as the caller who are NOT already friends, NOT blocked (either way), and
+// NOT the caller themselves — so the user always sees fresh, actionable
+// "add friend" candidates without typing a search query.
+//
+// Country source
+// --------------
+// The caller's country is resolved via the shared GeoTier cache
+// (geo_tier/resolved), which the platform already populates from the
+// client IP on first contact. GeoTier.resolveUserCountry() is cache-first
+// and only hits the IP-API on a cold miss, so this stays cheap on the hot
+// path. We also opportunistically backfill the caller's
+// users.metadata.country so the candidate SQL (which filters on
+// metadata->>'country') gains coverage over time. This mirrors how
+// hiro/leaderboards already filters players by metadata.country.
+//
+// Candidate selection
+// -------------------
+//   * users.metadata->>'country' = caller country (case-insensitive)
+//   * exclude self, disabled accounts, and anyone in the caller's friend
+//     graph (friends, pending either direction, blocked)
+//   * newest accounts first (create_time DESC) so suggestions feel fresh;
+//     ties broken by id for stable pagination
+//   * enriched with real presence (player_presence/status) + a constant
+//     relationshipStatus of "none" (we filtered everything else out)
+//
+// Graceful degradation
+// ---------------------
+// If the caller's country cannot be resolved (no IP / IP-API failure),
+// we return an empty list with reason="no_geo" rather than erroring — the
+// client simply hides the strip. Any SQL failure also degrades to an empty
+// list (reason="unavailable"); suggestions are best-effort, never fatal.
+//
+// Payload contract
+//   {
+//     "gameID": "quizverse",   // optional — informational only
+//     "limit":  10,            // optional, default 10, max 30
+//     "cursor": "10"           // optional pagination offset
+//   }
+//
+// Response (success)
+//   {
+//     "success": true,
+//     "data": {
+//       "results":    [ { userId, username, displayName, avatarUrl,
+//                         online, createTime, relationshipStatus,
+//                         country } ],
+//       "country":    "US",
+//       "count":      8,
+//       "searcherId": "<uuid>",
+//       "nextCursor": "20" | null,
+//       "reason":     "ok" | "no_geo" | "unavailable"
+//     }
+//   }
+// ============================================================================
+var IntelliverseNearbyPlayers;
+(function (IntelliverseNearbyPlayers) {
+    // ── Constants ──────────────────────────────────────────────────────────
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min => online
+    // Nakama friend-state ints (mirror of nkruntime.FriendState — not exported)
+    var STATE_FRIEND = 0;
+    var STATE_INVITE_SENT = 1;
+    var STATE_INVITE_RECEIVED = 2;
+    var STATE_BLOCKED = 3;
+    var DEFAULT_LIMIT = 10;
+    var MAX_LIMIT = 30;
+    var MAX_OFFSET = 1000; // hard cap — protect DB from runaway pagination
+    // ── Result envelope helpers ────────────────────────────────────────────
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return { ok: true, data: {} };
+        try {
+            return { ok: true, data: JSON.parse(payload) };
+        }
+        catch (e) {
+            return { ok: false, error: "Invalid JSON payload: " + (e.message || String(e)) };
+        }
+    }
+    /**
+     * Bulk-load presence for many users via batched targeted storageRead.
+     * Returns a { userId: boolean } map; missing entries default to false.
+     * Presence is best-effort context — never fails the suggestion query.
+     */
+    function loadOnlineMap(nk, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({ collection: PRESENCE_COLLECTION, key: PRESENCE_KEY, userId: userIds[i] });
+        }
+        var rows = null;
+        try {
+            rows = nk.storageRead(reads);
+        }
+        catch (e) {
+            return map;
+        }
+        if (!rows)
+            return map;
+        var nowMs = Date.now();
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var online = false;
+            if (v.online === true) {
+                var lastSeenMs = 0;
+                if (typeof v.lastSeenMs === "number")
+                    lastSeenMs = v.lastSeenMs;
+                else if (typeof v.last_seen_ms === "number")
+                    lastSeenMs = v.last_seen_ms;
+                else if (typeof v.lastSeen === "string") {
+                    var t = Date.parse(v.lastSeen);
+                    if (!isNaN(t))
+                        lastSeenMs = t;
+                }
+                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS)
+                    online = true;
+            }
+            map[row.userId] = online;
+        }
+        return map;
+    }
+    /**
+     * Build a set of every userId the caller already has a relationship with
+     * (friend / pending either direction / blocked). These are all excluded
+     * from suggestions — "People Near You" only surfaces brand-new faces.
+     */
+    function loadExcludedSet(nk, logger, userId) {
+        var excluded = {};
+        try {
+            var resp = nk.friendsList(userId, 1000, undefined, undefined);
+            if (resp && resp.friends) {
+                for (var i = 0; i < resp.friends.length; i++) {
+                    var fr = resp.friends[i];
+                    if (!fr || !fr.user)
+                        continue;
+                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                        ? fr.state.value
+                        : fr.state;
+                    if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
+                        s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
+                        excluded[fr.user.id] = true;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            // Degrade to "no exclusions" — worst case the user sees an existing
+            // friend in suggestions, which the client-side row renderer still
+            // labels correctly (relationshipStatus is recomputed on tap).
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseNearbyPlayers] friendsList lookup failed: " + (e.message || String(e)));
+            }
+        }
+        return excluded;
+    }
+    /**
+     * Opportunistically persist the caller's resolved country into their
+     * Nakama account metadata (users.metadata.country) so the candidate SQL
+     * — which filters on metadata->>'country' — gains coverage over time.
+     * No-op when metadata.country already matches. Never fatal.
+     */
+    function backfillMetadataCountry(nk, logger, userId, country) {
+        if (!country)
+            return;
+        try {
+            var accounts = nk.accountsGetId([userId]);
+            if (!accounts || accounts.length === 0)
+                return;
+            var acct = accounts[0];
+            var meta = (acct.user && acct.user.metadata) ? acct.user.metadata : {};
+            if (meta && typeof meta.country === "string" && meta.country.toUpperCase() === country) {
+                return; // already up to date
+            }
+            meta.country = country;
+            // Signature: accountUpdateId(userId, username, displayName, timezone,
+            //                            location, langTag, avatarUrl, metadata)
+            nk.accountUpdateId(userId, null, null, null, null, null, null, meta);
+        }
+        catch (e) {
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseNearbyPlayers] metadata.country backfill failed: " + (e.message || String(e)));
+            }
+        }
+    }
+    /**
+     * Same-country candidate query.
+     *   $1 = country (alpha-2, upper-cased)
+     *   $2 = userId  (excluded)
+     *   $3 = limit   (page size + over-fetch margin)
+     *   $4 = offset  (pagination)
+     *
+     * Filters on the JSONB users.metadata->>'country'. disable_time sentinel
+     * '1970-01-01 00:00:00 UTC' is Nakama's "not disabled" marker. Newest
+     * accounts first so suggestions feel fresh; id tie-break keeps paging
+     * stable.
+     */
+    function queryNearby(nk, country, userId, limit, offset) {
+        var sql = "SELECT id, username, display_name, avatar_url, create_time " +
+            "FROM users " +
+            "WHERE id != $2 " +
+            "  AND disable_time = '1970-01-01 00:00:00 UTC' " +
+            "  AND upper(metadata->>'country') = $1 " +
+            "ORDER BY create_time DESC, id ASC " +
+            "LIMIT $3 OFFSET $4";
+        var rows = nk.sqlQuery(sql, [country, userId, limit, offset]);
+        return rows || [];
+    }
+    // ── The RPC handler ────────────────────────────────────────────────────
+    function rpcFindNearbyPlayers(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Authentication required", errorCode: "unauthenticated" });
+        }
+        var parsed = parsePayload(payload);
+        var data = (parsed.ok && parsed.data) ? parsed.data : {};
+        // ── Paging ──────────────────────────────────────────────────────────
+        var limit = parseInt(data.limit, 10);
+        if (isNaN(limit) || limit < 1)
+            limit = DEFAULT_LIMIT;
+        if (limit > MAX_LIMIT)
+            limit = MAX_LIMIT;
+        var offset = 0;
+        if (data.cursor) {
+            offset = parseInt(data.cursor, 10);
+            if (isNaN(offset) || offset < 0)
+                offset = 0;
+            if (offset > MAX_OFFSET)
+                offset = MAX_OFFSET;
+        }
+        // ── Resolve caller country (cache-first, IP-API on cold miss) ────────
+        var country = "";
+        try {
+            country = GeoTier.resolveUserCountry(ctx, logger, nk, userId) || "";
+        }
+        catch (e) {
+            country = "";
+        }
+        if (!country) {
+            return ok({ results: [], country: "", count: 0, searcherId: userId, nextCursor: null, reason: "no_geo" });
+        }
+        country = country.toUpperCase();
+        // Opportunistic backfill so the SQL filter covers this user next time.
+        backfillMetadataCountry(nk, logger, userId, country);
+        // Over-fetch so we can drop already-related users without short-paging.
+        var fetchLimit = limit + 30;
+        // ── Query candidates ────────────────────────────────────────────────
+        var rows = [];
+        try {
+            rows = queryNearby(nk, country, userId, fetchLimit, offset);
+        }
+        catch (sqlErr) {
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseNearbyPlayers] SQL failed: " + (sqlErr.message || String(sqlErr)));
+            }
+            return ok({ results: [], country: country, count: 0, searcherId: userId, nextCursor: null, reason: "unavailable" });
+        }
+        // ── Exclude existing relationships ──────────────────────────────────
+        var excluded = loadExcludedSet(nk, logger, userId);
+        var candidateIds = [];
+        for (var c = 0; c < rows.length; c++) {
+            var rid = rows[c].id;
+            if (rid && rid !== userId && !excluded[rid])
+                candidateIds.push(rid);
+        }
+        var onlineMap = loadOnlineMap(nk, candidateIds);
+        // ── Build page ──────────────────────────────────────────────────────
+        var results = [];
+        var consumed = 0;
+        for (var i = 0; i < rows.length && results.length < limit; i++) {
+            consumed++;
+            var row = rows[i];
+            var rid2 = row.id;
+            if (rid2 === userId)
+                continue;
+            if (excluded[rid2])
+                continue;
+            results.push({
+                userId: rid2,
+                username: row.username || "",
+                displayName: row.display_name || row.username || "",
+                avatarUrl: row.avatar_url || "",
+                online: !!onlineMap[rid2],
+                createTime: row.create_time || "",
+                relationshipStatus: "none",
+                country: country
+            });
+        }
+        var nextCursor = null;
+        if (results.length === limit && rows.length === fetchLimit) {
+            nextCursor = String(offset + consumed);
+        }
+        if (logger && logger.info) {
+            logger.info("[IntelliverseNearbyPlayers] user=" + userId +
+                " country=" + country +
+                " returned=" + results.length +
+                " (offset=" + offset + ", nextCursor=" + (nextCursor || "null") + ")");
+        }
+        return ok({
+            results: results,
+            country: country,
+            count: results.length,
+            searcherId: userId,
+            nextCursor: nextCursor,
+            reason: "ok"
+        });
+    }
+    // ── Public registration ────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("intelliverse_find_nearby_players", rpcFindNearbyPlayers);
+    }
+    IntelliverseNearbyPlayers.register = register;
+})(IntelliverseNearbyPlayers || (IntelliverseNearbyPlayers = {}));
 // ============================================================================
 // src/friends/friends_list.ts — Canonical friends_list + list_blocked_users
 // ============================================================================
@@ -45995,6 +46361,41 @@ var GeoTier;
         return TIER_T3; // Default if no cache — safe for ad volume
     }
     GeoTier.getUserTier = getUserTier;
+    /**
+     * Returns the user's cached ISO-3166 alpha-2 country code (e.g. "US",
+     * "IN") from the 30-day geo cache, or "" when there is no fresh cache
+     * entry. Never blocks on the IP-API HTTP call — callers that need a
+     * guaranteed resolution should invoke the `country_tier_get` RPC first
+     * (which resolves + caches), then read this. Used by the "People Near
+     * You" suggestion RPC to scope candidates to the same country without
+     * introducing any new permission or storage surface.
+     *
+     * Returns "" for the "XX" fallback sentinel too, so callers can treat
+     * an unknown geo as "no nearby scoping possible".
+     */
+    function getUserCountry(nk, userId) {
+        var cached = readCache(nk, userId);
+        if (cached && cached.countryCode && cached.countryCode !== "XX") {
+            return cached.countryCode.toUpperCase();
+        }
+        return "";
+    }
+    GeoTier.getUserCountry = getUserCountry;
+    /**
+     * Resolve + cache the user's country in one call (cache-first, then
+     * IP-API fallback). Returns the resolved alpha-2 code, or "" when even
+     * the IP lookup fails (geo unknown). Unlike getUserCountry this WILL
+     * perform the HTTP lookup on a cache miss, so the very first "People
+     * Near You" load for a brand-new user still scopes correctly.
+     */
+    function resolveUserCountry(ctx, logger, nk, userId) {
+        var result = resolve(ctx, logger, nk, userId);
+        if (result && result.countryCode && result.countryCode !== "XX") {
+            return result.countryCode.toUpperCase();
+        }
+        return "";
+    }
+    GeoTier.resolveUserCountry = resolveUserCountry;
     // ─── Registration ───────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("country_tier_get", rpcCountryTierGet);

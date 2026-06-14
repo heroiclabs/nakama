@@ -230,6 +230,15 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Friends] Registering intelliverse_find_friends RPC...");
     IntelliverseFriends.register(initializer);
 
+    // ── "People Near You" friend suggestions (same-country, not-yet-friends).
+    //   Lives in src/friends/find_nearby_players.ts and registers
+    //   `intelliverse_find_nearby_players`. Reuses the GeoTier cache for the
+    //   caller's country and the canonical player_presence/status presence
+    //   schema, and is auto-pinned in __TS_OWNED_RPCS by postbuild so the
+    //   legacy bridge cannot shadow it. ────────────────────────────────────
+    logger.info("[Friends] Registering intelliverse_find_nearby_players RPC...");
+    IntelliverseNearbyPlayers.register(initializer);
+
     // ── Phase-4 C1+H1: canonical friends_list + list_blocked_users with
     //   flat shape + presence/relationship enrichment. Replaces the
     //   6-line passthrough that used to live in LegacyFriends.rpcFriendsList
