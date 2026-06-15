@@ -335,6 +335,11 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config / admin_get_config RPCs...");
     QuestEngine.register(initializer);
     logger.info("[QuestEngine] 5 RPCs registered successfully");
+
+    // Register EventBus bridge for automatic quest progress from existing events
+    logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
+    QuestEventBusBridge.register(initializer, logger);
+    logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
   } catch (err: any) {
     logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
   }

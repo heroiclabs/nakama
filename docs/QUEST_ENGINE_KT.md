@@ -1,6 +1,8 @@
 # 🗺️ Quest Engine — Full Implementation Knowledge Transfer (KT)
 
-**Version:** 1.0.0 | **Date:** 2026-06-01 | **Audience:** Backend / Unity / Mobile Engineers
+**Version:** 2.0.0 | **Date:** 2026-06-15 | **Audience:** Backend / Unity / Mobile Engineers
+
+> **v2.0 UPDATE:** Quest progress is now **automatic via EventBus**. Apps/games don't need to call any new RPCs — existing analytics events (quiz_completed, level_up, etc.) automatically trigger quest progress. Zero client-side code changes required.
 
 ---
 
@@ -8,19 +10,20 @@
 
 1. [What Was Built](#1-what-was-built)
 2. [Architecture Overview](#2-architecture-overview)
-3. [Nakama Backend](#3-nakama-backend)
-4. [Unity Client — QuestEngineManager](#4-unity-client--questenginemanager)
-5. [Unity UI — 4 Popup Controllers](#5-unity-ui--4-popup-controllers)
-6. [Scene Setup (MainQuiz)](#6-scene-setup-mainguiz)
-7. [UXML / USS Asset Locations](#7-uxml--uss-asset-locations)
-8. [Full Data Flow Trace](#8-full-data-flow-trace)
-9. [Bugs Found & Fixed During Implementation](#9-bugs-found--fixed-during-implementation)
-10. [Deleted / Replaced Code](#10-deleted--replaced-code)
-11. [Quest Config — Seeding Guide](#11-quest-config--seeding-guide)
-12. [RPC Reference](#12-rpc-reference)
-13. [Storage Reference](#13-storage-reference)
-14. [Wiring Open Buttons (Last Step)](#14-wiring-open-buttons-last-step)
-15. [Quick-Start Checklist for New Devs](#15-quick-start-checklist-for-new-devs)
+3. [EventBus Integration (NEW in v2.0)](#3-eventbus-integration-new-in-v20)
+4. [Nakama Backend](#4-nakama-backend)
+5. [Unity Client — QuestEngineManager](#5-unity-client--questenginemanager)
+6. [Unity UI — 4 Popup Controllers](#6-unity-ui--4-popup-controllers)
+7. [Scene Setup (MainQuiz)](#7-scene-setup-mainguiz)
+8. [UXML / USS Asset Locations](#8-uxml--uss-asset-locations)
+9. [Full Data Flow Trace](#9-full-data-flow-trace)
+10. [Bugs Found & Fixed During Implementation](#10-bugs-found--fixed-during-implementation)
+11. [Deleted / Replaced Code](#11-deleted--replaced-code)
+12. [Quest Config — Seeding Guide](#12-quest-config--seeding-guide)
+13. [RPC Reference](#13-rpc-reference)
+14. [Storage Reference](#14-storage-reference)
+15. [Wiring Open Buttons (Last Step)](#15-wiring-open-buttons-last-step)
+16. [Quick-Start Checklist for New Devs](#16-quick-start-checklist-for-new-devs)
 
 ---
 
@@ -39,42 +42,114 @@ The **Quest Engine** is a unified, server-authoritative quest system that replac
 
 ## 2. Architecture Overview
 
+> **KEY INSIGHT:** Apps/games already send analytics events. The Quest Engine now listens to EventBus and auto-progresses quests. **No new client-side code needed.**
+
 ```
-Player Action (quiz completed, friend challenged, …)
-         │
-         ▼
-ProgressionEventRouter.cs
-         │  QuestEngineManager.Instance.RecordEvent("quiz_completed", score)
-         ▼
-QuestEngineManager.cs ── debounced (400 ms) ──► LoadQuests() ──► OnQuestsLoaded event
-         │
-         │  RPC: quest_engine_record_event
-         ▼
-Nakama JS Runtime (Goja ES5)
-  └── quest_engine.ts
-        ├── resolveGameId()  → gameId = "126bf539-dae2-4bcf-964d-316c0fa1f92b"
-        ├── getPlayerQuests() ← nk.storageRead (collection: "qv_quests")
-        ├── matchEvent()     ← walks quest steps, increments counters
-        ├── checkCompletion() ← marks quest.completedAt when all steps done
-        └── nk.storageWrite  → saves updated quest state
-         │
-         │  RPC response: { success, data: { updatedQuests: N } }
-         ▼
-QuestEngineManager.cs
-  └── OnQuestsUpdated?.Invoke(N)
-  └── ScheduleReload() → single LoadQuests() after 400 ms burst window
-         │
-         ▼
-4 UI Popup controllers (subscribe to OnQuestsLoaded / OnQuestsUpdated / OnRewardClaimed)
-  └── DailyQuestPopupUI   → RefreshList() → BuildQuestCard() per daily quest
-  └── WeeklyGoalsPopupUI  → RefreshList() → BuildQuestCard() per weekly quest
-  └── MonthlyMilestonesPopupUI → RefreshList() → BuildMilestoneCard() with step ladder
-  └── FriendQuestPopupUI  → RefreshList() → BuildFriendQuestCard() / BuildEmptySocialCard()
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           APP / GAME CLIENT                                  │
+│                                                                             │
+│  Player completes a quiz, wins a match, levels up, etc.                    │
+│  App sends EXISTING analytics event (already implemented):                  │
+│    analytics_log_event("quiz_completed", { score: 850 })                   │
+│                                                                             │
+│  ⚠️ NO NEW CODE NEEDED — apps keep sending the same events they always did │
+└──────────────────────────────────┬──────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              NAKAMA SERVER                                   │
+│                                                                             │
+│  ┌─────────────┐      emit()     ┌─────────────────────────────────────┐   │
+│  │  Analytics  │ ───────────────►│           EventBus                   │   │
+│  │  Quiz RPC   │                 │                                     │   │
+│  │  Hiro RPCs  │                 │  QUIZ_COMPLETED, LEVEL_UP,          │   │
+│  └─────────────┘                 │  GAME_COMPLETED, SCORE_SUBMITTED,   │   │
+│                                  │  ACHIEVEMENT_COMPLETED, etc.        │   │
+│                                  └──────────────┬──────────────────────┘   │
+│                                                 │                           │
+│                                    on() subscribe                           │
+│                                                 │                           │
+│                                                 ▼                           │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │              QuestEventBusBridge (NEW in v2.0)                       │   │
+│  │                                                                      │   │
+│  │  - Subscribes to all relevant EventBus events                       │   │
+│  │  - Maps EventBus event → Quest eventType                            │   │
+│  │  - Calls QuestEngine.processEvent() automatically                   │   │
+│  └──────────────────────────────────┬──────────────────────────────────┘   │
+│                                     │                                       │
+│                                     ▼                                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                      QuestEngine.processEvent()                      │   │
+│  │                                                                      │   │
+│  │  - Loads quest config for game/app                                  │   │
+│  │  - Walks all quest steps, matches eventType                         │   │
+│  │  - Increments counters, marks completions                           │   │
+│  │  - Auto-grants rewards on completion                                │   │
+│  │  - Saves progress to Nakama storage                                 │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### What Changed (v1.0 → v2.0)
+
+| Aspect | v1.0 (Old) | v2.0 (New) |
+|--------|------------|------------|
+| **Client code** | Unity had to call `RecordEvent()` | **No changes needed** — existing analytics work |
+| **Event source** | Explicit RPC call | EventBus subscription |
+| **Integration effort** | Add new code to 6+ places | **Zero effort** |
+| **Supported apps** | Only Unity games | **Any app** — web, mobile, Unity, native |
+
+---
+
+## 3. EventBus Integration (NEW in v2.0)
+
+### How It Works
+
+1. **Apps send analytics events** (they already do this)
+2. **Nakama modules emit to EventBus** (QUIZ_COMPLETED, LEVEL_UP, etc.)
+3. **QuestEventBusBridge subscribes** to these events
+4. **Quest progress happens automatically** — no client changes
+
+### File Location
+
+```
+data/modules/src/quests/quest-eventbus-bridge.ts
+```
+
+### Supported EventBus Events → Quest Event Types
+
+| EventBus Event | Quest eventType | Example Quest |
+|----------------|-----------------|---------------|
+| `QUIZ_COMPLETED` | `quiz_completed` | "Complete 3 quizzes today" |
+| `LEVEL_UP` | `level_up` | "Reach level 10" |
+| `GAME_COMPLETED` | `game_completed` | "Play 5 games this week" |
+| `SCORE_SUBMITTED` | `score_submitted` | "Score 5000 total points" |
+| `ACHIEVEMENT_COMPLETED` | `achievement_completed` | "Unlock 3 achievements" |
+| `CHALLENGE_COMPLETED` | `challenge_completed` | "Win a challenge" |
+| `STREAK_UPDATED` | `streak_updated` | "Maintain 7-day streak" |
+| `CURRENCY_EARNED` | `currency_earned` | "Earn 1000 coins" |
+| `SESSION_END` | `session_end` | "Play 30 minutes today" |
+| `STORE_PURCHASE` | `store_purchase` | "Make a purchase" |
+
+### For App/Game Developers
+
+**You don't need to do anything.** If your app already sends analytics events to Nakama, quests will automatically progress.
+
+```csharp
+// Unity example — this is what you ALREADY have:
+IVXNManager.Instance.RpcAsync("analytics_log_event", JsonUtility.ToJson(new {
+    event_name = "quiz_completed",
+    score = 850
+}));
+
+// ✅ Quests will auto-progress — no new code needed
 ```
 
 ---
 
-## 3. Nakama Backend
+## 4. Nakama Backend
 
 ### File Location
 
@@ -166,7 +241,7 @@ docker compose logs nakama --tail=40
 
 ---
 
-## 4. Unity Client — QuestEngineManager
+## 5. Unity Client — QuestEngineManager
 
 ### File
 
@@ -235,7 +310,7 @@ QuestEngineManager.Instance.OnRewardClaimed += (string questId) => { };
 
 ---
 
-## 5. Unity UI — 4 Popup Controllers
+## 6. Unity UI — 4 Popup Controllers
 
 ### File Locations
 
@@ -288,7 +363,7 @@ DOTween is used for all show/hide transitions:
 
 ---
 
-## 6. Scene Setup (MainQuiz)
+## 7. Scene Setup (MainQuiz)
 
 All objects are live in `Assets/_QuizVerse/Scenes/Production/Scenes/MainQuiz.unity`.
 
@@ -322,7 +397,7 @@ MainQuiz scene root
 
 ---
 
-## 7. UXML / USS Asset Locations
+## 8. UXML / USS Asset Locations
 
 ```
 Assets/_QuizVerse/UI/Quests/
@@ -367,7 +442,7 @@ Assets/_QuizVerse/UI/Quests/
 
 ---
 
-## 8. Full Data Flow Trace
+## 9. Full Data Flow Trace
 
 ### Quiz Completed → Quest Progress → UI Update
 
@@ -428,7 +503,7 @@ Assets/_QuizVerse/UI/Quests/
 
 ---
 
-## 9. Bugs Found & Fixed During Implementation
+## 10. Bugs Found & Fixed During Implementation
 
 | # | Severity | Bug | Fix Applied |
 |---|----------|-----|-------------|
@@ -441,7 +516,7 @@ Assets/_QuizVerse/UI/Quests/
 
 ---
 
-## 10. Deleted / Replaced Code
+## 11. Deleted / Replaced Code
 
 The following files were deleted as part of this migration. All their functionality is now in `QuestEngineManager.cs`.
 
@@ -467,7 +542,7 @@ The following files were deleted as part of this migration. All their functional
 
 ---
 
-## 11. Quest Config — Seeding Guide
+## 12. Quest Config — Seeding Guide
 
 Quest definitions must be seeded once via the Nakama Console before the system has any quests.
 
@@ -534,7 +609,7 @@ Quest definitions must be seeded once via the Nakama Console before the system h
 
 ---
 
-## 12. RPC Reference
+## 13. RPC Reference
 
 | RPC | Auth Required | Input | Output |
 |-----|-------------|-------|--------|
@@ -552,7 +627,7 @@ All RPCs follow the project's standard `RpcHelpers.successResponse` envelope:
 
 ---
 
-## 13. Storage Reference
+## 14. Storage Reference
 
 | Collection | Key | Value | Permission |
 |-----------|-----|-------|------------|
@@ -561,7 +636,7 @@ All RPCs follow the project's standard `RpcHelpers.successResponse` envelope:
 
 ---
 
-## 14. Wiring Open Buttons (Last Step)
+## 15. Wiring Open Buttons (Last Step)
 
 The popups are fully built and hidden. The only remaining step is calling `.Show()` from your existing screen/HUD button handlers:
 
@@ -577,7 +652,7 @@ All four singletons are alive from scene start — `Instance` is never null afte
 
 ---
 
-## 15. Quick-Start Checklist for New Devs
+## 16. Quick-Start Checklist for New Devs
 
 ### Backend
 - [ ] `cd data/modules && npm run build` — verify quest_engine_* RPCs in `index.js`
