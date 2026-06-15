@@ -198,6 +198,9 @@ namespace SatoriDashboard {
     var legacyCountries = topN(legacyToday.byCountry, 8).map(function (r) { return { country: r.key, users: r.count }; });
     if (legacyCountries.length > 0) topCountries = legacyCountries;
 
+    var legacyCities = topN(legacyToday.byCity, 8).map(function (r) { return { city: r.key, users: r.count }; });
+    if (legacyCities.length > 0) topCities = legacyCities;
+
     var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
     if (legacyEvents.length > 0) topEvents = legacyEvents;
 

@@ -91,15 +91,16 @@ function useAccountDetail(userId: string | null) {
 }
 
 // ─── Inventory Hook (Hiro) ────────────────────────────────────────────
+// Reads the target player's inventory via the admin profile inspector.
+// hiro_inventory_list is player-scoped (needs the caller's own user id), so it
+// cannot be used by the admin console to inspect an arbitrary player.
 function usePlayerInventory(userId: string | null) {
   return useQuery({
     queryKey: ["admin", "player-inventory", userId],
-    queryFn: () =>
-      callRpc<{ user_id: string }, Record<string, unknown>>(
-        "hiro_inventory_list",
-        { user_id: userId! },
-        serverKeyAuth(),
-      ),
+    queryFn: async () => {
+      const profile = await nakama.inspectPlayer(userId!, serverKeyAuth());
+      return (profile.inventory ?? {}) as Record<string, unknown>;
+    },
     enabled: !!userId,
     staleTime: 15_000,
     retry: 1,
@@ -559,7 +560,7 @@ function InventoryTab({ userId }: { userId: string }) {
         <div className="rounded-lg border border-dashed border-destructive/50 p-8 text-center text-sm text-muted-foreground">
           <p>
             Failed to load inventory — ensure{" "}
-            <code className="rounded bg-muted px-1">hiro_inventory_list</code>{" "}
+            <code className="rounded bg-muted px-1">admin_player_inspect</code>{" "}
             is registered.
           </p>
         </div>
