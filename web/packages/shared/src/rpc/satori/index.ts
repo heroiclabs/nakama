@@ -519,6 +519,10 @@ export interface DashboardSummary {
   activeUsers1h: number;
   activeUsers24h: number;
   eventsLast24h: number;
+  /** Real daily truth from the legacy analytics pipeline (matches analytics.htm). */
+  dauToday?: number;
+  eventsToday?: number;
+  revenueToday?: number;
   ringBufferSize: number;
   timeline: { hourMs: number; count: number }[];
   topCountries: { country: string; users: number }[];

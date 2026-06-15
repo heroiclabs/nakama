@@ -41196,6 +41196,13 @@ var SatoriDashboard;
 (function (SatoriDashboard) {
     var RING_COLLECTION = "satori_debugger";
     var RING_KEY = "recent_events";
+    // Legacy analytics pipeline collections — the real game telemetry sink.
+    // The Unity/web clients send their events to `analytics_log_event`, which
+    // maintains durable per-day aggregate docs here. This is the SAME data that
+    // powers nakama.intelli-verse-x.ai/analytics.htm, so the IVX console reads
+    // straight from it instead of scanning the sparse `satori_events` ring.
+    var LEGACY_DAU = "analytics_dau"; // key: dau_platform_<date> | dau_<gameId>_<date>
+    var LEGACY_LIVE = "analytics_live_daily"; // key: live_all_<date>     | live_<gameId>_<date>
     var MIN_5 = 5 * 60 * 1000;
     var HOUR = 60 * 60 * 1000;
     var DAY = 24 * HOUR;
@@ -41345,12 +41352,31 @@ var SatoriDashboard;
         var topCountries = topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
         var topCities = topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
         var topEvents = topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        // ── Real game telemetry overlay (legacy analytics pipeline) ───────────────
+        // The satori_events ring only sees the web SDK. The actual game DAU / event
+        // volume / geo lives in the legacy per-day aggregate. Overlay it so the IVX
+        // console shows the same numbers as analytics.htm instead of a near-empty map.
+        var todayStr = dateStrOf(now);
+        var legacyToday = readLegacyDay(nk, todayStr, gameId);
+        var dauToday = legacyToday.dau;
+        var eventsToday = legacyToday.events;
+        var revenueToday = round2(legacyToday.revenue);
+        var legacyCountries = topN(legacyToday.byCountry, 8).map(function (r) { return { country: r.key, users: r.count }; });
+        if (legacyCountries.length > 0)
+            topCountries = legacyCountries;
+        var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        if (legacyEvents.length > 0)
+            topEvents = legacyEvents;
         return RpcHelpers.successResponse({
             generatedAt: now,
             activeUsers5m: distinctCount(users5m),
             activeUsers1h: distinctCount(users1h),
-            activeUsers24h: distinctCount(users24h),
-            eventsLast24h: events24h,
+            activeUsers24h: Math.max(distinctCount(users24h), dauToday),
+            eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
+            // Real daily truth from the analytics pipeline (matches analytics.htm).
+            dauToday: dauToday,
+            eventsToday: eventsToday,
+            revenueToday: revenueToday,
             ringBufferSize: events.length,
             timeline: timeline,
             topCountries: topCountries,
@@ -41363,100 +41389,90 @@ var SatoriDashboard;
         });
     }
     // ── Daily game-metrics (Satori "Game Metrics" tab) ─────────────────────────
-    // Multi-day trend series computed from a page-capped scan of satori_events.
-    // Mirrors Satori Cloud's Daily Active Users / Daily Revenue / Daily ARPAU
-    // charts. ARPAU (avg revenue per active user) is derived per day server-side
-    // so the UI just plots the series.
-    var GM_PAGE_SIZE = 100;
-    var GM_DEFAULT_PAGES = 320;
-    var GM_MAX_PAGES = 800;
+    // Mirrors Satori Cloud's Daily Active Users / Sessions / Revenue / ARPAU
+    // charts. Instead of scanning the sparse `satori_events` ring (which only
+    // holds the web SDK's events and times out at scale), we read the durable
+    // per-day aggregate docs the legacy analytics pipeline already maintains —
+    // the same source as nakama.intelli-verse-x.ai/analytics.htm. One batched
+    // storage read per day → fast and complete.
     var GM_MAX_DAYS = 31;
-    function revenueOf(rec) {
-        var md = rec && rec.metadata ? rec.metadata : {};
-        var rev = md.revenue !== undefined ? md.revenue : md.price;
-        var n = typeof rev === "number" ? rev : parseFloat(rev);
-        return !isNaN(n) && n > 0 ? n : 0;
+    // Read the legacy analytics_dau + analytics_live_daily aggregate docs for a
+    // single date. gameId "all" maps to the platform-wide aggregate keys.
+    function readLegacyDay(nk, dateStr, gameId) {
+        var sys = Constants.SYSTEM_USER_ID;
+        var isAll = !gameId || gameId === "all";
+        var dauKey = isAll ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
+        var liveKey = isAll ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
+        var out = { dau: 0, events: 0, sessions: 0, revenue: 0, purchases: 0, byCountry: {}, byName: {}, lastEventAt: 0 };
+        try {
+            var recs = nk.storageRead([
+                { collection: LEGACY_DAU, key: dauKey, userId: sys },
+                { collection: LEGACY_LIVE, key: liveKey, userId: sys }
+            ]);
+            for (var i = 0; i < recs.length; i++) {
+                var r = recs[i];
+                if (!r || !r.value)
+                    continue;
+                if (r.collection === LEGACY_DAU) {
+                    var dv = r.value;
+                    out.dau = (parseInt(dv.count, 10) || 0) ||
+                        (Array.isArray(dv.users) ? dv.users.length : 0) ||
+                        (Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers.length : 0) || 0;
+                }
+                else if (r.collection === LEGACY_LIVE) {
+                    var lv = r.value;
+                    out.events = parseInt(lv.total, 10) || 0;
+                    out.byName = lv.by_name || {};
+                    out.byCountry = lv.by_country || {};
+                    out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
+                    out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
+                    out.sessions = parseInt(lv.session_count, 10) ||
+                        (out.byName.session_end || out.byName.session_start || 0);
+                    out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
+                }
+            }
+        }
+        catch (e) { /* missing day → zeros */ }
+        return out;
     }
-    // satori_game_metrics — Payload: { days?, max_pages? }
+    // satori_game_metrics — Payload: { days?, game_id? }
     function rpcGameMetrics(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), GM_MAX_DAYS);
-        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || GM_DEFAULT_PAGES, 1), GM_MAX_PAGES);
+        var gameId = (typeof data.game_id === "string" && data.game_id) ? data.game_id : "all";
         var nowMs = Date.now();
-        var sinceMs = nowMs - days * 86400000;
-        var perDay = {};
-        var cursor = "";
-        var scanned = 0;
-        var truncated = false;
-        for (var p = 0; p < maxPages; p++) {
-            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, GM_PAGE_SIZE, cursor);
-            var objects = (page && page.objects) || [];
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
-                    continue;
-                scanned++;
-                var rec = obj.value;
-                var t = toMs(rec.timestamp);
-                if (t < sinceMs || t > nowMs)
-                    continue;
-                var uid = rec.userId || rec.identityId || "";
-                var dStr = rec.date || dateStrOf(t);
-                if (!perDay[dStr])
-                    perDay[dStr] = { users: {}, events: 0, sessions: 0, revenue: 0, payers: {} };
-                var bucket = perDay[dStr];
-                bucket.events++;
-                if (uid)
-                    bucket.users[uid] = true;
-                if (rec.name === "session_start")
-                    bucket.sessions++;
-                var rev = revenueOf(rec);
-                if (rev > 0) {
-                    bucket.revenue += rev;
-                    if (uid)
-                        bucket.payers[uid] = true;
-                }
-            }
-            cursor = (page && page.cursor) || "";
-            if (!cursor)
-                break;
-        }
-        if (cursor)
-            truncated = true;
         var series = [];
-        var totals = { dau: 0, sessions: 0, events: 0, revenue: 0 };
-        var dauSum = 0;
+        var totalsSessions = 0, totalsEvents = 0, totalsRevenue = 0, dauSum = 0;
         for (var d = days - 1; d >= 0; d--) {
-            var dStr2 = dateStrOf(nowMs - d * 86400000);
-            var e = perDay[dStr2];
-            var dau = e ? Object.keys(e.users).length : 0;
-            var revenue = e ? e.revenue : 0;
-            var payers = e ? Object.keys(e.payers).length : 0;
+            var dStr = dateStrOf(nowMs - d * 86400000);
+            var day = readLegacyDay(nk, dStr, gameId);
+            var dau = day.dau;
+            var revenue = day.revenue;
+            var payers = day.purchases;
             series.push({
-                date: dStr2,
+                date: dStr,
                 dau: dau,
-                sessions: e ? e.sessions : 0,
-                events: e ? e.events : 0,
+                sessions: day.sessions,
+                events: day.events,
                 revenue: round2(revenue),
                 payers: payers,
                 arpau: dau > 0 ? round2(revenue / dau) : 0,
                 arppu: payers > 0 ? round2(revenue / payers) : 0
             });
-            totals.sessions += e ? e.sessions : 0;
-            totals.events += e ? e.events : 0;
-            totals.revenue += revenue;
+            totalsSessions += day.sessions;
+            totalsEvents += day.events;
+            totalsRevenue += revenue;
             dauSum += dau;
         }
-        totals.revenue = round2(totals.revenue);
         var avgDau = series.length > 0 ? Math.round(dauSum / series.length) : 0;
         return RpcHelpers.successResponse({
             days: days,
             generatedAt: nowMs,
             series: series,
-            totals: { sessions: totals.sessions, events: totals.events, revenue: totals.revenue, avgDau: avgDau },
-            scannedRecords: scanned,
-            truncated: truncated
+            totals: { sessions: totalsSessions, events: totalsEvents, revenue: round2(totalsRevenue), avgDau: avgDau },
+            scannedRecords: days * 2,
+            truncated: false
         });
     }
     function register(initializer) {
