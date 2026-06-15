@@ -18,57 +18,61 @@ namespace QuestEventBusBridge {
   // ── EventBus event name → Quest eventType mapping ─────────────────────────
   // These map the well-known EventBus events to quest step eventTypes.
   // Quest configs define steps with eventType like "quiz_completed", "level_up", etc.
-  
-  var EVENT_TYPE_MAP: { [eventBusEvent: string]: string } = {
-    // Core gameplay events
-    [EventBus.Events.QUIZ_COMPLETED]:        "quiz_completed",
-    [EventBus.Events.GAME_COMPLETED]:        "game_completed",
-    [EventBus.Events.GAME_STARTED]:          "game_started",
-    
-    // Progression events
-    [EventBus.Events.LEVEL_UP]:              "level_up",
-    [EventBus.Events.XP_EARNED]:             "xp_earned",
-    
-    // Score events
-    [EventBus.Events.SCORE_SUBMITTED]:       "score_submitted",
-    
-    // Achievement events
-    [EventBus.Events.ACHIEVEMENT_COMPLETED]: "achievement_completed",
-    [EventBus.Events.ACHIEVEMENT_CLAIMED]:   "achievement_claimed",
-    
-    // Challenge events
-    [EventBus.Events.CHALLENGE_COMPLETED]:   "challenge_completed",
-    
-    // Streak events
-    [EventBus.Events.STREAK_UPDATED]:        "streak_updated",
-    [EventBus.Events.STREAK_BROKEN]:         "streak_broken",
-    
-    // Economy events
-    [EventBus.Events.CURRENCY_EARNED]:       "currency_earned",
-    [EventBus.Events.CURRENCY_SPENT]:        "currency_spent",
-    [EventBus.Events.STORE_PURCHASE]:        "store_purchase",
-    
-    // Inventory events
-    [EventBus.Events.ITEM_GRANTED]:          "item_granted",
-    [EventBus.Events.ITEM_CONSUMED]:         "item_consumed",
-    
-    // Energy events
-    [EventBus.Events.ENERGY_SPENT]:          "energy_spent",
-    [EventBus.Events.ENERGY_REFILLED]:       "energy_refilled",
-    
-    // Session events
-    [EventBus.Events.SESSION_START]:         "session_start",
-    [EventBus.Events.SESSION_END]:           "session_end",
-    
-    // Stat events
-    [EventBus.Events.STAT_UPDATED]:          "stat_updated",
-    
-    // Reward events
-    [EventBus.Events.REWARD_GRANTED]:        "reward_granted",
-  };
+  //
+  // IMPORTANT: this map is built LAZILY (inside a function), not at namespace
+  // eval time. Reading `EventBus.Events.*` at module scope creates an
+  // eval-time dependency on the EventBus namespace having already been
+  // initialised — but the merged bundle's namespace order is not guaranteed
+  // (it shifts with the TypeScript compiler version / file ordering). When
+  // this namespace's IIFE ran before EventBus's, `EventBus` was `undefined`
+  // and the whole goja runtime failed to load with
+  // "Cannot read property 'Events' of undefined". Deferring the reads to
+  // call-time (register(), invoked from InitModule) guarantees EventBus is
+  // fully defined first.
+  var _eventTypeMap: { [eventBusEvent: string]: string } | null = null;
 
-  // List of events to subscribe to
-  var SUBSCRIBED_EVENTS = Object.keys(EVENT_TYPE_MAP);
+  function eventTypeMap(): { [eventBusEvent: string]: string } {
+    if (_eventTypeMap) {
+      return _eventTypeMap;
+    }
+    var m: { [eventBusEvent: string]: string } = {};
+    // Core gameplay events
+    m[EventBus.Events.QUIZ_COMPLETED] = "quiz_completed";
+    m[EventBus.Events.GAME_COMPLETED] = "game_completed";
+    m[EventBus.Events.GAME_STARTED] = "game_started";
+    // Progression events
+    m[EventBus.Events.LEVEL_UP] = "level_up";
+    m[EventBus.Events.XP_EARNED] = "xp_earned";
+    // Score events
+    m[EventBus.Events.SCORE_SUBMITTED] = "score_submitted";
+    // Achievement events
+    m[EventBus.Events.ACHIEVEMENT_COMPLETED] = "achievement_completed";
+    m[EventBus.Events.ACHIEVEMENT_CLAIMED] = "achievement_claimed";
+    // Challenge events
+    m[EventBus.Events.CHALLENGE_COMPLETED] = "challenge_completed";
+    // Streak events
+    m[EventBus.Events.STREAK_UPDATED] = "streak_updated";
+    m[EventBus.Events.STREAK_BROKEN] = "streak_broken";
+    // Economy events
+    m[EventBus.Events.CURRENCY_EARNED] = "currency_earned";
+    m[EventBus.Events.CURRENCY_SPENT] = "currency_spent";
+    m[EventBus.Events.STORE_PURCHASE] = "store_purchase";
+    // Inventory events
+    m[EventBus.Events.ITEM_GRANTED] = "item_granted";
+    m[EventBus.Events.ITEM_CONSUMED] = "item_consumed";
+    // Energy events
+    m[EventBus.Events.ENERGY_SPENT] = "energy_spent";
+    m[EventBus.Events.ENERGY_REFILLED] = "energy_refilled";
+    // Session events
+    m[EventBus.Events.SESSION_START] = "session_start";
+    m[EventBus.Events.SESSION_END] = "session_end";
+    // Stat events
+    m[EventBus.Events.STAT_UPDATED] = "stat_updated";
+    // Reward events
+    m[EventBus.Events.REWARD_GRANTED] = "reward_granted";
+    _eventTypeMap = m;
+    return m;
+  }
 
   // ── Handler for EventBus events ───────────────────────────────────────────
   function handleEvent(
@@ -83,7 +87,7 @@ namespace QuestEventBusBridge {
       return;
     }
 
-    var questEventType = EVENT_TYPE_MAP[eventName];
+    var questEventType = eventTypeMap()[eventName];
     if (!questEventType) {
       return;
     }
@@ -173,10 +177,12 @@ namespace QuestEventBusBridge {
 
   // ── Registration ──────────────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void {
-    logger.info("[QuestEventBusBridge] Registering EventBus subscriptions for %d events", SUBSCRIBED_EVENTS.length);
+    var map = eventTypeMap();
+    var subscribedEvents = Object.keys(map);
+    logger.info("[QuestEventBusBridge] Registering EventBus subscriptions for %d events", subscribedEvents.length);
     
-    for (var i = 0; i < SUBSCRIBED_EVENTS.length; i++) {
-      var eventName = SUBSCRIBED_EVENTS[i];
+    for (var i = 0; i < subscribedEvents.length; i++) {
+      var eventName = subscribedEvents[i];
       
       // Create a closure to capture eventName for each handler
       (function(capturedEventName: string) {
@@ -185,7 +191,7 @@ namespace QuestEventBusBridge {
         });
       })(eventName);
       
-      logger.debug("[QuestEventBusBridge] Subscribed to: %s → %s", eventName, EVENT_TYPE_MAP[eventName]);
+      logger.debug("[QuestEventBusBridge] Subscribed to: %s → %s", eventName, map[eventName]);
     }
     
     logger.info("[QuestEventBusBridge] Registration complete. Quest progress will auto-track from EventBus events.");

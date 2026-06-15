@@ -298,6 +298,10 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config / admin_get_config RPCs...");
         QuestEngine.register(initializer);
         logger.info("[QuestEngine] 5 RPCs registered successfully");
+        // Register EventBus bridge for automatic quest progress from existing events
+        logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
+        QuestEventBusBridge.register(initializer, logger);
+        logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
     }
     catch (err) {
         logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
@@ -38279,6 +38283,191 @@ var WalletGuestSync;
     }
     WalletGuestSync.register = register;
 })(WalletGuestSync || (WalletGuestSync = {}));
+// ============================================================
+// Quest EventBus Bridge — Auto-progress quests from existing events
+//
+// This module subscribes to EventBus events (QUIZ_COMPLETED, LEVEL_UP,
+// GAME_COMPLETED, etc.) that apps/games ALREADY emit, and automatically
+// progresses matching quests.
+//
+// KEY INSIGHT: Apps don't need to call any new RPC for quest progress.
+// They just send their normal analytics/gameplay events → EventBus emits
+// → this bridge listens → quests progress automatically.
+//
+// This replaces the old approach where Unity had to call RecordEvent()
+// explicitly for quest progress.
+// ============================================================
+var QuestEventBusBridge;
+(function (QuestEventBusBridge) {
+    // ── EventBus event name → Quest eventType mapping ─────────────────────────
+    // These map the well-known EventBus events to quest step eventTypes.
+    // Quest configs define steps with eventType like "quiz_completed", "level_up", etc.
+    //
+    // IMPORTANT: this map is built LAZILY (inside a function), not at namespace
+    // eval time. Reading `EventBus.Events.*` at module scope creates an
+    // eval-time dependency on the EventBus namespace having already been
+    // initialised — but the merged bundle's namespace order is not guaranteed
+    // (it shifts with the TypeScript compiler version / file ordering). When
+    // this namespace's IIFE ran before EventBus's, `EventBus` was `undefined`
+    // and the whole goja runtime failed to load with
+    // "Cannot read property 'Events' of undefined". Deferring the reads to
+    // call-time (register(), invoked from InitModule) guarantees EventBus is
+    // fully defined first.
+    var _eventTypeMap = null;
+    function eventTypeMap() {
+        if (_eventTypeMap) {
+            return _eventTypeMap;
+        }
+        var m = {};
+        // Core gameplay events
+        m[EventBus.Events.QUIZ_COMPLETED] = "quiz_completed";
+        m[EventBus.Events.GAME_COMPLETED] = "game_completed";
+        m[EventBus.Events.GAME_STARTED] = "game_started";
+        // Progression events
+        m[EventBus.Events.LEVEL_UP] = "level_up";
+        m[EventBus.Events.XP_EARNED] = "xp_earned";
+        // Score events
+        m[EventBus.Events.SCORE_SUBMITTED] = "score_submitted";
+        // Achievement events
+        m[EventBus.Events.ACHIEVEMENT_COMPLETED] = "achievement_completed";
+        m[EventBus.Events.ACHIEVEMENT_CLAIMED] = "achievement_claimed";
+        // Challenge events
+        m[EventBus.Events.CHALLENGE_COMPLETED] = "challenge_completed";
+        // Streak events
+        m[EventBus.Events.STREAK_UPDATED] = "streak_updated";
+        m[EventBus.Events.STREAK_BROKEN] = "streak_broken";
+        // Economy events
+        m[EventBus.Events.CURRENCY_EARNED] = "currency_earned";
+        m[EventBus.Events.CURRENCY_SPENT] = "currency_spent";
+        m[EventBus.Events.STORE_PURCHASE] = "store_purchase";
+        // Inventory events
+        m[EventBus.Events.ITEM_GRANTED] = "item_granted";
+        m[EventBus.Events.ITEM_CONSUMED] = "item_consumed";
+        // Energy events
+        m[EventBus.Events.ENERGY_SPENT] = "energy_spent";
+        m[EventBus.Events.ENERGY_REFILLED] = "energy_refilled";
+        // Session events
+        m[EventBus.Events.SESSION_START] = "session_start";
+        m[EventBus.Events.SESSION_END] = "session_end";
+        // Stat events
+        m[EventBus.Events.STAT_UPDATED] = "stat_updated";
+        // Reward events
+        m[EventBus.Events.REWARD_GRANTED] = "reward_granted";
+        _eventTypeMap = m;
+        return m;
+    }
+    // ── Handler for EventBus events ───────────────────────────────────────────
+    function handleEvent(nk, logger, ctx, eventName, data) {
+        // Skip if no user context (system events without user)
+        if (!ctx.userId) {
+            return;
+        }
+        var questEventType = eventTypeMap()[eventName];
+        if (!questEventType) {
+            return;
+        }
+        // Extract common fields from event data
+        var gameId = data.gameId || data.appId || Constants.DEFAULT_GAME_ID;
+        var value = extractValue(eventName, data);
+        var metadata = extractMetadata(eventName, data);
+        logger.debug("[QuestEventBusBridge] Processing event=%s → questEventType=%s user=%s game=%s value=%d", eventName, questEventType, ctx.userId, gameId, value);
+        // Call the quest engine to process this event
+        try {
+            QuestEngine.processEvent(nk, logger, ctx, ctx.userId, gameId, questEventType, value, metadata);
+        }
+        catch (err) {
+            logger.warn("[QuestEventBusBridge] Quest processing failed for event=%s user=%s: %s", eventName, ctx.userId, err.message || String(err));
+        }
+    }
+    // ── Value extraction per event type ───────────────────────────────────────
+    function extractValue(eventName, data) {
+        switch (eventName) {
+            case EventBus.Events.QUIZ_COMPLETED:
+                return data.score || data.correctAnswers || 1;
+            case EventBus.Events.SCORE_SUBMITTED:
+                return data.score || 0;
+            case EventBus.Events.XP_EARNED:
+                return data.amount || data.xp || 0;
+            case EventBus.Events.LEVEL_UP:
+                return data.level || data.newLevel || 1;
+            case EventBus.Events.CURRENCY_EARNED:
+            case EventBus.Events.CURRENCY_SPENT:
+                return data.amount || 0;
+            case EventBus.Events.SESSION_END:
+                return data.duration || data.durationMinutes || 0;
+            case EventBus.Events.STREAK_UPDATED:
+                return data.streak || data.currentStreak || 1;
+            default:
+                return data.value || data.count || 1;
+        }
+    }
+    // ── Metadata extraction per event type ────────────────────────────────────
+    function extractMetadata(eventName, data) {
+        var meta = {};
+        // Common fields
+        if (data.gameId)
+            meta.gameId = String(data.gameId);
+        if (data.appId)
+            meta.appId = String(data.appId);
+        if (data.category)
+            meta.category = String(data.category);
+        if (data.type)
+            meta.type = String(data.type);
+        // Event-specific fields
+        switch (eventName) {
+            case EventBus.Events.QUIZ_COMPLETED:
+                if (data.quizId)
+                    meta.quizId = String(data.quizId);
+                if (data.mode)
+                    meta.mode = String(data.mode);
+                if (data.difficulty)
+                    meta.difficulty = String(data.difficulty);
+                break;
+            case EventBus.Events.ACHIEVEMENT_COMPLETED:
+                if (data.achievementId)
+                    meta.achievementId = String(data.achievementId);
+                break;
+            case EventBus.Events.CHALLENGE_COMPLETED:
+                if (data.challengeId)
+                    meta.challengeId = String(data.challengeId);
+                break;
+            case EventBus.Events.LEVEL_UP:
+                if (data.previousLevel)
+                    meta.previousLevel = String(data.previousLevel);
+                break;
+            case EventBus.Events.CURRENCY_EARNED:
+            case EventBus.Events.CURRENCY_SPENT:
+                if (data.currency)
+                    meta.currency = String(data.currency);
+                if (data.source)
+                    meta.source = String(data.source);
+                break;
+            case EventBus.Events.STORE_PURCHASE:
+                if (data.itemId)
+                    meta.itemId = String(data.itemId);
+                break;
+        }
+        return meta;
+    }
+    // ── Registration ──────────────────────────────────────────────────────────
+    function register(initializer, logger) {
+        var map = eventTypeMap();
+        var subscribedEvents = Object.keys(map);
+        logger.info("[QuestEventBusBridge] Registering EventBus subscriptions for %d events", subscribedEvents.length);
+        for (var i = 0; i < subscribedEvents.length; i++) {
+            var eventName = subscribedEvents[i];
+            // Create a closure to capture eventName for each handler
+            (function (capturedEventName) {
+                EventBus.on(capturedEventName, function (nk, logger, ctx, data) {
+                    handleEvent(nk, logger, ctx, capturedEventName, data);
+                });
+            })(eventName);
+            logger.debug("[QuestEventBusBridge] Subscribed to: %s → %s", eventName, map[eventName]);
+        }
+        logger.info("[QuestEventBusBridge] Registration complete. Quest progress will auto-track from EventBus events.");
+    }
+    QuestEventBusBridge.register = register;
+})(QuestEventBusBridge || (QuestEventBusBridge = {}));
 var QuestEngine;
 (function (QuestEngine) {
     // ─── Types ────────────────────────────────────────────────────────────────
@@ -38523,26 +38712,8 @@ var QuestEngine;
         }
         return RpcHelpers.successResponse({ quests: result });
     }
-    // ─── RPC: quest_engine_record_event ──────────────────────────────────────
-    // Reports a player action. Fans out to all matching quest steps.
-    //
-    // Two-phase design (data-integrity guarantee):
-    //   Phase 1 — scan all quests, advance steps, mark completions in memory.
-    //   Phase 2 — persist state FIRST (progress is safe even if reward fails).
-    //   Phase 3 — grant auto-rewards; each wrapped in try/catch so a reward
-    //             engine error never rolls back the player's hard-earned progress.
-    //             If auto-grant fails, claimedAt stays null and the client can
-    //             retry via quest_engine_claim_reward.
-    function rpcQuestEngineRecordEvent(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var data = RpcHelpers.parseRpcPayload(payload);
-        var gameId = resolveGameId(data);
-        var eventType = data.eventType;
-        var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
-        var metadata = data.metadata || {};
+    function processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata) {
         var now = Math.floor(Date.now() / 1000);
-        if (!eventType)
-            return RpcHelpers.errorResponse("eventType is required");
         var config = loadConfig(nk, gameId);
         var state = loadUserState(nk, userId, gameId);
         var updatedCount = 0;
@@ -38653,8 +38824,29 @@ var QuestEngine;
         if (anyClaimedAt) {
             saveUserState(nk, userId, gameId, state);
         }
-        return RpcHelpers.successResponse({ updatedQuests: updatedCount, quests: updatedQuests });
+        return { updatedCount: updatedCount, updatedQuests: updatedQuests };
     }
+    // ─── RPC: quest_engine_record_event ──────────────────────────────────────
+    // Reports a player action via RPC. Calls the internal processor.
+    function rpcQuestEngineRecordEvent(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var eventType = data.eventType;
+        var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
+        var metadata = data.metadata || {};
+        if (!eventType)
+            return RpcHelpers.errorResponse("eventType is required");
+        var result = processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
+        return RpcHelpers.successResponse({ updatedQuests: result.updatedCount, quests: result.updatedQuests });
+    }
+    // ─── Public API: processEvent ────────────────────────────────────────────
+    // Called by QuestEventBusBridge to process events from EventBus.
+    // Apps don't need to call any RPC — events flow automatically.
+    function processEvent(nk, logger, ctx, userId, gameId, eventType, value, metadata) {
+        return processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
+    }
+    QuestEngine.processEvent = processEvent;
     // ─── RPC: quest_engine_claim_reward ──────────────────────────────────────
     // Manually claims reward for a completed quest (deferred-claim UI pattern).
     function rpcQuestEngineClaimReward(ctx, logger, nk, payload) {

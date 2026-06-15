@@ -3286,8 +3286,21 @@ declare namespace TournamentEconomyV2 {
 declare namespace WalletGuestSync {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QuestEventBusBridge {
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
 declare namespace QuestEngine {
-    function register(initializer: nkruntime.Initializer): void;
+    interface ProcessEventResult {
+        updatedCount: number;
+        updatedQuests: {
+            [questId: string]: any;
+        };
+    }
+    export function processEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, eventType: string, value: number, metadata: {
+        [k: string]: string;
+    }): ProcessEventResult;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
 }
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
