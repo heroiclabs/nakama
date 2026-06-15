@@ -38,6 +38,14 @@ namespace SatoriDashboard {
     return ts < 100000000000 ? ts * 1000 : ts;
   }
 
+  function dateStrOf(ms: number): string {
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+
+  function round2(n: number): number {
+    return Math.round(n * 100) / 100;
+  }
+
   function uidOf(ev: RingEvent): string {
     return ev.userId || ev.identityId || "";
   }
@@ -190,7 +198,106 @@ namespace SatoriDashboard {
     });
   }
 
+  // ── Daily game-metrics (Satori "Game Metrics" tab) ─────────────────────────
+  // Multi-day trend series computed from a page-capped scan of satori_events.
+  // Mirrors Satori Cloud's Daily Active Users / Daily Revenue / Daily ARPAU
+  // charts. ARPAU (avg revenue per active user) is derived per day server-side
+  // so the UI just plots the series.
+
+  var GM_PAGE_SIZE = 100;
+  var GM_DEFAULT_PAGES = 320;
+  var GM_MAX_PAGES = 800;
+  var GM_MAX_DAYS = 31;
+
+  function revenueOf(rec: any): number {
+    var md = rec && rec.metadata ? rec.metadata : {};
+    var rev = md.revenue !== undefined ? md.revenue : md.price;
+    var n = typeof rev === "number" ? rev : parseFloat(rev);
+    return !isNaN(n) && n > 0 ? n : 0;
+  }
+
+  // satori_game_metrics — Payload: { days?, max_pages? }
+  function rpcGameMetrics(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), GM_MAX_DAYS);
+    var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || GM_DEFAULT_PAGES, 1), GM_MAX_PAGES);
+
+    var nowMs = Date.now();
+    var sinceMs = nowMs - days * 86400000;
+
+    var perDay: { [d: string]: { users: { [u: string]: boolean }; events: number; sessions: number; revenue: number; payers: { [u: string]: boolean } } } = {};
+    var cursor = "";
+    var scanned = 0;
+    var truncated = false;
+
+    for (var p = 0; p < maxPages; p++) {
+      var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, GM_PAGE_SIZE, cursor);
+      var objects = (page && page.objects) || [];
+      for (var i = 0; i < objects.length; i++) {
+        var obj = objects[i];
+        if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value) continue;
+        scanned++;
+        var rec = obj.value as any;
+        var t = toMs(rec.timestamp);
+        if (t < sinceMs || t > nowMs) continue;
+        var uid = rec.userId || rec.identityId || "";
+        var dStr = rec.date || dateStrOf(t);
+        if (!perDay[dStr]) perDay[dStr] = { users: {}, events: 0, sessions: 0, revenue: 0, payers: {} };
+        var bucket = perDay[dStr];
+        bucket.events++;
+        if (uid) bucket.users[uid] = true;
+        if (rec.name === "session_start") bucket.sessions++;
+        var rev = revenueOf(rec);
+        if (rev > 0) {
+          bucket.revenue += rev;
+          if (uid) bucket.payers[uid] = true;
+        }
+      }
+      cursor = (page && page.cursor) || "";
+      if (!cursor) break;
+    }
+    if (cursor) truncated = true;
+
+    var series: any[] = [];
+    var totals = { dau: 0, sessions: 0, events: 0, revenue: 0 };
+    var dauSum = 0;
+    for (var d = days - 1; d >= 0; d--) {
+      var dStr2 = dateStrOf(nowMs - d * 86400000);
+      var e = perDay[dStr2];
+      var dau = e ? Object.keys(e.users).length : 0;
+      var revenue = e ? e.revenue : 0;
+      var payers = e ? Object.keys(e.payers).length : 0;
+      series.push({
+        date: dStr2,
+        dau: dau,
+        sessions: e ? e.sessions : 0,
+        events: e ? e.events : 0,
+        revenue: round2(revenue),
+        payers: payers,
+        arpau: dau > 0 ? round2(revenue / dau) : 0,
+        arppu: payers > 0 ? round2(revenue / payers) : 0
+      });
+      totals.sessions += e ? e.sessions : 0;
+      totals.events += e ? e.events : 0;
+      totals.revenue += revenue;
+      dauSum += dau;
+    }
+    totals.revenue = round2(totals.revenue);
+    var avgDau = series.length > 0 ? Math.round(dauSum / series.length) : 0;
+
+    return RpcHelpers.successResponse({
+      days: days,
+      generatedAt: nowMs,
+      series: series,
+      totals: { sessions: totals.sessions, events: totals.events, revenue: totals.revenue, avgDau: avgDau },
+      scannedRecords: scanned,
+      truncated: truncated
+    });
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("satori_dashboard_summary", rpcSummary);
+    initializer.registerRpc("satori_game_metrics", rpcGameMetrics);
   }
 }

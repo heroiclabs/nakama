@@ -539,6 +539,59 @@ export function getDashboardSummary(
   );
 }
 
+/* ── Game metrics (daily trend series — Satori "Game Metrics" tab) ── */
+
+export interface GameMetricsDay {
+  date: string;
+  dau: number;
+  sessions: number;
+  events: number;
+  revenue: number;
+  payers: number;
+  arpau: number;
+  arppu: number;
+}
+
+export interface GameMetricsResult {
+  days: number;
+  generatedAt: number;
+  series: GameMetricsDay[];
+  totals: { sessions: number; events: number; revenue: number; avgDau: number };
+  scannedRecords: number;
+  truncated: boolean;
+}
+
+export function getGameMetrics(
+  params: { days?: number },
+  opts: RpcOptions,
+): Promise<GameMetricsResult> {
+  return callRpc("satori_game_metrics", params, opts).then((value) =>
+    unwrapData<GameMetricsResult>(value),
+  );
+}
+
+/* ── Event errors (taxonomy-rejected events) ──────────────────────── */
+
+export interface EventError {
+  name: string;
+  code: string;
+  reason: string;
+  count: number;
+  lastSeenMs: number;
+}
+
+export interface EventErrorsResult {
+  errors: EventError[];
+  totalRejected: number;
+  distinctErrors: number;
+}
+
+export function getEventErrors(opts: RpcOptions): Promise<EventErrorsResult> {
+  return callRpc("satori_event_errors", {}, opts).then((value) =>
+    unwrapData<EventErrorsResult>(value),
+  );
+}
+
 /* ── Timeline ─────────────────────────────────────────────────────── */
 
 export interface TimelineDay {
