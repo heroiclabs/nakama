@@ -46,12 +46,17 @@ namespace LegacyAnalytics {
     return new Date(ms).toISOString().slice(0, 10);
   }
 
+  // "all" / "global" / empty all map to the platform-wide aggregate keys.
+  function isPlatform(gameId?: string): boolean {
+    return !gameId || gameId === "all" || gameId === "global";
+  }
+
   function dauKeyOf(dateStr: string, gameId?: string): string {
-    return (!gameId || gameId === "all") ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
+    return isPlatform(gameId) ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
   }
 
   function liveKeyOf(dateStr: string, gameId?: string): string {
-    return (!gameId || gameId === "all") ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
+    return isPlatform(gameId) ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
   }
 
   function emptyDay(dateStr: string): Day {
