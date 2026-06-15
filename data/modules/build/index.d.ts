@@ -3374,6 +3374,9 @@ declare namespace SatoriAudiences {
     function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string, gameId?: string): string[];
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriDashboard {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriDataLake {
     function exportBatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, events: any[]): void;
     function register(initializer: nkruntime.Initializer): void;
@@ -3453,6 +3456,9 @@ declare namespace SatoriMetrics {
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
 }
+declare namespace SatoriReports {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriRetention {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3463,6 +3469,9 @@ declare namespace SatoriTaxonomy {
         warnings: string[];
     }
     function validateEvent(nk: nkruntime.Nakama, event: Satori.CapturedEvent): ValidationResult;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriTimeline {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriVideoFeed {
