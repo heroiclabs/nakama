@@ -13428,7 +13428,10 @@ var AdminConsole;
             return direct[0];
         var cursor = "";
         for (var page = 0; page < 10; page++) {
-            var res = nk.storageList("", "live_events", 100, cursor);
+            // null owner = list across ALL users (empty string "" is NOT valid —
+            // Nakama's JS runtime runs it through uuid.FromString and throws
+            // "expects empty or valid user id"). SPA events are creator-owned.
+            var res = nk.storageList(null, "live_events", 100, cursor);
             var objs = (res && res.objects) || [];
             for (var i = 0; i < objs.length; i++) {
                 if (objs[i].value && (objs[i].key === eventId || objs[i].value.id === eventId)) {
@@ -13485,7 +13488,7 @@ var AdminConsole;
         try {
             var cursor = "";
             for (var page = 0; page < 5; page++) {
-                var result = nk.storageList("", "event_answers", 100, cursor);
+                var result = nk.storageList(null, "event_answers", 100, cursor);
                 var objects = result.objects || [];
                 for (var j = 0; j < objects.length; j++) {
                     if (objects[j].key !== eventId)
@@ -13723,7 +13726,8 @@ var AdminConsole;
         try {
             var cursor = "";
             for (var page = 0; page < 10 && events.length < limit; page++) {
-                var result = nk.storageList("", "live_events", 100, cursor);
+                // null owner = all users (empty string "" throws in Nakama's JS runtime)
+                var result = nk.storageList(null, "live_events", 100, cursor);
                 var objects = result.objects || [];
                 for (var j = 0; j < objects.length && events.length < limit; j++) {
                     var obj = objects[j];
@@ -43675,7 +43679,7 @@ var SatoriCreatorEvents;
         var cursor = "";
         for (var page = 0; page < 10; page++) {
             try {
-                var result = nk.storageList("", "live_events", 100, cursor);
+                var result = nk.storageList(null, "live_events", 100, cursor);
                 var objects = result.objects || [];
                 for (var i = 0; i < objects.length; i++) {
                     var obj = objects[i];
@@ -44869,7 +44873,7 @@ var SatoriCreatorEvents;
         do {
             var page;
             try {
-                page = nk.storageList("", "event_answers", 100, cursor);
+                page = nk.storageList(null, "event_answers", 100, cursor);
             }
             catch (lerr) {
                 logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
@@ -44923,7 +44927,7 @@ var SatoriCreatorEvents;
             do {
                 var pPage;
                 try {
-                    pPage = nk.storageList("", "event_participants", 100, pCursor);
+                    pPage = nk.storageList(null, "event_participants", 100, pCursor);
                 }
                 catch (perr) {
                     logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));

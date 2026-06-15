@@ -1323,7 +1323,10 @@ namespace AdminConsole {
 
     var cursor = "";
     for (var page = 0; page < 10; page++) {
-      var res = nk.storageList("", "live_events", 100, cursor);
+      // null owner = list across ALL users (empty string "" is NOT valid —
+      // Nakama's JS runtime runs it through uuid.FromString and throws
+      // "expects empty or valid user id"). SPA events are creator-owned.
+      var res = nk.storageList(null, "live_events", 100, cursor);
       var objs = (res && res.objects) || [];
       for (var i = 0; i < objs.length; i++) {
         if (objs[i].value && (objs[i].key === eventId || (objs[i].value as any).id === eventId)) {
@@ -1384,7 +1387,7 @@ namespace AdminConsole {
     try {
       var cursor = "";
       for (var page = 0; page < 5; page++) {
-        var result = nk.storageList("", "event_answers", 100, cursor);
+        var result = nk.storageList(null, "event_answers", 100, cursor);
         var objects = result.objects || [];
         for (var j = 0; j < objects.length; j++) {
           if (objects[j].key !== eventId) continue;
@@ -1635,7 +1638,8 @@ namespace AdminConsole {
     try {
       var cursor = "";
       for (var page = 0; page < 10 && events.length < limit; page++) {
-        var result = nk.storageList("", "live_events", 100, cursor);
+        // null owner = all users (empty string "" throws in Nakama's JS runtime)
+        var result = nk.storageList(null, "live_events", 100, cursor);
         var objects = result.objects || [];
 
         for (var j = 0; j < objects.length && events.length < limit; j++) {
