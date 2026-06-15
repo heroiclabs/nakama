@@ -3,6 +3,10 @@ import { Outlet, NavLink, useLocation } from "react-router-dom";
 import {
   Activity,
   Filter,
+  CalendarRange,
+  FileBarChart,
+  Gauge,
+  Tags,
   LayoutDashboard,
   Users,
   Puzzle,
@@ -51,7 +55,10 @@ interface NavGroup {
 const NAV_GROUPS: NavGroup[] = [
   {
     label: "Overview",
-    items: [{ label: "Dashboard", to: "/dashboard", icon: LayoutDashboard }],
+    items: [
+      { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
+      { label: "Timeline", to: "/timeline", icon: CalendarRange },
+    ],
   },
   {
     label: "Game Systems",
@@ -70,6 +77,13 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Experiments", to: "/experiments", icon: FlaskConical },
       { label: "Audiences", to: "/audiences", icon: UsersRound },
       { label: "Messages", to: "/messages", icon: MessageSquare },
+    ],
+  },
+  {
+    label: "Insights",
+    items: [
+      { label: "Metrics", to: "/metrics", icon: Gauge },
+      { label: "Reports", to: "/reports", icon: FileBarChart },
     ],
   },
   {
@@ -103,6 +117,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "System",
     items: [
+      { label: "Taxonomy", to: "/taxonomy", icon: Tags },
       { label: "Config Export", to: "/config-export", icon: Download },
       { label: "Settings", to: "/settings", icon: Settings },
       { label: "Developer Guide", to: "/dev-guide", icon: BookOpen },

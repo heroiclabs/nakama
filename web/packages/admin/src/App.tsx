@@ -12,6 +12,10 @@ const FlagsPage = lazy(() => import("./pages/FlagsPage"));
 const EventsPage = lazy(() => import("./pages/EventsPage"));
 const EventDebuggerPage = lazy(() => import("./pages/EventDebuggerPage"));
 const FunnelsPage = lazy(() => import("./pages/FunnelsPage"));
+const TimelinePage = lazy(() => import("./pages/TimelinePage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
+const MetricsPage = lazy(() => import("./pages/MetricsPage"));
+const TaxonomyPage = lazy(() => import("./pages/TaxonomyPage"));
 const ExperimentsPage = lazy(() => import("./pages/ExperimentsPage"));
 const AudiencesPage = lazy(() => import("./pages/AudiencesPage"));
 const MessagesPage = lazy(() => import("./pages/MessagesPage"));
@@ -58,6 +62,10 @@ function ProtectedRoutes() {
         <Route path="events" element={<EventsPage />} />
         <Route path="event-debugger" element={<EventDebuggerPage />} />
         <Route path="funnels" element={<FunnelsPage />} />
+        <Route path="timeline" element={<TimelinePage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="metrics" element={<MetricsPage />} />
+        <Route path="taxonomy" element={<TaxonomyPage />} />
         <Route path="experiments" element={<ExperimentsPage />} />
         <Route path="audiences" element={<AudiencesPage />} />
         <Route path="messages" element={<MessagesPage />} />

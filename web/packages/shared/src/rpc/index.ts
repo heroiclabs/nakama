@@ -28,6 +28,17 @@ export type {
   SatoriDirectStatus,
   DashboardSummary,
   DashboardCounts,
+  TimelineResult,
+  TimelineDay,
+  TimelineActivity,
+  SavedReport,
+  ReportType,
+  MetricDefinition,
+  MetricSeries,
+  MetricSeriesPoint,
+  MetricAlert,
+  TaxonomySchema,
+  TaxonomySchemasResponse,
 } from "./satori";
 export type {
   CreatorEvent,

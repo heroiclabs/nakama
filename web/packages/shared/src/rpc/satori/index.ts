@@ -277,6 +277,7 @@ export function upsertTaxonomySchema(
     category?: string;
     requiredMetadata?: string[];
     optionalMetadata?: string[];
+    deprecated?: boolean;
   },
   opts: RpcOptions,
 ) {
@@ -536,4 +537,185 @@ export function getDashboardSummary(
   return callRpc("satori_dashboard_summary", { game_id: gameId }, opts).then(
     (value) => unwrapData<DashboardSummary>(value),
   );
+}
+
+/* ── Timeline ─────────────────────────────────────────────────────── */
+
+export interface TimelineDay {
+  date: string;
+  users: number;
+  events: number;
+}
+
+export interface TimelineActivity {
+  type: "experiment" | "live_event" | "message";
+  id: string;
+  name: string;
+  startAt: number | null;
+  endAt: number | null;
+  status?: string;
+  category?: string;
+}
+
+export interface TimelineResult {
+  days: number;
+  sinceMs: number;
+  generatedAt: number;
+  dau: TimelineDay[];
+  activities: TimelineActivity[];
+  scannedRecords: number;
+  truncated: boolean;
+}
+
+export function getTimeline(
+  params: { days?: number; game_id?: string },
+  opts: RpcOptions,
+): Promise<TimelineResult> {
+  return callRpc("satori_timeline", params, opts).then((value) =>
+    unwrapData<TimelineResult>(value),
+  );
+}
+
+/* ── Reports (saved queries) ──────────────────────────────────────── */
+
+export type ReportType = "funnel" | "retention" | "metric" | "timeline";
+
+export interface SavedReport {
+  id: string;
+  name: string;
+  type: ReportType;
+  description?: string;
+  params: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function listReports(opts: RpcOptions): Promise<{ reports: SavedReport[] }> {
+  return callRpc("satori_reports_list", {}, opts).then((value) =>
+    unwrapData<{ reports: SavedReport[] }>(value),
+  );
+}
+
+export function saveReport(
+  report: {
+    id?: string;
+    name: string;
+    type: ReportType;
+    description?: string;
+    params: Record<string, unknown>;
+  },
+  opts: RpcOptions,
+): Promise<{ report: SavedReport }> {
+  return callRpc("satori_reports_save", report, opts).then((value) =>
+    unwrapData<{ report: SavedReport }>(value),
+  );
+}
+
+export function deleteReport(id: string, opts: RpcOptions) {
+  return callRpc("satori_reports_delete", { id }, opts);
+}
+
+/* ── Metrics ──────────────────────────────────────────────────────── */
+
+export interface MetricDefinition {
+  id: string;
+  name: string;
+  eventName: string;
+  aggregation: "count" | "sum" | "avg" | "min" | "max" | "unique";
+  metadataField?: string;
+  windowSec?: number;
+}
+
+export interface MetricSeriesPoint {
+  bucketSec: number;
+  value: number;
+  count: number;
+}
+
+export interface MetricSeries {
+  metricId: string;
+  definition: MetricDefinition | null;
+  windowed: boolean;
+  points: MetricSeriesPoint[];
+}
+
+export interface MetricAlert {
+  metricId: string;
+  name: string;
+  threshold: number;
+  operator: "gt" | "lt" | "gte" | "lte";
+  enabled: boolean;
+}
+
+export function queryMetrics(
+  opts: RpcOptions,
+  gameId?: string,
+): Promise<{ metrics: { metricId: string; value: number; computedAt: number }[] }> {
+  return callRpc("satori_metrics_query", { game_id: gameId }, opts).then((value) =>
+    unwrapData<{ metrics: { metricId: string; value: number; computedAt: number }[] }>(value),
+  );
+}
+
+export function getMetricSeries(
+  params: { metricId: string; game_id?: string; limit?: number },
+  opts: RpcOptions,
+): Promise<MetricSeries> {
+  return callRpc("satori_metrics_series", params, opts).then((value) =>
+    unwrapData<MetricSeries>(value),
+  );
+}
+
+export function defineMetric(
+  metric: {
+    id: string;
+    name: string;
+    eventName: string;
+    aggregation: string;
+    metadataField?: string;
+    windowSec?: number;
+    game_id?: string;
+  },
+  opts: RpcOptions,
+) {
+  return callRpc("satori_metrics_define", metric, opts);
+}
+
+export function listMetricAlerts(opts: RpcOptions): Promise<{ alerts: MetricAlert[] }> {
+  return callRpc("satori_metrics_alerts", {}, opts).then((value) =>
+    unwrapData<{ alerts: MetricAlert[] }>(value),
+  );
+}
+
+/* ── Taxonomy ─────────────────────────────────────────────────────── */
+
+export interface TaxonomySchema {
+  name: string;
+  description?: string;
+  category?: string;
+  requiredMetadata?: string[];
+  optionalMetadata?: string[];
+  metadataTypes?: Record<string, "string" | "number" | "boolean">;
+  maxMetadataKeys?: number;
+  deprecated?: boolean;
+}
+
+export interface TaxonomySchemasResponse {
+  schemas: Record<string, TaxonomySchema>;
+  enforceStrict: boolean;
+  categories: string[];
+  totalSchemas: number;
+}
+
+export function getTaxonomySchemas(opts: RpcOptions): Promise<TaxonomySchemasResponse> {
+  return callRpc("satori_taxonomy_schemas", {}, opts).then((value) =>
+    unwrapData<TaxonomySchemasResponse>(value),
+  );
+}
+
+export function deleteTaxonomySchema(name: string, opts: RpcOptions) {
+  return callRpc("satori_taxonomy_delete", { name }, opts);
+}
+
+export function setTaxonomyStrictMode(enforceStrict: boolean, opts: RpcOptions) {
+  return callRpc("satori_taxonomy_strict_mode", { enforceStrict }, opts);
 }

@@ -539,6 +539,12 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriRetention.register(initializer);
         logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
         SatoriDirectControl.register(initializer);
+        logger.info("[Satori] Registering Dashboard summary RPC...");
+        SatoriDashboard.register(initializer);
+        logger.info("[Satori] Registering Timeline RPC...");
+        SatoriTimeline.register(initializer);
+        logger.info("[Satori] Registering Reports RPCs...");
+        SatoriReports.register(initializer);
         logger.info("[Satori] All Satori systems registered successfully");
     }
     catch (err) {
@@ -7206,10 +7212,53 @@ var IntelliverseFriendsList;
         return -1;
     }
     /**
-     * Flatten a Nakama friend object into our canonical wire shape.
-     * Caller supplies the resolved `online` flag (from loadOnlineMap).
+     * Bulk-load each friend's ISO alpha-2 country from users.metadata->>'country'
+     * in a single SQL round-trip. Returns a { userId: "US" } map (upper-cased);
+     * users without a resolved country are simply absent from the map.
+     *
+     * This is the SAME source `intelliverse_find_nearby_players` filters on, so
+     * the Social Zone "Friends Nearby" client filter (my country === friend
+     * country) stays consistent with the suggestion strip. Best-effort: any SQL
+     * failure degrades to an empty map (friends still render, just without a
+     * country tag).
      */
-    function flattenFriend(fr, online) {
+    function loadCountryMap(nk, logger, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        // Build a parameterised IN ($1,$2,...) list — never interpolate ids.
+        var placeholders = [];
+        for (var p = 0; p < userIds.length; p++) {
+            placeholders.push("$" + (p + 1));
+        }
+        var sql = "SELECT id, upper(metadata->>'country') AS country " +
+            "FROM users " +
+            "WHERE id IN (" + placeholders.join(",") + ") " +
+            "  AND metadata->>'country' IS NOT NULL";
+        try {
+            var rows = nk.sqlQuery(sql, userIds);
+            if (rows) {
+                for (var r = 0; r < rows.length; r++) {
+                    var row = rows[r];
+                    if (row && row.id && row.country) {
+                        map[row.id] = String(row.country);
+                    }
+                }
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn) {
+                logger.warn("[FriendsList] country map lookup failed: " + (e.message || String(e)));
+            }
+        }
+        return map;
+    }
+    /**
+     * Flatten a Nakama friend object into our canonical wire shape.
+     * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
+     * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
+     */
+    function flattenFriend(fr, online, country) {
         var u = fr.user || {};
         var state = unwrapState(fr.state);
         return {
@@ -7221,6 +7270,9 @@ var IntelliverseFriendsList;
             createTime: u.createTime || u.create_time || "",
             relationshipStatus: stateToRelationship(state),
             state: state,
+            // ISO alpha-2 country (upper-cased) or "" when unresolved. Powers the
+            // Social Zone "Friends Nearby" same-country filter.
+            country: country || "",
             // Pass through optional Nakama metadata when present (clients can ignore)
             updateTime: u.updateTime || u.update_time || "",
             edgeUpdateTime: fr.updateTime || fr.update_time || ""
@@ -7277,6 +7329,20 @@ var IntelliverseFriendsList;
                 ids.push(u.id);
         }
         var onlineMap = loadOnlineMap(nk, ids);
+        // ── Bulk-load each friend's country (single batched SQL) ────────────
+        var countryMap = loadCountryMap(nk, logger, ids);
+        // ── Resolve the CALLER's own country (cache-first; never fatal) ──────
+        // Returned at the envelope level so the client can run a "same country
+        // as me" filter for the Social Zone "Friends Nearby" strip without a
+        // second RPC. Empty string when geo is unknown — client simply skips
+        // the nearby filter in that case.
+        var myCountry = "";
+        try {
+            myCountry = GeoTier.resolveUserCountry(ctx, logger, nk, userId) || "";
+        }
+        catch (e) {
+            myCountry = "";
+        }
         // ── Flatten ─────────────────────────────────────────────────────────
         var results = [];
         for (var j = 0; j < rawFriends.length; j++) {
@@ -7284,18 +7350,23 @@ var IntelliverseFriendsList;
             if (!fr || !fr.user || !fr.user.id)
                 continue;
             var online = !!onlineMap[fr.user.id];
-            results.push(flattenFriend(fr, online));
+            var fcountry = countryMap[fr.user.id] || "";
+            results.push(flattenFriend(fr, online, fcountry));
         }
         if (logger && logger.info) {
             logger.info("[FriendsList] user=" + userId +
                 " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+                " country=" + (myCountry || "?") +
                 " returned=" + results.length +
                 " nextCursor=" + (nextCursor || "null"));
         }
         return ok({
             results: results,
             count: results.length,
-            nextCursor: nextCursor
+            nextCursor: nextCursor,
+            // Caller's resolved ISO alpha-2 country (upper-cased) or "" when
+            // unknown. Enables the client "Friends Nearby" same-country filter.
+            country: myCountry
         });
     }
     // ── list_blocked_users RPC (Phase-4 H1) ────────────────────────────────
@@ -7331,6 +7402,7 @@ var IntelliverseFriendsList;
                 ids.push(u.id);
         }
         var onlineMap = loadOnlineMap(nk, ids);
+        var countryMap = loadCountryMap(nk, logger, ids);
         var results = [];
         for (var j = 0; j < rawList.length; j++) {
             var fr = rawList[j];
@@ -7338,7 +7410,7 @@ var IntelliverseFriendsList;
                 continue;
             // Force relationshipStatus to "blocked" — defensive normalisation in
             // case Nakama ever returns mixed-state results when filtering.
-            var flat = flattenFriend(fr, !!onlineMap[fr.user.id]);
+            var flat = flattenFriend(fr, !!onlineMap[fr.user.id], countryMap[fr.user.id] || "");
             flat.relationshipStatus = "blocked";
             flat.state = STATE_BLOCKED;
             results.push(flat);
@@ -40745,6 +40817,191 @@ var SatoriAudiences;
     }
     SatoriAudiences.register = register;
 })(SatoriAudiences || (SatoriAudiences = {}));
+// ---------------------------------------------------------------------------
+// Satori Dashboard — single admin summary RPC that powers the Satori-Cloud
+// style overview page (Active users, world map, Top countries/cities,
+// Ongoing/Scheduled experiment·live-event·message counts, events timeline).
+//
+// Everything is computed server-side in ONE call so the admin UI polls a
+// single endpoint instead of fanning out to a dozen RPCs:
+//   - "Live" signals (active users, geo, timeline, top events) come from the
+//     event-debugger ring buffer (one storage read, never a scan).
+//   - Counts come from the Satori config objects (experiments / live_events /
+//     messages), reusing the same status logic the per-feature modules use.
+//
+// Admin-only. Geo fields (country/city) are stamped onto events at capture
+// time by SatoriEventCapture; events without geo simply don't contribute to
+// the map, which the UI renders as "No data available" (matches Satori).
+// ---------------------------------------------------------------------------
+var SatoriDashboard;
+(function (SatoriDashboard) {
+    var RING_COLLECTION = "satori_debugger";
+    var RING_KEY = "recent_events";
+    var MIN_5 = 5 * 60 * 1000;
+    var HOUR = 60 * 60 * 1000;
+    var DAY = 24 * HOUR;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function uidOf(ev) {
+        return ev.userId || ev.identityId || "";
+    }
+    function topN(counts, n) {
+        var rows = [];
+        for (var k in counts)
+            rows.push({ key: k, count: counts[k] });
+        rows.sort(function (a, b) { return b.count - a.count; });
+        return rows.slice(0, n);
+    }
+    // ── Count helpers (status logic mirrors the per-feature modules) ──────────
+    function experimentCounts(nk, gameId) {
+        var defs = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
+        var now = Math.floor(Date.now() / 1000);
+        var ongoing = 0, scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            total++;
+            if (d.startAt && now < d.startAt) {
+                scheduled++;
+                continue;
+            }
+            if (d.status === "running" && (!d.endAt || now <= d.endAt))
+                ongoing++;
+        }
+        return { ongoing: ongoing, scheduled: scheduled, total: total };
+    }
+    function liveEventCounts(nk, gameId) {
+        var defs = ConfigLoader.loadSatoriConfigForGame(nk, "live_events", gameId, {});
+        var now = Math.floor(Date.now() / 1000);
+        var ongoing = 0, scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            total++;
+            var startAt = d.startAt, endAt = d.endAt;
+            if (d.recurrenceCron && d.recurrenceIntervalSec) {
+                var interval = d.recurrenceIntervalSec || 86400;
+                var duration = (d.endAt || 0) - (d.startAt || 0);
+                var elapsed = now - (d.startAt || 0);
+                if (elapsed >= 0) {
+                    var cycle = Math.floor(elapsed / interval);
+                    startAt = d.startAt + cycle * interval;
+                    endAt = startAt + duration;
+                }
+            }
+            if (now < startAt)
+                scheduled++;
+            else if (now <= endAt)
+                ongoing++;
+        }
+        return { ongoing: ongoing, scheduled: scheduled, total: total };
+    }
+    function messageCounts(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
+        var defs = raw && raw.messages ? raw.messages : raw;
+        var now = Math.floor(Date.now() / 1000);
+        var scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            if (!d || typeof d !== "object")
+                continue;
+            total++;
+            if (d.scheduleAt && d.scheduleAt > now)
+                scheduled++;
+        }
+        return { scheduled: scheduled, total: total };
+    }
+    // ── RPC ───────────────────────────────────────────────────────────────────
+    // satori_dashboard_summary — Payload: { game_id? }
+    function rpcSummary(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var now = Date.now();
+        var buf = Storage.readSystemJson(nk, RING_COLLECTION, RING_KEY);
+        var events = (buf && buf.events) || [];
+        // Distinct-user sets per window + counts.
+        var users5m = {};
+        var users1h = {};
+        var users24h = {};
+        var events24h = 0;
+        var countryUsers = {};
+        var cityUsers = {};
+        var eventNameCounts = {};
+        // 24 hourly buckets, index 0 = oldest hour, 23 = current hour.
+        var buckets = [];
+        for (var b = 0; b < 24; b++)
+            buckets.push(0);
+        var windowStart = now - DAY;
+        for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var t = toMs(ev.timestamp);
+            if (t < windowStart || t > now)
+                continue;
+            var uid = uidOf(ev);
+            events24h++;
+            if (uid)
+                users24h[uid] = true;
+            if (t >= now - HOUR && uid)
+                users1h[uid] = true;
+            if (t >= now - MIN_5 && uid)
+                users5m[uid] = true;
+            eventNameCounts[ev.name] = (eventNameCounts[ev.name] || 0) + 1;
+            var bucketIdx = 23 - Math.floor((now - t) / HOUR);
+            if (bucketIdx >= 0 && bucketIdx < 24)
+                buckets[bucketIdx]++;
+            var cc = (ev.country || "").toUpperCase();
+            if (cc && uid) {
+                if (!countryUsers[cc])
+                    countryUsers[cc] = {};
+                countryUsers[cc][uid] = true;
+            }
+            var city = ev.city || "";
+            if (city && uid) {
+                if (!cityUsers[city])
+                    cityUsers[city] = {};
+                cityUsers[city][uid] = true;
+            }
+        }
+        function distinctCount(set) {
+            return Object.keys(set).length;
+        }
+        var countryCounts = {};
+        for (var cc2 in countryUsers)
+            countryCounts[cc2] = distinctCount(countryUsers[cc2]);
+        var cityCounts = {};
+        for (var ci in cityUsers)
+            cityCounts[ci] = distinctCount(cityUsers[ci]);
+        var timeline = [];
+        for (var h = 0; h < 24; h++) {
+            timeline.push({ hourMs: now - (23 - h) * HOUR, count: buckets[h] });
+        }
+        var topCountries = topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
+        var topCities = topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
+        var topEvents = topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        return RpcHelpers.successResponse({
+            generatedAt: now,
+            activeUsers5m: distinctCount(users5m),
+            activeUsers1h: distinctCount(users1h),
+            activeUsers24h: distinctCount(users24h),
+            eventsLast24h: events24h,
+            ringBufferSize: events.length,
+            timeline: timeline,
+            topCountries: topCountries,
+            topCities: topCities,
+            topEvents: topEvents,
+            geoAvailable: topCountries.length > 0,
+            experiments: experimentCounts(nk, gameId),
+            liveEvents: liveEventCounts(nk, gameId),
+            messages: messageCounts(nk, gameId)
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_dashboard_summary", rpcSummary);
+    }
+    SatoriDashboard.register = register;
+})(SatoriDashboard || (SatoriDashboard = {}));
 var SatoriDataLake;
 (function (SatoriDataLake) {
     var DEFAULT_CONFIG = {
@@ -40964,6 +41221,24 @@ var SatoriEventCapture;
             inv = "0" + inv;
         return "ev_0" + inv + "_" + id;
     }
+    // Best-effort geo stamp for the Satori dashboard map. Priority:
+    //   1. client-supplied metadata.country / metadata.city (already resolved)
+    //   2. the user's 30-day cached GeoTier country (no HTTP, cache-only)
+    // Returns "" when geo is unknown — the dashboard then shows "No data".
+    function geoOf(nk, userId, event) {
+        var md = event.metadata || {};
+        var country = (md.country || md.countryCode || "") + "";
+        var city = (md.city || "") + "";
+        if (!country && userId) {
+            try {
+                country = GeoTier.getUserCountry(nk, userId) || "";
+            }
+            catch (_) {
+                country = "";
+            }
+        }
+        return { country: country.toUpperCase(), city: city };
+    }
     function appendToUserHistory(nk, userId, event) {
         var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
         if (!history)
@@ -40986,12 +41261,15 @@ var SatoriEventCapture;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
         var key = eventKey(Date.now(), userId);
+        var geo = geoOf(nk, userId, event);
         var record = {
             userId: userId,
             name: event.name,
             timestamp: event.timestamp,
             metadata: event.metadata || {},
-            date: dateStr
+            date: dateStr,
+            country: geo.country,
+            city: geo.city
         };
         nk.storageWrite([{
                 collection: Constants.SATORI_EVENTS_COLLECTION,
@@ -41022,12 +41300,15 @@ var SatoriEventCapture;
             validEvents.push(event);
             var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
             var key = eventKey(Date.now() + i, userId);
+            var geo = geoOf(nk, userId, event);
             var record = {
                 userId: userId,
                 name: event.name,
                 timestamp: event.timestamp,
                 metadata: event.metadata || {},
-                date: dateStr
+                date: dateStr,
+                country: geo.country,
+                city: geo.city
             };
             exportRecords.push(record);
             writes.push({
@@ -41150,13 +41431,16 @@ var SatoriEventCapture;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
         var key = eventKey(Date.now(), identityId);
+        var geo = geoOf(nk, "", event);
         var record = {
             identityId: identityId,
             name: event.name,
             timestamp: event.timestamp,
             metadata: event.metadata || {},
             date: dateStr,
-            external: true
+            external: true,
+            country: geo.country,
+            city: geo.city
         };
         nk.storageWrite([{
                 collection: Constants.SATORI_EVENTS_COLLECTION,
@@ -44826,23 +45110,60 @@ var SatoriMetrics;
     function rpcSetAlert(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.metricId || !data.name || data.threshold === undefined || !data.operator) {
+        var metricId = data.metricId || data.metric_id;
+        if (!metricId || !data.name || data.threshold === undefined || !data.operator) {
             return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
         }
         var alerts = getAlerts(nk);
         var existing = false;
         for (var i = 0; i < alerts.length; i++) {
             if (alerts[i].name === data.name) {
-                alerts[i] = { metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
+                alerts[i] = { metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
                 existing = true;
                 break;
             }
         }
         if (!existing) {
-            alerts.push({ metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
+            alerts.push({ metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
         }
         Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts", { alerts: alerts });
         return RpcHelpers.successResponse({ alerts: alerts });
+    }
+    // satori_metrics_series — bucketed time series for one metric (for charts).
+    // Payload: { metricId, game_id?, limit? }
+    function rpcSeries(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.metricId)
+            return RpcHelpers.errorResponse("metricId required");
+        var gameId = RpcHelpers.gameId(data);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), 500);
+        var definitions = getMetricDefinitions(nk, gameId);
+        var def = definitions[data.metricId];
+        var state = getMetricState(nk, data.metricId, gameId);
+        var points = [];
+        for (var bk in state.buckets) {
+            var bkSec = parseInt(bk, 10);
+            points.push({
+                bucketSec: isNaN(bkSec) ? 0 : bkSec,
+                value: state.buckets[bk].value,
+                count: state.buckets[bk].count
+            });
+        }
+        points.sort(function (a, b) { return a.bucketSec - b.bucketSec; });
+        if (points.length > limit)
+            points = points.slice(points.length - limit);
+        return RpcHelpers.successResponse({
+            metricId: data.metricId,
+            definition: def || null,
+            windowed: !!(def && def.windowSec),
+            points: points
+        });
+    }
+    // satori_metrics_alerts — list configured alerts + last-triggered state.
+    function rpcAlertsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        return RpcHelpers.successResponse({ alerts: getAlerts(nk) });
     }
     function rpcPrometheus(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -44874,6 +45195,8 @@ var SatoriMetrics;
         initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
         initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
         initializer.registerRpc("satori_metrics_get", rpcQuery);
+        initializer.registerRpc("satori_metrics_series", rpcSeries);
+        initializer.registerRpc("satori_metrics_alerts", rpcAlertsList);
     }
     SatoriMetrics.register = register;
     function registerEventHandlers() {
@@ -44895,6 +45218,80 @@ var SatoriMetrics;
     }
     SatoriMetrics.registerEventHandlers = registerEventHandlers;
 })(SatoriMetrics || (SatoriMetrics = {}));
+// ---------------------------------------------------------------------------
+// Satori Reports — saved/reusable report definitions. Mirrors Satori Cloud's
+// "Reports" surface: an admin saves a named query (a funnel, retention,
+// metric, or timeline view with its parameters) and re-runs it later. The
+// definition is stored here; the admin UI executes it by calling the existing
+// funnel / retention / metric / timeline RPCs with the saved params.
+//
+// Definitions live in satori_configs/"reports" ({ reports: { [id]: def } }).
+// Admin-only.
+// ---------------------------------------------------------------------------
+var SatoriReports;
+(function (SatoriReports) {
+    function getReports(nk) {
+        var raw = ConfigLoader.loadSatoriConfig(nk, "reports", { reports: {} });
+        return (raw && raw.reports) ? raw.reports : {};
+    }
+    function saveReports(nk, reports) {
+        ConfigLoader.saveSatoriConfig(nk, "reports", { reports: reports });
+    }
+    function toList(reports) {
+        var out = [];
+        for (var id in reports)
+            out.push(reports[id]);
+        out.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+        return out;
+    }
+    // satori_reports_list
+    function rpcList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        return RpcHelpers.successResponse({ reports: toList(getReports(nk)) });
+    }
+    var VALID_TYPES = { funnel: true, retention: true, metric: true, timeline: true };
+    // satori_reports_save — Payload: { id?, name, type, description?, params }
+    function rpcSave(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.name)
+            return RpcHelpers.errorResponse("name required");
+        if (!data.type || !VALID_TYPES[data.type])
+            return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
+        var reports = getReports(nk);
+        var now = Math.floor(Date.now() / 1000);
+        var id = data.id || ("rep_" + now + "_" + Math.floor(Math.random() * 100000));
+        var existing = reports[id];
+        reports[id] = {
+            id: id,
+            name: String(data.name).slice(0, 120),
+            type: data.type,
+            description: data.description ? String(data.description).slice(0, 500) : "",
+            params: data.params && typeof data.params === "object" ? data.params : {},
+            createdAt: existing ? existing.createdAt : now,
+            updatedAt: now
+        };
+        saveReports(nk, reports);
+        return RpcHelpers.successResponse({ report: reports[id] });
+    }
+    // satori_reports_delete — Payload: { id }
+    function rpcDelete(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.id)
+            return RpcHelpers.errorResponse("id required");
+        var reports = getReports(nk);
+        delete reports[data.id];
+        saveReports(nk, reports);
+        return RpcHelpers.successResponse({ deleted: data.id });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_reports_list", rpcList);
+        initializer.registerRpc("satori_reports_save", rpcSave);
+        initializer.registerRpc("satori_reports_delete", rpcDelete);
+    }
+    SatoriReports.register = register;
+})(SatoriReports || (SatoriReports = {}));
 // ---------------------------------------------------------------------------
 // Satori Retention — activity-based D1/D3/D7 retention cohorts computed from
 // captured events, with optional segmentation by experiment variant.
@@ -45201,6 +45598,124 @@ var SatoriTaxonomy;
     }
     SatoriTaxonomy.register = register;
 })(SatoriTaxonomy || (SatoriTaxonomy = {}));
+// ---------------------------------------------------------------------------
+// Satori Timeline — calendar view backing data. Mirrors Satori Cloud's
+// "Timeline" surface: a per-day metric track (DAU + events) plus activity
+// bars for experiments / live events / messages laid out across the date
+// range, so admins can see what was live on any given day.
+//
+// DAU/events come from a page-capped scan of `satori_events` (newest-first
+// keys mean recent days are reached first). Activities come from the Satori
+// config objects. Admin-only.
+// ---------------------------------------------------------------------------
+var SatoriTimeline;
+(function (SatoriTimeline) {
+    var PAGE_SIZE = 100;
+    var DEFAULT_PAGES = 320;
+    var MAX_PAGES = 800;
+    var MAX_DAYS = 31;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    // satori_timeline — Payload: { days?, game_id?, max_pages? }
+    function rpcTimeline(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), MAX_DAYS);
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || DEFAULT_PAGES, 1), MAX_PAGES);
+        var gameId = RpcHelpers.gameId(data);
+        var nowMs = Date.now();
+        var sinceMs = nowMs - days * 86400000;
+        // date → { users set, events count }
+        var perDay = {};
+        var cursor = "";
+        var scanned = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scanned++;
+                var rec = obj.value;
+                var t = toMs(rec.timestamp);
+                if (t < sinceMs || t > nowMs)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                var dStr = rec.date || dateStrOf(t);
+                if (!perDay[dStr])
+                    perDay[dStr] = { users: {}, events: 0 };
+                perDay[dStr].events++;
+                if (uid)
+                    perDay[dStr].users[uid] = true;
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        // Emit a continuous day axis (oldest → newest) so the UI can render an
+        // unbroken calendar even for days with zero activity.
+        var dau = [];
+        for (var d = days - 1; d >= 0; d--) {
+            var dStr2 = dateStrOf(nowMs - d * 86400000);
+            var entry = perDay[dStr2];
+            dau.push({
+                date: dStr2,
+                users: entry ? Object.keys(entry.users).length : 0,
+                events: entry ? entry.events : 0
+            });
+        }
+        // Activities laid out across the range (seconds → kept as seconds).
+        var activities = [];
+        var sinceSec = Math.floor(sinceMs / 1000);
+        var experiments = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
+        for (var ex in experiments) {
+            var e = experiments[ex];
+            if (e.endAt && e.endAt < sinceSec)
+                continue;
+            activities.push({ type: "experiment", id: ex, name: e.name || ex, startAt: e.startAt || null, endAt: e.endAt || null, status: e.status || "" });
+        }
+        var liveEvents = ConfigLoader.loadSatoriConfigForGame(nk, "live_events", gameId, {});
+        for (var le in liveEvents) {
+            var l = liveEvents[le];
+            if (l.endAt && l.endAt < sinceSec)
+                continue;
+            activities.push({ type: "live_event", id: le, name: l.name || le, startAt: l.startAt || null, endAt: l.endAt || null, category: l.category || "" });
+        }
+        var rawMsgs = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
+        var messages = rawMsgs && rawMsgs.messages ? rawMsgs.messages : rawMsgs;
+        for (var mid in messages) {
+            var m = messages[mid];
+            if (!m || typeof m !== "object")
+                continue;
+            if (m.scheduleAt && m.scheduleAt < sinceSec)
+                continue;
+            activities.push({ type: "message", id: mid, name: m.title || mid, startAt: m.scheduleAt || null, endAt: m.expiresAt || null });
+        }
+        return RpcHelpers.successResponse({
+            days: days,
+            sinceMs: sinceMs,
+            generatedAt: nowMs,
+            dau: dau,
+            activities: activities,
+            scannedRecords: scanned,
+            truncated: truncated
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_timeline", rpcTimeline);
+    }
+    SatoriTimeline.register = register;
+})(SatoriTimeline || (SatoriTimeline = {}));
 var SatoriVideoFeed;
 (function (SatoriVideoFeed) {
     var COLLECTION = "satori_video_feed";

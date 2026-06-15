@@ -620,6 +620,12 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Satori] Registering Dashboard summary RPC...");
     SatoriDashboard.register(initializer);
 
+    logger.info("[Satori] Registering Timeline RPC...");
+    SatoriTimeline.register(initializer);
+
+    logger.info("[Satori] Registering Reports RPCs...");
+    SatoriReports.register(initializer);
+
     logger.info("[Satori] All Satori systems registered successfully");
   } catch (err: any) {
     logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));
