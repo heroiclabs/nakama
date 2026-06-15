@@ -40876,7 +40876,8 @@ var SatoriAudienceEstimate;
         var cursor = "";
         var truncated = false;
         for (var p = 0; p < maxPages; p++) {
-            var page = nk.storageList("", Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+            // null (not "") = scan across all owners; "" is an invalid UUID and throws.
+            var page = nk.storageList(null, Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
             var objects = (page && page.objects) || [];
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
@@ -40904,6 +40905,19 @@ var SatoriAudienceEstimate;
         if (cursor)
             truncated = true;
         var matchRate = scanned > 0 ? matched / scanned : 0;
+        // Real addressable base from the analytics pipeline: distinct active users
+        // over the last 30 days (MAU). The identity-props scan only covers users who
+        // sent a Satori capture event, so projecting matchRate onto the real active
+        // base gives a far more realistic audience size than the raw matched count.
+        var mauSet = {};
+        var rangeDays = LegacyAnalytics.readRange(nk, Date.now(), 30, gameId);
+        for (var rd = 0; rd < rangeDays.length; rd++) {
+            var users = rangeDays[rd].uniqueUsers;
+            for (var u = 0; u < users.length; u++)
+                mauSet[users[u]] = true;
+        }
+        var reachableBase = Object.keys(mauSet).length;
+        var projectedSize = scanned > 0 ? Math.round(matchRate * reachableBase) : matched;
         return RpcHelpers.successResponse({
             audienceId: audienceId,
             name: def.name || audienceId,
@@ -40911,7 +40925,10 @@ var SatoriAudienceEstimate;
             scannedIdentities: scanned,
             matchRate: matchRate,
             sampleUserIds: sample,
-            truncated: truncated
+            truncated: truncated,
+            // Supplementary real-base projection (analytics pipeline MAU).
+            reachableBase: reachableBase,
+            projectedSize: projectedSize
         });
     }
     function register(initializer) {
@@ -45784,6 +45801,32 @@ var SatoriMetrics;
     function saveMetricState(nk, metricId, state, gameId) {
         Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId), state);
     }
+    var BUILTIN_METRICS = [
+        { id: "legacy_dau", name: "Daily Active Users", field: "dau", aggregation: "unique" },
+        { id: "legacy_events", name: "Events / day", field: "events", aggregation: "count" },
+        { id: "legacy_revenue", name: "Revenue / day (USD)", field: "revenue", aggregation: "sum" },
+        { id: "legacy_sessions", name: "Sessions / day", field: "sessions", aggregation: "count" },
+        { id: "legacy_payers", name: "Payers / day", field: "purchases", aggregation: "count" },
+        { id: "legacy_new_users", name: "New users / day", field: "newUsers", aggregation: "sum" }
+    ];
+    function findBuiltin(id) {
+        for (var i = 0; i < BUILTIN_METRICS.length; i++) {
+            if (BUILTIN_METRICS[i].id === id)
+                return BUILTIN_METRICS[i];
+        }
+        return null;
+    }
+    function builtinValue(day, field) {
+        switch (field) {
+            case "dau": return day.dau;
+            case "events": return day.events;
+            case "revenue": return Math.round(day.revenue * 100) / 100;
+            case "sessions": return day.sessions;
+            case "purchases": return day.purchases;
+            case "newUsers": return day.newUsers;
+        }
+        return 0;
+    }
     function processEvent(nk, logger, userId, eventName, metadata) {
         var gameId = metadata.gameId || metadata.game_id;
         var definitions = getMetricDefinitions(nk, gameId);
@@ -45891,6 +45934,18 @@ var SatoriMetrics;
                 computedAt: now
             });
         }
+        // Append built-in legacy-backed metrics (today's value) unless the caller
+        // asked for a specific subset of config metrics.
+        if (!data.metricIds) {
+            var today = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(Date.now()), gameId);
+            for (var b = 0; b < BUILTIN_METRICS.length; b++) {
+                results.push({
+                    metricId: BUILTIN_METRICS[b].id,
+                    value: builtinValue(today, BUILTIN_METRICS[b].field),
+                    computedAt: now
+                });
+            }
+        }
         return RpcHelpers.successResponse({ metrics: results });
     }
     function rpcDefine(ctx, logger, nk, payload) {
@@ -45943,6 +45998,28 @@ var SatoriMetrics;
             return RpcHelpers.errorResponse("metricId required");
         var gameId = RpcHelpers.gameId(data);
         var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), 500);
+        // Built-in legacy metric → daily series from the analytics pipeline.
+        var builtin = findBuiltin(data.metricId);
+        if (builtin) {
+            var nowMs = Date.now();
+            var seriesDays = Math.min(Math.max(parseInt(data.days, 10) || 30, 3), 60);
+            var rangeDays = LegacyAnalytics.readRange(nk, nowMs, seriesDays, gameId);
+            var legacyPoints = [];
+            for (var rd = 0; rd < rangeDays.length; rd++) {
+                var ld = rangeDays[rd];
+                legacyPoints.push({
+                    bucketSec: Math.floor(new Date(ld.date + "T00:00:00Z").getTime() / 1000),
+                    value: builtinValue(ld, builtin.field),
+                    count: 1
+                });
+            }
+            return RpcHelpers.successResponse({
+                metricId: data.metricId,
+                definition: { id: builtin.id, name: builtin.name, eventName: builtin.field, aggregation: builtin.aggregation, windowSec: 86400 },
+                windowed: true,
+                points: legacyPoints
+            });
+        }
         var definitions = getMetricDefinitions(nk, gameId);
         var def = definitions[data.metricId];
         var state = getMetricState(nk, data.metricId, gameId);

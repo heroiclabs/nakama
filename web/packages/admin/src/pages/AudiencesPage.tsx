@@ -180,6 +180,12 @@ function AudienceCard({ audience: aud, gameScope }: AudienceCardProps) {
                 ({(est.matchRate * 100).toFixed(1)}% of{" "}
                 {formatNumber(est.scannedIdentities)} scanned identities)
               </span>
+              {typeof est.reachableBase === "number" && est.reachableBase > 0 && (
+                <span className="text-xs font-medium tabular-nums text-primary">
+                  ≈ {formatNumber(est.projectedSize ?? 0)} of{" "}
+                  {formatNumber(est.reachableBase)} active (30d)
+                </span>
+              )}
               <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted">
                 <div
                   className="h-full rounded-full bg-primary"

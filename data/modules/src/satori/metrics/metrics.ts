@@ -14,6 +14,43 @@ namespace SatoriMetrics {
     Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId), state);
   }
 
+  // ---- Built-in metrics (real game telemetry from the analytics pipeline) ----
+  //
+  // Config-defined metrics rely on the sparse Satori capture path. These
+  // built-ins are always present and read from LegacyAnalytics (analytics_dau /
+  // analytics_live_daily), so the Metrics surface shows real DAU/revenue/etc.
+  // even before any custom metric is defined. IDs are prefixed `legacy_`.
+
+  interface BuiltinMetric { id: string; name: string; field: string; aggregation: string; }
+
+  var BUILTIN_METRICS: BuiltinMetric[] = [
+    { id: "legacy_dau",       name: "Daily Active Users",  field: "dau",       aggregation: "unique" },
+    { id: "legacy_events",    name: "Events / day",        field: "events",    aggregation: "count" },
+    { id: "legacy_revenue",   name: "Revenue / day (USD)", field: "revenue",   aggregation: "sum" },
+    { id: "legacy_sessions",  name: "Sessions / day",      field: "sessions",  aggregation: "count" },
+    { id: "legacy_payers",    name: "Payers / day",        field: "purchases", aggregation: "count" },
+    { id: "legacy_new_users", name: "New users / day",     field: "newUsers",  aggregation: "sum" }
+  ];
+
+  function findBuiltin(id: string): BuiltinMetric | null {
+    for (var i = 0; i < BUILTIN_METRICS.length; i++) {
+      if (BUILTIN_METRICS[i].id === id) return BUILTIN_METRICS[i];
+    }
+    return null;
+  }
+
+  function builtinValue(day: LegacyAnalytics.Day, field: string): number {
+    switch (field) {
+      case "dau": return day.dau;
+      case "events": return day.events;
+      case "revenue": return Math.round(day.revenue * 100) / 100;
+      case "sessions": return day.sessions;
+      case "purchases": return day.purchases;
+      case "newUsers": return day.newUsers;
+    }
+    return 0;
+  }
+
   export function processEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, eventName: string, metadata: { [key: string]: string }): void {
     var gameId = metadata.gameId || metadata.game_id;
     var definitions = getMetricDefinitions(nk, gameId);
@@ -131,6 +168,19 @@ namespace SatoriMetrics {
       });
     }
 
+    // Append built-in legacy-backed metrics (today's value) unless the caller
+    // asked for a specific subset of config metrics.
+    if (!data.metricIds) {
+      var today = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(Date.now()), gameId);
+      for (var b = 0; b < BUILTIN_METRICS.length; b++) {
+        results.push({
+          metricId: BUILTIN_METRICS[b].id,
+          value: builtinValue(today, BUILTIN_METRICS[b].field),
+          computedAt: now
+        });
+      }
+    }
+
     return RpcHelpers.successResponse({ metrics: results });
   }
 
@@ -187,6 +237,29 @@ namespace SatoriMetrics {
     if (!data.metricId) return RpcHelpers.errorResponse("metricId required");
     var gameId = RpcHelpers.gameId(data);
     var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), 500);
+
+    // Built-in legacy metric → daily series from the analytics pipeline.
+    var builtin = findBuiltin(data.metricId);
+    if (builtin) {
+      var nowMs = Date.now();
+      var seriesDays = Math.min(Math.max(parseInt(data.days, 10) || 30, 3), 60);
+      var rangeDays = LegacyAnalytics.readRange(nk, nowMs, seriesDays, gameId);
+      var legacyPoints: { bucketSec: number; value: number; count: number }[] = [];
+      for (var rd = 0; rd < rangeDays.length; rd++) {
+        var ld = rangeDays[rd];
+        legacyPoints.push({
+          bucketSec: Math.floor(new Date(ld.date + "T00:00:00Z").getTime() / 1000),
+          value: builtinValue(ld, builtin.field),
+          count: 1
+        });
+      }
+      return RpcHelpers.successResponse({
+        metricId: data.metricId,
+        definition: { id: builtin.id, name: builtin.name, eventName: builtin.field, aggregation: builtin.aggregation, windowSec: 86400 },
+        windowed: true,
+        points: legacyPoints
+      });
+    }
 
     var definitions = getMetricDefinitions(nk, gameId);
     var def = definitions[data.metricId];

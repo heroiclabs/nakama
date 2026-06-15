@@ -294,6 +294,10 @@ export interface AudienceEstimate {
   matchRate: number;
   sampleUserIds: string[];
   truncated: boolean;
+  /** Distinct active users over the last 30 days (analytics pipeline MAU). */
+  reachableBase?: number;
+  /** matchRate projected onto the real active base — realistic audience size. */
+  projectedSize?: number;
 }
 
 export function estimateAudience(
