@@ -179,6 +179,9 @@ namespace LegacyNotifScheduler {
     if (shouldDispatch(state, "flush_pending_push", 30) && tryAcquireDispatchLock(nk, "flush_pending_push", 30)) {
       try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
     }
+    if (shouldDispatch(state, "flush_failed_chat_push", 3) && tryAcquireDispatchLock(nk, "flush_failed_chat_push", 3)) {
+      try { LegacyChat.flushFailedChatPushes(ctx, logger, nk); } catch (_) {}
+    }
     var m = nowMinute();
     if ((m % 60) === 0 && state.lastLog !== m) {
       state.lastLog = m;

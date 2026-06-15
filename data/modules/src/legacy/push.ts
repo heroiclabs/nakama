@@ -48,6 +48,21 @@ namespace LegacyPush {
     return data || { tokens: [] };
   }
 
+  // True if the user has at least one registered device endpoint that is not
+  // known-dead. Used by the chat retry queue to decide whether a failed push is
+  // worth replaying (no point queueing for a user with zero devices).
+  export function userHasPushTokens(nk: nkruntime.Nakama, userId: string): boolean {
+    try {
+      var td = getPushTokens(nk, userId);
+      if (!td || !td.tokens) return false;
+      for (var i = 0; i < td.tokens.length; i++) {
+        var t: any = td.tokens[i];
+        if (t && t.endpointArn && !t.providerError) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   function savePushTokens(nk: nkruntime.Nakama, userId: string, data: PushTokenData): void {
     var key = "token_" + userId;
     Storage.writeJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId, data);
@@ -741,6 +756,26 @@ namespace LegacyPush {
       ar: "{name} تحداك في {mode}. أرِهم ما لديك!",                            id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
       zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
     },
+    // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
+    chat_message_title: {
+      en: "💬 {name}",                hi: "💬 {name}",                 es: "💬 {name}",               fr: "💬 {name}",
+      de: "💬 {name}",                 pt: "💬 {name}",                  ru: "💬 {name}",               ja: "💬 {name}",
+      ko: "💬 {name}",                "zh-Hans": "💬 {name}",            ar: "💬 {name}",               id: "💬 {name}",                  zu: "💬 {name}"
+    },
+    chat_message_body: {
+      en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+      ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+    },
+    // ── Chat: new group message ({name} = sender, {group} = group name, {text} = preview) ──
+    chat_group_message_title: {
+      en: "💬 {name} in {group}",       hi: "💬 {group} में {name}",        es: "💬 {name} en {group}",      fr: "💬 {name} dans {group}",
+      de: "💬 {name} in {group}",        pt: "💬 {name} em {group}",          ru: "💬 {name} в {group}",       ja: "💬 {group}の{name}",
+      ko: "💬 {group}의 {name}",         "zh-Hans": "💬 {group} 中的 {name}",  ar: "💬 {name} في {group}",      id: "💬 {name} di {group}",        zu: "💬 {name} ku-{group}"
+    },
+    chat_group_message_body: {
+      en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+      ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+    },
     // ── Study reminders (user-scheduled; body is the learner's own text via {text}) ──
     reminder_title: {
       en: "⏰ Study reminder",        hi: "⏰ अध्ययन रिमाइंडर",        es: "⏰ Recordatorio de estudio", fr: "⏰ Rappel d'étude",
@@ -999,7 +1034,33 @@ namespace LegacyPush {
     return sent > 0;
   }
 
-  // ─── S3 fetchers (mirror the URL shapes Unity already uses) ─────────────────
+  // Provider-only push used by the chat failed-push retry queue. Unlike
+  // sendLocalizedPushToUser it does NOT (re)write a persistent in-app
+  // notification — that was already written on the first attempt, so replaying
+  // it would duplicate the recipient's notification list. Title/body are passed
+  // pre-localized (the queue stored them at original send time). Returns true if
+  // at least one device accepted the push.
+  export function retryChatProviderPush(
+    ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
+    userId: string, eventType: string, title: string, body: string, data: { [k: string]: any }
+  ): boolean {
+    var tokensData = getPushTokens(nk, userId);
+    if (!tokensData.tokens || tokensData.tokens.length === 0) return false;
+    var mergedData: { [k: string]: any } = { eventType: eventType };
+    if (data) {
+      for (var k in data) { if (k !== "eventType") mergedData[k] = data[k]; }
+    }
+    var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+    if (deliverable.length === 0) return false;
+    var sent = 0;
+    for (var i = 0; i < deliverable.length; i++) {
+      var providerResult = sendProviderPush(ctx, logger, nk, deliverable[i], {
+        title: title, body: body, data: mergedData, gameId: "quizverse", eventType: eventType
+      });
+      if (providerResult.success === true) sent++;
+    }
+    return sent > 0;
+  }
   var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
 
   function fetchDailyQuizForToday(nk: nkruntime.Nakama, logger: nkruntime.Logger): any {
