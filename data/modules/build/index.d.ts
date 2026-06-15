@@ -3286,8 +3286,21 @@ declare namespace TournamentEconomyV2 {
 declare namespace WalletGuestSync {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QuestEventBusBridge {
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
 declare namespace QuestEngine {
-    function register(initializer: nkruntime.Initializer): void;
+    interface ProcessEventResult {
+        updatedCount: number;
+        updatedQuests: {
+            [questId: string]: any;
+        };
+    }
+    export function processEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, eventType: string, value: number, metadata: {
+        [k: string]: string;
+    }): ProcessEventResult;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
 }
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
@@ -3374,9 +3387,15 @@ declare namespace SatoriAudiences {
     function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string, gameId?: string): string[];
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriDashboard {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriDataLake {
     function exportBatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, events: any[]): void;
     function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriEventBusBridge {
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
 }
 declare namespace SatoriEventCapture {
     function captureEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, event: Satori.CapturedEvent): void;
@@ -3396,6 +3415,7 @@ declare namespace SatoriEventDebugger {
         external?: boolean;
     }
     export function record(nk: nkruntime.Nakama, event: DebugEvent): void;
+    export function recordRejection(nk: nkruntime.Nakama, name: string, reason: string, userId?: string): void;
     export function register(initializer: nkruntime.Initializer): void;
     export {};
 }
@@ -3453,6 +3473,9 @@ declare namespace SatoriMetrics {
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
 }
+declare namespace SatoriReports {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriRetention {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3463,6 +3486,9 @@ declare namespace SatoriTaxonomy {
         warnings: string[];
     }
     function validateEvent(nk: nkruntime.Nakama, event: Satori.CapturedEvent): ValidationResult;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriTimeline {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriVideoFeed {

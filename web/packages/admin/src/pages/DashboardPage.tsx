@@ -19,6 +19,8 @@ import {
   Puzzle,
   Sparkles,
   TrendingUp,
+  DollarSign,
+  AlertCircle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -40,6 +42,9 @@ import {
   SATORI_SYSTEMS,
   callRpc,
   type DashboardSummary,
+  type GameMetricsResult,
+  type GameMetricsDay,
+  type EventErrorsResult,
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 import { WorldMap } from "@/components/WorldMap";
@@ -66,6 +71,24 @@ function useSummary() {
     queryKey: ["admin", "dashboard-summary"],
     queryFn: () => satori.getDashboardSummary(serverKeyAuth()),
     refetchInterval: REFETCH_MS,
+    retry: 1,
+  });
+}
+
+function useGameMetrics(days: number) {
+  return useQuery<GameMetricsResult>({
+    queryKey: ["admin", "game-metrics", days],
+    queryFn: () => satori.getGameMetrics({ days }, serverKeyAuth()),
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+}
+
+function useEventErrors() {
+  return useQuery<EventErrorsResult>({
+    queryKey: ["admin", "event-errors"],
+    queryFn: () => satori.getEventErrors(serverKeyAuth()),
+    refetchInterval: 60_000,
     retry: 1,
   });
 }
@@ -255,11 +278,6 @@ function StatusPill({ name, status }: { name: string; status: "ok" | "error" | "
   );
 }
 
-function hourLabel(ms: number) {
-  const d = new Date(ms);
-  return `${d.getHours()}:00`;
-}
-
 // ─── Tabs content ────────────────────────────────────────────────────
 
 function StatusTab({ summary, summaryLoading }: { summary?: DashboardSummary; summaryLoading: boolean }) {
@@ -348,63 +366,254 @@ function StatusTab({ summary, summaryLoading }: { summary?: DashboardSummary; su
   );
 }
 
+function dayLabel(date: string) {
+  const d = new Date(date + "T00:00:00Z");
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+}
+
+const CHART_COLORS = {
+  dau: "263 70% 60%",
+  sessions: "199 89% 55%",
+  revenue: "142 71% 45%",
+  arpau: "38 92% 55%",
+} as const;
+
+function DailyMetricCard({
+  title,
+  subtitle,
+  icon: Icon,
+  series,
+  dataKey,
+  colorHsl,
+  money,
+  loading,
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+  series: GameMetricsDay[];
+  dataKey: keyof GameMetricsDay;
+  colorHsl: string;
+  money?: boolean;
+  loading: boolean;
+}) {
+  const data = series.map((s) => ({ label: dayLabel(s.date), value: Number(s[dataKey]) || 0 }));
+  const last = data.length ? data[data.length - 1].value : 0;
+  const gradId = `g_${String(dataKey)}`;
+  const fmt = (v: number) => (money ? `$${v.toFixed(2)}` : `${v}`);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-lg"
+            style={{ background: `hsl(${colorHsl} / 0.12)`, color: `hsl(${colorHsl})` }}
+          >
+            <Icon className="h-4 w-4" />
+          </span>
+          <div>
+            <h3 className="text-sm font-semibold leading-tight">{title}</h3>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
+          </div>
+        </div>
+        <span className="text-lg font-bold tabular-nums" style={{ color: `hsl(${colorHsl})` }}>
+          {money ? `$${last.toFixed(2)}` : last}
+        </span>
+      </div>
+      {loading ? (
+        <div className="flex h-[150px] items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={150}>
+          <AreaChart data={data} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={`hsl(${colorHsl})`} stopOpacity={0.45} />
+                <stop offset="100%" stopColor={`hsl(${colorHsl})`} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 28% 17%)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10, fill: "hsl(217 10% 64%)" }}
+              interval="preserveStartEnd"
+              minTickGap={20}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "hsl(217 10% 64%)" }}
+              allowDecimals={money}
+              width={44}
+              tickFormatter={(v) => (money ? `$${v}` : `${v}`)}
+            />
+            <Tooltip
+              formatter={(v: number) => [fmt(v), title]}
+              contentStyle={{
+                background: "hsl(222 47% 11%)",
+                border: "1px solid hsl(215 28% 17%)",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={`hsl(${colorHsl})`}
+              strokeWidth={2}
+              fill={`url(#${gradId})`}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </div>
+  );
+}
+
+function relTime(ms: number) {
+  const diff = Date.now() - ms;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}
+
+function EventErrorsPanel({
+  errors,
+  loading,
+}: {
+  errors?: EventErrorsResult;
+  loading: boolean;
+}) {
+  const rows = errors?.errors ?? [];
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-1 flex items-center gap-2">
+        <AlertCircle className="h-4 w-4 text-amber-500" />
+        <h3 className="text-sm font-semibold">Event errors</h3>
+        {errors && errors.totalRejected > 0 && (
+          <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+            {errors.totalRejected} rejected
+          </span>
+        )}
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Events rejected by the taxonomy validator at ingestion time.
+      </p>
+      {loading ? (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/5 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+          <CheckCircle2 className="h-4 w-4" />
+          No rejected events — every captured event passed taxonomy validation.
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {rows.map((e) => (
+            <div key={`${e.name}|${e.code}`} className="flex items-center justify-between gap-3 py-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                <span className="truncate font-mono text-sm">{e.name}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                {e.count > 1 && (
+                  <span className="tabular-nums text-xs text-muted-foreground">×{e.count}</span>
+                )}
+                <span className="rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                  {e.code}
+                </span>
+                <span className="w-16 text-right text-xs text-muted-foreground">
+                  {relTime(e.lastSeenMs)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GameMetricsTab({
   summary,
   summaryLoading,
+  metrics,
+  metricsLoading,
+  errors,
+  errorsLoading,
   hiroStatus,
   satoriStatus,
 }: {
   summary?: DashboardSummary;
   summaryLoading: boolean;
+  metrics?: GameMetricsResult;
+  metricsLoading: boolean;
+  errors?: EventErrorsResult;
+  errorsLoading: boolean;
   hiroStatus: ReturnType<typeof useHiroStatus>;
   satoriStatus: ReturnType<typeof useSatoriStatus>;
 }) {
-  const timeline = (summary?.timeline ?? []).map((t) => ({
-    label: hourLabel(t.hourMs),
-    count: t.count,
-  }));
+  const series = metrics?.series ?? [];
   const topEvents = summary?.topEvents ?? [];
+  const totals = metrics?.totals;
 
   return (
     <div className="space-y-6">
-      {/* Events over time */}
-      <div className="rounded-xl border border-border bg-card p-5">
-        <h3 className="mb-4 text-sm font-semibold">Events · last 24 hours</h3>
-        {summaryLoading ? (
-          <div className="flex h-64 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={timeline} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
-              <defs>
-                <linearGradient id="evGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(263 70% 60%)" stopOpacity={0.5} />
-                  <stop offset="100%" stopColor="hsl(263 70% 60%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 28% 17%)" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11, fill: "hsl(217 10% 64%)" }} interval={3} />
-              <YAxis tick={{ fontSize: 11, fill: "hsl(217 10% 64%)" }} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{
-                  background: "hsl(222 47% 11%)",
-                  border: "1px solid hsl(215 28% 17%)",
-                  borderRadius: 8,
-                  fontSize: 12,
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="count"
-                stroke="hsl(263 70% 60%)"
-                strokeWidth={2}
-                fill="url(#evGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
+      {/* Daily trend charts — mirrors Satori Cloud "Game Metrics" */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <DailyMetricCard
+          title="Daily Active Users"
+          subtitle="Unique users active each day"
+          icon={Users}
+          series={series}
+          dataKey="dau"
+          colorHsl={CHART_COLORS.dau}
+          loading={metricsLoading}
+        />
+        <DailyMetricCard
+          title="Daily Sessions"
+          subtitle="session_start events per day"
+          icon={Activity}
+          series={series}
+          dataKey="sessions"
+          colorHsl={CHART_COLORS.sessions}
+          loading={metricsLoading}
+        />
+        <DailyMetricCard
+          title="Daily Revenue"
+          subtitle="Sum of purchase revenue per day"
+          icon={DollarSign}
+          series={series}
+          dataKey="revenue"
+          colorHsl={CHART_COLORS.revenue}
+          money
+          loading={metricsLoading}
+        />
+        <DailyMetricCard
+          title="Daily ARPAU"
+          subtitle="Avg revenue per active user"
+          icon={TrendingUp}
+          series={series}
+          dataKey="arpau"
+          colorHsl={CHART_COLORS.arpau}
+          money
+          loading={metricsLoading}
+        />
       </div>
+
+      {totals && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <SummaryStat label={`Avg DAU · ${metrics?.days ?? 0}d`} value={totals.avgDau} />
+          <SummaryStat label={`Sessions · ${metrics?.days ?? 0}d`} value={totals.sessions} />
+          <SummaryStat label={`Events · ${metrics?.days ?? 0}d`} value={totals.events} />
+          <SummaryStat label={`Revenue · ${metrics?.days ?? 0}d`} value={`$${totals.revenue.toFixed(2)}`} />
+        </div>
+      )}
+
+      {/* Event errors */}
+      <EventErrorsPanel errors={errors} loading={errorsLoading} />
 
       {/* Top events */}
       <div className="rounded-xl border border-border bg-card p-5">
@@ -483,12 +692,23 @@ function GameMetricsTab({
   );
 }
 
+function SummaryStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="text-2xl font-bold tabular-nums tracking-tight">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
   const [tab, setTab] = useState<"status" | "metrics">("status");
   const health = useHealth();
   const summary = useSummary();
+  const gameMetrics = useGameMetrics(14);
+  const eventErrors = useEventErrors();
   const hiroStatus = useHiroStatus();
   const satoriStatus = useSatoriStatus();
 
@@ -509,6 +729,8 @@ export function DashboardPage() {
           onClick={() => {
             health.refetch();
             summary.refetch();
+            gameMetrics.refetch();
+            eventErrors.refetch();
             hiroStatus.refetch();
             satoriStatus.refetch();
           }}
@@ -594,6 +816,10 @@ export function DashboardPage() {
         <GameMetricsTab
           summary={summary.data}
           summaryLoading={summary.isLoading}
+          metrics={gameMetrics.data}
+          metricsLoading={gameMetrics.isLoading}
+          errors={eventErrors.data}
+          errorsLoading={eventErrors.isLoading}
           hiroStatus={hiroStatus}
           satoriStatus={satoriStatus}
         />

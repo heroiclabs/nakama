@@ -298,6 +298,10 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config / admin_get_config RPCs...");
         QuestEngine.register(initializer);
         logger.info("[QuestEngine] 5 RPCs registered successfully");
+        // Register EventBus bridge for automatic quest progress from existing events
+        logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
+        QuestEventBusBridge.register(initializer, logger);
+        logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
     }
     catch (err) {
         logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
@@ -539,6 +543,14 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriRetention.register(initializer);
         logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
         SatoriDirectControl.register(initializer);
+        logger.info("[Satori] Registering Dashboard summary RPC...");
+        SatoriDashboard.register(initializer);
+        logger.info("[Satori] Registering Timeline RPC...");
+        SatoriTimeline.register(initializer);
+        logger.info("[Satori] Registering Reports RPCs...");
+        SatoriReports.register(initializer);
+        logger.info("[Satori] Registering EventBus bridge (gameplay events -> Satori capture)...");
+        SatoriEventBusBridge.register(initializer, logger);
         logger.info("[Satori] All Satori systems registered successfully");
     }
     catch (err) {
@@ -7206,10 +7218,53 @@ var IntelliverseFriendsList;
         return -1;
     }
     /**
-     * Flatten a Nakama friend object into our canonical wire shape.
-     * Caller supplies the resolved `online` flag (from loadOnlineMap).
+     * Bulk-load each friend's ISO alpha-2 country from users.metadata->>'country'
+     * in a single SQL round-trip. Returns a { userId: "US" } map (upper-cased);
+     * users without a resolved country are simply absent from the map.
+     *
+     * This is the SAME source `intelliverse_find_nearby_players` filters on, so
+     * the Social Zone "Friends Nearby" client filter (my country === friend
+     * country) stays consistent with the suggestion strip. Best-effort: any SQL
+     * failure degrades to an empty map (friends still render, just without a
+     * country tag).
      */
-    function flattenFriend(fr, online) {
+    function loadCountryMap(nk, logger, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        // Build a parameterised IN ($1,$2,...) list — never interpolate ids.
+        var placeholders = [];
+        for (var p = 0; p < userIds.length; p++) {
+            placeholders.push("$" + (p + 1));
+        }
+        var sql = "SELECT id, upper(metadata->>'country') AS country " +
+            "FROM users " +
+            "WHERE id IN (" + placeholders.join(",") + ") " +
+            "  AND metadata->>'country' IS NOT NULL";
+        try {
+            var rows = nk.sqlQuery(sql, userIds);
+            if (rows) {
+                for (var r = 0; r < rows.length; r++) {
+                    var row = rows[r];
+                    if (row && row.id && row.country) {
+                        map[row.id] = String(row.country);
+                    }
+                }
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn) {
+                logger.warn("[FriendsList] country map lookup failed: " + (e.message || String(e)));
+            }
+        }
+        return map;
+    }
+    /**
+     * Flatten a Nakama friend object into our canonical wire shape.
+     * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
+     * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
+     */
+    function flattenFriend(fr, online, country) {
         var u = fr.user || {};
         var state = unwrapState(fr.state);
         return {
@@ -7221,6 +7276,9 @@ var IntelliverseFriendsList;
             createTime: u.createTime || u.create_time || "",
             relationshipStatus: stateToRelationship(state),
             state: state,
+            // ISO alpha-2 country (upper-cased) or "" when unresolved. Powers the
+            // Social Zone "Friends Nearby" same-country filter.
+            country: country || "",
             // Pass through optional Nakama metadata when present (clients can ignore)
             updateTime: u.updateTime || u.update_time || "",
             edgeUpdateTime: fr.updateTime || fr.update_time || ""
@@ -7277,6 +7335,20 @@ var IntelliverseFriendsList;
                 ids.push(u.id);
         }
         var onlineMap = loadOnlineMap(nk, ids);
+        // ── Bulk-load each friend's country (single batched SQL) ────────────
+        var countryMap = loadCountryMap(nk, logger, ids);
+        // ── Resolve the CALLER's own country (cache-first; never fatal) ──────
+        // Returned at the envelope level so the client can run a "same country
+        // as me" filter for the Social Zone "Friends Nearby" strip without a
+        // second RPC. Empty string when geo is unknown — client simply skips
+        // the nearby filter in that case.
+        var myCountry = "";
+        try {
+            myCountry = GeoTier.resolveUserCountry(ctx, logger, nk, userId) || "";
+        }
+        catch (e) {
+            myCountry = "";
+        }
         // ── Flatten ─────────────────────────────────────────────────────────
         var results = [];
         for (var j = 0; j < rawFriends.length; j++) {
@@ -7284,18 +7356,23 @@ var IntelliverseFriendsList;
             if (!fr || !fr.user || !fr.user.id)
                 continue;
             var online = !!onlineMap[fr.user.id];
-            results.push(flattenFriend(fr, online));
+            var fcountry = countryMap[fr.user.id] || "";
+            results.push(flattenFriend(fr, online, fcountry));
         }
         if (logger && logger.info) {
             logger.info("[FriendsList] user=" + userId +
                 " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+                " country=" + (myCountry || "?") +
                 " returned=" + results.length +
                 " nextCursor=" + (nextCursor || "null"));
         }
         return ok({
             results: results,
             count: results.length,
-            nextCursor: nextCursor
+            nextCursor: nextCursor,
+            // Caller's resolved ISO alpha-2 country (upper-cased) or "" when
+            // unknown. Enables the client "Friends Nearby" same-country filter.
+            country: myCountry
         });
     }
     // ── list_blocked_users RPC (Phase-4 H1) ────────────────────────────────
@@ -7331,6 +7408,7 @@ var IntelliverseFriendsList;
                 ids.push(u.id);
         }
         var onlineMap = loadOnlineMap(nk, ids);
+        var countryMap = loadCountryMap(nk, logger, ids);
         var results = [];
         for (var j = 0; j < rawList.length; j++) {
             var fr = rawList[j];
@@ -7338,7 +7416,7 @@ var IntelliverseFriendsList;
                 continue;
             // Force relationshipStatus to "blocked" — defensive normalisation in
             // case Nakama ever returns mixed-state results when filtering.
-            var flat = flattenFriend(fr, !!onlineMap[fr.user.id]);
+            var flat = flattenFriend(fr, !!onlineMap[fr.user.id], countryMap[fr.user.id] || "");
             flat.relationshipStatus = "blocked";
             flat.state = STATE_BLOCKED;
             results.push(flat);
@@ -13334,6 +13412,41 @@ var AdminConsole;
         logger.info("[rpcCreatorLiveEventPublish] Published event %s by creator %s", event.id, event.creatorId || "unknown");
         return RpcHelpers.successResponse({ eventId: event.id, success: true });
     }
+    /**
+     * Resolve a creator event record by id, regardless of which storage path
+     * created it. SPA-published events live in `live_events` under the CREATOR's
+     * own user id, Nakama-native ones live in `satori_creator_events` under
+     * SYSTEM. This checks, in order:
+     *   1. live_events @ SYSTEM_USER_ID
+     *   2. live_events @ any owner (full collection scan)
+     *   3. satori_creator_events @ SYSTEM_USER_ID
+     * Returns the full storage object (value + owner + version + times) or null.
+     */
+    function resolveCreatorEventRecord(nk, eventId) {
+        var direct = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+        if (direct && direct.length > 0 && direct[0].value)
+            return direct[0];
+        var cursor = "";
+        for (var page = 0; page < 10; page++) {
+            // null owner = list across ALL users (empty string "" is NOT valid —
+            // Nakama's JS runtime runs it through uuid.FromString and throws
+            // "expects empty or valid user id"). SPA events are creator-owned.
+            var res = nk.storageList(null, "live_events", 100, cursor);
+            var objs = (res && res.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                if (objs[i].value && (objs[i].key === eventId || objs[i].value.id === eventId)) {
+                    return objs[i];
+                }
+            }
+            cursor = (res && res.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        var canonical = nk.storageRead([{ collection: "satori_creator_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+        if (canonical && canonical.length > 0 && canonical[0].value)
+            return canonical[0];
+        return null;
+    }
     // Get detailed stats for a creator event (participation, leaderboard, etc.)
     function rpcAdminCreatorEventStats(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -13341,12 +13454,12 @@ var AdminConsole;
         if (!data.event_id && !data.eventId)
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
-        // Read the event definition
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        // Read the event definition (across all storage paths)
+        var eventRecord = resolveCreatorEventRecord(nk, eventId);
+        if (!eventRecord) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
+        var event = eventRecord.value;
         // Try to read leaderboard for this event
         var leaderboardId = "creator_event_" + eventId;
         var leaderboard = [];
@@ -13375,7 +13488,7 @@ var AdminConsole;
         try {
             var cursor = "";
             for (var page = 0; page < 5; page++) {
-                var result = nk.storageList("", "event_answers", 100, cursor);
+                var result = nk.storageList(null, "event_answers", 100, cursor);
                 var objects = result.objects || [];
                 for (var j = 0; j < objects.length; j++) {
                     if (objects[j].key !== eventId)
@@ -13420,22 +13533,23 @@ var AdminConsole;
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
         var reason = data.reason || "Ended by admin";
-        // Read the event
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        // Read the event (across all storage paths)
+        var eventRecord = resolveCreatorEventRecord(nk, eventId);
+        if (!eventRecord) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
+        var event = eventRecord.value;
         // Update status
         event.status = "ended";
         event.endedAt = Math.floor(Date.now() / 1000);
         event.endedBy = "admin";
         event.endReason = reason;
-        // Write back
+        // Write back to the SAME owner/collection the record was found in, so SPA
+        // events (creator-owned) are updated in place rather than orphaning a copy.
         nk.storageWrite([{
-                collection: "live_events",
-                key: eventId,
-                userId: Constants.SYSTEM_USER_ID,
+                collection: eventRecord.collection,
+                key: eventRecord.key,
+                userId: eventRecord.userId,
                 value: event,
                 permissionRead: 2,
                 permissionWrite: 0,
@@ -13451,12 +13565,11 @@ var AdminConsole;
         if (!data.event_id && !data.eventId)
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        var record = resolveCreatorEventRecord(nk, eventId);
+        if (!record) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
-        var record = eventRecords[0];
+        var event = record.value;
         return RpcHelpers.successResponse({
             event: __assign(__assign({}, event), { storage_user_id: record.userId, storage_version: record.version, storage_create_time: isoFromSec(record.createTime), storage_update_time: isoFromSec(record.updateTime) })
         });
@@ -13604,11 +13717,17 @@ var AdminConsole;
         catch (indexErr) {
             logger.warn("[rpcAdminCreatorEventsList] Failed to read satori_creator_events index: %s", indexErr.message || String(indexErr));
         }
-        // 2. Fetch from live_events (SYSTEM_USER_ID owned) — creator portal events
+        // 2. Fetch from live_events across ALL owners — creator-portal / SPA events.
+        // The live.quizverse.world/creator SPA writes the event definition into the
+        // `live_events` collection under the CREATOR's own user id (not SYSTEM), so a
+        // SYSTEM_USER_ID-only scan silently missed every SPA-published event. Listing
+        // with an empty owner ("") enumerates the whole collection (same pattern used
+        // by CreatorEventLive), covering both SYSTEM- and creator-owned records.
         try {
             var cursor = "";
             for (var page = 0; page < 10 && events.length < limit; page++) {
-                var result = nk.storageList(Constants.SYSTEM_USER_ID, "live_events", 100, cursor);
+                // null owner = all users (empty string "" throws in Nakama's JS runtime)
+                var result = nk.storageList(null, "live_events", 100, cursor);
                 var objects = result.objects || [];
                 for (var j = 0; j < objects.length && events.length < limit; j++) {
                     var obj = objects[j];
@@ -14159,6 +14278,9 @@ var AdminConsole;
         initializer.registerRpc("admin_creator_event_stats", rpcAdminCreatorEventStats);
         initializer.registerRpc("admin_creator_event_end", rpcAdminCreatorEventEnd);
         initializer.registerRpc("admin_creator_events_list", rpcAdminCreatorEventsList);
+        // Live-event prize fulfillment (admin console)
+        initializer.registerRpc("admin_prize_fulfillments_list", rpcAdminPrizeFulfillmentsList);
+        initializer.registerRpc("admin_prize_fulfillment_settle", rpcAdminPrizeFulfillmentSettle);
         initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
         initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
         initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
@@ -14337,6 +14459,127 @@ var AdminConsole;
         initializer.registerRpc("hiro_streak_shield_replenish", delegate("__rpc_retention_grant_streak_shield"));
     }
     AdminConsole.register = register;
+    // ────────────────────────────────────────────────────────────────────
+    //  Live-event prize fulfillment (admin console)
+    //
+    //  Gift-card wins are queued into the system-owned `prize_fulfillments`
+    //  collection (status "pending") by the creator-event claim RPCs. The
+    //  existing creator_event_fulfillments_list / _settle RPCs are gated by a
+    //  service token (NAKAMA_WEBHOOK_SECRET) for the Next.js admin / n8n. These
+    //  two RPCs expose the SAME queue + settle flow to the IVX admin console via
+    //  the normal requireAdmin gate, so no secret has to ship to the browser.
+    // ────────────────────────────────────────────────────────────────────
+    function rpcAdminPrizeFulfillmentsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+        var limit = Math.min(200, Math.max(1, Number(data.limit) || 100));
+        var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
+        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
+        var rows = [];
+        var objs = (res && res.objects) || [];
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value || {};
+            if (statusFilter && v.status !== statusFilter)
+                continue;
+            rows.push({
+                key: objs[i].key,
+                userId: v.userId || "",
+                eventId: v.eventId || "",
+                eventTitle: v.eventTitle || "",
+                rank: v.rank || 0,
+                giftCard: v.giftCard || null,
+                status: v.status || "pending",
+                region: v.region || "",
+                email: v.email || "",
+                source: v.source || "",
+                queuedAt: v.queuedAt || v.claimedAt || 0,
+                settledAt: v.settledAt || 0,
+                voucher: v.voucher || null,
+                error: v.error || "",
+            });
+        }
+        return RpcHelpers.successResponse({
+            fulfillments: rows,
+            cursor: (res && res.cursor) || "",
+        });
+    }
+    function rpcAdminPrizeFulfillmentSettle(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var eventId = data.eventId || data.event_id;
+        var targetUserId = data.userId || data.user_id;
+        if (!eventId || !targetUserId) {
+            return RpcHelpers.errorResponse("eventId and userId required");
+        }
+        var status = data.status === "fulfilled" ? "fulfilled" : (data.status === "failed" ? "failed" : "");
+        if (!status) {
+            return RpcHelpers.errorResponse("status must be 'fulfilled' or 'failed'");
+        }
+        eventId = String(eventId);
+        targetUserId = String(targetUserId);
+        var fKey = eventId + ":" + targetUserId;
+        var recs = nk.storageRead([{ collection: "prize_fulfillments", key: fKey, userId: Constants.SYSTEM_USER_ID }]);
+        if (!recs || recs.length === 0 || !recs[0].value) {
+            return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+        }
+        var rec = recs[0].value;
+        var settledAt = Math.floor(Date.now() / 1000);
+        rec.status = status;
+        rec.settledAt = settledAt;
+        rec.settledBy = "admin_console";
+        if (status === "fulfilled") {
+            // Never store the full card code server-side — it is delivered by email.
+            rec.voucher = {
+                provider: String(data.provider || "reloadly"),
+                orderId: String(data.orderId || ""),
+                deliveredTo: String(data.deliveredTo || rec.email || ""),
+                cardLast4: String(data.cardLast4 || ""),
+                codeDelivered: !!data.codeDelivered,
+            };
+            rec.error = "";
+        }
+        else {
+            rec.error = String(data.error || "fulfillment failed");
+        }
+        nk.storageWrite([{
+                collection: "prize_fulfillments",
+                key: fKey,
+                userId: Constants.SYSTEM_USER_ID,
+                value: rec,
+                permissionRead: 2,
+                permissionWrite: 0,
+            }]);
+        // Mirror onto the player's claim record so the SPA "My Prizes" card can
+        // show "Voucher sent" without another server round-trip.
+        try {
+            var claimKey = "claim_" + eventId;
+            var claimRecs = nk.storageRead([{ collection: "creator_event_claims", key: claimKey, userId: targetUserId }]);
+            if (claimRecs && claimRecs.length > 0 && claimRecs[0].value) {
+                var claim = claimRecs[0].value;
+                claim.voucher = {
+                    status: status,
+                    provider: (rec.voucher && rec.voucher.provider) || "reloadly",
+                    deliveredTo: (rec.voucher && rec.voucher.deliveredTo) || "",
+                    settledAt: settledAt,
+                };
+                nk.storageWrite([{
+                        collection: "creator_event_claims",
+                        key: claimKey,
+                        userId: targetUserId,
+                        value: claim,
+                        permissionRead: 1,
+                        permissionWrite: 1,
+                    }]);
+            }
+        }
+        catch (merr) {
+            logger.warn("[admin_prize_fulfillment_settle] Failed to mirror voucher onto claim record: %s", merr.message || String(merr));
+        }
+        logAdminAudit(nk, ctx, "admin_prize_fulfillment_settle", { eventId: eventId, userId: targetUserId }, { status: status, orderId: (rec.voucher && rec.voucher.orderId) || "" });
+        logger.info("[admin_prize_fulfillment_settle] %s settled key=%s status=%s", ctx.userId || "admin", fKey, status);
+        return RpcHelpers.successResponse({ success: true, key: fKey, status: status, settledAt: settledAt });
+    }
     function rpcGiftClaimsList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var claims = RewardEngine.getGiftClaims(nk, userId);
@@ -38207,6 +38450,191 @@ var WalletGuestSync;
     }
     WalletGuestSync.register = register;
 })(WalletGuestSync || (WalletGuestSync = {}));
+// ============================================================
+// Quest EventBus Bridge — Auto-progress quests from existing events
+//
+// This module subscribes to EventBus events (QUIZ_COMPLETED, LEVEL_UP,
+// GAME_COMPLETED, etc.) that apps/games ALREADY emit, and automatically
+// progresses matching quests.
+//
+// KEY INSIGHT: Apps don't need to call any new RPC for quest progress.
+// They just send their normal analytics/gameplay events → EventBus emits
+// → this bridge listens → quests progress automatically.
+//
+// This replaces the old approach where Unity had to call RecordEvent()
+// explicitly for quest progress.
+// ============================================================
+var QuestEventBusBridge;
+(function (QuestEventBusBridge) {
+    // ── EventBus event name → Quest eventType mapping ─────────────────────────
+    // These map the well-known EventBus events to quest step eventTypes.
+    // Quest configs define steps with eventType like "quiz_completed", "level_up", etc.
+    //
+    // IMPORTANT: this map is built LAZILY (inside a function), not at namespace
+    // eval time. Reading `EventBus.Events.*` at module scope creates an
+    // eval-time dependency on the EventBus namespace having already been
+    // initialised — but the merged bundle's namespace order is not guaranteed
+    // (it shifts with the TypeScript compiler version / file ordering). When
+    // this namespace's IIFE ran before EventBus's, `EventBus` was `undefined`
+    // and the whole goja runtime failed to load with
+    // "Cannot read property 'Events' of undefined". Deferring the reads to
+    // call-time (register(), invoked from InitModule) guarantees EventBus is
+    // fully defined first.
+    var _eventTypeMap = null;
+    function eventTypeMap() {
+        if (_eventTypeMap) {
+            return _eventTypeMap;
+        }
+        var m = {};
+        // Core gameplay events
+        m[EventBus.Events.QUIZ_COMPLETED] = "quiz_completed";
+        m[EventBus.Events.GAME_COMPLETED] = "game_completed";
+        m[EventBus.Events.GAME_STARTED] = "game_started";
+        // Progression events
+        m[EventBus.Events.LEVEL_UP] = "level_up";
+        m[EventBus.Events.XP_EARNED] = "xp_earned";
+        // Score events
+        m[EventBus.Events.SCORE_SUBMITTED] = "score_submitted";
+        // Achievement events
+        m[EventBus.Events.ACHIEVEMENT_COMPLETED] = "achievement_completed";
+        m[EventBus.Events.ACHIEVEMENT_CLAIMED] = "achievement_claimed";
+        // Challenge events
+        m[EventBus.Events.CHALLENGE_COMPLETED] = "challenge_completed";
+        // Streak events
+        m[EventBus.Events.STREAK_UPDATED] = "streak_updated";
+        m[EventBus.Events.STREAK_BROKEN] = "streak_broken";
+        // Economy events
+        m[EventBus.Events.CURRENCY_EARNED] = "currency_earned";
+        m[EventBus.Events.CURRENCY_SPENT] = "currency_spent";
+        m[EventBus.Events.STORE_PURCHASE] = "store_purchase";
+        // Inventory events
+        m[EventBus.Events.ITEM_GRANTED] = "item_granted";
+        m[EventBus.Events.ITEM_CONSUMED] = "item_consumed";
+        // Energy events
+        m[EventBus.Events.ENERGY_SPENT] = "energy_spent";
+        m[EventBus.Events.ENERGY_REFILLED] = "energy_refilled";
+        // Session events
+        m[EventBus.Events.SESSION_START] = "session_start";
+        m[EventBus.Events.SESSION_END] = "session_end";
+        // Stat events
+        m[EventBus.Events.STAT_UPDATED] = "stat_updated";
+        // Reward events
+        m[EventBus.Events.REWARD_GRANTED] = "reward_granted";
+        _eventTypeMap = m;
+        return m;
+    }
+    // ── Handler for EventBus events ───────────────────────────────────────────
+    function handleEvent(nk, logger, ctx, eventName, data) {
+        // Skip if no user context (system events without user)
+        if (!ctx.userId) {
+            return;
+        }
+        var questEventType = eventTypeMap()[eventName];
+        if (!questEventType) {
+            return;
+        }
+        // Extract common fields from event data
+        var gameId = data.gameId || data.appId || Constants.DEFAULT_GAME_ID;
+        var value = extractValue(eventName, data);
+        var metadata = extractMetadata(eventName, data);
+        logger.debug("[QuestEventBusBridge] Processing event=%s → questEventType=%s user=%s game=%s value=%d", eventName, questEventType, ctx.userId, gameId, value);
+        // Call the quest engine to process this event
+        try {
+            QuestEngine.processEvent(nk, logger, ctx, ctx.userId, gameId, questEventType, value, metadata);
+        }
+        catch (err) {
+            logger.warn("[QuestEventBusBridge] Quest processing failed for event=%s user=%s: %s", eventName, ctx.userId, err.message || String(err));
+        }
+    }
+    // ── Value extraction per event type ───────────────────────────────────────
+    function extractValue(eventName, data) {
+        switch (eventName) {
+            case EventBus.Events.QUIZ_COMPLETED:
+                return data.score || data.correctAnswers || 1;
+            case EventBus.Events.SCORE_SUBMITTED:
+                return data.score || 0;
+            case EventBus.Events.XP_EARNED:
+                return data.amount || data.xp || 0;
+            case EventBus.Events.LEVEL_UP:
+                return data.level || data.newLevel || 1;
+            case EventBus.Events.CURRENCY_EARNED:
+            case EventBus.Events.CURRENCY_SPENT:
+                return data.amount || 0;
+            case EventBus.Events.SESSION_END:
+                return data.duration || data.durationMinutes || 0;
+            case EventBus.Events.STREAK_UPDATED:
+                return data.streak || data.currentStreak || 1;
+            default:
+                return data.value || data.count || 1;
+        }
+    }
+    // ── Metadata extraction per event type ────────────────────────────────────
+    function extractMetadata(eventName, data) {
+        var meta = {};
+        // Common fields
+        if (data.gameId)
+            meta.gameId = String(data.gameId);
+        if (data.appId)
+            meta.appId = String(data.appId);
+        if (data.category)
+            meta.category = String(data.category);
+        if (data.type)
+            meta.type = String(data.type);
+        // Event-specific fields
+        switch (eventName) {
+            case EventBus.Events.QUIZ_COMPLETED:
+                if (data.quizId)
+                    meta.quizId = String(data.quizId);
+                if (data.mode)
+                    meta.mode = String(data.mode);
+                if (data.difficulty)
+                    meta.difficulty = String(data.difficulty);
+                break;
+            case EventBus.Events.ACHIEVEMENT_COMPLETED:
+                if (data.achievementId)
+                    meta.achievementId = String(data.achievementId);
+                break;
+            case EventBus.Events.CHALLENGE_COMPLETED:
+                if (data.challengeId)
+                    meta.challengeId = String(data.challengeId);
+                break;
+            case EventBus.Events.LEVEL_UP:
+                if (data.previousLevel)
+                    meta.previousLevel = String(data.previousLevel);
+                break;
+            case EventBus.Events.CURRENCY_EARNED:
+            case EventBus.Events.CURRENCY_SPENT:
+                if (data.currency)
+                    meta.currency = String(data.currency);
+                if (data.source)
+                    meta.source = String(data.source);
+                break;
+            case EventBus.Events.STORE_PURCHASE:
+                if (data.itemId)
+                    meta.itemId = String(data.itemId);
+                break;
+        }
+        return meta;
+    }
+    // ── Registration ──────────────────────────────────────────────────────────
+    function register(initializer, logger) {
+        var map = eventTypeMap();
+        var subscribedEvents = Object.keys(map);
+        logger.info("[QuestEventBusBridge] Registering EventBus subscriptions for %d events", subscribedEvents.length);
+        for (var i = 0; i < subscribedEvents.length; i++) {
+            var eventName = subscribedEvents[i];
+            // Create a closure to capture eventName for each handler
+            (function (capturedEventName) {
+                EventBus.on(capturedEventName, function (nk, logger, ctx, data) {
+                    handleEvent(nk, logger, ctx, capturedEventName, data);
+                });
+            })(eventName);
+            logger.debug("[QuestEventBusBridge] Subscribed to: %s → %s", eventName, map[eventName]);
+        }
+        logger.info("[QuestEventBusBridge] Registration complete. Quest progress will auto-track from EventBus events.");
+    }
+    QuestEventBusBridge.register = register;
+})(QuestEventBusBridge || (QuestEventBusBridge = {}));
 var QuestEngine;
 (function (QuestEngine) {
     // ─── Types ────────────────────────────────────────────────────────────────
@@ -38451,26 +38879,8 @@ var QuestEngine;
         }
         return RpcHelpers.successResponse({ quests: result });
     }
-    // ─── RPC: quest_engine_record_event ──────────────────────────────────────
-    // Reports a player action. Fans out to all matching quest steps.
-    //
-    // Two-phase design (data-integrity guarantee):
-    //   Phase 1 — scan all quests, advance steps, mark completions in memory.
-    //   Phase 2 — persist state FIRST (progress is safe even if reward fails).
-    //   Phase 3 — grant auto-rewards; each wrapped in try/catch so a reward
-    //             engine error never rolls back the player's hard-earned progress.
-    //             If auto-grant fails, claimedAt stays null and the client can
-    //             retry via quest_engine_claim_reward.
-    function rpcQuestEngineRecordEvent(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var data = RpcHelpers.parseRpcPayload(payload);
-        var gameId = resolveGameId(data);
-        var eventType = data.eventType;
-        var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
-        var metadata = data.metadata || {};
+    function processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata) {
         var now = Math.floor(Date.now() / 1000);
-        if (!eventType)
-            return RpcHelpers.errorResponse("eventType is required");
         var config = loadConfig(nk, gameId);
         var state = loadUserState(nk, userId, gameId);
         var updatedCount = 0;
@@ -38581,8 +38991,29 @@ var QuestEngine;
         if (anyClaimedAt) {
             saveUserState(nk, userId, gameId, state);
         }
-        return RpcHelpers.successResponse({ updatedQuests: updatedCount, quests: updatedQuests });
+        return { updatedCount: updatedCount, updatedQuests: updatedQuests };
     }
+    // ─── RPC: quest_engine_record_event ──────────────────────────────────────
+    // Reports a player action via RPC. Calls the internal processor.
+    function rpcQuestEngineRecordEvent(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var eventType = data.eventType;
+        var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
+        var metadata = data.metadata || {};
+        if (!eventType)
+            return RpcHelpers.errorResponse("eventType is required");
+        var result = processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
+        return RpcHelpers.successResponse({ updatedQuests: result.updatedCount, quests: result.updatedQuests });
+    }
+    // ─── Public API: processEvent ────────────────────────────────────────────
+    // Called by QuestEventBusBridge to process events from EventBus.
+    // Apps don't need to call any RPC — events flow automatically.
+    function processEvent(nk, logger, ctx, userId, gameId, eventType, value, metadata) {
+        return processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
+    }
+    QuestEngine.processEvent = processEvent;
     // ─── RPC: quest_engine_claim_reward ──────────────────────────────────────
     // Manually claims reward for a completed quest (deferred-claim UI pattern).
     function rpcQuestEngineClaimReward(ctx, logger, nk, payload) {
@@ -40745,6 +41176,311 @@ var SatoriAudiences;
     }
     SatoriAudiences.register = register;
 })(SatoriAudiences || (SatoriAudiences = {}));
+// ---------------------------------------------------------------------------
+// Satori Dashboard — single admin summary RPC that powers the Satori-Cloud
+// style overview page (Active users, world map, Top countries/cities,
+// Ongoing/Scheduled experiment·live-event·message counts, events timeline).
+//
+// Everything is computed server-side in ONE call so the admin UI polls a
+// single endpoint instead of fanning out to a dozen RPCs:
+//   - "Live" signals (active users, geo, timeline, top events) come from the
+//     event-debugger ring buffer (one storage read, never a scan).
+//   - Counts come from the Satori config objects (experiments / live_events /
+//     messages), reusing the same status logic the per-feature modules use.
+//
+// Admin-only. Geo fields (country/city) are stamped onto events at capture
+// time by SatoriEventCapture; events without geo simply don't contribute to
+// the map, which the UI renders as "No data available" (matches Satori).
+// ---------------------------------------------------------------------------
+var SatoriDashboard;
+(function (SatoriDashboard) {
+    var RING_COLLECTION = "satori_debugger";
+    var RING_KEY = "recent_events";
+    // Legacy analytics pipeline collections — the real game telemetry sink.
+    // The Unity/web clients send their events to `analytics_log_event`, which
+    // maintains durable per-day aggregate docs here. This is the SAME data that
+    // powers nakama.intelli-verse-x.ai/analytics.htm, so the IVX console reads
+    // straight from it instead of scanning the sparse `satori_events` ring.
+    var LEGACY_DAU = "analytics_dau"; // key: dau_platform_<date> | dau_<gameId>_<date>
+    var LEGACY_LIVE = "analytics_live_daily"; // key: live_all_<date>     | live_<gameId>_<date>
+    var MIN_5 = 5 * 60 * 1000;
+    var HOUR = 60 * 60 * 1000;
+    var DAY = 24 * HOUR;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    function round2(n) {
+        return Math.round(n * 100) / 100;
+    }
+    function uidOf(ev) {
+        return ev.userId || ev.identityId || "";
+    }
+    function topN(counts, n) {
+        var rows = [];
+        for (var k in counts)
+            rows.push({ key: k, count: counts[k] });
+        rows.sort(function (a, b) { return b.count - a.count; });
+        return rows.slice(0, n);
+    }
+    // ── Count helpers (status logic mirrors the per-feature modules) ──────────
+    function experimentCounts(nk, gameId) {
+        var defs = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
+        var now = Math.floor(Date.now() / 1000);
+        var ongoing = 0, scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            total++;
+            if (d.startAt && now < d.startAt) {
+                scheduled++;
+                continue;
+            }
+            if (d.status === "running" && (!d.endAt || now <= d.endAt))
+                ongoing++;
+        }
+        return { ongoing: ongoing, scheduled: scheduled, total: total };
+    }
+    function liveEventCounts(nk, gameId) {
+        var defs = ConfigLoader.loadSatoriConfigForGame(nk, "live_events", gameId, {});
+        var now = Math.floor(Date.now() / 1000);
+        var ongoing = 0, scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            total++;
+            var startAt = d.startAt, endAt = d.endAt;
+            if (d.recurrenceCron && d.recurrenceIntervalSec) {
+                var interval = d.recurrenceIntervalSec || 86400;
+                var duration = (d.endAt || 0) - (d.startAt || 0);
+                var elapsed = now - (d.startAt || 0);
+                if (elapsed >= 0) {
+                    var cycle = Math.floor(elapsed / interval);
+                    startAt = d.startAt + cycle * interval;
+                    endAt = startAt + duration;
+                }
+            }
+            if (now < startAt)
+                scheduled++;
+            else if (now <= endAt)
+                ongoing++;
+        }
+        return { ongoing: ongoing, scheduled: scheduled, total: total };
+    }
+    function messageCounts(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
+        var defs = raw && raw.messages ? raw.messages : raw;
+        var now = Math.floor(Date.now() / 1000);
+        var scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            if (!d || typeof d !== "object")
+                continue;
+            total++;
+            if (d.scheduleAt && d.scheduleAt > now)
+                scheduled++;
+        }
+        return { scheduled: scheduled, total: total };
+    }
+    // ── RPC ───────────────────────────────────────────────────────────────────
+    // satori_dashboard_summary — Payload: { game_id? }
+    function rpcSummary(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var now = Date.now();
+        var buf = Storage.readSystemJson(nk, RING_COLLECTION, RING_KEY);
+        var events = (buf && buf.events) || [];
+        // Distinct-user sets per window + counts.
+        var users5m = {};
+        var users1h = {};
+        var users24h = {};
+        var events24h = 0;
+        var countryUsers = {};
+        var cityUsers = {};
+        var eventNameCounts = {};
+        // 24 hourly buckets, index 0 = oldest hour, 23 = current hour.
+        var buckets = [];
+        for (var b = 0; b < 24; b++)
+            buckets.push(0);
+        var windowStart = now - DAY;
+        for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var t = toMs(ev.timestamp);
+            if (t < windowStart || t > now)
+                continue;
+            var uid = uidOf(ev);
+            events24h++;
+            if (uid)
+                users24h[uid] = true;
+            if (t >= now - HOUR && uid)
+                users1h[uid] = true;
+            if (t >= now - MIN_5 && uid)
+                users5m[uid] = true;
+            eventNameCounts[ev.name] = (eventNameCounts[ev.name] || 0) + 1;
+            var bucketIdx = 23 - Math.floor((now - t) / HOUR);
+            if (bucketIdx >= 0 && bucketIdx < 24)
+                buckets[bucketIdx]++;
+            var cc = (ev.country || "").toUpperCase();
+            if (cc && uid) {
+                if (!countryUsers[cc])
+                    countryUsers[cc] = {};
+                countryUsers[cc][uid] = true;
+            }
+            var city = ev.city || "";
+            if (city && uid) {
+                if (!cityUsers[city])
+                    cityUsers[city] = {};
+                cityUsers[city][uid] = true;
+            }
+        }
+        function distinctCount(set) {
+            return Object.keys(set).length;
+        }
+        var countryCounts = {};
+        for (var cc2 in countryUsers)
+            countryCounts[cc2] = distinctCount(countryUsers[cc2]);
+        var cityCounts = {};
+        for (var ci in cityUsers)
+            cityCounts[ci] = distinctCount(cityUsers[ci]);
+        var timeline = [];
+        for (var h = 0; h < 24; h++) {
+            timeline.push({ hourMs: now - (23 - h) * HOUR, count: buckets[h] });
+        }
+        var topCountries = topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
+        var topCities = topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
+        var topEvents = topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        // ── Real game telemetry overlay (legacy analytics pipeline) ───────────────
+        // The satori_events ring only sees the web SDK. The actual game DAU / event
+        // volume / geo lives in the legacy per-day aggregate. Overlay it so the IVX
+        // console shows the same numbers as analytics.htm instead of a near-empty map.
+        var todayStr = dateStrOf(now);
+        var legacyToday = readLegacyDay(nk, todayStr, gameId);
+        var dauToday = legacyToday.dau;
+        var eventsToday = legacyToday.events;
+        var revenueToday = round2(legacyToday.revenue);
+        var legacyCountries = topN(legacyToday.byCountry, 8).map(function (r) { return { country: r.key, users: r.count }; });
+        if (legacyCountries.length > 0)
+            topCountries = legacyCountries;
+        var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        if (legacyEvents.length > 0)
+            topEvents = legacyEvents;
+        return RpcHelpers.successResponse({
+            generatedAt: now,
+            activeUsers5m: distinctCount(users5m),
+            activeUsers1h: distinctCount(users1h),
+            activeUsers24h: Math.max(distinctCount(users24h), dauToday),
+            eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
+            // Real daily truth from the analytics pipeline (matches analytics.htm).
+            dauToday: dauToday,
+            eventsToday: eventsToday,
+            revenueToday: revenueToday,
+            ringBufferSize: events.length,
+            timeline: timeline,
+            topCountries: topCountries,
+            topCities: topCities,
+            topEvents: topEvents,
+            geoAvailable: topCountries.length > 0,
+            experiments: experimentCounts(nk, gameId),
+            liveEvents: liveEventCounts(nk, gameId),
+            messages: messageCounts(nk, gameId)
+        });
+    }
+    // ── Daily game-metrics (Satori "Game Metrics" tab) ─────────────────────────
+    // Mirrors Satori Cloud's Daily Active Users / Sessions / Revenue / ARPAU
+    // charts. Instead of scanning the sparse `satori_events` ring (which only
+    // holds the web SDK's events and times out at scale), we read the durable
+    // per-day aggregate docs the legacy analytics pipeline already maintains —
+    // the same source as nakama.intelli-verse-x.ai/analytics.htm. One batched
+    // storage read per day → fast and complete.
+    var GM_MAX_DAYS = 31;
+    // Read the legacy analytics_dau + analytics_live_daily aggregate docs for a
+    // single date. gameId "all" maps to the platform-wide aggregate keys.
+    function readLegacyDay(nk, dateStr, gameId) {
+        var sys = Constants.SYSTEM_USER_ID;
+        var isAll = !gameId || gameId === "all";
+        var dauKey = isAll ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
+        var liveKey = isAll ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
+        var out = { dau: 0, events: 0, sessions: 0, revenue: 0, purchases: 0, byCountry: {}, byName: {}, lastEventAt: 0 };
+        try {
+            var recs = nk.storageRead([
+                { collection: LEGACY_DAU, key: dauKey, userId: sys },
+                { collection: LEGACY_LIVE, key: liveKey, userId: sys }
+            ]);
+            for (var i = 0; i < recs.length; i++) {
+                var r = recs[i];
+                if (!r || !r.value)
+                    continue;
+                if (r.collection === LEGACY_DAU) {
+                    var dv = r.value;
+                    out.dau = (parseInt(dv.count, 10) || 0) ||
+                        (Array.isArray(dv.users) ? dv.users.length : 0) ||
+                        (Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers.length : 0) || 0;
+                }
+                else if (r.collection === LEGACY_LIVE) {
+                    var lv = r.value;
+                    out.events = parseInt(lv.total, 10) || 0;
+                    out.byName = lv.by_name || {};
+                    out.byCountry = lv.by_country || {};
+                    out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
+                    out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
+                    out.sessions = parseInt(lv.session_count, 10) ||
+                        (out.byName.session_end || out.byName.session_start || 0);
+                    out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
+                }
+            }
+        }
+        catch (e) { /* missing day → zeros */ }
+        return out;
+    }
+    // satori_game_metrics — Payload: { days?, game_id? }
+    function rpcGameMetrics(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), GM_MAX_DAYS);
+        var gameId = (typeof data.game_id === "string" && data.game_id) ? data.game_id : "all";
+        var nowMs = Date.now();
+        var series = [];
+        var totalsSessions = 0, totalsEvents = 0, totalsRevenue = 0, dauSum = 0;
+        for (var d = days - 1; d >= 0; d--) {
+            var dStr = dateStrOf(nowMs - d * 86400000);
+            var day = readLegacyDay(nk, dStr, gameId);
+            var dau = day.dau;
+            var revenue = day.revenue;
+            var payers = day.purchases;
+            series.push({
+                date: dStr,
+                dau: dau,
+                sessions: day.sessions,
+                events: day.events,
+                revenue: round2(revenue),
+                payers: payers,
+                arpau: dau > 0 ? round2(revenue / dau) : 0,
+                arppu: payers > 0 ? round2(revenue / payers) : 0
+            });
+            totalsSessions += day.sessions;
+            totalsEvents += day.events;
+            totalsRevenue += revenue;
+            dauSum += dau;
+        }
+        var avgDau = series.length > 0 ? Math.round(dauSum / series.length) : 0;
+        return RpcHelpers.successResponse({
+            days: days,
+            generatedAt: nowMs,
+            series: series,
+            totals: { sessions: totalsSessions, events: totalsEvents, revenue: round2(totalsRevenue), avgDau: avgDau },
+            scannedRecords: days * 2,
+            truncated: false
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_dashboard_summary", rpcSummary);
+        initializer.registerRpc("satori_game_metrics", rpcGameMetrics);
+    }
+    SatoriDashboard.register = register;
+})(SatoriDashboard || (SatoriDashboard = {}));
 var SatoriDataLake;
 (function (SatoriDataLake) {
     var DEFAULT_CONFIG = {
@@ -40951,6 +41687,150 @@ var SatoriDataLake;
     }
     SatoriDataLake.register = register;
 })(SatoriDataLake || (SatoriDataLake = {}));
+// ============================================================
+// Satori EventBus Bridge — feed the Satori analytics pipeline from the
+// gameplay events Nakama ALREADY emits on its internal EventBus.
+//
+// WHY THIS EXISTS
+//   The Satori admin console (Dashboard / Timeline / Funnels / Metrics /
+//   Experiment-results) all read from the `satori_events` collection +
+//   the `satori_debugger` ring buffer. Those are ONLY written when
+//   something calls SatoriEventCapture (the `satori_event` /
+//   `satori_events_batch` / `*_external` RPCs).
+//
+//   Today nothing calls them server-side: the Unity client's Satori
+//   integration is still a stub, and the marketing web client posts to a
+//   different ingest. So the console is empty even though the game is
+//   very much alive — every quiz, session and purchase flows through the
+//   server as an EventBus event (see QuestEventBusBridge, which already
+//   listens to the exact same events to auto-progress quests).
+//
+//   This bridge mirrors QuestEventBusBridge: it subscribes to the
+//   well-known gameplay EventBus events and forwards each one into
+//   SatoriEventCapture.captureEvent(). Result: the Satori console fills
+//   with REAL gameplay analytics with ZERO client or web changes — purely
+//   server-side.
+//
+// LAZY INIT (same rationale as QuestEventBusBridge)
+//   Reading `EventBus.Events.*` at namespace-eval time creates an
+//   eval-order dependency on the EventBus namespace IIFE having already
+//   run. The merged bundle's namespace order is not guaranteed across
+//   tsc versions / file ordering, and getting it wrong crashes the whole
+//   goja runtime with "Cannot read property 'Events' of undefined".
+//   Deferring the reads to register() (called from InitModule) guarantees
+//   EventBus is fully defined first.
+//
+// WRITE-AMPLIFICATION NOTE
+//   Every captured event does extra storage writes (satori_events row +
+//   per-user history + metrics + webhooks + data-lake + debugger ring).
+//   We therefore capture a CURATED set of high-signal, lower-frequency
+//   events (session/quiz/game/purchase/progression/achievement) and
+//   deliberately skip the highest-frequency micro-events (xp_earned,
+//   currency_*, item_*, stat_updated, energy_*, achievement_progress).
+//   Tune SUBSCRIBED in one place if you want more/less granularity.
+// ============================================================
+var SatoriEventBusBridge;
+(function (SatoriEventBusBridge) {
+    // Which EventBus events to forward into Satori analytics. The captured
+    // Satori event name is the EventBus event name verbatim (already
+    // snake_case), so taxonomy schemas line up 1:1.
+    var _subscribed = null;
+    function subscribed() {
+        if (_subscribed) {
+            return _subscribed;
+        }
+        _subscribed = [
+            // Audience / DAU
+            EventBus.Events.SESSION_START,
+            EventBus.Events.SESSION_END,
+            // Core gameplay
+            EventBus.Events.QUIZ_COMPLETED,
+            EventBus.Events.GAME_STARTED,
+            EventBus.Events.GAME_COMPLETED,
+            // NOTE: SCORE_SUBMITTED is intentionally excluded — it's the highest-
+            // frequency gameplay event and would dominate write volume (and any
+            // configured webhook/data-lake fan-out). DAU/engagement is already
+            // well-covered by session/quiz/game events. Add it back here if you
+            // want score-level granularity and have headroom.
+            // Monetization
+            EventBus.Events.STORE_PURCHASE,
+            // Progression
+            EventBus.Events.LEVEL_UP,
+            // Achievements / challenges
+            EventBus.Events.ACHIEVEMENT_COMPLETED,
+            EventBus.Events.ACHIEVEMENT_CLAIMED,
+            EventBus.Events.CHALLENGE_COMPLETED,
+            // Retention loop
+            EventBus.Events.STREAK_UPDATED,
+            EventBus.Events.REWARD_GRANTED
+        ];
+        return _subscribed;
+    }
+    // Build a flat, primitive-only metadata object from the EventBus data
+    // payload. We strip nested objects (e.g. resolved reward bundles) and
+    // the userId (it's stored on the record itself), keeping the event row
+    // small and the taxonomy validator happy (it expects scalar values).
+    function buildMetadata(eventName, data) {
+        var meta = {};
+        if (!data || typeof data !== "object") {
+            return meta;
+        }
+        for (var key in data) {
+            if (key === "userId" || key === "reward") {
+                continue;
+            }
+            var v = data[key];
+            var t = typeof v;
+            if (t === "string" || t === "number" || t === "boolean") {
+                meta[key] = v;
+            }
+        }
+        // Normalize a `revenue` field for the Daily Revenue chart. Real-money
+        // IAP store_purchase events carry { iap: true, price }. We surface the
+        // numeric price as `revenue` so downstream aggregation has one canonical
+        // key regardless of the source event's field name.
+        if (eventName === EventBus.Events.STORE_PURCHASE) {
+            var price = data.price !== undefined ? data.price : data.priceUsd;
+            var n = typeof price === "number" ? price : parseFloat(price);
+            if (!isNaN(n) && n > 0) {
+                meta.revenue = n;
+            }
+        }
+        return meta;
+    }
+    function handleEvent(nk, logger, ctx, eventName, data) {
+        // Need a Nakama user to attribute the event to. captureEvent writes a
+        // per-user history keyed by this id, which must be a real Nakama UUID.
+        var userId = ctx.userId || (data && typeof data.userId === "string" ? data.userId : "");
+        if (!userId) {
+            return;
+        }
+        try {
+            SatoriEventCapture.captureEvent(nk, logger, userId, {
+                name: eventName,
+                timestamp: Date.now(),
+                metadata: buildMetadata(eventName, data)
+            });
+        }
+        catch (err) {
+            // Never let analytics capture break the gameplay path.
+            logger.warn("[SatoriEventBusBridge] capture failed for event=%s user=%s: %s", eventName, userId, err && err.message ? err.message : String(err));
+        }
+    }
+    function register(initializer, logger) {
+        var events = subscribed();
+        logger.info("[SatoriEventBusBridge] Subscribing Satori capture to %d gameplay events", events.length);
+        for (var i = 0; i < events.length; i++) {
+            (function (capturedEventName) {
+                EventBus.on(capturedEventName, function (nk, logger, ctx, data) {
+                    handleEvent(nk, logger, ctx, capturedEventName, data);
+                });
+            })(events[i]);
+        }
+        logger.info("[SatoriEventBusBridge] Registration complete. Satori console now tracks live gameplay.");
+    }
+    SatoriEventBusBridge.register = register;
+})(SatoriEventBusBridge || (SatoriEventBusBridge = {}));
 var SatoriEventCapture;
 (function (SatoriEventCapture) {
     // Inverted-timestamp event keys: storageList returns keys in ascending
@@ -40963,6 +41843,24 @@ var SatoriEventCapture;
         while (inv.length < 14)
             inv = "0" + inv;
         return "ev_0" + inv + "_" + id;
+    }
+    // Best-effort geo stamp for the Satori dashboard map. Priority:
+    //   1. client-supplied metadata.country / metadata.city (already resolved)
+    //   2. the user's 30-day cached GeoTier country (no HTTP, cache-only)
+    // Returns "" when geo is unknown — the dashboard then shows "No data".
+    function geoOf(nk, userId, event) {
+        var md = event.metadata || {};
+        var country = (md.country || md.countryCode || "") + "";
+        var city = (md.city || "") + "";
+        if (!country && userId) {
+            try {
+                country = GeoTier.getUserCountry(nk, userId) || "";
+            }
+            catch (_) {
+                country = "";
+            }
+        }
+        return { country: country.toUpperCase(), city: city };
     }
     function appendToUserHistory(nk, userId, event) {
         var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
@@ -40982,16 +41880,20 @@ var SatoriEventCapture;
         var validation = SatoriTaxonomy.validateEvent(nk, event);
         if (!validation.valid) {
             logger.warn("[EventCapture] Rejected event '%s': %s", event.name, validation.errors.join("; "));
+            SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
             return;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
         var key = eventKey(Date.now(), userId);
+        var geo = geoOf(nk, userId, event);
         var record = {
             userId: userId,
             name: event.name,
             timestamp: event.timestamp,
             metadata: event.metadata || {},
-            date: dateStr
+            date: dateStr,
+            country: geo.country,
+            city: geo.city
         };
         nk.storageWrite([{
                 collection: Constants.SATORI_EVENTS_COLLECTION,
@@ -41017,17 +41919,21 @@ var SatoriEventCapture;
             var event = events[i];
             var validation = SatoriTaxonomy.validateEvent(nk, event);
             if (!validation.valid) {
+                SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
                 continue;
             }
             validEvents.push(event);
             var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
             var key = eventKey(Date.now() + i, userId);
+            var geo = geoOf(nk, userId, event);
             var record = {
                 userId: userId,
                 name: event.name,
                 timestamp: event.timestamp,
                 metadata: event.metadata || {},
-                date: dateStr
+                date: dateStr,
+                country: geo.country,
+                city: geo.city
             };
             exportRecords.push(record);
             writes.push({
@@ -41146,17 +42052,21 @@ var SatoriEventCapture;
         var validation = SatoriTaxonomy.validateEvent(nk, event);
         if (!validation.valid) {
             logger.warn("[EventCaptureExternal] Rejected event '%s' (identity=%s): %s", event.name, identityId, validation.errors.join("; "));
+            SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), identityId);
             return false;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
         var key = eventKey(Date.now(), identityId);
+        var geo = geoOf(nk, "", event);
         var record = {
             identityId: identityId,
             name: event.name,
             timestamp: event.timestamp,
             metadata: event.metadata || {},
             date: dateStr,
-            external: true
+            external: true,
+            country: geo.country,
+            city: geo.city
         };
         nk.storageWrite([{
                 collection: Constants.SATORI_EVENTS_COLLECTION,
@@ -41241,6 +42151,11 @@ var SatoriEventDebugger;
     var RECENT_COLLECTION = "satori_debugger";
     var RECENT_KEY = "recent_events";
     var RECENT_MAX = 300;
+    // Rejected-event ring buffer — backs the dashboard "Event errors" panel
+    // (mirrors Satori Cloud's "Events rejected at ingestion" surface). Written
+    // by SatoriEventCapture whenever taxonomy validation fails.
+    var REJECT_KEY = "rejected_events";
+    var REJECT_MAX = 200;
     var SEARCH_PAGE_SIZE = 100;
     var SEARCH_DEFAULT_PAGES = 320; // covers the legacy (oldest-first) key tail
     var SEARCH_MAX_PAGES = 800;
@@ -41269,6 +42184,43 @@ var SatoriEventDebugger;
         }
     }
     SatoriEventDebugger.record = record;
+    // Classify a validation reason into a short, Satori-style error code.
+    function classifyReason(reason) {
+        var r = (reason || "").toLowerCase();
+        if (r.indexOf("unknown event") !== -1 || r.indexOf("strict") !== -1)
+            return "INVALID_NAME";
+        if (r.indexOf("max length") !== -1 || r.indexOf("exceeds") !== -1)
+            return "INVALID_VALUE";
+        if (r.indexOf("required metadata") !== -1 || r.indexOf("metadata required") !== -1)
+            return "MISSING_METADATA";
+        if (r.indexOf("should be") !== -1 || r.indexOf("too many metadata") !== -1)
+            return "INVALID_METADATA";
+        return "INVALID_EVENT";
+    }
+    // Record a rejected (taxonomy-invalid) event for the admin "Event errors"
+    // panel. Called by SatoriEventCapture on every validation failure.
+    function recordRejection(nk, name, reason, userId) {
+        try {
+            var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, REJECT_KEY);
+            if (!buf || !buf.events)
+                buf = { events: [] };
+            buf.events.push({
+                name: name || "(unnamed)",
+                reason: reason || "",
+                code: classifyReason(reason),
+                timestamp: Date.now(),
+                userId: userId || ""
+            });
+            if (buf.events.length > REJECT_MAX) {
+                buf.events = buf.events.slice(buf.events.length - REJECT_MAX);
+            }
+            Storage.writeSystemJson(nk, RECENT_COLLECTION, REJECT_KEY, buf);
+        }
+        catch (err) {
+            // Never break ingest on bookkeeping.
+        }
+    }
+    SatoriEventDebugger.recordRejection = recordRejection;
     // ---- Filtering ----
     function matches(ev, filters) {
         if (filters.name && ev.name !== filters.name)
@@ -41404,9 +42356,48 @@ var SatoriEventDebugger;
             nextCursor: cursor || null
         });
     }
+    // satori_event_errors — recent taxonomy-rejected events, grouped by name,
+    // for the dashboard "Event errors" panel. Payload: { limit? }
+    function rpcEventErrors(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 50, 1), REJECT_MAX);
+        var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, REJECT_KEY);
+        var all = (buf && buf.events) || [];
+        // Group by name+code so the panel shows one row per distinct error with a
+        // count and the most-recent timestamp/reason (matches Satori's layout).
+        var groups = {};
+        var order = [];
+        for (var i = 0; i < all.length; i++) {
+            var ev = all[i];
+            var k = ev.name + "|" + ev.code;
+            if (!groups[k]) {
+                groups[k] = { name: ev.name, code: ev.code, reason: ev.reason, count: 0, lastSeenMs: 0 };
+                order.push(k);
+            }
+            groups[k].count++;
+            var tms = toMs(ev.timestamp);
+            if (tms > groups[k].lastSeenMs) {
+                groups[k].lastSeenMs = tms;
+                groups[k].reason = ev.reason;
+            }
+        }
+        var rows = [];
+        for (var j = 0; j < order.length; j++)
+            rows.push(groups[order[j]]);
+        rows.sort(function (a, b) { return b.lastSeenMs - a.lastSeenMs; });
+        if (rows.length > limit)
+            rows = rows.slice(0, limit);
+        return RpcHelpers.successResponse({
+            errors: rows,
+            totalRejected: all.length,
+            distinctErrors: order.length
+        });
+    }
     function register(initializer) {
         initializer.registerRpc("satori_events_tail", rpcTail);
         initializer.registerRpc("satori_events_search", rpcSearch);
+        initializer.registerRpc("satori_event_errors", rpcEventErrors);
     }
     SatoriEventDebugger.register = register;
 })(SatoriEventDebugger || (SatoriEventDebugger = {}));
@@ -42704,7 +43695,7 @@ var SatoriCreatorEvents;
         var cursor = "";
         for (var page = 0; page < 10; page++) {
             try {
-                var result = nk.storageList("", "live_events", 100, cursor);
+                var result = nk.storageList(null, "live_events", 100, cursor);
                 var objects = result.objects || [];
                 for (var i = 0; i < objects.length; i++) {
                     var obj = objects[i];
@@ -43898,7 +44889,7 @@ var SatoriCreatorEvents;
         do {
             var page;
             try {
-                page = nk.storageList("", "event_answers", 100, cursor);
+                page = nk.storageList(null, "event_answers", 100, cursor);
             }
             catch (lerr) {
                 logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
@@ -43952,7 +44943,7 @@ var SatoriCreatorEvents;
             do {
                 var pPage;
                 try {
-                    pPage = nk.storageList("", "event_participants", 100, pCursor);
+                    pPage = nk.storageList(null, "event_participants", 100, pCursor);
                 }
                 catch (perr) {
                     logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
@@ -44826,23 +45817,60 @@ var SatoriMetrics;
     function rpcSetAlert(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.metricId || !data.name || data.threshold === undefined || !data.operator) {
+        var metricId = data.metricId || data.metric_id;
+        if (!metricId || !data.name || data.threshold === undefined || !data.operator) {
             return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
         }
         var alerts = getAlerts(nk);
         var existing = false;
         for (var i = 0; i < alerts.length; i++) {
             if (alerts[i].name === data.name) {
-                alerts[i] = { metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
+                alerts[i] = { metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
                 existing = true;
                 break;
             }
         }
         if (!existing) {
-            alerts.push({ metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
+            alerts.push({ metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
         }
         Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts", { alerts: alerts });
         return RpcHelpers.successResponse({ alerts: alerts });
+    }
+    // satori_metrics_series — bucketed time series for one metric (for charts).
+    // Payload: { metricId, game_id?, limit? }
+    function rpcSeries(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.metricId)
+            return RpcHelpers.errorResponse("metricId required");
+        var gameId = RpcHelpers.gameId(data);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), 500);
+        var definitions = getMetricDefinitions(nk, gameId);
+        var def = definitions[data.metricId];
+        var state = getMetricState(nk, data.metricId, gameId);
+        var points = [];
+        for (var bk in state.buckets) {
+            var bkSec = parseInt(bk, 10);
+            points.push({
+                bucketSec: isNaN(bkSec) ? 0 : bkSec,
+                value: state.buckets[bk].value,
+                count: state.buckets[bk].count
+            });
+        }
+        points.sort(function (a, b) { return a.bucketSec - b.bucketSec; });
+        if (points.length > limit)
+            points = points.slice(points.length - limit);
+        return RpcHelpers.successResponse({
+            metricId: data.metricId,
+            definition: def || null,
+            windowed: !!(def && def.windowSec),
+            points: points
+        });
+    }
+    // satori_metrics_alerts — list configured alerts + last-triggered state.
+    function rpcAlertsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        return RpcHelpers.successResponse({ alerts: getAlerts(nk) });
     }
     function rpcPrometheus(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -44874,6 +45902,8 @@ var SatoriMetrics;
         initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
         initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
         initializer.registerRpc("satori_metrics_get", rpcQuery);
+        initializer.registerRpc("satori_metrics_series", rpcSeries);
+        initializer.registerRpc("satori_metrics_alerts", rpcAlertsList);
     }
     SatoriMetrics.register = register;
     function registerEventHandlers() {
@@ -44895,6 +45925,80 @@ var SatoriMetrics;
     }
     SatoriMetrics.registerEventHandlers = registerEventHandlers;
 })(SatoriMetrics || (SatoriMetrics = {}));
+// ---------------------------------------------------------------------------
+// Satori Reports — saved/reusable report definitions. Mirrors Satori Cloud's
+// "Reports" surface: an admin saves a named query (a funnel, retention,
+// metric, or timeline view with its parameters) and re-runs it later. The
+// definition is stored here; the admin UI executes it by calling the existing
+// funnel / retention / metric / timeline RPCs with the saved params.
+//
+// Definitions live in satori_configs/"reports" ({ reports: { [id]: def } }).
+// Admin-only.
+// ---------------------------------------------------------------------------
+var SatoriReports;
+(function (SatoriReports) {
+    function getReports(nk) {
+        var raw = ConfigLoader.loadSatoriConfig(nk, "reports", { reports: {} });
+        return (raw && raw.reports) ? raw.reports : {};
+    }
+    function saveReports(nk, reports) {
+        ConfigLoader.saveSatoriConfig(nk, "reports", { reports: reports });
+    }
+    function toList(reports) {
+        var out = [];
+        for (var id in reports)
+            out.push(reports[id]);
+        out.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+        return out;
+    }
+    // satori_reports_list
+    function rpcList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        return RpcHelpers.successResponse({ reports: toList(getReports(nk)) });
+    }
+    var VALID_TYPES = { funnel: true, retention: true, metric: true, timeline: true };
+    // satori_reports_save — Payload: { id?, name, type, description?, params }
+    function rpcSave(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.name)
+            return RpcHelpers.errorResponse("name required");
+        if (!data.type || !VALID_TYPES[data.type])
+            return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
+        var reports = getReports(nk);
+        var now = Math.floor(Date.now() / 1000);
+        var id = data.id || ("rep_" + now + "_" + Math.floor(Math.random() * 100000));
+        var existing = reports[id];
+        reports[id] = {
+            id: id,
+            name: String(data.name).slice(0, 120),
+            type: data.type,
+            description: data.description ? String(data.description).slice(0, 500) : "",
+            params: data.params && typeof data.params === "object" ? data.params : {},
+            createdAt: existing ? existing.createdAt : now,
+            updatedAt: now
+        };
+        saveReports(nk, reports);
+        return RpcHelpers.successResponse({ report: reports[id] });
+    }
+    // satori_reports_delete — Payload: { id }
+    function rpcDelete(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.id)
+            return RpcHelpers.errorResponse("id required");
+        var reports = getReports(nk);
+        delete reports[data.id];
+        saveReports(nk, reports);
+        return RpcHelpers.successResponse({ deleted: data.id });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_reports_list", rpcList);
+        initializer.registerRpc("satori_reports_save", rpcSave);
+        initializer.registerRpc("satori_reports_delete", rpcDelete);
+    }
+    SatoriReports.register = register;
+})(SatoriReports || (SatoriReports = {}));
 // ---------------------------------------------------------------------------
 // Satori Retention — activity-based D1/D3/D7 retention cohorts computed from
 // captured events, with optional segmentation by experiment variant.
@@ -45062,8 +46166,29 @@ var SatoriRetention;
 })(SatoriRetention || (SatoriRetention = {}));
 var SatoriTaxonomy;
 (function (SatoriTaxonomy) {
+    // Known gameplay events forwarded by SatoriEventBusBridge. Registering
+    // them here means they validate cleanly (and survive strict mode) out of
+    // the box, and the Taxonomy admin page shows a sensible starting catalog
+    // instead of an empty list.
+    function gameplaySchema(name, category, description) {
+        return { name: name, category: category, description: description, requiredMetadata: [], optionalMetadata: [], metadataTypes: {}, maxMetadataKeys: 50, deprecated: false };
+    }
     var DEFAULT_CONFIG = {
-        schemas: {},
+        schemas: {
+            session_start: gameplaySchema("session_start", "engagement", "Player opened a session"),
+            session_end: gameplaySchema("session_end", "engagement", "Player session ended"),
+            quiz_completed: gameplaySchema("quiz_completed", "engagement", "Player finished a quiz"),
+            game_started: gameplaySchema("game_started", "engagement", "Player started a game/match"),
+            game_completed: gameplaySchema("game_completed", "engagement", "Player finished a game/match"),
+            score_submitted: gameplaySchema("score_submitted", "progression", "Player submitted a score"),
+            store_purchase: gameplaySchema("store_purchase", "monetization", "Store / IAP purchase (carries price/revenue)"),
+            level_up: gameplaySchema("level_up", "progression", "Player leveled up"),
+            achievement_completed: gameplaySchema("achievement_completed", "progression", "Achievement completed"),
+            achievement_claimed: gameplaySchema("achievement_claimed", "progression", "Achievement reward claimed"),
+            challenge_completed: gameplaySchema("challenge_completed", "engagement", "Challenge completed"),
+            streak_updated: gameplaySchema("streak_updated", "engagement", "Daily streak advanced"),
+            reward_granted: gameplaySchema("reward_granted", "progression", "Reward granted to player")
+        },
         enforceStrict: false,
         maxEventNameLength: 128,
         maxMetadataValueLength: 1024,
@@ -45201,6 +46326,124 @@ var SatoriTaxonomy;
     }
     SatoriTaxonomy.register = register;
 })(SatoriTaxonomy || (SatoriTaxonomy = {}));
+// ---------------------------------------------------------------------------
+// Satori Timeline — calendar view backing data. Mirrors Satori Cloud's
+// "Timeline" surface: a per-day metric track (DAU + events) plus activity
+// bars for experiments / live events / messages laid out across the date
+// range, so admins can see what was live on any given day.
+//
+// DAU/events come from a page-capped scan of `satori_events` (newest-first
+// keys mean recent days are reached first). Activities come from the Satori
+// config objects. Admin-only.
+// ---------------------------------------------------------------------------
+var SatoriTimeline;
+(function (SatoriTimeline) {
+    var PAGE_SIZE = 100;
+    var DEFAULT_PAGES = 320;
+    var MAX_PAGES = 800;
+    var MAX_DAYS = 31;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    // satori_timeline — Payload: { days?, game_id?, max_pages? }
+    function rpcTimeline(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), MAX_DAYS);
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || DEFAULT_PAGES, 1), MAX_PAGES);
+        var gameId = RpcHelpers.gameId(data);
+        var nowMs = Date.now();
+        var sinceMs = nowMs - days * 86400000;
+        // date → { users set, events count }
+        var perDay = {};
+        var cursor = "";
+        var scanned = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scanned++;
+                var rec = obj.value;
+                var t = toMs(rec.timestamp);
+                if (t < sinceMs || t > nowMs)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                var dStr = rec.date || dateStrOf(t);
+                if (!perDay[dStr])
+                    perDay[dStr] = { users: {}, events: 0 };
+                perDay[dStr].events++;
+                if (uid)
+                    perDay[dStr].users[uid] = true;
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        // Emit a continuous day axis (oldest → newest) so the UI can render an
+        // unbroken calendar even for days with zero activity.
+        var dau = [];
+        for (var d = days - 1; d >= 0; d--) {
+            var dStr2 = dateStrOf(nowMs - d * 86400000);
+            var entry = perDay[dStr2];
+            dau.push({
+                date: dStr2,
+                users: entry ? Object.keys(entry.users).length : 0,
+                events: entry ? entry.events : 0
+            });
+        }
+        // Activities laid out across the range (seconds → kept as seconds).
+        var activities = [];
+        var sinceSec = Math.floor(sinceMs / 1000);
+        var experiments = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
+        for (var ex in experiments) {
+            var e = experiments[ex];
+            if (e.endAt && e.endAt < sinceSec)
+                continue;
+            activities.push({ type: "experiment", id: ex, name: e.name || ex, startAt: e.startAt || null, endAt: e.endAt || null, status: e.status || "" });
+        }
+        var liveEvents = ConfigLoader.loadSatoriConfigForGame(nk, "live_events", gameId, {});
+        for (var le in liveEvents) {
+            var l = liveEvents[le];
+            if (l.endAt && l.endAt < sinceSec)
+                continue;
+            activities.push({ type: "live_event", id: le, name: l.name || le, startAt: l.startAt || null, endAt: l.endAt || null, category: l.category || "" });
+        }
+        var rawMsgs = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
+        var messages = rawMsgs && rawMsgs.messages ? rawMsgs.messages : rawMsgs;
+        for (var mid in messages) {
+            var m = messages[mid];
+            if (!m || typeof m !== "object")
+                continue;
+            if (m.scheduleAt && m.scheduleAt < sinceSec)
+                continue;
+            activities.push({ type: "message", id: mid, name: m.title || mid, startAt: m.scheduleAt || null, endAt: m.expiresAt || null });
+        }
+        return RpcHelpers.successResponse({
+            days: days,
+            sinceMs: sinceMs,
+            generatedAt: nowMs,
+            dau: dau,
+            activities: activities,
+            scannedRecords: scanned,
+            truncated: truncated
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_timeline", rpcTimeline);
+    }
+    SatoriTimeline.register = register;
+})(SatoriTimeline || (SatoriTimeline = {}));
 var SatoriVideoFeed;
 (function (SatoriVideoFeed) {
     var COLLECTION = "satori_video_feed";

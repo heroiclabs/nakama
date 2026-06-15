@@ -43,6 +43,7 @@ namespace SatoriEventCapture {
     var validation = SatoriTaxonomy.validateEvent(nk, event);
     if (!validation.valid) {
       logger.warn("[EventCapture] Rejected event '%s': %s", event.name, validation.errors.join("; "));
+      SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
       return;
     }
 
@@ -85,6 +86,7 @@ namespace SatoriEventCapture {
       var event = events[i];
       var validation = SatoriTaxonomy.validateEvent(nk, event);
       if (!validation.valid) {
+        SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
         continue;
       }
       validEvents.push(event);
@@ -223,6 +225,7 @@ namespace SatoriEventCapture {
     if (!validation.valid) {
       logger.warn("[EventCaptureExternal] Rejected event '%s' (identity=%s): %s",
         event.name, identityId, validation.errors.join("; "));
+      SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), identityId);
       return false;
     }
 

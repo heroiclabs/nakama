@@ -159,23 +159,63 @@ namespace SatoriMetrics {
   function rpcSetAlert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
-    if (!data.metricId || !data.name || data.threshold === undefined || !data.operator) {
+    var metricId = data.metricId || data.metric_id;
+    if (!metricId || !data.name || data.threshold === undefined || !data.operator) {
       return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
     }
     var alerts = getAlerts(nk);
     var existing = false;
     for (var i = 0; i < alerts.length; i++) {
       if (alerts[i].name === data.name) {
-        alerts[i] = { metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
+        alerts[i] = { metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
         existing = true;
         break;
       }
     }
     if (!existing) {
-      alerts.push({ metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
+      alerts.push({ metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
     }
     Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts", { alerts: alerts });
     return RpcHelpers.successResponse({ alerts: alerts });
+  }
+
+  // satori_metrics_series — bucketed time series for one metric (for charts).
+  // Payload: { metricId, game_id?, limit? }
+  function rpcSeries(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.metricId) return RpcHelpers.errorResponse("metricId required");
+    var gameId = RpcHelpers.gameId(data);
+    var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), 500);
+
+    var definitions = getMetricDefinitions(nk, gameId);
+    var def = definitions[data.metricId];
+    var state = getMetricState(nk, data.metricId, gameId);
+
+    var points: { bucketSec: number; value: number; count: number }[] = [];
+    for (var bk in state.buckets) {
+      var bkSec = parseInt(bk, 10);
+      points.push({
+        bucketSec: isNaN(bkSec) ? 0 : bkSec,
+        value: state.buckets[bk].value,
+        count: state.buckets[bk].count
+      });
+    }
+    points.sort(function (a, b) { return a.bucketSec - b.bucketSec; });
+    if (points.length > limit) points = points.slice(points.length - limit);
+
+    return RpcHelpers.successResponse({
+      metricId: data.metricId,
+      definition: def || null,
+      windowed: !!(def && def.windowSec),
+      points: points
+    });
+  }
+
+  // satori_metrics_alerts — list configured alerts + last-triggered state.
+  function rpcAlertsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    return RpcHelpers.successResponse({ alerts: getAlerts(nk) });
   }
 
   function rpcPrometheus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -209,6 +249,8 @@ namespace SatoriMetrics {
     initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
     initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
     initializer.registerRpc("satori_metrics_get", rpcQuery);
+    initializer.registerRpc("satori_metrics_series", rpcSeries);
+    initializer.registerRpc("satori_metrics_alerts", rpcAlertsList);
   }
 
   export function registerEventHandlers(): void {

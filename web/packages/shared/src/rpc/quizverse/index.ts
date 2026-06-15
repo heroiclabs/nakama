@@ -154,3 +154,77 @@ export function endCreatorEvent(
 export type EventStatus = "active" | "upcoming" | "ended" | "all";
 export type EventGameMode = "best_guess" | "speed_quiz" | "elimination";
 export type EventDifficulty = "casual" | "challenge" | "expert";
+
+/* ------------------------------------------------------------------ */
+/*  Live-event prize fulfillment (gift-card voucher queue)            */
+/* ------------------------------------------------------------------ */
+
+export type FulfillmentStatus = "pending" | "fulfilled" | "failed";
+
+export interface FulfillmentVoucher {
+  provider?: string;
+  orderId?: string;
+  deliveredTo?: string;
+  cardLast4?: string;
+  codeDelivered?: boolean;
+  status?: string;
+  settledAt?: number;
+}
+
+export interface PrizeFulfillment {
+  key: string;
+  userId: string;
+  eventId: string;
+  eventTitle: string;
+  rank: number;
+  giftCard: GiftCardTier | null;
+  status: FulfillmentStatus;
+  region: string;
+  email: string;
+  source: string;
+  queuedAt: number;
+  settledAt: number;
+  voucher: FulfillmentVoucher | null;
+  error: string;
+}
+
+export interface PrizeFulfillmentsResult {
+  fulfillments: PrizeFulfillment[];
+  cursor: string;
+}
+
+export interface SettlePrizeFulfillmentInput {
+  eventId: string;
+  userId: string;
+  status: "fulfilled" | "failed";
+  /** Fulfilled-only voucher metadata */
+  provider?: string;
+  orderId?: string;
+  deliveredTo?: string;
+  cardLast4?: string;
+  codeDelivered?: boolean;
+  /** Failed-only reason */
+  error?: string;
+}
+
+export function listPrizeFulfillments(
+  opts: RpcOptions,
+  status?: FulfillmentStatus,
+  limit?: number,
+  cursor?: string,
+): Promise<PrizeFulfillmentsResult> {
+  return callRpc(
+    "admin_prize_fulfillments_list",
+    { status, limit, cursor },
+    opts,
+  ).then((value) => unwrapData<PrizeFulfillmentsResult>(value));
+}
+
+export function settlePrizeFulfillment(
+  input: SettlePrizeFulfillmentInput,
+  opts: RpcOptions,
+): Promise<{ success: boolean; key: string; status: string; settledAt: number }> {
+  return callRpc("admin_prize_fulfillment_settle", input, opts).then((value) =>
+    unwrapData<{ success: boolean; key: string; status: string; settledAt: number }>(value),
+  );
+}

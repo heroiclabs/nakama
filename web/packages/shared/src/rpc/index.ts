@@ -28,6 +28,21 @@ export type {
   SatoriDirectStatus,
   DashboardSummary,
   DashboardCounts,
+  GameMetricsResult,
+  GameMetricsDay,
+  EventError,
+  EventErrorsResult,
+  TimelineResult,
+  TimelineDay,
+  TimelineActivity,
+  SavedReport,
+  ReportType,
+  MetricDefinition,
+  MetricSeries,
+  MetricSeriesPoint,
+  MetricAlert,
+  TaxonomySchema,
+  TaxonomySchemasResponse,
 } from "./satori";
 export type {
   CreatorEvent,
@@ -39,5 +54,10 @@ export type {
   EventStatus,
   EventGameMode,
   EventDifficulty,
+  PrizeFulfillment,
+  PrizeFulfillmentsResult,
+  FulfillmentStatus,
+  FulfillmentVoucher,
+  SettlePrizeFulfillmentInput,
 } from "./quizverse";
 export * from "./types";

@@ -403,7 +403,7 @@ namespace SatoriCreatorEvents {
     var cursor = "";
     for (var page = 0; page < 10; page++) {
       try {
-        var result = nk.storageList("", "live_events", 100, cursor);
+        var result = nk.storageList(null, "live_events", 100, cursor);
         var objects = result.objects || [];
         for (var i = 0; i < objects.length; i++) {
           var obj = objects[i];
@@ -1722,7 +1722,7 @@ namespace SatoriCreatorEvents {
     do {
       var page: any;
       try {
-        page = nk.storageList("", "event_answers", 100, cursor);
+        page = nk.storageList(null, "event_answers", 100, cursor);
       } catch (lerr: any) {
         logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
         break;
@@ -1772,7 +1772,7 @@ namespace SatoriCreatorEvents {
       do {
         var pPage: any;
         try {
-          pPage = nk.storageList("", "event_participants", 100, pCursor);
+          pPage = nk.storageList(null, "event_participants", 100, pCursor);
         } catch (perr: any) {
           logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
           break;

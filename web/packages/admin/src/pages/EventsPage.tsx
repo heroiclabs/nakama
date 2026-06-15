@@ -163,16 +163,49 @@ function useScheduleEvent(gameScope: string) {
 /*  Creator Event Hooks                                                */
 /* ------------------------------------------------------------------ */
 
+// Sources the admin_creator_events_list RPC actually returns. The backend
+// merges the `satori_creator_events` collection (events created via
+// creator_event_create) and the `live_events` collection (SPA / creator-portal
+// published). The legacy `quizverse_creator` tag is kept for older data. The
+// previous filter only allowed `quizverse_creator`, which this RPC never
+// emits — so every SPA creator event (live & ended) was silently hidden.
+const CREATOR_EVENT_SOURCES = new Set<CreatorEvent["source"]>([
+  "quizverse_creator",
+  "satori_creator_events",
+  "live_events",
+]);
+
 function useCreatorEvents(gameScope: string) {
   return useQuery({
     queryKey: ["quizverse", "creator_events", gameScope],
     queryFn: () => quizverse.listCreatorEvents(serverKeyAuth(), rpcGameId(gameScope)),
     select: (data) => {
       const all = data?.events ?? [];
-      return all.filter((ev: CreatorEvent) => ev.source === "quizverse_creator");
+      // Keep every creator-sourced event; only drop platform-scheduled ones.
+      return all
+        .filter((ev: CreatorEvent) => !ev.source || CREATOR_EVENT_SOURCES.has(ev.source))
+        .map(normalizeCreatorEvent);
     },
     staleTime: 30_000,
   });
+}
+
+// The admin_creator_events_list RPC emits `title` / `scheduled_at` / `end_at`,
+// but the UI reads `name` / `start_time_sec` / `end_time_sec`. Without this
+// mapping the cards render blank names and "—" timestamps. Prefer the canonical
+// fields when present, fall back to the RPC field names otherwise.
+function normalizeCreatorEvent(ev: CreatorEvent): CreatorEvent {
+  const raw = ev as CreatorEvent & {
+    title?: string;
+    scheduled_at?: number;
+    end_at?: number;
+  };
+  return {
+    ...ev,
+    name: ev.name ?? raw.title ?? "Untitled Event",
+    start_time_sec: ev.start_time_sec ?? raw.scheduled_at,
+    end_time_sec: ev.end_time_sec ?? raw.end_at,
+  };
 }
 
 function useCreatorEventStats(eventId: string | null) {
