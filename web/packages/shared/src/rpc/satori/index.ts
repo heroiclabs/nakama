@@ -503,3 +503,37 @@ export function getEventsTimeline(
     opts,
   );
 }
+
+/* ── Dashboard summary (Satori-Cloud style overview) ──────────────── */
+
+export interface DashboardCounts {
+  ongoing: number;
+  scheduled: number;
+  total: number;
+}
+
+export interface DashboardSummary {
+  generatedAt: number;
+  activeUsers5m: number;
+  activeUsers1h: number;
+  activeUsers24h: number;
+  eventsLast24h: number;
+  ringBufferSize: number;
+  timeline: { hourMs: number; count: number }[];
+  topCountries: { country: string; users: number }[];
+  topCities: { city: string; users: number }[];
+  topEvents: { name: string; count: number }[];
+  geoAvailable: boolean;
+  experiments: DashboardCounts;
+  liveEvents: DashboardCounts;
+  messages: { scheduled: number; total: number };
+}
+
+export function getDashboardSummary(
+  opts: RpcOptions,
+  gameId?: string,
+): Promise<DashboardSummary> {
+  return callRpc("satori_dashboard_summary", { game_id: gameId }, opts).then(
+    (value) => unwrapData<DashboardSummary>(value),
+  );
+}

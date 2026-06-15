@@ -140,8 +140,12 @@ export function AdminLayout() {
       >
         <div className="flex h-14 items-center justify-between border-b border-border px-4">
           {!collapsed && (
-            <span className="text-sm font-bold tracking-tight text-primary">
-              NAKAMA ADMIN
+            <span className="flex items-center gap-2 text-sm font-bold tracking-tight">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-primary">
+                <Sparkles size={14} />
+              </span>
+              <span className="text-foreground">LiveOps</span>
+              <span className="text-muted-foreground">Console</span>
             </span>
           )}
           <button

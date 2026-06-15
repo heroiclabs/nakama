@@ -617,6 +617,9 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
     SatoriDirectControl.register(initializer);
 
+    logger.info("[Satori] Registering Dashboard summary RPC...");
+    SatoriDashboard.register(initializer);
+
     logger.info("[Satori] All Satori systems registered successfully");
   } catch (err: any) {
     logger.error("[Satori] Failed to register Satori systems: " + (err.message || String(err)));

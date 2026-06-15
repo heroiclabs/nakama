@@ -26,6 +26,8 @@ export type {
   RetentionVariantRow,
   RetentionResult,
   SatoriDirectStatus,
+  DashboardSummary,
+  DashboardCounts,
 } from "./satori";
 export type {
   CreatorEvent,
