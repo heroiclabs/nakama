@@ -14274,6 +14274,9 @@ var AdminConsole;
         initializer.registerRpc("admin_creator_event_stats", rpcAdminCreatorEventStats);
         initializer.registerRpc("admin_creator_event_end", rpcAdminCreatorEventEnd);
         initializer.registerRpc("admin_creator_events_list", rpcAdminCreatorEventsList);
+        // Live-event prize fulfillment (admin console)
+        initializer.registerRpc("admin_prize_fulfillments_list", rpcAdminPrizeFulfillmentsList);
+        initializer.registerRpc("admin_prize_fulfillment_settle", rpcAdminPrizeFulfillmentSettle);
         initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
         initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
         initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
@@ -14452,6 +14455,127 @@ var AdminConsole;
         initializer.registerRpc("hiro_streak_shield_replenish", delegate("__rpc_retention_grant_streak_shield"));
     }
     AdminConsole.register = register;
+    // ────────────────────────────────────────────────────────────────────
+    //  Live-event prize fulfillment (admin console)
+    //
+    //  Gift-card wins are queued into the system-owned `prize_fulfillments`
+    //  collection (status "pending") by the creator-event claim RPCs. The
+    //  existing creator_event_fulfillments_list / _settle RPCs are gated by a
+    //  service token (NAKAMA_WEBHOOK_SECRET) for the Next.js admin / n8n. These
+    //  two RPCs expose the SAME queue + settle flow to the IVX admin console via
+    //  the normal requireAdmin gate, so no secret has to ship to the browser.
+    // ────────────────────────────────────────────────────────────────────
+    function rpcAdminPrizeFulfillmentsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+        var limit = Math.min(200, Math.max(1, Number(data.limit) || 100));
+        var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
+        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
+        var rows = [];
+        var objs = (res && res.objects) || [];
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value || {};
+            if (statusFilter && v.status !== statusFilter)
+                continue;
+            rows.push({
+                key: objs[i].key,
+                userId: v.userId || "",
+                eventId: v.eventId || "",
+                eventTitle: v.eventTitle || "",
+                rank: v.rank || 0,
+                giftCard: v.giftCard || null,
+                status: v.status || "pending",
+                region: v.region || "",
+                email: v.email || "",
+                source: v.source || "",
+                queuedAt: v.queuedAt || v.claimedAt || 0,
+                settledAt: v.settledAt || 0,
+                voucher: v.voucher || null,
+                error: v.error || "",
+            });
+        }
+        return RpcHelpers.successResponse({
+            fulfillments: rows,
+            cursor: (res && res.cursor) || "",
+        });
+    }
+    function rpcAdminPrizeFulfillmentSettle(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var eventId = data.eventId || data.event_id;
+        var targetUserId = data.userId || data.user_id;
+        if (!eventId || !targetUserId) {
+            return RpcHelpers.errorResponse("eventId and userId required");
+        }
+        var status = data.status === "fulfilled" ? "fulfilled" : (data.status === "failed" ? "failed" : "");
+        if (!status) {
+            return RpcHelpers.errorResponse("status must be 'fulfilled' or 'failed'");
+        }
+        eventId = String(eventId);
+        targetUserId = String(targetUserId);
+        var fKey = eventId + ":" + targetUserId;
+        var recs = nk.storageRead([{ collection: "prize_fulfillments", key: fKey, userId: Constants.SYSTEM_USER_ID }]);
+        if (!recs || recs.length === 0 || !recs[0].value) {
+            return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+        }
+        var rec = recs[0].value;
+        var settledAt = Math.floor(Date.now() / 1000);
+        rec.status = status;
+        rec.settledAt = settledAt;
+        rec.settledBy = "admin_console";
+        if (status === "fulfilled") {
+            // Never store the full card code server-side — it is delivered by email.
+            rec.voucher = {
+                provider: String(data.provider || "reloadly"),
+                orderId: String(data.orderId || ""),
+                deliveredTo: String(data.deliveredTo || rec.email || ""),
+                cardLast4: String(data.cardLast4 || ""),
+                codeDelivered: !!data.codeDelivered,
+            };
+            rec.error = "";
+        }
+        else {
+            rec.error = String(data.error || "fulfillment failed");
+        }
+        nk.storageWrite([{
+                collection: "prize_fulfillments",
+                key: fKey,
+                userId: Constants.SYSTEM_USER_ID,
+                value: rec,
+                permissionRead: 2,
+                permissionWrite: 0,
+            }]);
+        // Mirror onto the player's claim record so the SPA "My Prizes" card can
+        // show "Voucher sent" without another server round-trip.
+        try {
+            var claimKey = "claim_" + eventId;
+            var claimRecs = nk.storageRead([{ collection: "creator_event_claims", key: claimKey, userId: targetUserId }]);
+            if (claimRecs && claimRecs.length > 0 && claimRecs[0].value) {
+                var claim = claimRecs[0].value;
+                claim.voucher = {
+                    status: status,
+                    provider: (rec.voucher && rec.voucher.provider) || "reloadly",
+                    deliveredTo: (rec.voucher && rec.voucher.deliveredTo) || "",
+                    settledAt: settledAt,
+                };
+                nk.storageWrite([{
+                        collection: "creator_event_claims",
+                        key: claimKey,
+                        userId: targetUserId,
+                        value: claim,
+                        permissionRead: 1,
+                        permissionWrite: 1,
+                    }]);
+            }
+        }
+        catch (merr) {
+            logger.warn("[admin_prize_fulfillment_settle] Failed to mirror voucher onto claim record: %s", merr.message || String(merr));
+        }
+        logAdminAudit(nk, ctx, "admin_prize_fulfillment_settle", { eventId: eventId, userId: targetUserId }, { status: status, orderId: (rec.voucher && rec.voucher.orderId) || "" });
+        logger.info("[admin_prize_fulfillment_settle] %s settled key=%s status=%s", ctx.userId || "admin", fKey, status);
+        return RpcHelpers.successResponse({ success: true, key: fKey, status: status, settledAt: settledAt });
+    }
     function rpcGiftClaimsList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var claims = RewardEngine.getGiftClaims(nk, userId);

@@ -54,5 +54,10 @@ export type {
   EventStatus,
   EventGameMode,
   EventDifficulty,
+  PrizeFulfillment,
+  PrizeFulfillmentsResult,
+  FulfillmentStatus,
+  FulfillmentVoucher,
+  SettlePrizeFulfillmentInput,
 } from "./quizverse";
 export * from "./types";

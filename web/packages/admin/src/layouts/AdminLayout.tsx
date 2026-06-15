@@ -22,6 +22,7 @@ import {
   Award,
   Medal,
   Trophy,
+  Gift,
   Database,
   Gamepad2,
   Terminal,
@@ -62,6 +63,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Feature Flags", to: "/flags", icon: Flag },
       { label: "Live Events", to: "/events", icon: CalendarClock },
+      { label: "Live Event Prizes", to: "/prizes", icon: Gift },
       { label: "Experiments", to: "/experiments", icon: FlaskConical },
       { label: "Audiences", to: "/audiences", icon: UsersRound },
       { label: "Messages", to: "/messages", icon: MessageSquare },
