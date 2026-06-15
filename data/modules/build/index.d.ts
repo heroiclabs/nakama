@@ -3394,6 +3394,9 @@ declare namespace SatoriDataLake {
     function exportBatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, events: any[]): void;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriEventBusBridge {
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
 declare namespace SatoriEventCapture {
     function captureEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, event: Satori.CapturedEvent): void;
     function captureEvents(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, events: Satori.CapturedEvent[]): void;
@@ -3412,6 +3415,7 @@ declare namespace SatoriEventDebugger {
         external?: boolean;
     }
     export function record(nk: nkruntime.Nakama, event: DebugEvent): void;
+    export function recordRejection(nk: nkruntime.Nakama, name: string, reason: string, userId?: string): void;
     export function register(initializer: nkruntime.Initializer): void;
     export {};
 }

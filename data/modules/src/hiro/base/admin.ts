@@ -1307,6 +1307,39 @@ namespace AdminConsole {
     return RpcHelpers.successResponse({ eventId: event.id, success: true });
   }
 
+  /**
+   * Resolve a creator event record by id, regardless of which storage path
+   * created it. SPA-published events live in `live_events` under the CREATOR's
+   * own user id, Nakama-native ones live in `satori_creator_events` under
+   * SYSTEM. This checks, in order:
+   *   1. live_events @ SYSTEM_USER_ID
+   *   2. live_events @ any owner (full collection scan)
+   *   3. satori_creator_events @ SYSTEM_USER_ID
+   * Returns the full storage object (value + owner + version + times) or null.
+   */
+  function resolveCreatorEventRecord(nk: nkruntime.Nakama, eventId: string): nkruntime.StorageObject | null {
+    var direct = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+    if (direct && direct.length > 0 && direct[0].value) return direct[0];
+
+    var cursor = "";
+    for (var page = 0; page < 10; page++) {
+      var res = nk.storageList("", "live_events", 100, cursor);
+      var objs = (res && res.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        if (objs[i].value && (objs[i].key === eventId || (objs[i].value as any).id === eventId)) {
+          return objs[i];
+        }
+      }
+      cursor = (res && res.cursor) || "";
+      if (!cursor) break;
+    }
+
+    var canonical = nk.storageRead([{ collection: "satori_creator_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+    if (canonical && canonical.length > 0 && canonical[0].value) return canonical[0];
+
+    return null;
+  }
+
   // Get detailed stats for a creator event (participation, leaderboard, etc.)
   function rpcAdminCreatorEventStats(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
@@ -1314,12 +1347,12 @@ namespace AdminConsole {
     if (!data.event_id && !data.eventId) return RpcHelpers.errorResponse("event_id required");
     var eventId = data.event_id || data.eventId;
 
-    // Read the event definition
-    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-    if (!eventRecords || eventRecords.length === 0) {
+    // Read the event definition (across all storage paths)
+    var eventRecord = resolveCreatorEventRecord(nk, eventId);
+    if (!eventRecord) {
       return RpcHelpers.errorResponse("Event not found");
     }
-    var event: any = eventRecords[0].value;
+    var event: any = eventRecord.value;
 
     // Try to read leaderboard for this event
     var leaderboardId = "creator_event_" + eventId;
@@ -1395,12 +1428,12 @@ namespace AdminConsole {
     var eventId = data.event_id || data.eventId;
     var reason = data.reason || "Ended by admin";
 
-    // Read the event
-    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-    if (!eventRecords || eventRecords.length === 0) {
+    // Read the event (across all storage paths)
+    var eventRecord = resolveCreatorEventRecord(nk, eventId);
+    if (!eventRecord) {
       return RpcHelpers.errorResponse("Event not found");
     }
-    var event: any = eventRecords[0].value;
+    var event: any = eventRecord.value;
 
     // Update status
     event.status = "ended";
@@ -1408,11 +1441,12 @@ namespace AdminConsole {
     event.endedBy = "admin";
     event.endReason = reason;
 
-    // Write back
+    // Write back to the SAME owner/collection the record was found in, so SPA
+    // events (creator-owned) are updated in place rather than orphaning a copy.
     nk.storageWrite([{
-      collection: "live_events",
-      key: eventId,
-      userId: Constants.SYSTEM_USER_ID,
+      collection: eventRecord.collection,
+      key: eventRecord.key,
+      userId: eventRecord.userId,
       value: event,
       permissionRead: 2,
       permissionWrite: 0,
@@ -1431,13 +1465,12 @@ namespace AdminConsole {
     if (!data.event_id && !data.eventId) return RpcHelpers.errorResponse("event_id required");
     var eventId = data.event_id || data.eventId;
 
-    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-    if (!eventRecords || eventRecords.length === 0) {
+    var record = resolveCreatorEventRecord(nk, eventId);
+    if (!record) {
       return RpcHelpers.errorResponse("Event not found");
     }
 
-    var event: any = eventRecords[0].value;
-    var record = eventRecords[0];
+    var event: any = record.value;
 
     return RpcHelpers.successResponse({
       event: {
@@ -1593,11 +1626,16 @@ namespace AdminConsole {
       logger.warn("[rpcAdminCreatorEventsList] Failed to read satori_creator_events index: %s", indexErr.message || String(indexErr));
     }
 
-    // 2. Fetch from live_events (SYSTEM_USER_ID owned) — creator portal events
+    // 2. Fetch from live_events across ALL owners — creator-portal / SPA events.
+    // The live.quizverse.world/creator SPA writes the event definition into the
+    // `live_events` collection under the CREATOR's own user id (not SYSTEM), so a
+    // SYSTEM_USER_ID-only scan silently missed every SPA-published event. Listing
+    // with an empty owner ("") enumerates the whole collection (same pattern used
+    // by CreatorEventLive), covering both SYSTEM- and creator-owned records.
     try {
       var cursor = "";
       for (var page = 0; page < 10 && events.length < limit; page++) {
-        var result = nk.storageList(Constants.SYSTEM_USER_ID, "live_events", 100, cursor);
+        var result = nk.storageList("", "live_events", 100, cursor);
         var objects = result.objects || [];
 
         for (var j = 0; j < objects.length && events.length < limit; j++) {

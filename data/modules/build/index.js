@@ -549,6 +549,8 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriTimeline.register(initializer);
         logger.info("[Satori] Registering Reports RPCs...");
         SatoriReports.register(initializer);
+        logger.info("[Satori] Registering EventBus bridge (gameplay events -> Satori capture)...");
+        SatoriEventBusBridge.register(initializer, logger);
         logger.info("[Satori] All Satori systems registered successfully");
     }
     catch (err) {
@@ -13410,6 +13412,38 @@ var AdminConsole;
         logger.info("[rpcCreatorLiveEventPublish] Published event %s by creator %s", event.id, event.creatorId || "unknown");
         return RpcHelpers.successResponse({ eventId: event.id, success: true });
     }
+    /**
+     * Resolve a creator event record by id, regardless of which storage path
+     * created it. SPA-published events live in `live_events` under the CREATOR's
+     * own user id, Nakama-native ones live in `satori_creator_events` under
+     * SYSTEM. This checks, in order:
+     *   1. live_events @ SYSTEM_USER_ID
+     *   2. live_events @ any owner (full collection scan)
+     *   3. satori_creator_events @ SYSTEM_USER_ID
+     * Returns the full storage object (value + owner + version + times) or null.
+     */
+    function resolveCreatorEventRecord(nk, eventId) {
+        var direct = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+        if (direct && direct.length > 0 && direct[0].value)
+            return direct[0];
+        var cursor = "";
+        for (var page = 0; page < 10; page++) {
+            var res = nk.storageList("", "live_events", 100, cursor);
+            var objs = (res && res.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                if (objs[i].value && (objs[i].key === eventId || objs[i].value.id === eventId)) {
+                    return objs[i];
+                }
+            }
+            cursor = (res && res.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        var canonical = nk.storageRead([{ collection: "satori_creator_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+        if (canonical && canonical.length > 0 && canonical[0].value)
+            return canonical[0];
+        return null;
+    }
     // Get detailed stats for a creator event (participation, leaderboard, etc.)
     function rpcAdminCreatorEventStats(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -13417,12 +13451,12 @@ var AdminConsole;
         if (!data.event_id && !data.eventId)
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
-        // Read the event definition
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        // Read the event definition (across all storage paths)
+        var eventRecord = resolveCreatorEventRecord(nk, eventId);
+        if (!eventRecord) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
+        var event = eventRecord.value;
         // Try to read leaderboard for this event
         var leaderboardId = "creator_event_" + eventId;
         var leaderboard = [];
@@ -13496,22 +13530,23 @@ var AdminConsole;
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
         var reason = data.reason || "Ended by admin";
-        // Read the event
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        // Read the event (across all storage paths)
+        var eventRecord = resolveCreatorEventRecord(nk, eventId);
+        if (!eventRecord) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
+        var event = eventRecord.value;
         // Update status
         event.status = "ended";
         event.endedAt = Math.floor(Date.now() / 1000);
         event.endedBy = "admin";
         event.endReason = reason;
-        // Write back
+        // Write back to the SAME owner/collection the record was found in, so SPA
+        // events (creator-owned) are updated in place rather than orphaning a copy.
         nk.storageWrite([{
-                collection: "live_events",
-                key: eventId,
-                userId: Constants.SYSTEM_USER_ID,
+                collection: eventRecord.collection,
+                key: eventRecord.key,
+                userId: eventRecord.userId,
                 value: event,
                 permissionRead: 2,
                 permissionWrite: 0,
@@ -13527,12 +13562,11 @@ var AdminConsole;
         if (!data.event_id && !data.eventId)
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        var record = resolveCreatorEventRecord(nk, eventId);
+        if (!record) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
-        var record = eventRecords[0];
+        var event = record.value;
         return RpcHelpers.successResponse({
             event: __assign(__assign({}, event), { storage_user_id: record.userId, storage_version: record.version, storage_create_time: isoFromSec(record.createTime), storage_update_time: isoFromSec(record.updateTime) })
         });
@@ -13680,11 +13714,16 @@ var AdminConsole;
         catch (indexErr) {
             logger.warn("[rpcAdminCreatorEventsList] Failed to read satori_creator_events index: %s", indexErr.message || String(indexErr));
         }
-        // 2. Fetch from live_events (SYSTEM_USER_ID owned) — creator portal events
+        // 2. Fetch from live_events across ALL owners — creator-portal / SPA events.
+        // The live.quizverse.world/creator SPA writes the event definition into the
+        // `live_events` collection under the CREATOR's own user id (not SYSTEM), so a
+        // SYSTEM_USER_ID-only scan silently missed every SPA-published event. Listing
+        // with an empty owner ("") enumerates the whole collection (same pattern used
+        // by CreatorEventLive), covering both SYSTEM- and creator-owned records.
         try {
             var cursor = "";
             for (var page = 0; page < 10 && events.length < limit; page++) {
-                var result = nk.storageList(Constants.SYSTEM_USER_ID, "live_events", 100, cursor);
+                var result = nk.storageList("", "live_events", 100, cursor);
                 var objects = result.objects || [];
                 for (var j = 0; j < objects.length && events.length < limit; j++) {
                     var obj = objects[j];
@@ -41037,6 +41076,12 @@ var SatoriDashboard;
             return 0;
         return ts < 100000000000 ? ts * 1000 : ts;
     }
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    function round2(n) {
+        return Math.round(n * 100) / 100;
+    }
     function uidOf(ev) {
         return ev.userId || ev.identityId || "";
     }
@@ -41189,8 +41234,106 @@ var SatoriDashboard;
             messages: messageCounts(nk, gameId)
         });
     }
+    // ── Daily game-metrics (Satori "Game Metrics" tab) ─────────────────────────
+    // Multi-day trend series computed from a page-capped scan of satori_events.
+    // Mirrors Satori Cloud's Daily Active Users / Daily Revenue / Daily ARPAU
+    // charts. ARPAU (avg revenue per active user) is derived per day server-side
+    // so the UI just plots the series.
+    var GM_PAGE_SIZE = 100;
+    var GM_DEFAULT_PAGES = 320;
+    var GM_MAX_PAGES = 800;
+    var GM_MAX_DAYS = 31;
+    function revenueOf(rec) {
+        var md = rec && rec.metadata ? rec.metadata : {};
+        var rev = md.revenue !== undefined ? md.revenue : md.price;
+        var n = typeof rev === "number" ? rev : parseFloat(rev);
+        return !isNaN(n) && n > 0 ? n : 0;
+    }
+    // satori_game_metrics — Payload: { days?, max_pages? }
+    function rpcGameMetrics(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), GM_MAX_DAYS);
+        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || GM_DEFAULT_PAGES, 1), GM_MAX_PAGES);
+        var nowMs = Date.now();
+        var sinceMs = nowMs - days * 86400000;
+        var perDay = {};
+        var cursor = "";
+        var scanned = 0;
+        var truncated = false;
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, GM_PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
+                    continue;
+                scanned++;
+                var rec = obj.value;
+                var t = toMs(rec.timestamp);
+                if (t < sinceMs || t > nowMs)
+                    continue;
+                var uid = rec.userId || rec.identityId || "";
+                var dStr = rec.date || dateStrOf(t);
+                if (!perDay[dStr])
+                    perDay[dStr] = { users: {}, events: 0, sessions: 0, revenue: 0, payers: {} };
+                var bucket = perDay[dStr];
+                bucket.events++;
+                if (uid)
+                    bucket.users[uid] = true;
+                if (rec.name === "session_start")
+                    bucket.sessions++;
+                var rev = revenueOf(rec);
+                if (rev > 0) {
+                    bucket.revenue += rev;
+                    if (uid)
+                        bucket.payers[uid] = true;
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        var series = [];
+        var totals = { dau: 0, sessions: 0, events: 0, revenue: 0 };
+        var dauSum = 0;
+        for (var d = days - 1; d >= 0; d--) {
+            var dStr2 = dateStrOf(nowMs - d * 86400000);
+            var e = perDay[dStr2];
+            var dau = e ? Object.keys(e.users).length : 0;
+            var revenue = e ? e.revenue : 0;
+            var payers = e ? Object.keys(e.payers).length : 0;
+            series.push({
+                date: dStr2,
+                dau: dau,
+                sessions: e ? e.sessions : 0,
+                events: e ? e.events : 0,
+                revenue: round2(revenue),
+                payers: payers,
+                arpau: dau > 0 ? round2(revenue / dau) : 0,
+                arppu: payers > 0 ? round2(revenue / payers) : 0
+            });
+            totals.sessions += e ? e.sessions : 0;
+            totals.events += e ? e.events : 0;
+            totals.revenue += revenue;
+            dauSum += dau;
+        }
+        totals.revenue = round2(totals.revenue);
+        var avgDau = series.length > 0 ? Math.round(dauSum / series.length) : 0;
+        return RpcHelpers.successResponse({
+            days: days,
+            generatedAt: nowMs,
+            series: series,
+            totals: { sessions: totals.sessions, events: totals.events, revenue: totals.revenue, avgDau: avgDau },
+            scannedRecords: scanned,
+            truncated: truncated
+        });
+    }
     function register(initializer) {
         initializer.registerRpc("satori_dashboard_summary", rpcSummary);
+        initializer.registerRpc("satori_game_metrics", rpcGameMetrics);
     }
     SatoriDashboard.register = register;
 })(SatoriDashboard || (SatoriDashboard = {}));
@@ -41400,6 +41543,150 @@ var SatoriDataLake;
     }
     SatoriDataLake.register = register;
 })(SatoriDataLake || (SatoriDataLake = {}));
+// ============================================================
+// Satori EventBus Bridge — feed the Satori analytics pipeline from the
+// gameplay events Nakama ALREADY emits on its internal EventBus.
+//
+// WHY THIS EXISTS
+//   The Satori admin console (Dashboard / Timeline / Funnels / Metrics /
+//   Experiment-results) all read from the `satori_events` collection +
+//   the `satori_debugger` ring buffer. Those are ONLY written when
+//   something calls SatoriEventCapture (the `satori_event` /
+//   `satori_events_batch` / `*_external` RPCs).
+//
+//   Today nothing calls them server-side: the Unity client's Satori
+//   integration is still a stub, and the marketing web client posts to a
+//   different ingest. So the console is empty even though the game is
+//   very much alive — every quiz, session and purchase flows through the
+//   server as an EventBus event (see QuestEventBusBridge, which already
+//   listens to the exact same events to auto-progress quests).
+//
+//   This bridge mirrors QuestEventBusBridge: it subscribes to the
+//   well-known gameplay EventBus events and forwards each one into
+//   SatoriEventCapture.captureEvent(). Result: the Satori console fills
+//   with REAL gameplay analytics with ZERO client or web changes — purely
+//   server-side.
+//
+// LAZY INIT (same rationale as QuestEventBusBridge)
+//   Reading `EventBus.Events.*` at namespace-eval time creates an
+//   eval-order dependency on the EventBus namespace IIFE having already
+//   run. The merged bundle's namespace order is not guaranteed across
+//   tsc versions / file ordering, and getting it wrong crashes the whole
+//   goja runtime with "Cannot read property 'Events' of undefined".
+//   Deferring the reads to register() (called from InitModule) guarantees
+//   EventBus is fully defined first.
+//
+// WRITE-AMPLIFICATION NOTE
+//   Every captured event does extra storage writes (satori_events row +
+//   per-user history + metrics + webhooks + data-lake + debugger ring).
+//   We therefore capture a CURATED set of high-signal, lower-frequency
+//   events (session/quiz/game/purchase/progression/achievement) and
+//   deliberately skip the highest-frequency micro-events (xp_earned,
+//   currency_*, item_*, stat_updated, energy_*, achievement_progress).
+//   Tune SUBSCRIBED in one place if you want more/less granularity.
+// ============================================================
+var SatoriEventBusBridge;
+(function (SatoriEventBusBridge) {
+    // Which EventBus events to forward into Satori analytics. The captured
+    // Satori event name is the EventBus event name verbatim (already
+    // snake_case), so taxonomy schemas line up 1:1.
+    var _subscribed = null;
+    function subscribed() {
+        if (_subscribed) {
+            return _subscribed;
+        }
+        _subscribed = [
+            // Audience / DAU
+            EventBus.Events.SESSION_START,
+            EventBus.Events.SESSION_END,
+            // Core gameplay
+            EventBus.Events.QUIZ_COMPLETED,
+            EventBus.Events.GAME_STARTED,
+            EventBus.Events.GAME_COMPLETED,
+            // NOTE: SCORE_SUBMITTED is intentionally excluded — it's the highest-
+            // frequency gameplay event and would dominate write volume (and any
+            // configured webhook/data-lake fan-out). DAU/engagement is already
+            // well-covered by session/quiz/game events. Add it back here if you
+            // want score-level granularity and have headroom.
+            // Monetization
+            EventBus.Events.STORE_PURCHASE,
+            // Progression
+            EventBus.Events.LEVEL_UP,
+            // Achievements / challenges
+            EventBus.Events.ACHIEVEMENT_COMPLETED,
+            EventBus.Events.ACHIEVEMENT_CLAIMED,
+            EventBus.Events.CHALLENGE_COMPLETED,
+            // Retention loop
+            EventBus.Events.STREAK_UPDATED,
+            EventBus.Events.REWARD_GRANTED
+        ];
+        return _subscribed;
+    }
+    // Build a flat, primitive-only metadata object from the EventBus data
+    // payload. We strip nested objects (e.g. resolved reward bundles) and
+    // the userId (it's stored on the record itself), keeping the event row
+    // small and the taxonomy validator happy (it expects scalar values).
+    function buildMetadata(eventName, data) {
+        var meta = {};
+        if (!data || typeof data !== "object") {
+            return meta;
+        }
+        for (var key in data) {
+            if (key === "userId" || key === "reward") {
+                continue;
+            }
+            var v = data[key];
+            var t = typeof v;
+            if (t === "string" || t === "number" || t === "boolean") {
+                meta[key] = v;
+            }
+        }
+        // Normalize a `revenue` field for the Daily Revenue chart. Real-money
+        // IAP store_purchase events carry { iap: true, price }. We surface the
+        // numeric price as `revenue` so downstream aggregation has one canonical
+        // key regardless of the source event's field name.
+        if (eventName === EventBus.Events.STORE_PURCHASE) {
+            var price = data.price !== undefined ? data.price : data.priceUsd;
+            var n = typeof price === "number" ? price : parseFloat(price);
+            if (!isNaN(n) && n > 0) {
+                meta.revenue = n;
+            }
+        }
+        return meta;
+    }
+    function handleEvent(nk, logger, ctx, eventName, data) {
+        // Need a Nakama user to attribute the event to. captureEvent writes a
+        // per-user history keyed by this id, which must be a real Nakama UUID.
+        var userId = ctx.userId || (data && typeof data.userId === "string" ? data.userId : "");
+        if (!userId) {
+            return;
+        }
+        try {
+            SatoriEventCapture.captureEvent(nk, logger, userId, {
+                name: eventName,
+                timestamp: Date.now(),
+                metadata: buildMetadata(eventName, data)
+            });
+        }
+        catch (err) {
+            // Never let analytics capture break the gameplay path.
+            logger.warn("[SatoriEventBusBridge] capture failed for event=%s user=%s: %s", eventName, userId, err && err.message ? err.message : String(err));
+        }
+    }
+    function register(initializer, logger) {
+        var events = subscribed();
+        logger.info("[SatoriEventBusBridge] Subscribing Satori capture to %d gameplay events", events.length);
+        for (var i = 0; i < events.length; i++) {
+            (function (capturedEventName) {
+                EventBus.on(capturedEventName, function (nk, logger, ctx, data) {
+                    handleEvent(nk, logger, ctx, capturedEventName, data);
+                });
+            })(events[i]);
+        }
+        logger.info("[SatoriEventBusBridge] Registration complete. Satori console now tracks live gameplay.");
+    }
+    SatoriEventBusBridge.register = register;
+})(SatoriEventBusBridge || (SatoriEventBusBridge = {}));
 var SatoriEventCapture;
 (function (SatoriEventCapture) {
     // Inverted-timestamp event keys: storageList returns keys in ascending
@@ -41449,6 +41736,7 @@ var SatoriEventCapture;
         var validation = SatoriTaxonomy.validateEvent(nk, event);
         if (!validation.valid) {
             logger.warn("[EventCapture] Rejected event '%s': %s", event.name, validation.errors.join("; "));
+            SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
             return;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
@@ -41487,6 +41775,7 @@ var SatoriEventCapture;
             var event = events[i];
             var validation = SatoriTaxonomy.validateEvent(nk, event);
             if (!validation.valid) {
+                SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
                 continue;
             }
             validEvents.push(event);
@@ -41619,6 +41908,7 @@ var SatoriEventCapture;
         var validation = SatoriTaxonomy.validateEvent(nk, event);
         if (!validation.valid) {
             logger.warn("[EventCaptureExternal] Rejected event '%s' (identity=%s): %s", event.name, identityId, validation.errors.join("; "));
+            SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), identityId);
             return false;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
@@ -41717,6 +42007,11 @@ var SatoriEventDebugger;
     var RECENT_COLLECTION = "satori_debugger";
     var RECENT_KEY = "recent_events";
     var RECENT_MAX = 300;
+    // Rejected-event ring buffer — backs the dashboard "Event errors" panel
+    // (mirrors Satori Cloud's "Events rejected at ingestion" surface). Written
+    // by SatoriEventCapture whenever taxonomy validation fails.
+    var REJECT_KEY = "rejected_events";
+    var REJECT_MAX = 200;
     var SEARCH_PAGE_SIZE = 100;
     var SEARCH_DEFAULT_PAGES = 320; // covers the legacy (oldest-first) key tail
     var SEARCH_MAX_PAGES = 800;
@@ -41745,6 +42040,43 @@ var SatoriEventDebugger;
         }
     }
     SatoriEventDebugger.record = record;
+    // Classify a validation reason into a short, Satori-style error code.
+    function classifyReason(reason) {
+        var r = (reason || "").toLowerCase();
+        if (r.indexOf("unknown event") !== -1 || r.indexOf("strict") !== -1)
+            return "INVALID_NAME";
+        if (r.indexOf("max length") !== -1 || r.indexOf("exceeds") !== -1)
+            return "INVALID_VALUE";
+        if (r.indexOf("required metadata") !== -1 || r.indexOf("metadata required") !== -1)
+            return "MISSING_METADATA";
+        if (r.indexOf("should be") !== -1 || r.indexOf("too many metadata") !== -1)
+            return "INVALID_METADATA";
+        return "INVALID_EVENT";
+    }
+    // Record a rejected (taxonomy-invalid) event for the admin "Event errors"
+    // panel. Called by SatoriEventCapture on every validation failure.
+    function recordRejection(nk, name, reason, userId) {
+        try {
+            var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, REJECT_KEY);
+            if (!buf || !buf.events)
+                buf = { events: [] };
+            buf.events.push({
+                name: name || "(unnamed)",
+                reason: reason || "",
+                code: classifyReason(reason),
+                timestamp: Date.now(),
+                userId: userId || ""
+            });
+            if (buf.events.length > REJECT_MAX) {
+                buf.events = buf.events.slice(buf.events.length - REJECT_MAX);
+            }
+            Storage.writeSystemJson(nk, RECENT_COLLECTION, REJECT_KEY, buf);
+        }
+        catch (err) {
+            // Never break ingest on bookkeeping.
+        }
+    }
+    SatoriEventDebugger.recordRejection = recordRejection;
     // ---- Filtering ----
     function matches(ev, filters) {
         if (filters.name && ev.name !== filters.name)
@@ -41880,9 +42212,48 @@ var SatoriEventDebugger;
             nextCursor: cursor || null
         });
     }
+    // satori_event_errors — recent taxonomy-rejected events, grouped by name,
+    // for the dashboard "Event errors" panel. Payload: { limit? }
+    function rpcEventErrors(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 50, 1), REJECT_MAX);
+        var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, REJECT_KEY);
+        var all = (buf && buf.events) || [];
+        // Group by name+code so the panel shows one row per distinct error with a
+        // count and the most-recent timestamp/reason (matches Satori's layout).
+        var groups = {};
+        var order = [];
+        for (var i = 0; i < all.length; i++) {
+            var ev = all[i];
+            var k = ev.name + "|" + ev.code;
+            if (!groups[k]) {
+                groups[k] = { name: ev.name, code: ev.code, reason: ev.reason, count: 0, lastSeenMs: 0 };
+                order.push(k);
+            }
+            groups[k].count++;
+            var tms = toMs(ev.timestamp);
+            if (tms > groups[k].lastSeenMs) {
+                groups[k].lastSeenMs = tms;
+                groups[k].reason = ev.reason;
+            }
+        }
+        var rows = [];
+        for (var j = 0; j < order.length; j++)
+            rows.push(groups[order[j]]);
+        rows.sort(function (a, b) { return b.lastSeenMs - a.lastSeenMs; });
+        if (rows.length > limit)
+            rows = rows.slice(0, limit);
+        return RpcHelpers.successResponse({
+            errors: rows,
+            totalRejected: all.length,
+            distinctErrors: order.length
+        });
+    }
     function register(initializer) {
         initializer.registerRpc("satori_events_tail", rpcTail);
         initializer.registerRpc("satori_events_search", rpcSearch);
+        initializer.registerRpc("satori_event_errors", rpcEventErrors);
     }
     SatoriEventDebugger.register = register;
 })(SatoriEventDebugger || (SatoriEventDebugger = {}));
@@ -45651,8 +46022,29 @@ var SatoriRetention;
 })(SatoriRetention || (SatoriRetention = {}));
 var SatoriTaxonomy;
 (function (SatoriTaxonomy) {
+    // Known gameplay events forwarded by SatoriEventBusBridge. Registering
+    // them here means they validate cleanly (and survive strict mode) out of
+    // the box, and the Taxonomy admin page shows a sensible starting catalog
+    // instead of an empty list.
+    function gameplaySchema(name, category, description) {
+        return { name: name, category: category, description: description, requiredMetadata: [], optionalMetadata: [], metadataTypes: {}, maxMetadataKeys: 50, deprecated: false };
+    }
     var DEFAULT_CONFIG = {
-        schemas: {},
+        schemas: {
+            session_start: gameplaySchema("session_start", "engagement", "Player opened a session"),
+            session_end: gameplaySchema("session_end", "engagement", "Player session ended"),
+            quiz_completed: gameplaySchema("quiz_completed", "engagement", "Player finished a quiz"),
+            game_started: gameplaySchema("game_started", "engagement", "Player started a game/match"),
+            game_completed: gameplaySchema("game_completed", "engagement", "Player finished a game/match"),
+            score_submitted: gameplaySchema("score_submitted", "progression", "Player submitted a score"),
+            store_purchase: gameplaySchema("store_purchase", "monetization", "Store / IAP purchase (carries price/revenue)"),
+            level_up: gameplaySchema("level_up", "progression", "Player leveled up"),
+            achievement_completed: gameplaySchema("achievement_completed", "progression", "Achievement completed"),
+            achievement_claimed: gameplaySchema("achievement_claimed", "progression", "Achievement reward claimed"),
+            challenge_completed: gameplaySchema("challenge_completed", "engagement", "Challenge completed"),
+            streak_updated: gameplaySchema("streak_updated", "engagement", "Daily streak advanced"),
+            reward_granted: gameplaySchema("reward_granted", "progression", "Reward granted to player")
+        },
         enforceStrict: false,
         maxEventNameLength: 128,
         maxMetadataValueLength: 1024,
