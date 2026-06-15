@@ -277,8 +277,36 @@ namespace SatoriDashboard {
     });
   }
 
+  // ── Event catalog ──────────────────────────────────────────────────────────
+  // Real event names + volume from the analytics pipeline (analytics_live_daily
+  // by_name aggregated over N days). Powers the funnel/metric builders so admins
+  // pick actual logged event names instead of guessing (e.g. the UI placeholder
+  // "quiz_completed" does not exist — the real event is "quiz_complete").
+
+  // satori_event_catalog — Payload: { days?, game_id? }
+  function rpcEventCatalog(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var days = Math.min(Math.max(parseInt(data.days, 10) || 7, 1), 31);
+    var gameId = RpcHelpers.gameId(data);
+
+    var nowMs = Date.now();
+    var counts: { [n: string]: number } = {};
+    var rangeDays = LegacyAnalytics.readRange(nk, nowMs, days, gameId);
+    for (var i = 0; i < rangeDays.length; i++) {
+      var bn = rangeDays[i].byName;
+      for (var n in bn) counts[n] = (counts[n] || 0) + bn[n];
+    }
+    var events: { name: string; count: number }[] = [];
+    for (var k in counts) events.push({ name: k, count: counts[k] });
+    events.sort(function (a, b) { return b.count - a.count; });
+
+    return RpcHelpers.successResponse({ days: days, generatedAt: nowMs, events: events });
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("satori_dashboard_summary", rpcSummary);
     initializer.registerRpc("satori_game_metrics", rpcGameMetrics);
+    initializer.registerRpc("satori_event_catalog", rpcEventCatalog);
   }
 }

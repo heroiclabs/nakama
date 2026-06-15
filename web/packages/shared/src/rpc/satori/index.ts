@@ -578,6 +578,28 @@ export function getGameMetrics(
   );
 }
 
+/* ── Event catalog (real logged event names + volume) ─────────────── */
+
+export interface EventCatalogEntry {
+  name: string;
+  count: number;
+}
+
+export interface EventCatalogResult {
+  days: number;
+  generatedAt: number;
+  events: EventCatalogEntry[];
+}
+
+export function getEventCatalog(
+  params: { days?: number; game_id?: string },
+  opts: RpcOptions,
+): Promise<EventCatalogResult> {
+  return callRpc("satori_event_catalog", params, opts).then((value) =>
+    unwrapData<EventCatalogResult>(value),
+  );
+}
+
 /* ── Event errors (taxonomy-rejected events) ──────────────────────── */
 
 export interface EventError {
