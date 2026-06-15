@@ -26,11 +26,8 @@ import {
   Gamepad2,
   Terminal,
   Wallet,
-  UserCheck,
   BarChart3,
-  Download,
   Settings,
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   Sun,
@@ -61,22 +58,15 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    label: "Game Systems",
-    items: [
-      { label: "Hiro Config", to: "/hiro-config", icon: Puzzle },
-      { label: "Satori Config", to: "/satori-config", icon: Sparkles },
-    ],
-  },
-  {
     label: "LiveOps",
     items: [
       { label: "Feature Flags", to: "/flags", icon: Flag },
       { label: "Live Events", to: "/events", icon: CalendarClock },
-      { label: "Event Debugger", to: "/event-debugger", icon: Activity },
-      { label: "Funnels & Retention", to: "/funnels", icon: Filter },
       { label: "Experiments", to: "/experiments", icon: FlaskConical },
       { label: "Audiences", to: "/audiences", icon: UsersRound },
       { label: "Messages", to: "/messages", icon: MessageSquare },
+      { label: "Funnels & Retention", to: "/funnels", icon: Filter },
+      { label: "Event Debugger", to: "/event-debugger", icon: Activity },
     ],
   },
   {
@@ -84,43 +74,32 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Metrics", to: "/metrics", icon: Gauge },
       { label: "Reports", to: "/reports", icon: FileBarChart },
+      { label: "Analytics", to: "/analytics", icon: BarChart3 },
     ],
   },
   {
-    label: "Players",
+    label: "Configuration",
     items: [
-      { label: "Players", to: "/players", icon: Users },
-      { label: "Accounts", to: "/accounts", icon: Shield },
-    ],
-  },
-  {
-    label: "Content",
-    items: [
+      { label: "Hiro Config", to: "/hiro-config", icon: Puzzle },
+      { label: "Satori Config", to: "/satori-config", icon: Sparkles },
       { label: "Offers", to: "/offers", icon: Tag },
       { label: "Quests Config", to: "/quests-config", icon: ScrollText },
       { label: "Battle Pass Config", to: "/battlepass-config", icon: Award },
       { label: "Achievements", to: "/achievements", icon: Medal },
       { label: "Leaderboards Config", to: "/leaderboards-config", icon: Trophy },
-    ],
-  },
-  {
-    label: "Infrastructure",
-    items: [
-      { label: "Storage", to: "/storage", icon: Database },
-      { label: "Matches", to: "/matches", icon: Gamepad2 },
-      { label: "Server Logs", to: "/logs", icon: Terminal },
       { label: "Economy", to: "/economy", icon: Wallet },
-      { label: "Retention", to: "/retention", icon: UserCheck },
-      { label: "Analytics", to: "/analytics", icon: BarChart3 },
+      { label: "Taxonomy", to: "/taxonomy", icon: Tags },
     ],
   },
   {
     label: "System",
     items: [
-      { label: "Taxonomy", to: "/taxonomy", icon: Tags },
-      { label: "Config Export", to: "/config-export", icon: Download },
+      { label: "Players", to: "/players", icon: Users },
+      { label: "Accounts", to: "/accounts", icon: Shield },
+      { label: "Storage", to: "/storage", icon: Database },
+      { label: "Matches", to: "/matches", icon: Gamepad2 },
+      { label: "Server Logs", to: "/logs", icon: Terminal },
       { label: "Settings", to: "/settings", icon: Settings },
-      { label: "Developer Guide", to: "/dev-guide", icon: BookOpen },
     ],
   },
 ];
@@ -159,7 +138,7 @@ export function AdminLayout() {
               <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-primary">
                 <Sparkles size={14} />
               </span>
-              <span className="text-foreground">LiveOps</span>
+              <span className="text-foreground">IVX</span>
               <span className="text-muted-foreground">Console</span>
             </span>
           )}
@@ -204,7 +183,7 @@ export function AdminLayout() {
         </nav>
 
         <div className="border-t border-border p-3 text-center text-xs text-muted-foreground">
-          {collapsed ? "v0.1" : "Nakama Admin v0.1.0"}
+          {collapsed ? "v0.1" : "IVX Console v0.1.0"}
         </div>
       </aside>
 
