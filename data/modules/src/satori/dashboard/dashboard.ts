@@ -19,13 +19,10 @@ namespace SatoriDashboard {
   var RING_COLLECTION = "satori_debugger";
   var RING_KEY = "recent_events";
 
-  // Legacy analytics pipeline collections — the real game telemetry sink.
-  // The Unity/web clients send their events to `analytics_log_event`, which
-  // maintains durable per-day aggregate docs here. This is the SAME data that
-  // powers nakama.intelli-verse-x.ai/analytics.htm, so the IVX console reads
-  // straight from it instead of scanning the sparse `satori_events` ring.
-  var LEGACY_DAU = "analytics_dau";          // key: dau_platform_<date> | dau_<gameId>_<date>
-  var LEGACY_LIVE = "analytics_live_daily";  // key: live_all_<date>     | live_<gameId>_<date>
+  // Real game telemetry (DAU / events / revenue / geo) is read through the
+  // shared LegacyAnalytics helper, which sources the legacy analytics pipeline's
+  // durable per-day aggregate docs — the same data behind analytics.htm — instead
+  // of the sparse `satori_events` capture ring.
 
   var MIN_5 = 5 * 60 * 1000;
   var HOUR = 60 * 60 * 1000;
@@ -193,7 +190,7 @@ namespace SatoriDashboard {
     // volume / geo lives in the legacy per-day aggregate. Overlay it so the IVX
     // console shows the same numbers as analytics.htm instead of a near-empty map.
     var todayStr = dateStrOf(now);
-    var legacyToday = readLegacyDay(nk, todayStr, gameId);
+    var legacyToday = LegacyAnalytics.readDay(nk, todayStr, gameId);
     var dauToday = legacyToday.dau;
     var eventsToday = legacyToday.events;
     var revenueToday = round2(legacyToday.revenue);
@@ -236,55 +233,6 @@ namespace SatoriDashboard {
 
   var GM_MAX_DAYS = 31;
 
-  interface LegacyDay {
-    dau: number;
-    events: number;
-    sessions: number;
-    revenue: number;
-    purchases: number;
-    byCountry: { [c: string]: number };
-    byName: { [n: string]: number };
-    lastEventAt: number;
-  }
-
-  // Read the legacy analytics_dau + analytics_live_daily aggregate docs for a
-  // single date. gameId "all" maps to the platform-wide aggregate keys.
-  function readLegacyDay(nk: nkruntime.Nakama, dateStr: string, gameId: string): LegacyDay {
-    var sys = Constants.SYSTEM_USER_ID;
-    var isAll = !gameId || gameId === "all";
-    var dauKey = isAll ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
-    var liveKey = isAll ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
-
-    var out: LegacyDay = { dau: 0, events: 0, sessions: 0, revenue: 0, purchases: 0, byCountry: {}, byName: {}, lastEventAt: 0 };
-    try {
-      var recs = nk.storageRead([
-        { collection: LEGACY_DAU, key: dauKey, userId: sys },
-        { collection: LEGACY_LIVE, key: liveKey, userId: sys }
-      ]);
-      for (var i = 0; i < recs.length; i++) {
-        var r = recs[i];
-        if (!r || !r.value) continue;
-        if (r.collection === LEGACY_DAU) {
-          var dv = r.value as any;
-          out.dau = (parseInt(dv.count, 10) || 0) ||
-            (Array.isArray(dv.users) ? dv.users.length : 0) ||
-            (Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers.length : 0) || 0;
-        } else if (r.collection === LEGACY_LIVE) {
-          var lv = r.value as any;
-          out.events = parseInt(lv.total, 10) || 0;
-          out.byName = lv.by_name || {};
-          out.byCountry = lv.by_country || {};
-          out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
-          out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
-          out.sessions = parseInt(lv.session_count, 10) ||
-            (out.byName.session_end || out.byName.session_start || 0);
-          out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
-        }
-      }
-    } catch (e) { /* missing day → zeros */ }
-    return out;
-  }
-
   // satori_game_metrics — Payload: { days?, game_id? }
   function rpcGameMetrics(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
@@ -298,7 +246,7 @@ namespace SatoriDashboard {
 
     for (var d = days - 1; d >= 0; d--) {
       var dStr = dateStrOf(nowMs - d * 86400000);
-      var day = readLegacyDay(nk, dStr, gameId);
+      var day = LegacyAnalytics.readDay(nk, dStr, gameId);
       var dau = day.dau;
       var revenue = day.revenue;
       var payers = day.purchases;

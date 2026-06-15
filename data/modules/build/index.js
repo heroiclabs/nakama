@@ -41196,13 +41196,10 @@ var SatoriDashboard;
 (function (SatoriDashboard) {
     var RING_COLLECTION = "satori_debugger";
     var RING_KEY = "recent_events";
-    // Legacy analytics pipeline collections — the real game telemetry sink.
-    // The Unity/web clients send their events to `analytics_log_event`, which
-    // maintains durable per-day aggregate docs here. This is the SAME data that
-    // powers nakama.intelli-verse-x.ai/analytics.htm, so the IVX console reads
-    // straight from it instead of scanning the sparse `satori_events` ring.
-    var LEGACY_DAU = "analytics_dau"; // key: dau_platform_<date> | dau_<gameId>_<date>
-    var LEGACY_LIVE = "analytics_live_daily"; // key: live_all_<date>     | live_<gameId>_<date>
+    // Real game telemetry (DAU / events / revenue / geo) is read through the
+    // shared LegacyAnalytics helper, which sources the legacy analytics pipeline's
+    // durable per-day aggregate docs — the same data behind analytics.htm — instead
+    // of the sparse `satori_events` capture ring.
     var MIN_5 = 5 * 60 * 1000;
     var HOUR = 60 * 60 * 1000;
     var DAY = 24 * HOUR;
@@ -41357,7 +41354,7 @@ var SatoriDashboard;
         // volume / geo lives in the legacy per-day aggregate. Overlay it so the IVX
         // console shows the same numbers as analytics.htm instead of a near-empty map.
         var todayStr = dateStrOf(now);
-        var legacyToday = readLegacyDay(nk, todayStr, gameId);
+        var legacyToday = LegacyAnalytics.readDay(nk, todayStr, gameId);
         var dauToday = legacyToday.dau;
         var eventsToday = legacyToday.events;
         var revenueToday = round2(legacyToday.revenue);
@@ -41396,45 +41393,6 @@ var SatoriDashboard;
     // the same source as nakama.intelli-verse-x.ai/analytics.htm. One batched
     // storage read per day → fast and complete.
     var GM_MAX_DAYS = 31;
-    // Read the legacy analytics_dau + analytics_live_daily aggregate docs for a
-    // single date. gameId "all" maps to the platform-wide aggregate keys.
-    function readLegacyDay(nk, dateStr, gameId) {
-        var sys = Constants.SYSTEM_USER_ID;
-        var isAll = !gameId || gameId === "all";
-        var dauKey = isAll ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
-        var liveKey = isAll ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
-        var out = { dau: 0, events: 0, sessions: 0, revenue: 0, purchases: 0, byCountry: {}, byName: {}, lastEventAt: 0 };
-        try {
-            var recs = nk.storageRead([
-                { collection: LEGACY_DAU, key: dauKey, userId: sys },
-                { collection: LEGACY_LIVE, key: liveKey, userId: sys }
-            ]);
-            for (var i = 0; i < recs.length; i++) {
-                var r = recs[i];
-                if (!r || !r.value)
-                    continue;
-                if (r.collection === LEGACY_DAU) {
-                    var dv = r.value;
-                    out.dau = (parseInt(dv.count, 10) || 0) ||
-                        (Array.isArray(dv.users) ? dv.users.length : 0) ||
-                        (Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers.length : 0) || 0;
-                }
-                else if (r.collection === LEGACY_LIVE) {
-                    var lv = r.value;
-                    out.events = parseInt(lv.total, 10) || 0;
-                    out.byName = lv.by_name || {};
-                    out.byCountry = lv.by_country || {};
-                    out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
-                    out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
-                    out.sessions = parseInt(lv.session_count, 10) ||
-                        (out.byName.session_end || out.byName.session_start || 0);
-                    out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
-                }
-            }
-        }
-        catch (e) { /* missing day → zeros */ }
-        return out;
-    }
     // satori_game_metrics — Payload: { days?, game_id? }
     function rpcGameMetrics(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -41446,7 +41404,7 @@ var SatoriDashboard;
         var totalsSessions = 0, totalsEvents = 0, totalsRevenue = 0, dauSum = 0;
         for (var d = days - 1; d >= 0; d--) {
             var dStr = dateStrOf(nowMs - d * 86400000);
-            var day = readLegacyDay(nk, dStr, gameId);
+            var day = LegacyAnalytics.readDay(nk, dStr, gameId);
             var dau = day.dau;
             var revenue = day.revenue;
             var payers = day.purchases;
@@ -43106,6 +43064,49 @@ var SatoriFunnels;
             truncated: truncated
         };
     }
+    // ---- Legacy event-volume funnel ----
+    //
+    // The per-user funnel above needs raw per-event rows (only available in the
+    // sparse `satori_events` ring). For the common case (no experiment variant
+    // split) we instead build the funnel from the real analytics pipeline's
+    // per-day `by_name` event counts — true event volume, fast, no scan. This is
+    // an event-volume funnel (occurrences per step), not distinct-user, so a
+    // later step can exceed an earlier one; conversions are reported as-is.
+    function computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId) {
+        var stepTotals = [];
+        for (var z = 0; z < steps.length; z++)
+            stepTotals.push(0);
+        var startDayMs = new Date(LegacyAnalytics.dateStrOf(sinceMs) + "T00:00:00Z").getTime();
+        var endDayMs = new Date(LegacyAnalytics.dateStrOf(untilMs) + "T00:00:00Z").getTime();
+        var dayCount = 0;
+        for (var t = startDayMs; t <= endDayMs; t += 86400000) {
+            var day = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(t), gameId);
+            dayCount++;
+            for (var s = 0; s < steps.length; s++) {
+                stepTotals[s] += (day.byName[steps[s]] || 0);
+            }
+        }
+        var stepRows = [];
+        for (var r = 0; r < steps.length; r++) {
+            stepRows.push({
+                name: steps[r],
+                users: stepTotals[r],
+                conversionFromStart: stepTotals[0] > 0 ? stepTotals[r] / stepTotals[0] : 0,
+                conversionFromPrevious: r === 0 ? 1 : (stepTotals[r - 1] > 0 ? stepTotals[r] / stepTotals[r - 1] : 0)
+            });
+        }
+        return {
+            steps: stepRows,
+            entered: stepTotals[0],
+            completed: stepTotals[steps.length - 1],
+            overallConversion: stepTotals[0] > 0 ? stepTotals[steps.length - 1] / stepTotals[0] : 0,
+            byVariant: null,
+            scannedRecords: dayCount,
+            truncated: false,
+            source: "analytics_pipeline",
+            basis: "event_volume"
+        };
+    }
     // ---- RPCs ----
     function rpcList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -43175,12 +43176,17 @@ var SatoriFunnels;
         var sinceMs = Number(data.since_ms || data.sinceMs) || (Date.now() - 7 * 86400000);
         var untilMs = Number(data.until_ms || data.untilMs) || Date.now();
         var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || EVENTS_DEFAULT_PAGES, 1), EVENTS_MAX_PAGES);
-        var assignments = null;
         var experimentId = data.experiment_id || data.experimentId;
+        var result;
         if (experimentId) {
-            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+            // Variant segmentation needs per-user rows → fall back to the event scan.
+            var assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+            result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
         }
-        var result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
+        else {
+            // Common case: real event-volume funnel from the analytics pipeline.
+            result = computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId);
+        }
         result.sinceMs = sinceMs;
         result.untilMs = untilMs;
         result.experimentId = experimentId || null;
@@ -43413,6 +43419,98 @@ var SatoriIdentityInspector;
     }
     SatoriIdentityInspector.register = register;
 })(SatoriIdentityInspector || (SatoriIdentityInspector = {}));
+// ---------------------------------------------------------------------------
+// LegacyAnalytics — shared reader over the legacy analytics pipeline's durable
+// per-day aggregate docs. This is the SAME data that powers
+// nakama.intelli-verse-x.ai/analytics.htm and is fed by `analytics_log_event`
+// (the real game telemetry sink, ~13K events/day), NOT the sparse Satori
+// `satori_events` capture ring.
+//
+// Two collections, both owned by SYSTEM_USER, written live on every accepted
+// event and never deleted by the rollup (rollup only clears its own meta /
+// checkpoint docs), so historical days remain readable:
+//
+//   analytics_dau         key: dau_platform_<date> | dau_<gameId>_<date>
+//                         value: { count, uniqueUsers[], newUsers, overflow_count }
+//   analytics_live_daily  key: live_all_<date>      | live_<gameId>_<date>
+//                         value: { total, by_name{}, by_country{}, by_platform{},
+//                                  revenue_usd, ad_revenue_usd, session_count,
+//                                  coins_earned, coins_spent, last_event_at }
+//
+// All Satori admin surfaces (dashboard, game-metrics, timeline, funnels,
+// retention) read through here so they show real game data instead of the
+// near-empty capture ring. Pure helper namespace — registers no RPCs and is
+// only ever called at request time (no module-eval ordering dependency).
+// ---------------------------------------------------------------------------
+var LegacyAnalytics;
+(function (LegacyAnalytics) {
+    var DAU_COLLECTION = "analytics_dau";
+    var LIVE_COLLECTION = "analytics_live_daily";
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    LegacyAnalytics.dateStrOf = dateStrOf;
+    function dauKeyOf(dateStr, gameId) {
+        return (!gameId || gameId === "all") ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
+    }
+    function liveKeyOf(dateStr, gameId) {
+        return (!gameId || gameId === "all") ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
+    }
+    function emptyDay(dateStr) {
+        return {
+            date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
+            revenue: 0, purchases: 0, byName: {}, byCountry: {}, byPlatform: {}, lastEventAt: 0
+        };
+    }
+    // Read the analytics_dau + analytics_live_daily aggregate docs for one date.
+    // gameId "all" / undefined maps to the platform-wide aggregate keys.
+    function readDay(nk, dateStr, gameId) {
+        var sys = Constants.SYSTEM_USER_ID;
+        var out = emptyDay(dateStr);
+        try {
+            var recs = nk.storageRead([
+                { collection: DAU_COLLECTION, key: dauKeyOf(dateStr, gameId), userId: sys },
+                { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys }
+            ]);
+            for (var i = 0; i < recs.length; i++) {
+                var r = recs[i];
+                if (!r || !r.value)
+                    continue;
+                if (r.collection === DAU_COLLECTION) {
+                    var dv = r.value;
+                    var list = Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers : (Array.isArray(dv.users) ? dv.users : []);
+                    out.uniqueUsers = list;
+                    out.dau = (parseInt(dv.count, 10) || 0) || list.length || 0;
+                    out.newUsers = parseInt(dv.newUsers, 10) || 0;
+                }
+                else if (r.collection === LIVE_COLLECTION) {
+                    var lv = r.value;
+                    out.events = parseInt(lv.total, 10) || 0;
+                    out.byName = lv.by_name || {};
+                    out.byCountry = lv.by_country || {};
+                    out.byPlatform = lv.by_platform || {};
+                    out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
+                    out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
+                    out.sessions = parseInt(lv.session_count, 10) ||
+                        out.byName.session_end || out.byName.session_start || 0;
+                    out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
+                }
+            }
+        }
+        catch (e) { /* missing day → zeros */ }
+        return out;
+    }
+    LegacyAnalytics.readDay = readDay;
+    // Read a contiguous range of days [days-1 .. 0] back from `nowMs`, oldest first.
+    function readRange(nk, nowMs, days, gameId) {
+        var out = [];
+        for (var d = days - 1; d >= 0; d--) {
+            out.push(readDay(nk, dateStrOf(nowMs - d * 86400000), gameId));
+        }
+        return out;
+    }
+    LegacyAnalytics.readRange = readRange;
+})(LegacyAnalytics || (LegacyAnalytics = {}));
 var SatoriCreatorEvents;
 (function (SatoriCreatorEvents) {
     // ---- Types ----
@@ -46030,6 +46128,69 @@ var SatoriRetention;
         d.setUTCDate(d.getUTCDate() + days);
         return d.toISOString().slice(0, 10);
     }
+    function setOf(list) {
+        var s = {};
+        for (var i = 0; i < list.length; i++)
+            s[list[i]] = true;
+        return s;
+    }
+    function intersectCount(a, b) {
+        if (!b)
+            return 0;
+        var n = 0;
+        for (var u in a) {
+            if (b[u])
+                n++;
+        }
+        return n;
+    }
+    // Real rolling retention from the analytics pipeline's daily active-user lists
+    // (analytics_dau.uniqueUsers). Cohort = users active on day D; "retained" on
+    // D+N = also active on D+N. This is rolling active-user retention (not new-user
+    // cohorts, since the pipeline stores active lists, not first-seen lists) — but
+    // it is REAL data and fast (one batched read/day, no event scan).
+    function computeRetentionLegacy(nk, nowMs, days, gameId) {
+        var todayStr = dateStrOf(nowMs);
+        var legacyDays = LegacyAnalytics.readRange(nk, nowMs, days, gameId); // oldest → newest
+        var setByDate = {};
+        var union = {};
+        for (var i = 0; i < legacyDays.length; i++) {
+            var ld = legacyDays[i];
+            var s = setOf(ld.uniqueUsers);
+            setByDate[ld.date] = s;
+            for (var u in s)
+                union[u] = true;
+        }
+        var cohortRows = [];
+        for (var j = 0; j < legacyDays.length; j++) {
+            var day = legacyDays[j];
+            var set = setByDate[day.date];
+            var size = Object.keys(set).length;
+            if (size === 0)
+                continue;
+            var d1d = addDays(day.date, 1), d3d = addDays(day.date, 3), d7d = addDays(day.date, 7);
+            cohortRows.push({
+                date: day.date,
+                size: size,
+                d1Rate: (d1d <= todayStr && setByDate[d1d]) ? intersectCount(set, setByDate[d1d]) / size : null,
+                d3Rate: (d3d <= todayStr && setByDate[d3d]) ? intersectCount(set, setByDate[d3d]) / size : null,
+                d7Rate: (d7d <= todayStr && setByDate[d7d]) ? intersectCount(set, setByDate[d7d]) / size : null
+            });
+        }
+        cohortRows.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        return {
+            windowDays: days,
+            sinceMs: nowMs - days * 86400000,
+            experimentId: null,
+            cohorts: cohortRows,
+            byVariant: null,
+            totalUsers: Object.keys(union).length,
+            scannedRecords: legacyDays.length,
+            truncated: false,
+            basis: "active_user_rolling",
+            source: "analytics_pipeline"
+        };
+    }
     // satori_retention_compute — Payload: { days?, game_id?, experiment_id?, max_pages? }
     function rpcCompute(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -46040,11 +46201,13 @@ var SatoriRetention;
         var nowMs = Date.now();
         var sinceMs = nowMs - days * 86400000;
         var todayStr = dateStrOf(nowMs);
-        var assignments = null;
         var experimentId = data.experiment_id || data.experimentId;
-        if (experimentId) {
-            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+        // Common case (no variant split): real rolling retention from the pipeline.
+        if (!experimentId) {
+            return RpcHelpers.successResponse(computeRetentionLegacy(nk, nowMs, days, gameId));
         }
+        // Variant segmentation needs per-user first-seen → fall back to event scan.
+        var assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
         // userId → { first: dateStr, dates: set }
         var perUser = {};
         var cursor = "";
@@ -46332,75 +46495,28 @@ var SatoriTaxonomy;
 // bars for experiments / live events / messages laid out across the date
 // range, so admins can see what was live on any given day.
 //
-// DAU/events come from a page-capped scan of `satori_events` (newest-first
-// keys mean recent days are reached first). Activities come from the Satori
-// config objects. Admin-only.
+// DAU/events are read from the legacy analytics pipeline's durable per-day
+// aggregate docs (via LegacyAnalytics) — the real game telemetry behind
+// analytics.htm — instead of scanning the sparse `satori_events` ring.
+// Activities come from the Satori config objects. Admin-only.
 // ---------------------------------------------------------------------------
 var SatoriTimeline;
 (function (SatoriTimeline) {
-    var PAGE_SIZE = 100;
-    var DEFAULT_PAGES = 320;
-    var MAX_PAGES = 800;
     var MAX_DAYS = 31;
-    function toMs(ts) {
-        if (!ts)
-            return 0;
-        return ts < 100000000000 ? ts * 1000 : ts;
-    }
-    function dateStrOf(ms) {
-        return new Date(ms).toISOString().slice(0, 10);
-    }
-    // satori_timeline — Payload: { days?, game_id?, max_pages? }
+    // satori_timeline — Payload: { days?, game_id? }
     function rpcTimeline(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), MAX_DAYS);
-        var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || DEFAULT_PAGES, 1), MAX_PAGES);
         var gameId = RpcHelpers.gameId(data);
         var nowMs = Date.now();
         var sinceMs = nowMs - days * 86400000;
-        // date → { users set, events count }
-        var perDay = {};
-        var cursor = "";
-        var scanned = 0;
-        var truncated = false;
-        for (var p = 0; p < maxPages; p++) {
-            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.SATORI_EVENTS_COLLECTION, PAGE_SIZE, cursor);
-            var objects = (page && page.objects) || [];
-            for (var i = 0; i < objects.length; i++) {
-                var obj = objects[i];
-                if (!obj.key || obj.key.indexOf("ev_") !== 0 || !obj.value)
-                    continue;
-                scanned++;
-                var rec = obj.value;
-                var t = toMs(rec.timestamp);
-                if (t < sinceMs || t > nowMs)
-                    continue;
-                var uid = rec.userId || rec.identityId;
-                var dStr = rec.date || dateStrOf(t);
-                if (!perDay[dStr])
-                    perDay[dStr] = { users: {}, events: 0 };
-                perDay[dStr].events++;
-                if (uid)
-                    perDay[dStr].users[uid] = true;
-            }
-            cursor = (page && page.cursor) || "";
-            if (!cursor)
-                break;
-        }
-        if (cursor)
-            truncated = true;
-        // Emit a continuous day axis (oldest → newest) so the UI can render an
-        // unbroken calendar even for days with zero activity.
+        // Per-day DAU + event volume from the real analytics aggregates.
         var dau = [];
-        for (var d = days - 1; d >= 0; d--) {
-            var dStr2 = dateStrOf(nowMs - d * 86400000);
-            var entry = perDay[dStr2];
-            dau.push({
-                date: dStr2,
-                users: entry ? Object.keys(entry.users).length : 0,
-                events: entry ? entry.events : 0
-            });
+        var legacyDays = LegacyAnalytics.readRange(nk, nowMs, days, gameId);
+        for (var i = 0; i < legacyDays.length; i++) {
+            var ld = legacyDays[i];
+            dau.push({ date: ld.date, users: ld.dau, events: ld.events });
         }
         // Activities laid out across the range (seconds → kept as seconds).
         var activities = [];
@@ -46435,8 +46551,8 @@ var SatoriTimeline;
             generatedAt: nowMs,
             dau: dau,
             activities: activities,
-            scannedRecords: scanned,
-            truncated: truncated
+            scannedRecords: legacyDays.length,
+            truncated: false
         });
     }
     function register(initializer) {

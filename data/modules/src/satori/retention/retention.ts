@@ -32,6 +32,68 @@ namespace SatoriRetention {
     return d.toISOString().slice(0, 10);
   }
 
+  function setOf(list: string[]): { [u: string]: boolean } {
+    var s: { [u: string]: boolean } = {};
+    for (var i = 0; i < list.length; i++) s[list[i]] = true;
+    return s;
+  }
+
+  function intersectCount(a: { [u: string]: boolean }, b: { [u: string]: boolean } | undefined): number {
+    if (!b) return 0;
+    var n = 0;
+    for (var u in a) { if (b[u]) n++; }
+    return n;
+  }
+
+  // Real rolling retention from the analytics pipeline's daily active-user lists
+  // (analytics_dau.uniqueUsers). Cohort = users active on day D; "retained" on
+  // D+N = also active on D+N. This is rolling active-user retention (not new-user
+  // cohorts, since the pipeline stores active lists, not first-seen lists) — but
+  // it is REAL data and fast (one batched read/day, no event scan).
+  function computeRetentionLegacy(nk: nkruntime.Nakama, nowMs: number, days: number, gameId?: string): any {
+    var todayStr = dateStrOf(nowMs);
+    var legacyDays = LegacyAnalytics.readRange(nk, nowMs, days, gameId); // oldest → newest
+
+    var setByDate: { [date: string]: { [u: string]: boolean } } = {};
+    var union: { [u: string]: boolean } = {};
+    for (var i = 0; i < legacyDays.length; i++) {
+      var ld = legacyDays[i];
+      var s = setOf(ld.uniqueUsers);
+      setByDate[ld.date] = s;
+      for (var u in s) union[u] = true;
+    }
+
+    var cohortRows: any[] = [];
+    for (var j = 0; j < legacyDays.length; j++) {
+      var day = legacyDays[j];
+      var set = setByDate[day.date];
+      var size = Object.keys(set).length;
+      if (size === 0) continue;
+      var d1d = addDays(day.date, 1), d3d = addDays(day.date, 3), d7d = addDays(day.date, 7);
+      cohortRows.push({
+        date: day.date,
+        size: size,
+        d1Rate: (d1d <= todayStr && setByDate[d1d]) ? intersectCount(set, setByDate[d1d]) / size : null,
+        d3Rate: (d3d <= todayStr && setByDate[d3d]) ? intersectCount(set, setByDate[d3d]) / size : null,
+        d7Rate: (d7d <= todayStr && setByDate[d7d]) ? intersectCount(set, setByDate[d7d]) / size : null
+      });
+    }
+    cohortRows.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+
+    return {
+      windowDays: days,
+      sinceMs: nowMs - days * 86400000,
+      experimentId: null,
+      cohorts: cohortRows,
+      byVariant: null,
+      totalUsers: Object.keys(union).length,
+      scannedRecords: legacyDays.length,
+      truncated: false,
+      basis: "active_user_rolling",
+      source: "analytics_pipeline"
+    };
+  }
+
   // satori_retention_compute — Payload: { days?, game_id?, experiment_id?, max_pages? }
   function rpcCompute(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
@@ -44,11 +106,16 @@ namespace SatoriRetention {
     var sinceMs = nowMs - days * 86400000;
     var todayStr = dateStrOf(nowMs);
 
-    var assignments: { [userId: string]: SatoriExperimentResults.AssignmentInfo } | null = null;
     var experimentId = data.experiment_id || data.experimentId;
-    if (experimentId) {
-      assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+
+    // Common case (no variant split): real rolling retention from the pipeline.
+    if (!experimentId) {
+      return RpcHelpers.successResponse(computeRetentionLegacy(nk, nowMs, days, gameId));
     }
+
+    // Variant segmentation needs per-user first-seen → fall back to event scan.
+    var assignments: { [userId: string]: SatoriExperimentResults.AssignmentInfo } | null =
+      SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
 
     // userId → { first: dateStr, dates: set }
     var perUser: { [userId: string]: { first: string; dates: { [d: string]: boolean } } } = {};

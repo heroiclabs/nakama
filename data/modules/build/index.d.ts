@@ -3454,6 +3454,31 @@ declare namespace SatoriIdentities {
 declare namespace SatoriIdentityInspector {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace LegacyAnalytics {
+    interface Day {
+        date: string;
+        dau: number;
+        newUsers: number;
+        uniqueUsers: string[];
+        events: number;
+        sessions: number;
+        revenue: number;
+        purchases: number;
+        byName: {
+            [name: string]: number;
+        };
+        byCountry: {
+            [country: string]: number;
+        };
+        byPlatform: {
+            [platform: string]: number;
+        };
+        lastEventAt: number;
+    }
+    function dateStrOf(ms: number): string;
+    function readDay(nk: nkruntime.Nakama, dateStr: string, gameId?: string): Day;
+    function readRange(nk: nkruntime.Nakama, nowMs: number, days: number, gameId?: string): Day[];
+}
 declare namespace SatoriCreatorEvents {
     function register(initializer: nkruntime.Initializer): void;
 }
