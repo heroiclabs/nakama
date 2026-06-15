@@ -41298,6 +41298,28 @@ var SatoriDashboard;
         }
         return { scheduled: scheduled, total: total };
     }
+    // Top cities derived from the registered user base. The legacy analytics
+    // pipeline does not aggregate by_city, so we group the `location` column on
+    // the users table (format "City, Region, Country") by its leading segment.
+    function topCitiesFromAccounts(nk) {
+        try {
+            var rows = nk.sqlQuery("SELECT split_part(location, ',', 1) AS city, count(*) AS n " +
+                "FROM users WHERE location IS NOT NULL AND location <> '' " +
+                "GROUP BY split_part(location, ',', 1) ORDER BY n DESC LIMIT 8", []) || [];
+            var out = [];
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                var c = String(row.city || "").trim();
+                if (!c)
+                    continue;
+                out.push({ city: c, users: parseInt(row.n, 10) || 0 });
+            }
+            return out;
+        }
+        catch (e) {
+            return [];
+        }
+    }
     // ── RPC ───────────────────────────────────────────────────────────────────
     // satori_dashboard_summary — Payload: { game_id? }
     function rpcSummary(ctx, logger, nk, payload) {
@@ -41378,6 +41400,15 @@ var SatoriDashboard;
         var legacyCountries = topN(legacyToday.byCountry, 8).map(function (r) { return { country: r.key, users: r.count }; });
         if (legacyCountries.length > 0)
             topCountries = legacyCountries;
+        var legacyCities = topN(legacyToday.byCity, 8).map(function (r) { return { city: r.key, users: r.count }; });
+        if (legacyCities.length > 0)
+            topCities = legacyCities;
+        // The legacy pipeline aggregates by_country but NOT by_city, and the ring
+        // buffer rarely carries city. Fall back to the registered user base: derive
+        // top cities from the `location` field on the users table (e.g.
+        // "Jaipur, Rajasthan, India" → "Jaipur").
+        if (topCities.length === 0)
+            topCities = topCitiesFromAccounts(nk);
         var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
         if (legacyEvents.length > 0)
             topEvents = legacyEvents;
@@ -43493,16 +43524,20 @@ var LegacyAnalytics;
         return new Date(ms).toISOString().slice(0, 10);
     }
     LegacyAnalytics.dateStrOf = dateStrOf;
+    // "all" / "global" / empty all map to the platform-wide aggregate keys.
+    function isPlatform(gameId) {
+        return !gameId || gameId === "all" || gameId === "global";
+    }
     function dauKeyOf(dateStr, gameId) {
-        return (!gameId || gameId === "all") ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
+        return isPlatform(gameId) ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
     }
     function liveKeyOf(dateStr, gameId) {
-        return (!gameId || gameId === "all") ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
+        return isPlatform(gameId) ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
     }
     function emptyDay(dateStr) {
         return {
             date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
-            revenue: 0, purchases: 0, byName: {}, byCountry: {}, byPlatform: {}, lastEventAt: 0
+            revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, lastEventAt: 0
         };
     }
     // Read the analytics_dau + analytics_live_daily aggregate docs for one date.
@@ -43531,6 +43566,7 @@ var LegacyAnalytics;
                     out.events = parseInt(lv.total, 10) || 0;
                     out.byName = lv.by_name || {};
                     out.byCountry = lv.by_country || {};
+                    out.byCity = lv.by_city || {};
                     out.byPlatform = lv.by_platform || {};
                     out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
                     out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;

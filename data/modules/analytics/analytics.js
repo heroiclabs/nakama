@@ -445,7 +445,7 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  */
 // metrics: optional { revenue_usd, ad_revenue_usd, session_count, session_seconds,
 //                     coins_earned, coins_spent } — accumulated into the live doc.
-function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metrics, audienceDims) {
+function _liveCountersUpsert(nk, col, key, en, platform, country, city, unixTs, metrics, audienceDims) {
     for (var attempt = 0; attempt < 2; attempt++) {
         var existing = null;
         var version  = null;
@@ -457,15 +457,17 @@ function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metric
             }
         } catch (_) { /* treat as empty */ }
 
-        var doc = existing || { total: 0, by_name: {}, by_platform: {}, by_country: {}, last_event_at: 0 };
+        var doc = existing || { total: 0, by_name: {}, by_platform: {}, by_country: {}, by_city: {}, last_event_at: 0 };
         doc.total = (doc.total || 0) + 1;
         if (!doc.by_name)     doc.by_name     = {};
         if (!doc.by_platform) doc.by_platform = {};
         if (!doc.by_country)  doc.by_country  = {};
+        if (!doc.by_city)     doc.by_city     = {};
 
         doc.by_name[en] = (doc.by_name[en] || 0) + 1;
         if (platform) { doc.by_platform[platform] = (doc.by_platform[platform] || 0) + 1; }
         if (country)  { doc.by_country[country]   = (doc.by_country[country]   || 0) + 1; }
+        if (city)     { doc.by_city[city]         = (doc.by_city[city]         || 0) + 1; }
         doc.last_event_at = Math.max(doc.last_event_at || 0, unixTs || 0);
 
         // Audience dimensions: device_tier, locale, app_version, install_source,
@@ -519,6 +521,7 @@ function liveCountersUpdate(nk, ev) {
     var ed       = ev.eventData || {};
     var platform = ((ed.platform || ed.Platform) || ev.platform || "").toLowerCase() || null;
     var country  = ((ed.country) || ev.country || "").toUpperCase().slice(0, 2) || null;
+    var city     = ((ed.city) || ev.city || "") || null;
 
     // Audience dimensions passed through to live_daily so the Audience tab
     // shows today's breakdown before the nightly rollup runs.
@@ -554,11 +557,11 @@ function liveCountersUpdate(nk, ev) {
     }
 
     // Per-game doc — keyed by canonical UUID (slug was resolved in normalizeInboundEvent).
-    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
+    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, city, ev.unixTimestamp, metrics, audienceDims);
 
     // "All games" aggregate doc — lets the dashboard "All Games" selector show
     // today's live data without waiting for the nightly rollup.
-    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
+    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, city, ev.unixTimestamp, metrics, audienceDims);
 }
 
 /**
