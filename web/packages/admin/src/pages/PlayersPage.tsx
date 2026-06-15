@@ -49,15 +49,21 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
 ];
 
 // ─── Search Hook ──────────────────────────────────────────────────────
+// When there's no query we list the most recent accounts so the inspector
+// shows real players immediately instead of an empty prompt.
 function usePlayerSearch(query: string) {
   return useQuery({
     queryKey: ["admin", "player-search", query],
     queryFn: async () => {
-      if (!query.trim()) return [];
       const opts = serverKeyAuth();
-      if (UUID_RE.test(query.trim())) {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        const res = await nakama.listAccounts({ ...opts, limit: 25 });
+        return res.users ?? [];
+      }
+      if (UUID_RE.test(trimmed)) {
         try {
-          const acct = await nakama.getAccountById(query.trim(), opts);
+          const acct = await nakama.getAccountById(trimmed, opts);
           return [acct.user];
         } catch {
           return [];
@@ -65,12 +71,11 @@ function usePlayerSearch(query: string) {
       }
       const res = await nakama.listAccounts({
         ...opts,
-        filter: query.trim(),
+        filter: trimmed,
         limit: 20,
       });
       return res.users ?? [];
     },
-    enabled: query.trim().length > 0,
     staleTime: 30_000,
   });
 }
@@ -1159,23 +1164,16 @@ export function PlayersPage() {
         )}
       </form>
 
-      {searchTerm ? (
-        <SearchResults
-          users={search.data ?? []}
-          loading={search.isLoading}
-          onSelect={setSelectedUserId}
-        />
-      ) : (
-        <div className="rounded-lg border border-dashed border-border p-16 text-center">
-          <User className="mx-auto h-10 w-10 text-muted-foreground/40" />
-          <p className="mt-3 text-sm font-medium text-muted-foreground">
-            Enter a username or UUID to find a player
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground/60">
-            UUIDs trigger a direct lookup; other terms filter by username prefix.
-          </p>
-        </div>
-      )}
+      <p className="text-xs text-muted-foreground/70">
+        {searchTerm
+          ? `Results for "${searchTerm}"`
+          : "Showing recent players — search by username or UUID to filter."}
+      </p>
+      <SearchResults
+        users={search.data ?? []}
+        loading={search.isLoading}
+        onSelect={setSelectedUserId}
+      />
     </div>
   );
 }
