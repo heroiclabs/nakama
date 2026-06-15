@@ -155,6 +155,44 @@ function _fiNakamaRelation(nk, callerId, targetId) {
 }
 
 /**
+ * Fetch the caller's entire friend graph ONCE and return a map of
+ * targetUserId -> state. Callers that need to test several relationships
+ * (or scan a list) should build this map a single time instead of calling
+ * _fiNakamaRelation repeatedly — each _fiNakamaRelation invocation is a
+ * full nk.friendsList round-trip, so doing it inside a loop turned a single
+ * O(N) page read into O(N²) DB scans and was the dominant cause of the
+ * multi-second send/list latency (and the client-side 30s timeouts).
+ *
+ * Returns { map: {id:stateInt}, ok: true } or { map: {}, ok: false } if the
+ * graph could not be read (caller should fail-open / treat as no relation).
+ */
+function _fiBuildRelationMap(nk, callerId) {
+    var map = {};
+    try {
+        var page = nk.friendsList(callerId, 1000, null, null);
+        if (page && page.friends) {
+            for (var i = 0; i < page.friends.length; i++) {
+                var f = page.friends[i];
+                if (!f || !f.user || !f.user.id) continue;
+                var s = (f.state && typeof f.state === 'object' && 'value' in f.state)
+                    ? f.state.value : f.state;
+                map[f.user.id] = (typeof s === 'number') ? s : -1;
+            }
+        }
+        return { map: map, ok: true };
+    } catch (_) {
+        return { map: map, ok: false };
+    }
+}
+
+function _fiRelationFromMap(relMap, targetId) {
+    if (relMap && Object.prototype.hasOwnProperty.call(relMap, targetId)) {
+        return relMap[targetId];
+    }
+    return -1;
+}
+
+/**
  * Per-user simple cooldown for invite sends. Returns
  *   { allowed: true } or
  *   { allowed: false, retryAfterMs: <number> }
@@ -753,6 +791,11 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
     if (limit > 200) limit = 200;
 
     // Incoming: scan the caller's own friend_invites collection.
+    // Build the caller's relation map ONCE up front so the per-invite
+    // "drop stale rows" check is an O(1) lookup instead of an O(N)
+    // nk.friendsList scan per row (the previous O(N²) behaviour was the
+    // primary source of multi-second latency on this RPC).
+    var relMap = _fiBuildRelationMap(nk, userId).map;
     var incoming = [];
     try {
         var page = nk.storageList(userId, FRIEND_INVITES_COLLECTION, limit, null);
@@ -763,7 +806,7 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
             if (o.value.status !== INVITE_STATUS_PENDING) continue;
             if (o.value.targetUserId !== userId) continue; // safety
             // Drop stale rows when Nakama graph already shows mutual friend or block.
-            var inRel = _fiNakamaRelation(nk, userId, o.value.fromUserId);
+            var inRel = _fiRelationFromMap(relMap, o.value.fromUserId);
             if (inRel === FR_STATE_FRIEND || inRel === FR_STATE_BLOCKED) continue;
             incoming.push({
                 inviteId:        o.value.inviteId,
@@ -782,25 +825,40 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
     // — this is more reliable than scanning storage, because the storage
     // row lives under the TARGET (we'd need cross-user reads). Friend
     // graph is authoritative.
+    //
+    // Fast-path: the relation map we already built tells us whether the
+    // caller has ANY outgoing invites. If none, skip the second
+    // nk.friendsList round-trip entirely (the common case — most users have
+    // zero pending sent invites), shaving a full DB scan off this RPC.
     var outgoing = [];
-    try {
-        var page2 = nk.friendsList(userId, 1000, FR_STATE_INVITE_SENT, null);
-        if (page2 && page2.friends) {
-            for (var j = 0; j < page2.friends.length && outgoing.length < limit; j++) {
-                var fr = page2.friends[j];
-                if (!fr || !fr.user) continue;
-                outgoing.push({
-                    inviteId:        _fiInviteId(userId, fr.user.id),
-                    targetUserId:    fr.user.id,
-                    targetUsername:  fr.user.username || '',
-                    targetDisplayName: fr.user.displayName || fr.user.username || '',
-                    avatarUrl:       fr.user.avatarUrl || '',
-                    online:          fr.user.online || false
-                });
-            }
+    var hasAnyOutgoing = false;
+    for (var rid in relMap) {
+        if (Object.prototype.hasOwnProperty.call(relMap, rid) &&
+            relMap[rid] === FR_STATE_INVITE_SENT) {
+            hasAnyOutgoing = true;
+            break;
         }
-    } catch (e) {
-        logger.warn('[FriendInvites] list outgoing failed: ' + e.message);
+    }
+    if (hasAnyOutgoing) {
+        try {
+            var page2 = nk.friendsList(userId, 1000, FR_STATE_INVITE_SENT, null);
+            if (page2 && page2.friends) {
+                for (var j = 0; j < page2.friends.length && outgoing.length < limit; j++) {
+                    var fr = page2.friends[j];
+                    if (!fr || !fr.user) continue;
+                    outgoing.push({
+                        inviteId:        _fiInviteId(userId, fr.user.id),
+                        targetUserId:    fr.user.id,
+                        targetUsername:  fr.user.username || '',
+                        targetDisplayName: fr.user.displayName || fr.user.username || '',
+                        avatarUrl:       fr.user.avatarUrl || '',
+                        online:          fr.user.online || false
+                    });
+                }
+            }
+        } catch (e) {
+            logger.warn('[FriendInvites] list outgoing failed: ' + e.message);
+        }
     }
 
     return _fiOk({
