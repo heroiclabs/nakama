@@ -3470,6 +3470,9 @@ declare namespace LegacyAnalytics {
         byCountry: {
             [country: string]: number;
         };
+        byCity: {
+            [city: string]: number;
+        };
         byPlatform: {
             [platform: string]: number;
         };
