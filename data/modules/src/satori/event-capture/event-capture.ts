@@ -11,6 +11,20 @@ namespace SatoriEventCapture {
     return "ev_0" + inv + "_" + id;
   }
 
+  // Best-effort geo stamp for the Satori dashboard map. Priority:
+  //   1. client-supplied metadata.country / metadata.city (already resolved)
+  //   2. the user's 30-day cached GeoTier country (no HTTP, cache-only)
+  // Returns "" when geo is unknown — the dashboard then shows "No data".
+  function geoOf(nk: nkruntime.Nakama, userId: string, event: Satori.CapturedEvent): { country: string; city: string } {
+    var md: any = event.metadata || {};
+    var country = (md.country || md.countryCode || "") + "";
+    var city = (md.city || "") + "";
+    if (!country && userId) {
+      try { country = GeoTier.getUserCountry(nk, userId) || ""; } catch (_) { country = ""; }
+    }
+    return { country: country.toUpperCase(), city: city };
+  }
+
   function appendToUserHistory(nk: nkruntime.Nakama, userId: string, event: Satori.CapturedEvent): void {
     var history = Storage.readJson<{ events: any[] }>(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
     if (!history) history = { events: [] };
@@ -34,12 +48,15 @@ namespace SatoriEventCapture {
 
     var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
     var key = eventKey(Date.now(), userId);
+    var geo = geoOf(nk, userId, event);
     var record = {
       userId: userId,
       name: event.name,
       timestamp: event.timestamp,
       metadata: event.metadata || {},
-      date: dateStr
+      date: dateStr,
+      country: geo.country,
+      city: geo.city
     };
 
     nk.storageWrite([{
@@ -74,12 +91,15 @@ namespace SatoriEventCapture {
 
       var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
       var key = eventKey(Date.now() + i, userId);
+      var geo = geoOf(nk, userId, event);
       var record = {
         userId: userId,
         name: event.name,
         timestamp: event.timestamp,
         metadata: event.metadata || {},
-        date: dateStr
+        date: dateStr,
+        country: geo.country,
+        city: geo.city
       };
       exportRecords.push(record);
 
@@ -208,13 +228,16 @@ namespace SatoriEventCapture {
 
     var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
     var key = eventKey(Date.now(), identityId);
+    var geo = geoOf(nk, "", event);
     var record = {
       identityId: identityId,
       name: event.name,
       timestamp: event.timestamp,
       metadata: event.metadata || {},
       date: dateStr,
-      external: true
+      external: true,
+      country: geo.country,
+      city: geo.city
     };
 
     nk.storageWrite([{
