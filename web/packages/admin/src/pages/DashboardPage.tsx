@@ -604,6 +604,8 @@ function GameMetricsTab({
   errorsLoading,
   hiroStatus,
   satoriStatus,
+  days,
+  onDaysChange,
 }: {
   summary?: DashboardSummary;
   summaryLoading: boolean;
@@ -613,6 +615,8 @@ function GameMetricsTab({
   errorsLoading: boolean;
   hiroStatus: ReturnType<typeof useHiroStatus>;
   satoriStatus: ReturnType<typeof useSatoriStatus>;
+  days: number;
+  onDaysChange: (d: number) => void;
 }) {
   const series = metrics?.series ?? [];
   const topEvents = summary?.topEvents ?? [];
@@ -620,6 +624,35 @@ function GameMetricsTab({
 
   return (
     <div className="space-y-6">
+      {/* Filter bar — mirrors Satori Cloud "Game Metrics" controls.
+          Only Date Range is data-backed today; the others need
+          per-dimension daily aggregates the analytics pipeline does
+          not yet store, so they are shown disabled for transparency. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
+          <CalendarClock className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Date Range</span>
+          <select
+            value={days}
+            onChange={(e) => onDaysChange(Number(e.target.value))}
+            className="bg-transparent text-sm font-medium text-foreground outline-none"
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={14}>Last 14 days</option>
+            <option value={30}>Last 30 days</option>
+          </select>
+        </div>
+        {["Country", "Platform", "Game Version", "Activity"].map((f) => (
+          <span
+            key={f}
+            title="Needs per-dimension analytics aggregates — not yet available in the data pipeline"
+            className="inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-dashed border-border bg-muted/30 px-3 py-1.5 text-sm text-muted-foreground opacity-60"
+          >
+            + {f}
+          </span>
+        ))}
+      </div>
+
       {/* Daily trend charts — mirrors Satori Cloud "Game Metrics" */}
       <div className="grid gap-4 md:grid-cols-2">
         <DailyMetricCard
@@ -915,9 +948,10 @@ function StatGroupCard({
 
 export function DashboardPage() {
   const [tab, setTab] = useState<"status" | "metrics">("status");
+  const [metricsDays, setMetricsDays] = useState(14);
   const health = useHealth();
   const summary = useSummary();
-  const gameMetrics = useGameMetrics(14);
+  const gameMetrics = useGameMetrics(metricsDays);
   const eventErrors = useEventErrors();
   const hiroStatus = useHiroStatus();
   const satoriStatus = useSatoriStatus();
@@ -1032,6 +1066,8 @@ export function DashboardPage() {
           errorsLoading={eventErrors.isLoading}
           hiroStatus={hiroStatus}
           satoriStatus={satoriStatus}
+          days={metricsDays}
+          onDaysChange={setMetricsDays}
         />
       )}
     </div>
