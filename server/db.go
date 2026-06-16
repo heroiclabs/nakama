@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/stdlib"
+	pgxpprof "github.com/redbaron/pgx-pprof"
 	"go.uber.org/zap"
 )
 
@@ -38,6 +40,23 @@ const dbErrorDatabaseDoesNotExist = pgerrcode.InvalidCatalogName
 var ErrDatabaseDriverMismatch = errors.New("database driver mismatch")
 
 var isCockroach bool
+
+var dbPprofEnabled = os.Getenv("EXPERIMENTAL_PGXPPROF_ENABLE") == "1"
+
+var dbPprofProfiler = pgxpprof.New()
+
+func openDB(rawURL string) (*sql.DB, error) {
+	if !dbPprofEnabled {
+		return sql.Open("pgx", rawURL)
+	}
+
+	cfg, err := pgx.ParseConfig(rawURL)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Tracer = pgxpprof.QueryTracer(dbPprofProfiler)
+	return stdlib.OpenDB(*cfg), nil
+}
 
 func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bool) *sql.DB {
 	rawURL := config.GetDatabase().Addresses[0]
@@ -72,7 +91,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 	dbHostname := parsedURL.Hostname()
 	resolvedAddr, resolvedAddrMap := dbResolveAddress(ctx, logger, dbHostname)
 
-	db, err := sql.Open("pgx", parsedURL.String())
+	db, err := openDB(parsedURL.String())
 	if err != nil {
 		logger.Fatal("Failed to open database", zap.Error(err))
 	}
@@ -95,7 +114,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 			db.Close()
 			// Connect to anonymous db
 			parsedURL.Path = ""
-			db, err = sql.Open("pgx", parsedURL.String())
+			db, err = openDB(parsedURL.String())
 			if err != nil {
 				logger.Fatal("Failed to open database", zap.Error(err))
 			}
@@ -105,7 +124,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 			}
 			db.Close()
 			parsedURL.Path = fmt.Sprintf("/%s", dbName)
-			db, err = sql.Open("pgx", parsedURL.String())
+			db, err = openDB(parsedURL.String())
 			if err != nil {
 				db.Close()
 				logger.Fatal("Failed to open database", zap.Error(err))
@@ -114,7 +133,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 	}
 
 	logger.Debug("Complete database connection URL", zap.String("raw_url", parsedURL.String()))
-	db, err = sql.Open("pgx", parsedURL.String())
+	db, err = openDB(parsedURL.String())
 	if err != nil {
 		logger.Fatal("Error connecting to database", zap.Error(err))
 	}
