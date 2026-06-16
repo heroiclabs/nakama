@@ -397,6 +397,7 @@ function DailyMetricCard({
   dataKey,
   colorHsl,
   money,
+  duration,
   loading,
 }: {
   title: string;
@@ -406,12 +407,13 @@ function DailyMetricCard({
   dataKey: keyof GameMetricsDay;
   colorHsl: string;
   money?: boolean;
+  duration?: boolean;
   loading: boolean;
 }) {
   const data = series.map((s) => ({ label: dayLabel(s.date), value: Number(s[dataKey]) || 0 }));
   const last = data.length ? data[data.length - 1].value : 0;
   const gradId = `g_${String(dataKey)}`;
-  const fmt = (v: number) => (money ? `$${v.toFixed(2)}` : `${v}`);
+  const fmt = (v: number) => (money ? `$${v.toFixed(2)}` : duration ? fmtDuration(v) : `${v}`);
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -429,7 +431,7 @@ function DailyMetricCard({
           </div>
         </div>
         <span className="text-lg font-bold tabular-nums" style={{ color: `hsl(${colorHsl})` }}>
-          {money ? `$${last.toFixed(2)}` : last}
+          {money ? `$${last.toFixed(2)}` : duration ? fmtDuration(last) : last}
         </span>
       </div>
       {loading ? (
@@ -619,6 +621,26 @@ function GameMetricsTab({
           dataKey="arpau"
           colorHsl={CHART_COLORS.arpau}
           money
+          loading={metricsLoading}
+        />
+        <DailyMetricCard
+          title="Daily Avg. Session Duration"
+          subtitle="Average session length per session"
+          icon={Activity}
+          series={series}
+          dataKey="sessionDuration"
+          colorHsl={CHART_COLORS.sessions}
+          duration
+          loading={metricsLoading}
+        />
+        <DailyMetricCard
+          title="Daily Avg. Playtime"
+          subtitle="Average playtime per active user"
+          icon={Activity}
+          series={series}
+          dataKey="playtime"
+          colorHsl={CHART_COLORS.dau}
+          duration
           loading={metricsLoading}
         />
       </div>
