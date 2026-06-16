@@ -563,10 +563,24 @@ export interface GameMetricsDay {
   playtime: number; // avg playtime per active user, seconds
 }
 
+export interface GameMetricsMonth {
+  month: string; // YYYY-MM
+  activeUsers: number; // MAU — unique users active in the month
+  sessions: number;
+  events: number;
+  revenue: number;
+  installs: number;
+  arpau: number;
+  sessionDuration: number; // avg session length, seconds
+  playtime: number; // avg playtime per active user, seconds
+}
+
 export interface GameMetricsResult {
   days: number;
+  months?: number;
   generatedAt: number;
   series: GameMetricsDay[];
+  monthly?: GameMetricsMonth[];
   totals: {
     sessions: number;
     events: number;

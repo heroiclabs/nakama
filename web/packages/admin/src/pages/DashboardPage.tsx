@@ -44,6 +44,7 @@ import {
   type DashboardSummary,
   type GameMetricsResult,
   type GameMetricsDay,
+  type GameMetricsMonth,
   type EventErrorsResult,
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
@@ -389,12 +390,12 @@ function fmtDuration(sec: number) {
   return `${h}h ${m % 60}m`;
 }
 
-function DailyMetricCard({
+function MetricAreaCard({
   title,
   subtitle,
   icon: Icon,
-  series,
-  dataKey,
+  points,
+  gradKey,
   colorHsl,
   money,
   duration,
@@ -403,16 +404,16 @@ function DailyMetricCard({
   title: string;
   subtitle: string;
   icon: React.ElementType;
-  series: GameMetricsDay[];
-  dataKey: keyof GameMetricsDay;
+  points: { label: string; value: number }[];
+  gradKey: string;
   colorHsl: string;
   money?: boolean;
   duration?: boolean;
   loading: boolean;
 }) {
-  const data = series.map((s) => ({ label: dayLabel(s.date), value: Number(s[dataKey]) || 0 }));
+  const data = points;
   const last = data.length ? data[data.length - 1].value : 0;
-  const gradId = `g_${String(dataKey)}`;
+  const gradId = `g_${gradKey}`;
   const fmt = (v: number) => (money ? `$${v.toFixed(2)}` : duration ? fmtDuration(v) : `${v}`);
 
   return (
@@ -481,6 +482,51 @@ function DailyMetricCard({
       )}
     </div>
   );
+}
+
+function DailyMetricCard({
+  series,
+  dataKey,
+  ...rest
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+  series: GameMetricsDay[];
+  dataKey: keyof GameMetricsDay;
+  colorHsl: string;
+  money?: boolean;
+  duration?: boolean;
+  loading: boolean;
+}) {
+  const points = series.map((s) => ({ label: dayLabel(s.date), value: Number(s[dataKey]) || 0 }));
+  return <MetricAreaCard {...rest} points={points} gradKey={String(dataKey)} />;
+}
+
+function monthLabel(ym: string) {
+  const [y, m] = ym.split("-");
+  const idx = (parseInt(m, 10) || 1) - 1;
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${names[idx] ?? ym} ${y?.slice(2) ?? ""}`.trim();
+}
+
+function MonthlyMetricCard({
+  monthly,
+  dataKey,
+  ...rest
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ElementType;
+  monthly: GameMetricsMonth[];
+  dataKey: keyof GameMetricsMonth;
+  colorHsl: string;
+  money?: boolean;
+  duration?: boolean;
+  loading: boolean;
+}) {
+  const points = monthly.map((m) => ({ label: monthLabel(m.month), value: Number(m[dataKey]) || 0 }));
+  return <MetricAreaCard {...rest} points={points} gradKey={`m_${String(dataKey)}`} />;
 }
 
 function relTime(ms: number) {
@@ -675,6 +721,79 @@ function GameMetricsTab({
               { label: "RoAS", value: `${(totals.roas * 100).toFixed(0)}%` },
             ]}
           />
+        </div>
+      )}
+
+      {/* Monthly trend charts — mirrors Satori Cloud "Monthly *" charts */}
+      {metrics?.monthly && metrics.monthly.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 pt-2">
+            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">Monthly</h3>
+            <span className="text-xs text-muted-foreground">
+              · trailing {metrics.monthly.length} month{metrics.monthly.length > 1 ? "s" : ""}
+            </span>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <MonthlyMetricCard
+              title="Monthly Active Users"
+              subtitle="Unique users active each month"
+              icon={Users}
+              monthly={metrics.monthly}
+              dataKey="activeUsers"
+              colorHsl={CHART_COLORS.dau}
+              loading={metricsLoading}
+            />
+            <MonthlyMetricCard
+              title="Monthly Revenue"
+              subtitle="Total revenue across all purchases"
+              icon={DollarSign}
+              monthly={metrics.monthly}
+              dataKey="revenue"
+              colorHsl={CHART_COLORS.revenue}
+              money
+              loading={metricsLoading}
+            />
+            <MonthlyMetricCard
+              title="Monthly ARPAU"
+              subtitle="Avg revenue per active user"
+              icon={TrendingUp}
+              monthly={metrics.monthly}
+              dataKey="arpau"
+              colorHsl={CHART_COLORS.arpau}
+              money
+              loading={metricsLoading}
+            />
+            <MonthlyMetricCard
+              title="Monthly Session Count"
+              subtitle="Total amount of session starts"
+              icon={Activity}
+              monthly={metrics.monthly}
+              dataKey="sessions"
+              colorHsl={CHART_COLORS.sessions}
+              loading={metricsLoading}
+            />
+            <MonthlyMetricCard
+              title="Monthly Avg. Session Duration"
+              subtitle="Average session length per session"
+              icon={Activity}
+              monthly={metrics.monthly}
+              dataKey="sessionDuration"
+              colorHsl={CHART_COLORS.sessions}
+              duration
+              loading={metricsLoading}
+            />
+            <MonthlyMetricCard
+              title="Monthly Avg. Playtime"
+              subtitle="Average playtime per active user"
+              icon={Activity}
+              monthly={metrics.monthly}
+              dataKey="playtime"
+              colorHsl={CHART_COLORS.dau}
+              duration
+              loading={metricsLoading}
+            />
+          </div>
         </div>
       )}
 

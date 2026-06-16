@@ -265,6 +265,7 @@ namespace SatoriDashboard {
   // storage read per day → fast and complete.
 
   var GM_MAX_DAYS = 31;
+  var GM_MONTHS = 6; // trailing calendar months for the Monthly-* charts
 
   // satori_game_metrics — Payload: { days?, game_id? }
   function rpcGameMetrics(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -320,10 +321,58 @@ namespace SatoriDashboard {
     var cpi = 0;
     var roas = 0;
 
+    // ── Monthly rollups (mirror Satori Cloud "Monthly *" charts) ──────────────
+    // Bucket the trailing GM_MONTHS calendar months by date prefix (YYYY-MM).
+    // MAU = unique users active anywhere in the month (union of daily lists);
+    // duration/playtime are derived from session_seconds the same way as daily.
+    var months = Math.min(Math.max(parseInt(data.months, 10) || GM_MONTHS, 1), GM_MONTHS);
+    var monthBuckets: { [ym: string]: any } = {};
+    var monthDaysScanned = 0;
+    var rangeDays = LegacyAnalytics.readRange(nk, nowMs, months * 31, gameId);
+    for (var mi = 0; mi < rangeDays.length; mi++) {
+      var rd = rangeDays[mi];
+      var ym = rd.date.slice(0, 7);
+      var b = monthBuckets[ym];
+      if (!b) {
+        b = { month: ym, sessions: 0, revenue: 0, sessionSeconds: 0, installs: 0, events: 0, users: {} };
+        monthBuckets[ym] = b;
+      }
+      b.sessions += rd.sessions;
+      b.revenue += rd.revenue;
+      b.sessionSeconds += rd.sessionSeconds;
+      b.installs += rd.newUsers;
+      b.events += rd.events;
+      for (var ui = 0; ui < rd.uniqueUsers.length; ui++) b.users[rd.uniqueUsers[ui]] = 1;
+      monthDaysScanned++;
+    }
+    var monthKeys: string[] = [];
+    for (var mk in monthBuckets) { if (monthBuckets.hasOwnProperty(mk)) monthKeys.push(mk); }
+    monthKeys.sort();
+    if (monthKeys.length > months) monthKeys = monthKeys.slice(monthKeys.length - months);
+    var monthly: any[] = [];
+    for (var mj = 0; mj < monthKeys.length; mj++) {
+      var mb = monthBuckets[monthKeys[mj]];
+      var mau = 0;
+      for (var uk in mb.users) { if (mb.users.hasOwnProperty(uk)) mau++; }
+      monthly.push({
+        month: mb.month,
+        activeUsers: mau,
+        sessions: mb.sessions,
+        events: mb.events,
+        revenue: round2(mb.revenue),
+        installs: mb.installs,
+        arpau: mau > 0 ? round2(mb.revenue / mau) : 0,
+        sessionDuration: mb.sessions > 0 ? Math.round(mb.sessionSeconds / mb.sessions) : 0,
+        playtime: mau > 0 ? Math.round(mb.sessionSeconds / mau) : 0
+      });
+    }
+
     return RpcHelpers.successResponse({
       days: days,
+      months: months,
       generatedAt: nowMs,
       series: series,
+      monthly: monthly,
       totals: {
         sessions: totalsSessions,
         events: totalsEvents,
@@ -337,7 +386,7 @@ namespace SatoriDashboard {
         cpi: cpi,
         roas: roas
       },
-      scannedRecords: days * 2,
+      scannedRecords: days * 2 + monthDaysScanned * 2,
       truncated: false
     });
   }

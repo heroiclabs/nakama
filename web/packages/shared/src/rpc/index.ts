@@ -30,6 +30,7 @@ export type {
   DashboardCounts,
   GameMetricsResult,
   GameMetricsDay,
+  GameMetricsMonth,
   EventError,
   EventErrorsResult,
   TimelineResult,
