@@ -373,10 +373,21 @@ function dayLabel(date: string) {
 
 const CHART_COLORS = {
   dau: "263 70% 60%",
+  installs: "330 81% 60%",
   sessions: "199 89% 55%",
   revenue: "142 71% 45%",
   arpau: "38 92% 55%",
 } as const;
+
+function fmtDuration(sec: number) {
+  if (!sec || sec <= 0) return "0s";
+  if (sec < 60) return `${Math.round(sec)}s`;
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
 
 function DailyMetricCard({
   title,
@@ -573,6 +584,15 @@ function GameMetricsTab({
           loading={metricsLoading}
         />
         <DailyMetricCard
+          title="Daily Installs"
+          subtitle="New users acquired each day"
+          icon={TrendingUp}
+          series={series}
+          dataKey="installs"
+          colorHsl={CHART_COLORS.installs}
+          loading={metricsLoading}
+        />
+        <DailyMetricCard
           title="Daily Sessions"
           subtitle="session_start events per day"
           icon={Activity}
@@ -606,9 +626,33 @@ function GameMetricsTab({
       {totals && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <SummaryStat label={`Avg DAU · ${metrics?.days ?? 0}d`} value={totals.avgDau} />
+          <SummaryStat label={`Installs · ${metrics?.days ?? 0}d`} value={totals.installs} />
           <SummaryStat label={`Sessions · ${metrics?.days ?? 0}d`} value={totals.sessions} />
-          <SummaryStat label={`Events · ${metrics?.days ?? 0}d`} value={totals.events} />
           <SummaryStat label={`Revenue · ${metrics?.days ?? 0}d`} value={`$${totals.revenue.toFixed(2)}`} />
+        </div>
+      )}
+
+      {/* Retention + RoAS rollups — mirrors Satori Cloud "Game Metrics" cards */}
+      {totals && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <StatGroupCard
+            title="Retention"
+            subtitle="Player engagement stats over the window"
+            stats={[
+              { label: "Avg Session Count", value: totals.avgSessionCount.toFixed(3) },
+              { label: "Avg Playtime", value: fmtDuration(totals.avgPlaytime) },
+              { label: "Avg Session Duration", value: fmtDuration(totals.avgSessionDuration) },
+            ]}
+          />
+          <StatGroupCard
+            title="RoAS"
+            subtitle="Revenue and return-on-ad-spend"
+            stats={[
+              { label: "Avg CPI", value: `$${totals.cpi.toFixed(2)}` },
+              { label: "Avg LTV", value: `$${totals.ltv.toFixed(2)}` },
+              { label: "RoAS", value: `${(totals.roas * 100).toFixed(0)}%` },
+            ]}
+          />
         </div>
       )}
 
@@ -697,6 +741,31 @@ function SummaryStat({ label, value }: { label: string; value: number | string }
     <div className="rounded-xl border border-border bg-card p-4">
       <p className="text-2xl font-bold tabular-nums tracking-tight">{value}</p>
       <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+    </div>
+  );
+}
+
+function StatGroupCard({
+  title,
+  subtitle,
+  stats,
+}: {
+  title: string;
+  subtitle: string;
+  stats: { label: string; value: string }[];
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      <p className="mb-4 text-xs text-muted-foreground">{subtitle}</p>
+      <div className="grid grid-cols-3 gap-3">
+        {stats.map((s) => (
+          <div key={s.label}>
+            <p className="text-2xl font-bold tabular-nums tracking-tight">{s.value}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

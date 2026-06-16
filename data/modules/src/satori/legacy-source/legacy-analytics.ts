@@ -33,6 +33,7 @@ namespace LegacyAnalytics {
     uniqueUsers: string[];
     events: number;
     sessions: number;
+    sessionSeconds: number; // total session length (sec) across the day
     revenue: number;    // iap_purchased + ad_revenue, USD
     purchases: number;  // iap_purchased count — used as a payer proxy
     byName: { [name: string]: number };
@@ -62,7 +63,7 @@ namespace LegacyAnalytics {
   function emptyDay(dateStr: string): Day {
     return {
       date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
-      revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, lastEventAt: 0
+      sessionSeconds: 0, revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, lastEventAt: 0
     };
   }
 
@@ -93,6 +94,7 @@ namespace LegacyAnalytics {
           out.byCity = lv.by_city || {};
           out.byPlatform = lv.by_platform || {};
           out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
+          out.sessionSeconds = parseFloat(lv.session_seconds) || 0;
           out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
           out.sessions = parseInt(lv.session_count, 10) ||
             out.byName.session_end || out.byName.session_start || 0;

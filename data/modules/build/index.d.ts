@@ -3467,6 +3467,7 @@ declare namespace LegacyAnalytics {
         uniqueUsers: string[];
         events: number;
         sessions: number;
+        sessionSeconds: number;
         revenue: number;
         purchases: number;
         byName: {

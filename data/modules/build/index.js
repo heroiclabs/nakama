@@ -42233,33 +42233,64 @@ var SatoriDashboard;
         var nowMs = Date.now();
         var series = [];
         var totalsSessions = 0, totalsEvents = 0, totalsRevenue = 0, dauSum = 0;
+        var totalsInstalls = 0, totalsSessionSeconds = 0;
         for (var d = days - 1; d >= 0; d--) {
             var dStr = dateStrOf(nowMs - d * 86400000);
             var day = LegacyAnalytics.readDay(nk, dStr, gameId);
             var dau = day.dau;
             var revenue = day.revenue;
             var payers = day.purchases;
+            // Avg session length (sec) and per-active-user playtime (sec).
+            var sessionDuration = day.sessions > 0 ? Math.round(day.sessionSeconds / day.sessions) : 0;
+            var playtime = dau > 0 ? Math.round(day.sessionSeconds / dau) : 0;
             series.push({
                 date: dStr,
                 dau: dau,
+                installs: day.newUsers,
                 sessions: day.sessions,
                 events: day.events,
                 revenue: round2(revenue),
                 payers: payers,
                 arpau: dau > 0 ? round2(revenue / dau) : 0,
-                arppu: payers > 0 ? round2(revenue / payers) : 0
+                arppu: payers > 0 ? round2(revenue / payers) : 0,
+                sessionDuration: sessionDuration,
+                playtime: playtime
             });
             totalsSessions += day.sessions;
             totalsEvents += day.events;
             totalsRevenue += revenue;
+            totalsInstalls += day.newUsers;
+            totalsSessionSeconds += day.sessionSeconds;
             dauSum += dau;
         }
         var avgDau = series.length > 0 ? Math.round(dauSum / series.length) : 0;
+        // Retention / lifetime-style rollups (match Satori Cloud "Game Metrics").
+        // dauSum = active-user-days across the window.
+        var avgSessionCount = dauSum > 0 ? round2(totalsSessions / dauSum) : 0; // sessions per active user/day
+        var avgSessionDuration = totalsSessions > 0 ? Math.round(totalsSessionSeconds / totalsSessions) : 0; // sec
+        var avgPlaytime = dauSum > 0 ? Math.round(totalsSessionSeconds / dauSum) : 0; // sec per active user/day
+        // RoAS block: LTV ≈ revenue per acquired user; CPI/RoAS need ad-spend which
+        // is not in the analytics pipeline, so they report 0 (parity with Satori).
+        var ltv = totalsInstalls > 0 ? round2(totalsRevenue / totalsInstalls) : 0;
+        var cpi = 0;
+        var roas = 0;
         return RpcHelpers.successResponse({
             days: days,
             generatedAt: nowMs,
             series: series,
-            totals: { sessions: totalsSessions, events: totalsEvents, revenue: round2(totalsRevenue), avgDau: avgDau },
+            totals: {
+                sessions: totalsSessions,
+                events: totalsEvents,
+                revenue: round2(totalsRevenue),
+                avgDau: avgDau,
+                installs: totalsInstalls,
+                avgSessionCount: avgSessionCount,
+                avgSessionDuration: avgSessionDuration,
+                avgPlaytime: avgPlaytime,
+                ltv: ltv,
+                cpi: cpi,
+                roas: roas
+            },
             scannedRecords: days * 2,
             truncated: false
         });
@@ -44320,7 +44351,7 @@ var LegacyAnalytics;
     function emptyDay(dateStr) {
         return {
             date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
-            revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, lastEventAt: 0
+            sessionSeconds: 0, revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, lastEventAt: 0
         };
     }
     // Read the analytics_dau + analytics_live_daily aggregate docs for one date.
@@ -44352,6 +44383,7 @@ var LegacyAnalytics;
                     out.byCity = lv.by_city || {};
                     out.byPlatform = lv.by_platform || {};
                     out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
+                    out.sessionSeconds = parseFloat(lv.session_seconds) || 0;
                     out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
                     out.sessions = parseInt(lv.session_count, 10) ||
                         out.byName.session_end || out.byName.session_start || 0;
@@ -48190,14 +48222,14 @@ var FortuneWheelAdSpin;
     var SKIP_COOLDOWN_CURRENCY = "coins";
     // Must match SEGMENTS in fortune_wheel.js exactly
     var SEGMENTS = [
-        { type: "XP", amount: 100, label: "100 XP", weight: 20 },
-        { type: "Coins", amount: 50, label: "50 Coins", weight: 25 },
-        { type: "XP", amount: 250, label: "250 XP", weight: 15 },
-        { type: "AudiobookToken", amount: 1, label: "Audiobook Token", weight: 8 },
-        { type: "Coins", amount: 150, label: "150 Coins", weight: 12 },
-        { type: "Shield", amount: 24, label: "24h Shield", weight: 10 },
-        { type: "XP", amount: 500, label: "500 XP", weight: 5 },
-        { type: "AudiobookToken", amount: 2, label: "2 Audiobook Tokens", weight: 5 }
+        { type: "Coins", amount: 5, label: "5 Coins", weight: 20 },
+        { type: "Coins", amount: 1, label: "1 Coins", weight: 25 },
+        { type: "Coins", amount: 15, label: "15 Coins", weight: 15 },
+        { type: "Coins", amount: 20, label: "20 Coins", weight: 8 },
+        { type: "Coins", amount: 25, label: "25 Coins", weight: 12 },
+        { type: "Coins", amount: 50, label: "50 Coins", weight: 10 },
+        { type: "Coins", amount: 10, label: "10 Coins", weight: 5 },
+        { type: "Coins", amount: 35, label: "35 Coins Coins", weight: 5 }
     ];
     function getCycleState(nk, userId) {
         try {

@@ -276,6 +276,7 @@ namespace SatoriDashboard {
     var nowMs = Date.now();
     var series: any[] = [];
     var totalsSessions = 0, totalsEvents = 0, totalsRevenue = 0, dauSum = 0;
+    var totalsInstalls = 0, totalsSessionSeconds = 0;
 
     for (var d = days - 1; d >= 0; d--) {
       var dStr = dateStrOf(nowMs - d * 86400000);
@@ -283,28 +284,59 @@ namespace SatoriDashboard {
       var dau = day.dau;
       var revenue = day.revenue;
       var payers = day.purchases;
+      // Avg session length (sec) and per-active-user playtime (sec).
+      var sessionDuration = day.sessions > 0 ? Math.round(day.sessionSeconds / day.sessions) : 0;
+      var playtime = dau > 0 ? Math.round(day.sessionSeconds / dau) : 0;
       series.push({
         date: dStr,
         dau: dau,
+        installs: day.newUsers,
         sessions: day.sessions,
         events: day.events,
         revenue: round2(revenue),
         payers: payers,
         arpau: dau > 0 ? round2(revenue / dau) : 0,
-        arppu: payers > 0 ? round2(revenue / payers) : 0
+        arppu: payers > 0 ? round2(revenue / payers) : 0,
+        sessionDuration: sessionDuration,
+        playtime: playtime
       });
       totalsSessions += day.sessions;
       totalsEvents += day.events;
       totalsRevenue += revenue;
+      totalsInstalls += day.newUsers;
+      totalsSessionSeconds += day.sessionSeconds;
       dauSum += dau;
     }
     var avgDau = series.length > 0 ? Math.round(dauSum / series.length) : 0;
+
+    // Retention / lifetime-style rollups (match Satori Cloud "Game Metrics").
+    // dauSum = active-user-days across the window.
+    var avgSessionCount = dauSum > 0 ? round2(totalsSessions / dauSum) : 0;          // sessions per active user/day
+    var avgSessionDuration = totalsSessions > 0 ? Math.round(totalsSessionSeconds / totalsSessions) : 0; // sec
+    var avgPlaytime = dauSum > 0 ? Math.round(totalsSessionSeconds / dauSum) : 0;    // sec per active user/day
+    // RoAS block: LTV ≈ revenue per acquired user; CPI/RoAS need ad-spend which
+    // is not in the analytics pipeline, so they report 0 (parity with Satori).
+    var ltv = totalsInstalls > 0 ? round2(totalsRevenue / totalsInstalls) : 0;
+    var cpi = 0;
+    var roas = 0;
 
     return RpcHelpers.successResponse({
       days: days,
       generatedAt: nowMs,
       series: series,
-      totals: { sessions: totalsSessions, events: totalsEvents, revenue: round2(totalsRevenue), avgDau: avgDau },
+      totals: {
+        sessions: totalsSessions,
+        events: totalsEvents,
+        revenue: round2(totalsRevenue),
+        avgDau: avgDau,
+        installs: totalsInstalls,
+        avgSessionCount: avgSessionCount,
+        avgSessionDuration: avgSessionDuration,
+        avgPlaytime: avgPlaytime,
+        ltv: ltv,
+        cpi: cpi,
+        roas: roas
+      },
       scannedRecords: days * 2,
       truncated: false
     });

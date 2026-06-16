@@ -552,19 +552,34 @@ export function getDashboardSummary(
 export interface GameMetricsDay {
   date: string;
   dau: number;
+  installs: number;
   sessions: number;
   events: number;
   revenue: number;
   payers: number;
   arpau: number;
   arppu: number;
+  sessionDuration: number; // avg session length, seconds
+  playtime: number; // avg playtime per active user, seconds
 }
 
 export interface GameMetricsResult {
   days: number;
   generatedAt: number;
   series: GameMetricsDay[];
-  totals: { sessions: number; events: number; revenue: number; avgDau: number };
+  totals: {
+    sessions: number;
+    events: number;
+    revenue: number;
+    avgDau: number;
+    installs: number;
+    avgSessionCount: number;
+    avgSessionDuration: number; // seconds
+    avgPlaytime: number; // seconds
+    ltv: number;
+    cpi: number;
+    roas: number;
+  };
   scannedRecords: number;
   truncated: boolean;
 }
