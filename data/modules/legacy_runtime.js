@@ -22667,15 +22667,19 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
 var FW_COOLDOWN_DAYS = 3;
 
 var FW_SEGMENTS = [
-    { type: "XP",             amount: 100,  label: "100 XP",            weight: 20 },
-    { type: "Coins",          amount: 50,   label: "50 Coins",          weight: 25 },
-    { type: "XP",             amount: 250,  label: "250 XP",            weight: 15 },
-    { type: "AudiobookToken", amount: 1,    label: "Audiobook Token",   weight: 8  },
-    { type: "Coins",          amount: 150,  label: "150 Coins",         weight: 12 },
-    { type: "Shield",         amount: 24,   label: "24h Shield",        weight: 10 },
-    { type: "XP",             amount: 500,  label: "500 XP",            weight: 5  },
-    { type: "AudiobookToken", amount: 2,    label: "2 Audiobook Tokens",weight: 5  }
+    { type: "Coins",            amount: 5,  label: "5 Coins",               weight: 20 },
+    { type: "Coins",            amount: 1,   label: "1 Coins",              weight: 25 },
+    { type: "Coins",            amount: 15,  label: "15 Coins",             weight: 15 },
+    { type: "Coins",            amount: 20,    label: "20 Coins",           weight: 8  },
+    { type: "Coins",            amount: 25,  label: "25 Coins",             weight: 12 },
+    { type: "Coins",            amount: 50,   label: "50 Coins",            weight: 10 },
+    { type: "Coins",            amount: 10,  label: "10 Coins",             weight: 5  },
+    { type: "Coins",            amount: 35,    label: "35 Coins Coins",     weight: 5  }
 ];
+
+
+    
+
 
 function fwGetWheelState(nk, userId) {
     try {
