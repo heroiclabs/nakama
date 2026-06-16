@@ -1163,6 +1163,7 @@ declare namespace LegacyAnalytics {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyChat {
+    function flushFailedChatPushes(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyCoupons {
@@ -1242,10 +1243,14 @@ declare namespace LegacyPlayer {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyPush {
+    export function userHasPushTokens(nk: nkruntime.Nakama, userId: string): boolean;
     export function sendLocalizedPushToUser(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, titleKey: string, bodyKey: string, vars: any, opts?: {
         skipQuietHours?: boolean;
         gameId?: string;
         data?: any;
+    }): boolean;
+    export function retryChatProviderPush(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, title: string, body: string, data: {
+        [k: string]: any;
     }): boolean;
     function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronWeeklyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
@@ -3637,6 +3642,23 @@ declare namespace FortuneWheelAdSpin {
      * No tier-gating. All players: max 3 ad spins per 3-day cycle, 3hr gap.
      */
     function rpcFortuneWheelAdSpin(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    /**
+     * RPC: fortune_wheel_skip_cooldown
+     *
+     * Server-authoritative cooldown skip: spend SKIP_COOLDOWN_COST coins to clear the
+     * 3-day organic-spin cooldown so the user can spin immediately.
+     *
+     * Order of operations (fail-safe — never deducts coins on a failed skip):
+     *   1. Auth check
+     *   2. Validate the user is actually ON cooldown      → not_on_cooldown
+     *   3. Validate balance >= cost                       → insufficient_coins
+     *   4. Deduct coins atomically (walletUpdate)         → authoritative balance from `previous`
+     *   5. Clear the organic cooldown (nextSpinTime=null) — only AFTER the debit succeeds
+     *
+     * Returns SkipCooldownResponse (see Unity FortuneWheelService.SkipCooldownResponse):
+     *   { success, error?, errorCode?, coinsSpent, coinBalance, canSpin, nextSpinTime }
+     */
+    function rpcFortuneWheelSkipCooldown(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string;
     /**
      * Register all RPCs in this module.
      */

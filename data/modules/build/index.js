@@ -23204,6 +23204,298 @@ var LegacyAnalytics;
 })(LegacyAnalytics || (LegacyAnalytics = {}));
 var LegacyChat;
 (function (LegacyChat) {
+    // Max characters of the message we surface in the push body preview.
+    var PUSH_PREVIEW_MAX = 120;
+    // ─── Failed-push retry queue ────────────────────────────────────────────────
+    // When a chat push returns false because the SNS/Lambda send failed (NOT
+    // because the recipient simply has no device token), we persist the attempt
+    // to a per-recipient queue. The notification scheduler calls
+    // flushFailedChatPushes() every few minutes to replay them. This makes chat
+    // pushes best-effort-with-retry instead of best-effort-fire-and-forget.
+    var FAILED_PUSH_COLLECTION = "chat_failed_push";
+    var FAILED_PUSH_INDEX_COLLECTION = "chat_failed_push_index";
+    var FAILED_PUSH_INDEX_KEY = "index";
+    var FAILED_PUSH_MAX_RETRIES = 8; // ~ a few hours at the flush cadence
+    var FAILED_PUSH_RETRY_INTERVAL_SEC = 120; // don't replay the same row too fast
+    var FAILED_PUSH_TTL_SEC = 24 * 60 * 60; // drop rows older than 24h regardless
+    // ─── Read-state tracking ────────────────────────────────────────────────────
+    // Per-user record mapping conversationKey -> last-read message createTime (ms).
+    // conversationKey is "dm:<otherUserId>" or "grp:<groupId>". Unread counts are
+    // derived by listing channel messages newer than the stored watermark.
+    var READ_STATE_COLLECTION = "chat_read_state";
+    var READ_STATE_KEY = "state";
+    // Resolve a friendly sender name for push copy: account display name first,
+    // then username, then the raw username from the socket context, else "Someone".
+    function resolveSenderName(nk, userId, fallbackUsername) {
+        try {
+            var users = nk.usersGetId([userId]);
+            if (users && users.length > 0) {
+                var u = users[0];
+                if (u.displayName && String(u.displayName).trim() !== "")
+                    return String(u.displayName);
+                if (u.username && String(u.username).trim() !== "")
+                    return String(u.username);
+            }
+        }
+        catch (_) { }
+        return (fallbackUsername && fallbackUsername.trim() !== "") ? fallbackUsername : "Someone";
+    }
+    // Build a short, single-line preview of the message body for the push.
+    function buildPreview(content) {
+        var text = "";
+        if (typeof content === "string") {
+            text = content;
+        }
+        else if (content && typeof content === "object") {
+            text = String(content.body || content.text || content.message || "");
+        }
+        text = text.replace(/\s+/g, " ").trim();
+        if (text.length > PUSH_PREVIEW_MAX)
+            text = text.substring(0, PUSH_PREVIEW_MAX - 1) + "\u2026";
+        return text;
+    }
+    // ─── Failed-push queue helpers ──────────────────────────────────────────────
+    // Add a recipient to the failed-push index so the scheduler can find them.
+    function addToFailedPushIndex(nk, recipientId) {
+        try {
+            var objs = nk.storageRead([{ collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID }]);
+            var ids = (objs && objs.length > 0 && objs[0].value && objs[0].value.userIds)
+                ? objs[0].value.userIds : [];
+            if (ids.indexOf(recipientId) < 0)
+                ids.push(recipientId);
+            nk.storageWrite([{
+                    collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID,
+                    value: { userIds: ids }, permissionRead: 0, permissionWrite: 0
+                }]);
+        }
+        catch (_) { /* non-fatal — flush just won't pick this user up this tick */ }
+    }
+    // Persist a failed chat push so the scheduler can retry it. Keyed per
+    // recipient; multiple pending messages for the same recipient are stored as a
+    // rows[] array on one record (keeps the index small and reads cheap).
+    function enqueueFailedPush(nk, logger, row) {
+        try {
+            var existing = Storage.readJson(nk, FAILED_PUSH_COLLECTION, row.recipientId, Constants.SYSTEM_USER_ID);
+            var rows = (existing && existing.rows) ? existing.rows : [];
+            // Cap per-recipient backlog so a permanently-unreachable device can't grow
+            // an unbounded record. Keep the newest 50.
+            rows.push(row);
+            if (rows.length > 50)
+                rows = rows.slice(rows.length - 50);
+            Storage.writeJson(nk, FAILED_PUSH_COLLECTION, row.recipientId, Constants.SYSTEM_USER_ID, { rows: rows }, 0, 0);
+            addToFailedPushIndex(nk, row.recipientId);
+        }
+        catch (e) {
+            logger.warn("[Chat] enqueueFailedPush failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    // Fire a localized chat push and, if it failed for a retryable reason, queue
+    // it. Returns true if the push was delivered to at least one device.
+    // sendLocalizedPushToUser returns false both when there are no tokens AND when
+    // every provider send failed; we only enqueue when there was something to
+    // retry, which we approximate by checking the recipient has tokens.
+    function deliverChatPush(ctx, logger, nk, kind, recipientId, senderId, senderName, eventType, title, body, vars, data) {
+        var delivered = false;
+        try {
+            delivered = LegacyPush.sendLocalizedPushToUser(ctx, logger, nk, recipientId, eventType, title, body, vars, { skipQuietHours: true, data: data });
+        }
+        catch (e) {
+            logger.warn("[Chat] chat push threw: %s", e && e.message ? e.message : String(e));
+        }
+        if (delivered)
+            return;
+        // Only worth retrying if the recipient actually has a registered device.
+        // Otherwise there is nothing a retry could ever deliver to.
+        if (!LegacyPush.userHasPushTokens(nk, recipientId))
+            return;
+        var now = Math.floor(Date.now() / 1000);
+        enqueueFailedPush(nk, logger, {
+            kind: kind, recipientId: recipientId, senderId: senderId, senderName: senderName,
+            eventType: eventType, title: title, body: body, data: data,
+            retries: 0, lastAttempt: now, createdAt: now
+        });
+    }
+    // ─── Read-state helpers ─────────────────────────────────────────────────────
+    function dmConversationKey(otherUserId) { return "dm:" + otherUserId; }
+    function grpConversationKey(groupId) { return "grp:" + groupId; }
+    function readReadState(nk, userId) {
+        var data = Storage.readJson(nk, READ_STATE_COLLECTION, READ_STATE_KEY, userId);
+        if (!data || !data.lastRead)
+            return { lastRead: {} };
+        return data;
+    }
+    function writeReadState(nk, userId, data) {
+        // Owner-only: read-state is private to the user. permRead=1 (owner), permWrite=0
+        // (server-authoritative — clients update via mark_*_read RPCs, never directly).
+        Storage.writeJson(nk, READ_STATE_COLLECTION, READ_STATE_KEY, userId, data, 1, 0);
+    }
+    // Set the read watermark for one conversation to nowMs (or an explicit value).
+    function markConversationRead(nk, userId, conversationKey, atMs) {
+        var state = readReadState(nk, userId);
+        var ts = (atMs !== undefined && atMs > 0) ? atMs : Date.now();
+        // Never move the watermark backwards.
+        if (!state.lastRead[conversationKey] || ts > state.lastRead[conversationKey]) {
+            state.lastRead[conversationKey] = ts;
+            writeReadState(nk, userId, state);
+        }
+    }
+    // Convert a Nakama channel message's createTime to epoch ms. createTime comes
+    // back as an RFC3339 string or {seconds} object depending on call path.
+    function messageCreateMs(msg) {
+        if (!msg)
+            return 0;
+        var ct = msg.createTime;
+        if (ct === undefined || ct === null)
+            return 0;
+        if (typeof ct === "number")
+            return ct < 1e12 ? ct * 1000 : ct;
+        if (typeof ct === "string") {
+            var parsed = Date.parse(ct);
+            return isNaN(parsed) ? 0 : parsed;
+        }
+        if (typeof ct === "object" && ct.seconds !== undefined) {
+            return Number(ct.seconds) * 1000;
+        }
+        return 0;
+    }
+    // Count messages in a channel created after the read watermark, authored by
+    // someone other than `userId`. Capped at `cap` to bound work for very active
+    // conversations (the client only needs "N" vs "N+").
+    function countUnread(nk, channelId, userId, sinceMs, cap) {
+        var unread = 0;
+        var cursor = "";
+        var pages = 0;
+        try {
+            do {
+                // forward=false → newest first, so we can stop as soon as we cross the
+                // watermark instead of scanning the whole history.
+                var result = nk.channelMessagesList(channelId, 100, false, cursor);
+                var msgs = (result && result.messages) ? result.messages : [];
+                for (var i = 0; i < msgs.length; i++) {
+                    var msg = msgs[i];
+                    var ms = messageCreateMs(msg);
+                    if (ms <= sinceMs)
+                        return unread; // reached read messages → done
+                    var sender = msg.senderId ? String(msg.senderId) : "";
+                    if (sender && sender === userId)
+                        continue; // own messages aren't "unread"
+                    unread++;
+                    if (unread >= cap)
+                        return unread;
+                }
+                cursor = (result && result.nextCursor) ? result.nextCursor : "";
+                pages++;
+            } while (cursor && pages < 20);
+        }
+        catch (_) { }
+        return unread;
+    }
+    // Fire a best-effort device push (APNs/FCM) for a direct message. Failures are
+    // swallowed — chat delivery must never fail because the recipient has no token
+    // or push is gated by quiet hours. Quiet hours ARE respected for chat.
+    function pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content) {
+        try {
+            var preview = buildPreview(content);
+            var body = preview !== "" ? preview : (senderName + " sent you a message");
+            // Chat is real-time conversation — bypass quiet hours so DMs always reach
+            // the device (parity with WhatsApp/Telegram). Quiet hours still apply to
+            // non-conversational pushes (daily quiz, reminders, etc.). On provider
+            // failure the push is queued for retry by the scheduler.
+            deliverChatPush(ctx, logger, nk, "direct", targetUserId, senderId, senderName, "direct_message", senderName, body, { name: senderName }, { screen: "chat", chatType: "direct", fromUserId: senderId, sender_name: senderName });
+        }
+        catch (e) {
+            logger.warn("[Chat] direct message push failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    // Fire a best-effort device push to every other member of a group chat.
+    function pushGroupMessage(ctx, logger, nk, senderId, senderName, groupId, content) {
+        try {
+            var groupName = "your group";
+            try {
+                var groups = nk.groupsGetId([groupId]);
+                if (groups && groups.length > 0 && groups[0].name)
+                    groupName = String(groups[0].name);
+            }
+            catch (_) { }
+            var preview = buildPreview(content);
+            var body = preview !== ""
+                ? (senderName + ": " + preview)
+                : (senderName + " sent a message in " + groupName);
+            var cursor = "";
+            var notified = 0;
+            // 2 = MEMBER, 1 = ADMIN, 0 = SUPERADMIN — notify all accepted members.
+            // No member cap: every paginated member must receive the push. The old
+            // `scanned < 500` guard silently dropped notifications for everyone past
+            // the 500th member in large groups. We page until the cursor is exhausted.
+            do {
+                var page = nk.groupUsersList(groupId, 100, undefined, cursor);
+                var members = (page && page.groupUsers) ? page.groupUsers : [];
+                for (var i = 0; i < members.length; i++) {
+                    var m = members[i];
+                    // state 4 = pending join request; skip non-members.
+                    if (m.state !== undefined && m.state > 2)
+                        continue;
+                    var memberId = m.user && m.user.id ? String(m.user.id) : "";
+                    if (!memberId || memberId === senderId)
+                        continue;
+                    notified++;
+                    // Bypass quiet hours: group chat is real-time conversation. Failed
+                    // provider sends are queued for scheduler retry per recipient.
+                    deliverChatPush(ctx, logger, nk, "group", memberId, senderId, senderName, "group_message", groupName, body, { name: senderName, group: groupName }, { screen: "chat", chatType: "group", groupId: groupId, fromUserId: senderId, sender_name: senderName });
+                }
+                cursor = (page && page.cursor) ? page.cursor : "";
+            } while (cursor);
+            logger.info("[Chat] group push fan-out complete: groupId=%s notified=%d", groupId, notified);
+        }
+        catch (e) {
+            logger.warn("[Chat] group message push failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    // After-hook for messages sent directly over the realtime socket
+    // (ChannelMessageSend), as opposed to the RPC paths above. Server-side
+    // nk.channelMessageSend() calls do NOT trigger this hook, so there is no
+    // double-push risk with the RPCs. We read the resolved target from the
+    // output ack (groupId / userIdOne / userIdTwo); the input channelId is opaque.
+    function afterChannelMessageSend(ctx, logger, nk, output, input) {
+        try {
+            var ack = output ? output.channelMessageSend : null;
+            if (!ack)
+                return;
+            var senderId = ctx.userId || (ack.senderId ? String(ack.senderId) : "");
+            if (!senderId)
+                return;
+            // Reconstruct message content from the input envelope for the preview.
+            var content = "";
+            try {
+                var sent = input ? input.channelMessageSend : null;
+                if (sent && sent.content !== undefined) {
+                    content = (typeof sent.content === "string") ? JSON.parse(sent.content) : sent.content;
+                }
+            }
+            catch (_) {
+                content = "";
+            }
+            var senderName = resolveSenderName(nk, senderId, ack.username ? String(ack.username) : (ctx.username || ""));
+            var groupId = ack.groupId ? String(ack.groupId) : "";
+            var userIdOne = ack.userIdOne ? String(ack.userIdOne) : "";
+            var userIdTwo = ack.userIdTwo ? String(ack.userIdTwo) : "";
+            if (groupId !== "") {
+                // Group channel message.
+                pushGroupMessage(ctx, logger, nk, senderId, senderName, groupId, content);
+            }
+            else if (userIdOne !== "" || userIdTwo !== "") {
+                // Direct message: push to whichever party is not the sender.
+                var targetUserId = (userIdOne === senderId) ? userIdTwo : userIdOne;
+                if (targetUserId && targetUserId !== senderId) {
+                    pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content);
+                }
+            }
+            // Room messages (roomName set) are intentionally not pushed to avoid broadcast spam.
+        }
+        catch (e) {
+            logger.warn("[Chat] afterChannelMessageSend push failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
     function rpcSendGroupChatMessage(ctx, logger, nk, payload) {
         try {
             var userId = RpcHelpers.requireUserId(ctx);
@@ -23215,6 +23507,8 @@ var LegacyChat;
                 return RpcHelpers.errorResponse("groupId required");
             var channelId = nk.channelIdBuild(userId, groupId, 3);
             var ack = nk.channelMessageSend(channelId, { body: content }, userId, username, true);
+            var senderName = resolveSenderName(nk, userId, username);
+            pushGroupMessage(ctx, logger, nk, userId, senderName, groupId, content);
             return RpcHelpers.successResponse({ messageId: ack.messageId });
         }
         catch (e) {
@@ -23232,6 +23526,8 @@ var LegacyChat;
                 return RpcHelpers.errorResponse("userId required");
             var channelId = nk.channelIdBuild(userId, targetUserId, 2);
             var ack = nk.channelMessageSend(channelId, { body: content }, userId, username, true);
+            var senderName = resolveSenderName(nk, userId, username);
+            pushDirectMessage(ctx, logger, nk, userId, senderName, targetUserId, content);
             return RpcHelpers.successResponse({ messageId: ack.messageId });
         }
         catch (e) {
@@ -23324,11 +23620,171 @@ var LegacyChat;
             var targetUserId = data.userId || data.targetUserId;
             if (!targetUserId)
                 return RpcHelpers.errorResponse("userId required");
-            return RpcHelpers.successResponse({ success: true });
+            // Optional explicit watermark (ms). Defaults to now — i.e. "I've read
+            // everything up to this moment in the conversation with targetUserId".
+            var atMs = (data.upToMs !== undefined) ? Number(data.upToMs) : (data.atMs !== undefined ? Number(data.atMs) : 0);
+            markConversationRead(nk, userId, dmConversationKey(String(targetUserId)), atMs);
+            return RpcHelpers.successResponse({ success: true, userId: targetUserId });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to mark messages read");
         }
+    }
+    function rpcMarkGroupMessagesRead(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var groupId = data.groupId;
+            if (!groupId)
+                return RpcHelpers.errorResponse("groupId required");
+            var atMs = (data.upToMs !== undefined) ? Number(data.upToMs) : (data.atMs !== undefined ? Number(data.atMs) : 0);
+            markConversationRead(nk, userId, grpConversationKey(String(groupId)), atMs);
+            return RpcHelpers.successResponse({ success: true, groupId: groupId });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "Failed to mark group messages read");
+        }
+    }
+    // Return unread counts for the conversations the client asks about. Payload:
+    //   { directUserIds?: string[], groupIds?: string[], cap?: number }
+    // Response: { direct: { <userId>: count }, group: { <groupId>: count }, total }
+    // Counts are derived from per-conversation read watermarks vs. channel history,
+    // so they survive app restarts and are consistent across devices.
+    function rpcGetUnreadCounts(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var directIds = data.directUserIds || data.userIds || [];
+            var groupIds = data.groupIds || [];
+            var cap = (data.cap && data.cap > 0) ? Math.min(Number(data.cap), 999) : 99;
+            var state = readReadState(nk, userId);
+            var direct = {};
+            var group = {};
+            var total = 0;
+            for (var i = 0; i < directIds.length; i++) {
+                var other = String(directIds[i]);
+                if (!other)
+                    continue;
+                var dKey = dmConversationKey(other);
+                var dSince = state.lastRead[dKey] || 0;
+                var dChannel = nk.channelIdBuild(userId, other, 2);
+                var dCount = countUnread(nk, dChannel, userId, dSince, cap);
+                direct[other] = dCount;
+                total += dCount;
+            }
+            for (var j = 0; j < groupIds.length; j++) {
+                var gid = String(groupIds[j]);
+                if (!gid)
+                    continue;
+                var gKey = grpConversationKey(gid);
+                var gSince = state.lastRead[gKey] || 0;
+                var gChannel = nk.channelIdBuild(userId, gid, 3);
+                var gCount = countUnread(nk, gChannel, userId, gSince, cap);
+                group[gid] = gCount;
+                total += gCount;
+            }
+            return RpcHelpers.successResponse({ direct: direct, group: group, total: total });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "Failed to get unread counts");
+        }
+    }
+    // ─── Failed-push flush (called by the notification scheduler) ───────────────
+    // Walks the per-recipient failed-push index and replays provider sends for
+    // rows that are due (throttled) and under the retry/TTL limits. Successful or
+    // exhausted rows are removed; recipients with no remaining rows drop out of
+    // the index. Mirrors LegacyPush.flushPendingRegistrations' index pattern.
+    function flushFailedChatPushes(ctx, logger, nk) {
+        try {
+            var indexObjs = nk.storageRead([{ collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID }]);
+            var recipientIds = (indexObjs && indexObjs.length > 0 && indexObjs[0].value && indexObjs[0].value.userIds)
+                ? indexObjs[0].value.userIds : [];
+            if (!recipientIds || recipientIds.length === 0)
+                return;
+            var now = Math.floor(Date.now() / 1000);
+            var remaining = [];
+            for (var u = 0; u < recipientIds.length; u++) {
+                var rid = recipientIds[u];
+                try {
+                    var rec = Storage.readJson(nk, FAILED_PUSH_COLLECTION, rid, Constants.SYSTEM_USER_ID);
+                    var rows = (rec && rec.rows) ? rec.rows : [];
+                    var keep = [];
+                    for (var i = 0; i < rows.length; i++) {
+                        var row = rows[i];
+                        // Drop rows that are too old or maxed out on retries.
+                        if ((now - row.createdAt) > FAILED_PUSH_TTL_SEC)
+                            continue;
+                        if ((row.retries || 0) >= FAILED_PUSH_MAX_RETRIES) {
+                            logger.warn("[Chat] failed-push maxed retries — dropping. recipient=%s eventType=%s", rid, row.eventType);
+                            continue;
+                        }
+                        // Throttle: don't replay the same row too aggressively.
+                        if (row.lastAttempt && (now - row.lastAttempt) < FAILED_PUSH_RETRY_INTERVAL_SEC) {
+                            keep.push(row);
+                            continue;
+                        }
+                        var ok = false;
+                        try {
+                            ok = LegacyPush.retryChatProviderPush(ctx, logger, nk, row.recipientId, row.eventType, row.title, row.body, row.data);
+                        }
+                        catch (_) {
+                            ok = false;
+                        }
+                        if (ok) {
+                            logger.info("[Chat] failed-push retry SUCCESS. recipient=%s eventType=%s attempt=%d", rid, row.eventType, (row.retries || 0) + 1);
+                            continue; // delivered → drop
+                        }
+                        row.retries = (row.retries || 0) + 1;
+                        row.lastAttempt = now;
+                        // If the recipient no longer has any device, stop retrying.
+                        if (!LegacyPush.userHasPushTokens(nk, rid))
+                            continue;
+                        keep.push(row);
+                    }
+                    if (keep.length > 0) {
+                        Storage.writeJson(nk, FAILED_PUSH_COLLECTION, rid, Constants.SYSTEM_USER_ID, { rows: keep }, 0, 0);
+                        remaining.push(rid);
+                    }
+                    else {
+                        try {
+                            nk.storageDelete([{ collection: FAILED_PUSH_COLLECTION, key: rid, userId: Constants.SYSTEM_USER_ID }]);
+                        }
+                        catch (_) { }
+                    }
+                }
+                catch (ue) {
+                    logger.warn("[Chat] flushFailedChatPushes: error for recipient=%s (will retry): %s", rid, ue && ue.message ? ue.message : String(ue));
+                    remaining.push(rid); // keep so next tick retries
+                }
+            }
+            nk.storageWrite([{
+                    collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID,
+                    value: { userIds: remaining }, permissionRead: 0, permissionWrite: 0
+                }]);
+            logger.info("[Chat] flushFailedChatPushes done. recipients with backlog: %d", remaining.length);
+        }
+        catch (e) {
+            logger.error("[Chat] flushFailedChatPushes exception: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    LegacyChat.flushFailedChatPushes = flushFailedChatPushes;
+    // Before-hook for realtime ChannelMessageSend. Forces persist=true so every
+    // chat message is written to channel history. Without persistence the message
+    // is only delivered to currently-connected sockets — offline recipients never
+    // see it, unread counts can't be derived, and history RPCs return nothing.
+    // Clients sometimes omit `persist` or send it false; we override server-side
+    // so durability is not client-dependent.
+    function beforeChannelMessageSend(ctx, logger, nk, envelope) {
+        try {
+            var msg = envelope ? envelope.channelMessageSend : null;
+            if (msg) {
+                msg.persist = true;
+            }
+        }
+        catch (e) {
+            logger.warn("[Chat] beforeChannelMessageSend failed to force persist: %s", e && e.message ? e.message : String(e));
+        }
+        return envelope;
     }
     function register(initializer) {
         initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
@@ -23338,6 +23794,13 @@ var LegacyChat;
         initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
         initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
         initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
+        initializer.registerRpc("mark_group_messages_read", rpcMarkGroupMessagesRead);
+        initializer.registerRpc("get_unread_counts", rpcGetUnreadCounts);
+        // Force durable persistence for realtime chat (offline delivery + history +
+        // unread counts), then push-notify after the message lands.
+        initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
+        // Push notifications for messages sent directly over the realtime socket.
+        initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
     }
     LegacyChat.register = register;
 })(LegacyChat || (LegacyChat = {}));
@@ -25401,6 +25864,12 @@ var LegacyNotifScheduler;
             }
             catch (_) { }
         }
+        if (shouldDispatch(state, "flush_failed_chat_push", 3) && tryAcquireDispatchLock(nk, "flush_failed_chat_push", 3)) {
+            try {
+                LegacyChat.flushFailedChatPushes(ctx, logger, nk);
+            }
+            catch (_) { }
+        }
         var m = nowMinute();
         if ((m % 60) === 0 && state.lastLog !== m) {
             state.lastLog = m;
@@ -25689,6 +26158,24 @@ var LegacyPush;
         var data = Storage.readJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId);
         return data || { tokens: [] };
     }
+    // True if the user has at least one registered device endpoint that is not
+    // known-dead. Used by the chat retry queue to decide whether a failed push is
+    // worth replaying (no point queueing for a user with zero devices).
+    function userHasPushTokens(nk, userId) {
+        try {
+            var td = getPushTokens(nk, userId);
+            if (!td || !td.tokens)
+                return false;
+            for (var i = 0; i < td.tokens.length; i++) {
+                var t = td.tokens[i];
+                if (t && t.endpointArn && !t.providerError)
+                    return true;
+            }
+        }
+        catch (_) { }
+        return false;
+    }
+    LegacyPush.userHasPushTokens = userHasPushTokens;
     function savePushTokens(nk, userId, data) {
         var key = "token_" + userId;
         Storage.writeJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId, data);
@@ -26386,6 +26873,26 @@ var LegacyPush;
             ar: "{name} تحداك في {mode}. أرِهم ما لديك!", id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
             zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
         },
+        // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
+        chat_message_title: {
+            en: "💬 {name}", hi: "💬 {name}", es: "💬 {name}", fr: "💬 {name}",
+            de: "💬 {name}", pt: "💬 {name}", ru: "💬 {name}", ja: "💬 {name}",
+            ko: "💬 {name}", "zh-Hans": "💬 {name}", ar: "💬 {name}", id: "💬 {name}", zu: "💬 {name}"
+        },
+        chat_message_body: {
+            en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+            ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+        },
+        // ── Chat: new group message ({name} = sender, {group} = group name, {text} = preview) ──
+        chat_group_message_title: {
+            en: "💬 {name} in {group}", hi: "💬 {group} में {name}", es: "💬 {name} en {group}", fr: "💬 {name} dans {group}",
+            de: "💬 {name} in {group}", pt: "💬 {name} em {group}", ru: "💬 {name} в {group}", ja: "💬 {group}の{name}",
+            ko: "💬 {group}의 {name}", "zh-Hans": "💬 {group} 中的 {name}", ar: "💬 {name} في {group}", id: "💬 {name} di {group}", zu: "💬 {name} ku-{group}"
+        },
+        chat_group_message_body: {
+            en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+            ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+        },
         // ── Study reminders (user-scheduled; body is the learner's own text via {text}) ──
         reminder_title: {
             en: "⏰ Study reminder", hi: "⏰ अध्ययन रिमाइंडर", es: "⏰ Recordatorio de estudio", fr: "⏰ Rappel d'étude",
@@ -26641,7 +27148,37 @@ var LegacyPush;
         return sent > 0;
     }
     LegacyPush.sendLocalizedPushToUser = sendLocalizedPushToUser;
-    // ─── S3 fetchers (mirror the URL shapes Unity already uses) ─────────────────
+    // Provider-only push used by the chat failed-push retry queue. Unlike
+    // sendLocalizedPushToUser it does NOT (re)write a persistent in-app
+    // notification — that was already written on the first attempt, so replaying
+    // it would duplicate the recipient's notification list. Title/body are passed
+    // pre-localized (the queue stored them at original send time). Returns true if
+    // at least one device accepted the push.
+    function retryChatProviderPush(ctx, logger, nk, userId, eventType, title, body, data) {
+        var tokensData = getPushTokens(nk, userId);
+        if (!tokensData.tokens || tokensData.tokens.length === 0)
+            return false;
+        var mergedData = { eventType: eventType };
+        if (data) {
+            for (var k in data) {
+                if (k !== "eventType")
+                    mergedData[k] = data[k];
+            }
+        }
+        var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+        if (deliverable.length === 0)
+            return false;
+        var sent = 0;
+        for (var i = 0; i < deliverable.length; i++) {
+            var providerResult = sendProviderPush(ctx, logger, nk, deliverable[i], {
+                title: title, body: body, data: mergedData, gameId: "quizverse", eventType: eventType
+            });
+            if (providerResult.success === true)
+                sent++;
+        }
+        return sent > 0;
+    }
+    LegacyPush.retryChatProviderPush = retryChatProviderPush;
     var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
     function fetchDailyQuizForToday(nk, logger) {
         var dateStr = todayDateKey();
@@ -47401,6 +47938,10 @@ var FortuneWheelAdSpin;
     var CYCLE_KEY = "cycle_state";
     var AD_SPINS_MAX = 3;
     var AD_COOLDOWN_SECONDS = 10800; // 3 hours
+    // Skip-cooldown: spend coins to clear the 3-day organic-spin cooldown.
+    // MUST match Unity FortuneWheelService.SKIP_COOLDOWN_COST.
+    var SKIP_COOLDOWN_COST = 50;
+    var SKIP_COOLDOWN_CURRENCY = "coins";
     // Must match SEGMENTS in fortune_wheel.js exactly
     var SEGMENTS = [
         { type: "XP", amount: 100, label: "100 XP", weight: 20 },
@@ -47449,6 +47990,38 @@ var FortuneWheelAdSpin;
         }
         catch ( /* fall through */_a) { /* fall through */ }
         return {};
+    }
+    // Persist the organic wheel state. Mirrors fwSaveWheelState in legacy_runtime.js
+    // (collection "fortune_wheel", key "state", owner read-only / server write-only).
+    function saveWheelState(nk, userId, state) {
+        nk.storageWrite([{
+                collection: "fortune_wheel",
+                key: "state",
+                userId: userId,
+                value: state,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    // Mirrors fwCanUserSpin: no nextSpinTime, or the cooldown has elapsed.
+    function canUserSpin(state) {
+        if (!state.nextSpinTime)
+            return true;
+        return new Date() >= new Date(state.nextSpinTime);
+    }
+    // Read the authoritative coin balance from the Nakama account wallet.
+    // Fortune-wheel coins are granted via nk.walletUpdate({ coins }), so the
+    // balance lives on account.wallet.coins (not the per-game storage wallet).
+    function getCoinBalance(nk, userId) {
+        try {
+            var account = nk.accountGetId(userId);
+            var wallet = (account && account.wallet) || {};
+            var coins = wallet[SKIP_COOLDOWN_CURRENCY];
+            return typeof coins === "number" && isFinite(coins) ? coins : 0;
+        }
+        catch (_a) {
+            return 0;
+        }
     }
     function getWeightedRandomIndex() {
         var totalWeight = 0;
@@ -47637,11 +48210,124 @@ var FortuneWheelAdSpin;
     }
     FortuneWheelAdSpin.rpcFortuneWheelAdSpin = rpcFortuneWheelAdSpin;
     /**
+     * RPC: fortune_wheel_skip_cooldown
+     *
+     * Server-authoritative cooldown skip: spend SKIP_COOLDOWN_COST coins to clear the
+     * 3-day organic-spin cooldown so the user can spin immediately.
+     *
+     * Order of operations (fail-safe — never deducts coins on a failed skip):
+     *   1. Auth check
+     *   2. Validate the user is actually ON cooldown      → not_on_cooldown
+     *   3. Validate balance >= cost                       → insufficient_coins
+     *   4. Deduct coins atomically (walletUpdate)         → authoritative balance from `previous`
+     *   5. Clear the organic cooldown (nextSpinTime=null) — only AFTER the debit succeeds
+     *
+     * Returns SkipCooldownResponse (see Unity FortuneWheelService.SkipCooldownResponse):
+     *   { success, error?, errorCode?, coinsSpent, coinBalance, canSpin, nextSpinTime }
+     */
+    function rpcFortuneWheelSkipCooldown(ctx, logger, nk, _payload) {
+        var _a, _b;
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({
+                success: false,
+                error: "Authentication required",
+                coinsSpent: 0,
+                coinBalance: 0,
+                canSpin: false,
+                nextSpinTime: null
+            });
+        }
+        // 1. Read current organic wheel state.
+        var state = getWheelState(nk, userId);
+        // 2. Must actually be on cooldown — no point charging otherwise.
+        if (canUserSpin(state)) {
+            return JSON.stringify({
+                success: false,
+                error: "Not on cooldown — you can already spin",
+                errorCode: "not_on_cooldown",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: true,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        // 3. Validate balance BEFORE any debit.
+        var balanceBefore = getCoinBalance(nk, userId);
+        if (balanceBefore < SKIP_COOLDOWN_COST) {
+            return JSON.stringify({
+                success: false,
+                error: "Not enough coins to skip the cooldown",
+                errorCode: "insufficient_coins",
+                coinsSpent: 0,
+                coinBalance: balanceBefore,
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        // 4. Deduct atomically. walletUpdate is authoritative and rejects negative balances.
+        var balanceAfter = balanceBefore - SKIP_COOLDOWN_COST;
+        try {
+            var result = nk.walletUpdate(userId, (_a = {}, _a[SKIP_COOLDOWN_CURRENCY] = -SKIP_COOLDOWN_COST, _a), { source: "fortune_wheel_skip_cooldown", cost: SKIP_COOLDOWN_COST, ts: new Date().toISOString() }, true);
+            // Prefer the server-reported post-debit balance when available.
+            if (result && result.updated && typeof result.updated[SKIP_COOLDOWN_CURRENCY] === "number") {
+                balanceAfter = result.updated[SKIP_COOLDOWN_CURRENCY];
+            }
+        }
+        catch (err) {
+            // Most common cause: a concurrent spend dropped the balance below cost.
+            logger.warn("[FortuneWheelSkipCooldown] coin debit failed for ".concat(userId, ": ").concat(err));
+            return JSON.stringify({
+                success: false,
+                error: "Not enough coins to skip the cooldown",
+                errorCode: "insufficient_coins",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        // 5. Clear the organic cooldown — only after the debit succeeded.
+        state.nextSpinTime = undefined;
+        try {
+            saveWheelState(nk, userId, state);
+        }
+        catch (err) {
+            // Debit already happened; refund to keep the player whole, then fail.
+            logger.error("[FortuneWheelSkipCooldown] state write failed for ".concat(userId, ", refunding: ").concat(err));
+            try {
+                nk.walletUpdate(userId, (_b = {}, _b[SKIP_COOLDOWN_CURRENCY] = +SKIP_COOLDOWN_COST, _b), { source: "fortune_wheel_skip_cooldown_refund", reason: "state_write_failed" }, true);
+            }
+            catch (refundErr) {
+                logger.error("[FortuneWheelSkipCooldown] refund ALSO failed for ".concat(userId, ": ").concat(refundErr));
+            }
+            return JSON.stringify({
+                success: false,
+                error: "Server error — cooldown not cleared (coins refunded)",
+                errorCode: "server_error",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        logger.info("[FortuneWheelSkipCooldown] ".concat(userId, " skipped cooldown for ").concat(SKIP_COOLDOWN_COST, " coins (balance ").concat(balanceBefore, " \u2192 ").concat(balanceAfter, ")"));
+        return JSON.stringify({
+            success: true,
+            coinsSpent: SKIP_COOLDOWN_COST,
+            coinBalance: balanceAfter,
+            canSpin: true,
+            nextSpinTime: null
+        });
+    }
+    FortuneWheelAdSpin.rpcFortuneWheelSkipCooldown = rpcFortuneWheelSkipCooldown;
+    /**
      * Register all RPCs in this module.
      */
     function register(initializer, logger) {
         initializer.registerRpc("fortune_wheel_ad_spin", rpcFortuneWheelAdSpin);
-        logger.info("[FortuneWheelAdSpin] ✓ Registered RPC: fortune_wheel_ad_spin (V2)");
+        initializer.registerRpc("fortune_wheel_skip_cooldown", rpcFortuneWheelSkipCooldown);
+        logger.info("[FortuneWheelAdSpin] ✓ Registered RPCs: fortune_wheel_ad_spin (V2), fortune_wheel_skip_cooldown");
     }
     FortuneWheelAdSpin.register = register;
 })(FortuneWheelAdSpin || (FortuneWheelAdSpin = {}));
