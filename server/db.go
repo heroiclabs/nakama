@@ -20,7 +20,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -91,7 +90,7 @@ func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfi
 
 	// Resolve initial database address based on host before connecting.
 	dbHostname := connConfig.Host
-	resolvedAddr, resolvedAddrMap := dbResolveAddress(ctx, logger, dbHostname)
+	resolvedAddr, resolvedAddrMap := dbResolveAddress(ctx, logger, connConfig.LookupFunc, dbHostname)
 
 	if create {
 		db := stdlib.OpenDB(connConfig)
@@ -158,7 +157,7 @@ func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfi
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				newResolvedAddr, newResolvedAddrMap := dbResolveAddress(ctx, logger, dbHostname)
+				newResolvedAddr, newResolvedAddrMap := dbResolveAddress(ctx, logger, connConfig.LookupFunc, dbHostname)
 				if len(resolvedAddr) == 0 {
 					// Could only happen when initial resolve above failed, and all resolves since have also failed.
 					// Trust the database driver in this case.
@@ -243,10 +242,10 @@ func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfi
 	return db
 }
 
-func dbResolveAddress(ctx context.Context, logger *zap.Logger, host string) ([]string, map[string]struct{}) {
+func dbResolveAddress(ctx context.Context, logger *zap.Logger, lookupFunc pgconn.LookupFunc, host string) ([]string, map[string]struct{}) {
 	resolveCtx, resolveCtxCancelFn := context.WithTimeout(ctx, 15*time.Second)
 	defer resolveCtxCancelFn()
-	addr, err := net.DefaultResolver.LookupHost(resolveCtx, host)
+	addr, err := lookupFunc(resolveCtx, host)
 	if err != nil {
 		logger.Debug("Error resolving database address, using previously resolved address", zap.String("host", host), zap.Error(err))
 		return nil, nil
