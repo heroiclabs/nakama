@@ -24567,6 +24567,7 @@ var LegacyGameEntry;
 })(LegacyGameEntry || (LegacyGameEntry = {}));
 var LegacyGameRegistry;
 (function (LegacyGameRegistry) {
+    var UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     function getGameRegistry(nk) {
         var data = Storage.readSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry");
         return data || { games: [] };
@@ -24619,10 +24620,115 @@ var LegacyGameRegistry;
             return RpcHelpers.errorResponse("Sync failed: " + err.message);
         }
     }
+    // register_game — Admin-only manual app/game registration.
+    // Payload: { title, id?, slug?, category?, description?, iconUrl? }
+    //   - If `id` is omitted, a fresh UUID is minted and returned as the AppID.
+    //   - If `id` is provided it must be a valid UUID (it becomes the gameId
+    //     apps send in analytics_log_event). Re-registering an existing id
+    //     updates that entry in place (upsert).
+    // The returned `id` is the canonical AppID used everywhere for analytics
+    // filtering — hand it to the app team to stamp on their events.
+    function rpcRegisterGame(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var title = (typeof data.title === "string" ? data.title : "").trim();
+        if (!title)
+            return RpcHelpers.errorResponse("title required");
+        var id = (typeof data.id === "string" ? data.id : "").trim();
+        if (id) {
+            if (!UUID_RE.test(id))
+                return RpcHelpers.errorResponse("id must be a valid UUID");
+            id = id.toLowerCase();
+        }
+        else {
+            id = nk.uuidv4();
+        }
+        var slug = (typeof data.slug === "string" ? data.slug : "").trim().toLowerCase();
+        if (slug && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)) {
+            return RpcHelpers.errorResponse("slug must be lowercase alphanumeric (dashes/underscores allowed, max 64 chars)");
+        }
+        var nowIso = new Date().toISOString();
+        var registry = getGameRegistry(nk);
+        var games = registry.games || [];
+        var existingIdx = -1;
+        for (var i = 0; i < games.length; i++) {
+            if (games[i].id === id) {
+                existingIdx = i;
+                break;
+            }
+            if (slug && games[i].slug === slug) {
+                return RpcHelpers.errorResponse("slug already in use by app " + games[i].id);
+            }
+        }
+        var entry;
+        if (existingIdx >= 0) {
+            entry = games[existingIdx];
+            entry.title = title;
+            if (slug)
+                entry.slug = slug;
+            if (typeof data.category === "string")
+                entry.category = data.category;
+            if (typeof data.description === "string")
+                entry.description = data.description;
+            if (typeof data.iconUrl === "string")
+                entry.iconUrl = data.iconUrl;
+            entry.updatedAt = nowIso;
+        }
+        else {
+            entry = {
+                id: id,
+                title: title,
+                slug: slug || undefined,
+                category: typeof data.category === "string" ? data.category : undefined,
+                description: typeof data.description === "string" ? data.description : undefined,
+                iconUrl: typeof data.iconUrl === "string" ? data.iconUrl : undefined,
+                status: "active",
+                source: "manual",
+                createdAt: nowIso,
+                updatedAt: nowIso
+            };
+            games.push(entry);
+        }
+        Storage.writeSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry", {
+            games: games,
+            lastSyncAt: registry.lastSyncAt
+        });
+        return RpcHelpers.successResponse({ game: entry, created: existingIdx < 0 });
+    }
+    // delete_game — Admin-only. Removes an app from the registry catalog.
+    // Note: this only forgets the display metadata; historical analytics keyed
+    // on the UUID are untouched.
+    function rpcDeleteGame(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var id = (typeof data.id === "string" ? data.id : "").trim().toLowerCase();
+        if (!id)
+            return RpcHelpers.errorResponse("id required");
+        var registry = getGameRegistry(nk);
+        var games = registry.games || [];
+        var kept = [];
+        var removed = 0;
+        for (var i = 0; i < games.length; i++) {
+            if (games[i].id === id) {
+                removed++;
+                continue;
+            }
+            kept.push(games[i]);
+        }
+        if (removed === 0)
+            return RpcHelpers.errorResponse("App not found: " + id);
+        Storage.writeSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry", {
+            games: kept,
+            lastSyncAt: registry.lastSyncAt
+        });
+        return RpcHelpers.successResponse({ success: true, removed: removed });
+    }
     function register(initializer) {
         initializer.registerRpc("get_game_registry", rpcGetGameRegistry);
         initializer.registerRpc("get_game_by_id", rpcGetGameById);
         initializer.registerRpc("sync_game_registry", rpcSyncGameRegistry);
+        initializer.registerRpc("register_game", rpcRegisterGame);
+        initializer.registerRpc("delete_game", rpcDeleteGame);
     }
     LegacyGameRegistry.register = register;
 })(LegacyGameRegistry || (LegacyGameRegistry = {}));

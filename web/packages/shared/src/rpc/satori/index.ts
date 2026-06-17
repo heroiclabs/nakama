@@ -686,6 +686,42 @@ export function getEventErrors(opts: RpcOptions): Promise<EventErrorsResult> {
   );
 }
 
+/* ── App / game registry (manual AppID registration) ─────────────── */
+
+export interface RegisteredApp {
+  id: string;
+  title: string;
+  slug?: string;
+  category?: string;
+  description?: string;
+  iconUrl?: string;
+  status?: string;
+  source?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export function getGameRegistry(opts: RpcOptions): Promise<{ games: RegisteredApp[]; lastSyncAt?: string }> {
+  return callRpc("get_game_registry", {}, opts).then((value) =>
+    unwrapData<{ games: RegisteredApp[]; lastSyncAt?: string }>(value),
+  );
+}
+
+export function registerApp(
+  params: { title: string; id?: string; slug?: string; category?: string; description?: string; iconUrl?: string },
+  opts: RpcOptions,
+): Promise<{ game: RegisteredApp; created: boolean }> {
+  return callRpc("register_game", params, opts).then((value) =>
+    unwrapData<{ game: RegisteredApp; created: boolean }>(value),
+  );
+}
+
+export function deleteApp(id: string, opts: RpcOptions): Promise<{ success: boolean; removed: number }> {
+  return callRpc("delete_game", { id }, opts).then((value) =>
+    unwrapData<{ success: boolean; removed: number }>(value),
+  );
+}
+
 /* ── Timeline ─────────────────────────────────────────────────────── */
 
 export interface TimelineDay {

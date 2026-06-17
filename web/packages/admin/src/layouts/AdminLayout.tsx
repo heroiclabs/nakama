@@ -28,6 +28,7 @@ import {
   Terminal,
   Wallet,
   BarChart3,
+  Boxes,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -55,6 +56,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Overview",
     items: [
       { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
+      { label: "Apps", to: "/apps", icon: Boxes },
       { label: "Timeline", to: "/timeline", icon: CalendarRange },
     ],
   },

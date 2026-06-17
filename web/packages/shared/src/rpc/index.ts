@@ -34,6 +34,7 @@ export type {
   SegmentBucket,
   SegmentSeriesPoint,
   SegmentsExploreResult,
+  RegisteredApp,
   EventError,
   EventErrorsResult,
   TimelineResult,
