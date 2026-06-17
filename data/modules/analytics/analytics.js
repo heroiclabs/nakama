@@ -1345,8 +1345,57 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
         var resolved = false;
         var dayHasUserList = false;
 
-        // Phase-2: try rollup first for any day older than today.
-        if (useRollups && d > 0) {
+        // Always try the per-day analytics_dau doc FIRST: it carries the
+        // `uniqueUsers` list which is the ONLY source that lets us dedup users
+        // across days for an exact WAU/MAU. Rollup docs only store a
+        // `unique_users` COUNT (no IDs), so reading them first made it
+        // impossible to dedup and systematically under-counted WAU/MAU.
+        var record = null;
+        try {
+            var key = gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr;
+            var objs = nk.storageRead([{ collection: 'analytics_dau', key: key, userId: SYSTEM_USER }]);
+            if (objs && objs.length > 0) record = objs[0].value;
+
+            // Older days were written under unix-timestamp keys (legacy format)
+            // instead of YYYY-MM-DD. Fall back to that key shape so those days
+            // aren't silently missed.
+            if (!record) {
+                var unixTs = Math.floor(Date.parse(dateStr + 'T00:00:00Z') / 1000);
+                var legacyKey = gameId === 'all' ? 'dau_platform_' + unixTs : 'dau_' + gameId + '_' + unixTs;
+                var legacyObjs = nk.storageRead([{ collection: 'analytics_dau', key: legacyKey, userId: SYSTEM_USER }]);
+                if (legacyObjs && legacyObjs.length > 0) record = legacyObjs[0].value;
+            }
+        } catch (e) { /* no data */ }
+
+        if (record) {
+            liveFallbacks++;
+            var uniqueUsersRaw = record.uniqueUsers;
+            var recordUsers = record.users || (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw : []);
+            dayUsers = (parseInt(record.count, 10) || 0) ||
+                (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw.length : (parseInt(uniqueUsersRaw, 10) || 0)) ||
+                (recordUsers ? recordUsers.length : 0);
+            dayNewUsers = record.newUsers || 0;
+            if (d === 0) newUsersToday = dayNewUsers;
+
+            var userList = recordUsers || [];
+            if (Array.isArray(userList) && userList.length > 0) {
+                dayHasUserList = true;
+                for (var ui = 0; ui < userList.length; ui++) {
+                    var uid = userList[ui];
+                    if (d < 7) wauUserSet[uid] = true;
+                    mauUserSet[uid] = true;
+                }
+            }
+            if (!dayHasUserList && typeof dayUsers === 'number') {
+                if (d < 7) wauDailySum += dayUsers;
+                mauDailySum += dayUsers;
+            }
+            resolved = true;
+        }
+
+        // Only when there's no per-day doc at all do we fall back to the rollup
+        // COUNT (can't dedup — contributes to the estimated sum path).
+        if (!resolved && useRollups && d > 0) {
             var rollup = readRollupDaily(nk, gameId, dateStr);
             if (rollup) {
                 dayUsers = rollup.dau || 0;
@@ -1358,40 +1407,6 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
             }
         }
 
-        if (!resolved) {
-            var key = gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr;
-            var record = null;
-            try {
-                var objs = nk.storageRead([{ collection: 'analytics_dau', key: key, userId: SYSTEM_USER }]);
-                if (objs && objs.length > 0) record = objs[0].value;
-            } catch (e) { /* no data */ }
-            liveFallbacks++;
-
-            if (record) {
-                var uniqueUsersRaw = record.uniqueUsers;
-                var recordUsers = record.users || (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw : []);
-                dayUsers = (parseInt(record.count, 10) || 0) ||
-                    (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw.length : (parseInt(uniqueUsersRaw, 10) || 0)) ||
-                    (recordUsers ? recordUsers.length : 0);
-                dayNewUsers = record.newUsers || 0;
-                if (d === 0) newUsersToday = dayNewUsers;
-
-                var userList = recordUsers || [];
-                if (Array.isArray(userList) && userList.length > 0) {
-                    dayHasUserList = true;
-                    for (var ui = 0; ui < userList.length; ui++) {
-                        var uid = userList[ui];
-                        if (d < 7) wauUserSet[uid] = true;
-                        mauUserSet[uid] = true;
-                    }
-                }
-                if (!dayHasUserList && typeof dayUsers === 'number') {
-                    if (d < 7) wauDailySum += dayUsers;
-                    mauDailySum += dayUsers;
-                }
-            }
-        }
-
         dauTrend.unshift({ date: dateStr, count: dayUsers, newUsers: dayNewUsers });
     }
 
@@ -1399,18 +1414,16 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var dau = dauTrend.length > 0 ? dauTrend[dauTrend.length - 1].count : 0;
     var wauUnique = Object.keys(wauUserSet).length;
     var mauUnique = Object.keys(mauUserSet).length;
-    // WAU/MAU: when rollup docs are present they don't carry a user list, so we
-    // cannot dedup across days. Use the LARGER of:
-    //   wauUnique  = deduped users from live-fallback days (exact, may under-count
-    //                if some days used rollup and those users aren't in the live set)
-    //   wauDailySum = sum of per-day DAU from rollup docs (upper bound, over-counts
-    //                 returning users)
-    // Picking max() gives the most honest single number. We NEVER add them — that
-    // would double-count every user who appears on both a live and a rollup day.
-    var wau = Math.max(wauUnique, wauDailySum);
-    var mau = Math.max(mauUnique, mauDailySum);
-    var wauEstimated = wauAnyRollup || (wauUnique === 0 && wauDailySum > 0);
-    var mauEstimated = mauAnyRollup || (mauUnique === 0 && mauDailySum > 0);
+    // WAU/MAU: per-day analytics_dau docs carry the user-ID list, so days that
+    // resolved that way are deduped EXACTLY (wauUnique / mauUnique). Rollup-only
+    // days carry just a count (no IDs) and accumulate into wauDailySum /
+    // mauDailySum. Those two sets of days are disjoint, so the best single
+    // estimate is unique + rollupSum. When there are no rollup-only days
+    // (rollupSum === 0) this collapses to the exact deduped figure.
+    var wau = wauUnique + wauDailySum;
+    var mau = mauUnique + mauDailySum;
+    var wauEstimated = wauAnyRollup;
+    var mauEstimated = mauAnyRollup;
 
     var dauMauRatio = mau > 0 ? dau / mau : 0;
 
