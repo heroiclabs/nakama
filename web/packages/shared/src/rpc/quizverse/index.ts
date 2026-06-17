@@ -1,4 +1,4 @@
-import { callRpc, type RpcOptions } from "../client";
+import { callRpc, callDashboardApi, type RpcOptions } from "../client";
 
 export interface GiftCardTier {
   rank: string;
@@ -227,4 +227,42 @@ export function settlePrizeFulfillment(
   return callRpc("admin_prize_fulfillment_settle", input, opts).then((value) =>
     unwrapData<{ success: boolean; key: string; status: string; settledAt: number }>(value),
   );
+}
+
+/** Auto-fulfillment: mint a REAL gift card, email the code, settle the record. */
+export interface AutoFulfillPrizeInput {
+  eventId: string;
+  userId: string;
+  /** Required — recipient address the voucher code/link is emailed to. */
+  email: string;
+  provider?: "tremendous" | "reloadly";
+}
+
+export interface AutoFulfillPrizeResult {
+  ok: boolean;
+  eventId?: string;
+  userId?: string;
+  provider?: string;
+  product?: { id: string | number; name: string };
+  orderId?: string;
+  codeIssued?: boolean;
+  emailSent?: boolean;
+  deliveredTo?: string;
+  settled?: boolean;
+  warning?: string;
+  error?: string;
+}
+
+/**
+ * One-click auto fulfillment. Routes through the dashboard proxy's
+ * `/prize-fulfill` endpoint, which mints a real gift card via
+ * Tremendous/Reloadly, emails the code/redemption link to the winner via SES,
+ * and settles the Nakama record. The provider secrets + admin key live only on
+ * the proxy, never in the browser.
+ */
+export function autoFulfillPrize(
+  input: AutoFulfillPrizeInput,
+  opts: RpcOptions,
+): Promise<AutoFulfillPrizeResult> {
+  return callDashboardApi<AutoFulfillPrizeResult>("/prize-fulfill", input, opts);
 }

@@ -22,9 +22,11 @@ import {
 import {
   serverKeyAuth,
   quizverse,
+  NakamaRpcError,
   type PrizeFulfillment,
   type FulfillmentStatus,
   type SettlePrizeFulfillmentInput,
+  type AutoFulfillPrizeInput,
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
@@ -97,97 +99,89 @@ function useSettle() {
   });
 }
 
+function useAutoFulfill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: AutoFulfillPrizeInput) =>
+      quizverse.autoFulfillPrize(input, serverKeyAuth()),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["quizverse", "prize_fulfillments"] }),
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /*  Approve panel                                                      */
 /* ------------------------------------------------------------------ */
 
 interface ApprovePanelProps {
   fulfillment: PrizeFulfillment;
-  onSubmit: (input: SettlePrizeFulfillmentInput) => void;
+  onSubmit: (input: AutoFulfillPrizeInput) => void;
   onCancel: () => void;
   isPending: boolean;
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function ApprovePanel({ fulfillment, onSubmit, onCancel, isPending }: ApprovePanelProps) {
-  const [provider, setProvider] = useState("reloadly");
-  const [orderId, setOrderId] = useState("");
-  const [deliveredTo, setDeliveredTo] = useState(fulfillment.email ?? "");
-  const [cardLast4, setCardLast4] = useState("");
-  const [codeDelivered, setCodeDelivered] = useState(true);
+  const [provider, setProvider] = useState<"tremendous" | "reloadly">("reloadly");
+  const [email, setEmail] = useState(fulfillment.email ?? "");
+  const emailValid = EMAIL_RE.test(email.trim());
 
   return (
     <div className="mt-3 space-y-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
       <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <PackageCheck className="h-4 w-4 text-emerald-400" />
-        Approve & mark voucher delivered
+        Approve & auto-send voucher
       </h4>
+      <p className="text-xs leading-relaxed text-amber-400/90">
+        Mints a <strong>real</strong> {prizeLabel(fulfillment)} gift card via the selected provider and
+        emails the code / redemption link to the winner. Money is spent only when you confirm.
+      </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
           <label className="text-xs font-medium text-muted-foreground">Provider</label>
-          <input
+          <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value)}
-            placeholder="reloadly"
+            onChange={(e) => setProvider(e.target.value === "reloadly" ? "reloadly" : "tremendous")}
             className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+          >
+            <option value="reloadly">Reloadly</option>
+            <option value="tremendous">Tremendous</option>
+          </select>
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Order ID</label>
+          <label className="text-xs font-medium text-muted-foreground">Deliver to (email)</label>
           <input
-            value={orderId}
-            onChange={(e) => setOrderId(e.target.value)}
-            placeholder="provider order reference"
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Delivered to (email)</label>
-          <input
-            value={deliveredTo}
-            onChange={(e) => setDeliveredTo(e.target.value)}
-            placeholder="player@email.com"
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Card last 4 (optional)</label>
-          <input
-            value={cardLast4}
-            onChange={(e) => setCardLast4(e.target.value)}
-            placeholder="1234"
-            maxLength={4}
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="winner@email.com"
+            className={cn(
+              "w-full rounded-md border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring",
+              email.trim() && !emailValid ? "border-red-500/50" : "border-border",
+            )}
           />
         </div>
       </div>
-      <label className="flex items-center gap-2 text-sm text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={codeDelivered}
-          onChange={(e) => setCodeDelivered(e.target.checked)}
-          className="h-4 w-4 rounded border-border"
-        />
-        Code already delivered to the player
-      </label>
+      {!emailValid && (
+        <p className="text-xs text-amber-400">
+          Enter the winner's email — the voucher is delivered there. This record has no email on file.
+        </p>
+      )}
       <div className="flex items-center gap-2 pt-1">
         <button
           onClick={() =>
             onSubmit({
               eventId: fulfillment.eventId,
               userId: fulfillment.userId,
-              status: "fulfilled",
-              provider: provider.trim() || "reloadly",
-              orderId: orderId.trim() || undefined,
-              deliveredTo: deliveredTo.trim() || undefined,
-              cardLast4: cardLast4.trim() || undefined,
-              codeDelivered,
+              email: email.trim(),
+              provider,
             })
           }
-          disabled={isPending}
+          disabled={isPending || !emailValid}
           className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600/90 disabled:opacity-50"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-          Confirm Approve
+          Confirm & Send Voucher
         </button>
         <button
           onClick={onCancel}
@@ -210,7 +204,7 @@ interface RowProps {
   isApproving: boolean;
   isSettling: boolean;
   onToggleApprove: () => void;
-  onSubmitApprove: (input: SettlePrizeFulfillmentInput) => void;
+  onSubmitApprove: (input: AutoFulfillPrizeInput) => void;
   onCancelApprove: () => void;
   onReject: () => void;
 }
@@ -334,6 +328,7 @@ export function PrizesPage() {
 
   const { data: fulfillments = [], isLoading, isError, error, refetch } = useFulfillments(status);
   const settle = useSettle();
+  const autoFulfill = useAutoFulfill();
 
   const filtered = useMemo(() => {
     let list = fulfillments;
@@ -358,11 +353,34 @@ export function PrizesPage() {
     return c;
   }, [fulfillments]);
 
-  function handleSubmitApprove(input: SettlePrizeFulfillmentInput) {
+  function handleSubmitApprove(input: AutoFulfillPrizeInput) {
+    const confirmed = window.confirm(
+      `Mint a REAL gift card and email it to ${input.email}?\n\n` +
+        `Provider: ${input.provider ?? "auto"}\n` +
+        `This spends real money and cannot be undone.`,
+    );
+    if (!confirmed) return;
     setSettlingKey(`${input.eventId}:${input.userId}`);
-    settle.mutate(input, {
+    autoFulfill.mutate(input, {
       onSettled: () => setSettlingKey(null),
-      onSuccess: () => setApprovingKey(null),
+      onSuccess: (res) => {
+        setApprovingKey(null);
+        if (res?.ok) {
+          window.alert(
+            `Voucher fulfilled ✅\n` +
+              `Order: ${res.orderId ?? "—"}\n` +
+              `Email sent: ${res.emailSent ? "yes" : "no"}\n` +
+              `Delivered to: ${res.deliveredTo ?? input.email}` +
+              (res.warning ? `\n\n⚠️ ${res.warning}` : ""),
+          );
+        } else {
+          window.alert(`Fulfillment failed: ${res?.error ?? "unknown error"}`);
+        }
+      },
+      onError: (err) => {
+        const body = err instanceof NakamaRpcError ? (err.body as { error?: string } | undefined) : undefined;
+        window.alert(`Fulfillment failed: ${body?.error ?? (err as Error)?.message ?? "unknown error"}`);
+      },
     });
   }
 
