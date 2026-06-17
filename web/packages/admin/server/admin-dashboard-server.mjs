@@ -25,6 +25,15 @@ const nakamaHttpKey = process.env.NAKAMA_HTTP_KEY ?? "";
 const consoleAuth = process.env.NAKAMA_CONSOLE_BASIC_AUTH
   ?? buildBasicAuth(process.env.NAKAMA_CONSOLE_USERNAME, process.env.NAKAMA_CONSOLE_PASSWORD);
 
+// Live-event prize auto-fulfillment: the dashboard proxies the browser's
+// "Approve" click to the Next.js fulfill endpoint, injecting the admin key
+// server-side so it never reaches the browser. Defaults to the in-cluster
+// Quizverse frontend service; override via env for other environments.
+const liveEventsFulfillBaseUrl = stripTrailingSlash(
+  process.env.LIVE_EVENTS_FULFILL_BASE_URL ?? "http://intelliverse-quiz-frontend.aicart.svc.cluster.local:3000",
+);
+const liveEventsAdminKey = process.env.LIVE_EVENTS_ADMIN_KEY ?? "";
+
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -246,6 +255,57 @@ async function handleHttpProxy(req, res, url) {
   res.end(Buffer.from(responseBody));
 }
 
+async function handlePrizeFulfill(req, res) {
+  const token = getBearerToken(req);
+  const adminSession = await validateAdminToken(token);
+  if (!adminSession) {
+    sendJson(res, 401, { ok: false, error: "admin authentication required" });
+    return;
+  }
+  // Minting a real gift card spends money — gate on the same write role used
+  // for other privileged dashboard actions.
+  if (!roleCanAccess(adminSession.role, "admin_write")) {
+    sendJson(res, 403, { ok: false, error: `role '${adminSession.role}' cannot fulfill prizes` });
+    return;
+  }
+  if (!liveEventsAdminKey) {
+    sendJson(res, 503, {
+      ok: false,
+      error: "LIVE_EVENTS_ADMIN_KEY is not configured on the dashboard proxy — set it to enable auto-fulfillment",
+    });
+    return;
+  }
+
+  const payload = await readJson(req);
+  const eventId = typeof payload.eventId === "string" ? payload.eventId.trim() : "";
+  const userId = typeof payload.userId === "string" ? payload.userId.trim() : "";
+  const email = typeof payload.email === "string" ? payload.email.trim() : "";
+  const provider = payload.provider === "reloadly" || payload.provider === "tremendous" ? payload.provider : undefined;
+  if (!eventId || !userId) {
+    sendJson(res, 400, { ok: false, error: "eventId and userId required" });
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    sendJson(res, 422, { ok: false, error: "A valid recipient email is required to deliver the voucher" });
+    return;
+  }
+
+  const target = `${liveEventsFulfillBaseUrl}/api/live-events/fulfill`;
+  const response = await fetch(target, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-admin-key": liveEventsAdminKey },
+    body: JSON.stringify({ eventId, userId, email, provider }),
+  });
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = { ok: false, error: (text || "").slice(0, 400) || "fulfillment endpoint returned no body" };
+  }
+  sendJson(res, response.status, parsed ?? { ok: false, error: "fulfillment endpoint returned no body" });
+}
+
 async function rawBody(req) {
   const chunks = [];
   let total = 0;
@@ -332,6 +392,10 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === `${apiPrefix}/login` && req.method === "POST") {
       await handleLogin(req, res);
+      return;
+    }
+    if (url.pathname === `${apiPrefix}/prize-fulfill` && req.method === "POST") {
+      await handlePrizeFulfill(req, res);
       return;
     }
     if (url.pathname.startsWith(`${apiPrefix}/rpc/`) && req.method === "POST") {

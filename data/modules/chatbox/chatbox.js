@@ -375,7 +375,7 @@ var CBX_INTENT_SCHEMA_PROMPT =
     "- Keep reply under 280 characters. No emoji spam (max 1 per reply).\n" +
     "- VALID_MODES: " + CBX_CHAT_LAUNCHABLE_MODES.join(", ");
 
-function cbxBuildUserPrompt(message, playerCtx, kbContext, locale) {
+function cbxBuildUserPrompt(message, playerCtx, kbContext, locale, intentHint) {
     // P0-7 / OWASP LLM01: separate SERVER-TRUSTED context from UNTRUSTED user
     // input with an explicit fence + instruction. The LLM is told NOT to
     // follow instructions found inside the user block. This isn't a perfect
@@ -396,6 +396,11 @@ function cbxBuildUserPrompt(message, playerCtx, kbContext, locale) {
     if (playerCtx.totalSessions) lines.push("Sessions played: " + playerCtx.totalSessions);
     if (playerCtx.favoriteCategory) lines.push("Favorite category: " + playerCtx.favoriteCategory);
     if (locale && locale !== CBX_DEFAULT_LOCALE) lines.push("Player locale: " + locale + " (reply in this language)");
+    
+    // QVBF-52: Include client intent hint as trusted metadata (helps LLM tailor response)
+    if (intentHint && intentHint !== "unknown") {
+        lines.push("Client intent classification: " + intentHint + " (tailor response tone accordingly)");
+    }
 
     // --- Client-supplied hints (untrusted; the model is told this) ---
     if (kbContext && kbContext.user) {
@@ -700,7 +705,29 @@ function rpcQuizverseChatboxGreeting(ctx, logger, nk, payload) {
         var req = {};
         try { req = JSON.parse(payload || "{}"); } catch (e) { req = {}; }
 
-        var playerCtx = cbxGatherPlayerContext(nk, logger, ctx.userId, "quizverse");
+        // QVBF-52: Use client-supplied playerContext if available (saves DB roundtrip)
+        var playerCtx;
+        if (req.playerContext && typeof req.playerContext === "object" && req.playerContext.displayName) {
+            // Client already fetched profile — trust it (session is authenticated)
+            // Handle both old format (streak as int) and new format (currentStreak)
+            var streakValue = parseInt(req.playerContext.currentStreak || req.playerContext.streak, 10) || 0;
+            
+            playerCtx = {
+                userId: ctx.userId,
+                displayName: String(req.playerContext.displayName).substring(0, 64) || "Player",
+                username: String(req.playerContext.username || req.playerContext.displayName).substring(0, 64) || "Player",
+                level: parseInt(req.playerContext.level, 10) || 0,
+                streak: { 
+                    currentStreak: streakValue
+                },
+                totalSessions: parseInt(req.playerContext.totalGamesPlayed, 10) || 0,
+                favoriteCategory: String(req.playerContext.favoriteCategory || req.playerContext.preferredTopic || "").substring(0, 64)
+            };
+        } else {
+            // Fallback: fetch from server (backward compatibility for old clients)
+            playerCtx = cbxGatherPlayerContext(nk, logger, ctx.userId, "quizverse");
+        }
+
         var kbCtx = req.knowledgeBaseContext || null;
 
         var systemPrompt =
@@ -711,7 +738,7 @@ function rpcQuizverseChatboxGreeting(ctx, logger, nk, payload) {
             "Each chip max 24 chars, action-oriented.";
 
         var userMsg = cbxBuildUserPrompt("__GREETING__", playerCtx, kbCtx,
-            req.locale || CBX_DEFAULT_LOCALE);
+            req.locale || CBX_DEFAULT_LOCALE, "unknown");
 
         var llm = cbxCallLLM(nk, logger, ctx, systemPrompt, userMsg, CBX_GREETING_MAX_TOKENS);
         var parsed = llm.success ? cbxParseLlmJson(llm.text) : null;
@@ -759,6 +786,11 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
 
         var req = {};
         try { req = JSON.parse(payload || "{}"); } catch (e) { req = {}; }
+
+        // QVBF-52: Extract client-side intent hint for better response targeting
+        var intentHint = (req.intentHint && typeof req.intentHint === "string") 
+            ? req.intentHint.toLowerCase().trim() 
+            : "unknown";
 
         // P0-7: normalize before any length check so invisible/control
         // chars can't be used to pad past the limit then snap back.
@@ -819,11 +851,56 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
             });
         }
 
-        var playerCtx = cbxGatherPlayerContext(nk, logger, ctx.userId, "quizverse");
-        var kbCtx = req.knowledgeBaseContext || null;
-        var userMsg = cbxBuildUserPrompt(message, playerCtx, kbCtx, req.locale || CBX_DEFAULT_LOCALE);
+        // QVBF-52: Use client-supplied playerContext if available (saves DB roundtrip)
+        var playerCtx;
+        if (req.playerContext && typeof req.playerContext === "object" && req.playerContext.displayName) {
+            // Client already fetched profile — trust it (session is authenticated)
+            // Handle both old format (streak as int) and new format (currentStreak)
+            var streakValue = parseInt(req.playerContext.currentStreak || req.playerContext.streak, 10) || 0;
+            
+            playerCtx = {
+                userId: ctx.userId,
+                displayName: String(req.playerContext.displayName).substring(0, 64) || "Player",
+                username: String(req.playerContext.username || req.playerContext.displayName).substring(0, 64) || "Player",
+                level: parseInt(req.playerContext.level, 10) || 0,
+                streak: { 
+                    currentStreak: streakValue
+                },
+                totalSessions: parseInt(req.playerContext.totalGamesPlayed, 10) || 0,
+                favoriteCategory: String(req.playerContext.favoriteCategory || req.playerContext.preferredTopic || "").substring(0, 64)
+            };
+        } else {
+            // Fallback: fetch from server (backward compatibility for old clients)
+            playerCtx = cbxGatherPlayerContext(nk, logger, ctx.userId, "quizverse");
+        }
 
-        var llm = cbxCallLLM(nk, logger, ctx, CBX_INTENT_SCHEMA_PROMPT, userMsg, CBX_DEFAULT_MAX_TOKENS);
+        var kbCtx = req.knowledgeBaseContext || null;
+        var userMsg = cbxBuildUserPrompt(message, playerCtx, kbCtx, req.locale || CBX_DEFAULT_LOCALE, intentHint);
+
+        // QVBF-52: Adjust system prompt based on client intent classification
+        var systemPrompt = CBX_INTENT_SCHEMA_PROMPT;
+        if (intentHint === "conversational") {
+            systemPrompt += "\n\nIMPORTANT: The player is asking a CONVERSATIONAL question (fact, trivia, general knowledge). " +
+                            "Provide a direct, informative answer in 1-2 sentences. Do NOT ask quiz setup questions or push them to play. " +
+                            "Set intent=SMALLTALK. Be warm and helpful, then offer ONE optional quiz suggestion in suggestions array.";
+        } else if (intentHint === "quizintent" || intentHint === "quiz") {
+            systemPrompt += "\n\nIMPORTANT: The player wants to START or PLAY A QUIZ. Fast-track them directly to quiz mode. " +
+                            "Set intent=OPEN_QUIZ_MODE and identify the best matching quizMode from VALID_MODES. " +
+                            "Keep reply brief and encouraging. Skip all setup questions.";
+        } else if (intentHint === "learnertoolbelt") {
+            systemPrompt += "\n\nIMPORTANT: The player is asking about STUDY/EXAM TOOLS (GPA calculator, exam countdown, school finder, study planner). " +
+                            "Acknowledge their request, provide brief helpful context about the tool, and guide them to access it. " +
+                            "Set intent=HELP. Be supportive and informative.";
+        } else if (intentHint === "helpfeedback") {
+            systemPrompt += "\n\nIMPORTANT: The player needs HELP or wants to give FEEDBACK. " +
+                            "Be extra supportive and helpful. Set intent=HELP. Offer clear guidance or acknowledge their feedback warmly.";
+        } else if (intentHint === "navigation") {
+            systemPrompt += "\n\nIMPORTANT: The player wants to NAVIGATE the app (stats, profile, leaderboard, topics). " +
+                            "Set the appropriate intent (SHOW_STATS, SHOW_TOPICS, etc.) and guide them clearly in 1 sentence.";
+        }
+        // intentHint === "unknown" or anything else: use default CBX_INTENT_SCHEMA_PROMPT as-is
+
+        var llm = cbxCallLLM(nk, logger, ctx, systemPrompt, userMsg, CBX_DEFAULT_MAX_TOKENS);
         var parsed = llm.success ? cbxParseLlmJson(llm.text) : null;
 
         if (!parsed) {
