@@ -4255,11 +4255,16 @@
                 const payload = { days: rangeDays, ...getGamePayload() };
                 const rangeCaption = getRangeCaption();
                 const arpuPeriod = arpuPeriodForSelectedDays();
-                const [data, revenueData, sessionData] = await Promise.all([
+                const [data, revenueResp, sessionData] = await Promise.all([
                     callRpc('analytics_dashboard', payload),
                     callRpc('analytics_arpu', { period: arpuPeriod, ...getGamePayload() }).catch(() => ({})),
                     callRpc('analytics_session_stats', payload).catch(() => ({}))
                 ]);
+                // analytics_arpu wraps its result via RpcHelpers.successResponse
+                // → { success:true, data:{...} }, unlike analytics_dashboard which
+                // returns flat JSON. Unwrap .data so totalRevenue/avgDau resolve
+                // (otherwise Revenue + ARPDAU silently read undefined → $0).
+                const revenueData = (revenueResp && revenueResp.data) ? revenueResp.data : (revenueResp || {});
                 
                 if (data.error) {
                     document.getElementById('overviewKpis').innerHTML = `<div class="error">${data.error}</div>`;
