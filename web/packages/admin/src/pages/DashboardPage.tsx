@@ -52,6 +52,7 @@ import {
 import { cn } from "@/lib/utils";
 import { WorldMap } from "@/components/WorldMap";
 import { countryName, flagEmoji } from "@/lib/iso-countries";
+import { useAdminStore } from "@/stores/admin-store";
 
 const REFETCH_MS = 15_000;
 
@@ -69,29 +70,32 @@ function useHealth() {
   });
 }
 
-function useSummary() {
+function useSummary(appId: string) {
   return useQuery<DashboardSummary>({
-    queryKey: ["admin", "dashboard-summary"],
-    queryFn: () => satori.getDashboardSummary(serverKeyAuth()),
+    queryKey: ["admin", "dashboard-summary", appId],
+    queryFn: () => satori.getDashboardSummary(serverKeyAuth(), appId || undefined),
     refetchInterval: REFETCH_MS,
     retry: 1,
   });
 }
 
-function useGameMetrics(days: number) {
+function useGameMetrics(days: number, appId: string) {
   return useQuery<GameMetricsResult>({
-    queryKey: ["admin", "game-metrics", days],
-    queryFn: () => satori.getGameMetrics({ days }, serverKeyAuth()),
+    queryKey: ["admin", "game-metrics", days, appId],
+    queryFn: () => satori.getGameMetrics({ days, game_id: appId || undefined }, serverKeyAuth()),
     refetchInterval: 60_000,
     retry: 1,
   });
 }
 
-function useSegmentsExplore(days: number, event: string) {
+function useSegmentsExplore(days: number, event: string, appId: string) {
   return useQuery<SegmentsExploreResult>({
-    queryKey: ["admin", "segments-explore", days, event],
+    queryKey: ["admin", "segments-explore", days, event, appId],
     queryFn: () =>
-      satori.getSegmentsExplore({ days, event: event || undefined }, serverKeyAuth()),
+      satori.getSegmentsExplore(
+        { days, event: event || undefined, game_id: appId || undefined },
+        serverKeyAuth(),
+      ),
     refetchInterval: 60_000,
     retry: 1,
   });
@@ -1118,10 +1122,11 @@ export function DashboardPage() {
   const [tab, setTab] = useState<"status" | "metrics">("status");
   const [metricsDays, setMetricsDays] = useState(14);
   const [eventFilter, setEventFilter] = useState("");
+  const selectedAppId = useAdminStore((s) => s.selectedAppId);
   const health = useHealth();
-  const summary = useSummary();
-  const gameMetrics = useGameMetrics(metricsDays);
-  const segments = useSegmentsExplore(metricsDays, eventFilter);
+  const summary = useSummary(selectedAppId);
+  const gameMetrics = useGameMetrics(metricsDays, selectedAppId);
+  const segments = useSegmentsExplore(metricsDays, eventFilter, selectedAppId);
   const eventErrors = useEventErrors();
   const hiroStatus = useHiroStatus();
   const satoriStatus = useSatoriStatus();

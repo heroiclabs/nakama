@@ -599,7 +599,7 @@ export interface GameMetricsResult {
 }
 
 export function getGameMetrics(
-  params: { days?: number },
+  params: { days?: number; game_id?: string },
   opts: RpcOptions,
 ): Promise<GameMetricsResult> {
   return callRpc("satori_game_metrics", params, opts).then((value) =>

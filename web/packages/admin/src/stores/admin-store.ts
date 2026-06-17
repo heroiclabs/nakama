@@ -4,6 +4,9 @@ import { persist } from "zustand/middleware";
 interface AdminSettings {
   theme: "light" | "dark" | "system";
   setTheme: (theme: "light" | "dark" | "system") => void;
+  // Globally-selected app for analytics surfaces. "" = all apps (platform-wide).
+  selectedAppId: string;
+  setSelectedAppId: (id: string) => void;
 }
 
 export const useAdminStore = create<AdminSettings>()(
@@ -12,6 +15,8 @@ export const useAdminStore = create<AdminSettings>()(
       // Admin portal lands in dark mode by default.
       theme: "dark",
       setTheme: (theme) => set({ theme }),
+      selectedAppId: "",
+      setSelectedAppId: (selectedAppId) => set({ selectedAppId }),
     }),
     {
       name: "nakama-admin-settings",

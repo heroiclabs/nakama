@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { serverKeyAuth, satori } from "@nakama/shared";
 import {
   Activity,
   Filter,
@@ -32,6 +34,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Sun,
   Moon,
   LogOut,
@@ -115,6 +118,44 @@ function getPageTitle(pathname: string) {
   return item?.label ?? "Admin Console";
 }
 
+function AppSelector() {
+  const selectedAppId = useAdminStore((s) => s.selectedAppId);
+  const setSelectedAppId = useAdminStore((s) => s.setSelectedAppId);
+  const { data: apps } = useQuery({
+    queryKey: ["admin", "apps", "selector"],
+    queryFn: () => satori.getGameRegistry(serverKeyAuth()),
+    select: (d) => d.games ?? [],
+    retry: 1,
+    staleTime: 60_000,
+  });
+
+  const list = apps ?? [];
+  const knownIds = new Set(list.map((a) => a.id));
+
+  return (
+    <div className="relative flex items-center">
+      <Boxes className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
+      <select
+        value={selectedAppId}
+        onChange={(e) => setSelectedAppId(e.target.value)}
+        title="Scope analytics to an app"
+        className="h-8 max-w-[180px] cursor-pointer appearance-none truncate rounded-md border border-border bg-background pl-7 pr-7 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent focus:border-primary"
+      >
+        <option value="">All Apps</option>
+        {list.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.title}
+          </option>
+        ))}
+        {selectedAppId && !knownIds.has(selectedAppId) && (
+          <option value={selectedAppId}>{selectedAppId.slice(0, 8)}…</option>
+        )}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-muted-foreground" />
+    </div>
+  );
+}
+
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
@@ -195,6 +236,7 @@ export function AdminLayout() {
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-card/80 px-6 backdrop-blur">
           <h1 className="text-lg font-semibold">{pageTitle}</h1>
           <div className="flex items-center gap-3">
+            <AppSelector />
             <button
               onClick={toggleTheme}
               title={`Theme: ${theme}`}
