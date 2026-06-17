@@ -1336,36 +1336,84 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var mauAnyRollup = false;
     var newUsersToday = 0;
 
+    // Build the list of dates we need (newest → oldest) and the storage keys
+    // for each. We then read them in BATCHES (one storageRead per data source)
+    // instead of 2–3 sequential reads per day. With a 30-day window the old
+    // loop issued 30–90 sequential storageRead round-trips, which pushed the
+    // RPC past the 30s gateway timeout. Batching collapses that to 3 reads.
+    var dayInfos = []; // { d, dateStr, dauKey, legacyKey, rollupKey }
     for (var d = 0; d < scanDays; d++) {
         var date = new Date(now.getTime() - d * 86400000);
         var dateStr = date.toISOString().slice(0, 10);
+        var unixTs = Math.floor(Date.parse(dateStr + 'T00:00:00Z') / 1000);
+        dayInfos.push({
+            d: d,
+            dateStr: dateStr,
+            dauKey: gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr,
+            legacyKey: gameId === 'all' ? 'dau_platform_' + unixTs : 'dau_' + gameId + '_' + unixTs,
+            rollupKey: 'rollup_' + (gameId || 'all') + '_' + dateStr
+        });
+    }
+
+    // Helper: read many keys from one collection in a single call and return a
+    // { key: value } map. Nakama caps a single storageRead at 100 objects, so
+    // we chunk to stay within that limit.
+    function batchRead(collection, keys) {
+        var out = {};
+        for (var c = 0; c < keys.length; c += 100) {
+            var slice = keys.slice(c, c + 100);
+            var reqs = [];
+            for (var i = 0; i < slice.length; i++) {
+                reqs.push({ collection: collection, key: slice[i], userId: SYSTEM_USER });
+            }
+            try {
+                var res = nk.storageRead(reqs);
+                if (res) {
+                    for (var r = 0; r < res.length; r++) {
+                        out[res[r].key] = res[r].value;
+                    }
+                }
+            } catch (e) { /* no data for this chunk */ }
+        }
+        return out;
+    }
+
+    // Pass 1: primary YYYY-MM-DD dau docs (carry the user list → exact dedup).
+    var primaryKeys = [];
+    for (var pi = 0; pi < dayInfos.length; pi++) primaryKeys.push(dayInfos[pi].dauKey);
+    var dauByKey = batchRead('analytics_dau', primaryKeys);
+
+    // Pass 2: legacy unix-timestamp dau docs, but ONLY for days that missed.
+    var legacyNeeded = [];
+    for (var li = 0; li < dayInfos.length; li++) {
+        if (!dauByKey[dayInfos[li].dauKey]) legacyNeeded.push(dayInfos[li].legacyKey);
+    }
+    var legacyByKey = legacyNeeded.length > 0 ? batchRead('analytics_dau', legacyNeeded) : {};
+
+    // Pass 3: rollup counts (no user list), ONLY for days still unresolved and
+    // older than today.
+    var rollupNeeded = [];
+    for (var ri = 0; ri < dayInfos.length; ri++) {
+        var infoR = dayInfos[ri];
+        var hasDau = dauByKey[infoR.dauKey] || legacyByKey[infoR.legacyKey];
+        if (!hasDau && useRollups && infoR.d > 0) rollupNeeded.push(infoR.rollupKey);
+    }
+    var rollupByKey = rollupNeeded.length > 0 ? batchRead('analytics_rollup_daily', rollupNeeded) : {};
+
+    for (var di = 0; di < dayInfos.length; di++) {
+        var info = dayInfos[di];
+        var d = info.d;
+        var dateStr = info.dateStr;
 
         var dayUsers = 0;
         var dayNewUsers = 0;
         var resolved = false;
         var dayHasUserList = false;
 
-        // Always try the per-day analytics_dau doc FIRST: it carries the
-        // `uniqueUsers` list which is the ONLY source that lets us dedup users
-        // across days for an exact WAU/MAU. Rollup docs only store a
-        // `unique_users` COUNT (no IDs), so reading them first made it
-        // impossible to dedup and systematically under-counted WAU/MAU.
-        var record = null;
-        try {
-            var key = gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr;
-            var objs = nk.storageRead([{ collection: 'analytics_dau', key: key, userId: SYSTEM_USER }]);
-            if (objs && objs.length > 0) record = objs[0].value;
-
-            // Older days were written under unix-timestamp keys (legacy format)
-            // instead of YYYY-MM-DD. Fall back to that key shape so those days
-            // aren't silently missed.
-            if (!record) {
-                var unixTs = Math.floor(Date.parse(dateStr + 'T00:00:00Z') / 1000);
-                var legacyKey = gameId === 'all' ? 'dau_platform_' + unixTs : 'dau_' + gameId + '_' + unixTs;
-                var legacyObjs = nk.storageRead([{ collection: 'analytics_dau', key: legacyKey, userId: SYSTEM_USER }]);
-                if (legacyObjs && legacyObjs.length > 0) record = legacyObjs[0].value;
-            }
-        } catch (e) { /* no data */ }
+        // Prefer the per-day analytics_dau doc: it carries the user-ID list
+        // which is the ONLY source that lets us dedup across days for an exact
+        // WAU/MAU. Rollup docs store a COUNT only (no IDs).
+        var record = dauByKey[info.dauKey] || legacyByKey[info.legacyKey] || null;
 
         if (record) {
             liveFallbacks++;
@@ -1393,10 +1441,9 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
             resolved = true;
         }
 
-        // Only when there's no per-day doc at all do we fall back to the rollup
-        // COUNT (can't dedup — contributes to the estimated sum path).
+        // Fall back to the rollup COUNT only when there's no per-day doc.
         if (!resolved && useRollups && d > 0) {
-            var rollup = readRollupDaily(nk, gameId, dateStr);
+            var rollup = rollupByKey[info.rollupKey];
             if (rollup) {
                 dayUsers = rollup.dau || 0;
                 dayNewUsers = rollup.new_users || 0;
