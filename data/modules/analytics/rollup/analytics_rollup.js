@@ -2453,6 +2453,70 @@ function rpcAnalyticsOfferDailyRead(ctx, logger, nk, payload) {
     });
 }
 
+// ─── Revenue verification ─────────────────────────────────
+// Diagnostic RPC: dumps per-day revenue straight from the daily
+// rollup docs (rollup_<game>_<date>) so an operator can verify the
+// 30-day total reported by analytics_arpu and spot which day(s)
+// carry inflated / test revenue. Read-only, admin-gated.
+function rpcAnalyticsRevenueVerify(ctx, logger, nk, payload) {
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var gameId = arResolveGameId(data.game_id || data.gameId || "all");
+    var days   = Math.min(365, Math.max(1, parseInt(data.days, 10) || 30));
+
+    var rows = [];
+    var totalUsd = 0;
+    var totalIap = 0;
+    var totalAdUsd = 0;
+    var docsFound = 0;
+
+    for (var di = 0; di < days; di++) {
+        var d = new Date();
+        d.setUTCDate(d.getUTCDate() - di);
+        var dayStr = arIsoDate(d);
+        var key = "rollup_" + gameId + "_" + dayStr;
+        var doc = arReadOne(nk, AR_ROLLUP_COLLECTION, key, AR_SYSTEM_USER);
+        if (!doc) continue;
+        docsFound++;
+        var rev = doc.revenue || {};
+        var usd = rev.usd || 0;
+        var iap = rev.iap_count || 0;
+        var adUsd = rev.ad_revenue_usd || 0;
+        totalUsd += usd;
+        totalIap += iap;
+        totalAdUsd += adUsd;
+        rows.push({
+            date: dayStr,
+            revenue_usd: usd,
+            iap_count: iap,
+            ad_revenue_usd: adUsd,
+            avg_per_iap: iap > 0 ? Math.round((usd / iap) * 100) / 100 : 0,
+            dau: doc.dau || 0
+        });
+    }
+
+    // Surface the biggest single-day contributors first so inflated /
+    // test days are obvious at a glance.
+    var byRevenue = rows.slice().sort(function (a, b) { return b.revenue_usd - a.revenue_usd; });
+
+    return arOk({
+        game_id:    gameId,
+        days:       days,
+        docs_found: docsFound,
+        total_revenue_usd: Math.round(totalUsd * 100) / 100,
+        total_iap_count:   totalIap,
+        total_ad_revenue_usd: Math.round(totalAdUsd * 100) / 100,
+        avg_per_iap: totalIap > 0 ? Math.round((totalUsd / totalIap) * 100) / 100 : 0,
+        by_day:     rows,                  // chronological-ish (today → back)
+        top_days:   byRevenue.slice(0, 10),
+        hint:       docsFound === 0
+            ? "No daily rollup docs found for this game/range — run analytics_rollup_run / backfill first."
+            : "Compare total_revenue_usd here against analytics_arpu.totalRevenue. Inspect top_days for inflated/test revenue."
+    });
+}
+
 // ─── Registration ─────────────────────────────────────────
 
 function InitModule(ctx, logger, nk, initializer) {
@@ -2465,5 +2529,6 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_dropoff_daily_read",   rpcAnalyticsDropoffDailyRead);
     initializer.registerRpc("analytics_question_daily_read",  rpcAnalyticsQuestionDailyRead);
     initializer.registerRpc("analytics_offer_daily_read",     rpcAnalyticsOfferDailyRead);
-    logger.info("[analytics_rollup] Module registered: 8 RPCs (run, run_alias, backfill, status, modes_daily_read, dropoff_daily_read, question_daily_read, offer_daily_read)");
+    initializer.registerRpc("analytics_revenue_verify",        rpcAnalyticsRevenueVerify);
+    logger.info("[analytics_rollup] Module registered: 9 RPCs (run, run_alias, backfill, status, modes_daily_read, dropoff_daily_read, question_daily_read, offer_daily_read, revenue_verify)");
 }
