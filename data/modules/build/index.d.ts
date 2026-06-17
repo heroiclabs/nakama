@@ -3482,6 +3482,9 @@ declare namespace LegacyAnalytics {
         byPlatform: {
             [platform: string]: number;
         };
+        byAppVersion: {
+            [version: string]: number;
+        };
         lastEventAt: number;
     }
     function dateStrOf(ms: number): string;

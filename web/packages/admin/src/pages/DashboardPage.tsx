@@ -45,6 +45,8 @@ import {
   type GameMetricsResult,
   type GameMetricsDay,
   type GameMetricsMonth,
+  type SegmentsExploreResult,
+  type SegmentBucket,
   type EventErrorsResult,
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
@@ -80,6 +82,16 @@ function useGameMetrics(days: number) {
   return useQuery<GameMetricsResult>({
     queryKey: ["admin", "game-metrics", days],
     queryFn: () => satori.getGameMetrics({ days }, serverKeyAuth()),
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+}
+
+function useSegmentsExplore(days: number, event: string) {
+  return useQuery<SegmentsExploreResult>({
+    queryKey: ["admin", "segments-explore", days, event],
+    queryFn: () =>
+      satori.getSegmentsExplore({ days, event: event || undefined }, serverKeyAuth()),
     refetchInterval: 60_000,
     retry: 1,
   });
@@ -529,6 +541,140 @@ function MonthlyMetricCard({
   return <MetricAreaCard {...rest} points={points} gradKey={`m_${String(dataKey)}`} />;
 }
 
+function BreakdownCard({
+  title,
+  icon: Icon,
+  buckets,
+  colorHsl,
+  loading,
+}: {
+  title: string;
+  icon: React.ElementType;
+  buckets: SegmentBucket[];
+  colorHsl: string;
+  loading: boolean;
+}) {
+  const total = buckets.reduce((s, b) => s + b.count, 0);
+  const max = buckets.reduce((m, b) => Math.max(m, b.count), 0) || 1;
+  const rows = buckets.slice(0, 8);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-3 flex items-center gap-2">
+        <span
+          className="flex h-7 w-7 items-center justify-center rounded-lg"
+          style={{ background: `hsl(${colorHsl} / 0.12)`, color: `hsl(${colorHsl})` }}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {buckets.length} value{buckets.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      {loading ? (
+        <div className="flex h-32 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">No data captured</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((b) => {
+            const pct = total > 0 ? (b.count / total) * 100 : 0;
+            return (
+              <div key={b.value} className="space-y-1">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate font-medium" title={b.value}>{b.value}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {b.count.toLocaleString()} · {pct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${(b.count / max) * 100}%`, background: `hsl(${colorHsl})` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExploreSegmentsPanel({
+  segments,
+  loading,
+  eventFilter,
+}: {
+  segments?: SegmentsExploreResult;
+  loading: boolean;
+  eventFilter: string;
+}) {
+  const trend = (segments?.series ?? []).map((p) => ({
+    label: dayLabel(p.date),
+    value: p.value,
+  }));
+  const trendTitle = eventFilter ? `"${eventFilter}" volume` : "Total event volume";
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Activity className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold leading-tight">{trendTitle}</h3>
+              <p className="text-xs text-muted-foreground">
+                Events per day{eventFilter ? "" : " across all event types"} · filterable above
+              </p>
+            </div>
+          </div>
+          <span className="text-lg font-bold tabular-nums text-primary">
+            {(segments?.totalEvents ?? 0).toLocaleString()}
+          </span>
+        </div>
+        {loading ? (
+          <div className="flex h-[150px] items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={150}>
+            <AreaChart data={trend} margin={{ top: 10, right: 6, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id="g_explore" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(263 70% 60%)" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="hsl(263 70% 60%)" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 28% 17%)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "hsl(217 10% 64%)" }} interval="preserveStartEnd" minTickGap={20} />
+              <YAxis tick={{ fontSize: 10, fill: "hsl(217 10% 64%)" }} width={44} allowDecimals={false} />
+              <Tooltip
+                formatter={(v: number) => [v.toLocaleString(), trendTitle]}
+                contentStyle={{ background: "hsl(222 47% 11%)", border: "1px solid hsl(215 28% 17%)", borderRadius: 8, fontSize: 12 }}
+              />
+              <Area type="monotone" dataKey="value" stroke="hsl(263 70% 60%)" strokeWidth={2} fill="url(#g_explore)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <BreakdownCard title="App Version" icon={Puzzle} buckets={segments?.appVersions ?? []} colorHsl="330 81% 60%" loading={loading} />
+        <BreakdownCard title="Platform" icon={Cpu} buckets={segments?.platforms ?? []} colorHsl="199 89% 55%" loading={loading} />
+        <BreakdownCard title="Country" icon={Globe2} buckets={segments?.countries ?? []} colorHsl="142 71% 45%" loading={loading} />
+        <BreakdownCard title="Top Events" icon={Activity} buckets={segments?.events ?? []} colorHsl="38 92% 55%" loading={loading} />
+      </div>
+    </div>
+  );
+}
+
 function relTime(ms: number) {
   const diff = Date.now() - ms;
   if (diff < 60_000) return "just now";
@@ -606,6 +752,10 @@ function GameMetricsTab({
   satoriStatus,
   days,
   onDaysChange,
+  segments,
+  segmentsLoading,
+  eventFilter,
+  onEventFilterChange,
 }: {
   summary?: DashboardSummary;
   summaryLoading: boolean;
@@ -617,6 +767,10 @@ function GameMetricsTab({
   satoriStatus: ReturnType<typeof useSatoriStatus>;
   days: number;
   onDaysChange: (d: number) => void;
+  segments?: SegmentsExploreResult;
+  segmentsLoading: boolean;
+  eventFilter: string;
+  onEventFilterChange: (e: string) => void;
 }) {
   const series = metrics?.series ?? [];
   const topEvents = summary?.topEvents ?? [];
@@ -625,9 +779,9 @@ function GameMetricsTab({
   return (
     <div className="space-y-6">
       {/* Filter bar — mirrors Satori Cloud "Game Metrics" controls.
-          Only Date Range is data-backed today; the others need
-          per-dimension daily aggregates the analytics pipeline does
-          not yet store, so they are shown disabled for transparency. */}
+          Date Range + Event are live filters; Version/Platform/Country are
+          surfaced as exact breakdown panels in the Explore section below,
+          sourced from analytics_live_daily's by_* aggregates. */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
           <CalendarClock className="h-4 w-4 text-muted-foreground" />
@@ -642,16 +796,30 @@ function GameMetricsTab({
             <option value={30}>Last 30 days</option>
           </select>
         </div>
-        {["Country", "Platform", "Game Version", "Activity"].map((f) => (
-          <span
-            key={f}
-            title="Needs per-dimension analytics aggregates — not yet available in the data pipeline"
-            className="inline-flex cursor-not-allowed items-center gap-1 rounded-md border border-dashed border-border bg-muted/30 px-3 py-1.5 text-sm text-muted-foreground opacity-60"
+        <div className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm">
+          <Activity className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs font-medium text-muted-foreground">Event</span>
+          <select
+            value={eventFilter}
+            onChange={(e) => onEventFilterChange(e.target.value)}
+            className="max-w-[180px] bg-transparent text-sm font-medium text-foreground outline-none"
           >
-            + {f}
-          </span>
-        ))}
+            <option value="">All events</option>
+            {(segments?.events ?? []).map((ev) => (
+              <option key={ev.value} value={ev.value}>
+                {ev.value} ({ev.count.toLocaleString()})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+
+      {/* Explore / Segments — filter by AppID × version × platform × country × event */}
+      <ExploreSegmentsPanel
+        segments={segments}
+        loading={segmentsLoading}
+        eventFilter={eventFilter}
+      />
 
       {/* Daily trend charts — mirrors Satori Cloud "Game Metrics" */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -949,9 +1117,11 @@ function StatGroupCard({
 export function DashboardPage() {
   const [tab, setTab] = useState<"status" | "metrics">("status");
   const [metricsDays, setMetricsDays] = useState(14);
+  const [eventFilter, setEventFilter] = useState("");
   const health = useHealth();
   const summary = useSummary();
   const gameMetrics = useGameMetrics(metricsDays);
+  const segments = useSegmentsExplore(metricsDays, eventFilter);
   const eventErrors = useEventErrors();
   const hiroStatus = useHiroStatus();
   const satoriStatus = useSatoriStatus();
@@ -1068,6 +1238,10 @@ export function DashboardPage() {
           satoriStatus={satoriStatus}
           days={metricsDays}
           onDaysChange={setMetricsDays}
+          segments={segments.data}
+          segmentsLoading={segments.isLoading}
+          eventFilter={eventFilter}
+          onEventFilterChange={setEventFilter}
         />
       )}
     </div>

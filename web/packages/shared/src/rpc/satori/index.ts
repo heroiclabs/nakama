@@ -629,6 +629,41 @@ export function getEventCatalog(
   );
 }
 
+/* ── Segments / Explore (filter by AppID × version × platform × country × event) ── */
+
+export interface SegmentBucket {
+  value: string;
+  count: number;
+}
+
+export interface SegmentSeriesPoint {
+  date: string;
+  value: number;
+  dau: number;
+}
+
+export interface SegmentsExploreResult {
+  days: number;
+  generatedAt: number;
+  gameId: string;
+  eventFilter: string;
+  totalEvents: number;
+  series: SegmentSeriesPoint[];
+  appVersions: SegmentBucket[];
+  platforms: SegmentBucket[];
+  countries: SegmentBucket[];
+  events: SegmentBucket[];
+}
+
+export function getSegmentsExplore(
+  params: { days?: number; game_id?: string; event?: string },
+  opts: RpcOptions,
+): Promise<SegmentsExploreResult> {
+  return callRpc("satori_segments_explore", params, opts).then((value) =>
+    unwrapData<SegmentsExploreResult>(value),
+  );
+}
+
 /* ── Event errors (taxonomy-rejected events) ──────────────────────── */
 
 export interface EventError {
