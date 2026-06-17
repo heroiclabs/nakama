@@ -1676,6 +1676,111 @@ namespace SatoriCreatorEvents {
     return "bronze";
   }
 
+  /**
+   * Rank every player in an event from `event_answers` and queue a
+   * `prize_fulfillments` record for each gift-card prize-tier winner — WITHOUT
+   * waiting for the winner to self-claim. Used by the admin "end event" action
+   * and the prize-backfill RPC so operators can fulfill ALL winners, not just
+   * the ones who happened to claim.
+   *
+   * Safety:
+   *  - Idempotent: skips any (event,user) that already has a fulfillment record
+   *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
+   *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
+   *    with the idempotent self-claim flow to avoid double-crediting; we only
+   *    count them for reporting.
+   *  - Records are queued as `pending`; an operator still manually approves each
+   *    one before any real gift card is minted, so a mis-rank is human-reviewable.
+   */
+  export function computeAndQueueWinners(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    def: any,
+    eventId: string,
+  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } {
+    var tiers: SpaEventTier[] | undefined =
+      def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
+
+    // Rank all players (score desc, submit-time asc) — mirrors the self-claim flow.
+    var allAnswers: { userId: string; score: number; submitMs: number }[] = [];
+    var cursor = "";
+    var pages = 0;
+    do {
+      var page: any;
+      try {
+        page = nk.storageList(null, "event_answers", 100, cursor);
+      } catch (lerr: any) {
+        logger.warn("[computeAndQueueWinners] event_answers list failed: %s", lerr.message || String(lerr));
+        break;
+      }
+      var objs = (page && page.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        var o = objs[i];
+        var v = o.value as SpaEventAnswer;
+        if (!o || o.key !== eventId) continue;
+        if (!v || v.eventId !== eventId) continue;
+        allAnswers.push({
+          userId: o.userId,
+          score: typeof v.score === "number" ? v.score : 0,
+          submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
+        });
+      }
+      cursor = (page && page.cursor) || "";
+      pages++;
+    } while (cursor && pages < 10);
+
+    allAnswers.sort(function (a, b) {
+      if (a.score !== b.score) return b.score - a.score;
+      return (a.submitMs || 0) - (b.submitMs || 0);
+    });
+
+    var ranked = allAnswers.length;
+    if (!tiers || tiers.length === 0) {
+      return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, tiersConfigured: false };
+    }
+
+    var nowSec = Math.floor(Date.now() / 1000);
+    var queued = 0;
+    var skipped = 0;
+    var xutWinners = 0;
+
+    for (var r = 0; r < allAnswers.length; r++) {
+      var rank = r + 1;
+      var tier = findTierForRank(tiers, rank);
+      if (!tier) continue;
+
+      var winnerId = allAnswers[r].userId;
+      var fKey = eventId + ":" + winnerId;
+
+      var existing = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+      if (existing) { skipped++; continue; }
+
+      var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+      if (isXut) {
+        xutWinners++;
+        continue;
+      }
+
+      Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+        userId: winnerId,
+        eventId: eventId,
+        rank: rank,
+        giftCard: tier,
+        status: "pending",
+        queuedAt: nowSec,
+        eventTitle: (def && def.title) || "",
+        region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+        source: "auto_winner",
+        email: "",
+      });
+      queued++;
+    }
+
+    logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d",
+      eventId, ranked, queued, skipped, xutWinners);
+    return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
+  }
+
   function rpcSpaClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
