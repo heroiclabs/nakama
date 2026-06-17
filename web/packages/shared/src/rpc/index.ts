@@ -64,5 +64,7 @@ export type {
   FulfillmentStatus,
   FulfillmentVoucher,
   SettlePrizeFulfillmentInput,
+  AutoFulfillPrizeInput,
+  AutoFulfillPrizeResult,
 } from "./quizverse";
 export * from "./types";

@@ -2453,6 +2453,202 @@ function rpcAnalyticsOfferDailyRead(ctx, logger, nk, payload) {
     });
 }
 
+// ─── Revenue verification ─────────────────────────────────
+// Diagnostic RPC: dumps per-day revenue straight from the daily
+// rollup docs (rollup_<game>_<date>) so an operator can verify the
+// 30-day total reported by analytics_arpu and spot which day(s)
+// carry inflated / test revenue. Read-only, admin-gated.
+function rpcAnalyticsRevenueVerify(ctx, logger, nk, payload) {
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var gameId = arResolveGameId(data.game_id || data.gameId || "all");
+    var days   = Math.min(365, Math.max(1, parseInt(data.days, 10) || 30));
+
+    var rows = [];
+    var totalUsd = 0;
+    var totalIap = 0;
+    var totalAdUsd = 0;
+    var docsFound = 0;
+
+    for (var di = 0; di < days; di++) {
+        var d = new Date();
+        d.setUTCDate(d.getUTCDate() - di);
+        var dayStr = arIsoDate(d);
+        var key = "rollup_" + gameId + "_" + dayStr;
+        var doc = arReadOne(nk, AR_ROLLUP_COLLECTION, key, AR_SYSTEM_USER);
+        if (!doc) continue;
+        docsFound++;
+        var rev = doc.revenue || {};
+        var usd = rev.usd || 0;
+        var iap = rev.iap_count || 0;
+        var adUsd = rev.ad_revenue_usd || 0;
+        totalUsd += usd;
+        totalIap += iap;
+        totalAdUsd += adUsd;
+        rows.push({
+            date: dayStr,
+            revenue_usd: usd,
+            iap_count: iap,
+            ad_revenue_usd: adUsd,
+            avg_per_iap: iap > 0 ? Math.round((usd / iap) * 100) / 100 : 0,
+            dau: doc.dau || 0
+        });
+    }
+
+    // Surface the biggest single-day contributors first so inflated /
+    // test days are obvious at a glance.
+    var byRevenue = rows.slice().sort(function (a, b) { return b.revenue_usd - a.revenue_usd; });
+
+    return arOk({
+        game_id:    gameId,
+        days:       days,
+        docs_found: docsFound,
+        total_revenue_usd: Math.round(totalUsd * 100) / 100,
+        total_iap_count:   totalIap,
+        total_ad_revenue_usd: Math.round(totalAdUsd * 100) / 100,
+        avg_per_iap: totalIap > 0 ? Math.round((totalUsd / totalIap) * 100) / 100 : 0,
+        by_day:     rows,                  // chronological-ish (today → back)
+        top_days:   byRevenue.slice(0, 10),
+        hint:       docsFound === 0
+            ? "No daily rollup docs found for this game/range — run analytics_rollup_run / backfill first."
+            : "Compare total_revenue_usd here against analytics_arpu.totalRevenue. Inspect top_days for inflated/test revenue."
+    });
+}
+
+/**
+ * analytics_revenue_purge — zero out seeded/test IAP revenue in daily rollup
+ * docs WITHOUT touching the raw analytics_events. Reversible: re-running
+ * analytics_rollup_run for the same date recomputes revenue from the
+ * (untouched) events.
+ *
+ * Use case: a seed/test run injected inflated iap_purchased events (e.g.
+ * ~$400/IAP on 2026-06-02..06) that made total_revenue_usd meaningless. This
+ * RPC overwrites only the monetary IAP fields (usd, iap_count, avg-derived
+ * funnel counts that depend on purchases, top_products) in the rollup doc so
+ * the dashboard/verify RPCs report true numbers, while leaving ad revenue and
+ * every non-revenue field intact.
+ *
+ * Safety:
+ *   - admin-gated (session OR dashboard_secret), same as the other admin RPCs.
+ *   - dry_run defaults to TRUE; you must pass {"dry_run": false} to write.
+ *   - operates only on an explicit date list (default 2026-06-02..06).
+ *   - stamps doc.revenue._purged audit metadata so the action is traceable
+ *     and a later rollup re-run is an obvious "un-purge".
+ *
+ * Payload:
+ *   { game_id?, dates?: ["YYYY-MM-DD", ...], from?, to?, dry_run?: bool,
+ *     dashboard_secret? }
+ *   - dates: explicit list. If omitted but from+to given, expands the range.
+ *     If both omitted, defaults to the known seeded window 2026-06-02..06.
+ */
+function rpcAnalyticsRevenuePurge(ctx, logger, nk, payload) {
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var gameId = arResolveGameId(data.game_id || data.gameId || "all");
+
+    // Resolve the target date list.
+    var dates = [];
+    if (data.dates && data.dates.length) {
+        for (var i = 0; i < data.dates.length; i++) {
+            if (arValidDateStr(data.dates[i])) dates.push(data.dates[i]);
+        }
+    } else if (data.from && data.to && arValidDateStr(data.from) && arValidDateStr(data.to)) {
+        dates = arDateRange(data.from, data.to);
+    } else {
+        // Default: the known seeded window (inflated ~$400/IAP days).
+        dates = ["2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05", "2026-06-06"];
+    }
+    if (!dates.length) return arErr("No valid dates to purge", 400);
+
+    // dry_run defaults to TRUE — caller must explicitly opt in to writing.
+    var dryRun = (data.dry_run === false || data.dryRun === false) ? false : true;
+
+    var purgedAt = new Date().toISOString();
+    var results = [];
+    var totalRemovedUsd = 0;
+    var totalRemovedIap = 0;
+    var docsTouched = 0;
+
+    for (var di = 0; di < dates.length; di++) {
+        var dayStr = dates[di];
+        var key = "rollup_" + gameId + "_" + dayStr;
+        var doc = arReadOne(nk, AR_ROLLUP_COLLECTION, key, AR_SYSTEM_USER);
+        if (!doc) {
+            results.push({ date: dayStr, found: false, skipped: "no rollup doc" });
+            continue;
+        }
+        var rev = doc.revenue || {};
+        var beforeUsd = rev.usd || 0;
+        var beforeIap = rev.iap_count || 0;
+
+        // Already purged? Report and skip the re-stamp (idempotent).
+        if (rev._purged) {
+            results.push({
+                date: dayStr, found: true, already_purged: true,
+                removed_usd: 0, removed_iap: 0,
+                current_usd: beforeUsd, current_iap: beforeIap
+            });
+            continue;
+        }
+
+        totalRemovedUsd += beforeUsd;
+        totalRemovedIap += beforeIap;
+        docsTouched++;
+
+        var entry = {
+            date: dayStr, found: true, already_purged: false,
+            before_usd: Math.round(beforeUsd * 100) / 100,
+            before_iap_count: beforeIap,
+            ad_revenue_usd_kept: rev.ad_revenue_usd || 0
+        };
+
+        if (!dryRun) {
+            // Zero only the IAP-money fields + purchase-derived funnel counts.
+            // Ad revenue + ad funnel are real (~$0.14) and left untouched.
+            rev.usd = 0;
+            rev.iap_count = 0;
+            rev.paywall_converted = 0;
+            rev.paywall_conversion_rate_pct = 0;
+            rev.top_products = [];
+            // Audit trail so the purge is traceable and a rollup re-run is an
+            // obvious un-purge (it overwrites the whole revenue object).
+            rev._purged = {
+                purged_at: purgedAt,
+                removed_usd: Math.round(beforeUsd * 100) / 100,
+                removed_iap_count: beforeIap,
+                reason: data.reason || "seeded/test IAP revenue removed",
+                by: gate.bypass || "admin"
+            };
+            doc.revenue = rev;
+
+            var w = arWriteOne(nk, AR_ROLLUP_COLLECTION, key, AR_SYSTEM_USER, doc);
+            if (w !== true) {
+                entry.write_error = (w && w.error) || "write failed";
+            } else {
+                entry.purged = true;
+            }
+        }
+        results.push(entry);
+    }
+
+    return arOk({
+        game_id: gameId,
+        dry_run: dryRun,
+        dates: dates,
+        docs_touched: docsTouched,
+        total_removed_usd: Math.round(totalRemovedUsd * 100) / 100,
+        total_removed_iap_count: totalRemovedIap,
+        results: results,
+        hint: dryRun
+            ? "DRY RUN — nothing written. Re-call with {\"dry_run\": false} to apply. Reversible later via analytics_rollup_run for each date."
+            : "Purged. Re-run analytics_revenue_verify to confirm. To restore real values, run analytics_rollup_run for each date (recomputes from raw events)."
+    });
+}
+
 // ─── Registration ─────────────────────────────────────────
 
 function InitModule(ctx, logger, nk, initializer) {
@@ -2465,5 +2661,7 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_dropoff_daily_read",   rpcAnalyticsDropoffDailyRead);
     initializer.registerRpc("analytics_question_daily_read",  rpcAnalyticsQuestionDailyRead);
     initializer.registerRpc("analytics_offer_daily_read",     rpcAnalyticsOfferDailyRead);
-    logger.info("[analytics_rollup] Module registered: 8 RPCs (run, run_alias, backfill, status, modes_daily_read, dropoff_daily_read, question_daily_read, offer_daily_read)");
+    initializer.registerRpc("analytics_revenue_verify",        rpcAnalyticsRevenueVerify);
+    initializer.registerRpc("analytics_revenue_purge",         rpcAnalyticsRevenuePurge);
+    logger.info("[analytics_rollup] Module registered: 10 RPCs (run, run_alias, backfill, status, modes_daily_read, dropoff_daily_read, question_daily_read, offer_daily_read, revenue_verify, revenue_purge)");
 }

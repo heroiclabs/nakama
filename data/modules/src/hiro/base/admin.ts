@@ -1510,7 +1510,12 @@ namespace AdminConsole {
     var filterRegion = data.region || null;
     var filterCreatorId = data.creator_id || data.creatorId || null;
     var filterGameId = data.game_id || data.gameId || null;
-    var limit = Math.min(data.limit || 100, 500);
+    // Return limit (applied AFTER sorting so the newest events always surface).
+    var limit = Math.min(data.limit || 500, 2000);
+    // Collection bound — scan far more than `limit` so the sort sees every
+    // event, not just the first `limit` ones in storage/index order (which is
+    // oldest-first and was silently dropping all recently-created events).
+    var scanCap = 2000;
 
     var events: any[] = [];
     var sourceCounts = { satori_creator_events: 0, live_events: 0 };
@@ -1519,6 +1524,10 @@ namespace AdminConsole {
 
     function computeEffectiveStatus(ev: any): string {
       if (ev.status === "cancelled" || ev.status === "distributed") return ev.status;
+      // Honor an explicit terminal status (or endedAt) set by the
+      // creator-portal / admin end action — otherwise a manually-ended event
+      // still inside its original time window wrongly reads as "live".
+      if (ev.status === "ended" || ev.status === "completed" || ev.status === "closed" || ev.endedAt) return "ended";
       if (ev.status === "draft" || ev.status === "funded") return ev.status;
 
       var startSec = ev.scheduledAt || ev.createdAt || 0;
@@ -1602,7 +1611,7 @@ namespace AdminConsole {
         var index = indexRecords[0].value as { eventIds: string[] };
         var eventIds = index.eventIds || [];
 
-        for (var i = 0; i < eventIds.length && events.length < limit; i++) {
+        for (var i = 0; i < eventIds.length && events.length < scanCap; i++) {
           var eventId = eventIds[i];
           if (seenIds[eventId]) continue;
 
@@ -1637,12 +1646,12 @@ namespace AdminConsole {
     // by CreatorEventLive), covering both SYSTEM- and creator-owned records.
     try {
       var cursor = "";
-      for (var page = 0; page < 10 && events.length < limit; page++) {
+      for (var page = 0; page < 40 && events.length < scanCap; page++) {
         // null owner = all users (empty string "" throws in Nakama's JS runtime)
         var result = nk.storageList(null, "live_events", 100, cursor);
         var objects = result.objects || [];
 
-        for (var j = 0; j < objects.length && events.length < limit; j++) {
+        for (var j = 0; j < objects.length && events.length < scanCap; j++) {
           var obj = objects[j];
           if (!obj.value) continue;
 
@@ -1664,14 +1673,21 @@ namespace AdminConsole {
       logger.warn("[rpcAdminCreatorEventsList] Failed to list live_events: %s", listErr.message || String(listErr));
     }
 
-    // Sort by scheduled_at descending (most recent first)
+    // Sort by scheduled_at descending (most recent first) BEFORE applying the
+    // return limit, so the newest events are never truncated away.
     events.sort(function(a, b) {
       return (b.scheduled_at || 0) - (a.scheduled_at || 0);
     });
 
+    var matchedCount = events.length;
+    if (events.length > limit) {
+      events = events.slice(0, limit);
+    }
+
     return RpcHelpers.successResponse({
       events: events,
       total_count: events.length,
+      matched_count: matchedCount,
       sources: sourceCounts,
       filters_applied: {
         status: filterStatus,
