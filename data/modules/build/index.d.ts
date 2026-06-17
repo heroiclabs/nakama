@@ -3493,6 +3493,29 @@ declare namespace LegacyAnalytics {
 }
 declare namespace SatoriCreatorEvents {
     function register(initializer: nkruntime.Initializer): void;
+    /**
+     * Rank every player in an event from `event_answers` and queue a
+     * `prize_fulfillments` record for each gift-card prize-tier winner — WITHOUT
+     * waiting for the winner to self-claim. Used by the admin "end event" action
+     * and the prize-backfill RPC so operators can fulfill ALL winners, not just
+     * the ones who happened to claim.
+     *
+     * Safety:
+     *  - Idempotent: skips any (event,user) that already has a fulfillment record
+     *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
+     *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
+     *    with the idempotent self-claim flow to avoid double-crediting; we only
+     *    count them for reporting.
+     *  - Records are queued as `pending`; an operator still manually approves each
+     *    one before any real gift card is minted, so a mis-rank is human-reviewable.
+     */
+    function computeAndQueueWinners(nk: nkruntime.Nakama, logger: nkruntime.Logger, def: any, eventId: string): {
+        ranked: number;
+        queued: number;
+        skippedExisting: number;
+        xutWinners: number;
+        tiersConfigured: boolean;
+    };
 }
 declare namespace SatoriLiveEvents {
     function register(initializer: nkruntime.Initializer): void;
