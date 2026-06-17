@@ -13556,7 +13556,18 @@ var AdminConsole;
             }]);
         logAdminAudit(nk, ctx, "admin_creator_event_end", { eventId: eventId }, { reason: reason });
         logger.info("[rpcAdminCreatorEventEnd] Admin ended creator event %s: %s", eventId, reason);
-        return RpcHelpers.successResponse({ success: true, event_id: eventId, status: "ended" });
+        // Rank players from event_answers and queue prize_fulfillments for every
+        // gift-card winner so the admin can fulfill ALL winners — not just those
+        // who self-claim. Idempotent + best-effort: a failure here must not block
+        // the end action itself.
+        var prizes = null;
+        try {
+            prizes = SatoriCreatorEvents.computeAndQueueWinners(nk, logger, event, String(eventId));
+        }
+        catch (perr) {
+            logger.warn("[rpcAdminCreatorEventEnd] winner queue failed for %s: %s", eventId, perr.message || String(perr));
+        }
+        return RpcHelpers.successResponse({ success: true, event_id: eventId, status: "ended", prizes: prizes });
     }
     // Admin action: Get full details of a single creator event
     function rpcAdminCreatorEventGet(ctx, logger, nk, payload) {
@@ -13597,14 +13608,49 @@ var AdminConsole;
         var filterRegion = data.region || null;
         var filterCreatorId = data.creator_id || data.creatorId || null;
         var filterGameId = data.game_id || data.gameId || null;
-        var limit = Math.min(data.limit || 100, 500);
+        // Return limit (applied AFTER sorting so the newest events always surface).
+        var limit = Math.min(data.limit || 500, 2000);
+        // Collection bound — scan far more than `limit` so the sort sees every
+        // event, not just the first `limit` ones in storage/index order (which is
+        // oldest-first and was silently dropping all recently-created events).
+        var scanCap = 2000;
         var events = [];
         var sourceCounts = { satori_creator_events: 0, live_events: 0 };
         var seenIds = {};
         var nowSec = Math.floor(Date.now() / 1000);
+        // Real participant counts. `ev.participantCount` is only incremented by the
+        // native rpcJoin flow, which SPA-published events bypass entirely (they
+        // write answers straight into `event_answers` under each player's own
+        // userId) — so it stays 0 even for events that clearly had players. Sweep
+        // event_answers once (bounded) and tally per-event, keyed by event id.
+        var participantCounts = {};
+        try {
+            var aCursor = "";
+            var aPages = 0;
+            do {
+                var aPage = nk.storageList(null, "event_answers", 100, aCursor);
+                var aObjs = (aPage && aPage.objects) || [];
+                for (var ai = 0; ai < aObjs.length; ai++) {
+                    var ak = aObjs[ai].key;
+                    if (!ak)
+                        continue;
+                    participantCounts[ak] = (participantCounts[ak] || 0) + 1;
+                }
+                aCursor = (aPage && aPage.cursor) || "";
+                aPages++;
+            } while (aCursor && aPages < 30);
+        }
+        catch (aerr) {
+            logger.warn("[rpcAdminCreatorEventsList] event_answers tally failed: %s", aerr.message || String(aerr));
+        }
         function computeEffectiveStatus(ev) {
             if (ev.status === "cancelled" || ev.status === "distributed")
                 return ev.status;
+            // Honor an explicit terminal status (or endedAt) set by the
+            // creator-portal / admin end action — otherwise a manually-ended event
+            // still inside its original time window wrongly reads as "live".
+            if (ev.status === "ended" || ev.status === "completed" || ev.status === "closed" || ev.endedAt)
+                return "ended";
             if (ev.status === "draft" || ev.status === "funded")
                 return ev.status;
             var startSec = ev.scheduledAt || ev.createdAt || 0;
@@ -13654,7 +13700,7 @@ var AdminConsole;
                 game_id: ev.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
                 status: effectiveStatus,
                 raw_status: ev.status,
-                participant_count: ev.participantCount || 0,
+                participant_count: Math.max(Number(ev.participantCount) || 0, participantCounts[ev.id] || 0),
                 question_count: ev.questions ? ev.questions.length : 0,
                 clue_count: ev.clues ? ev.clues.length : 0,
                 promo_video_url: ev.promoVideoUrl || "",
@@ -13689,7 +13735,7 @@ var AdminConsole;
             if (indexRecords && indexRecords.length > 0 && indexRecords[0].value) {
                 var index = indexRecords[0].value;
                 var eventIds = index.eventIds || [];
-                for (var i = 0; i < eventIds.length && events.length < limit; i++) {
+                for (var i = 0; i < eventIds.length && events.length < scanCap; i++) {
                     var eventId = eventIds[i];
                     if (seenIds[eventId])
                         continue;
@@ -13725,11 +13771,11 @@ var AdminConsole;
         // by CreatorEventLive), covering both SYSTEM- and creator-owned records.
         try {
             var cursor = "";
-            for (var page = 0; page < 10 && events.length < limit; page++) {
+            for (var page = 0; page < 40 && events.length < scanCap; page++) {
                 // null owner = all users (empty string "" throws in Nakama's JS runtime)
                 var result = nk.storageList(null, "live_events", 100, cursor);
                 var objects = result.objects || [];
-                for (var j = 0; j < objects.length && events.length < limit; j++) {
+                for (var j = 0; j < objects.length && events.length < scanCap; j++) {
                     var obj = objects[j];
                     if (!obj.value)
                         continue;
@@ -13751,13 +13797,19 @@ var AdminConsole;
         catch (listErr) {
             logger.warn("[rpcAdminCreatorEventsList] Failed to list live_events: %s", listErr.message || String(listErr));
         }
-        // Sort by scheduled_at descending (most recent first)
+        // Sort by scheduled_at descending (most recent first) BEFORE applying the
+        // return limit, so the newest events are never truncated away.
         events.sort(function (a, b) {
             return (b.scheduled_at || 0) - (a.scheduled_at || 0);
         });
+        var matchedCount = events.length;
+        if (events.length > limit) {
+            events = events.slice(0, limit);
+        }
         return RpcHelpers.successResponse({
             events: events,
             total_count: events.length,
+            matched_count: matchedCount,
             sources: sourceCounts,
             filters_applied: {
                 status: filterStatus,
@@ -13767,6 +13819,93 @@ var AdminConsole;
                 limit: limit
             }
         });
+    }
+    // Admin action: backfill prize_fulfillments for winners of already-ended
+    // creator events whose winners were never queued (players who never
+    // self-claimed). Idempotent — skips any (event,user) already on the queue.
+    // Payload: { event_id? (single event), creator_id? (filter) }
+    function rpcAdminCreatorEventsBackfillPrizes(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var onlyEventId = data.event_id || data.eventId || null;
+        var filterCreatorId = data.creator_id || data.creatorId || null;
+        var nowSec = Math.floor(Date.now() / 1000);
+        function isEnded(ev) {
+            if (ev.status === "ended" || ev.status === "completed" || ev.status === "closed" || ev.endedAt)
+                return true;
+            if (ev.status === "cancelled" || ev.status === "distributed" || ev.status === "draft" || ev.status === "funded")
+                return false;
+            var start = ev.scheduledAt || ev.createdAt || 0;
+            var end = start + (ev.duration || 30) * 60;
+            return nowSec > end;
+        }
+        function hasTiers(ev) {
+            return !!(ev && ev.giftCardPrizes && ev.giftCardPrizes.tiers && ev.giftCardPrizes.tiers.length);
+        }
+        var seen = {};
+        var results = [];
+        var totals = { events: 0, ranked: 0, queued: 0, skippedExisting: 0, xutWinners: 0 };
+        function process(ev) {
+            var id = ev && ev.id;
+            if (!id || seen[id])
+                return;
+            if (onlyEventId && id !== onlyEventId)
+                return;
+            if (filterCreatorId && ev.creatorId !== filterCreatorId)
+                return;
+            if (!isEnded(ev) || !hasTiers(ev))
+                return;
+            seen[id] = true;
+            var r = SatoriCreatorEvents.computeAndQueueWinners(nk, logger, ev, String(id));
+            totals.events++;
+            totals.ranked += r.ranked;
+            totals.queued += r.queued;
+            totals.skippedExisting += r.skippedExisting;
+            totals.xutWinners += r.xutWinners;
+            results.push({ eventId: id, title: ev.title || "", ranked: r.ranked, queued: r.queued, skippedExisting: r.skippedExisting, xutWinners: r.xutWinners });
+        }
+        // 1. satori_creator_events via events_index
+        try {
+            var idxRec = nk.storageRead([{ collection: "satori_creator_events", key: "events_index", userId: Constants.SYSTEM_USER_ID }]);
+            if (idxRec && idxRec.length > 0 && idxRec[0].value) {
+                var ids = (idxRec[0].value.eventIds) || [];
+                for (var i = 0; i < ids.length; i++) {
+                    try {
+                        var er = nk.storageRead([{ collection: "satori_creator_events", key: ids[i], userId: Constants.SYSTEM_USER_ID }]);
+                        if (er && er.length > 0 && er[0].value)
+                            process(er[0].value);
+                    }
+                    catch (e1) { /* skip unreadable */ }
+                }
+            }
+        }
+        catch (e2) {
+            logger.warn("[backfillPrizes] satori index read failed: %s", e2.message || String(e2));
+        }
+        // 2. live_events across all owners (creator-portal / SPA events)
+        try {
+            var cursor = "";
+            var pages = 0;
+            do {
+                var page = nk.storageList(null, "live_events", 100, cursor);
+                var objs = (page && page.objects) || [];
+                for (var j = 0; j < objs.length; j++) {
+                    var val = objs[j] && objs[j].value;
+                    if (!val)
+                        continue;
+                    if (!val.id)
+                        val.id = objs[j].key;
+                    process(val);
+                }
+                cursor = (page && page.cursor) || "";
+                pages++;
+            } while (cursor && pages < 40);
+        }
+        catch (e3) {
+            logger.warn("[backfillPrizes] live_events list failed: %s", e3.message || String(e3));
+        }
+        logger.info("[backfillPrizes] events=%d ranked=%d queued=%d skipped=%d xut=%d", totals.events, totals.ranked, totals.queued, totals.skippedExisting, totals.xutWinners);
+        return RpcHelpers.successResponse({ totals: totals, events: results });
     }
     function rpcAdminMessagesList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -14278,6 +14417,7 @@ var AdminConsole;
         initializer.registerRpc("admin_creator_event_stats", rpcAdminCreatorEventStats);
         initializer.registerRpc("admin_creator_event_end", rpcAdminCreatorEventEnd);
         initializer.registerRpc("admin_creator_events_list", rpcAdminCreatorEventsList);
+        initializer.registerRpc("admin_creator_events_backfill_prizes", rpcAdminCreatorEventsBackfillPrizes);
         // Live-event prize fulfillment (admin console)
         initializer.registerRpc("admin_prize_fulfillments_list", rpcAdminPrizeFulfillmentsList);
         initializer.registerRpc("admin_prize_fulfillment_settle", rpcAdminPrizeFulfillmentSettle);
@@ -46070,6 +46210,102 @@ var SatoriCreatorEvents;
             return "silver";
         return "bronze";
     }
+    /**
+     * Rank every player in an event from `event_answers` and queue a
+     * `prize_fulfillments` record for each gift-card prize-tier winner — WITHOUT
+     * waiting for the winner to self-claim. Used by the admin "end event" action
+     * and the prize-backfill RPC so operators can fulfill ALL winners, not just
+     * the ones who happened to claim.
+     *
+     * Safety:
+     *  - Idempotent: skips any (event,user) that already has a fulfillment record
+     *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
+     *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
+     *    with the idempotent self-claim flow to avoid double-crediting; we only
+     *    count them for reporting.
+     *  - Records are queued as `pending`; an operator still manually approves each
+     *    one before any real gift card is minted, so a mis-rank is human-reviewable.
+     */
+    function computeAndQueueWinners(nk, logger, def, eventId) {
+        var tiers = def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
+        // Rank all players (score desc, submit-time asc) — mirrors the self-claim flow.
+        var allAnswers = [];
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, "event_answers", 100, cursor);
+            }
+            catch (lerr) {
+                logger.warn("[computeAndQueueWinners] event_answers list failed: %s", lerr.message || String(lerr));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                var v = o.value;
+                if (!o || o.key !== eventId)
+                    continue;
+                if (!v || v.eventId !== eventId)
+                    continue;
+                allAnswers.push({
+                    userId: o.userId,
+                    score: typeof v.score === "number" ? v.score : 0,
+                    submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
+                });
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < 10);
+        allAnswers.sort(function (a, b) {
+            if (a.score !== b.score)
+                return b.score - a.score;
+            return (a.submitMs || 0) - (b.submitMs || 0);
+        });
+        var ranked = allAnswers.length;
+        if (!tiers || tiers.length === 0) {
+            return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, tiersConfigured: false };
+        }
+        var nowSec = Math.floor(Date.now() / 1000);
+        var queued = 0;
+        var skipped = 0;
+        var xutWinners = 0;
+        for (var r = 0; r < allAnswers.length; r++) {
+            var rank = r + 1;
+            var tier = findTierForRank(tiers, rank);
+            if (!tier)
+                continue;
+            var winnerId = allAnswers[r].userId;
+            var fKey = eventId + ":" + winnerId;
+            var existing = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+            if (existing) {
+                skipped++;
+                continue;
+            }
+            var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+            if (isXut) {
+                xutWinners++;
+                continue;
+            }
+            Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+                userId: winnerId,
+                eventId: eventId,
+                rank: rank,
+                giftCard: tier,
+                status: "pending",
+                queuedAt: nowSec,
+                eventTitle: (def && def.title) || "",
+                region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+                source: "auto_winner",
+                email: "",
+            });
+            queued++;
+        }
+        logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d", eventId, ranked, queued, skipped, xutWinners);
+        return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
+    }
+    SatoriCreatorEvents.computeAndQueueWinners = computeAndQueueWinners;
     function rpcSpaClaim(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
