@@ -2649,6 +2649,193 @@ function rpcAnalyticsRevenuePurge(ctx, logger, nk, payload) {
     });
 }
 
+/**
+ * analytics_events_purge — hard-delete raw purchase/revenue events from the
+ * analytics_events collection so analytics_arpu (which live-scans raw events,
+ * unlike the rollup which reads pre-aggregated docs) stops counting seeded /
+ * test IAP revenue.
+ *
+ * Why this is needed in addition to analytics_revenue_purge:
+ *   analytics_revenue_purge only zeroes the *pre-aggregated* rollup docs
+ *   (analytics_rollup_daily). analytics_arpu re-walks the raw analytics_events
+ *   collection and re-derives revenue from eventData.price_usd on every call,
+ *   so it keeps reporting the inflated totals until the underlying purchase
+ *   events themselves are removed.
+ *
+ * Scope of deletion:
+ *   - Only objects in analytics_events whose normalized event name is a paid
+ *     IAP / offer purchase (iap_purchased, purchase_completed, offer_purchased,
+ *     plus every legacy alias that folds into those). Non-purchase events are
+ *     never touched.
+ *   - Deletes BOTH the dashboard-fanout copies (dash_*) and the user-owned
+ *     copies, using each object's own userId — so no duplicate copy survives
+ *     to keep inflating the live ARPU scan.
+ *   - Optionally constrained to a [from,to] UTC date range and/or a gameId.
+ *
+ * Safety:
+ *   - admin-gated (session OR dashboard_secret), same as the other admin RPCs.
+ *   - dry_run defaults to TRUE; you must pass {"dry_run": false} to delete.
+ *   - HARD DELETE — unlike analytics_revenue_purge this is NOT reversible by a
+ *     rollup re-run (the source events are gone). Intended for seeded/test data.
+ *   - Resumable: walks under a 15s wall-clock budget like arScanEventsForDate.
+ *     When the budget runs out it returns next_cursor; re-call with
+ *     {"cursor": "<next_cursor>"} to continue from where it stopped.
+ *
+ * Payload:
+ *   { game_id?, from?: "YYYY-MM-DD", to?: "YYYY-MM-DD",
+ *     dry_run?: bool (default true), cursor?: string, dashboard_secret? }
+ */
+function rpcAnalyticsEventsPurge(ctx, logger, nk, payload) {
+    var data = arParse(payload);
+    var gate = arRequireAdmin(ctx, nk, logger, data);
+    if (!gate.ok) return arErr(gate.reason, 401);
+
+    var gameId = arResolveGameId(data.game_id || data.gameId || "all");
+
+    // Optional UTC date-range filter (inclusive). Both must be valid to apply.
+    var fromUnix = null, toUnix = null;
+    if (data.from || data.to) {
+        if (!arValidDateStr(data.from) || !arValidDateStr(data.to)) {
+            return arErr("from/to must both be valid YYYY-MM-DD when either is given", 400);
+        }
+        fromUnix = Math.floor(new Date(data.from + "T00:00:00.000Z").getTime() / 1000);
+        // `to` is inclusive → add a full day so events on the `to` date match.
+        toUnix = Math.floor(new Date(data.to + "T00:00:00.000Z").getTime() / 1000) + 86400;
+    }
+
+    // dry_run defaults to TRUE — caller must explicitly opt in to deleting.
+    var dryRun = (data.dry_run === false || data.dryRun === false) ? false : true;
+
+    // Event names that represent paid purchases. Mirror the revenue-counting
+    // logic in arComputeRollup / arComputeOfferPerformance and fold legacy
+    // aliases through AR_EVENT_ALIASES so we catch every shape analytics_arpu
+    // would have counted.
+    var PURCHASE_NAMES = {
+        iap_purchased: true,
+        purchase_completed: true,
+        offer_purchased: true
+    };
+    function isPurchaseEvent(rawName) {
+        if (!rawName) return false;
+        var n = AR_EVENT_ALIASES[rawName] || rawName;
+        return PURCHASE_NAMES[n] === true || PURCHASE_NAMES[rawName] === true;
+    }
+
+    var pageSize = 100;
+    var maxPages = 5000;          // anti-runaway ceiling
+    var scanBudgetMs = 15000;     // stay under the ~22s prod HTTP context death
+    var startMs = Date.now();
+    var cursor = data.cursor || null;
+    var page = null;
+
+    var scanned = 0;
+    var matched = 0;
+    var deleted = 0;
+    var removedUsd = 0;
+    var truncated = false;
+    var byEventName = {};         // matched event-name → count
+    var sampleKeys = [];          // up to 25 example keys (for dry-run review)
+    var deleteBatch = [];         // {collection, key, userId} pending delete
+
+    function flushDeletes() {
+        if (deleteBatch.length === 0) return;
+        try {
+            nk.storageDelete(deleteBatch);
+            deleted += deleteBatch.length;
+        } catch (e) {
+            logger.error("[analytics_rollup] events_purge storageDelete failed (" +
+                deleteBatch.length + " objs): " + (e && e.message ? e.message : String(e)));
+        }
+        deleteBatch = [];
+    }
+
+    for (var p = 0; p < maxPages; p++) {
+        if (Date.now() - startMs > scanBudgetMs) {
+            if (page && page.cursor) { truncated = true; cursor = page.cursor; }
+            break;
+        }
+        try {
+            page = nk.storageList(AR_SYSTEM_USER, AR_EVENTS_COLLECTION, pageSize, cursor);
+        } catch (e) {
+            logger.warn("[analytics_rollup] events_purge storageList failed: " + (e && e.message ? e.message : String(e)));
+            break;
+        }
+        if (!page || !page.objects || page.objects.length === 0) { cursor = null; break; }
+
+        for (var i = 0; i < page.objects.length; i++) {
+            scanned++;
+            var o = page.objects[i];
+            if (!o || !o.value || !o.key) continue;
+
+            var ev = o.value;
+            var rawName = ev.eventName || ev.event || ev.name || "";
+            if (!isPurchaseEvent(rawName)) continue;
+
+            // Optional gameId filter (normalize the event's gameId first).
+            if (gameId && gameId !== "all") {
+                var evGame = ev.gameId ? arResolveGameId(ev.gameId) : "";
+                if (evGame !== gameId) continue;
+            }
+
+            // Optional date-range filter.
+            if (fromUnix !== null) {
+                var unix = ev.unixTimestamp;
+                if (!unix && ev.timestamp) unix = Math.floor(new Date(ev.timestamp).getTime() / 1000);
+                if (!unix) continue;                 // can't date it → don't touch
+                if (unix < fromUnix || unix >= toUnix) continue;
+            }
+
+            matched++;
+            var canonName = AR_EVENT_ALIASES[rawName] || rawName;
+            byEventName[canonName] = (byEventName[canonName] || 0) + 1;
+
+            var d = ev.eventData || {};
+            var price = parseFloat(d.price_usd || d.priceUsd || d.revenue_usd || d.revenueUsd ||
+                d.amount_usd || d.amountUsd || d.price || d.amount || d.value || 0);
+            if (isFinite(price) && price > 0) removedUsd += price;
+
+            if (sampleKeys.length < 25) {
+                sampleKeys.push({ key: o.key, userId: o.userId || AR_SYSTEM_USER, event: canonName, price_usd: (isFinite(price) ? price : 0) });
+            }
+
+            if (!dryRun) {
+                // Delete the exact object we listed — use its own userId so we
+                // remove user-owned copies as well as the dash_ fanout copies.
+                deleteBatch.push({ collection: AR_EVENTS_COLLECTION, key: o.key, userId: o.userId || AR_SYSTEM_USER });
+                if (deleteBatch.length >= 100) flushDeletes();
+            }
+        }
+
+        if (!page.cursor) { cursor = null; break; }
+        cursor = page.cursor;
+    }
+
+    if (!dryRun) flushDeletes();
+    if (page && page.cursor && !truncated && scanned > 0 && (Date.now() - startMs > scanBudgetMs)) {
+        truncated = true;
+    }
+
+    return arOk({
+        game_id: gameId,
+        dry_run: dryRun,
+        from: data.from || null,
+        to: data.to || null,
+        scanned: scanned,
+        matched: matched,
+        deleted: deleted,
+        removed_usd: Math.round(removedUsd * 100) / 100,
+        by_event_name: byEventName,
+        sample_keys: sampleKeys,
+        truncated: truncated,
+        next_cursor: truncated ? cursor : null,
+        hint: dryRun
+            ? "DRY RUN — nothing deleted. Re-call with {\"dry_run\": false} to delete matched purchase events. This is a HARD delete (not reversible via rollup re-run)."
+            : (truncated
+                ? "Deleted this batch but the scan is TRUNCATED — re-call with {\"dry_run\": false, \"cursor\": next_cursor} to continue. Then run analytics_rollup_run for affected dates and re-check analytics_arpu."
+                : "Done. Re-run analytics_rollup_run for affected dates (or analytics_revenue_purge) so the rollup docs match, then re-check analytics_arpu.")
+    });
+}
+
 // ─── Registration ─────────────────────────────────────────
 
 function InitModule(ctx, logger, nk, initializer) {
@@ -2663,5 +2850,6 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("analytics_offer_daily_read",     rpcAnalyticsOfferDailyRead);
     initializer.registerRpc("analytics_revenue_verify",        rpcAnalyticsRevenueVerify);
     initializer.registerRpc("analytics_revenue_purge",         rpcAnalyticsRevenuePurge);
-    logger.info("[analytics_rollup] Module registered: 10 RPCs (run, run_alias, backfill, status, modes_daily_read, dropoff_daily_read, question_daily_read, offer_daily_read, revenue_verify, revenue_purge)");
+    initializer.registerRpc("analytics_events_purge",          rpcAnalyticsEventsPurge);
+    logger.info("[analytics_rollup] Module registered: 11 RPCs (run, run_alias, backfill, status, modes_daily_read, dropoff_daily_read, question_daily_read, offer_daily_read, revenue_verify, revenue_purge, events_purge)");
 }
