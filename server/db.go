@@ -61,11 +61,8 @@ func DbConfig(config Config) (*pgx.ConnConfig, error) {
 	if len(parsedURL.User.Username()) < 1 {
 		parsedURL.User = url.User("root")
 	}
-	dbName := "nakama"
-	if len(parsedURL.Path) > 0 {
-		dbName = parsedURL.Path[1:]
-	} else {
-		parsedURL.Path = "/" + dbName
+	if len(parsedURL.Path) == 0 {
+		parsedURL.Path = "/nakama"
 	}
 
 	return pgx.ParseConfig(parsedURL.String())
