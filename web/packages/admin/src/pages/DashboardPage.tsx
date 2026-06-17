@@ -1123,6 +1123,16 @@ export function DashboardPage() {
   const [metricsDays, setMetricsDays] = useState(14);
   const [eventFilter, setEventFilter] = useState("");
   const selectedAppId = useAdminStore((s) => s.selectedAppId);
+  const { data: appList } = useQuery({
+    queryKey: ["admin", "apps", "selector"],
+    queryFn: () => satori.getGameRegistry(serverKeyAuth()),
+    select: (d) => d.games ?? [],
+    retry: 1,
+    staleTime: 60_000,
+  });
+  const activeAppName = selectedAppId
+    ? (appList?.find((a) => a.id === selectedAppId)?.title ?? `${selectedAppId.slice(0, 8)}…`)
+    : "All Apps (combined)";
   const health = useHealth();
   const summary = useSummary(selectedAppId);
   const gameMetrics = useGameMetrics(metricsDays, selectedAppId);
@@ -1139,7 +1149,13 @@ export function DashboardPage() {
       {/* Header + tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+              <Gamepad2 className="h-3 w-3" />
+              {activeAppName}
+            </span>
+          </div>
           <p className="text-sm text-muted-foreground">
             Live audience, geography, and LiveOps overview.
           </p>

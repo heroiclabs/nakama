@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { serverKeyAuth, satori } from "@nakama/shared";
@@ -121,6 +121,7 @@ function getPageTitle(pathname: string) {
 function AppSelector() {
   const selectedAppId = useAdminStore((s) => s.selectedAppId);
   const setSelectedAppId = useAdminStore((s) => s.setSelectedAppId);
+  const setDefaultAppId = useAdminStore((s) => s.setDefaultAppId);
   const { data: apps } = useQuery({
     queryKey: ["admin", "apps", "selector"],
     queryFn: () => satori.getGameRegistry(serverKeyAuth()),
@@ -132,6 +133,12 @@ function AppSelector() {
   const list = apps ?? [];
   const knownIds = new Set(list.map((a) => a.id));
 
+  // First visit with no explicit choice → land on the first registered app so
+  // the viewer always sees a concrete, named scope (never bare "All Apps").
+  useEffect(() => {
+    if (list.length > 0) setDefaultAppId(list[0].id);
+  }, [list, setDefaultAppId]);
+
   return (
     <div className="relative flex items-center">
       <Boxes className="pointer-events-none absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -141,7 +148,7 @@ function AppSelector() {
         title="Scope analytics to an app"
         className="h-8 max-w-[180px] cursor-pointer appearance-none truncate rounded-md border border-border bg-background pl-7 pr-7 text-xs font-medium text-foreground outline-none transition-colors hover:bg-accent focus:border-primary"
       >
-        <option value="">All Apps</option>
+        <option value="">All Apps (combined)</option>
         {list.map((a) => (
           <option key={a.id} value={a.id}>
             {a.title}
