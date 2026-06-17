@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: admin-dashboard
-          image: 970547373533.dkr.ecr.us-east-1.amazonaws.com/nakama-admin-dashboard:edge-hardening-20260425
+          image: 970547373533.dkr.ecr.us-east-1.amazonaws.com/nakama-admin-dashboard:app-registry-e8feddf-20260617
           imagePullPolicy: Always
           ports:
             - name: http

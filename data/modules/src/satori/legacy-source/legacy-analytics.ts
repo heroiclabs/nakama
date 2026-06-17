@@ -40,6 +40,7 @@ namespace LegacyAnalytics {
     byCountry: { [country: string]: number };
     byCity: { [city: string]: number };
     byPlatform: { [platform: string]: number };
+    byAppVersion: { [version: string]: number };
     lastEventAt: number;
   }
 
@@ -63,7 +64,7 @@ namespace LegacyAnalytics {
   function emptyDay(dateStr: string): Day {
     return {
       date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
-      sessionSeconds: 0, revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, lastEventAt: 0
+      sessionSeconds: 0, revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, byAppVersion: {}, lastEventAt: 0
     };
   }
 
@@ -93,6 +94,7 @@ namespace LegacyAnalytics {
           out.byCountry = lv.by_country || {};
           out.byCity = lv.by_city || {};
           out.byPlatform = lv.by_platform || {};
+          out.byAppVersion = lv.by_app_version || {};
           out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
           out.sessionSeconds = parseFloat(lv.session_seconds) || 0;
           out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;

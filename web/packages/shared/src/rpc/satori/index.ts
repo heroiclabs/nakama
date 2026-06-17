@@ -599,7 +599,7 @@ export interface GameMetricsResult {
 }
 
 export function getGameMetrics(
-  params: { days?: number },
+  params: { days?: number; game_id?: string },
   opts: RpcOptions,
 ): Promise<GameMetricsResult> {
   return callRpc("satori_game_metrics", params, opts).then((value) =>
@@ -629,6 +629,41 @@ export function getEventCatalog(
   );
 }
 
+/* ── Segments / Explore (filter by AppID × version × platform × country × event) ── */
+
+export interface SegmentBucket {
+  value: string;
+  count: number;
+}
+
+export interface SegmentSeriesPoint {
+  date: string;
+  value: number;
+  dau: number;
+}
+
+export interface SegmentsExploreResult {
+  days: number;
+  generatedAt: number;
+  gameId: string;
+  eventFilter: string;
+  totalEvents: number;
+  series: SegmentSeriesPoint[];
+  appVersions: SegmentBucket[];
+  platforms: SegmentBucket[];
+  countries: SegmentBucket[];
+  events: SegmentBucket[];
+}
+
+export function getSegmentsExplore(
+  params: { days?: number; game_id?: string; event?: string },
+  opts: RpcOptions,
+): Promise<SegmentsExploreResult> {
+  return callRpc("satori_segments_explore", params, opts).then((value) =>
+    unwrapData<SegmentsExploreResult>(value),
+  );
+}
+
 /* ── Event errors (taxonomy-rejected events) ──────────────────────── */
 
 export interface EventError {
@@ -648,6 +683,42 @@ export interface EventErrorsResult {
 export function getEventErrors(opts: RpcOptions): Promise<EventErrorsResult> {
   return callRpc("satori_event_errors", {}, opts).then((value) =>
     unwrapData<EventErrorsResult>(value),
+  );
+}
+
+/* ── App / game registry (manual AppID registration) ─────────────── */
+
+export interface RegisteredApp {
+  id: string;
+  title: string;
+  slug?: string;
+  category?: string;
+  description?: string;
+  iconUrl?: string;
+  status?: string;
+  source?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export function getGameRegistry(opts: RpcOptions): Promise<{ games: RegisteredApp[]; lastSyncAt?: string }> {
+  return callRpc("get_game_registry", {}, opts).then((value) =>
+    unwrapData<{ games: RegisteredApp[]; lastSyncAt?: string }>(value),
+  );
+}
+
+export function registerApp(
+  params: { title: string; id?: string; slug?: string; category?: string; description?: string; iconUrl?: string },
+  opts: RpcOptions,
+): Promise<{ game: RegisteredApp; created: boolean }> {
+  return callRpc("register_game", params, opts).then((value) =>
+    unwrapData<{ game: RegisteredApp; created: boolean }>(value),
+  );
+}
+
+export function deleteApp(id: string, opts: RpcOptions): Promise<{ success: boolean; removed: number }> {
+  return callRpc("delete_game", { id }, opts).then((value) =>
+    unwrapData<{ success: boolean; removed: number }>(value),
   );
 }
 

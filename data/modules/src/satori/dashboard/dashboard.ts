@@ -418,9 +418,79 @@ namespace SatoriDashboard {
     return RpcHelpers.successResponse({ days: days, generatedAt: nowMs, events: events });
   }
 
+  // ── Segments / Explore ───────────────────────────────────────────────────
+  // The "one stop shop" filter surface (mirrors Satori's Explore). For one
+  // AppID (game_id) over N days it returns the marginal breakdowns the ingest
+  // already aggregates into analytics_live_daily — by app version, platform,
+  // country, and event name — plus a per-day event-volume series that can be
+  // narrowed to a single event name. This is what powers filtering by
+  // AppID × appVersion × platform × country × eventName in the console.
+
+  function countsToSorted(map: { [k: string]: number }): { value: string; count: number }[] {
+    var out: { value: string; count: number }[] = [];
+    for (var k in map) {
+      if (!map.hasOwnProperty(k)) continue;
+      var label = (k === "" || k === null) ? "(unknown)" : k;
+      out.push({ value: label, count: map[k] || 0 });
+    }
+    out.sort(function (a, b) { return b.count - a.count; });
+    return out;
+  }
+
+  // satori_segments_explore — Payload: { days?, game_id?, event? }
+  function rpcSegmentsExplore(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 1), GM_MAX_DAYS);
+    var gameId = RpcHelpers.gameId(data);
+    var eventFilter = (typeof data.event === "string" && data.event) ? data.event : "";
+
+    var nowMs = Date.now();
+    var byVersion: { [k: string]: number } = {};
+    var byPlatform: { [k: string]: number } = {};
+    var byCountry: { [k: string]: number } = {};
+    var byName: { [k: string]: number } = {};
+    var series: any[] = [];
+    var totalEvents = 0;
+
+    for (var d = days - 1; d >= 0; d--) {
+      var dStr = dateStrOf(nowMs - d * 86400000);
+      var day = LegacyAnalytics.readDay(nk, dStr, gameId);
+      mergeCounts(byVersion, day.byAppVersion);
+      mergeCounts(byPlatform, day.byPlatform);
+      mergeCounts(byCountry, day.byCountry);
+      mergeCounts(byName, day.byName);
+      // Per-day event volume — total, or just the filtered event when set.
+      var dayValue = eventFilter ? (day.byName[eventFilter] || 0) : day.events;
+      totalEvents += dayValue;
+      series.push({ date: dStr, value: dayValue, dau: day.dau });
+    }
+
+    return RpcHelpers.successResponse({
+      days: days,
+      generatedAt: nowMs,
+      gameId: gameId,
+      eventFilter: eventFilter,
+      totalEvents: totalEvents,
+      series: series,
+      appVersions: countsToSorted(byVersion),
+      platforms: countsToSorted(byPlatform),
+      countries: countsToSorted(byCountry),
+      events: countsToSorted(byName)
+    });
+  }
+
+  function mergeCounts(into: { [k: string]: number }, from: { [k: string]: number }): void {
+    if (!from) return;
+    for (var k in from) {
+      if (from.hasOwnProperty(k)) into[k] = (into[k] || 0) + from[k];
+    }
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("satori_dashboard_summary", rpcSummary);
     initializer.registerRpc("satori_game_metrics", rpcGameMetrics);
     initializer.registerRpc("satori_event_catalog", rpcEventCatalog);
+    initializer.registerRpc("satori_segments_explore", rpcSegmentsExplore);
   }
 }

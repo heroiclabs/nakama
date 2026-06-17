@@ -350,6 +350,47 @@ phases:
           "$LIVE_IMAGE" \
           "$ROLLED_BACK" \
           "$NONFATAL_ROLLOUT_BLOCKED" > image-manifest.json
+      # ─── Admin console (separate image) — auto build + roll on web/ changes ──
+      # The console (web/packages/admin) ships as its own image+Deployment
+      # (nakama-admin-dashboard), independent of the server image above. Before
+      # this step, console changes required a manual rebuild+push+set-image.
+      # Now any master push that touches web/ rebuilds the console from source
+      # (the Dockerfile is multi-stage / self-building) and rolls the console
+      # Deployment automatically. NON-FATAL by design: a console build/rollout
+      # failure logs a WARN and never fails the build or rolls back the server.
+      - |
+        echo "=== Admin console deploy (nakama-admin-dashboard) ==="
+        set +e
+        ADMIN_REPO="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/nakama-admin-dashboard"
+        ADMIN_TAG="${IMAGE_VERSION}"
+        WEB_CHANGED="unknown"
+        if git rev-parse "${CODEBUILD_RESOLVED_SOURCE_VERSION}~1" >/dev/null 2>&1; then
+          if git diff --name-only "${CODEBUILD_RESOLVED_SOURCE_VERSION}~1" "${CODEBUILD_RESOLVED_SOURCE_VERSION}" | grep -q '^web/'; then
+            WEB_CHANGED="yes"
+          else
+            WEB_CHANGED="no"
+          fi
+        fi
+        echo "  web/ changed in this commit: ${WEB_CHANGED}"
+        if [ "${WEB_CHANGED}" = "no" ]; then
+          echo "  No web/ changes — skipping console rebuild (current console image stays live)."
+        else
+          echo "  Building console image ${ADMIN_REPO}:${ADMIN_TAG} (context: web/)"
+          if docker build -f web/packages/admin/Dockerfile -t "${ADMIN_REPO}:${ADMIN_TAG}" -t "${ADMIN_REPO}:latest" web; then
+            docker push "${ADMIN_REPO}:${ADMIN_TAG}" && docker push "${ADMIN_REPO}:latest"
+            ADMIN_DIGEST=$(aws ecr describe-images --repository-name nakama-admin-dashboard --image-ids imageTag="${ADMIN_TAG}" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)
+            if [ -n "${ADMIN_DIGEST}" ] && [ "${ADMIN_DIGEST}" != "None" ]; then
+              kubectl set image deployment/nakama-admin-dashboard admin-dashboard="${ADMIN_REPO}@${ADMIN_DIGEST}" -n "$K8S_NAMESPACE"
+              kubectl rollout status deployment/nakama-admin-dashboard -n "$K8S_NAMESPACE" --timeout=180s
+              echo "  ✓ console rolled to ${ADMIN_TAG}"
+            else
+              echo "  WARN: could not resolve console image digest — skipping console rollout."
+            fi
+          else
+            echo "  WARN: console image build failed — leaving current console image in place (server deploy unaffected)."
+          fi
+        fi
+        set -e
 
 artifacts:
   files:

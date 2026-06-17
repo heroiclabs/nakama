@@ -6,6 +6,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
 
 const PlayersPage = lazy(() => import("./pages/PlayersPage"));
+const AppsPage = lazy(() => import("./pages/AppsPage"));
 const HiroConfigPage = lazy(() => import("./pages/HiroConfigPage"));
 const SatoriConfigPage = lazy(() => import("./pages/SatoriConfigPage"));
 const FlagsPage = lazy(() => import("./pages/FlagsPage"));
@@ -56,6 +57,7 @@ function ProtectedRoutes() {
       <Route element={<AdminLayout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="apps" element={<AppsPage />} />
         <Route path="players" element={<PlayersPage />} />
         <Route path="hiro-config" element={<HiroConfigPage />} />
         <Route path="satori-config" element={<SatoriConfigPage />} />

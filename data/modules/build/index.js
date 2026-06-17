@@ -24567,6 +24567,7 @@ var LegacyGameEntry;
 })(LegacyGameEntry || (LegacyGameEntry = {}));
 var LegacyGameRegistry;
 (function (LegacyGameRegistry) {
+    var UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     function getGameRegistry(nk) {
         var data = Storage.readSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry");
         return data || { games: [] };
@@ -24619,10 +24620,115 @@ var LegacyGameRegistry;
             return RpcHelpers.errorResponse("Sync failed: " + err.message);
         }
     }
+    // register_game — Admin-only manual app/game registration.
+    // Payload: { title, id?, slug?, category?, description?, iconUrl? }
+    //   - If `id` is omitted, a fresh UUID is minted and returned as the AppID.
+    //   - If `id` is provided it must be a valid UUID (it becomes the gameId
+    //     apps send in analytics_log_event). Re-registering an existing id
+    //     updates that entry in place (upsert).
+    // The returned `id` is the canonical AppID used everywhere for analytics
+    // filtering — hand it to the app team to stamp on their events.
+    function rpcRegisterGame(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var title = (typeof data.title === "string" ? data.title : "").trim();
+        if (!title)
+            return RpcHelpers.errorResponse("title required");
+        var id = (typeof data.id === "string" ? data.id : "").trim();
+        if (id) {
+            if (!UUID_RE.test(id))
+                return RpcHelpers.errorResponse("id must be a valid UUID");
+            id = id.toLowerCase();
+        }
+        else {
+            id = nk.uuidv4();
+        }
+        var slug = (typeof data.slug === "string" ? data.slug : "").trim().toLowerCase();
+        if (slug && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)) {
+            return RpcHelpers.errorResponse("slug must be lowercase alphanumeric (dashes/underscores allowed, max 64 chars)");
+        }
+        var nowIso = new Date().toISOString();
+        var registry = getGameRegistry(nk);
+        var games = registry.games || [];
+        var existingIdx = -1;
+        for (var i = 0; i < games.length; i++) {
+            if (games[i].id === id) {
+                existingIdx = i;
+                break;
+            }
+            if (slug && games[i].slug === slug) {
+                return RpcHelpers.errorResponse("slug already in use by app " + games[i].id);
+            }
+        }
+        var entry;
+        if (existingIdx >= 0) {
+            entry = games[existingIdx];
+            entry.title = title;
+            if (slug)
+                entry.slug = slug;
+            if (typeof data.category === "string")
+                entry.category = data.category;
+            if (typeof data.description === "string")
+                entry.description = data.description;
+            if (typeof data.iconUrl === "string")
+                entry.iconUrl = data.iconUrl;
+            entry.updatedAt = nowIso;
+        }
+        else {
+            entry = {
+                id: id,
+                title: title,
+                slug: slug || undefined,
+                category: typeof data.category === "string" ? data.category : undefined,
+                description: typeof data.description === "string" ? data.description : undefined,
+                iconUrl: typeof data.iconUrl === "string" ? data.iconUrl : undefined,
+                status: "active",
+                source: "manual",
+                createdAt: nowIso,
+                updatedAt: nowIso
+            };
+            games.push(entry);
+        }
+        Storage.writeSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry", {
+            games: games,
+            lastSyncAt: registry.lastSyncAt
+        });
+        return RpcHelpers.successResponse({ game: entry, created: existingIdx < 0 });
+    }
+    // delete_game — Admin-only. Removes an app from the registry catalog.
+    // Note: this only forgets the display metadata; historical analytics keyed
+    // on the UUID are untouched.
+    function rpcDeleteGame(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var id = (typeof data.id === "string" ? data.id : "").trim().toLowerCase();
+        if (!id)
+            return RpcHelpers.errorResponse("id required");
+        var registry = getGameRegistry(nk);
+        var games = registry.games || [];
+        var kept = [];
+        var removed = 0;
+        for (var i = 0; i < games.length; i++) {
+            if (games[i].id === id) {
+                removed++;
+                continue;
+            }
+            kept.push(games[i]);
+        }
+        if (removed === 0)
+            return RpcHelpers.errorResponse("App not found: " + id);
+        Storage.writeSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry", {
+            games: kept,
+            lastSyncAt: registry.lastSyncAt
+        });
+        return RpcHelpers.successResponse({ success: true, removed: removed });
+    }
     function register(initializer) {
         initializer.registerRpc("get_game_registry", rpcGetGameRegistry);
         initializer.registerRpc("get_game_by_id", rpcGetGameById);
         initializer.registerRpc("sync_game_registry", rpcSyncGameRegistry);
+        initializer.registerRpc("register_game", rpcRegisterGame);
+        initializer.registerRpc("delete_game", rpcDeleteGame);
     }
     LegacyGameRegistry.register = register;
 })(LegacyGameRegistry || (LegacyGameRegistry = {}));
@@ -42376,10 +42482,76 @@ var SatoriDashboard;
         events.sort(function (a, b) { return b.count - a.count; });
         return RpcHelpers.successResponse({ days: days, generatedAt: nowMs, events: events });
     }
+    // ── Segments / Explore ───────────────────────────────────────────────────
+    // The "one stop shop" filter surface (mirrors Satori's Explore). For one
+    // AppID (game_id) over N days it returns the marginal breakdowns the ingest
+    // already aggregates into analytics_live_daily — by app version, platform,
+    // country, and event name — plus a per-day event-volume series that can be
+    // narrowed to a single event name. This is what powers filtering by
+    // AppID × appVersion × platform × country × eventName in the console.
+    function countsToSorted(map) {
+        var out = [];
+        for (var k in map) {
+            if (!map.hasOwnProperty(k))
+                continue;
+            var label = (k === "" || k === null) ? "(unknown)" : k;
+            out.push({ value: label, count: map[k] || 0 });
+        }
+        out.sort(function (a, b) { return b.count - a.count; });
+        return out;
+    }
+    // satori_segments_explore — Payload: { days?, game_id?, event? }
+    function rpcSegmentsExplore(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 1), GM_MAX_DAYS);
+        var gameId = RpcHelpers.gameId(data);
+        var eventFilter = (typeof data.event === "string" && data.event) ? data.event : "";
+        var nowMs = Date.now();
+        var byVersion = {};
+        var byPlatform = {};
+        var byCountry = {};
+        var byName = {};
+        var series = [];
+        var totalEvents = 0;
+        for (var d = days - 1; d >= 0; d--) {
+            var dStr = dateStrOf(nowMs - d * 86400000);
+            var day = LegacyAnalytics.readDay(nk, dStr, gameId);
+            mergeCounts(byVersion, day.byAppVersion);
+            mergeCounts(byPlatform, day.byPlatform);
+            mergeCounts(byCountry, day.byCountry);
+            mergeCounts(byName, day.byName);
+            // Per-day event volume — total, or just the filtered event when set.
+            var dayValue = eventFilter ? (day.byName[eventFilter] || 0) : day.events;
+            totalEvents += dayValue;
+            series.push({ date: dStr, value: dayValue, dau: day.dau });
+        }
+        return RpcHelpers.successResponse({
+            days: days,
+            generatedAt: nowMs,
+            gameId: gameId,
+            eventFilter: eventFilter,
+            totalEvents: totalEvents,
+            series: series,
+            appVersions: countsToSorted(byVersion),
+            platforms: countsToSorted(byPlatform),
+            countries: countsToSorted(byCountry),
+            events: countsToSorted(byName)
+        });
+    }
+    function mergeCounts(into, from) {
+        if (!from)
+            return;
+        for (var k in from) {
+            if (from.hasOwnProperty(k))
+                into[k] = (into[k] || 0) + from[k];
+        }
+    }
     function register(initializer) {
         initializer.registerRpc("satori_dashboard_summary", rpcSummary);
         initializer.registerRpc("satori_game_metrics", rpcGameMetrics);
         initializer.registerRpc("satori_event_catalog", rpcEventCatalog);
+        initializer.registerRpc("satori_segments_explore", rpcSegmentsExplore);
     }
     SatoriDashboard.register = register;
 })(SatoriDashboard || (SatoriDashboard = {}));
@@ -44407,7 +44579,7 @@ var LegacyAnalytics;
     function emptyDay(dateStr) {
         return {
             date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
-            sessionSeconds: 0, revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, lastEventAt: 0
+            sessionSeconds: 0, revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, byAppVersion: {}, lastEventAt: 0
         };
     }
     // Read the analytics_dau + analytics_live_daily aggregate docs for one date.
@@ -44438,6 +44610,7 @@ var LegacyAnalytics;
                     out.byCountry = lv.by_country || {};
                     out.byCity = lv.by_city || {};
                     out.byPlatform = lv.by_platform || {};
+                    out.byAppVersion = lv.by_app_version || {};
                     out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
                     out.sessionSeconds = parseFloat(lv.session_seconds) || 0;
                     out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
