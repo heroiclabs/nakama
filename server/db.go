@@ -39,14 +39,15 @@ var ErrDatabaseDriverMismatch = errors.New("database driver mismatch")
 
 var isCockroach bool
 
-func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bool) *sql.DB {
+// DbConfig builds the pgx connection config from Nakama database settings.
+func DbConfig(config Config) (*pgx.ConnConfig, error) {
 	rawURL := config.GetDatabase().Addresses[0]
 	if !(strings.HasPrefix(rawURL, "postgresql://") || strings.HasPrefix(rawURL, "postgres://")) {
 		rawURL = fmt.Sprintf("postgres://%s", rawURL)
 	}
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		logger.Fatal("Bad database connection URL", zap.Error(err))
+		return nil, err
 	}
 	query := parsedURL.Query()
 	var queryUpdated bool
@@ -68,18 +69,34 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 		parsedURL.Path = "/" + dbName
 	}
 
+	return pgx.ParseConfig(parsedURL.String())
+}
+
+// DbConnectConfig connects to the database using the supplied pgx connection config.
+func DbConnectConfig(ctx context.Context, logger *zap.Logger, config Config, connConfig pgx.ConnConfig) *sql.DB {
+	return dbConnect(ctx, logger, config, connConfig, false)
+}
+
+// DbConnect connects to the database using Nakama database settings.
+func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bool) *sql.DB {
+	connConfig, err := DbConfig(config)
+	if err != nil {
+		logger.Fatal("Bad database connection URL", zap.Error(err))
+	}
+	return dbConnect(ctx, logger, config, *connConfig, create)
+}
+
+func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfig pgx.ConnConfig, create bool) *sql.DB {
+	dbName := connConfig.Database
+
 	// Resolve initial database address based on host before connecting.
-	dbHostname := parsedURL.Hostname()
+	dbHostname := connConfig.Host
 	resolvedAddr, resolvedAddrMap := dbResolveAddress(ctx, logger, dbHostname)
 
-	db, err := sql.Open("pgx", parsedURL.String())
-	if err != nil {
-		logger.Fatal("Failed to open database", zap.Error(err))
-	}
-
 	if create {
+		db := stdlib.OpenDB(connConfig)
 		var nakamaDBExists bool
-		if err = db.QueryRow("SELECT EXISTS (SELECT 1 from pg_database WHERE datname = $1)", dbName).Scan(&nakamaDBExists); err != nil {
+		if err := db.QueryRow("SELECT EXISTS (SELECT 1 from pg_database WHERE datname = $1)", dbName).Scan(&nakamaDBExists); err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == dbErrorDatabaseDoesNotExist {
 				nakamaDBExists = false
@@ -94,34 +111,23 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 			logger.Info("Creating new database", zap.String("name", dbName))
 			db.Close()
 			// Connect to anonymous db
-			parsedURL.Path = ""
-			db, err = sql.Open("pgx", parsedURL.String())
-			if err != nil {
-				logger.Fatal("Failed to open database", zap.Error(err))
-			}
-			if _, err = db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbName)); err != nil {
+			createConnConfig := connConfig
+			createConnConfig.Database = ""
+			db = stdlib.OpenDB(createConnConfig)
+			if _, err := db.Exec(fmt.Sprintf("CREATE DATABASE %q", dbName)); err != nil {
 				db.Close()
 				logger.Fatal("Failed to create database", zap.Error(err))
 			}
-			db.Close()
-			parsedURL.Path = fmt.Sprintf("/%s", dbName)
-			db, err = sql.Open("pgx", parsedURL.String())
-			if err != nil {
-				db.Close()
-				logger.Fatal("Failed to open database", zap.Error(err))
-			}
 		}
+		db.Close()
 	}
 
-	logger.Debug("Complete database connection URL", zap.String("raw_url", parsedURL.String()))
-	db, err = sql.Open("pgx", parsedURL.String())
-	if err != nil {
-		logger.Fatal("Error connecting to database", zap.Error(err))
-	}
+	logger.Debug("Complete database connection URL", zap.String("raw_url", connConfig.ConnString()))
+	db := stdlib.OpenDB(connConfig)
 	// Limit max time allowed across database ping and version fetch to 15 seconds total.
 	pingCtx, pingCtxCancelFn := context.WithTimeout(ctx, 15*time.Second)
 	defer pingCtxCancelFn()
-	if err = db.PingContext(pingCtx); err != nil {
+	if err := db.PingContext(pingCtx); err != nil {
 		if strings.HasSuffix(err.Error(), "does not exist (SQLSTATE 3D000)") {
 			logger.Fatal("Database schema not found, run `nakama migrate up`", zap.Error(err))
 		}
@@ -133,7 +139,7 @@ func DbConnect(ctx context.Context, logger *zap.Logger, config Config, create bo
 	db.SetMaxIdleConns(config.GetDatabase().MaxIdleConns)
 
 	var dbVersion string
-	if err = db.QueryRowContext(pingCtx, "SELECT version()").Scan(&dbVersion); err != nil {
+	if err := db.QueryRowContext(pingCtx, "SELECT version()").Scan(&dbVersion); err != nil {
 		logger.Fatal("Error querying database version", zap.Error(err))
 	}
 
