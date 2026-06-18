@@ -21,32 +21,27 @@ import {
 } from "lucide-react";
 import { serverKeyAuth, satori, type FeatureFlag } from "@nakama/shared";
 import { cn } from "@/lib/utils";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 
 type FilterMode = "all" | "enabled" | "disabled";
-const GLOBAL_CONFIG_SCOPE = "global";
-
-function rpcGameId(scope: string) {
-  const trimmed = scope.trim();
-  return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
-}
 
 /* ── Queries / Mutations ──────────────────────────────────────────── */
 
-function useFlags(gameScope: string) {
+function useFlags(gameId: string | undefined) {
   return useQuery({
-    queryKey: ["admin", "flags", gameScope],
-    queryFn: () => satori.getAllFlags(serverKeyAuth(), rpcGameId(gameScope)),
+    queryKey: ["admin", "flags", gameId ?? "all"],
+    queryFn: () => satori.getAllFlags(serverKeyAuth(), gameId),
     select: (d) => d.flags ?? [],
     retry: 1,
   });
 }
 
-function useToggleFlag(gameScope: string) {
+function useToggleFlag(gameId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (params: Parameters<typeof satori.toggleFlag>[0]) =>
-      satori.toggleFlag({ ...params, game_id: rpcGameId(gameScope) }, serverKeyAuth()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "flags", gameScope] }),
+      satori.toggleFlag({ ...params, game_id: gameId }, serverKeyAuth()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "flags", gameId ?? "all"] }),
   });
 }
 
@@ -423,9 +418,9 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
 /* ── Main Page ─────────────────────────────────────────────────────── */
 
 export function FlagsPage() {
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
-  const flags = useFlags(gameScope);
-  const toggle = useToggleFlag(gameScope);
+  const gameId = useScopedGameId();
+  const flags = useFlags(gameId);
+  const toggle = useToggleFlag(gameId);
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [showForm, setShowForm] = useState(false);
@@ -494,15 +489,6 @@ export function FlagsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Game ID
-            <input
-              value={gameScope}
-              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
-              placeholder="global or quizverse"
-              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
-            />
-          </label>
           {flags.isFetching && (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           )}

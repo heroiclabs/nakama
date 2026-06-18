@@ -3,6 +3,19 @@ namespace ConfigLoader {
   var configCache: { [key: string]: { data: any; loadedAt: number } } = {};
   var CACHE_TTL_MS = 60000; // 1 minute
 
+  // Fold every alias of a registered app (UUID / slug / platform aliases) down
+  // to one canonical scope before building the storage key, so the same app
+  // never splits across two config stores. Defensive: if the registry helper
+  // is unavailable for any reason, fall back to the raw id (legacy behaviour).
+  function canonicalGameId(nk: nkruntime.Nakama, gameId: string | undefined): string | undefined {
+    try {
+      if (typeof LegacyGameRegistry !== "undefined" && LegacyGameRegistry.resolveCanonicalGameId) {
+        return LegacyGameRegistry.resolveCanonicalGameId(nk, gameId);
+      }
+    } catch (_e) { /* fall through to raw */ }
+    return gameId;
+  }
+
   export function loadConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T {
     var now = Date.now();
     var cached = configCache[configKey];
@@ -19,7 +32,7 @@ namespace ConfigLoader {
   }
 
   export function loadConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T {
-    var scopedKey = Constants.gameKey(gameId, configKey);
+    var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
     var data = loadConfig<T>(nk, scopedKey, defaultValue);
     if (scopedKey !== configKey && data === defaultValue) {
       return loadConfig<T>(nk, configKey, defaultValue);
@@ -44,7 +57,7 @@ namespace ConfigLoader {
   }
 
   export function loadSatoriConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T {
-    var scopedKey = Constants.gameKey(gameId, configKey);
+    var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
     var data = loadSatoriConfig<T>(nk, scopedKey, defaultValue);
     if (scopedKey !== configKey && data === defaultValue) {
       return loadSatoriConfig<T>(nk, configKey, defaultValue);
@@ -63,7 +76,7 @@ namespace ConfigLoader {
   }
 
   export function saveSatoriConfigForGame(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, data: any): void {
-    saveSatoriConfig(nk, Constants.gameKey(gameId, configKey), data);
+    saveSatoriConfig(nk, Constants.gameKey(canonicalGameId(nk, gameId), configKey), data);
   }
 
   export function invalidateCache(configKey?: string): void {

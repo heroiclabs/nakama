@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Trophy,
@@ -478,7 +479,7 @@ function EventLbForm({
 
 function EventLeaderboardsTab() {
   const qc = useQueryClient();
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<EventLbDef | null>(null);
   const [creating, setCreating] = useState(false);
@@ -606,15 +607,6 @@ function EventLeaderboardsTab() {
           <option value="enabled">Enabled</option>
           <option value="disabled">Disabled</option>
         </select>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          Game ID
-          <input
-            value={gameScope}
-            onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
-            placeholder="global or quizverse"
-            className="w-44 rounded-md border border-input bg-background px-2 py-2 text-xs text-foreground"
-          />
-        </label>
         <button
           onClick={() => configQ.refetch()}
           className="inline-flex items-center gap-1.5 rounded-md border border-input px-3 py-2 text-sm hover:bg-muted"

@@ -1179,6 +1179,7 @@ declare namespace LegacyGameEntry {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyGameRegistry {
+    function resolveCanonicalGameId(nk: nkruntime.Nakama, raw: string | undefined): string | undefined;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyGiftCards {

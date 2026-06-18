@@ -24712,6 +24712,54 @@ var LegacyGameRegistry;
         var data = Storage.readSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry");
         return data || { games: [] };
     }
+    // ── Canonical game-id resolution ───────────────────────────────────────────
+    // A single app is reachable by several identifiers — its registry UUID, its
+    // human slug ("quizverse"), or the platform aliases ("all"/"global"). Config
+    // (flags, experiments, audiences, …) is keyed by the raw string via
+    // Constants.gameKey, so the SAME app could otherwise read/write two different
+    // stores depending on which id a caller passed. resolveCanonicalGameId folds
+    // every alias of a registered app down to ONE canonical scope so all surfaces
+    // (admin console, game client, RPCs) agree.
+    //
+    // Canonical scope = the app's `slug` when set, else its `id`. We prefer the
+    // slug because that's where the existing explicit app config already lives
+    // (e.g. "quizverse:flags") — so no data migration is needed.
+    //
+    // Platform-wide aliases ("", "all", "global", "default") → undefined, which
+    // Constants.gameKey maps to the bare (platform-default) key, preserving the
+    // legacy fallback behaviour exactly.
+    var REGISTRY_CACHE = { data: null, at: 0 };
+    var REGISTRY_TTL_MS = 30000;
+    function cachedRegistry(nk) {
+        var now = Date.now();
+        if (REGISTRY_CACHE.data && (now - REGISTRY_CACHE.at) < REGISTRY_TTL_MS) {
+            return REGISTRY_CACHE.data;
+        }
+        var data = getGameRegistry(nk);
+        REGISTRY_CACHE = { data: data, at: now };
+        return data;
+    }
+    function resolveCanonicalGameId(nk, raw) {
+        if (!raw)
+            return undefined;
+        var v = String(raw).trim().toLowerCase();
+        if (v === "" || v === "all" || v === "global" || v === Constants.DEFAULT_GAME_ID) {
+            return undefined;
+        }
+        var games = cachedRegistry(nk).games || [];
+        for (var i = 0; i < games.length; i++) {
+            var g = games[i];
+            var gid = (g.id || "").toLowerCase();
+            var gslug = (g.slug || "").toLowerCase();
+            if (gid === v || (gslug && gslug === v)) {
+                return g.slug ? g.slug : g.id;
+            }
+        }
+        // Unregistered identifier — pass through unchanged so behaviour is never a
+        // surprise for ids the registry doesn't know about yet.
+        return raw;
+    }
+    LegacyGameRegistry.resolveCanonicalGameId = resolveCanonicalGameId;
     function rpcGetGameRegistry(ctx, logger, nk, payload) {
         var registry = getGameRegistry(nk);
         return RpcHelpers.successResponse({ games: registry.games, lastSyncAt: registry.lastSyncAt });
@@ -48504,6 +48552,19 @@ var ConfigLoader;
 (function (ConfigLoader) {
     var configCache = {};
     var CACHE_TTL_MS = 60000; // 1 minute
+    // Fold every alias of a registered app (UUID / slug / platform aliases) down
+    // to one canonical scope before building the storage key, so the same app
+    // never splits across two config stores. Defensive: if the registry helper
+    // is unavailable for any reason, fall back to the raw id (legacy behaviour).
+    function canonicalGameId(nk, gameId) {
+        try {
+            if (typeof LegacyGameRegistry !== "undefined" && LegacyGameRegistry.resolveCanonicalGameId) {
+                return LegacyGameRegistry.resolveCanonicalGameId(nk, gameId);
+            }
+        }
+        catch (_e) { /* fall through to raw */ }
+        return gameId;
+    }
     function loadConfig(nk, configKey, defaultValue) {
         var now = Date.now();
         var cached = configCache[configKey];
@@ -48519,7 +48580,7 @@ var ConfigLoader;
     }
     ConfigLoader.loadConfig = loadConfig;
     function loadConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(gameId, configKey);
+        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
         var data = loadConfig(nk, scopedKey, defaultValue);
         if (scopedKey !== configKey && data === defaultValue) {
             return loadConfig(nk, configKey, defaultValue);
@@ -48543,7 +48604,7 @@ var ConfigLoader;
     }
     ConfigLoader.loadSatoriConfig = loadSatoriConfig;
     function loadSatoriConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(gameId, configKey);
+        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
         var data = loadSatoriConfig(nk, scopedKey, defaultValue);
         if (scopedKey !== configKey && data === defaultValue) {
             return loadSatoriConfig(nk, configKey, defaultValue);
@@ -48562,7 +48623,7 @@ var ConfigLoader;
     }
     ConfigLoader.saveSatoriConfig = saveSatoriConfig;
     function saveSatoriConfigForGame(nk, configKey, gameId, data) {
-        saveSatoriConfig(nk, Constants.gameKey(gameId, configKey), data);
+        saveSatoriConfig(nk, Constants.gameKey(canonicalGameId(nk, gameId), configKey), data);
     }
     ConfigLoader.saveSatoriConfigForGame = saveSatoriConfigForGame;
     function invalidateCache(configKey) {
