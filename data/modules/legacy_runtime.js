@@ -4731,7 +4731,7 @@ var rpcGetNotifications = getNotifications;
  * Reward configurations per gameId UUID
  * This can be extended or moved to storage for dynamic configuration
  */
-var REWARD_CONFIGS = {
+var LEGACY_REWARD_CONFIGS = {
     // Default rewards for any game
     "default": [
         { day: 1, xp: 100, tokens: 10, description: "Day 1 Reward" },
@@ -4843,7 +4843,7 @@ function updateStreakStatus(streakData) {
  * @returns {object} Reward configuration
  */
 function getRewardForDay(gameId, day) {
-    var config = REWARD_CONFIGS[gameId] || REWARD_CONFIGS["default"];
+    var config = LEGACY_REWARD_CONFIGS[gameId] || LEGACY_REWARD_CONFIGS["default"];
     var rewardDay = ((day - 1) % 7) + 1; // Cycle through 1-7
 
     for (var i = 0; i < config.length; i++) {
