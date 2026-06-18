@@ -16,18 +16,7 @@ package server
 
 import "github.com/gorilla/mux"
 
-// ConsoleRouterAuth configures authentication middleware for registered console router paths.
-type ConsoleRouterAuth int
-
-const (
-	// ConsoleRouterAuthNone registers console routes without additional authentication middleware.
-	ConsoleRouterAuthNone ConsoleRouterAuth = iota
-	// ConsoleRouterAuthAdminBasic registers console routes with console admin basic authentication.
-	ConsoleRouterAuthAdminBasic
-)
-
 type consoleRouterRegistration struct {
-	auth     ConsoleRouterAuth
 	register func(*mux.Router)
 }
 
@@ -35,35 +24,20 @@ var consoleRouterRegistrations []consoleRouterRegistration
 
 // RegisterConsoleRouter registers additional handlers on the console HTTP router.
 // It should be called before the console server starts.
-func RegisterConsoleRouter(auth ConsoleRouterAuth, register func(*mux.Router)) {
+func RegisterConsoleRouter(register func(*mux.Router)) {
 	if register == nil {
 		panic("server.RegisterConsoleRouter: register must not be nil")
 	}
-	if !auth.valid() {
-		panic("server.RegisterConsoleRouter: invalid auth")
-	}
 
 	consoleRouterRegistrations = append(consoleRouterRegistrations, consoleRouterRegistration{
-		auth:     auth,
 		register: register,
 	})
-}
-
-func (a ConsoleRouterAuth) valid() bool {
-	switch a {
-	case ConsoleRouterAuthNone, ConsoleRouterAuthAdminBasic:
-		return true
-	default:
-		return false
-	}
 }
 
 func registerConsoleRouters(router *mux.Router, consoleConfig *ConsoleConfig) {
 	for _, registration := range consoleRouterRegistrations {
 		subrouter := router.NewRoute().Subrouter()
-		if registration.auth == ConsoleRouterAuthAdminBasic {
-			subrouter.Use(adminBasicAuth(consoleConfig))
-		}
+		subrouter.Use(adminBasicAuth(consoleConfig))
 		registration.register(subrouter)
 	}
 }
