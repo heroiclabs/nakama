@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   callRpc,
@@ -10,6 +10,7 @@ import {
 import type { RpcOptions, NakamaUser } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 import { useIframeAuth } from "@/lib/useIframeAuth";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 import {
   BarChart3,
   Activity,
@@ -1382,7 +1383,14 @@ function DataLakeTab() {
 }
 
 function GameIntelligenceTab() {
-  const [gameId, setGameId] = useState("quizverse");
+  // Default the report scope to the console-wide app selection (falling back to
+  // QuizVerse, which this diagnostic was originally built around). The box below
+  // stays as a manual override; switching apps in the top bar re-syncs it.
+  const scopedGameId = useScopedGameId();
+  const [gameId, setGameId] = useState(scopedGameId ?? "quizverse");
+  useEffect(() => {
+    setGameId(scopedGameId ?? "quizverse");
+  }, [scopedGameId]);
   const report = useQuery({
     queryKey: ["analytics", "game-intelligence", gameId],
     queryFn: () =>
