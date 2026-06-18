@@ -44693,6 +44693,17 @@ var SatoriIdentityInspector;
 //                                  revenue_usd, ad_revenue_usd, session_count,
 //                                  coins_earned, coins_spent, last_event_at }
 //
+// Money (revenue / purchases) is read from a THIRD collection when available:
+//
+//   analytics_rollup_daily key: rollup_all_<date>   | rollup_<gameId>_<date>
+//                         value: { revenue: { usd, iap_count, ad_revenue_usd, … } }
+//
+// This is the purge-aware source the standalone analytics.htm reads via
+// analytics_arpu. We prefer it over analytics_live_daily.revenue_usd, which is
+// a live counter the revenue-purge RPC never resets (so seeded/test IAP
+// revenue lingers there and inflates the console). Falls back to live_daily for
+// days not yet rolled up (e.g. today).
+//
 // All Satori admin surfaces (dashboard, game-metrics, timeline, funnels,
 // retention) read through here so they show real game data instead of the
 // near-empty capture ring. Pure helper namespace — registers no RPCs and is
@@ -44702,6 +44713,13 @@ var LegacyAnalytics;
 (function (LegacyAnalytics) {
     var DAU_COLLECTION = "analytics_dau";
     var LIVE_COLLECTION = "analytics_live_daily";
+    // Authoritative per-day money source — the SAME rollup the standalone
+    // analytics.htm reads via analytics_arpu. `analytics_live_daily` is a live
+    // real-time counter that the revenue-purge RPC does NOT touch, so seeded/test
+    // IAP revenue lingers there and inflates the dashboard. The rollup is
+    // purge-aware, so we prefer its revenue/iap_count whenever a rollup doc
+    // exists for the day (today, pre-rollup, still falls back to live_daily).
+    var ROLLUP_COLLECTION = "analytics_rollup_daily";
     function dateStrOf(ms) {
         return new Date(ms).toISOString().slice(0, 10);
     }
@@ -44716,6 +44734,9 @@ var LegacyAnalytics;
     function liveKeyOf(dateStr, gameId) {
         return isPlatform(gameId) ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
     }
+    function rollupKeyOf(dateStr, gameId) {
+        return isPlatform(gameId) ? "rollup_all_" + dateStr : "rollup_" + gameId + "_" + dateStr;
+    }
     function emptyDay(dateStr) {
         return {
             date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
@@ -44727,16 +44748,27 @@ var LegacyAnalytics;
     function readDay(nk, dateStr, gameId) {
         var sys = Constants.SYSTEM_USER_ID;
         var out = emptyDay(dateStr);
+        var rollupRevenue = -1; // <0 = no rollup doc for this day
+        var rollupPurchases = 0;
         try {
             var recs = nk.storageRead([
                 { collection: DAU_COLLECTION, key: dauKeyOf(dateStr, gameId), userId: sys },
-                { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys }
+                { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys },
+                { collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, gameId), userId: sys }
             ]);
             for (var i = 0; i < recs.length; i++) {
                 var r = recs[i];
                 if (!r || !r.value)
                     continue;
-                if (r.collection === DAU_COLLECTION) {
+                if (r.collection === ROLLUP_COLLECTION) {
+                    // Capture the purge-aware money figures; applied after the loop so we
+                    // never depend on storageRead result ordering.
+                    var rl = r.value;
+                    var rev = rl.revenue || {};
+                    rollupRevenue = (parseFloat(rev.usd) || 0) + (parseFloat(rev.ad_revenue_usd) || 0);
+                    rollupPurchases = parseInt(rev.iap_count, 10) || 0;
+                }
+                else if (r.collection === DAU_COLLECTION) {
                     var dv = r.value;
                     var list = Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers : (Array.isArray(dv.users) ? dv.users : []);
                     out.uniqueUsers = list;
@@ -44758,6 +44790,11 @@ var LegacyAnalytics;
                         out.byName.session_end || out.byName.session_start || 0;
                     out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
                 }
+            }
+            // Prefer the rollup's purge-aware money figures over the live counter.
+            if (rollupRevenue >= 0) {
+                out.revenue = rollupRevenue;
+                out.purchases = rollupPurchases;
             }
         }
         catch (e) { /* missing day → zeros */ }
