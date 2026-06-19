@@ -2764,7 +2764,7 @@ func (ri *RuntimeGoInitializer) RegisterMatchmakerOverride(fn func(ctx context.C
 }
 
 // @group matchmaker
-// @summary Register a custom matchmaker processor function. Receives matchmaker entries and returns groups of entries that should be matched together.
+// @summary Register a custom matchmaker processor function. Receives entire pool of matchmaker entries and returns groups of entries that should be matched together.
 // @param fn(type=function) The function to execute to process matchmaker entries into match groups.
 // @return error(error) An optional error value if an error occurred.
 func (ri *RuntimeGoInitializer) RegisterMatchmakerProcessor(fn func(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, entries []runtime.MatchmakerEntry) (matches [][]runtime.MatchmakerEntry)) error {
