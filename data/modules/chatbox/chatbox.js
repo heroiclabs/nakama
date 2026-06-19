@@ -373,9 +373,10 @@ var CBX_INTENT_SCHEMA_PROMPT =
     "- If you are unsure of the mode, set quizMode=null and ask one clarifying question in reply.\n" +
     "- NEVER invent quizMode names not in VALID_MODES.\n" +
     "- Keep reply under 280 characters. No emoji spam (max 1 per reply).\n" +
+    "- LANGUAGE: obey the LANGUAGE RULE in the user content. Write \"reply\" and every \"suggestions\" chip in that language.\n" +
     "- VALID_MODES: " + CBX_CHAT_LAUNCHABLE_MODES.join(", ");
 
-function cbxBuildUserPrompt(message, playerCtx, kbContext, locale, intentHint) {
+function cbxBuildUserPrompt(message, playerCtx, kbContext, locale, intentHint, languageMode) {
     // P0-7 / OWASP LLM01: separate SERVER-TRUSTED context from UNTRUSTED user
     // input with an explicit fence + instruction. The LLM is told NOT to
     // follow instructions found inside the user block. This isn't a perfect
@@ -395,7 +396,22 @@ function cbxBuildUserPrompt(message, playerCtx, kbContext, locale, intentHint) {
     if (playerCtx.level) lines.push("Level: " + playerCtx.level);
     if (playerCtx.totalSessions) lines.push("Sessions played: " + playerCtx.totalSessions);
     if (playerCtx.favoriteCategory) lines.push("Favorite category: " + playerCtx.favoriteCategory);
-    if (locale && locale !== CBX_DEFAULT_LOCALE) lines.push("Player locale: " + locale + " (reply in this language)");
+    // QVBF_270 — language selection is now explicit and per-RPC:
+    //   "mirror" (chat message RPC) → reply in the SAME language the user typed in.
+    //   "locale" (greeting RPC)     → reply in the device/UI language (req.locale).
+    // Default (no mode passed) keeps the old behaviour: only nudge when the
+    // device locale differs from English.
+    if (languageMode === "mirror") {
+        lines.push("LANGUAGE RULE (highest priority): Detect the language of the USER MESSAGE in the fenced " +
+            "block below and write your ENTIRE response — the \"reply\" text AND every \"suggestions\" chip — " +
+            "in that SAME language. The user's own message decides the language; IGNORE the player locale for " +
+            "language selection. If the message mixes languages, use the dominant one.");
+    } else if (languageMode === "locale") {
+        lines.push("LANGUAGE RULE (highest priority): Write your ENTIRE response — the \"reply\" text AND every " +
+            "\"suggestions\" chip — in this language (BCP-47 / ISO code): " + (locale || CBX_DEFAULT_LOCALE) + ".");
+    } else if (locale && locale !== CBX_DEFAULT_LOCALE) {
+        lines.push("Player locale: " + locale + " (reply in this language)");
+    }
     
     // QVBF-52: Include client intent hint as trusted metadata (helps LLM tailor response)
     if (intentHint && intentHint !== "unknown") {
@@ -735,10 +751,12 @@ function rpcQuizverseChatboxGreeting(ctx, logger, nk, payload) {
             "Use their name and one specific detail from context (streak, last topic, weak topic). " +
             "End by inviting one concrete next action. " +
             "Return STRICT JSON: {\"reply\": <text>, \"suggestions\": [<chip>, <chip>, <chip>]}. " +
-            "Each chip max 24 chars, action-oriented.";
+            "Each chip max 24 chars, action-oriented. " +
+            "LANGUAGE: obey the LANGUAGE RULE in the user content — write \"reply\" and every chip in that language.";
 
+        // QVBF_270: greeting always speaks the device/UI language.
         var userMsg = cbxBuildUserPrompt("__GREETING__", playerCtx, kbCtx,
-            req.locale || CBX_DEFAULT_LOCALE, "unknown");
+            req.locale || CBX_DEFAULT_LOCALE, "unknown", "locale");
 
         var llm = cbxCallLLM(nk, logger, ctx, systemPrompt, userMsg, CBX_GREETING_MAX_TOKENS);
         var parsed = llm.success ? cbxParseLlmJson(llm.text) : null;
@@ -875,7 +893,8 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
         }
 
         var kbCtx = req.knowledgeBaseContext || null;
-        var userMsg = cbxBuildUserPrompt(message, playerCtx, kbCtx, req.locale || CBX_DEFAULT_LOCALE, intentHint);
+        // QVBF_270: chat replies mirror the language the user typed in.
+        var userMsg = cbxBuildUserPrompt(message, playerCtx, kbCtx, req.locale || CBX_DEFAULT_LOCALE, intentHint, "mirror");
 
         // QVBF-52: Adjust system prompt based on client intent classification
         var systemPrompt = CBX_INTENT_SCHEMA_PROMPT;

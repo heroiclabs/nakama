@@ -577,7 +577,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // ---- Fortune Wheel Ad Spin (PLAN-ADS-OPTIMIZATION-v2 §4 #19) ----
     try {
         logger.info("[FortuneWheelAdSpin] Registering fortune_wheel_ad_spin RPC...");
-        FortuneWheelAdSpin.register(initializer, logger);
+        // QVBF_218: register() is single-arg on purpose so postbuild auto-invokes it
+        // at IIFE scope (VM-pool safe). Do not pass logger here.
+        FortuneWheelAdSpin.register(initializer);
         logger.info("[FortuneWheelAdSpin] Fortune wheel ad spin registered successfully");
     }
     catch (err) {
@@ -49164,11 +49166,19 @@ var FortuneWheelAdSpin;
     FortuneWheelAdSpin.rpcFortuneWheelSkipCooldown = rpcFortuneWheelSkipCooldown;
     /**
      * Register all RPCs in this module.
+     *
+     * QVBF_218 fix: this MUST take ONLY `(initializer)`. postbuild.js auto-invokes
+     * single-arg register() functions at IIFE/module scope, which sets the
+     * `__rpc_fortune_wheel_*` globals on EVERY pooled Goja VM. With the previous
+     * `(initializer, logger)` signature postbuild skipped auto-invoke, so the
+     * globals were only set on the first VM (where InitModule runs) and were
+     * `undefined` on the VMs that actually serve traffic — making
+     * fortune_wheel_skip_cooldown / fortune_wheel_ad_spin time out with retries.
+     * Do NOT add a second parameter here.
      */
-    function register(initializer, logger) {
+    function register(initializer) {
         initializer.registerRpc("fortune_wheel_ad_spin", rpcFortuneWheelAdSpin);
         initializer.registerRpc("fortune_wheel_skip_cooldown", rpcFortuneWheelSkipCooldown);
-        logger.info("[FortuneWheelAdSpin] ✓ Registered RPCs: fortune_wheel_ad_spin (V2), fortune_wheel_skip_cooldown");
     }
     FortuneWheelAdSpin.register = register;
 })(FortuneWheelAdSpin || (FortuneWheelAdSpin = {}));

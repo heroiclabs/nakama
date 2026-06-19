@@ -3689,8 +3689,17 @@ declare namespace FortuneWheelAdSpin {
     function rpcFortuneWheelSkipCooldown(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string;
     /**
      * Register all RPCs in this module.
+     *
+     * QVBF_218 fix: this MUST take ONLY `(initializer)`. postbuild.js auto-invokes
+     * single-arg register() functions at IIFE/module scope, which sets the
+     * `__rpc_fortune_wheel_*` globals on EVERY pooled Goja VM. With the previous
+     * `(initializer, logger)` signature postbuild skipped auto-invoke, so the
+     * globals were only set on the first VM (where InitModule runs) and were
+     * `undefined` on the VMs that actually serve traffic — making
+     * fortune_wheel_skip_cooldown / fortune_wheel_ad_spin time out with retries.
+     * Do NOT add a second parameter here.
      */
-    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace GeoTier {
     /**

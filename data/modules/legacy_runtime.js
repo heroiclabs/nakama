@@ -22786,7 +22786,16 @@ function fwGrantReward(nk, userId, rewardType, amount, logger) {
     }
 }
 
-var fortuneWheelGetState = function(ctx, logger, nk, payload) {
+// QVBF_216 fix: this stale V1 handler is DELIBERATELY renamed to __legacy_*
+// so it no longer shadows the V2 implementation in fortune_wheel/fortune_wheel.js.
+// Both files declared `var fortuneWheelGetState = function(...)`; because legacy
+// merges AFTER the module folders, its `var` assignment used to win and the V2
+// fields (organicSpinDone, adSpinsMax, ad-spin cycle) were lost. The postbuild
+// collision resolver only renames `function NAME()` declarations, not
+// `var NAME = function()` expressions, so this rename is done by hand.
+// The registerRpc('fortune_wheel_get_state', fortuneWheelGetState) call below
+// intentionally keeps the bare name so it binds the V2 global.
+var __legacy_fortuneWheelGetState = function(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
         if (!userId) {
@@ -22811,7 +22820,11 @@ var fortuneWheelGetState = function(ctx, logger, nk, payload) {
     }
 };
 
-var fortuneWheelSpin = function(ctx, logger, nk, payload) {
+// QVBF_216 fix: renamed to __legacy_* (see fortuneWheelGetState above). This V1
+// spin NEVER set state.organicSpinDone, which is why ad-spins could never unlock
+// and the wheel appeared to "not work despite available spins". The V2 handler in
+// fortune_wheel/fortune_wheel.js sets organicSpinDone and resets the ad cycle.
+var __legacy_fortuneWheelSpin = function(ctx, logger, nk, payload) {
     try {
         var userId = ctx.userId;
         if (!userId) {
@@ -25287,6 +25300,10 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
     // ============================================================================
     try {
         logger.info('[FortuneWheel] Initializing Fortune Wheel Module...');
+        // QVBF_216: `fortuneWheelGetState` / `fortuneWheelSpin` (bare names) bind to
+        // the V2 globals from fortune_wheel/fortune_wheel.js — the legacy V1 copies
+        // above were renamed to __legacy_* on purpose. Do NOT repoint these at the
+        // __legacy_* versions or the organicSpinDone / ad-spin regression returns.
         initializer.registerRpc('fortune_wheel_get_state', fortuneWheelGetState);
         logger.info('[FortuneWheel] Registered RPC: fortune_wheel_get_state');
         initializer.registerRpc('fortune_wheel_spin', fortuneWheelSpin);
