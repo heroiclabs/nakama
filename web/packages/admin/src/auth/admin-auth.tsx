@@ -45,8 +45,65 @@ function readStoredSession(): AdminSession | null {
   }
 }
 
+function persistSession(nextSession: AdminSession) {
+  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+  window.sessionStorage.setItem(
+    LEGACY_ANALYTICS_SESSION_STORAGE_KEY,
+    JSON.stringify({
+      token: nextSession.token,
+      username: nextSession.username,
+      expiresAt: nextSession.expiresAt,
+    }),
+  );
+}
+
+/** Accept session injected by Intelliverse admin portal iframe launch (/api/launch/nakama-analytics). */
+function sessionFromIframeMessage(data: Record<string, unknown>): AdminSession | null {
+  const type = data.type;
+  if (type !== "IVX_ADMIN_TOKEN" && type !== "IVX_NAKAMA_ADMIN_SESSION") {
+    return null;
+  }
+
+  const token = typeof data.token === "string" ? data.token : "";
+  if (!token) return null;
+
+  const expiresAt =
+    typeof data.expiresAt === "number" && data.expiresAt > 0
+      ? data.expiresAt
+      : Math.floor(Date.now() / 1000) + 86400;
+
+  return {
+    token,
+    username: typeof data.username === "string" ? data.username : "admin",
+    userId: typeof data.userId === "string" ? data.userId : "",
+    role: typeof data.role === "string" ? data.role : "admin",
+    expiresAt,
+  };
+}
+
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AdminSession | null>(() => readStoredSession());
+
+  // Embedded in admin.intelli-verse-x.ai — accept token from parent launch shell.
+  useEffect(() => {
+    if (window.self === window.top) return;
+
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+
+      const nextSession = sessionFromIframeMessage(data as Record<string, unknown>);
+      if (!nextSession) return;
+
+      persistSession(nextSession);
+      setSession(nextSession);
+    };
+
+    window.addEventListener("message", onMessage);
+    window.parent.postMessage({ type: "IFRAME_READY" }, "*");
+
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
 
   useEffect(() => {
     if (!session?.expiresAt) return;
@@ -84,15 +141,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       role: body.role ?? "admin",
       expiresAt: body.expiresAt,
     };
-    window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
-    window.sessionStorage.setItem(
-      LEGACY_ANALYTICS_SESSION_STORAGE_KEY,
-      JSON.stringify({
-        token: nextSession.token,
-        username: nextSession.username,
-        expiresAt: nextSession.expiresAt,
-      }),
-    );
+    persistSession(nextSession);
     setSession(nextSession);
   }, []);
 
