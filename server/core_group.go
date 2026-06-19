@@ -2077,10 +2077,12 @@ RETURNING state`
 	var deletedState sql.NullInt64
 	logger.Debug("Removing relationship from group.", zap.String("query", query), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
 	if err := tx.QueryRowContext(ctx, query, userID, groupID).Scan(&deletedState); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
-			return err
+		if errors.Is(err, sql.ErrNoRows) {
+			// If no edges were deleted, then the user was not in the group or was a superadmin (state 0). In either case, we do not need to update the edge count of the group.
+			return nil
 		}
+		logger.Debug("Could not delete relationship from group_edge.", zap.Error(err), zap.String("group_id", groupID.String()), zap.String("user_id", userID.String()))
+		return err
 	}
 
 	if deletedState.Int64 < 3 {

@@ -4,6 +4,10 @@ All notable changes to this project are documented below.
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
 ## [Unreleased]
+### Added
+- Improve logic in Apple JWS receipts validation.
+### Fixed
+- Fix an issue where group admin account deletion could leave orphaned group edges.
 
 ## [3.39.0] - 2026-05-20
 ### Added

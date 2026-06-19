@@ -920,7 +920,10 @@ func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookI
 }
 
 func ValidateAppleJwsSignature(receipt string) error {
-	jwsTokens := strings.Split(receipt, ".") // Length has already been validated.
+	jwsTokens := strings.Split(receipt, ".")
+	if len(jwsTokens) != 3 {
+		return fmt.Errorf("invalid jws format: expected 3 parts, got %d", len(jwsTokens))
+	}
 	header := jwsTokens[0]
 	payload := jwsTokens[1]
 	signature := jwsTokens[2]
