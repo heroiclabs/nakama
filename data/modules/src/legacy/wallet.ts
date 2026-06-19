@@ -63,6 +63,7 @@ namespace LegacyWallet {
     if (wallet.currencies) {
       if (wallet.currencies.global === undefined) wallet.currencies.global = wallet.currencies.xut || 0;
       if (wallet.currencies.xut === undefined) wallet.currencies.xut = wallet.currencies.global || 0;
+      if (wallet.currencies.xp === undefined) wallet.currencies.xp = 0; //adding for xp
     }
     return wallet;
   }
@@ -219,7 +220,7 @@ namespace LegacyWallet {
       // Route global currencies to the GLOBAL wallet (separate storage object).
       // Previously every currency was written into the game wallet's currencies map,
       // so global credits never reached global_<userId> and read back as 0 on initial load.
-      var isGlobal = currency === "global" || currency === "xut";
+      var isGlobal = currency === "global" || currency === "xut" || currency === "xp";
 
       // Always load the game wallet so the response can include game_balance for the client snapshot.
       var gameWallet = WalletHelpers.getGameWallet(nk, userId, data.gameId);
@@ -228,19 +229,32 @@ namespace LegacyWallet {
       var newBalance = 0;
 
       if (isGlobal) {
-        // Mirror "global" <-> "xut" so legacy clients keep working regardless of which alias they use.
-        var globalKeys = ["global", "xut"];
-        for (var gi = 0; gi < globalKeys.length; gi++) {
-          var gk = globalKeys[gi];
-          if (globalWallet.currencies[gk] === undefined) globalWallet.currencies[gk] = 0;
-          if (op === "add") globalWallet.currencies[gk] += amt;
-          else {
-            globalWallet.currencies[gk] -= amt;
-            if (globalWallet.currencies[gk] < 0) globalWallet.currencies[gk] = 0;
+        if (currency === "xp") {
+          if (globalWallet.currencies.xp === undefined) globalWallet.currencies.xp = 0;
+          if (op === "add") {
+            globalWallet.currencies.xp += amt;
+          } else {
+            globalWallet.currencies.xp -= amt;
+            if (globalWallet.currencies.xp < 0) globalWallet.currencies.xp = 0;
           }
+          saveGlobalWallet(nk, userId, globalWallet);
+          newBalance = globalWallet.currencies.xp;
+        } else {
+          // Mirror "global" <-> "xut" so legacy clients keep working regardless of which alias they use.
+          var globalKeys = ["global", "xut"];
+          for (var gi = 0; gi < globalKeys.length; gi++) {
+            var gk = globalKeys[gi];
+            if (globalWallet.currencies[gk] === undefined) globalWallet.currencies[gk] = 0;
+            if (op === "add") globalWallet.currencies[gk] += amt;
+            else {
+              globalWallet.currencies[gk] -= amt;
+              if (globalWallet.currencies[gk] < 0) globalWallet.currencies[gk] = 0;
+            }
+          }
+          
+          saveGlobalWallet(nk, userId, globalWallet);
+          newBalance = globalWallet.currencies[currency] || globalWallet.currencies.global || 0;
         }
-        saveGlobalWallet(nk, userId, globalWallet);
-        newBalance = globalWallet.currencies[currency] || globalWallet.currencies.global || 0;
       } else {
         // Game-scoped currency. Mirror "game" <-> "tokens" for the same backward-compat reason.
         var currenciesToUpdate = (currency === "game" || currency === "tokens") ? ["game", "tokens"] : [currency];
