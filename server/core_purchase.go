@@ -75,7 +75,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	purchase := &storagePurchase{
+	dbPurchase := &storagePurchase{
 		userID:        userID,
 		store:         api.StoreProvider_APPLE_APP_STORE,
 		productId:     transactionInfo.ProductId,
@@ -85,19 +85,8 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		environment:   env,
 	}
 
-	dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{purchase})
-	if err != nil {
-		logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
-		return nil, status.Error(codes.Internal, "Failed to store app store purchase data")
-	}
-
-	dbPurchase := dbPurchases[0]
-	suid := dbPurchase.userID.String()
-	if dbPurchase.userID.IsNil() {
-		suid = ""
-	}
 	validatedPurchase := &api.ValidatedPurchase{
-		UserId:           suid,
+		UserId:           dbPurchase.userID.String(),
 		ProductId:        transactionInfo.ProductId,
 		TransactionId:    transactionInfo.TransactionId,
 		Store:            api.StoreProvider_APPLE_APP_STORE,
@@ -109,6 +98,28 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 		Environment:      env,
 		SeenBefore:       dbPurchase.seenBefore,
 	}
+
+	if !persist {
+		return &api.ValidatePurchaseResponse{ValidatedPurchases: []*api.ValidatedPurchase{validatedPurchase}}, nil
+	}
+
+	dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{dbPurchase})
+	if err != nil {
+		logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Failed to store app store purchase data")
+	}
+
+	dbPurchase = dbPurchases[0]
+	suid := dbPurchase.userID.String()
+	if dbPurchase.userID.IsNil() {
+		suid = ""
+	}
+
+	validatedPurchase.UserId = suid
+	validatedPurchase.CreateTime = timestamppb.New(dbPurchase.createTime)
+	validatedPurchase.UpdateTime = timestamppb.New(dbPurchase.updateTime)
+	validatedPurchase.SeenBefore = dbPurchase.seenBefore
+	validatedPurchase.RefundTime = timestamppb.New(dbPurchase.refundTime)
 
 	return &api.ValidatePurchaseResponse{ValidatedPurchases: []*api.ValidatedPurchase{validatedPurchase}}, nil
 }

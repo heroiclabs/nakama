@@ -302,7 +302,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	sub := &storageSubscription{
+	storageSub := &storageSubscription{
 		userID:                userID,
 		originalTransactionId: transactionInfo.OriginalTransactionId,
 		store:                 api.StoreProvider_APPLE_APP_STORE,
@@ -314,8 +314,29 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		refundTime:            parseMillisecondUnixTimestamp(transactionInfo.RevocationDate),
 	}
 
+	validatedSub := &api.ValidatedSubscription{
+		UserId:                userID.String(),
+		ProductId:             storageSub.productId,
+		OriginalTransactionId: storageSub.originalTransactionId,
+		Store:                 api.StoreProvider_APPLE_APP_STORE,
+		PurchaseTime:          timestamppb.New(storageSub.purchaseTime),
+		CreateTime:            timestamppb.New(storageSub.createTime),
+		UpdateTime:            timestamppb.New(storageSub.updateTime),
+		Environment:           env,
+		ExpiryTime:            timestamppb.New(storageSub.expireTime),
+		RefundTime:            timestamppb.New(storageSub.refundTime),
+		ProviderResponse:      storageSub.rawResponse,
+		ProviderNotification:  storageSub.rawNotification,
+		Active:                storageSub.Active(),
+	}
+
+	if !persist {
+		// First validated sub is the one with the highest expiry time.
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	}
+
 	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-		if err = upsertSubscription(ctx, tx, sub); err != nil {
+		if err = upsertSubscription(ctx, tx, storageSub); err != nil {
 			return err
 		}
 		return nil
@@ -324,26 +345,18 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		return nil, status.Error(codes.Internal, "Failed to validate apple jws subscription receipt")
 	}
 
-	active := false
-	if sub.expireTime.After(time.Now()) && sub.refundTime.Unix() == 0 {
-		active = true
+	suid := storageSub.userID.String()
+	if storageSub.userID.IsNil() {
+		suid = ""
 	}
 
-	validatedSub := &api.ValidatedSubscription{
-		UserId:                userID.String(),
-		ProductId:             sub.productId,
-		OriginalTransactionId: sub.originalTransactionId,
-		Store:                 api.StoreProvider_APPLE_APP_STORE,
-		PurchaseTime:          timestamppb.New(sub.purchaseTime),
-		CreateTime:            timestamppb.New(sub.createTime),
-		UpdateTime:            timestamppb.New(sub.updateTime),
-		Environment:           env,
-		ExpiryTime:            timestamppb.New(sub.expireTime),
-		RefundTime:            timestamppb.New(sub.refundTime),
-		ProviderResponse:      sub.rawResponse,
-		ProviderNotification:  sub.rawNotification,
-		Active:                active,
-	}
+	// Upsert may have updated storageSub values.
+	validatedSub.UserId = suid
+	validatedSub.CreateTime = timestamppb.New(storageSub.createTime)
+	validatedSub.UpdateTime = timestamppb.New(storageSub.updateTime)
+	validatedSub.ProviderResponse = storageSub.rawResponse
+	validatedSub.ProviderNotification = storageSub.rawNotification
+	validatedSub.Active = storageSub.Active()
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
@@ -684,6 +697,14 @@ type storageSubscription struct {
 	expireTime            time.Time
 	rawResponse           string
 	rawNotification       string
+}
+
+func (s *storageSubscription) Active() bool {
+	if s.expireTime.After(time.Now()) && s.refundTime.Unix() == 0 {
+		return true
+	}
+
+	return false
 }
 
 func upsertSubscription(ctx context.Context, db *sql.Tx, sub *storageSubscription) error {
