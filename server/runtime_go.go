@@ -2890,7 +2890,7 @@ func (ri *RuntimeGoInitializer) RegisterStorageIndex(name, collection, key strin
 }
 
 // @group storage
-// @summary Register a filtering function for a storage index. The filter determines whether a storage object should be included in the index.
+// @summary Register a filtering function for a storage index. The filter determines whether a storage object should be included or skipped/removed from the index (if present).
 // @param indexName(type=string) The name of the storage index to attach the filter to.
 // @param fn(type=function) The function to execute to filter storage writes. Return true to include the object in the index, false to exclude it.
 // @return error(error) An optional error value if an error occurred.
