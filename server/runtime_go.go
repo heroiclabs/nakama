@@ -121,7 +121,7 @@ func (ri *RuntimeGoInitializer) RegisterEventSessionEnd(fn func(ctx context.Cont
 	return nil
 }
 
-// @group registration
+// @group rpc
 // @summary Register a function for RPC calls by its ID. The ID can be used from client code to send an RPC message to execute the function and return the result. Results are always returned as a JSON string or an empty string.
 // @param id(type=string) The unique identifier of the RPC function. Converted to lowercase.
 // @param fn(type=function) The function to execute when the RPC is called.
