@@ -921,11 +921,14 @@ func ValidateReceiptFacebookInstant(appSecret, signedRequest string) (*FacebookI
 
 func ValidateAppleJwsSignature(receipt string) error {
 	jwsTokens := strings.Split(receipt, ".")
+	if len(jwsTokens) != 3 {
+		return fmt.Errorf("invalid jws format: expected 3 parts, got %d", len(jwsTokens))
+	}
 	header := jwsTokens[0]
 	payload := jwsTokens[1]
 	signature := jwsTokens[2]
 
-	headerByte, err := base64.RawStdEncoding.DecodeString(header)
+	headerByte, err := base64.RawURLEncoding.DecodeString(header)
 	if err != nil {
 		return err
 	}
@@ -937,6 +940,10 @@ func ValidateAppleJwsSignature(receipt string) error {
 	var jwsHeader Header
 	if err = json.Unmarshal(headerByte, &jwsHeader); err != nil {
 		return err
+	}
+
+	if len(jwsHeader.X5c) < 3 {
+		return fmt.Errorf("invalid jws header: x5c field must contain at least 3 certificates")
 	}
 
 	certs := make([][]byte, 0)
@@ -951,7 +958,7 @@ func ValidateAppleJwsSignature(receipt string) error {
 	rootCert := x509.NewCertPool()
 	ok := rootCert.AppendCertsFromPEM([]byte(AppleRootPEM))
 	if !ok {
-		return err
+		return errors.New("failed to parse AppleRootPEM")
 	}
 
 	leafCert, err := x509.ParseCertificate(certs[0])
@@ -966,7 +973,7 @@ func ValidateAppleJwsSignature(receipt string) error {
 	intermediates := x509.NewCertPool()
 	intermediates.AddCert(interCert)
 
-	cert, err := x509.ParseCertificate(certs[2])
+	_, err = x509.ParseCertificate(certs[2])
 	if err != nil {
 		return err
 	}
@@ -976,7 +983,7 @@ func ValidateAppleJwsSignature(receipt string) error {
 		Intermediates: intermediates,
 	}
 
-	_, err = cert.Verify(opts)
+	_, err = leafCert.Verify(opts)
 	if err != nil {
 		return err
 	}
