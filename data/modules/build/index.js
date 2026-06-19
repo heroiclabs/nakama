@@ -45381,6 +45381,7 @@ var SatoriCreatorEvents;
             eventId: eventId,
             playerId: userId,
             deviceId: data.deviceId || data.device_id || "",
+            playerName: String(data.playerName || data.displayName || data.player_name || ctx.username || "").trim(),
             answer: scoreResult.answer,
             correct: scoreResult.correct,
             score: scoreResult.score,
@@ -45410,7 +45411,8 @@ var SatoriCreatorEvents;
         }
         var leaderboardId = LEADERBOARD_PREFIX + eventId;
         try {
-            nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", scoreResult.score, 0);
+            var lbUsername = String(data.playerName || data.displayName || data.player_name || ctx.username || "").trim();
+            nk.leaderboardRecordWrite(leaderboardId, userId, lbUsername, scoreResult.score, 0);
         }
         catch (err) {
             logger.warn("[CreatorEvent] Leaderboard write failed: %s", err.message || String(err));
