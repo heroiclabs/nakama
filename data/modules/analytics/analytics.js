@@ -445,7 +445,7 @@ function trackFirstSeen(nk, logger, userId, gameId, unixTs) {
  */
 // metrics: optional { revenue_usd, ad_revenue_usd, session_count, session_seconds,
 //                     coins_earned, coins_spent } — accumulated into the live doc.
-function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metrics, audienceDims) {
+function _liveCountersUpsert(nk, col, key, en, platform, country, city, unixTs, metrics, audienceDims) {
     for (var attempt = 0; attempt < 2; attempt++) {
         var existing = null;
         var version  = null;
@@ -457,15 +457,17 @@ function _liveCountersUpsert(nk, col, key, en, platform, country, unixTs, metric
             }
         } catch (_) { /* treat as empty */ }
 
-        var doc = existing || { total: 0, by_name: {}, by_platform: {}, by_country: {}, last_event_at: 0 };
+        var doc = existing || { total: 0, by_name: {}, by_platform: {}, by_country: {}, by_city: {}, last_event_at: 0 };
         doc.total = (doc.total || 0) + 1;
         if (!doc.by_name)     doc.by_name     = {};
         if (!doc.by_platform) doc.by_platform = {};
         if (!doc.by_country)  doc.by_country  = {};
+        if (!doc.by_city)     doc.by_city     = {};
 
         doc.by_name[en] = (doc.by_name[en] || 0) + 1;
         if (platform) { doc.by_platform[platform] = (doc.by_platform[platform] || 0) + 1; }
         if (country)  { doc.by_country[country]   = (doc.by_country[country]   || 0) + 1; }
+        if (city)     { doc.by_city[city]         = (doc.by_city[city]         || 0) + 1; }
         doc.last_event_at = Math.max(doc.last_event_at || 0, unixTs || 0);
 
         // Audience dimensions: device_tier, locale, app_version, install_source,
@@ -519,6 +521,7 @@ function liveCountersUpdate(nk, ev) {
     var ed       = ev.eventData || {};
     var platform = ((ed.platform || ed.Platform) || ev.platform || "").toLowerCase() || null;
     var country  = ((ed.country) || ev.country || "").toUpperCase().slice(0, 2) || null;
+    var city     = ((ed.city) || ev.city || "") || null;
 
     // Audience dimensions passed through to live_daily so the Audience tab
     // shows today's breakdown before the nightly rollup runs.
@@ -554,11 +557,11 @@ function liveCountersUpdate(nk, ev) {
     }
 
     // Per-game doc — keyed by canonical UUID (slug was resolved in normalizeInboundEvent).
-    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
+    _liveCountersUpsert(nk, col, "live_" + ev.gameId + "_" + dateStr, en, platform, country, city, ev.unixTimestamp, metrics, audienceDims);
 
     // "All games" aggregate doc — lets the dashboard "All Games" selector show
     // today's live data without waiting for the nightly rollup.
-    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, ev.unixTimestamp, metrics, audienceDims);
+    _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, city, ev.unixTimestamp, metrics, audienceDims);
 }
 
 /**
@@ -832,15 +835,20 @@ function rpcAnalyticsLogEvent(ctx, logger, nk, payload) {
         }
     } catch (e) { /* swallow */ }
 
-    // Satori identity piggyback (Phase 8 wiring, 2026-05): debounced 1 h.
-    // Keeps Satori trait properties (skill_band, churn_risk, spend_tier, …)
-    // fresh without any external cron dependency. The 1-h gate means this
-    // fires at most once per Nakama process per hour, regardless of traffic.
-    try {
-        if (typeof siAutoRunIfNeeded === "function") {
-            siAutoRunIfNeeded(ctx, nk, logger);
-        }
-    } catch (e) { /* swallow */ }
+    // Satori identity sync (Phase 8) is NO LONGER piggybacked here.
+    //
+    // Why removed (2026-06-14): the 1-h debounce gate (siPiggybackNextAllowedSec)
+    // was a *module-level* variable. Goja's VM pool hands each RPC call a fresh
+    // module-scope snapshot, so that gate reset to 0 on essentially every call
+    // and never engaged. As a result rpcSatoriIdentityBatch — which does up to
+    // 50 users × (Satori auth + identity-properties HTTP round-trips) — ran on
+    // a large fraction of analytics_log_event calls, blocking the synchronous
+    // response for multiple seconds and tripping the client's 12 s timeout.
+    //
+    // Identity sync now runs strictly out-of-band via the DASHBOARD_SECRET /
+    // admin-guarded `satori_identity_auto_kick` RPC (mirrors analytics_auto_kick),
+    // driven by the external scheduler. Trait freshness is preserved without
+    // putting unbounded external HTTP on the user-facing ingest path.
 
     var resp = {
         success:          accepted > 0 || rejected === 0,
@@ -1328,18 +1336,114 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var mauAnyRollup = false;
     var newUsersToday = 0;
 
+    // Build the list of dates we need (newest → oldest) and the storage keys
+    // for each. We then read them in BATCHES (one storageRead per data source)
+    // instead of 2–3 sequential reads per day. With a 30-day window the old
+    // loop issued 30–90 sequential storageRead round-trips, which pushed the
+    // RPC past the 30s gateway timeout. Batching collapses that to 3 reads.
+    var dayInfos = []; // { d, dateStr, dauKey, legacyKey, rollupKey }
     for (var d = 0; d < scanDays; d++) {
         var date = new Date(now.getTime() - d * 86400000);
         var dateStr = date.toISOString().slice(0, 10);
+        var unixTs = Math.floor(Date.parse(dateStr + 'T00:00:00Z') / 1000);
+        dayInfos.push({
+            d: d,
+            dateStr: dateStr,
+            dauKey: gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr,
+            legacyKey: gameId === 'all' ? 'dau_platform_' + unixTs : 'dau_' + gameId + '_' + unixTs,
+            rollupKey: 'rollup_' + (gameId || 'all') + '_' + dateStr
+        });
+    }
+
+    // Helper: read many keys from one collection in a single call and return a
+    // { key: value } map. Nakama caps a single storageRead at 100 objects, so
+    // we chunk to stay within that limit.
+    function batchRead(collection, keys) {
+        var out = {};
+        for (var c = 0; c < keys.length; c += 100) {
+            var slice = keys.slice(c, c + 100);
+            var reqs = [];
+            for (var i = 0; i < slice.length; i++) {
+                reqs.push({ collection: collection, key: slice[i], userId: SYSTEM_USER });
+            }
+            try {
+                var res = nk.storageRead(reqs);
+                if (res) {
+                    for (var r = 0; r < res.length; r++) {
+                        out[res[r].key] = res[r].value;
+                    }
+                }
+            } catch (e) { /* no data for this chunk */ }
+        }
+        return out;
+    }
+
+    // Pass 1: primary YYYY-MM-DD dau docs (carry the user list → exact dedup).
+    var primaryKeys = [];
+    for (var pi = 0; pi < dayInfos.length; pi++) primaryKeys.push(dayInfos[pi].dauKey);
+    var dauByKey = batchRead('analytics_dau', primaryKeys);
+
+    // Pass 2: legacy unix-timestamp dau docs, but ONLY for days that missed.
+    var legacyNeeded = [];
+    for (var li = 0; li < dayInfos.length; li++) {
+        if (!dauByKey[dayInfos[li].dauKey]) legacyNeeded.push(dayInfos[li].legacyKey);
+    }
+    var legacyByKey = legacyNeeded.length > 0 ? batchRead('analytics_dau', legacyNeeded) : {};
+
+    // Pass 3: rollup counts (no user list), ONLY for days still unresolved and
+    // older than today.
+    var rollupNeeded = [];
+    for (var ri = 0; ri < dayInfos.length; ri++) {
+        var infoR = dayInfos[ri];
+        var hasDau = dauByKey[infoR.dauKey] || legacyByKey[infoR.legacyKey];
+        if (!hasDau && useRollups && infoR.d > 0) rollupNeeded.push(infoR.rollupKey);
+    }
+    var rollupByKey = rollupNeeded.length > 0 ? batchRead('analytics_rollup_daily', rollupNeeded) : {};
+
+    for (var di = 0; di < dayInfos.length; di++) {
+        var info = dayInfos[di];
+        var d = info.d;
+        var dateStr = info.dateStr;
 
         var dayUsers = 0;
         var dayNewUsers = 0;
         var resolved = false;
         var dayHasUserList = false;
 
-        // Phase-2: try rollup first for any day older than today.
-        if (useRollups && d > 0) {
-            var rollup = readRollupDaily(nk, gameId, dateStr);
+        // Prefer the per-day analytics_dau doc: it carries the user-ID list
+        // which is the ONLY source that lets us dedup across days for an exact
+        // WAU/MAU. Rollup docs store a COUNT only (no IDs).
+        var record = dauByKey[info.dauKey] || legacyByKey[info.legacyKey] || null;
+
+        if (record) {
+            liveFallbacks++;
+            var uniqueUsersRaw = record.uniqueUsers;
+            var recordUsers = record.users || (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw : []);
+            dayUsers = (parseInt(record.count, 10) || 0) ||
+                (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw.length : (parseInt(uniqueUsersRaw, 10) || 0)) ||
+                (recordUsers ? recordUsers.length : 0);
+            dayNewUsers = record.newUsers || 0;
+            if (d === 0) newUsersToday = dayNewUsers;
+
+            var userList = recordUsers || [];
+            if (Array.isArray(userList) && userList.length > 0) {
+                dayHasUserList = true;
+                for (var ui = 0; ui < userList.length; ui++) {
+                    var uid = userList[ui];
+                    if (d < 7) wauUserSet[uid] = true;
+                    mauUserSet[uid] = true;
+                }
+            }
+            if (!dayHasUserList && typeof dayUsers === 'number') {
+                if (d < 7) wauDailySum += dayUsers;
+                mauDailySum += dayUsers;
+            }
+            resolved = true;
+        }
+
+        // Fall back to the rollup COUNT only when there's no per-day doc.
+        if (!resolved && useRollups && d > 0) {
+            var rollup = rollupByKey[info.rollupKey];
             if (rollup) {
                 dayUsers = rollup.dau || 0;
                 dayNewUsers = rollup.new_users || 0;
@@ -1350,40 +1454,6 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
             }
         }
 
-        if (!resolved) {
-            var key = gameId === 'all' ? 'dau_platform_' + dateStr : 'dau_' + gameId + '_' + dateStr;
-            var record = null;
-            try {
-                var objs = nk.storageRead([{ collection: 'analytics_dau', key: key, userId: SYSTEM_USER }]);
-                if (objs && objs.length > 0) record = objs[0].value;
-            } catch (e) { /* no data */ }
-            liveFallbacks++;
-
-            if (record) {
-                var uniqueUsersRaw = record.uniqueUsers;
-                var recordUsers = record.users || (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw : []);
-                dayUsers = (parseInt(record.count, 10) || 0) ||
-                    (Array.isArray(uniqueUsersRaw) ? uniqueUsersRaw.length : (parseInt(uniqueUsersRaw, 10) || 0)) ||
-                    (recordUsers ? recordUsers.length : 0);
-                dayNewUsers = record.newUsers || 0;
-                if (d === 0) newUsersToday = dayNewUsers;
-
-                var userList = recordUsers || [];
-                if (Array.isArray(userList) && userList.length > 0) {
-                    dayHasUserList = true;
-                    for (var ui = 0; ui < userList.length; ui++) {
-                        var uid = userList[ui];
-                        if (d < 7) wauUserSet[uid] = true;
-                        mauUserSet[uid] = true;
-                    }
-                }
-                if (!dayHasUserList && typeof dayUsers === 'number') {
-                    if (d < 7) wauDailySum += dayUsers;
-                    mauDailySum += dayUsers;
-                }
-            }
-        }
-
         dauTrend.unshift({ date: dateStr, count: dayUsers, newUsers: dayNewUsers });
     }
 
@@ -1391,18 +1461,16 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var dau = dauTrend.length > 0 ? dauTrend[dauTrend.length - 1].count : 0;
     var wauUnique = Object.keys(wauUserSet).length;
     var mauUnique = Object.keys(mauUserSet).length;
-    // WAU/MAU: when rollup docs are present they don't carry a user list, so we
-    // cannot dedup across days. Use the LARGER of:
-    //   wauUnique  = deduped users from live-fallback days (exact, may under-count
-    //                if some days used rollup and those users aren't in the live set)
-    //   wauDailySum = sum of per-day DAU from rollup docs (upper bound, over-counts
-    //                 returning users)
-    // Picking max() gives the most honest single number. We NEVER add them — that
-    // would double-count every user who appears on both a live and a rollup day.
-    var wau = Math.max(wauUnique, wauDailySum);
-    var mau = Math.max(mauUnique, mauDailySum);
-    var wauEstimated = wauAnyRollup || (wauUnique === 0 && wauDailySum > 0);
-    var mauEstimated = mauAnyRollup || (mauUnique === 0 && mauDailySum > 0);
+    // WAU/MAU: per-day analytics_dau docs carry the user-ID list, so days that
+    // resolved that way are deduped EXACTLY (wauUnique / mauUnique). Rollup-only
+    // days carry just a count (no IDs) and accumulate into wauDailySum /
+    // mauDailySum. Those two sets of days are disjoint, so the best single
+    // estimate is unique + rollupSum. When there are no rollup-only days
+    // (rollupSum === 0) this collapses to the exact deduped figure.
+    var wau = wauUnique + wauDailySum;
+    var mau = mauUnique + mauDailySum;
+    var wauEstimated = wauAnyRollup;
+    var mauEstimated = mauAnyRollup;
 
     var dauMauRatio = mau > 0 ? dau / mau : 0;
 

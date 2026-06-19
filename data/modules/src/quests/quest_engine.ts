@@ -324,8 +324,9 @@ namespace QuestEngine {
     return RpcHelpers.successResponse({ quests: result });
   }
 
-  // ─── RPC: quest_engine_record_event ──────────────────────────────────────
-  // Reports a player action. Fans out to all matching quest steps.
+  // ─── Core event processing (shared by RPC and EventBus bridge) ───────────
+  // This is the main quest progression logic, extracted so it can be called
+  // from both the RPC endpoint and the EventBus bridge.
   //
   // Two-phase design (data-integrity guarantee):
   //   Phase 1 — scan all quests, advance steps, mark completions in memory.
@@ -335,19 +336,22 @@ namespace QuestEngine {
   //             If auto-grant fails, claimedAt stays null and the client can
   //             retry via quest_engine_claim_reward.
 
-  function rpcQuestEngineRecordEvent(
-    ctx: nkruntime.Context, logger: nkruntime.Logger,
-    nk: nkruntime.Nakama, payload: string
-  ): string {
-    var userId = RpcHelpers.requireUserId(ctx);
-    var data = RpcHelpers.parseRpcPayload(payload);
-    var gameId = resolveGameId(data);
-    var eventType = data.eventType as string;
-    var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
-    var metadata = (data.metadata as { [k: string]: string }) || {};
-    var now = Math.floor(Date.now() / 1000);
+  interface ProcessEventResult {
+    updatedCount: number;
+    updatedQuests: { [questId: string]: any };
+  }
 
-    if (!eventType) return RpcHelpers.errorResponse("eventType is required");
+  function processEventInternal(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    ctx: nkruntime.Context,
+    userId: string,
+    gameId: string,
+    eventType: string,
+    value: number,
+    metadata: { [k: string]: string }
+  ): ProcessEventResult {
+    var now = Math.floor(Date.now() / 1000);
 
     var config = loadConfig(nk, gameId);
     var state = loadUserState(nk, userId, gameId);
@@ -471,7 +475,44 @@ namespace QuestEngine {
       saveUserState(nk, userId, gameId, state);
     }
 
-    return RpcHelpers.successResponse({ updatedQuests: updatedCount, quests: updatedQuests });
+    return { updatedCount: updatedCount, updatedQuests: updatedQuests };
+  }
+
+  // ─── RPC: quest_engine_record_event ──────────────────────────────────────
+  // Reports a player action via RPC. Calls the internal processor.
+  
+  function rpcQuestEngineRecordEvent(
+    ctx: nkruntime.Context, logger: nkruntime.Logger,
+    nk: nkruntime.Nakama, payload: string
+  ): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = resolveGameId(data);
+    var eventType = data.eventType as string;
+    var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
+    var metadata = (data.metadata as { [k: string]: string }) || {};
+
+    if (!eventType) return RpcHelpers.errorResponse("eventType is required");
+
+    var result = processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
+    return RpcHelpers.successResponse({ updatedQuests: result.updatedCount, quests: result.updatedQuests });
+  }
+
+  // ─── Public API: processEvent ────────────────────────────────────────────
+  // Called by QuestEventBusBridge to process events from EventBus.
+  // Apps don't need to call any RPC — events flow automatically.
+  
+  export function processEvent(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    ctx: nkruntime.Context,
+    userId: string,
+    gameId: string,
+    eventType: string,
+    value: number,
+    metadata: { [k: string]: string }
+  ): ProcessEventResult {
+    return processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
   }
 
   // ─── RPC: quest_engine_claim_reward ──────────────────────────────────────

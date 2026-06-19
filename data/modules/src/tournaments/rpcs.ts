@@ -556,7 +556,8 @@ namespace TournamentRpcs {
       var username = "";
       try {
         var acc = nk.accountsGetId([userId]);
-        if (acc && acc.length > 0) username = "" + (acc[0].user.username || "");
+        // QVBF_114: prefer displayName so leaderboards show the friendly name.
+        if (acc && acc.length > 0) username = "" + ((acc[0].user as any).displayName || acc[0].user.username || "");
       } catch (_) { }
       TournamentLeaderboard.recordSubmit(nk, slug, userId, username, entry.score);
 
@@ -990,6 +991,9 @@ namespace TournamentRpcs {
       state: state || null,
       eligible: !!userId && countryAllowed && !stateBlocked && !ageBlocked,
       age_blocked: ageBlocked,
+      // Distinguishes "no verified DOB yet → show Verify-your-age CTA" from
+      // "verified DOB on file but under min_age → hard block".
+      dob_on_file: !!(ageInfo as any).dob_iso,
       state_blocked: stateBlocked,
       country_blocked: !countryAllowed,
       entered: !!entry,
@@ -999,6 +1003,53 @@ namespace TournamentRpcs {
       balance_bc: balance.balance,
       served_at: nowSec(),
     });
+  }
+
+  // ── RPC: kyc_profile_sync (service-only) ────────────────────────────────────
+  // Called by quests-economy when a Veriff/Didit KYC verification is approved.
+  // Writes the ID-verified date of birth into the user's account metadata —
+  // the single source the tournament age gate (readUserDob) reads from.
+  // Clients can never call this directly: account metadata is only writable
+  // server-side, and the RPC additionally requires the shared service token.
+  function rpcKycProfileSync(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!isServiceCaller(ctx, data)) return RpcHelpers.errorResponse("service-only", 401);
+
+    var userId = "" + (data.user_id || "");
+    var dobIso = "" + (data.dob_iso || "");
+    var provider = "" + (data.kyc_provider || "unknown");
+    if (!userId) return RpcHelpers.errorResponse("user_id required", 400);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dobIso)) return RpcHelpers.errorResponse("dob_iso must be YYYY-MM-DD", 400);
+
+    var dob = new Date(dobIso + "T00:00:00Z");
+    var now = new Date();
+    if (isNaN(dob.getTime())) return RpcHelpers.errorResponse("dob_iso is not a valid date", 400);
+    if (dob.getTime() > now.getTime()) return RpcHelpers.errorResponse("dob_iso cannot be in the future", 400);
+    if (dob.getUTCFullYear() < now.getUTCFullYear() - 120) return RpcHelpers.errorResponse("dob_iso is implausibly old", 400);
+
+    var metadata: { [key: string]: any } = {};
+    try {
+      var accounts = nk.accountsGetId([userId]);
+      if (!accounts || accounts.length === 0) return RpcHelpers.errorResponse("account not found", 404);
+      metadata = (accounts[0].user.metadata as any) || {};
+    } catch (e) {
+      return RpcHelpers.errorResponse("account lookup failed", 404);
+    }
+
+    metadata["dob_iso"] = dobIso;
+    metadata["kyc_verified"] = true;
+    metadata["kyc_provider"] = provider;
+    metadata["kyc_verified_at"] = nowSec();
+
+    try {
+      nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
+    } catch (e) {
+      logger.error("kyc_profile_sync: accountUpdateId failed for %s: %s", userId, (e as Error).message);
+      return RpcHelpers.errorResponse("metadata update failed", 500);
+    }
+
+    logger.info("kyc_profile_sync: dob set for user %s via %s", userId, provider);
+    return RpcHelpers.successResponse({ ok: true, user_id: userId, dob_iso: dobIso, kyc_provider: provider });
   }
 
   // ── RPC: tournament_bracket_seed_topN (service-only) ────────────────────────
@@ -1842,6 +1893,7 @@ namespace TournamentRpcs {
     initializer.registerRpc("tournament_list", rpcList);
     initializer.registerRpc("tournament_get", rpcGet);
     initializer.registerRpc("tournament_caller_status", rpcCallerStatus);
+    initializer.registerRpc("kyc_profile_sync", rpcKycProfileSync);
     initializer.registerRpc("tournament_bracket_state", rpcBracketState);
     initializer.registerRpc("tournament_pre_enroll", auth(rpcPreEnroll));
     initializer.registerRpc("tournament_enter", auth(rpcEnter));

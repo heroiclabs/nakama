@@ -62,7 +62,11 @@ var SD_URL          = "https://quizverse-satori-dev-8bf5.us-east1-b.satoricloud.
 var SD_API_KEY_NAME = "SATORIAPIKEY";
 var SD_API_KEY      = "f6554c37-e40f-490f-b730-acaf6ecabe4c";
 var SD_SIGNING_KEY  = "a939cfcc-5ef2-456a-b009-cca2dcc907d2";  // unused in v2; kept for backward compat with code that still references it
-var SD_TIMEOUT_MS   = 4000;     // bumped from 2000 — server-event + auth round-trips need a bit more headroom
+var SD_TIMEOUT_MS   = 1000;     // lowered from 4000 (2026-06-14): this publish runs INLINE on the
+                                // analytics_log_event hot path. Auth is cached ~25 min, so steady
+                                // state is one sub-second publish per call; a 1 s ceiling keeps a
+                                // slow/unreachable Satori from eating the client's request budget.
+                                // Override per-env via SATORI_HTTP_TIMEOUT_MS if needed.
 var SD_AUTH_TTL_MS  = 25 * 60 * 1000;  // session-token cache TTL (Satori issues 30-min tokens)
 var SD_AUTH_CACHE   = {};       // in-memory per-identity cache (process-local; cleared on Nakama restart)
 

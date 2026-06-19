@@ -122,6 +122,34 @@ export function getAccountById(
   ).then((value) => unwrapRpcData<ConsoleAccount>(value));
 }
 
+export interface PlayerInspect {
+  account?: unknown;
+  wallet?: unknown;
+  inventory?: unknown;
+  achievements?: unknown;
+  progression?: unknown;
+  energy?: unknown;
+  stats?: unknown;
+  streaks?: unknown;
+  tutorials?: unknown;
+  unlockables?: unknown;
+  mailbox?: unknown;
+  [key: string]: unknown;
+}
+
+// Admin-context full profile read (works for any target user, unlike the
+// player-scoped hiro_inventory_list which requires the caller's own user id).
+export function inspectPlayer(
+  userId: string,
+  opts: RpcOptions,
+): Promise<PlayerInspect> {
+  return callRpc<{ userId: string }, unknown>(
+    "admin_player_inspect",
+    { userId },
+    opts,
+  ).then((value) => unwrapRpcData<PlayerInspect>(value));
+}
+
 export function banUser(userId: string, opts: RpcOptions) {
   return callRpc("admin_account_ban", { userId }, opts);
 }

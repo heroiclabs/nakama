@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   serverKeyAuth,
@@ -1108,7 +1109,7 @@ function AuditTab({ entries }: { entries: AuditEntry[] }) {
 /* ─── main page ─── */
 
 export function EconomyPage() {
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [tab, setTab] = useState<Tab>("overview");
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
 
@@ -1152,15 +1153,6 @@ export function EconomyPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Game ID
-            <input
-              value={gameScope}
-              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
-              placeholder="global or quizverse"
-              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
-            />
-          </label>
           <button
             onClick={refresh}
             className="flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 text-sm font-medium hover:bg-muted/80 transition-colors"

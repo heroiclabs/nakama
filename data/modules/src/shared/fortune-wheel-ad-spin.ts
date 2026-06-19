@@ -23,16 +23,21 @@ namespace FortuneWheelAdSpin {
     const AD_SPINS_MAX = 3;
     const AD_COOLDOWN_SECONDS = 10800; // 3 hours
 
+    // Skip-cooldown: spend coins to clear the 3-day organic-spin cooldown.
+    // MUST match Unity FortuneWheelService.SKIP_COOLDOWN_COST.
+    const SKIP_COOLDOWN_COST = 50;
+    const SKIP_COOLDOWN_CURRENCY = "coins";
+
     // Must match SEGMENTS in fortune_wheel.js exactly
     const SEGMENTS = [
-        { type: "XP",             amount: 100,  label: "100 XP",            weight: 20 },
-        { type: "Coins",          amount: 50,   label: "50 Coins",          weight: 25 },
-        { type: "XP",             amount: 250,  label: "250 XP",            weight: 15 },
-        { type: "AudiobookToken", amount: 1,    label: "Audiobook Token",   weight: 8  },
-        { type: "Coins",          amount: 150,  label: "150 Coins",         weight: 12 },
-        { type: "Shield",         amount: 24,   label: "24h Shield",        weight: 10 },
-        { type: "XP",             amount: 500,  label: "500 XP",            weight: 5  },
-        { type: "AudiobookToken", amount: 2,    label: "2 Audiobook Tokens",weight: 5  }
+        { type: "Coins",            amount: 5,  label: "5 Coins",               weight: 20 },
+    { type: "Coins",            amount: 1,   label: "1 Coins",              weight: 25 },
+    { type: "Coins",            amount: 15,  label: "15 Coins",             weight: 15 },
+    { type: "Coins",            amount: 20,    label: "20 Coins",           weight: 8  },
+    { type: "Coins",            amount: 25,  label: "25 Coins",             weight: 12 },
+    { type: "Coins",            amount: 50,   label: "50 Coins",            weight: 10 },
+    { type: "Coins",            amount: 10,  label: "10 Coins",             weight: 5  },
+    { type: "Coins",            amount: 35,    label: "35 Coins Coins",     weight: 5  }
     ];
 
     interface CycleState {
@@ -87,6 +92,39 @@ namespace FortuneWheelAdSpin {
             }
         } catch { /* fall through */ }
         return {};
+    }
+
+    // Persist the organic wheel state. Mirrors fwSaveWheelState in legacy_runtime.js
+    // (collection "fortune_wheel", key "state", owner read-only / server write-only).
+    function saveWheelState(nk: nkruntime.Nakama, userId: string, state: WheelState): void {
+        nk.storageWrite([{
+            collection: "fortune_wheel",
+            key: "state",
+            userId: userId,
+            value: state as unknown as { [key: string]: unknown },
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    }
+
+    // Mirrors fwCanUserSpin: no nextSpinTime, or the cooldown has elapsed.
+    function canUserSpin(state: WheelState): boolean {
+        if (!state.nextSpinTime) return true;
+        return new Date() >= new Date(state.nextSpinTime);
+    }
+
+    // Read the authoritative coin balance from the Nakama account wallet.
+    // Fortune-wheel coins are granted via nk.walletUpdate({ coins }), so the
+    // balance lives on account.wallet.coins (not the per-game storage wallet).
+    function getCoinBalance(nk: nkruntime.Nakama, userId: string): number {
+        try {
+            const account = nk.accountGetId(userId);
+            const wallet = (account && account.wallet) || {};
+            const coins = wallet[SKIP_COOLDOWN_CURRENCY];
+            return typeof coins === "number" && isFinite(coins) ? coins : 0;
+        } catch {
+            return 0;
+        }
     }
 
     function getWeightedRandomIndex(): number {
@@ -290,6 +328,136 @@ namespace FortuneWheelAdSpin {
     }
 
     /**
+     * RPC: fortune_wheel_skip_cooldown
+     *
+     * Server-authoritative cooldown skip: spend SKIP_COOLDOWN_COST coins to clear the
+     * 3-day organic-spin cooldown so the user can spin immediately.
+     *
+     * Order of operations (fail-safe — never deducts coins on a failed skip):
+     *   1. Auth check
+     *   2. Validate the user is actually ON cooldown      → not_on_cooldown
+     *   3. Validate balance >= cost                       → insufficient_coins
+     *   4. Deduct coins atomically (walletUpdate)         → authoritative balance from `previous`
+     *   5. Clear the organic cooldown (nextSpinTime=null) — only AFTER the debit succeeds
+     *
+     * Returns SkipCooldownResponse (see Unity FortuneWheelService.SkipCooldownResponse):
+     *   { success, error?, errorCode?, coinsSpent, coinBalance, canSpin, nextSpinTime }
+     */
+    export function rpcFortuneWheelSkipCooldown(
+        ctx: nkruntime.Context,
+        logger: nkruntime.Logger,
+        nk: nkruntime.Nakama,
+        _payload: string
+    ): string {
+        const userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({
+                success: false,
+                error: "Authentication required",
+                coinsSpent: 0,
+                coinBalance: 0,
+                canSpin: false,
+                nextSpinTime: null
+            });
+        }
+
+        // 1. Read current organic wheel state.
+        const state = getWheelState(nk, userId);
+
+        // 2. Must actually be on cooldown — no point charging otherwise.
+        if (canUserSpin(state)) {
+            return JSON.stringify({
+                success: false,
+                error: "Not on cooldown — you can already spin",
+                errorCode: "not_on_cooldown",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: true,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+
+        // 3. Validate balance BEFORE any debit.
+        const balanceBefore = getCoinBalance(nk, userId);
+        if (balanceBefore < SKIP_COOLDOWN_COST) {
+            return JSON.stringify({
+                success: false,
+                error: "Not enough coins to skip the cooldown",
+                errorCode: "insufficient_coins",
+                coinsSpent: 0,
+                coinBalance: balanceBefore,
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+
+        // 4. Deduct atomically. walletUpdate is authoritative and rejects negative balances.
+        let balanceAfter = balanceBefore - SKIP_COOLDOWN_COST;
+        try {
+            const result = nk.walletUpdate(
+                userId,
+                { [SKIP_COOLDOWN_CURRENCY]: -SKIP_COOLDOWN_COST },
+                { source: "fortune_wheel_skip_cooldown", cost: SKIP_COOLDOWN_COST, ts: new Date().toISOString() },
+                true
+            );
+            // Prefer the server-reported post-debit balance when available.
+            if (result && result.updated && typeof result.updated[SKIP_COOLDOWN_CURRENCY] === "number") {
+                balanceAfter = result.updated[SKIP_COOLDOWN_CURRENCY];
+            }
+        } catch (err) {
+            // Most common cause: a concurrent spend dropped the balance below cost.
+            logger.warn(`[FortuneWheelSkipCooldown] coin debit failed for ${userId}: ${err}`);
+            return JSON.stringify({
+                success: false,
+                error: "Not enough coins to skip the cooldown",
+                errorCode: "insufficient_coins",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+
+        // 5. Clear the organic cooldown — only after the debit succeeded.
+        state.nextSpinTime = undefined;
+        try {
+            saveWheelState(nk, userId, state);
+        } catch (err) {
+            // Debit already happened; refund to keep the player whole, then fail.
+            logger.error(`[FortuneWheelSkipCooldown] state write failed for ${userId}, refunding: ${err}`);
+            try {
+                nk.walletUpdate(
+                    userId,
+                    { [SKIP_COOLDOWN_CURRENCY]: +SKIP_COOLDOWN_COST },
+                    { source: "fortune_wheel_skip_cooldown_refund", reason: "state_write_failed" },
+                    true
+                );
+            } catch (refundErr) {
+                logger.error(`[FortuneWheelSkipCooldown] refund ALSO failed for ${userId}: ${refundErr}`);
+            }
+            return JSON.stringify({
+                success: false,
+                error: "Server error — cooldown not cleared (coins refunded)",
+                errorCode: "server_error",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+
+        logger.info(`[FortuneWheelSkipCooldown] ${userId} skipped cooldown for ${SKIP_COOLDOWN_COST} coins (balance ${balanceBefore} → ${balanceAfter})`);
+
+        return JSON.stringify({
+            success: true,
+            coinsSpent: SKIP_COOLDOWN_COST,
+            coinBalance: balanceAfter,
+            canSpin: true,
+            nextSpinTime: null
+        });
+    }
+
+    /**
      * Register all RPCs in this module.
      */
     export function register(
@@ -297,6 +465,7 @@ namespace FortuneWheelAdSpin {
         logger: nkruntime.Logger
     ): void {
         initializer.registerRpc("fortune_wheel_ad_spin", rpcFortuneWheelAdSpin);
-        logger.info("[FortuneWheelAdSpin] ✓ Registered RPC: fortune_wheel_ad_spin (V2)");
+        initializer.registerRpc("fortune_wheel_skip_cooldown", rpcFortuneWheelSkipCooldown);
+        logger.info("[FortuneWheelAdSpin] ✓ Registered RPCs: fortune_wheel_ad_spin (V2), fortune_wheel_skip_cooldown");
     }
 }

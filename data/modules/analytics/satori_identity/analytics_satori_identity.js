@@ -709,12 +709,34 @@ var SI_PIGGYBACK_BATCH_LIMIT   = 50;   // users per piggyback tick
 // docs were ever considered and the rest of the population never synced.
 var SI_PIGGYBACK_CURSOR_KEY    = "__piggyback_cursor__";
 
+// DEPRECATED ingest-path piggyback. No longer called from rpcAnalyticsLogEvent
+// (see analytics.js, 2026-06-14): the `siPiggybackNextAllowedSec` debounce is a
+// module-level variable, and Goja's VM pool resets module scope on every RPC
+// call, so the 1-h gate never engaged and the batch ran inline on most ingest
+// calls — multi-second stalls + client timeouts. The real work now runs
+// out-of-band via rpcSatoriIdentityAutoKick (DASHBOARD_SECRET / admin guarded).
+// Retained only so any lingering reference resolves; it simply delegates to the
+// shared tick core with the (ineffective) process-local debounce intact.
 function siAutoRunIfNeeded(ctx, nk, logger) {
     try {
         var now = Math.floor(Date.now() / 1000);
         if (now < siPiggybackNextAllowedSec) return null;
         siPiggybackNextAllowedSec = now + SI_PIGGYBACK_DEBOUNCE_SEC;
+        return siRunPiggybackTick(ctx, nk, logger);
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn("[satori_identity] piggyback error: " + (e.message || e));
+        }
+        return null;
+    }
+}
 
+// Shared identity-sync tick core. Runs ONE resume-cursor page of
+// rpcSatoriIdentityBatch, advances/persists the cursor, and writes a sync
+// heartbeat. Used by both the deprecated ingest piggyback and the
+// out-of-band rpcSatoriIdentityAutoKick RPC.
+function siRunPiggybackTick(ctx, nk, logger) {
+    try {
         // Resume the GPA scan from where the previous tick left off (persisted,
         // so it advances across process restarts too). When the cursor is
         // exhausted we wrap back to the start of the collection.
@@ -724,10 +746,10 @@ function siAutoRunIfNeeded(ctx, nk, logger) {
             if (curDoc && typeof curDoc.cursor === "string") savedCursor = curDoc.cursor;
         } catch (eCur) { /* best-effort — fall back to start */ }
 
-        // Use a system-user context so the admin gate always passes.
-        // siAutoRunIfNeeded is only called from rpcAnalyticsLogEvent (internal
-        // path) — never from a client RPC. The process-local debounce already
-        // rate-limits to at most one batch per hour, so no abuse surface here.
+        // Use a system-user context so the admin gate inside
+        // rpcSatoriIdentityBatch always passes. This core is invoked only from
+        // trusted callers: the out-of-band rpcSatoriIdentityAutoKick RPC
+        // (DASHBOARD_SECRET / admin guarded) and the deprecated piggyback.
         var sysCtx = { userId: SI_SYSTEM_USER, env: (ctx && ctx.env) || {} };
         var batchData = { limit: SI_PIGGYBACK_BATCH_LIMIT, cursor: savedCursor };
         var fakePayload = JSON.stringify(batchData);
@@ -780,14 +802,31 @@ function siAutoRunIfNeeded(ctx, nk, logger) {
     }
 }
 
+// ─── Out-of-band cron entry point ──────────────────────────────────────────
+//
+// rpcSatoriIdentityAutoKick replaces the (broken) ingest-path piggyback. The
+// external scheduler calls it on a cadence (e.g. every few minutes) with the
+// shared DASHBOARD_SECRET; an admin dashboard session also works. Each call
+// runs exactly ONE resume-cursor page of identity sync via siRunPiggybackTick,
+// so calling it on a timer walks the whole population over time WITHOUT ever
+// blocking a user-facing analytics_log_event request.
+function rpcSatoriIdentityAutoKick(ctx, logger, nk, payload) {
+    var data = siParse(payload);
+    var gate = siRequireAdmin(ctx, nk, data);
+    if (!gate.ok) return siErr(gate.reason, 401);
+    var result = siRunPiggybackTick(ctx, nk, logger);
+    return siOk(result || { ran: false });
+}
+
 // ─── Registration ─────────────────────────────────────────────────────────
 
 function InitModule(ctx, logger, nk, initializer) {
-    initializer.registerRpc("satori_identity_sync",  rpcSatoriIdentitySync);
-    initializer.registerRpc("satori_identity_batch", rpcSatoriIdentityBatch);
-    initializer.registerRpc("satori_get_flags",      rpcSatoriGetFlags);
+    initializer.registerRpc("satori_identity_sync",      rpcSatoriIdentitySync);
+    initializer.registerRpc("satori_identity_batch",     rpcSatoriIdentityBatch);
+    initializer.registerRpc("satori_identity_auto_kick", rpcSatoriIdentityAutoKick);
+    initializer.registerRpc("satori_get_flags",          rpcSatoriGetFlags);
     logger.info("[analytics_satori_identity] Registered: satori_identity_sync, " +
-                "satori_identity_batch, satori_get_flags. " +
+                "satori_identity_batch, satori_identity_auto_kick, satori_get_flags. " +
                 "Traits: skill_band, favorite_mode, favorite_topic, spend_tier, " +
                 "ad_tolerance, churn_risk, price_sensitivity, best_play_hour, " +
                 "country_tier, install_age_days");

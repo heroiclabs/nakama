@@ -140,10 +140,16 @@ var NQ_SERVER_USER_AGENT = "Mozilla/5.0 (compatible; QuizVerseServer/1.0)";
 // ============================================================================
 
 // ── Process-local guard (single-node fast path) ──────────────────────────────
-// Nakama V8 is single-threaded per-process, so a plain JS object is safe here.
+// Nakama V8 is single-threaded per-process, so a plain Map is safe here.
 // This catches the common case (many concurrent requests on the same node)
 // before we even touch storage.
-var _NQ_REFRESH_IN_FLIGHT = {};
+//
+// IMPORTANT: This MUST be a Map, not a plain object literal. Nakama's goja
+// runtime makes module-level objects non-extensible after the module loads,
+// so adding a NEW property to a plain object (e.g. obj[cacheKey] = true) throws
+// "TypeError: ... object is not extensible". A Map mutates internal slots via
+// set()/delete(), which is unaffected by Object.preventExtensions, so it works.
+var _NQ_REFRESH_IN_FLIGHT = new Map();
 
 // ── Distributed lock (multi-node guard) ──────────────────────────────────────
 // Lock TTL: how long a node may hold the refresh lock before it is considered
@@ -661,7 +667,7 @@ function rpcQuizverseFetchNewsQuiz(ctx, logger, nk, payload) {
         }
 
         // Cache is stale. Fast path: process-local guard (same node, concurrent requests).
-        if (_NQ_REFRESH_IN_FLIGHT[cacheKey]) {
+        if (_NQ_REFRESH_IN_FLIGHT.has(cacheKey)) {
             logger.info("[NewsQuiz] Refresh in-flight for " + cacheKey + " — serving stale to avoid thundering herd");
             return nqOk({
                 articles: cached.articles,
@@ -696,7 +702,7 @@ function rpcQuizverseFetchNewsQuiz(ctx, logger, nk, payload) {
         }
     }
     // (for the stale-cache path the distributed lock was already acquired above)
-    _NQ_REFRESH_IN_FLIGHT[cacheKey] = true;
+    _NQ_REFRESH_IN_FLIGHT.set(cacheKey, true);
 
     var gnewsKey      = nqEnv(ctx, "GNEWS_API_KEY");
     var currentsKey   = nqEnv(ctx, "CURRENTS_API_KEY");
@@ -774,7 +780,7 @@ function rpcQuizverseFetchNewsQuiz(ctx, logger, nk, payload) {
         }
     } finally {
         // Always release both the process-local and distributed locks, even on exception
-        delete _NQ_REFRESH_IN_FLIGHT[cacheKey];
+        _NQ_REFRESH_IN_FLIGHT.delete(cacheKey);
         nqReleaseLock(nk, logger, cacheKey);
     }
 

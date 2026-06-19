@@ -1307,6 +1307,42 @@ namespace AdminConsole {
     return RpcHelpers.successResponse({ eventId: event.id, success: true });
   }
 
+  /**
+   * Resolve a creator event record by id, regardless of which storage path
+   * created it. SPA-published events live in `live_events` under the CREATOR's
+   * own user id, Nakama-native ones live in `satori_creator_events` under
+   * SYSTEM. This checks, in order:
+   *   1. live_events @ SYSTEM_USER_ID
+   *   2. live_events @ any owner (full collection scan)
+   *   3. satori_creator_events @ SYSTEM_USER_ID
+   * Returns the full storage object (value + owner + version + times) or null.
+   */
+  function resolveCreatorEventRecord(nk: nkruntime.Nakama, eventId: string): nkruntime.StorageObject | null {
+    var direct = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+    if (direct && direct.length > 0 && direct[0].value) return direct[0];
+
+    var cursor = "";
+    for (var page = 0; page < 10; page++) {
+      // null owner = list across ALL users (empty string "" is NOT valid —
+      // Nakama's JS runtime runs it through uuid.FromString and throws
+      // "expects empty or valid user id"). SPA events are creator-owned.
+      var res = nk.storageList(null, "live_events", 100, cursor);
+      var objs = (res && res.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        if (objs[i].value && (objs[i].key === eventId || (objs[i].value as any).id === eventId)) {
+          return objs[i];
+        }
+      }
+      cursor = (res && res.cursor) || "";
+      if (!cursor) break;
+    }
+
+    var canonical = nk.storageRead([{ collection: "satori_creator_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+    if (canonical && canonical.length > 0 && canonical[0].value) return canonical[0];
+
+    return null;
+  }
+
   // Get detailed stats for a creator event (participation, leaderboard, etc.)
   function rpcAdminCreatorEventStats(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
@@ -1314,12 +1350,12 @@ namespace AdminConsole {
     if (!data.event_id && !data.eventId) return RpcHelpers.errorResponse("event_id required");
     var eventId = data.event_id || data.eventId;
 
-    // Read the event definition
-    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-    if (!eventRecords || eventRecords.length === 0) {
+    // Read the event definition (across all storage paths)
+    var eventRecord = resolveCreatorEventRecord(nk, eventId);
+    if (!eventRecord) {
       return RpcHelpers.errorResponse("Event not found");
     }
-    var event: any = eventRecords[0].value;
+    var event: any = eventRecord.value;
 
     // Try to read leaderboard for this event
     var leaderboardId = "creator_event_" + eventId;
@@ -1351,7 +1387,7 @@ namespace AdminConsole {
     try {
       var cursor = "";
       for (var page = 0; page < 5; page++) {
-        var result = nk.storageList("", "event_answers", 100, cursor);
+        var result = nk.storageList(null, "event_answers", 100, cursor);
         var objects = result.objects || [];
         for (var j = 0; j < objects.length; j++) {
           if (objects[j].key !== eventId) continue;
@@ -1395,12 +1431,12 @@ namespace AdminConsole {
     var eventId = data.event_id || data.eventId;
     var reason = data.reason || "Ended by admin";
 
-    // Read the event
-    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-    if (!eventRecords || eventRecords.length === 0) {
+    // Read the event (across all storage paths)
+    var eventRecord = resolveCreatorEventRecord(nk, eventId);
+    if (!eventRecord) {
       return RpcHelpers.errorResponse("Event not found");
     }
-    var event: any = eventRecords[0].value;
+    var event: any = eventRecord.value;
 
     // Update status
     event.status = "ended";
@@ -1408,11 +1444,12 @@ namespace AdminConsole {
     event.endedBy = "admin";
     event.endReason = reason;
 
-    // Write back
+    // Write back to the SAME owner/collection the record was found in, so SPA
+    // events (creator-owned) are updated in place rather than orphaning a copy.
     nk.storageWrite([{
-      collection: "live_events",
-      key: eventId,
-      userId: Constants.SYSTEM_USER_ID,
+      collection: eventRecord.collection,
+      key: eventRecord.key,
+      userId: eventRecord.userId,
       value: event,
       permissionRead: 2,
       permissionWrite: 0,
@@ -1421,7 +1458,18 @@ namespace AdminConsole {
     logAdminAudit(nk, ctx, "admin_creator_event_end", { eventId: eventId }, { reason: reason });
     logger.info("[rpcAdminCreatorEventEnd] Admin ended creator event %s: %s", eventId, reason);
 
-    return RpcHelpers.successResponse({ success: true, event_id: eventId, status: "ended" });
+    // Rank players from event_answers and queue prize_fulfillments for every
+    // gift-card winner so the admin can fulfill ALL winners — not just those
+    // who self-claim. Idempotent + best-effort: a failure here must not block
+    // the end action itself.
+    var prizes: any = null;
+    try {
+      prizes = SatoriCreatorEvents.computeAndQueueWinners(nk, logger, event, String(eventId));
+    } catch (perr: any) {
+      logger.warn("[rpcAdminCreatorEventEnd] winner queue failed for %s: %s", eventId, perr.message || String(perr));
+    }
+
+    return RpcHelpers.successResponse({ success: true, event_id: eventId, status: "ended", prizes: prizes });
   }
 
   // Admin action: Get full details of a single creator event
@@ -1431,13 +1479,12 @@ namespace AdminConsole {
     if (!data.event_id && !data.eventId) return RpcHelpers.errorResponse("event_id required");
     var eventId = data.event_id || data.eventId;
 
-    var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-    if (!eventRecords || eventRecords.length === 0) {
+    var record = resolveCreatorEventRecord(nk, eventId);
+    if (!record) {
       return RpcHelpers.errorResponse("Event not found");
     }
 
-    var event: any = eventRecords[0].value;
-    var record = eventRecords[0];
+    var event: any = record.value;
 
     return RpcHelpers.successResponse({
       event: {
@@ -1474,15 +1521,48 @@ namespace AdminConsole {
     var filterRegion = data.region || null;
     var filterCreatorId = data.creator_id || data.creatorId || null;
     var filterGameId = data.game_id || data.gameId || null;
-    var limit = Math.min(data.limit || 100, 500);
+    // Return limit (applied AFTER sorting so the newest events always surface).
+    var limit = Math.min(data.limit || 500, 2000);
+    // Collection bound — scan far more than `limit` so the sort sees every
+    // event, not just the first `limit` ones in storage/index order (which is
+    // oldest-first and was silently dropping all recently-created events).
+    var scanCap = 2000;
 
     var events: any[] = [];
     var sourceCounts = { satori_creator_events: 0, live_events: 0 };
     var seenIds: { [id: string]: boolean } = {};
     var nowSec = Math.floor(Date.now() / 1000);
 
+    // Real participant counts. `ev.participantCount` is only incremented by the
+    // native rpcJoin flow, which SPA-published events bypass entirely (they
+    // write answers straight into `event_answers` under each player's own
+    // userId) — so it stays 0 even for events that clearly had players. Sweep
+    // event_answers once (bounded) and tally per-event, keyed by event id.
+    var participantCounts: { [eventId: string]: number } = {};
+    try {
+      var aCursor = "";
+      var aPages = 0;
+      do {
+        var aPage = nk.storageList(null, "event_answers", 100, aCursor);
+        var aObjs = (aPage && aPage.objects) || [];
+        for (var ai = 0; ai < aObjs.length; ai++) {
+          var ak = aObjs[ai].key;
+          if (!ak) continue;
+          participantCounts[ak] = (participantCounts[ak] || 0) + 1;
+        }
+        aCursor = (aPage && aPage.cursor) || "";
+        aPages++;
+      } while (aCursor && aPages < 30);
+    } catch (aerr: any) {
+      logger.warn("[rpcAdminCreatorEventsList] event_answers tally failed: %s", aerr.message || String(aerr));
+    }
+
     function computeEffectiveStatus(ev: any): string {
       if (ev.status === "cancelled" || ev.status === "distributed") return ev.status;
+      // Honor an explicit terminal status (or endedAt) set by the
+      // creator-portal / admin end action — otherwise a manually-ended event
+      // still inside its original time window wrongly reads as "live".
+      if (ev.status === "ended" || ev.status === "completed" || ev.status === "closed" || ev.endedAt) return "ended";
       if (ev.status === "draft" || ev.status === "funded") return ev.status;
 
       var startSec = ev.scheduledAt || ev.createdAt || 0;
@@ -1532,7 +1612,7 @@ namespace AdminConsole {
         game_id: ev.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
         status: effectiveStatus,
         raw_status: ev.status,
-        participant_count: ev.participantCount || 0,
+        participant_count: Math.max(Number(ev.participantCount) || 0, participantCounts[ev.id] || 0),
         question_count: ev.questions ? ev.questions.length : 0,
         clue_count: ev.clues ? ev.clues.length : 0,
         promo_video_url: ev.promoVideoUrl || "",
@@ -1566,7 +1646,7 @@ namespace AdminConsole {
         var index = indexRecords[0].value as { eventIds: string[] };
         var eventIds = index.eventIds || [];
 
-        for (var i = 0; i < eventIds.length && events.length < limit; i++) {
+        for (var i = 0; i < eventIds.length && events.length < scanCap; i++) {
           var eventId = eventIds[i];
           if (seenIds[eventId]) continue;
 
@@ -1593,14 +1673,20 @@ namespace AdminConsole {
       logger.warn("[rpcAdminCreatorEventsList] Failed to read satori_creator_events index: %s", indexErr.message || String(indexErr));
     }
 
-    // 2. Fetch from live_events (SYSTEM_USER_ID owned) — creator portal events
+    // 2. Fetch from live_events across ALL owners — creator-portal / SPA events.
+    // The live.quizverse.world/creator SPA writes the event definition into the
+    // `live_events` collection under the CREATOR's own user id (not SYSTEM), so a
+    // SYSTEM_USER_ID-only scan silently missed every SPA-published event. Listing
+    // with an empty owner ("") enumerates the whole collection (same pattern used
+    // by CreatorEventLive), covering both SYSTEM- and creator-owned records.
     try {
       var cursor = "";
-      for (var page = 0; page < 10 && events.length < limit; page++) {
-        var result = nk.storageList(Constants.SYSTEM_USER_ID, "live_events", 100, cursor);
+      for (var page = 0; page < 40 && events.length < scanCap; page++) {
+        // null owner = all users (empty string "" throws in Nakama's JS runtime)
+        var result = nk.storageList(null, "live_events", 100, cursor);
         var objects = result.objects || [];
 
-        for (var j = 0; j < objects.length && events.length < limit; j++) {
+        for (var j = 0; j < objects.length && events.length < scanCap; j++) {
           var obj = objects[j];
           if (!obj.value) continue;
 
@@ -1622,14 +1708,21 @@ namespace AdminConsole {
       logger.warn("[rpcAdminCreatorEventsList] Failed to list live_events: %s", listErr.message || String(listErr));
     }
 
-    // Sort by scheduled_at descending (most recent first)
+    // Sort by scheduled_at descending (most recent first) BEFORE applying the
+    // return limit, so the newest events are never truncated away.
     events.sort(function(a, b) {
       return (b.scheduled_at || 0) - (a.scheduled_at || 0);
     });
 
+    var matchedCount = events.length;
+    if (events.length > limit) {
+      events = events.slice(0, limit);
+    }
+
     return RpcHelpers.successResponse({
       events: events,
       total_count: events.length,
+      matched_count: matchedCount,
       sources: sourceCounts,
       filters_applied: {
         status: filterStatus,
@@ -1639,6 +1732,89 @@ namespace AdminConsole {
         limit: limit
       }
     });
+  }
+
+  // Admin action: backfill prize_fulfillments for winners of already-ended
+  // creator events whose winners were never queued (players who never
+  // self-claimed). Idempotent — skips any (event,user) already on the queue.
+  // Payload: { event_id? (single event), creator_id? (filter) }
+  function rpcAdminCreatorEventsBackfillPrizes(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var onlyEventId = data.event_id || data.eventId || null;
+    var filterCreatorId = data.creator_id || data.creatorId || null;
+    var nowSec = Math.floor(Date.now() / 1000);
+
+    function isEnded(ev: any): boolean {
+      if (ev.status === "ended" || ev.status === "completed" || ev.status === "closed" || ev.endedAt) return true;
+      if (ev.status === "cancelled" || ev.status === "distributed" || ev.status === "draft" || ev.status === "funded") return false;
+      var start = ev.scheduledAt || ev.createdAt || 0;
+      var end = start + (ev.duration || 30) * 60;
+      return nowSec > end;
+    }
+    function hasTiers(ev: any): boolean {
+      return !!(ev && ev.giftCardPrizes && ev.giftCardPrizes.tiers && ev.giftCardPrizes.tiers.length);
+    }
+
+    var seen: { [id: string]: boolean } = {};
+    var results: any[] = [];
+    var totals = { events: 0, ranked: 0, queued: 0, skippedExisting: 0, xutWinners: 0 };
+
+    function process(ev: any): void {
+      var id = ev && ev.id;
+      if (!id || seen[id]) return;
+      if (onlyEventId && id !== onlyEventId) return;
+      if (filterCreatorId && ev.creatorId !== filterCreatorId) return;
+      if (!isEnded(ev) || !hasTiers(ev)) return;
+      seen[id] = true;
+      var r = SatoriCreatorEvents.computeAndQueueWinners(nk, logger, ev, String(id));
+      totals.events++;
+      totals.ranked += r.ranked;
+      totals.queued += r.queued;
+      totals.skippedExisting += r.skippedExisting;
+      totals.xutWinners += r.xutWinners;
+      results.push({ eventId: id, title: ev.title || "", ranked: r.ranked, queued: r.queued, skippedExisting: r.skippedExisting, xutWinners: r.xutWinners });
+    }
+
+    // 1. satori_creator_events via events_index
+    try {
+      var idxRec = nk.storageRead([{ collection: "satori_creator_events", key: "events_index", userId: Constants.SYSTEM_USER_ID }]);
+      if (idxRec && idxRec.length > 0 && idxRec[0].value) {
+        var ids = ((idxRec[0].value as { eventIds: string[] }).eventIds) || [];
+        for (var i = 0; i < ids.length; i++) {
+          try {
+            var er = nk.storageRead([{ collection: "satori_creator_events", key: ids[i], userId: Constants.SYSTEM_USER_ID }]);
+            if (er && er.length > 0 && er[0].value) process(er[0].value);
+          } catch (e1: any) { /* skip unreadable */ }
+        }
+      }
+    } catch (e2: any) {
+      logger.warn("[backfillPrizes] satori index read failed: %s", e2.message || String(e2));
+    }
+
+    // 2. live_events across all owners (creator-portal / SPA events)
+    try {
+      var cursor = "";
+      var pages = 0;
+      do {
+        var page = nk.storageList(null, "live_events", 100, cursor);
+        var objs = (page && page.objects) || [];
+        for (var j = 0; j < objs.length; j++) {
+          var val: any = objs[j] && objs[j].value;
+          if (!val) continue;
+          if (!val.id) val.id = objs[j].key;
+          process(val);
+        }
+        cursor = (page && page.cursor) || "";
+        pages++;
+      } while (cursor && pages < 40);
+    } catch (e3: any) {
+      logger.warn("[backfillPrizes] live_events list failed: %s", e3.message || String(e3));
+    }
+
+    logger.info("[backfillPrizes] events=%d ranked=%d queued=%d skipped=%d xut=%d",
+      totals.events, totals.ranked, totals.queued, totals.skippedExisting, totals.xutWinners);
+    return RpcHelpers.successResponse({ totals: totals, events: results });
   }
 
   function rpcAdminMessagesList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -2188,6 +2364,10 @@ namespace AdminConsole {
     initializer.registerRpc("admin_creator_event_stats", rpcAdminCreatorEventStats);
     initializer.registerRpc("admin_creator_event_end", rpcAdminCreatorEventEnd);
     initializer.registerRpc("admin_creator_events_list", rpcAdminCreatorEventsList);
+    initializer.registerRpc("admin_creator_events_backfill_prizes", rpcAdminCreatorEventsBackfillPrizes);
+    // Live-event prize fulfillment (admin console)
+    initializer.registerRpc("admin_prize_fulfillments_list", rpcAdminPrizeFulfillmentsList);
+    initializer.registerRpc("admin_prize_fulfillment_settle", rpcAdminPrizeFulfillmentSettle);
     initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
     initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
     initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
@@ -2376,6 +2556,133 @@ namespace AdminConsole {
     initializer.registerRpc("hiro_streak_shield_get",        delegate("__rpc_retention_get_streak_shield"));
     initializer.registerRpc("hiro_streak_shield_activate",   delegate("__rpc_retention_use_streak_shield"));
     initializer.registerRpc("hiro_streak_shield_replenish",  delegate("__rpc_retention_grant_streak_shield"));
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  //  Live-event prize fulfillment (admin console)
+  //
+  //  Gift-card wins are queued into the system-owned `prize_fulfillments`
+  //  collection (status "pending") by the creator-event claim RPCs. The
+  //  existing creator_event_fulfillments_list / _settle RPCs are gated by a
+  //  service token (NAKAMA_WEBHOOK_SECRET) for the Next.js admin / n8n. These
+  //  two RPCs expose the SAME queue + settle flow to the IVX admin console via
+  //  the normal requireAdmin gate, so no secret has to ship to the browser.
+  // ────────────────────────────────────────────────────────────────────
+
+  function rpcAdminPrizeFulfillmentsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+    var limit = Math.min(200, Math.max(1, Number(data.limit) || 100));
+    var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
+
+    var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
+    var rows: any[] = [];
+    var objs = (res && res.objects) || [];
+    for (var i = 0; i < objs.length; i++) {
+      var v: any = objs[i].value || {};
+      if (statusFilter && v.status !== statusFilter) continue;
+      rows.push({
+        key: objs[i].key,
+        userId: v.userId || "",
+        eventId: v.eventId || "",
+        eventTitle: v.eventTitle || "",
+        rank: v.rank || 0,
+        giftCard: v.giftCard || null,
+        status: v.status || "pending",
+        region: v.region || "",
+        email: v.email || "",
+        source: v.source || "",
+        queuedAt: v.queuedAt || v.claimedAt || 0,
+        settledAt: v.settledAt || 0,
+        voucher: v.voucher || null,
+        error: v.error || "",
+      });
+    }
+    return RpcHelpers.successResponse({
+      fulfillments: rows,
+      cursor: (res && res.cursor) || "",
+    });
+  }
+
+  function rpcAdminPrizeFulfillmentSettle(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var eventId = data.eventId || data.event_id;
+    var targetUserId = data.userId || data.user_id;
+    if (!eventId || !targetUserId) {
+      return RpcHelpers.errorResponse("eventId and userId required");
+    }
+    var status = data.status === "fulfilled" ? "fulfilled" : (data.status === "failed" ? "failed" : "");
+    if (!status) {
+      return RpcHelpers.errorResponse("status must be 'fulfilled' or 'failed'");
+    }
+    eventId = String(eventId);
+    targetUserId = String(targetUserId);
+    var fKey = eventId + ":" + targetUserId;
+
+    var recs = nk.storageRead([{ collection: "prize_fulfillments", key: fKey, userId: Constants.SYSTEM_USER_ID }]);
+    if (!recs || recs.length === 0 || !recs[0].value) {
+      return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+    }
+    var rec: any = recs[0].value;
+
+    var settledAt = Math.floor(Date.now() / 1000);
+    rec.status = status;
+    rec.settledAt = settledAt;
+    rec.settledBy = "admin_console";
+    if (status === "fulfilled") {
+      // Never store the full card code server-side — it is delivered by email.
+      rec.voucher = {
+        provider: String(data.provider || "reloadly"),
+        orderId: String(data.orderId || ""),
+        deliveredTo: String(data.deliveredTo || rec.email || ""),
+        cardLast4: String(data.cardLast4 || ""),
+        codeDelivered: !!data.codeDelivered,
+      };
+      rec.error = "";
+    } else {
+      rec.error = String(data.error || "fulfillment failed");
+    }
+    nk.storageWrite([{
+      collection: "prize_fulfillments",
+      key: fKey,
+      userId: Constants.SYSTEM_USER_ID,
+      value: rec,
+      permissionRead: 2,
+      permissionWrite: 0,
+    }]);
+
+    // Mirror onto the player's claim record so the SPA "My Prizes" card can
+    // show "Voucher sent" without another server round-trip.
+    try {
+      var claimKey = "claim_" + eventId;
+      var claimRecs = nk.storageRead([{ collection: "creator_event_claims", key: claimKey, userId: targetUserId }]);
+      if (claimRecs && claimRecs.length > 0 && claimRecs[0].value) {
+        var claim: any = claimRecs[0].value;
+        claim.voucher = {
+          status: status,
+          provider: (rec.voucher && rec.voucher.provider) || "reloadly",
+          deliveredTo: (rec.voucher && rec.voucher.deliveredTo) || "",
+          settledAt: settledAt,
+        };
+        nk.storageWrite([{
+          collection: "creator_event_claims",
+          key: claimKey,
+          userId: targetUserId,
+          value: claim,
+          permissionRead: 1,
+          permissionWrite: 1,
+        }]);
+      }
+    } catch (merr: any) {
+      logger.warn("[admin_prize_fulfillment_settle] Failed to mirror voucher onto claim record: %s", merr.message || String(merr));
+    }
+
+    logAdminAudit(nk, ctx, "admin_prize_fulfillment_settle", { eventId: eventId, userId: targetUserId }, { status: status, orderId: (rec.voucher && rec.voucher.orderId) || "" });
+    logger.info("[admin_prize_fulfillment_settle] %s settled key=%s status=%s", ctx.userId || "admin", fKey, status);
+
+    return RpcHelpers.successResponse({ success: true, key: fKey, status: status, settledAt: settledAt });
   }
 
   function rpcGiftClaimsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {

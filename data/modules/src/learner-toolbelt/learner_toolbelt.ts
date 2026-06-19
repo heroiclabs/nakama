@@ -1269,6 +1269,273 @@ namespace LearnerToolbelt {
     }
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  // Quizzy Clipper — clip capture surface
+  // PLAN-QUIZZY_CLIPPER_BROWSER_EXTENSION.md §3.4
+  //
+  // 3 service-only RPCs back all three capture surfaces (MV3 extension,
+  // email-forward inbox, web /notes page):
+  //   lt_clip_save    — upsert a captured clip
+  //   lt_clips_list   — paginated list with search + filters
+  //   lt_clip_delete  — soft semantics (hard delete here; 90d retention cron
+  //                     is a follow-up backend task per plan Week 4 D3)
+  //
+  // Storage: collection qv_lt_clips, key = clip_id, value = ClipRecord,
+  // permissionRead/Write = 0 (server-only; owner reads via service token).
+  //
+  // Media note: snapshot/audio blobs are destined for the qv-clip-media-prod
+  // S3 bucket with signed URLs (plan §3.4). The S3 signer is a Week-1 backend
+  // follow-up; until it lands we inline small snapshots (<= CLIP_MAX_INLINE_MEDIA)
+  // as a data URL thumb and flag larger ones media_pending so the contract
+  // response stays stable.
+  // ════════════════════════════════════════════════════════════════════════
+
+  var COLLECTION_CLIPS = "qv_lt_clips";
+  var CLIP_MAX_TITLE = 256;
+  var CLIP_MAX_SELECTION = 8192;
+  var CLIP_MAX_SNIPPET = 2048;
+  var CLIP_MAX_TAGS = 12;
+  var CLIP_MAX_TAG_LEN = 32;
+  var CLIP_MAX_INLINE_MEDIA = 524288;     // 512KB inline cap (pre-S3)
+  var CLIP_LIST_MAX_LIMIT = 100;
+  var CLIP_LIST_DEFAULT_LIMIT = 50;
+  var CLIP_SOFT_CAP_FREE = 500;           // plan Week 3 D3 — free tier soft cap
+  var CLIP_EXAM_TAG_RE = /^[a-z0-9_]{1,32}$/;
+  var CLIP_SOURCE_TYPES = ["web", "snapshot", "voice", "email"];
+
+  interface ClipRecord {
+    clip_id: string;
+    source_type: string;
+    url: string;
+    title: string;
+    selection_text: string;
+    page_text_snippet: string;
+    snapshot_thumb_url: string;       // inline data URL (<=512KB) or "" when media_pending / S3
+    voice_transcript: string;
+    voice_audio_url: string;
+    exam_tag: string | null;
+    tags: string[];
+    ai_summary: string | null;        // null until the AI Notes pipeline fills it
+    media_pending: boolean;
+    created_at_unix: number;
+  }
+
+  function clipSanitizeTags(raw: any): string[] {
+    if (!Array.isArray(raw)) return [];
+    var out: string[] = [];
+    for (var i = 0; i < raw.length && out.length < CLIP_MAX_TAGS; i++) {
+      var tag = ("" + raw[i]).trim().toLowerCase().slice(0, CLIP_MAX_TAG_LEN);
+      if (tag && out.indexOf(tag) < 0) out.push(tag);
+    }
+    return out;
+  }
+
+  function clipResolveExamTag(nk: nkruntime.Nakama, userId: string, supplied: any): string | null {
+    var tag = ("" + (supplied || "")).trim().toLowerCase();
+    if (tag) return CLIP_EXAM_TAG_RE.test(tag) ? tag : null;
+    // Auto-tag from the user's primary exam countdown (plan §3.4).
+    try {
+      var doc = readCountdownDoc(nk, userId);
+      if (doc.primary_exam_id && CLIP_EXAM_TAG_RE.test(doc.primary_exam_id)) {
+        return doc.primary_exam_id;
+      }
+    } catch (_e: any) { /* no countdown — leave untagged */ }
+    return null;
+  }
+
+  // Strip the heavy inline media field for list payloads so a page of 50 clips
+  // stays small; the thumb is still referenced by clip detail / future S3 URL.
+  function clipToListItem(c: ClipRecord): any {
+    return {
+      clip_id: c.clip_id,
+      source_type: c.source_type,
+      url: c.url,
+      title: c.title,
+      selection_text: c.selection_text,
+      snapshot_thumb_url: c.snapshot_thumb_url,
+      voice_transcript: c.voice_transcript,
+      exam_tag: c.exam_tag,
+      tags: c.tags,
+      ai_summary: c.ai_summary,
+      created_at_unix: c.created_at_unix,
+    };
+  }
+
+  // RPC: lt_clip_save — capture one clip from any of the 3 surfaces.
+  function rpcClipSave(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) return RpcHelpers.errorResponse(auth.error, auth.code);
+
+      var sourceType = ("" + (data.source_type || "web")).toLowerCase();
+      if (CLIP_SOURCE_TYPES.indexOf(sourceType) < 0) {
+        return RpcHelpers.errorResponse("invalid source_type", 400);
+      }
+
+      var url = ("" + (data.url || "")).slice(0, 2048);
+      if ((sourceType === "web" || sourceType === "snapshot") && !url) {
+        return RpcHelpers.errorResponse("url required for web/snapshot clips", 400);
+      }
+      // Defence-in-depth: never store a non-http(s) scheme as a clip URL.
+      if (url && !/^https?:\/\//i.test(url)) {
+        return RpcHelpers.errorResponse("url must be http(s)", 400);
+      }
+
+      // Inline snapshot media (pre-S3). Reject anything that isn't a data:image
+      // and flag oversized blobs media_pending rather than failing the clip.
+      var snapshotThumb = "";
+      var mediaPending = false;
+      var rawSnap = "" + (data.snapshot_data_url || "");
+      if (rawSnap) {
+        if (rawSnap.indexOf("data:image/") !== 0) {
+          return RpcHelpers.errorResponse("snapshot_data_url must be a data:image", 400);
+        }
+        if (rawSnap.length <= CLIP_MAX_INLINE_MEDIA) snapshotThumb = rawSnap;
+        else mediaPending = true;
+      }
+
+      var nowUnix = nowSec();
+      var clipId = "clip_" + nowUnix.toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+
+      var record: ClipRecord = {
+        clip_id: clipId,
+        source_type: sourceType,
+        url: url,
+        title: ("" + (data.title || "")).slice(0, CLIP_MAX_TITLE),
+        selection_text: ("" + (data.selection_text || "")).slice(0, CLIP_MAX_SELECTION),
+        page_text_snippet: ("" + (data.page_text_snippet || "")).slice(0, CLIP_MAX_SNIPPET),
+        snapshot_thumb_url: snapshotThumb,
+        voice_transcript: ("" + (data.voice_transcript || "")).slice(0, CLIP_MAX_SELECTION),
+        voice_audio_url: ("" + (data.voice_audio_url || "")).slice(0, 2048),
+        exam_tag: clipResolveExamTag(nk, auth.userId, data.exam_tag),
+        tags: clipSanitizeTags(data.tags),
+        ai_summary: null,
+        media_pending: mediaPending,
+        created_at_unix: nowUnix,
+      };
+
+      nk.storageWrite([{
+        collection: COLLECTION_CLIPS,
+        key: clipId,
+        userId: auth.userId,
+        value: record,
+        permissionRead: 0,
+        permissionWrite: 0,
+      }]);
+
+      emitAnalytics(nk, logger, auth.userId, "clipper_clip_saved", {
+        source_type: sourceType,
+        has_selection: record.selection_text.length > 0,
+        has_snapshot: snapshotThumb.length > 0 || mediaPending,
+        has_voice: record.voice_transcript.length > 0 || record.voice_audio_url.length > 0,
+        exam_tag: record.exam_tag || "none",
+      });
+
+      // ai_summary_queued mirrors the contract; the async AI Notes summarizer is
+      // a Week-2 backend follow-up. We report queued=true only when there is
+      // textual content worth summarizing.
+      var queued = record.selection_text.length > 0 || record.page_text_snippet.length > 0 || record.voice_transcript.length > 0;
+
+      return safeWrap({
+        status: "ok",
+        clip_id: clipId,
+        created_at_unix: nowUnix,
+        ai_summary_queued: queued,
+        media_pending: mediaPending,
+      });
+    } catch (err: any) {
+      logger.error("lt_clip_save failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
+  // RPC: lt_clips_list — paginated list + search + source/exam filters.
+  function rpcClipsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) {
+        // Graceful anonymous response — web /notes renders a sign-in nudge.
+        return safeWrap({ status: "anonymous", clips: [], next_cursor: null });
+      }
+
+      var limit = parseInt("" + (data.limit || CLIP_LIST_DEFAULT_LIMIT), 10);
+      if (!(limit >= 1)) limit = CLIP_LIST_DEFAULT_LIMIT;
+      if (limit > CLIP_LIST_MAX_LIMIT) limit = CLIP_LIST_MAX_LIMIT;
+
+      var cursor = data.cursor ? "" + data.cursor : "";
+      var filterSource = data.filter_source_type ? ("" + data.filter_source_type).toLowerCase() : "";
+      var filterExam = data.filter_exam_tag ? ("" + data.filter_exam_tag).toLowerCase() : "";
+      var search = data.search ? ("" + data.search).toLowerCase().trim() : "";
+
+      var listResult = nk.storageList(auth.userId, COLLECTION_CLIPS, limit, cursor || undefined);
+      var rows = listResult && listResult.objects ? listResult.objects : [];
+
+      var clips: any[] = [];
+      for (var i = 0; i < rows.length; i++) {
+        var v = rows[i] && rows[i].value ? (rows[i].value as ClipRecord) : null;
+        if (!v) continue;
+        if (filterSource && v.source_type !== filterSource) continue;
+        if (filterExam && (v.exam_tag || "") !== filterExam) continue;
+        if (search) {
+          var hay = ((v.title || "") + " " + (v.selection_text || "") + " " + (v.voice_transcript || "") + " " + (v.url || "")).toLowerCase();
+          if (hay.indexOf(search) < 0) continue;
+        }
+        clips.push(clipToListItem(v));
+      }
+
+      // storageList returns ascending key order (clip_<base36-unix>) — present
+      // newest-first within the page.
+      clips.sort(function (a, b) { return b.created_at_unix - a.created_at_unix; });
+
+      return safeWrap({
+        status: "ok",
+        clips: clips,
+        next_cursor: (listResult && listResult.cursor) ? listResult.cursor : null,
+      });
+    } catch (err: any) {
+      logger.error("lt_clips_list failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
+  // RPC: lt_clip_delete — remove one clip owned by the caller.
+  function rpcClipDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var auth = resolveServiceUserId(ctx, data);
+      if (auth.error) return RpcHelpers.errorResponse(auth.error, auth.code);
+
+      var clipId = "" + (data.clip_id || "");
+      if (!clipId) return RpcHelpers.errorResponse("clip_id required", 400);
+
+      var existed = false;
+      try {
+        var rows = nk.storageRead([{ collection: COLLECTION_CLIPS, key: clipId, userId: auth.userId }]);
+        existed = !!(rows && rows.length > 0 && rows[0].value);
+      } catch (_e: any) { /* treat as not_found */ }
+
+      if (!existed) return safeWrap({ status: "not_found" });
+
+      var ageDays = 0;
+      try {
+        var rec = rows && rows[0] ? (rows[0].value as ClipRecord) : null;
+        if (rec && rec.created_at_unix) ageDays = Math.floor((nowSec() - rec.created_at_unix) / 86400);
+      } catch (_e: any) { /* noop */ }
+
+      nk.storageDelete([{ collection: COLLECTION_CLIPS, key: clipId, userId: auth.userId }]);
+      emitAnalytics(nk, logger, auth.userId, "clipper_clip_deleted", { age_days: ageDays });
+
+      return safeWrap({ status: "ok" });
+    } catch (err: any) {
+      logger.error("lt_clip_delete failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+  // Silence unused-soft-cap warning until quota enforcement lands (plan Week 3 D3).
+  void CLIP_SOFT_CAP_FREE;
+
   // ────────────────────────────────────────────────────────────────────────
   // RPC: lt_exam_calendar_get (Wave 4 — anonymous OK)
   // ────────────────────────────────────────────────────────────────────────
@@ -1403,7 +1670,7 @@ namespace LearnerToolbelt {
   // ────────────────────────────────────────────────────────────────────────
   // RPC: lt_school_search (Wave 4 — anonymous OK)
   // ────────────────────────────────────────────────────────────────────────
-  function rpcSchoolSearch(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, payload: string): string {
+  function rpcSchoolSearch(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     try {
       var data = RpcHelpers.parseRpcPayload(payload);
       var query = "" + (data.query || "");
@@ -1413,11 +1680,27 @@ namespace LearnerToolbelt {
       var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
       if (query.length < 2) return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
 
-      var hits = searchSchools(query, country, limit, institutionType);
+      // Phase B: query the real CockroachDB index first (ingest_schools.py loads
+      // ~177k schools + global colleges). The in-memory fixture is merged in as a
+      // no-regression fallback, so curated landmark institutions always resolve
+      // and an empty/unavailable DB never breaks the tool.
+      var dbHits = searchSchoolsDB(nk, query, country, limit, institutionType);
+      var hits: SchoolSearchHit[];
+      var source: string;
+      if (dbHits.length > 0) {
+        var fixtureHits = searchSchools(query, country, limit, institutionType);
+        hits = mergeHits(dbHits, fixtureHits, limit);
+        source = "db";
+      } else {
+        hits = searchSchools(query, country, limit, institutionType);
+        source = "fixture";
+      }
+
       return safeWrap({
         ok: true, status: hits.length > 0 ? "ok" : "no_results",
         query: query, country_code: country, locale: locale,
         institution_type: institutionType,
+        source: source,
         results: hits,
         count: hits.length,
         message: hits.length === 0 ? i18nString(locale, "school.no_results") : "",
@@ -1431,12 +1714,12 @@ namespace LearnerToolbelt {
   // ────────────────────────────────────────────────────────────────────────
   // RPC: lt_school_get_detail (Wave 4 — anonymous OK)
   // ────────────────────────────────────────────────────────────────────────
-  function rpcSchoolGetDetail(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, payload: string): string {
+  function rpcSchoolGetDetail(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     try {
       var data = RpcHelpers.parseRpcPayload(payload);
       var schoolId = "" + (data.school_id || "");
       if (!schoolId) return RpcHelpers.errorResponse("school_id required", 400);
-      var rec = getSchoolById(schoolId);
+      var rec = getSchoolByIdAny(nk, schoolId);
       if (!rec) return safeWrap({ ok: true, status: "not_found", school_id: schoolId, found: false });
       return safeWrap({ ok: true, status: "ok", found: true, school: rec });
     } catch (err: any) {
@@ -1457,9 +1740,9 @@ namespace LearnerToolbelt {
       var schoolId = "" + (data.school_id || "");
       if (!schoolId) return RpcHelpers.errorResponse("school_id required", 400);
 
-      // Resolve verified-ness — fixture hits are verified; freetext entries
+      // Resolve verified-ness — DB + fixture hits are verified; freetext entries
       // remain provisional until ai-content reviews.
-      var rec = getSchoolById(schoolId);
+      var rec = getSchoolByIdAny(nk, schoolId);
       var verified = !!rec;
       var record: UserSchoolRecord = {
         school_id: schoolId,
@@ -1963,6 +2246,9 @@ namespace LearnerToolbelt {
     initializer.registerRpc("lt_countdown_visit", rpcCountdownVisit);
     initializer.registerRpc("lt_study_log_log", rpcStudyLogLog);
     initializer.registerRpc("lt_study_log_heatmap", rpcStudyLogHeatmap);
+    initializer.registerRpc("lt_clip_save", rpcClipSave);
+    initializer.registerRpc("lt_clips_list", rpcClipsList);
+    initializer.registerRpc("lt_clip_delete", rpcClipDelete);
     initializer.registerRpc("lt_exam_calendar_get", rpcExamCalendarGet);
     initializer.registerRpc("lt_gpa_compute", rpcGpaCompute);
     initializer.registerRpc("lt_gpa_save", rpcGpaSave);

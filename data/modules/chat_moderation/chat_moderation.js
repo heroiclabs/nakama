@@ -33,10 +33,23 @@ function modRequireAdmin(ctx) {
     return JSON.stringify({ success: false, error: "admin_required" });
 }
 
+// QVBF_91: matching is whole-word now (see checkProfanity/filterMessage), so
+// compounds and inflections that substring matching used to catch must be
+// listed explicitly or they would pass unfiltered.
 var PROFANITY_WORDS = [
-    "fuck", "shit", "ass", "bitch", "dick", "cunt", "damn", "bastard",
-    "nigger", "nigga", "faggot", "retard", "whore", "slut",
-    "kill yourself", "kys", "die", "rape"
+    "fuck", "fucking", "fucker", "fuckers", "fucked", "fucks",
+    "shit", "shitty", "shits",
+    "ass", "asses", "asshole", "assholes", "dumbass", "jackass",
+    "bitch", "bitches", "bitchy",
+    "dick", "dicks", "dickhead",
+    "cunt", "cunts",
+    "damn", "bastard", "bastards",
+    "nigger", "niggers", "nigga", "niggas",
+    "faggot", "faggots",
+    "retard", "retarded", "retards",
+    "whore", "whores", "slut", "sluts", "slutty",
+    "kill yourself", "kys", "die",
+    "rape", "rapes", "raped", "rapist"
 ];
 
 var SPAM_PATTERNS = [
@@ -61,7 +74,10 @@ function checkProfanity(text) {
     var matched = [];
 
     for (var i = 0; i < PROFANITY_WORDS.length; i++) {
-        if (lower.indexOf(PROFANITY_WORDS[i]) !== -1) {
+        // QVBF_91: whole-word match — substring matching censored normal
+        // words ("assist" → "***ist", "studied" flagged via "die").
+        var escaped = PROFANITY_WORDS[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp('\\b' + escaped + '\\b').test(lower)) {
             matched.push(PROFANITY_WORDS[i]);
         }
     }
@@ -72,7 +88,7 @@ function checkProfanity(text) {
 
     for (var j = 0; j < matched.length; j++) {
         var w = matched[j];
-        if (w === 'nigger' || w === 'nigga' || w === 'faggot' || w === 'kill yourself' || w === 'kys' || w === 'rape') {
+        if (w.indexOf('nigg') === 0 || w.indexOf('faggot') === 0 || w.indexOf('rap') === 0 || w === 'kill yourself' || w === 'kys') {
             severity = 'severe';
             break;
         }
@@ -107,7 +123,8 @@ function filterMessage(text) {
         var word = PROFANITY_WORDS[i];
         var replacement = '';
         for (var c = 0; c < word.length; c++) replacement += '*';
-        var regex = new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        // QVBF_91: \b boundaries so "assist"/"class"/"grape" are never masked.
+        var regex = new RegExp('\\b' + word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
         filtered = filtered.replace(regex, replacement);
     }
     return filtered;

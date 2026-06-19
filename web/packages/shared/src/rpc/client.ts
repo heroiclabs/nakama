@@ -120,6 +120,42 @@ export async function callRpc<TPayload = Record<string, unknown>, TResult = unkn
 }
 
 /**
+ * Call a custom dashboard-proxy JSON endpoint (NOT a Nakama RPC).
+ *
+ * These routes live only on the admin-dashboard Node proxy
+ * (`server/admin-dashboard-server.mjs`) under `${ADMIN_API_BASE}/...` and let
+ * the proxy inject server-side secrets (e.g. the live-events admin key) that
+ * must never reach the browser. Only valid with server-key (proxy) auth.
+ */
+export async function callDashboardApi<TResult = unknown>(
+  path: string,
+  body: unknown,
+  options: RpcOptions,
+): Promise<TResult> {
+  const url = `${ADMIN_API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const authHeader = buildAuthHeader(options.auth);
+  if (authHeader) headers.Authorization = authHeader;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body ?? {}),
+    signal: options.signal,
+  });
+
+  if (!res.ok) {
+    const errBody = await readResponseBody(res);
+    throw new NakamaRpcError(path, res.status, errBody);
+  }
+
+  if (res.status === 204) return undefined as TResult;
+  return readResponseBody(res) as Promise<TResult>;
+}
+
+/**
  * Call the Nakama HTTP Console API (port 7350 /v2/ endpoints).
  * Used for account management (ban/unban/delete) and match inspection.
  */

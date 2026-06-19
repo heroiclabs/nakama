@@ -19,8 +19,30 @@ namespace SatoriTaxonomy {
     allowedCategories: string[];
   }
 
+  // Known gameplay events forwarded by SatoriEventBusBridge. Registering
+  // them here means they validate cleanly (and survive strict mode) out of
+  // the box, and the Taxonomy admin page shows a sensible starting catalog
+  // instead of an empty list.
+  function gameplaySchema(name: string, category: string, description: string): EventSchema {
+    return { name: name, category: category, description: description, requiredMetadata: [], optionalMetadata: [], metadataTypes: {}, maxMetadataKeys: 50, deprecated: false };
+  }
+
   var DEFAULT_CONFIG: TaxonomyConfig = {
-    schemas: {},
+    schemas: {
+      session_start: gameplaySchema("session_start", "engagement", "Player opened a session"),
+      session_end: gameplaySchema("session_end", "engagement", "Player session ended"),
+      quiz_completed: gameplaySchema("quiz_completed", "engagement", "Player finished a quiz"),
+      game_started: gameplaySchema("game_started", "engagement", "Player started a game/match"),
+      game_completed: gameplaySchema("game_completed", "engagement", "Player finished a game/match"),
+      score_submitted: gameplaySchema("score_submitted", "progression", "Player submitted a score"),
+      store_purchase: gameplaySchema("store_purchase", "monetization", "Store / IAP purchase (carries price/revenue)"),
+      level_up: gameplaySchema("level_up", "progression", "Player leveled up"),
+      achievement_completed: gameplaySchema("achievement_completed", "progression", "Achievement completed"),
+      achievement_claimed: gameplaySchema("achievement_claimed", "progression", "Achievement reward claimed"),
+      challenge_completed: gameplaySchema("challenge_completed", "engagement", "Challenge completed"),
+      streak_updated: gameplaySchema("streak_updated", "engagement", "Daily streak advanced"),
+      reward_granted: gameplaySchema("reward_granted", "progression", "Reward granted to player")
+    },
     enforceStrict: false,
     maxEventNameLength: 128,
     maxMetadataValueLength: 1024,

@@ -181,10 +181,60 @@ namespace IntelliverseFriendsList {
   }
 
   /**
-   * Flatten a Nakama friend object into our canonical wire shape.
-   * Caller supplies the resolved `online` flag (from loadOnlineMap).
+   * Bulk-load each friend's ISO alpha-2 country from users.metadata->>'country'
+   * in a single SQL round-trip. Returns a { userId: "US" } map (upper-cased);
+   * users without a resolved country are simply absent from the map.
+   *
+   * This is the SAME source `intelliverse_find_nearby_players` filters on, so
+   * the Social Zone "Friends Nearby" client filter (my country === friend
+   * country) stays consistent with the suggestion strip. Best-effort: any SQL
+   * failure degrades to an empty map (friends still render, just without a
+   * country tag).
    */
-  function flattenFriend(fr: any, online: boolean): any {
+  function loadCountryMap(
+    nk:      nkruntime.Nakama,
+    logger:  nkruntime.Logger,
+    userIds: string[]
+  ): { [id: string]: string } {
+    var map: { [id: string]: string } = {};
+    if (!userIds || userIds.length === 0) return map;
+
+    // Build a parameterised IN ($1,$2,...) list — never interpolate ids.
+    var placeholders: string[] = [];
+    for (var p = 0; p < userIds.length; p++) {
+      placeholders.push("$" + (p + 1));
+    }
+
+    var sql =
+      "SELECT id, upper(metadata->>'country') AS country " +
+      "FROM users " +
+      "WHERE id IN (" + placeholders.join(",") + ") " +
+      "  AND metadata->>'country' IS NOT NULL";
+
+    try {
+      var rows = nk.sqlQuery(sql, userIds as any);
+      if (rows) {
+        for (var r = 0; r < rows.length; r++) {
+          var row: any = rows[r];
+          if (row && row.id && row.country) {
+            map[row.id] = String(row.country);
+          }
+        }
+      }
+    } catch (e: any) {
+      if (logger && logger.warn) {
+        logger.warn("[FriendsList] country map lookup failed: " + (e.message || String(e)));
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Flatten a Nakama friend object into our canonical wire shape.
+   * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
+   * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
+   */
+  function flattenFriend(fr: any, online: boolean, country: string): any {
     var u: any = fr.user || {};
     var state = unwrapState(fr.state);
     return {
@@ -196,6 +246,9 @@ namespace IntelliverseFriendsList {
       createTime:         u.createTime || u.create_time || "",
       relationshipStatus: stateToRelationship(state),
       state:              state,
+      // ISO alpha-2 country (upper-cased) or "" when unresolved. Powers the
+      // Social Zone "Friends Nearby" same-country filter.
+      country:            country || "",
       // Pass through optional Nakama metadata when present (clients can ignore)
       updateTime:         u.updateTime || u.update_time || "",
       edgeUpdateTime:     fr.updateTime || fr.update_time || ""
@@ -264,19 +317,36 @@ namespace IntelliverseFriendsList {
     }
     var onlineMap = loadOnlineMap(nk, ids);
 
+    // ── Bulk-load each friend's country (single batched SQL) ────────────
+    var countryMap = loadCountryMap(nk, logger, ids);
+
+    // ── Resolve the CALLER's own country (cache-first; never fatal) ──────
+    // Returned at the envelope level so the client can run a "same country
+    // as me" filter for the Social Zone "Friends Nearby" strip without a
+    // second RPC. Empty string when geo is unknown — client simply skips
+    // the nearby filter in that case.
+    var myCountry = "";
+    try {
+      myCountry = GeoTier.resolveUserCountry(ctx, logger, nk, userId) || "";
+    } catch (e: any) {
+      myCountry = "";
+    }
+
     // ── Flatten ─────────────────────────────────────────────────────────
     var results: any[] = [];
     for (var j = 0; j < rawFriends.length; j++) {
       var fr = rawFriends[j];
       if (!fr || !fr.user || !fr.user.id) continue;
       var online = !!onlineMap[fr.user.id];
-      results.push(flattenFriend(fr, online));
+      var fcountry = countryMap[fr.user.id] || "";
+      results.push(flattenFriend(fr, online, fcountry));
     }
 
     if (logger && logger.info) {
       logger.info(
         "[FriendsList] user=" + userId +
         " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+        " country=" + (myCountry || "?") +
         " returned=" + results.length +
         " nextCursor=" + (nextCursor || "null")
       );
@@ -285,7 +355,10 @@ namespace IntelliverseFriendsList {
     return ok({
       results:    results,
       count:      results.length,
-      nextCursor: nextCursor
+      nextCursor: nextCursor,
+      // Caller's resolved ISO alpha-2 country (upper-cased) or "" when
+      // unknown. Enables the client "Friends Nearby" same-country filter.
+      country:    myCountry
     });
   }
 
@@ -330,6 +403,7 @@ namespace IntelliverseFriendsList {
       if (u && u.id) ids.push(u.id);
     }
     var onlineMap = loadOnlineMap(nk, ids);
+    var countryMap = loadCountryMap(nk, logger, ids);
 
     var results: any[] = [];
     for (var j = 0; j < rawList.length; j++) {
@@ -337,7 +411,7 @@ namespace IntelliverseFriendsList {
       if (!fr || !fr.user || !fr.user.id) continue;
       // Force relationshipStatus to "blocked" — defensive normalisation in
       // case Nakama ever returns mixed-state results when filtering.
-      var flat = flattenFriend(fr, !!onlineMap[fr.user.id]);
+      var flat = flattenFriend(fr, !!onlineMap[fr.user.id], countryMap[fr.user.id] || "");
       flat.relationshipStatus = "blocked";
       flat.state              = STATE_BLOCKED;
       results.push(flat);

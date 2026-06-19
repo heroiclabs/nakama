@@ -167,6 +167,59 @@ namespace SatoriFunnels {
     };
   }
 
+  // ---- Legacy event-volume funnel ----
+  //
+  // The per-user funnel above needs raw per-event rows (only available in the
+  // sparse `satori_events` ring). For the common case (no experiment variant
+  // split) we instead build the funnel from the real analytics pipeline's
+  // per-day `by_name` event counts — true event volume, fast, no scan. This is
+  // an event-volume funnel (occurrences per step), not distinct-user, so a
+  // later step can exceed an earlier one; conversions are reported as-is.
+
+  function computeFunnelLegacy(
+    nk: nkruntime.Nakama,
+    steps: string[],
+    sinceMs: number,
+    untilMs: number,
+    gameId?: string
+  ): any {
+    var stepTotals: number[] = [];
+    for (var z = 0; z < steps.length; z++) stepTotals.push(0);
+
+    var startDayMs = new Date(LegacyAnalytics.dateStrOf(sinceMs) + "T00:00:00Z").getTime();
+    var endDayMs = new Date(LegacyAnalytics.dateStrOf(untilMs) + "T00:00:00Z").getTime();
+    var dayCount = 0;
+    for (var t = startDayMs; t <= endDayMs; t += 86400000) {
+      var day = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(t), gameId);
+      dayCount++;
+      for (var s = 0; s < steps.length; s++) {
+        stepTotals[s] += (day.byName[steps[s]] || 0);
+      }
+    }
+
+    var stepRows: any[] = [];
+    for (var r = 0; r < steps.length; r++) {
+      stepRows.push({
+        name: steps[r],
+        users: stepTotals[r],
+        conversionFromStart: stepTotals[0] > 0 ? stepTotals[r] / stepTotals[0] : 0,
+        conversionFromPrevious: r === 0 ? 1 : (stepTotals[r - 1] > 0 ? stepTotals[r] / stepTotals[r - 1] : 0)
+      });
+    }
+
+    return {
+      steps: stepRows,
+      entered: stepTotals[0],
+      completed: stepTotals[steps.length - 1],
+      overallConversion: stepTotals[0] > 0 ? stepTotals[steps.length - 1] / stepTotals[0] : 0,
+      byVariant: null,
+      scannedRecords: dayCount,
+      truncated: false,
+      source: "analytics_pipeline",
+      basis: "event_volume"
+    };
+  }
+
   // ---- RPCs ----
 
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -235,13 +288,17 @@ namespace SatoriFunnels {
     var untilMs = Number(data.until_ms || data.untilMs) || Date.now();
     var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || EVENTS_DEFAULT_PAGES, 1), EVENTS_MAX_PAGES);
 
-    var assignments: { [userId: string]: SatoriExperimentResults.AssignmentInfo } | null = null;
     var experimentId = data.experiment_id || data.experimentId;
-    if (experimentId) {
-      assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
-    }
 
-    var result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
+    var result: any;
+    if (experimentId) {
+      // Variant segmentation needs per-user rows → fall back to the event scan.
+      var assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+      result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
+    } else {
+      // Common case: real event-volume funnel from the analytics pipeline.
+      result = computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId);
+    }
     result.sinceMs = sinceMs;
     result.untilMs = untilMs;
     result.experimentId = experimentId || null;

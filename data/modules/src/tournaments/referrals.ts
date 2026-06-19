@@ -101,7 +101,8 @@ namespace Referrals {
       var username = "";
       try {
         var acc = nk.accountsGetId([ownerId]);
-        if (acc && acc.length > 0) username = "" + (acc[0].user.username || "");
+        // QVBF_114: prefer displayName so leaderboards show the friendly name.
+        if (acc && acc.length > 0) username = "" + ((acc[0].user as any).displayName || acc[0].user.username || "");
       } catch (_) { }
       nk.leaderboardRecordWrite(LEADERBOARD_ID, ownerId, username, 1);
     } catch (_) { }

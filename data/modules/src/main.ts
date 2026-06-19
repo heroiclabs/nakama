@@ -7,6 +7,16 @@ declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logg
 // stub-shadowing bug, see legacy_runtime.js comment).
 declare var __TS_OWNED_RPCS: { [id: string]: boolean } | undefined;
 
+// Group membership cross-device sync after-hooks. Defined as global-scope
+// functions in data/modules/groups/groups.js (a discovered module → hoisted to
+// the VM global object). They MUST be registered from here rather than from
+// groups.js's own InitModule: postbuild.js renames discovered-module InitModule
+// functions to __ModuleInit_N and never calls them, and its AST bridge only
+// forwards registerRpc / registerMatch — registerAfterJoinGroup /
+// registerAfterLeaveGroup calls placed there would be silently dropped.
+declare function groupAfterJoinHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.JoinGroupRequest): void;
+declare function groupAfterLeaveHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.LeaveGroupRequest): void;
+
 function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer) {
   logger.info("========================================");
   logger.info("IntelliVerse-X Nakama Runtime v2.0");
@@ -220,6 +230,15 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Friends] Registering intelliverse_find_friends RPC...");
     IntelliverseFriends.register(initializer);
 
+    // ── "People Near You" friend suggestions (same-country, not-yet-friends).
+    //   Lives in src/friends/find_nearby_players.ts and registers
+    //   `intelliverse_find_nearby_players`. Reuses the GeoTier cache for the
+    //   caller's country and the canonical player_presence/status presence
+    //   schema, and is auto-pinned in __TS_OWNED_RPCS by postbuild so the
+    //   legacy bridge cannot shadow it. ────────────────────────────────────
+    logger.info("[Friends] Registering intelliverse_find_nearby_players RPC...");
+    IntelliverseNearbyPlayers.register(initializer);
+
     // ── Phase-4 C1+H1: canonical friends_list + list_blocked_users with
     //   flat shape + presence/relationship enrichment. Replaces the
     //   6-line passthrough that used to live in LegacyFriends.rpcFriendsList
@@ -244,6 +263,29 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
     logger.info("[Legacy] Registering groups RPCs...");
     LegacyGroups.register(initializer);
+
+    // ── Group membership cross-device sync hooks ──────────────────────────
+    // After a successful built-in JoinGroup / LeaveGroup, send the acting user
+    // a self-notification (code 500 / 501) so ALL of their open sockets — i.e.
+    // their other devices — refresh "My Groups" in real time. Without this,
+    // only the device that performed the action knows the membership changed.
+    // Handlers live in data/modules/groups/groups.js (global scope).
+    try {
+      if (typeof groupAfterJoinHook === "function") {
+        initializer.registerAfterJoinGroup(groupAfterJoinHook);
+        logger.info("[Groups] registerAfterJoinGroup hook installed (cross-device sync, code 500)");
+      } else {
+        logger.warn("[Groups] groupAfterJoinHook not found — cross-device join sync disabled");
+      }
+      if (typeof groupAfterLeaveHook === "function") {
+        initializer.registerAfterLeaveGroup(groupAfterLeaveHook);
+        logger.info("[Groups] registerAfterLeaveGroup hook installed (cross-device sync, code 501)");
+      } else {
+        logger.warn("[Groups] groupAfterLeaveHook not found — cross-device leave sync disabled");
+      }
+    } catch (err: any) {
+      logger.error("[Groups] Failed to install group membership sync hooks: " + (err && err.message ? err.message : String(err)));
+    }
 
     logger.info("[Legacy] Registering push RPCs...");
     LegacyPush.register(initializer);
@@ -293,6 +335,11 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config / admin_get_config RPCs...");
     QuestEngine.register(initializer);
     logger.info("[QuestEngine] 5 RPCs registered successfully");
+
+    // Register EventBus bridge for automatic quest progress from existing events
+    logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
+    QuestEventBusBridge.register(initializer, logger);
+    logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
   } catch (err: any) {
     logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
@@ -428,6 +475,11 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     // quiz-verse repo).
     logger.info("[LearnerToolbelt] Registering Learner Toolbelt RPCs (13 RPCs: predict, countdown, GPA, school)...");
     try {
+      // Phase B: ensure the lt_schools table + indexes exist so the School &
+      // College Finder serves the real ~177k-row index (loaded by the
+      // content-factory ETL). Idempotent + non-fatal — search degrades to the
+      // in-memory fixture if this fails.
+      LearnerToolbelt.bootstrapSchoolsTable(nk, logger);
       LearnerToolbelt.register(initializer);
       logger.info("[LearnerToolbelt] lt_score_predict, lt_exam_countdown_{get,set,clear}, lt_exam_calendar_get, lt_gpa_{compute,save,get}, lt_school_{search,get_detail,set_user_school,get_user_school,freetext_submit} registered");
     } catch (err: any) {
@@ -569,6 +621,18 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
     logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
     SatoriDirectControl.register(initializer);
+
+    logger.info("[Satori] Registering Dashboard summary RPC...");
+    SatoriDashboard.register(initializer);
+
+    logger.info("[Satori] Registering Timeline RPC...");
+    SatoriTimeline.register(initializer);
+
+    logger.info("[Satori] Registering Reports RPCs...");
+    SatoriReports.register(initializer);
+
+    logger.info("[Satori] Registering EventBus bridge (gameplay events -> Satori capture)...");
+    SatoriEventBusBridge.register(initializer, logger);
 
     logger.info("[Satori] All Satori systems registered successfully");
   } catch (err: any) {

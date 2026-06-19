@@ -155,6 +155,44 @@ function _fiNakamaRelation(nk, callerId, targetId) {
 }
 
 /**
+ * Fetch the caller's entire friend graph ONCE and return a map of
+ * targetUserId -> state. Callers that need to test several relationships
+ * (or scan a list) should build this map a single time instead of calling
+ * _fiNakamaRelation repeatedly — each _fiNakamaRelation invocation is a
+ * full nk.friendsList round-trip, so doing it inside a loop turned a single
+ * O(N) page read into O(N²) DB scans and was the dominant cause of the
+ * multi-second send/list latency (and the client-side 30s timeouts).
+ *
+ * Returns { map: {id:stateInt}, ok: true } or { map: {}, ok: false } if the
+ * graph could not be read (caller should fail-open / treat as no relation).
+ */
+function _fiBuildRelationMap(nk, callerId) {
+    var map = {};
+    try {
+        var page = nk.friendsList(callerId, 1000, null, null);
+        if (page && page.friends) {
+            for (var i = 0; i < page.friends.length; i++) {
+                var f = page.friends[i];
+                if (!f || !f.user || !f.user.id) continue;
+                var s = (f.state && typeof f.state === 'object' && 'value' in f.state)
+                    ? f.state.value : f.state;
+                map[f.user.id] = (typeof s === 'number') ? s : -1;
+            }
+        }
+        return { map: map, ok: true };
+    } catch (_) {
+        return { map: map, ok: false };
+    }
+}
+
+function _fiRelationFromMap(relMap, targetId) {
+    if (relMap && Object.prototype.hasOwnProperty.call(relMap, targetId)) {
+        return relMap[targetId];
+    }
+    return -1;
+}
+
+/**
  * Per-user simple cooldown for invite sends. Returns
  *   { allowed: true } or
  *   { allowed: false, retryAfterMs: <number> }
@@ -427,56 +465,81 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
 // ============================================================================
 function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     var userId = ctx.userId;
-    if (!userId) return _fiErr('Authentication required', 'unauthenticated');
+    logger.info('[FriendInvites] QVB_142 - Accept START | userId=' + userId + ' | timestamp=' + Date.now());
+    
+    if (!userId) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: unauthenticated');
+        return _fiErr('Authentication required', 'unauthenticated');
+    }
 
     var p = _fiParsePayload(payload);
-    if (!p.ok) return _fiErr(p.error, 'invalid_payload');
+    if (!p.ok) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: invalid payload | error=' + p.error);
+        return _fiErr(p.error, 'invalid_payload');
+    }
 
     var inviteId = (p.data || {}).inviteId;
+    logger.info('[FriendInvites] QVB_142 - Accept: inviteId=' + inviteId);
+    
     if (!inviteId || typeof inviteId !== 'string') {
+        logger.warn('[FriendInvites] QVB_142 - Accept: inviteId missing');
         return _fiErr('inviteId is required', 'invalid_payload');
     }
 
     // Read invite (it is stored under the target = the caller).
     var rows;
+    logger.info('[FriendInvites] QVB_142 - Accept: Reading storage | collection=' + FRIEND_INVITES_COLLECTION + ' | key=' + inviteId + ' | userId=' + userId);
     try {
         rows = nk.storageRead([{
             collection: FRIEND_INVITES_COLLECTION,
             key:        inviteId,
             userId:     userId
         }]);
+        logger.info('[FriendInvites] QVB_142 - Accept: Storage read success | rowCount=' + (rows ? rows.length : 0));
     } catch (e) {
+        logger.error('[FriendInvites] QVB_142 - Accept: Storage read FAILED | error=' + e.message);
         return _fiErr('Failed to read invite: ' + e.message, 'storage_read_failed');
     }
 
     if (!rows || rows.length === 0 || !rows[0].value) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Invite not found | inviteId=' + inviteId);
         return _fiErr('Friend invite not found', 'invite_not_found');
     }
 
     var invite     = rows[0].value;
     var rowVersion = rows[0].version; // for optimistic concurrency
+    
+    logger.info('[FriendInvites] QVB_142 - Accept: Invite loaded | fromUserId=' + invite.fromUserId + ' | targetUserId=' + invite.targetUserId + ' | status=' + invite.status + ' | version=' + rowVersion);
 
     if (invite.targetUserId !== userId) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Invite not for caller | expected=' + userId + ' | actual=' + invite.targetUserId);
         return _fiErr('This invite is not for you', 'invite_not_for_caller');
     }
 
     if (invite.status === INVITE_STATUS_ACCEPTED) {
         // Idempotent — second click on the same accept button must not error.
+        logger.info('[FriendInvites] QVB_142 - Accept: Already accepted (idempotent) | inviteId=' + inviteId);
         return _fiOk({ inviteId: inviteId, alreadyAccepted: true,
                        friendUserId: invite.fromUserId,
                        friendDisplayName: invite.fromDisplayName });
     }
     if (invite.status !== INVITE_STATUS_PENDING) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Invite not pending | status=' + invite.status);
         return _fiErr('This invite has already been ' + invite.status,
                       'invite_not_pending', { currentStatus: invite.status });
     }
 
     // Graph is source of truth — reconcile storage when already friends/blocked.
+    logger.info('[FriendInvites] QVB_142 - Accept: Checking Nakama relation | userId=' + userId + ' | fromUserId=' + invite.fromUserId);
     var acceptRel = _fiNakamaRelation(nk, userId, invite.fromUserId);
+    logger.info('[FriendInvites] QVB_142 - Accept: Relation state | acceptRel=' + acceptRel + ' | FRIEND=' + FR_STATE_FRIEND + ' | BLOCKED=' + FR_STATE_BLOCKED);
+    
     if (acceptRel === FR_STATE_BLOCKED) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Target is blocked');
         return _fiErr('You cannot accept an invite from a blocked user', 'caller_blocked_target');
     }
     if (acceptRel === FR_STATE_FRIEND) {
+        logger.info('[FriendInvites] QVB_142 - Accept: Already friends, updating storage');
         invite.status     = INVITE_STATUS_ACCEPTED;
         invite.acceptedAt = invite.acceptedAt || _fiNowIso();
         invite.updatedAt  = _fiNowIso();
@@ -490,8 +553,9 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
                 permissionRead:  1,
                 permissionWrite: 0
             }]);
+            logger.info('[FriendInvites] QVB_142 - Accept: Storage reconcile success');
         } catch (reconcileErr) {
-            logger.warn('[FriendInvites] accept reconcile storageWrite: ' + reconcileErr.message);
+            logger.warn('[FriendInvites] QVB_142 - Accept: reconcile storageWrite failed | error=' + reconcileErr.message);
         }
         return _fiOk({ inviteId: inviteId, alreadyFriends: true,
                        friendUserId: invite.fromUserId,
@@ -500,10 +564,12 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
 
     // Add the reciprocal friend edge. Combined with the INVITE_SENT
     // edge created at send-time this transitions BOTH users to FRIEND.
+    logger.info('[FriendInvites] QVB_142 - Accept: Adding friend via nk.friendsAdd | acceptor=' + userId + ' | sender=' + invite.fromUserId);
     try {
         nk.friendsAdd(userId, ctx.username || userId, [invite.fromUserId], null, {});
+        logger.info('[FriendInvites] QVB_142 - Accept: nk.friendsAdd SUCCESS');
     } catch (e) {
-        logger.error('[FriendInvites] accept nk.friendsAdd failed: ' + e.message);
+        logger.error('[FriendInvites] QVB_142 - Accept: nk.friendsAdd FAILED | error=' + e.message);
         return _fiErr('Failed to add friend: ' + e.message, 'friends_add_failed');
     }
 
@@ -514,6 +580,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     invite.acceptedAt = _fiNowIso();
     invite.updatedAt  = _fiNowIso();
 
+    logger.info('[FriendInvites] QVB_142 - Accept: Updating storage to accepted | inviteId=' + inviteId + ' | version=' + rowVersion);
     try {
         nk.storageWrite([{
             collection:      FRIEND_INVITES_COLLECTION,
@@ -524,13 +591,15 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
             permissionRead:  1,
             permissionWrite: 0
         }]);
+        logger.info('[FriendInvites] QVB_142 - Accept: Storage update SUCCESS');
     } catch (e) {
         // Friend was added to Nakama already — log and continue. The graph
         // is the source of truth; the storage row is just a UI hint.
-        logger.warn('[FriendInvites] accept storageWrite failed (non-fatal): ' + e.message);
+        logger.warn('[FriendInvites] QVB_142 - Accept: storageWrite failed (non-fatal) | error=' + e.message);
     }
 
     // Notify the original sender that their request was accepted.
+    logger.info('[FriendInvites] QVB_142 - Accept: Sending notification to sender | senderId=' + invite.fromUserId);
     try {
         var acceptorName = _fiUserDisplayName(nk, userId, ctx.username);
         sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_ACCEPTED', invite.fromUserId, {
@@ -539,10 +608,12 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
             acceptedByUsername:     ctx.username || userId,
             acceptedByDisplayName:  acceptorName
         }, userId);
+        logger.info('[FriendInvites] QVB_142 - Accept: Notification sent SUCCESS');
     } catch (e) {
-        logger.warn('[FriendInvites] notify sender of accept failed: ' + e.message);
+        logger.warn('[FriendInvites] QVB_142 - Accept: notify sender failed | error=' + e.message);
     }
 
+    logger.info('[FriendInvites] QVB_142 - Accept SUCCESS | inviteId=' + inviteId + ' | friendUserId=' + invite.fromUserId);
     return _fiOk({
         inviteId:           inviteId,
         friendUserId:       invite.fromUserId,
@@ -753,6 +824,11 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
     if (limit > 200) limit = 200;
 
     // Incoming: scan the caller's own friend_invites collection.
+    // Build the caller's relation map ONCE up front so the per-invite
+    // "drop stale rows" check is an O(1) lookup instead of an O(N)
+    // nk.friendsList scan per row (the previous O(N²) behaviour was the
+    // primary source of multi-second latency on this RPC).
+    var relMap = _fiBuildRelationMap(nk, userId).map;
     var incoming = [];
     try {
         var page = nk.storageList(userId, FRIEND_INVITES_COLLECTION, limit, null);
@@ -763,7 +839,7 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
             if (o.value.status !== INVITE_STATUS_PENDING) continue;
             if (o.value.targetUserId !== userId) continue; // safety
             // Drop stale rows when Nakama graph already shows mutual friend or block.
-            var inRel = _fiNakamaRelation(nk, userId, o.value.fromUserId);
+            var inRel = _fiRelationFromMap(relMap, o.value.fromUserId);
             if (inRel === FR_STATE_FRIEND || inRel === FR_STATE_BLOCKED) continue;
             incoming.push({
                 inviteId:        o.value.inviteId,
@@ -782,25 +858,40 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
     // — this is more reliable than scanning storage, because the storage
     // row lives under the TARGET (we'd need cross-user reads). Friend
     // graph is authoritative.
+    //
+    // Fast-path: the relation map we already built tells us whether the
+    // caller has ANY outgoing invites. If none, skip the second
+    // nk.friendsList round-trip entirely (the common case — most users have
+    // zero pending sent invites), shaving a full DB scan off this RPC.
     var outgoing = [];
-    try {
-        var page2 = nk.friendsList(userId, 1000, FR_STATE_INVITE_SENT, null);
-        if (page2 && page2.friends) {
-            for (var j = 0; j < page2.friends.length && outgoing.length < limit; j++) {
-                var fr = page2.friends[j];
-                if (!fr || !fr.user) continue;
-                outgoing.push({
-                    inviteId:        _fiInviteId(userId, fr.user.id),
-                    targetUserId:    fr.user.id,
-                    targetUsername:  fr.user.username || '',
-                    targetDisplayName: fr.user.displayName || fr.user.username || '',
-                    avatarUrl:       fr.user.avatarUrl || '',
-                    online:          fr.user.online || false
-                });
-            }
+    var hasAnyOutgoing = false;
+    for (var rid in relMap) {
+        if (Object.prototype.hasOwnProperty.call(relMap, rid) &&
+            relMap[rid] === FR_STATE_INVITE_SENT) {
+            hasAnyOutgoing = true;
+            break;
         }
-    } catch (e) {
-        logger.warn('[FriendInvites] list outgoing failed: ' + e.message);
+    }
+    if (hasAnyOutgoing) {
+        try {
+            var page2 = nk.friendsList(userId, 1000, FR_STATE_INVITE_SENT, null);
+            if (page2 && page2.friends) {
+                for (var j = 0; j < page2.friends.length && outgoing.length < limit; j++) {
+                    var fr = page2.friends[j];
+                    if (!fr || !fr.user) continue;
+                    outgoing.push({
+                        inviteId:        _fiInviteId(userId, fr.user.id),
+                        targetUserId:    fr.user.id,
+                        targetUsername:  fr.user.username || '',
+                        targetDisplayName: fr.user.displayName || fr.user.username || '',
+                        avatarUrl:       fr.user.avatarUrl || '',
+                        online:          fr.user.online || false
+                    });
+                }
+            }
+        } catch (e) {
+            logger.warn('[FriendInvites] list outgoing failed: ' + e.message);
+        }
     }
 
     return _fiOk({

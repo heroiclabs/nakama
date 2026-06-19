@@ -48,6 +48,21 @@ namespace LegacyPush {
     return data || { tokens: [] };
   }
 
+  // True if the user has at least one registered device endpoint that is not
+  // known-dead. Used by the chat retry queue to decide whether a failed push is
+  // worth replaying (no point queueing for a user with zero devices).
+  export function userHasPushTokens(nk: nkruntime.Nakama, userId: string): boolean {
+    try {
+      var td = getPushTokens(nk, userId);
+      if (!td || !td.tokens) return false;
+      for (var i = 0; i < td.tokens.length; i++) {
+        var t: any = td.tokens[i];
+        if (t && t.endpointArn && !t.providerError) return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
   function savePushTokens(nk: nkruntime.Nakama, userId: string, data: PushTokenData): void {
     var key = "token_" + userId;
     Storage.writeJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId, data);
@@ -111,6 +126,36 @@ namespace LegacyPush {
       }
     }
     return { kept: kept, dropped: dropped };
+  }
+
+  // Collapse a user's token list to ONE deliverable endpoint per platform —
+  // the most recently updated one. Root-cause of the "two notifications
+  // continuously" bug: a device that reinstalls or refreshes its FCM/APNs
+  // token gets a NEW SNS endpoint ARN, while the OLD endpoint stays enabled
+  // for a while. Both ARNs then deliver to the SAME physical device, so a
+  // single daily-quiz send fires the push twice (or more). Audit on prod
+  // (2026-06-13) found 94 users with multiple ARNs and ALL 94 were on the
+  // same platform (0 genuine cross-platform multi-device) — i.e. every one
+  // was a stale-token duplicate. Keeping only the newest endpoint per
+  // platform dedups same-device reinstalls to a single push while still
+  // delivering to a real iOS + Android pair (one survivor per platform).
+  function dedupeTokensByPlatform(tokens: any[]): any[] {
+    if (!tokens || tokens.length === 0) return [];
+    var byPlatform: { [p: string]: any } = {};
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (!t || typeof t.endpointArn !== "string" || t.endpointArn.length === 0) continue;
+      var plat = platformFromArn(t.endpointArn) || normalizePlatform(t.platform);
+      var prev = byPlatform[plat];
+      var tUpd = typeof t.updatedAt === "number" ? t.updatedAt : 0;
+      var pUpd = prev && typeof prev.updatedAt === "number" ? prev.updatedAt : 0;
+      if (!prev || tUpd >= pUpd) byPlatform[plat] = t;
+    }
+    var out: any[] = [];
+    for (var k in byPlatform) {
+      if (Object.prototype.hasOwnProperty.call(byPlatform, k)) out.push(byPlatform[k]);
+    }
+    return out;
   }
 
   // Native APNs tokens are hex-encoded (64 or 160 chars). Anything else —
@@ -501,9 +546,13 @@ namespace LegacyPush {
         }
         logger.info("[Push] push_send_event: endpoints=[%s]", platforms.join(", "));
       }
+      // Dedup to one endpoint per platform (newest) so a device with stale +
+      // fresh SNS endpoints does not receive the same push twice. Same
+      // root-cause fix as the daily-quiz cron path. See dedupeTokensByPlatform.
+      var deliverableTokens = dedupeTokensByPlatform(tokensData.tokens);
       var providerResults: any[] = [];
-      for (var i = 0; i < tokensData.tokens.length; i++) {
-        var t: any = tokensData.tokens[i];
+      for (var i = 0; i < deliverableTokens.length; i++) {
+        var t: any = deliverableTokens[i];
         var providerResult = sendProviderPush(ctx, logger, nk, t, {
           title: title,
           body: body,
@@ -706,6 +755,26 @@ namespace LegacyPush {
       ko: "{name}님이 {mode}에 도전했어요. 실력을 보여주세요!",                "zh-Hans": "{name} 在 {mode} 中向你挑战。亮出实力！",
       ar: "{name} تحداك في {mode}. أرِهم ما لديك!",                            id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
       zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
+    },
+    // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
+    chat_message_title: {
+      en: "💬 {name}",                hi: "💬 {name}",                 es: "💬 {name}",               fr: "💬 {name}",
+      de: "💬 {name}",                 pt: "💬 {name}",                  ru: "💬 {name}",               ja: "💬 {name}",
+      ko: "💬 {name}",                "zh-Hans": "💬 {name}",            ar: "💬 {name}",               id: "💬 {name}",                  zu: "💬 {name}"
+    },
+    chat_message_body: {
+      en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+      ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+    },
+    // ── Chat: new group message ({name} = sender, {group} = group name, {text} = preview) ──
+    chat_group_message_title: {
+      en: "💬 {name} in {group}",       hi: "💬 {group} में {name}",        es: "💬 {name} en {group}",      fr: "💬 {name} dans {group}",
+      de: "💬 {name} in {group}",        pt: "💬 {name} em {group}",          ru: "💬 {name} в {group}",       ja: "💬 {group}の{name}",
+      ko: "💬 {group}의 {name}",         "zh-Hans": "💬 {group} 中的 {name}",  ar: "💬 {name} في {group}",      id: "💬 {name} di {group}",        zu: "💬 {name} ku-{group}"
+    },
+    chat_group_message_body: {
+      en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+      ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
     },
     // ── Study reminders (user-scheduled; body is the learner's own text via {text}) ──
     reminder_title: {
@@ -937,9 +1006,16 @@ namespace LegacyPush {
       }
     }
 
+    // Dedup to one endpoint per platform (newest). Without this, users who
+    // reinstalled or refreshed their FCM token carry multiple SNS endpoint
+    // ARNs that all still reach the same device → the daily-quiz push lands
+    // 2+ times ("two notifications continuously"). See dedupeTokensByPlatform.
+    var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+    if (deliverable.length === 0) return false;
+
     var sent = 0;
-    for (var i = 0; i < tokensData.tokens.length; i++) {
-      var t: any = tokensData.tokens[i];
+    for (var i = 0; i < deliverable.length; i++) {
+      var t: any = deliverable[i];
       var providerResult = sendProviderPush(ctx, logger, nk, t, {
         title: title, body: body, data: mergedData,
         gameId: opts.gameId || "quizverse", eventType: eventType
@@ -958,7 +1034,33 @@ namespace LegacyPush {
     return sent > 0;
   }
 
-  // ─── S3 fetchers (mirror the URL shapes Unity already uses) ─────────────────
+  // Provider-only push used by the chat failed-push retry queue. Unlike
+  // sendLocalizedPushToUser it does NOT (re)write a persistent in-app
+  // notification — that was already written on the first attempt, so replaying
+  // it would duplicate the recipient's notification list. Title/body are passed
+  // pre-localized (the queue stored them at original send time). Returns true if
+  // at least one device accepted the push.
+  export function retryChatProviderPush(
+    ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
+    userId: string, eventType: string, title: string, body: string, data: { [k: string]: any }
+  ): boolean {
+    var tokensData = getPushTokens(nk, userId);
+    if (!tokensData.tokens || tokensData.tokens.length === 0) return false;
+    var mergedData: { [k: string]: any } = { eventType: eventType };
+    if (data) {
+      for (var k in data) { if (k !== "eventType") mergedData[k] = data[k]; }
+    }
+    var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+    if (deliverable.length === 0) return false;
+    var sent = 0;
+    for (var i = 0; i < deliverable.length; i++) {
+      var providerResult = sendProviderPush(ctx, logger, nk, deliverable[i], {
+        title: title, body: body, data: mergedData, gameId: "quizverse", eventType: eventType
+      });
+      if (providerResult.success === true) sent++;
+    }
+    return sent > 0;
+  }
   var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
 
   function fetchDailyQuizForToday(nk: nkruntime.Nakama, logger: nkruntime.Logger): any {

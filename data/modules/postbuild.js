@@ -93,6 +93,13 @@ function discoverModuleFiles(dir, baseDir) {
   var entries;
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); }
   catch (e) { return files; }
+  // Sort entries alphabetically so module merge order is DETERMINISTIC across
+  // platforms. macOS (APFS) returns readdir entries already sorted, but Linux
+  // (ext4/overlayfs in CI) returns them in arbitrary hash order — which can
+  // change the namespace eval order and break the goja JS runtime
+  // ("Cannot read property 'Events' of undefined"). Sorting pins the order to
+  // the alphabetical sequence that is verified to load cleanly.
+  entries.sort(function (a, b) { return a.name < b.name ? -1 : a.name > b.name ? 1 : 0; });
   for (var i = 0; i < entries.length; i++) {
     var entry = entries[i];
     var fullPath = path.join(dir, entry.name);

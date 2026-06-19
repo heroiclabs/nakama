@@ -4731,7 +4731,7 @@ var rpcGetNotifications = getNotifications;
  * Reward configurations per gameId UUID
  * This can be extended or moved to storage for dynamic configuration
  */
-var REWARD_CONFIGS = {
+var LEGACY_REWARD_CONFIGS = {
     // Default rewards for any game
     "default": [
         { day: 1, xp: 100, tokens: 10, description: "Day 1 Reward" },
@@ -4843,7 +4843,7 @@ function updateStreakStatus(streakData) {
  * @returns {object} Reward configuration
  */
 function getRewardForDay(gameId, day) {
-    var config = REWARD_CONFIGS[gameId] || REWARD_CONFIGS["default"];
+    var config = LEGACY_REWARD_CONFIGS[gameId] || LEGACY_REWARD_CONFIGS["default"];
     var rewardDay = ((day - 1) % 7) + 1; // Cycle through 1-7
 
     for (var i = 0; i < config.length; i++) {
@@ -19655,7 +19655,29 @@ function asyncChallengeValidateUser(ctx, request) {
  * @param {object} session - Internal session storage object
  * @returns {object} Unity-compatible session data
  */
-function asyncChallengeSessionToUnityFormat(session) {
+function asyncChallengeSessionToUnityFormat(session, nk) {
+    // QVBF_154: re-resolve player names at read time so a renamed player is
+    // never shown with the name snapshotted into the session at create/join.
+    // Lookup failure (deleted account, transient error) keeps stored names.
+    if (nk) {
+        try {
+            var freshIds = [];
+            if (session.creatorId) freshIds.push(session.creatorId);
+            if (session.opponentId) freshIds.push(session.opponentId);
+            if (freshIds.length > 0) {
+                var freshUsers = nk.usersGetId(freshIds) || [];
+                for (var fu = 0; fu < freshUsers.length; fu++) {
+                    var freshName = freshUsers[fu].displayName || freshUsers[fu].username || '';
+                    if (!freshName) continue;
+                    if (freshUsers[fu].userId === session.creatorId) session.creatorName = freshName;
+                    if (freshUsers[fu].userId === session.opponentId) session.opponentName = freshName;
+                }
+            }
+        } catch (freshErr) {
+            // non-fatal: fall back to snapshotted names
+        }
+    }
+
     var now = Date.now();
     var status = typeof session.status === 'number' ? session.status : 0;
 
@@ -19911,7 +19933,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Challenge created successfully',
-            data: asyncChallengeSessionToUnityFormat(sessionStorage)
+            data: asyncChallengeSessionToUnityFormat(sessionStorage, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Create error: ' + err.message);
@@ -20086,7 +20108,7 @@ function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Successfully joined challenge',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Join error: ' + err.message);
@@ -20231,7 +20253,7 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Challenge retrieved',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Get error: ' + err.message);
@@ -20521,7 +20543,7 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Results submitted successfully',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Submit error: ' + err.message);
@@ -20594,7 +20616,7 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
                 continue;
             }
 
-            sessions.push(asyncChallengeSessionToUnityFormat(session));
+            sessions.push(asyncChallengeSessionToUnityFormat(session, nk));
         }
 
         // Also get sessions where user is opponent (via opponent index — O(1) lookups)
@@ -20630,7 +20652,7 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
                                     continue;
                                 }
 
-                                sessions.push(asyncChallengeSessionToUnityFormat(allSession));
+                                sessions.push(asyncChallengeSessionToUnityFormat(allSession, nk));
                             }
                         }
                     } catch (opReadErr) {
@@ -20675,7 +20697,7 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
                                 if (sessions[dd].sessionId === sqVal.sessionId) { alreadyAdded = true; break; }
                             }
                             if (!alreadyAdded) {
-                                sessions.push(asyncChallengeSessionToUnityFormat(sqVal));
+                                sessions.push(asyncChallengeSessionToUnityFormat(sqVal, nk));
                                 // Backfill index
                                 try { asyncChallengeIndexOpponent(nk, userId, sqVal.sessionId, sqVal.creatorId); } catch (bf) { /* non-critical */ }
                             }
@@ -20856,7 +20878,7 @@ function rpcAsyncChallengeCancel(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Challenge cancelled successfully',
-            data: asyncChallengeSessionToUnityFormat(session)
+            data: asyncChallengeSessionToUnityFormat(session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Cancel error: ' + err.message);
@@ -21135,7 +21157,7 @@ function rpcAsyncChallengeRematch(ctx, logger, nk, payload) {
         return JSON.stringify({
             success: true,
             message: 'Rematch challenge created',
-            data: asyncChallengeSessionToUnityFormat(newSessionStorage)
+            data: asyncChallengeSessionToUnityFormat(newSessionStorage, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Rematch error: ' + err.message);
@@ -22645,15 +22667,19 @@ function rpcCollectablesBulkCreate(ctx, logger, nk, payload) {
 var FW_COOLDOWN_DAYS = 3;
 
 var FW_SEGMENTS = [
-    { type: "XP",             amount: 100,  label: "100 XP",            weight: 20 },
-    { type: "Coins",          amount: 50,   label: "50 Coins",          weight: 25 },
-    { type: "XP",             amount: 250,  label: "250 XP",            weight: 15 },
-    { type: "AudiobookToken", amount: 1,    label: "Audiobook Token",   weight: 8  },
-    { type: "Coins",          amount: 150,  label: "150 Coins",         weight: 12 },
-    { type: "Shield",         amount: 24,   label: "24h Shield",        weight: 10 },
-    { type: "XP",             amount: 500,  label: "500 XP",            weight: 5  },
-    { type: "AudiobookToken", amount: 2,    label: "2 Audiobook Tokens",weight: 5  }
+    { type: "Coins",            amount: 5,  label: "5 Coins",               weight: 20 },
+    { type: "Coins",            amount: 1,   label: "1 Coins",              weight: 25 },
+    { type: "Coins",            amount: 15,  label: "15 Coins",             weight: 15 },
+    { type: "Coins",            amount: 20,    label: "20 Coins",           weight: 8  },
+    { type: "Coins",            amount: 25,  label: "25 Coins",             weight: 12 },
+    { type: "Coins",            amount: 50,   label: "50 Coins",            weight: 10 },
+    { type: "Coins",            amount: 10,  label: "10 Coins",             weight: 5  },
+    { type: "Coins",            amount: 35,    label: "35 Coins Coins",     weight: 5  }
 ];
+
+
+    
+
 
 function fwGetWheelState(nk, userId) {
     try {

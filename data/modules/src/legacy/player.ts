@@ -101,7 +101,17 @@ namespace LegacyPlayer {
     if (!/^[a-z0-9_]+$/.test(username)) return JSON.stringify({ success: false, error: "Use only letters, numbers, and underscores", error_code: "USERNAME_INVALID" });
 
     try {
-      nk.accountUpdateId(userId, username, null, null, null, null, null);
+      // QVBF_114: if displayName was empty or just mirrored the old username,
+      // keep it in sync — otherwise read-time enrichment (leaderboards, chat,
+      // async challenges) keeps resurfacing the old handle forever.
+      var newDisplayName: string | null = null;
+      try {
+        var curAccount = nk.accountGetId(userId);
+        var curUsername = (curAccount && curAccount.user && curAccount.user.username) || "";
+        var curDisplayName = (curAccount && curAccount.user && (curAccount.user as any).displayName) || "";
+        if (!curDisplayName || curDisplayName === curUsername) newDisplayName = username;
+      } catch (_) { /* fall back to username-only update */ }
+      nk.accountUpdateId(userId, username, newDisplayName, null, null, null, null);
       var syncResult = LegacyUserMgmtSync.pushProfile(nk, logger, userId, String(data._cognito_jwt || ""), { userName: username });
       return RpcHelpers.successResponse({ username: username, userMgmtSync: syncResult });
     } catch (err: any) {

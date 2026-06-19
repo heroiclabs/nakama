@@ -205,6 +205,14 @@ function InitModule(ctx, logger, nk, initializer) {
         IntelliverseFriends.bootstrapDatabase(nk, logger);
         logger.info("[Friends] Registering intelliverse_find_friends RPC...");
         IntelliverseFriends.register(initializer);
+        // ── "People Near You" friend suggestions (same-country, not-yet-friends).
+        //   Lives in src/friends/find_nearby_players.ts and registers
+        //   `intelliverse_find_nearby_players`. Reuses the GeoTier cache for the
+        //   caller's country and the canonical player_presence/status presence
+        //   schema, and is auto-pinned in __TS_OWNED_RPCS by postbuild so the
+        //   legacy bridge cannot shadow it. ────────────────────────────────────
+        logger.info("[Friends] Registering intelliverse_find_nearby_players RPC...");
+        IntelliverseNearbyPlayers.register(initializer);
         // ── Phase-4 C1+H1: canonical friends_list + list_blocked_users with
         //   flat shape + presence/relationship enrichment. Replaces the
         //   6-line passthrough that used to live in LegacyFriends.rpcFriendsList
@@ -227,6 +235,31 @@ function InitModule(ctx, logger, nk, initializer) {
         IvxPresence.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
         LegacyGroups.register(initializer);
+        // ── Group membership cross-device sync hooks ──────────────────────────
+        // After a successful built-in JoinGroup / LeaveGroup, send the acting user
+        // a self-notification (code 500 / 501) so ALL of their open sockets — i.e.
+        // their other devices — refresh "My Groups" in real time. Without this,
+        // only the device that performed the action knows the membership changed.
+        // Handlers live in data/modules/groups/groups.js (global scope).
+        try {
+            if (typeof groupAfterJoinHook === "function") {
+                initializer.registerAfterJoinGroup(groupAfterJoinHook);
+                logger.info("[Groups] registerAfterJoinGroup hook installed (cross-device sync, code 500)");
+            }
+            else {
+                logger.warn("[Groups] groupAfterJoinHook not found — cross-device join sync disabled");
+            }
+            if (typeof groupAfterLeaveHook === "function") {
+                initializer.registerAfterLeaveGroup(groupAfterLeaveHook);
+                logger.info("[Groups] registerAfterLeaveGroup hook installed (cross-device sync, code 501)");
+            }
+            else {
+                logger.warn("[Groups] groupAfterLeaveHook not found — cross-device leave sync disabled");
+            }
+        }
+        catch (err) {
+            logger.error("[Groups] Failed to install group membership sync hooks: " + (err && err.message ? err.message : String(err)));
+        }
         logger.info("[Legacy] Registering push RPCs...");
         LegacyPush.register(initializer);
         logger.info("[Legacy] Registering notification scheduler match...");
@@ -265,6 +298,10 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info("[QuestEngine] Registering quest_engine_get / record_event / claim_reward / admin_save_config / admin_get_config RPCs...");
         QuestEngine.register(initializer);
         logger.info("[QuestEngine] 5 RPCs registered successfully");
+        // Register EventBus bridge for automatic quest progress from existing events
+        logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
+        QuestEventBusBridge.register(initializer, logger);
+        logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
     }
     catch (err) {
         logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
@@ -377,6 +414,11 @@ function InitModule(ctx, logger, nk, initializer) {
         // quiz-verse repo).
         logger.info("[LearnerToolbelt] Registering Learner Toolbelt RPCs (13 RPCs: predict, countdown, GPA, school)...");
         try {
+            // Phase B: ensure the lt_schools table + indexes exist so the School &
+            // College Finder serves the real ~177k-row index (loaded by the
+            // content-factory ETL). Idempotent + non-fatal — search degrades to the
+            // in-memory fixture if this fails.
+            LearnerToolbelt.bootstrapSchoolsTable(nk, logger);
             LearnerToolbelt.register(initializer);
             logger.info("[LearnerToolbelt] lt_score_predict, lt_exam_countdown_{get,set,clear}, lt_exam_calendar_get, lt_gpa_{compute,save,get}, lt_school_{search,get_detail,set_user_school,get_user_school,freetext_submit} registered");
         }
@@ -501,6 +543,14 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriRetention.register(initializer);
         logger.info("[Satori] Registering Satori Direct Control RPCs (cloud mirror kill-switch)...");
         SatoriDirectControl.register(initializer);
+        logger.info("[Satori] Registering Dashboard summary RPC...");
+        SatoriDashboard.register(initializer);
+        logger.info("[Satori] Registering Timeline RPC...");
+        SatoriTimeline.register(initializer);
+        logger.info("[Satori] Registering Reports RPCs...");
+        SatoriReports.register(initializer);
+        logger.info("[Satori] Registering EventBus bridge (gameplay events -> Satori capture)...");
+        SatoriEventBusBridge.register(initializer, logger);
         logger.info("[Satori] All Satori systems registered successfully");
     }
     catch (err) {
@@ -6653,6 +6703,339 @@ var IntelliverseFriends;
     IntelliverseFriends.register = register;
 })(IntelliverseFriends || (IntelliverseFriends = {}));
 // ============================================================================
+// src/friends/find_nearby_players.ts — "People Near You" suggestions RPC
+// ============================================================================
+// PRODUCTION-READY | First-class TS module | Single source of truth
+//
+// RPC ID
+// ------
+//   intelliverse_find_nearby_players   (canonical, snake_case)
+//
+// Purpose
+// -------
+// Powers the "People Near You" friend-suggestion strip on the Social Zone
+// FRIENDS tab. Returns a short list of *other* players in the SAME COUNTRY
+// as the caller who are NOT already friends, NOT blocked (either way), and
+// NOT the caller themselves — so the user always sees fresh, actionable
+// "add friend" candidates without typing a search query.
+//
+// Country source
+// --------------
+// The caller's country is resolved via the shared GeoTier cache
+// (geo_tier/resolved), which the platform already populates from the
+// client IP on first contact. GeoTier.resolveUserCountry() is cache-first
+// and only hits the IP-API on a cold miss, so this stays cheap on the hot
+// path. We also opportunistically backfill the caller's
+// users.metadata.country so the candidate SQL (which filters on
+// metadata->>'country') gains coverage over time. This mirrors how
+// hiro/leaderboards already filters players by metadata.country.
+//
+// Candidate selection
+// -------------------
+//   * users.metadata->>'country' = caller country (case-insensitive)
+//   * exclude self, disabled accounts, and anyone in the caller's friend
+//     graph (friends, pending either direction, blocked)
+//   * newest accounts first (create_time DESC) so suggestions feel fresh;
+//     ties broken by id for stable pagination
+//   * enriched with real presence (player_presence/status) + a constant
+//     relationshipStatus of "none" (we filtered everything else out)
+//
+// Graceful degradation
+// ---------------------
+// If the caller's country cannot be resolved (no IP / IP-API failure),
+// we return an empty list with reason="no_geo" rather than erroring — the
+// client simply hides the strip. Any SQL failure also degrades to an empty
+// list (reason="unavailable"); suggestions are best-effort, never fatal.
+//
+// Payload contract
+//   {
+//     "gameID": "quizverse",   // optional — informational only
+//     "limit":  10,            // optional, default 10, max 30
+//     "cursor": "10"           // optional pagination offset
+//   }
+//
+// Response (success)
+//   {
+//     "success": true,
+//     "data": {
+//       "results":    [ { userId, username, displayName, avatarUrl,
+//                         online, createTime, relationshipStatus,
+//                         country } ],
+//       "country":    "US",
+//       "count":      8,
+//       "searcherId": "<uuid>",
+//       "nextCursor": "20" | null,
+//       "reason":     "ok" | "no_geo" | "unavailable"
+//     }
+//   }
+// ============================================================================
+var IntelliverseNearbyPlayers;
+(function (IntelliverseNearbyPlayers) {
+    // ── Constants ──────────────────────────────────────────────────────────
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min => online
+    // Nakama friend-state ints (mirror of nkruntime.FriendState — not exported)
+    var STATE_FRIEND = 0;
+    var STATE_INVITE_SENT = 1;
+    var STATE_INVITE_RECEIVED = 2;
+    var STATE_BLOCKED = 3;
+    var DEFAULT_LIMIT = 10;
+    var MAX_LIMIT = 30;
+    var MAX_OFFSET = 1000; // hard cap — protect DB from runaway pagination
+    // ── Result envelope helpers ────────────────────────────────────────────
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return { ok: true, data: {} };
+        try {
+            return { ok: true, data: JSON.parse(payload) };
+        }
+        catch (e) {
+            return { ok: false, error: "Invalid JSON payload: " + (e.message || String(e)) };
+        }
+    }
+    /**
+     * Bulk-load presence for many users via batched targeted storageRead.
+     * Returns a { userId: boolean } map; missing entries default to false.
+     * Presence is best-effort context — never fails the suggestion query.
+     */
+    function loadOnlineMap(nk, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({ collection: PRESENCE_COLLECTION, key: PRESENCE_KEY, userId: userIds[i] });
+        }
+        var rows = null;
+        try {
+            rows = nk.storageRead(reads);
+        }
+        catch (e) {
+            return map;
+        }
+        if (!rows)
+            return map;
+        var nowMs = Date.now();
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var online = false;
+            if (v.online === true) {
+                var lastSeenMs = 0;
+                if (typeof v.lastSeenMs === "number")
+                    lastSeenMs = v.lastSeenMs;
+                else if (typeof v.last_seen_ms === "number")
+                    lastSeenMs = v.last_seen_ms;
+                else if (typeof v.lastSeen === "string") {
+                    var t = Date.parse(v.lastSeen);
+                    if (!isNaN(t))
+                        lastSeenMs = t;
+                }
+                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS)
+                    online = true;
+            }
+            map[row.userId] = online;
+        }
+        return map;
+    }
+    /**
+     * Build a set of every userId the caller already has a relationship with
+     * (friend / pending either direction / blocked). These are all excluded
+     * from suggestions — "People Near You" only surfaces brand-new faces.
+     */
+    function loadExcludedSet(nk, logger, userId) {
+        var excluded = {};
+        try {
+            var resp = nk.friendsList(userId, 1000, undefined, undefined);
+            if (resp && resp.friends) {
+                for (var i = 0; i < resp.friends.length; i++) {
+                    var fr = resp.friends[i];
+                    if (!fr || !fr.user)
+                        continue;
+                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                        ? fr.state.value
+                        : fr.state;
+                    if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
+                        s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
+                        excluded[fr.user.id] = true;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            // Degrade to "no exclusions" — worst case the user sees an existing
+            // friend in suggestions, which the client-side row renderer still
+            // labels correctly (relationshipStatus is recomputed on tap).
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseNearbyPlayers] friendsList lookup failed: " + (e.message || String(e)));
+            }
+        }
+        return excluded;
+    }
+    /**
+     * Opportunistically persist the caller's resolved country into their
+     * Nakama account metadata (users.metadata.country) so the candidate SQL
+     * — which filters on metadata->>'country' — gains coverage over time.
+     * No-op when metadata.country already matches. Never fatal.
+     */
+    function backfillMetadataCountry(nk, logger, userId, country) {
+        if (!country)
+            return;
+        try {
+            var accounts = nk.accountsGetId([userId]);
+            if (!accounts || accounts.length === 0)
+                return;
+            var acct = accounts[0];
+            var meta = (acct.user && acct.user.metadata) ? acct.user.metadata : {};
+            if (meta && typeof meta.country === "string" && meta.country.toUpperCase() === country) {
+                return; // already up to date
+            }
+            meta.country = country;
+            // Signature: accountUpdateId(userId, username, displayName, timezone,
+            //                            location, langTag, avatarUrl, metadata)
+            nk.accountUpdateId(userId, null, null, null, null, null, null, meta);
+        }
+        catch (e) {
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseNearbyPlayers] metadata.country backfill failed: " + (e.message || String(e)));
+            }
+        }
+    }
+    /**
+     * Same-country candidate query.
+     *   $1 = country (alpha-2, upper-cased)
+     *   $2 = userId  (excluded)
+     *   $3 = limit   (page size + over-fetch margin)
+     *   $4 = offset  (pagination)
+     *
+     * Filters on the JSONB users.metadata->>'country'. disable_time sentinel
+     * '1970-01-01 00:00:00 UTC' is Nakama's "not disabled" marker. Newest
+     * accounts first so suggestions feel fresh; id tie-break keeps paging
+     * stable.
+     */
+    function queryNearby(nk, country, userId, limit, offset) {
+        var sql = "SELECT id, username, display_name, avatar_url, create_time " +
+            "FROM users " +
+            "WHERE id != $2 " +
+            "  AND disable_time = '1970-01-01 00:00:00 UTC' " +
+            "  AND upper(metadata->>'country') = $1 " +
+            "ORDER BY create_time DESC, id ASC " +
+            "LIMIT $3 OFFSET $4";
+        var rows = nk.sqlQuery(sql, [country, userId, limit, offset]);
+        return rows || [];
+    }
+    // ── The RPC handler ────────────────────────────────────────────────────
+    function rpcFindNearbyPlayers(ctx, logger, nk, payload) {
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "Authentication required", errorCode: "unauthenticated" });
+        }
+        var parsed = parsePayload(payload);
+        var data = (parsed.ok && parsed.data) ? parsed.data : {};
+        // ── Paging ──────────────────────────────────────────────────────────
+        var limit = parseInt(data.limit, 10);
+        if (isNaN(limit) || limit < 1)
+            limit = DEFAULT_LIMIT;
+        if (limit > MAX_LIMIT)
+            limit = MAX_LIMIT;
+        var offset = 0;
+        if (data.cursor) {
+            offset = parseInt(data.cursor, 10);
+            if (isNaN(offset) || offset < 0)
+                offset = 0;
+            if (offset > MAX_OFFSET)
+                offset = MAX_OFFSET;
+        }
+        // ── Resolve caller country (cache-first, IP-API on cold miss) ────────
+        var country = "";
+        try {
+            country = GeoTier.resolveUserCountry(ctx, logger, nk, userId) || "";
+        }
+        catch (e) {
+            country = "";
+        }
+        if (!country) {
+            return ok({ results: [], country: "", count: 0, searcherId: userId, nextCursor: null, reason: "no_geo" });
+        }
+        country = country.toUpperCase();
+        // Opportunistic backfill so the SQL filter covers this user next time.
+        backfillMetadataCountry(nk, logger, userId, country);
+        // Over-fetch so we can drop already-related users without short-paging.
+        var fetchLimit = limit + 30;
+        // ── Query candidates ────────────────────────────────────────────────
+        var rows = [];
+        try {
+            rows = queryNearby(nk, country, userId, fetchLimit, offset);
+        }
+        catch (sqlErr) {
+            if (logger && logger.warn) {
+                logger.warn("[IntelliverseNearbyPlayers] SQL failed: " + (sqlErr.message || String(sqlErr)));
+            }
+            return ok({ results: [], country: country, count: 0, searcherId: userId, nextCursor: null, reason: "unavailable" });
+        }
+        // ── Exclude existing relationships ──────────────────────────────────
+        var excluded = loadExcludedSet(nk, logger, userId);
+        var candidateIds = [];
+        for (var c = 0; c < rows.length; c++) {
+            var rid = rows[c].id;
+            if (rid && rid !== userId && !excluded[rid])
+                candidateIds.push(rid);
+        }
+        var onlineMap = loadOnlineMap(nk, candidateIds);
+        // ── Build page ──────────────────────────────────────────────────────
+        var results = [];
+        var consumed = 0;
+        for (var i = 0; i < rows.length && results.length < limit; i++) {
+            consumed++;
+            var row = rows[i];
+            var rid2 = row.id;
+            if (rid2 === userId)
+                continue;
+            if (excluded[rid2])
+                continue;
+            results.push({
+                userId: rid2,
+                username: row.username || "",
+                displayName: row.display_name || row.username || "",
+                avatarUrl: row.avatar_url || "",
+                online: !!onlineMap[rid2],
+                createTime: row.create_time || "",
+                relationshipStatus: "none",
+                country: country
+            });
+        }
+        var nextCursor = null;
+        if (results.length === limit && rows.length === fetchLimit) {
+            nextCursor = String(offset + consumed);
+        }
+        if (logger && logger.info) {
+            logger.info("[IntelliverseNearbyPlayers] user=" + userId +
+                " country=" + country +
+                " returned=" + results.length +
+                " (offset=" + offset + ", nextCursor=" + (nextCursor || "null") + ")");
+        }
+        return ok({
+            results: results,
+            country: country,
+            count: results.length,
+            searcherId: userId,
+            nextCursor: nextCursor,
+            reason: "ok"
+        });
+    }
+    // ── Public registration ────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("intelliverse_find_nearby_players", rpcFindNearbyPlayers);
+    }
+    IntelliverseNearbyPlayers.register = register;
+})(IntelliverseNearbyPlayers || (IntelliverseNearbyPlayers = {}));
+// ============================================================================
 // src/friends/friends_list.ts — Canonical friends_list + list_blocked_users
 // ============================================================================
 // PRODUCTION-READY | First-class TS module | Single source of truth
@@ -6835,10 +7218,53 @@ var IntelliverseFriendsList;
         return -1;
     }
     /**
-     * Flatten a Nakama friend object into our canonical wire shape.
-     * Caller supplies the resolved `online` flag (from loadOnlineMap).
+     * Bulk-load each friend's ISO alpha-2 country from users.metadata->>'country'
+     * in a single SQL round-trip. Returns a { userId: "US" } map (upper-cased);
+     * users without a resolved country are simply absent from the map.
+     *
+     * This is the SAME source `intelliverse_find_nearby_players` filters on, so
+     * the Social Zone "Friends Nearby" client filter (my country === friend
+     * country) stays consistent with the suggestion strip. Best-effort: any SQL
+     * failure degrades to an empty map (friends still render, just without a
+     * country tag).
      */
-    function flattenFriend(fr, online) {
+    function loadCountryMap(nk, logger, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        // Build a parameterised IN ($1,$2,...) list — never interpolate ids.
+        var placeholders = [];
+        for (var p = 0; p < userIds.length; p++) {
+            placeholders.push("$" + (p + 1));
+        }
+        var sql = "SELECT id, upper(metadata->>'country') AS country " +
+            "FROM users " +
+            "WHERE id IN (" + placeholders.join(",") + ") " +
+            "  AND metadata->>'country' IS NOT NULL";
+        try {
+            var rows = nk.sqlQuery(sql, userIds);
+            if (rows) {
+                for (var r = 0; r < rows.length; r++) {
+                    var row = rows[r];
+                    if (row && row.id && row.country) {
+                        map[row.id] = String(row.country);
+                    }
+                }
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn) {
+                logger.warn("[FriendsList] country map lookup failed: " + (e.message || String(e)));
+            }
+        }
+        return map;
+    }
+    /**
+     * Flatten a Nakama friend object into our canonical wire shape.
+     * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
+     * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
+     */
+    function flattenFriend(fr, online, country) {
         var u = fr.user || {};
         var state = unwrapState(fr.state);
         return {
@@ -6850,6 +7276,9 @@ var IntelliverseFriendsList;
             createTime: u.createTime || u.create_time || "",
             relationshipStatus: stateToRelationship(state),
             state: state,
+            // ISO alpha-2 country (upper-cased) or "" when unresolved. Powers the
+            // Social Zone "Friends Nearby" same-country filter.
+            country: country || "",
             // Pass through optional Nakama metadata when present (clients can ignore)
             updateTime: u.updateTime || u.update_time || "",
             edgeUpdateTime: fr.updateTime || fr.update_time || ""
@@ -6906,6 +7335,20 @@ var IntelliverseFriendsList;
                 ids.push(u.id);
         }
         var onlineMap = loadOnlineMap(nk, ids);
+        // ── Bulk-load each friend's country (single batched SQL) ────────────
+        var countryMap = loadCountryMap(nk, logger, ids);
+        // ── Resolve the CALLER's own country (cache-first; never fatal) ──────
+        // Returned at the envelope level so the client can run a "same country
+        // as me" filter for the Social Zone "Friends Nearby" strip without a
+        // second RPC. Empty string when geo is unknown — client simply skips
+        // the nearby filter in that case.
+        var myCountry = "";
+        try {
+            myCountry = GeoTier.resolveUserCountry(ctx, logger, nk, userId) || "";
+        }
+        catch (e) {
+            myCountry = "";
+        }
         // ── Flatten ─────────────────────────────────────────────────────────
         var results = [];
         for (var j = 0; j < rawFriends.length; j++) {
@@ -6913,18 +7356,23 @@ var IntelliverseFriendsList;
             if (!fr || !fr.user || !fr.user.id)
                 continue;
             var online = !!onlineMap[fr.user.id];
-            results.push(flattenFriend(fr, online));
+            var fcountry = countryMap[fr.user.id] || "";
+            results.push(flattenFriend(fr, online, fcountry));
         }
         if (logger && logger.info) {
             logger.info("[FriendsList] user=" + userId +
                 " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+                " country=" + (myCountry || "?") +
                 " returned=" + results.length +
                 " nextCursor=" + (nextCursor || "null"));
         }
         return ok({
             results: results,
             count: results.length,
-            nextCursor: nextCursor
+            nextCursor: nextCursor,
+            // Caller's resolved ISO alpha-2 country (upper-cased) or "" when
+            // unknown. Enables the client "Friends Nearby" same-country filter.
+            country: myCountry
         });
     }
     // ── list_blocked_users RPC (Phase-4 H1) ────────────────────────────────
@@ -6960,6 +7408,7 @@ var IntelliverseFriendsList;
                 ids.push(u.id);
         }
         var onlineMap = loadOnlineMap(nk, ids);
+        var countryMap = loadCountryMap(nk, logger, ids);
         var results = [];
         for (var j = 0; j < rawList.length; j++) {
             var fr = rawList[j];
@@ -6967,7 +7416,7 @@ var IntelliverseFriendsList;
                 continue;
             // Force relationshipStatus to "blocked" — defensive normalisation in
             // case Nakama ever returns mixed-state results when filtering.
-            var flat = flattenFriend(fr, !!onlineMap[fr.user.id]);
+            var flat = flattenFriend(fr, !!onlineMap[fr.user.id], countryMap[fr.user.id] || "");
             flat.relationshipStatus = "blocked";
             flat.state = STATE_BLOCKED;
             results.push(flat);
@@ -12963,6 +13412,41 @@ var AdminConsole;
         logger.info("[rpcCreatorLiveEventPublish] Published event %s by creator %s", event.id, event.creatorId || "unknown");
         return RpcHelpers.successResponse({ eventId: event.id, success: true });
     }
+    /**
+     * Resolve a creator event record by id, regardless of which storage path
+     * created it. SPA-published events live in `live_events` under the CREATOR's
+     * own user id, Nakama-native ones live in `satori_creator_events` under
+     * SYSTEM. This checks, in order:
+     *   1. live_events @ SYSTEM_USER_ID
+     *   2. live_events @ any owner (full collection scan)
+     *   3. satori_creator_events @ SYSTEM_USER_ID
+     * Returns the full storage object (value + owner + version + times) or null.
+     */
+    function resolveCreatorEventRecord(nk, eventId) {
+        var direct = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+        if (direct && direct.length > 0 && direct[0].value)
+            return direct[0];
+        var cursor = "";
+        for (var page = 0; page < 10; page++) {
+            // null owner = list across ALL users (empty string "" is NOT valid —
+            // Nakama's JS runtime runs it through uuid.FromString and throws
+            // "expects empty or valid user id"). SPA events are creator-owned.
+            var res = nk.storageList(null, "live_events", 100, cursor);
+            var objs = (res && res.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                if (objs[i].value && (objs[i].key === eventId || objs[i].value.id === eventId)) {
+                    return objs[i];
+                }
+            }
+            cursor = (res && res.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        var canonical = nk.storageRead([{ collection: "satori_creator_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
+        if (canonical && canonical.length > 0 && canonical[0].value)
+            return canonical[0];
+        return null;
+    }
     // Get detailed stats for a creator event (participation, leaderboard, etc.)
     function rpcAdminCreatorEventStats(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -12970,12 +13454,12 @@ var AdminConsole;
         if (!data.event_id && !data.eventId)
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
-        // Read the event definition
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        // Read the event definition (across all storage paths)
+        var eventRecord = resolveCreatorEventRecord(nk, eventId);
+        if (!eventRecord) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
+        var event = eventRecord.value;
         // Try to read leaderboard for this event
         var leaderboardId = "creator_event_" + eventId;
         var leaderboard = [];
@@ -13004,7 +13488,7 @@ var AdminConsole;
         try {
             var cursor = "";
             for (var page = 0; page < 5; page++) {
-                var result = nk.storageList("", "event_answers", 100, cursor);
+                var result = nk.storageList(null, "event_answers", 100, cursor);
                 var objects = result.objects || [];
                 for (var j = 0; j < objects.length; j++) {
                     if (objects[j].key !== eventId)
@@ -13049,29 +13533,41 @@ var AdminConsole;
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
         var reason = data.reason || "Ended by admin";
-        // Read the event
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        // Read the event (across all storage paths)
+        var eventRecord = resolveCreatorEventRecord(nk, eventId);
+        if (!eventRecord) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
+        var event = eventRecord.value;
         // Update status
         event.status = "ended";
         event.endedAt = Math.floor(Date.now() / 1000);
         event.endedBy = "admin";
         event.endReason = reason;
-        // Write back
+        // Write back to the SAME owner/collection the record was found in, so SPA
+        // events (creator-owned) are updated in place rather than orphaning a copy.
         nk.storageWrite([{
-                collection: "live_events",
-                key: eventId,
-                userId: Constants.SYSTEM_USER_ID,
+                collection: eventRecord.collection,
+                key: eventRecord.key,
+                userId: eventRecord.userId,
                 value: event,
                 permissionRead: 2,
                 permissionWrite: 0,
             }]);
         logAdminAudit(nk, ctx, "admin_creator_event_end", { eventId: eventId }, { reason: reason });
         logger.info("[rpcAdminCreatorEventEnd] Admin ended creator event %s: %s", eventId, reason);
-        return RpcHelpers.successResponse({ success: true, event_id: eventId, status: "ended" });
+        // Rank players from event_answers and queue prize_fulfillments for every
+        // gift-card winner so the admin can fulfill ALL winners — not just those
+        // who self-claim. Idempotent + best-effort: a failure here must not block
+        // the end action itself.
+        var prizes = null;
+        try {
+            prizes = SatoriCreatorEvents.computeAndQueueWinners(nk, logger, event, String(eventId));
+        }
+        catch (perr) {
+            logger.warn("[rpcAdminCreatorEventEnd] winner queue failed for %s: %s", eventId, perr.message || String(perr));
+        }
+        return RpcHelpers.successResponse({ success: true, event_id: eventId, status: "ended", prizes: prizes });
     }
     // Admin action: Get full details of a single creator event
     function rpcAdminCreatorEventGet(ctx, logger, nk, payload) {
@@ -13080,12 +13576,11 @@ var AdminConsole;
         if (!data.event_id && !data.eventId)
             return RpcHelpers.errorResponse("event_id required");
         var eventId = data.event_id || data.eventId;
-        var eventRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: Constants.SYSTEM_USER_ID }]);
-        if (!eventRecords || eventRecords.length === 0) {
+        var record = resolveCreatorEventRecord(nk, eventId);
+        if (!record) {
             return RpcHelpers.errorResponse("Event not found");
         }
-        var event = eventRecords[0].value;
-        var record = eventRecords[0];
+        var event = record.value;
         return RpcHelpers.successResponse({
             event: __assign(__assign({}, event), { storage_user_id: record.userId, storage_version: record.version, storage_create_time: isoFromSec(record.createTime), storage_update_time: isoFromSec(record.updateTime) })
         });
@@ -13113,14 +13608,49 @@ var AdminConsole;
         var filterRegion = data.region || null;
         var filterCreatorId = data.creator_id || data.creatorId || null;
         var filterGameId = data.game_id || data.gameId || null;
-        var limit = Math.min(data.limit || 100, 500);
+        // Return limit (applied AFTER sorting so the newest events always surface).
+        var limit = Math.min(data.limit || 500, 2000);
+        // Collection bound — scan far more than `limit` so the sort sees every
+        // event, not just the first `limit` ones in storage/index order (which is
+        // oldest-first and was silently dropping all recently-created events).
+        var scanCap = 2000;
         var events = [];
         var sourceCounts = { satori_creator_events: 0, live_events: 0 };
         var seenIds = {};
         var nowSec = Math.floor(Date.now() / 1000);
+        // Real participant counts. `ev.participantCount` is only incremented by the
+        // native rpcJoin flow, which SPA-published events bypass entirely (they
+        // write answers straight into `event_answers` under each player's own
+        // userId) — so it stays 0 even for events that clearly had players. Sweep
+        // event_answers once (bounded) and tally per-event, keyed by event id.
+        var participantCounts = {};
+        try {
+            var aCursor = "";
+            var aPages = 0;
+            do {
+                var aPage = nk.storageList(null, "event_answers", 100, aCursor);
+                var aObjs = (aPage && aPage.objects) || [];
+                for (var ai = 0; ai < aObjs.length; ai++) {
+                    var ak = aObjs[ai].key;
+                    if (!ak)
+                        continue;
+                    participantCounts[ak] = (participantCounts[ak] || 0) + 1;
+                }
+                aCursor = (aPage && aPage.cursor) || "";
+                aPages++;
+            } while (aCursor && aPages < 30);
+        }
+        catch (aerr) {
+            logger.warn("[rpcAdminCreatorEventsList] event_answers tally failed: %s", aerr.message || String(aerr));
+        }
         function computeEffectiveStatus(ev) {
             if (ev.status === "cancelled" || ev.status === "distributed")
                 return ev.status;
+            // Honor an explicit terminal status (or endedAt) set by the
+            // creator-portal / admin end action — otherwise a manually-ended event
+            // still inside its original time window wrongly reads as "live".
+            if (ev.status === "ended" || ev.status === "completed" || ev.status === "closed" || ev.endedAt)
+                return "ended";
             if (ev.status === "draft" || ev.status === "funded")
                 return ev.status;
             var startSec = ev.scheduledAt || ev.createdAt || 0;
@@ -13170,7 +13700,7 @@ var AdminConsole;
                 game_id: ev.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
                 status: effectiveStatus,
                 raw_status: ev.status,
-                participant_count: ev.participantCount || 0,
+                participant_count: Math.max(Number(ev.participantCount) || 0, participantCounts[ev.id] || 0),
                 question_count: ev.questions ? ev.questions.length : 0,
                 clue_count: ev.clues ? ev.clues.length : 0,
                 promo_video_url: ev.promoVideoUrl || "",
@@ -13205,7 +13735,7 @@ var AdminConsole;
             if (indexRecords && indexRecords.length > 0 && indexRecords[0].value) {
                 var index = indexRecords[0].value;
                 var eventIds = index.eventIds || [];
-                for (var i = 0; i < eventIds.length && events.length < limit; i++) {
+                for (var i = 0; i < eventIds.length && events.length < scanCap; i++) {
                     var eventId = eventIds[i];
                     if (seenIds[eventId])
                         continue;
@@ -13233,13 +13763,19 @@ var AdminConsole;
         catch (indexErr) {
             logger.warn("[rpcAdminCreatorEventsList] Failed to read satori_creator_events index: %s", indexErr.message || String(indexErr));
         }
-        // 2. Fetch from live_events (SYSTEM_USER_ID owned) — creator portal events
+        // 2. Fetch from live_events across ALL owners — creator-portal / SPA events.
+        // The live.quizverse.world/creator SPA writes the event definition into the
+        // `live_events` collection under the CREATOR's own user id (not SYSTEM), so a
+        // SYSTEM_USER_ID-only scan silently missed every SPA-published event. Listing
+        // with an empty owner ("") enumerates the whole collection (same pattern used
+        // by CreatorEventLive), covering both SYSTEM- and creator-owned records.
         try {
             var cursor = "";
-            for (var page = 0; page < 10 && events.length < limit; page++) {
-                var result = nk.storageList(Constants.SYSTEM_USER_ID, "live_events", 100, cursor);
+            for (var page = 0; page < 40 && events.length < scanCap; page++) {
+                // null owner = all users (empty string "" throws in Nakama's JS runtime)
+                var result = nk.storageList(null, "live_events", 100, cursor);
                 var objects = result.objects || [];
-                for (var j = 0; j < objects.length && events.length < limit; j++) {
+                for (var j = 0; j < objects.length && events.length < scanCap; j++) {
                     var obj = objects[j];
                     if (!obj.value)
                         continue;
@@ -13261,13 +13797,19 @@ var AdminConsole;
         catch (listErr) {
             logger.warn("[rpcAdminCreatorEventsList] Failed to list live_events: %s", listErr.message || String(listErr));
         }
-        // Sort by scheduled_at descending (most recent first)
+        // Sort by scheduled_at descending (most recent first) BEFORE applying the
+        // return limit, so the newest events are never truncated away.
         events.sort(function (a, b) {
             return (b.scheduled_at || 0) - (a.scheduled_at || 0);
         });
+        var matchedCount = events.length;
+        if (events.length > limit) {
+            events = events.slice(0, limit);
+        }
         return RpcHelpers.successResponse({
             events: events,
             total_count: events.length,
+            matched_count: matchedCount,
             sources: sourceCounts,
             filters_applied: {
                 status: filterStatus,
@@ -13277,6 +13819,93 @@ var AdminConsole;
                 limit: limit
             }
         });
+    }
+    // Admin action: backfill prize_fulfillments for winners of already-ended
+    // creator events whose winners were never queued (players who never
+    // self-claimed). Idempotent — skips any (event,user) already on the queue.
+    // Payload: { event_id? (single event), creator_id? (filter) }
+    function rpcAdminCreatorEventsBackfillPrizes(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var onlyEventId = data.event_id || data.eventId || null;
+        var filterCreatorId = data.creator_id || data.creatorId || null;
+        var nowSec = Math.floor(Date.now() / 1000);
+        function isEnded(ev) {
+            if (ev.status === "ended" || ev.status === "completed" || ev.status === "closed" || ev.endedAt)
+                return true;
+            if (ev.status === "cancelled" || ev.status === "distributed" || ev.status === "draft" || ev.status === "funded")
+                return false;
+            var start = ev.scheduledAt || ev.createdAt || 0;
+            var end = start + (ev.duration || 30) * 60;
+            return nowSec > end;
+        }
+        function hasTiers(ev) {
+            return !!(ev && ev.giftCardPrizes && ev.giftCardPrizes.tiers && ev.giftCardPrizes.tiers.length);
+        }
+        var seen = {};
+        var results = [];
+        var totals = { events: 0, ranked: 0, queued: 0, skippedExisting: 0, xutWinners: 0 };
+        function process(ev) {
+            var id = ev && ev.id;
+            if (!id || seen[id])
+                return;
+            if (onlyEventId && id !== onlyEventId)
+                return;
+            if (filterCreatorId && ev.creatorId !== filterCreatorId)
+                return;
+            if (!isEnded(ev) || !hasTiers(ev))
+                return;
+            seen[id] = true;
+            var r = SatoriCreatorEvents.computeAndQueueWinners(nk, logger, ev, String(id));
+            totals.events++;
+            totals.ranked += r.ranked;
+            totals.queued += r.queued;
+            totals.skippedExisting += r.skippedExisting;
+            totals.xutWinners += r.xutWinners;
+            results.push({ eventId: id, title: ev.title || "", ranked: r.ranked, queued: r.queued, skippedExisting: r.skippedExisting, xutWinners: r.xutWinners });
+        }
+        // 1. satori_creator_events via events_index
+        try {
+            var idxRec = nk.storageRead([{ collection: "satori_creator_events", key: "events_index", userId: Constants.SYSTEM_USER_ID }]);
+            if (idxRec && idxRec.length > 0 && idxRec[0].value) {
+                var ids = (idxRec[0].value.eventIds) || [];
+                for (var i = 0; i < ids.length; i++) {
+                    try {
+                        var er = nk.storageRead([{ collection: "satori_creator_events", key: ids[i], userId: Constants.SYSTEM_USER_ID }]);
+                        if (er && er.length > 0 && er[0].value)
+                            process(er[0].value);
+                    }
+                    catch (e1) { /* skip unreadable */ }
+                }
+            }
+        }
+        catch (e2) {
+            logger.warn("[backfillPrizes] satori index read failed: %s", e2.message || String(e2));
+        }
+        // 2. live_events across all owners (creator-portal / SPA events)
+        try {
+            var cursor = "";
+            var pages = 0;
+            do {
+                var page = nk.storageList(null, "live_events", 100, cursor);
+                var objs = (page && page.objects) || [];
+                for (var j = 0; j < objs.length; j++) {
+                    var val = objs[j] && objs[j].value;
+                    if (!val)
+                        continue;
+                    if (!val.id)
+                        val.id = objs[j].key;
+                    process(val);
+                }
+                cursor = (page && page.cursor) || "";
+                pages++;
+            } while (cursor && pages < 40);
+        }
+        catch (e3) {
+            logger.warn("[backfillPrizes] live_events list failed: %s", e3.message || String(e3));
+        }
+        logger.info("[backfillPrizes] events=%d ranked=%d queued=%d skipped=%d xut=%d", totals.events, totals.ranked, totals.queued, totals.skippedExisting, totals.xutWinners);
+        return RpcHelpers.successResponse({ totals: totals, events: results });
     }
     function rpcAdminMessagesList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -13788,6 +14417,10 @@ var AdminConsole;
         initializer.registerRpc("admin_creator_event_stats", rpcAdminCreatorEventStats);
         initializer.registerRpc("admin_creator_event_end", rpcAdminCreatorEventEnd);
         initializer.registerRpc("admin_creator_events_list", rpcAdminCreatorEventsList);
+        initializer.registerRpc("admin_creator_events_backfill_prizes", rpcAdminCreatorEventsBackfillPrizes);
+        // Live-event prize fulfillment (admin console)
+        initializer.registerRpc("admin_prize_fulfillments_list", rpcAdminPrizeFulfillmentsList);
+        initializer.registerRpc("admin_prize_fulfillment_settle", rpcAdminPrizeFulfillmentSettle);
         initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
         initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
         initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
@@ -13966,6 +14599,127 @@ var AdminConsole;
         initializer.registerRpc("hiro_streak_shield_replenish", delegate("__rpc_retention_grant_streak_shield"));
     }
     AdminConsole.register = register;
+    // ────────────────────────────────────────────────────────────────────
+    //  Live-event prize fulfillment (admin console)
+    //
+    //  Gift-card wins are queued into the system-owned `prize_fulfillments`
+    //  collection (status "pending") by the creator-event claim RPCs. The
+    //  existing creator_event_fulfillments_list / _settle RPCs are gated by a
+    //  service token (NAKAMA_WEBHOOK_SECRET) for the Next.js admin / n8n. These
+    //  two RPCs expose the SAME queue + settle flow to the IVX admin console via
+    //  the normal requireAdmin gate, so no secret has to ship to the browser.
+    // ────────────────────────────────────────────────────────────────────
+    function rpcAdminPrizeFulfillmentsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+        var limit = Math.min(200, Math.max(1, Number(data.limit) || 100));
+        var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
+        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
+        var rows = [];
+        var objs = (res && res.objects) || [];
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value || {};
+            if (statusFilter && v.status !== statusFilter)
+                continue;
+            rows.push({
+                key: objs[i].key,
+                userId: v.userId || "",
+                eventId: v.eventId || "",
+                eventTitle: v.eventTitle || "",
+                rank: v.rank || 0,
+                giftCard: v.giftCard || null,
+                status: v.status || "pending",
+                region: v.region || "",
+                email: v.email || "",
+                source: v.source || "",
+                queuedAt: v.queuedAt || v.claimedAt || 0,
+                settledAt: v.settledAt || 0,
+                voucher: v.voucher || null,
+                error: v.error || "",
+            });
+        }
+        return RpcHelpers.successResponse({
+            fulfillments: rows,
+            cursor: (res && res.cursor) || "",
+        });
+    }
+    function rpcAdminPrizeFulfillmentSettle(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var eventId = data.eventId || data.event_id;
+        var targetUserId = data.userId || data.user_id;
+        if (!eventId || !targetUserId) {
+            return RpcHelpers.errorResponse("eventId and userId required");
+        }
+        var status = data.status === "fulfilled" ? "fulfilled" : (data.status === "failed" ? "failed" : "");
+        if (!status) {
+            return RpcHelpers.errorResponse("status must be 'fulfilled' or 'failed'");
+        }
+        eventId = String(eventId);
+        targetUserId = String(targetUserId);
+        var fKey = eventId + ":" + targetUserId;
+        var recs = nk.storageRead([{ collection: "prize_fulfillments", key: fKey, userId: Constants.SYSTEM_USER_ID }]);
+        if (!recs || recs.length === 0 || !recs[0].value) {
+            return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+        }
+        var rec = recs[0].value;
+        var settledAt = Math.floor(Date.now() / 1000);
+        rec.status = status;
+        rec.settledAt = settledAt;
+        rec.settledBy = "admin_console";
+        if (status === "fulfilled") {
+            // Never store the full card code server-side — it is delivered by email.
+            rec.voucher = {
+                provider: String(data.provider || "reloadly"),
+                orderId: String(data.orderId || ""),
+                deliveredTo: String(data.deliveredTo || rec.email || ""),
+                cardLast4: String(data.cardLast4 || ""),
+                codeDelivered: !!data.codeDelivered,
+            };
+            rec.error = "";
+        }
+        else {
+            rec.error = String(data.error || "fulfillment failed");
+        }
+        nk.storageWrite([{
+                collection: "prize_fulfillments",
+                key: fKey,
+                userId: Constants.SYSTEM_USER_ID,
+                value: rec,
+                permissionRead: 2,
+                permissionWrite: 0,
+            }]);
+        // Mirror onto the player's claim record so the SPA "My Prizes" card can
+        // show "Voucher sent" without another server round-trip.
+        try {
+            var claimKey = "claim_" + eventId;
+            var claimRecs = nk.storageRead([{ collection: "creator_event_claims", key: claimKey, userId: targetUserId }]);
+            if (claimRecs && claimRecs.length > 0 && claimRecs[0].value) {
+                var claim = claimRecs[0].value;
+                claim.voucher = {
+                    status: status,
+                    provider: (rec.voucher && rec.voucher.provider) || "reloadly",
+                    deliveredTo: (rec.voucher && rec.voucher.deliveredTo) || "",
+                    settledAt: settledAt,
+                };
+                nk.storageWrite([{
+                        collection: "creator_event_claims",
+                        key: claimKey,
+                        userId: targetUserId,
+                        value: claim,
+                        permissionRead: 1,
+                        permissionWrite: 1,
+                    }]);
+            }
+        }
+        catch (merr) {
+            logger.warn("[admin_prize_fulfillment_settle] Failed to mirror voucher onto claim record: %s", merr.message || String(merr));
+        }
+        logAdminAudit(nk, ctx, "admin_prize_fulfillment_settle", { eventId: eventId, userId: targetUserId }, { status: status, orderId: (rec.voucher && rec.voucher.orderId) || "" });
+        logger.info("[admin_prize_fulfillment_settle] %s settled key=%s status=%s", ctx.userId || "admin", fKey, status);
+        return RpcHelpers.successResponse({ success: true, key: fKey, status: status, settledAt: settledAt });
+    }
     function rpcGiftClaimsList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var claims = RewardEngine.getGiftClaims(nk, userId);
@@ -15222,14 +15976,23 @@ var HiroLeaderboards;
             metadata.region = data.location.region || "";
             metadata.city = data.location.city || "";
         }
+        // QVBF_114: snapshot displayName (not raw username) into the record so
+        // clients that render record.username directly show the friendly name.
+        var lbUsername = ctx.username;
         try {
-            nk.leaderboardRecordWrite(data.leaderboardId, userId, ctx.username, data.score, data.subscore || 0, metadata, undefined);
+            var lbUsers = nk.usersGetId([userId]);
+            if (lbUsers && lbUsers.length > 0)
+                lbUsername = lbUsers[0].displayName || lbUsers[0].username || ctx.username;
+        }
+        catch (_) { /* keep ctx.username */ }
+        try {
+            nk.leaderboardRecordWrite(data.leaderboardId, userId, lbUsername, data.score, data.subscore || 0, metadata, undefined);
         }
         catch (e) {
             try {
                 var sort = def.sortOrder === "asc" ? "ascending" /* nkruntime.SortOrder.ASCENDING */ : "descending" /* nkruntime.SortOrder.DESCENDING */;
                 nk.leaderboardCreate(data.leaderboardId, false, sort, operator);
-                nk.leaderboardRecordWrite(data.leaderboardId, userId, ctx.username, data.score, data.subscore || 0, metadata, undefined);
+                nk.leaderboardRecordWrite(data.leaderboardId, userId, lbUsername, data.score, data.subscore || 0, metadata, undefined);
             }
             catch (e2) {
                 return RpcHelpers.errorResponse("Failed to submit score: " + (e2.message || String(e2)));
@@ -19085,6 +19848,249 @@ var LearnerToolbelt;
             return RpcHelpers.errorResponse("internal error", 500);
         }
     }
+    // ════════════════════════════════════════════════════════════════════════
+    // Quizzy Clipper — clip capture surface
+    // PLAN-QUIZZY_CLIPPER_BROWSER_EXTENSION.md §3.4
+    //
+    // 3 service-only RPCs back all three capture surfaces (MV3 extension,
+    // email-forward inbox, web /notes page):
+    //   lt_clip_save    — upsert a captured clip
+    //   lt_clips_list   — paginated list with search + filters
+    //   lt_clip_delete  — soft semantics (hard delete here; 90d retention cron
+    //                     is a follow-up backend task per plan Week 4 D3)
+    //
+    // Storage: collection qv_lt_clips, key = clip_id, value = ClipRecord,
+    // permissionRead/Write = 0 (server-only; owner reads via service token).
+    //
+    // Media note: snapshot/audio blobs are destined for the qv-clip-media-prod
+    // S3 bucket with signed URLs (plan §3.4). The S3 signer is a Week-1 backend
+    // follow-up; until it lands we inline small snapshots (<= CLIP_MAX_INLINE_MEDIA)
+    // as a data URL thumb and flag larger ones media_pending so the contract
+    // response stays stable.
+    // ════════════════════════════════════════════════════════════════════════
+    var COLLECTION_CLIPS = "qv_lt_clips";
+    var CLIP_MAX_TITLE = 256;
+    var CLIP_MAX_SELECTION = 8192;
+    var CLIP_MAX_SNIPPET = 2048;
+    var CLIP_MAX_TAGS = 12;
+    var CLIP_MAX_TAG_LEN = 32;
+    var CLIP_MAX_INLINE_MEDIA = 524288; // 512KB inline cap (pre-S3)
+    var CLIP_LIST_MAX_LIMIT = 100;
+    var CLIP_LIST_DEFAULT_LIMIT = 50;
+    var CLIP_SOFT_CAP_FREE = 500; // plan Week 3 D3 — free tier soft cap
+    var CLIP_EXAM_TAG_RE = /^[a-z0-9_]{1,32}$/;
+    var CLIP_SOURCE_TYPES = ["web", "snapshot", "voice", "email"];
+    function clipSanitizeTags(raw) {
+        if (!Array.isArray(raw))
+            return [];
+        var out = [];
+        for (var i = 0; i < raw.length && out.length < CLIP_MAX_TAGS; i++) {
+            var tag = ("" + raw[i]).trim().toLowerCase().slice(0, CLIP_MAX_TAG_LEN);
+            if (tag && out.indexOf(tag) < 0)
+                out.push(tag);
+        }
+        return out;
+    }
+    function clipResolveExamTag(nk, userId, supplied) {
+        var tag = ("" + (supplied || "")).trim().toLowerCase();
+        if (tag)
+            return CLIP_EXAM_TAG_RE.test(tag) ? tag : null;
+        // Auto-tag from the user's primary exam countdown (plan §3.4).
+        try {
+            var doc = readCountdownDoc(nk, userId);
+            if (doc.primary_exam_id && CLIP_EXAM_TAG_RE.test(doc.primary_exam_id)) {
+                return doc.primary_exam_id;
+            }
+        }
+        catch (_e) { /* no countdown — leave untagged */ }
+        return null;
+    }
+    // Strip the heavy inline media field for list payloads so a page of 50 clips
+    // stays small; the thumb is still referenced by clip detail / future S3 URL.
+    function clipToListItem(c) {
+        return {
+            clip_id: c.clip_id,
+            source_type: c.source_type,
+            url: c.url,
+            title: c.title,
+            selection_text: c.selection_text,
+            snapshot_thumb_url: c.snapshot_thumb_url,
+            voice_transcript: c.voice_transcript,
+            exam_tag: c.exam_tag,
+            tags: c.tags,
+            ai_summary: c.ai_summary,
+            created_at_unix: c.created_at_unix,
+        };
+    }
+    // RPC: lt_clip_save — capture one clip from any of the 3 surfaces.
+    function rpcClipSave(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var auth = resolveServiceUserId(ctx, data);
+            if (auth.error)
+                return RpcHelpers.errorResponse(auth.error, auth.code);
+            var sourceType = ("" + (data.source_type || "web")).toLowerCase();
+            if (CLIP_SOURCE_TYPES.indexOf(sourceType) < 0) {
+                return RpcHelpers.errorResponse("invalid source_type", 400);
+            }
+            var url = ("" + (data.url || "")).slice(0, 2048);
+            if ((sourceType === "web" || sourceType === "snapshot") && !url) {
+                return RpcHelpers.errorResponse("url required for web/snapshot clips", 400);
+            }
+            // Defence-in-depth: never store a non-http(s) scheme as a clip URL.
+            if (url && !/^https?:\/\//i.test(url)) {
+                return RpcHelpers.errorResponse("url must be http(s)", 400);
+            }
+            // Inline snapshot media (pre-S3). Reject anything that isn't a data:image
+            // and flag oversized blobs media_pending rather than failing the clip.
+            var snapshotThumb = "";
+            var mediaPending = false;
+            var rawSnap = "" + (data.snapshot_data_url || "");
+            if (rawSnap) {
+                if (rawSnap.indexOf("data:image/") !== 0) {
+                    return RpcHelpers.errorResponse("snapshot_data_url must be a data:image", 400);
+                }
+                if (rawSnap.length <= CLIP_MAX_INLINE_MEDIA)
+                    snapshotThumb = rawSnap;
+                else
+                    mediaPending = true;
+            }
+            var nowUnix = nowSec();
+            var clipId = "clip_" + nowUnix.toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+            var record = {
+                clip_id: clipId,
+                source_type: sourceType,
+                url: url,
+                title: ("" + (data.title || "")).slice(0, CLIP_MAX_TITLE),
+                selection_text: ("" + (data.selection_text || "")).slice(0, CLIP_MAX_SELECTION),
+                page_text_snippet: ("" + (data.page_text_snippet || "")).slice(0, CLIP_MAX_SNIPPET),
+                snapshot_thumb_url: snapshotThumb,
+                voice_transcript: ("" + (data.voice_transcript || "")).slice(0, CLIP_MAX_SELECTION),
+                voice_audio_url: ("" + (data.voice_audio_url || "")).slice(0, 2048),
+                exam_tag: clipResolveExamTag(nk, auth.userId, data.exam_tag),
+                tags: clipSanitizeTags(data.tags),
+                ai_summary: null,
+                media_pending: mediaPending,
+                created_at_unix: nowUnix,
+            };
+            nk.storageWrite([{
+                    collection: COLLECTION_CLIPS,
+                    key: clipId,
+                    userId: auth.userId,
+                    value: record,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            emitAnalytics(nk, logger, auth.userId, "clipper_clip_saved", {
+                source_type: sourceType,
+                has_selection: record.selection_text.length > 0,
+                has_snapshot: snapshotThumb.length > 0 || mediaPending,
+                has_voice: record.voice_transcript.length > 0 || record.voice_audio_url.length > 0,
+                exam_tag: record.exam_tag || "none",
+            });
+            // ai_summary_queued mirrors the contract; the async AI Notes summarizer is
+            // a Week-2 backend follow-up. We report queued=true only when there is
+            // textual content worth summarizing.
+            var queued = record.selection_text.length > 0 || record.page_text_snippet.length > 0 || record.voice_transcript.length > 0;
+            return safeWrap({
+                status: "ok",
+                clip_id: clipId,
+                created_at_unix: nowUnix,
+                ai_summary_queued: queued,
+                media_pending: mediaPending,
+            });
+        }
+        catch (err) {
+            logger.error("lt_clip_save failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // RPC: lt_clips_list — paginated list + search + source/exam filters.
+    function rpcClipsList(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var auth = resolveServiceUserId(ctx, data);
+            if (auth.error) {
+                // Graceful anonymous response — web /notes renders a sign-in nudge.
+                return safeWrap({ status: "anonymous", clips: [], next_cursor: null });
+            }
+            var limit = parseInt("" + (data.limit || CLIP_LIST_DEFAULT_LIMIT), 10);
+            if (!(limit >= 1))
+                limit = CLIP_LIST_DEFAULT_LIMIT;
+            if (limit > CLIP_LIST_MAX_LIMIT)
+                limit = CLIP_LIST_MAX_LIMIT;
+            var cursor = data.cursor ? "" + data.cursor : "";
+            var filterSource = data.filter_source_type ? ("" + data.filter_source_type).toLowerCase() : "";
+            var filterExam = data.filter_exam_tag ? ("" + data.filter_exam_tag).toLowerCase() : "";
+            var search = data.search ? ("" + data.search).toLowerCase().trim() : "";
+            var listResult = nk.storageList(auth.userId, COLLECTION_CLIPS, limit, cursor || undefined);
+            var rows = listResult && listResult.objects ? listResult.objects : [];
+            var clips = [];
+            for (var i = 0; i < rows.length; i++) {
+                var v = rows[i] && rows[i].value ? rows[i].value : null;
+                if (!v)
+                    continue;
+                if (filterSource && v.source_type !== filterSource)
+                    continue;
+                if (filterExam && (v.exam_tag || "") !== filterExam)
+                    continue;
+                if (search) {
+                    var hay = ((v.title || "") + " " + (v.selection_text || "") + " " + (v.voice_transcript || "") + " " + (v.url || "")).toLowerCase();
+                    if (hay.indexOf(search) < 0)
+                        continue;
+                }
+                clips.push(clipToListItem(v));
+            }
+            // storageList returns ascending key order (clip_<base36-unix>) — present
+            // newest-first within the page.
+            clips.sort(function (a, b) { return b.created_at_unix - a.created_at_unix; });
+            return safeWrap({
+                status: "ok",
+                clips: clips,
+                next_cursor: (listResult && listResult.cursor) ? listResult.cursor : null,
+            });
+        }
+        catch (err) {
+            logger.error("lt_clips_list failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // RPC: lt_clip_delete — remove one clip owned by the caller.
+    function rpcClipDelete(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var auth = resolveServiceUserId(ctx, data);
+            if (auth.error)
+                return RpcHelpers.errorResponse(auth.error, auth.code);
+            var clipId = "" + (data.clip_id || "");
+            if (!clipId)
+                return RpcHelpers.errorResponse("clip_id required", 400);
+            var existed = false;
+            try {
+                var rows = nk.storageRead([{ collection: COLLECTION_CLIPS, key: clipId, userId: auth.userId }]);
+                existed = !!(rows && rows.length > 0 && rows[0].value);
+            }
+            catch (_e) { /* treat as not_found */ }
+            if (!existed)
+                return safeWrap({ status: "not_found" });
+            var ageDays = 0;
+            try {
+                var rec = rows && rows[0] ? rows[0].value : null;
+                if (rec && rec.created_at_unix)
+                    ageDays = Math.floor((nowSec() - rec.created_at_unix) / 86400);
+            }
+            catch (_e) { /* noop */ }
+            nk.storageDelete([{ collection: COLLECTION_CLIPS, key: clipId, userId: auth.userId }]);
+            emitAnalytics(nk, logger, auth.userId, "clipper_clip_deleted", { age_days: ageDays });
+            return safeWrap({ status: "ok" });
+        }
+        catch (err) {
+            logger.error("lt_clip_delete failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // Silence unused-soft-cap warning until quota enforcement lands (plan Week 3 D3).
+    void CLIP_SOFT_CAP_FREE;
     // ────────────────────────────────────────────────────────────────────────
     // RPC: lt_exam_calendar_get (Wave 4 — anonymous OK)
     // ────────────────────────────────────────────────────────────────────────
@@ -19221,7 +20227,7 @@ var LearnerToolbelt;
     // ────────────────────────────────────────────────────────────────────────
     // RPC: lt_school_search (Wave 4 — anonymous OK)
     // ────────────────────────────────────────────────────────────────────────
-    function rpcSchoolSearch(_ctx, logger, _nk, payload) {
+    function rpcSchoolSearch(_ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var query = "" + (data.query || "");
@@ -19231,11 +20237,27 @@ var LearnerToolbelt;
             var limit = Math.min(Math.max(parseInt("" + (data.limit || 10), 10) || 10, 1), 50);
             if (query.length < 2)
                 return RpcHelpers.errorResponse("query must be ≥2 chars", 400);
-            var hits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
+            // Phase B: query the real CockroachDB index first (ingest_schools.py loads
+            // ~177k schools + global colleges). The in-memory fixture is merged in as a
+            // no-regression fallback, so curated landmark institutions always resolve
+            // and an empty/unavailable DB never breaks the tool.
+            var dbHits = LearnerToolbelt.searchSchoolsDB(nk, query, country, limit, institutionType);
+            var hits;
+            var source;
+            if (dbHits.length > 0) {
+                var fixtureHits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
+                hits = LearnerToolbelt.mergeHits(dbHits, fixtureHits, limit);
+                source = "db";
+            }
+            else {
+                hits = LearnerToolbelt.searchSchools(query, country, limit, institutionType);
+                source = "fixture";
+            }
             return safeWrap({
                 ok: true, status: hits.length > 0 ? "ok" : "no_results",
                 query: query, country_code: country, locale: locale,
                 institution_type: institutionType,
+                source: source,
                 results: hits,
                 count: hits.length,
                 message: hits.length === 0 ? LearnerToolbelt.i18nString(locale, "school.no_results") : "",
@@ -19249,13 +20271,13 @@ var LearnerToolbelt;
     // ────────────────────────────────────────────────────────────────────────
     // RPC: lt_school_get_detail (Wave 4 — anonymous OK)
     // ────────────────────────────────────────────────────────────────────────
-    function rpcSchoolGetDetail(_ctx, logger, _nk, payload) {
+    function rpcSchoolGetDetail(_ctx, logger, nk, payload) {
         try {
             var data = RpcHelpers.parseRpcPayload(payload);
             var schoolId = "" + (data.school_id || "");
             if (!schoolId)
                 return RpcHelpers.errorResponse("school_id required", 400);
-            var rec = LearnerToolbelt.getSchoolById(schoolId);
+            var rec = LearnerToolbelt.getSchoolByIdAny(nk, schoolId);
             if (!rec)
                 return safeWrap({ ok: true, status: "not_found", school_id: schoolId, found: false });
             return safeWrap({ ok: true, status: "ok", found: true, school: rec });
@@ -19277,9 +20299,9 @@ var LearnerToolbelt;
             var schoolId = "" + (data.school_id || "");
             if (!schoolId)
                 return RpcHelpers.errorResponse("school_id required", 400);
-            // Resolve verified-ness — fixture hits are verified; freetext entries
+            // Resolve verified-ness — DB + fixture hits are verified; freetext entries
             // remain provisional until ai-content reviews.
-            var rec = LearnerToolbelt.getSchoolById(schoolId);
+            var rec = LearnerToolbelt.getSchoolByIdAny(nk, schoolId);
             var verified = !!rec;
             var record = {
                 school_id: schoolId,
@@ -19763,6 +20785,9 @@ var LearnerToolbelt;
         initializer.registerRpc("lt_countdown_visit", rpcCountdownVisit);
         initializer.registerRpc("lt_study_log_log", rpcStudyLogLog);
         initializer.registerRpc("lt_study_log_heatmap", rpcStudyLogHeatmap);
+        initializer.registerRpc("lt_clip_save", rpcClipSave);
+        initializer.registerRpc("lt_clips_list", rpcClipsList);
+        initializer.registerRpc("lt_clip_delete", rpcClipDelete);
         initializer.registerRpc("lt_exam_calendar_get", rpcExamCalendarGet);
         initializer.registerRpc("lt_gpa_compute", rpcGpaCompute);
         initializer.registerRpc("lt_gpa_save", rpcGpaSave);
@@ -21109,8 +22134,180 @@ var LearnerToolbelt;
         mkCollege("freetext-seed:he-ae-002", "freetext", "American University of Sharjah", "Sharjah", "Sharjah", "AE", "ae-private", "en"),
         mkCollege("freetext-seed:he-jp-001", "freetext", "University of Tokyo", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
         mkCollege("freetext-seed:he-jp-002", "freetext", "Kyoto University", "Kyoto", "Kyoto", "JP", "jp-national", "ja"),
+        mkCollege("freetext-seed:he-jp-003", "freetext", "Osaka University", "Osaka", "Osaka", "JP", "jp-national", "ja"),
+        mkCollege("freetext-seed:he-jp-004", "freetext", "Tokyo Institute of Technology", "Tokyo", "Tokyo", "JP", "jp-national", "ja"),
         mkCollege("freetext-seed:he-kr-001", "freetext", "Seoul National University", "Seoul", "Seoul", "KR", "kr-national", "ko"),
         mkCollege("freetext-seed:he-kr-002", "freetext", "Korea Advanced Institute of Science and Technology", "Daejeon", "Daejeon", "KR", "kr-national", "ko"),
+        mkCollege("freetext-seed:he-kr-003", "freetext", "Yonsei University", "Seoul", "Seoul", "KR", "kr-private", "ko"),
+        mkCollege("freetext-seed:he-kr-004", "freetext", "Korea University", "Seoul", "Seoul", "KR", "kr-private", "ko"),
+        // ── Geo-gap expansion (2026-06): top universities for every remaining
+        // priority geo in the web COUNTRIES dropdown, so the "Colleges" filter
+        // returns real institutions worldwide instead of only 12 countries.
+        // Demo-grade curated rows (same as above) until the Phase-B registry
+        // ingest; source stays "freetext" for non-registry countries.
+        // ── Southeast & South Asia ──
+        mkCollege("freetext-seed:he-id-001", "freetext", "Universitas Indonesia", "Depok", "West Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-002", "freetext", "Institut Teknologi Bandung", "Bandung", "West Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-003", "freetext", "Universitas Gadjah Mada", "Yogyakarta", "Yogyakarta", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-004", "freetext", "Institut Pertanian Bogor", "Bogor", "West Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-id-005", "freetext", "Universitas Airlangga", "Surabaya", "East Java", "ID", "id-public", "id"),
+        mkCollege("freetext-seed:he-vn-001", "freetext", "Vietnam National University, Hanoi", "Hanoi", "Hanoi", "VN", "vn-public", "vi"),
+        mkCollege("freetext-seed:he-vn-002", "freetext", "Vietnam National University, Ho Chi Minh City", "Ho Chi Minh City", "Ho Chi Minh", "VN", "vn-public", "vi"),
+        mkCollege("freetext-seed:he-vn-003", "freetext", "Hanoi University of Science and Technology", "Hanoi", "Hanoi", "VN", "vn-public", "vi"),
+        mkCollege("freetext-seed:he-th-001", "freetext", "Chulalongkorn University", "Bangkok", "Bangkok", "TH", "th-public", "th"),
+        mkCollege("freetext-seed:he-th-002", "freetext", "Mahidol University", "Nakhon Pathom", "Bangkok Metro", "TH", "th-public", "th"),
+        mkCollege("freetext-seed:he-th-003", "freetext", "Thammasat University", "Bangkok", "Bangkok", "TH", "th-public", "th"),
+        mkCollege("freetext-seed:he-my-001", "freetext", "University of Malaya", "Kuala Lumpur", "KL", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-my-002", "freetext", "Universiti Kebangsaan Malaysia", "Bangi", "Selangor", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-my-003", "freetext", "Universiti Sains Malaysia", "George Town", "Penang", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-my-004", "freetext", "Universiti Teknologi Malaysia", "Johor Bahru", "Johor", "MY", "my-public", "ms"),
+        mkCollege("freetext-seed:he-ph-001", "freetext", "University of the Philippines Diliman", "Quezon City", "Metro Manila", "PH", "ph-public", "en"),
+        mkCollege("freetext-seed:he-ph-002", "freetext", "Ateneo de Manila University", "Quezon City", "Metro Manila", "PH", "ph-private", "en"),
+        mkCollege("freetext-seed:he-ph-003", "freetext", "De La Salle University", "Manila", "Metro Manila", "PH", "ph-private", "en"),
+        mkCollege("freetext-seed:he-pk-001", "freetext", "Quaid-i-Azam University", "Islamabad", "Islamabad", "PK", "pk-public", "en"),
+        mkCollege("freetext-seed:he-pk-002", "freetext", "Lahore University of Management Sciences", "Lahore", "Punjab", "PK", "pk-private", "en"),
+        mkCollege("freetext-seed:he-pk-003", "freetext", "National University of Sciences and Technology", "Islamabad", "Islamabad", "PK", "pk-public", "en"),
+        mkCollege("freetext-seed:he-pk-004", "freetext", "University of the Punjab", "Lahore", "Punjab", "PK", "pk-public", "en"),
+        mkCollege("freetext-seed:he-bd-001", "freetext", "University of Dhaka", "Dhaka", "Dhaka", "BD", "bd-public", "bn"),
+        mkCollege("freetext-seed:he-bd-002", "freetext", "Bangladesh University of Engineering and Technology", "Dhaka", "Dhaka", "BD", "bd-public", "bn"),
+        mkCollege("freetext-seed:he-bd-003", "freetext", "North South University", "Dhaka", "Dhaka", "BD", "bd-private", "en"),
+        mkCollege("freetext-seed:he-lk-001", "freetext", "University of Colombo", "Colombo", "Western", "LK", "lk-public", "en"),
+        mkCollege("freetext-seed:he-lk-002", "freetext", "University of Peradeniya", "Kandy", "Central", "LK", "lk-public", "en"),
+        mkCollege("freetext-seed:he-np-001", "freetext", "Tribhuvan University", "Kathmandu", "Bagmati", "NP", "np-public", "ne"),
+        // ── East Asia ──
+        mkCollege("freetext-seed:he-cn-001", "freetext", "Tsinghua University", "Beijing", "Beijing", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-002", "freetext", "Peking University", "Beijing", "Beijing", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-003", "freetext", "Fudan University", "Shanghai", "Shanghai", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-004", "freetext", "Shanghai Jiao Tong University", "Shanghai", "Shanghai", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-cn-005", "freetext", "Zhejiang University", "Hangzhou", "Zhejiang", "CN", "cn-c9", "zh"),
+        mkCollege("freetext-seed:he-hk-001", "freetext", "University of Hong Kong", "Hong Kong", "HK Island", "HK", "hk-public", "en"),
+        mkCollege("freetext-seed:he-hk-002", "freetext", "Hong Kong University of Science and Technology", "Hong Kong", "Kowloon", "HK", "hk-public", "en"),
+        mkCollege("freetext-seed:he-hk-003", "freetext", "Chinese University of Hong Kong", "Hong Kong", "New Territories", "HK", "hk-public", "en"),
+        mkCollege("freetext-seed:he-tw-001", "freetext", "National Taiwan University", "Taipei", "Taipei", "TW", "tw-public", "zh"),
+        mkCollege("freetext-seed:he-tw-002", "freetext", "National Tsing Hua University", "Hsinchu", "Hsinchu", "TW", "tw-public", "zh"),
+        // ── Europe ──
+        mkCollege("freetext-seed:he-es-001", "freetext", "Universidad Complutense de Madrid", "Madrid", "Madrid", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-es-002", "freetext", "Universitat de Barcelona", "Barcelona", "Catalonia", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-es-003", "freetext", "Universidad Autónoma de Madrid", "Madrid", "Madrid", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-es-004", "freetext", "Universitat Politècnica de Catalunya", "Barcelona", "Catalonia", "ES", "es-public", "es"),
+        mkCollege("freetext-seed:he-it-001", "freetext", "Università di Bologna", "Bologna", "Emilia-Romagna", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-it-002", "freetext", "Sapienza Università di Roma", "Rome", "Lazio", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-it-003", "freetext", "Politecnico di Milano", "Milan", "Lombardy", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-it-004", "freetext", "Università degli Studi di Milano", "Milan", "Lombardy", "IT", "it-public", "it"),
+        mkCollege("freetext-seed:he-nl-001", "freetext", "Delft University of Technology", "Delft", "South Holland", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-nl-002", "freetext", "University of Amsterdam", "Amsterdam", "North Holland", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-nl-003", "freetext", "Utrecht University", "Utrecht", "Utrecht", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-nl-004", "freetext", "Leiden University", "Leiden", "South Holland", "NL", "nl-public", "en"),
+        mkCollege("freetext-seed:he-se-001", "freetext", "KTH Royal Institute of Technology", "Stockholm", "Stockholm", "SE", "se-public", "en"),
+        mkCollege("freetext-seed:he-se-002", "freetext", "Lund University", "Lund", "Skåne", "SE", "se-public", "en"),
+        mkCollege("freetext-seed:he-se-003", "freetext", "Uppsala University", "Uppsala", "Uppsala", "SE", "se-public", "en"),
+        mkCollege("freetext-seed:he-ch-001", "freetext", "ETH Zurich", "Zurich", "Zurich", "CH", "ch-federal", "en"),
+        mkCollege("freetext-seed:he-ch-002", "freetext", "EPFL", "Lausanne", "Vaud", "CH", "ch-federal", "en"),
+        mkCollege("freetext-seed:he-ch-003", "freetext", "University of Zurich", "Zurich", "Zurich", "CH", "ch-public", "de"),
+        mkCollege("freetext-seed:he-ch-004", "freetext", "University of Geneva", "Geneva", "Geneva", "CH", "ch-public", "fr"),
+        mkCollege("freetext-seed:he-at-001", "freetext", "University of Vienna", "Vienna", "Vienna", "AT", "at-public", "de"),
+        mkCollege("freetext-seed:he-at-002", "freetext", "TU Wien", "Vienna", "Vienna", "AT", "at-public", "de"),
+        mkCollege("freetext-seed:he-be-001", "freetext", "KU Leuven", "Leuven", "Flemish Brabant", "BE", "be-public", "nl"),
+        mkCollege("freetext-seed:he-be-002", "freetext", "Ghent University", "Ghent", "East Flanders", "BE", "be-public", "nl"),
+        mkCollege("freetext-seed:he-be-003", "freetext", "UCLouvain", "Louvain-la-Neuve", "Walloon Brabant", "BE", "be-public", "fr"),
+        mkCollege("freetext-seed:he-dk-001", "freetext", "University of Copenhagen", "Copenhagen", "Capital Region", "DK", "dk-public", "en"),
+        mkCollege("freetext-seed:he-dk-002", "freetext", "Technical University of Denmark", "Kongens Lyngby", "Capital Region", "DK", "dk-public", "en"),
+        mkCollege("freetext-seed:he-dk-003", "freetext", "Aarhus University", "Aarhus", "Central Denmark", "DK", "dk-public", "en"),
+        mkCollege("freetext-seed:he-fi-001", "freetext", "University of Helsinki", "Helsinki", "Uusimaa", "FI", "fi-public", "fi"),
+        mkCollege("freetext-seed:he-fi-002", "freetext", "Aalto University", "Espoo", "Uusimaa", "FI", "fi-public", "en"),
+        mkCollege("freetext-seed:he-no-001", "freetext", "University of Oslo", "Oslo", "Oslo", "NO", "no-public", "no"),
+        mkCollege("freetext-seed:he-no-002", "freetext", "Norwegian University of Science and Technology", "Trondheim", "Trøndelag", "NO", "no-public", "no"),
+        mkCollege("freetext-seed:he-pt-001", "freetext", "University of Lisbon", "Lisbon", "Lisbon", "PT", "pt-public", "pt"),
+        mkCollege("freetext-seed:he-pt-002", "freetext", "University of Porto", "Porto", "Porto", "PT", "pt-public", "pt"),
+        mkCollege("freetext-seed:he-gr-001", "freetext", "National and Kapodistrian University of Athens", "Athens", "Attica", "GR", "gr-public", "el"),
+        mkCollege("freetext-seed:he-gr-002", "freetext", "Aristotle University of Thessaloniki", "Thessaloniki", "Central Macedonia", "GR", "gr-public", "el"),
+        mkCollege("freetext-seed:he-pl-001", "freetext", "University of Warsaw", "Warsaw", "Masovia", "PL", "pl-public", "pl"),
+        mkCollege("freetext-seed:he-pl-002", "freetext", "Jagiellonian University", "Kraków", "Lesser Poland", "PL", "pl-public", "pl"),
+        mkCollege("freetext-seed:he-pl-003", "freetext", "Warsaw University of Technology", "Warsaw", "Masovia", "PL", "pl-public", "pl"),
+        mkCollege("freetext-seed:he-cz-001", "freetext", "Charles University", "Prague", "Prague", "CZ", "cz-public", "cs"),
+        mkCollege("freetext-seed:he-cz-002", "freetext", "Czech Technical University in Prague", "Prague", "Prague", "CZ", "cz-public", "cs"),
+        mkCollege("freetext-seed:he-hu-001", "freetext", "Eötvös Loránd University", "Budapest", "Budapest", "HU", "hu-public", "hu"),
+        mkCollege("freetext-seed:he-hu-002", "freetext", "Budapest University of Technology and Economics", "Budapest", "Budapest", "HU", "hu-public", "hu"),
+        mkCollege("freetext-seed:he-ro-001", "freetext", "University of Bucharest", "Bucharest", "Bucharest", "RO", "ro-public", "ro"),
+        mkCollege("freetext-seed:he-ro-002", "freetext", "Babeș-Bolyai University", "Cluj-Napoca", "Cluj", "RO", "ro-public", "ro"),
+        mkCollege("freetext-seed:he-ru-001", "freetext", "Lomonosov Moscow State University", "Moscow", "Moscow", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ru-002", "freetext", "Saint Petersburg State University", "Saint Petersburg", "Saint Petersburg", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ru-003", "freetext", "Moscow Institute of Physics and Technology", "Dolgoprudny", "Moscow Oblast", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ru-004", "freetext", "HSE University", "Moscow", "Moscow", "RU", "ru-public", "ru"),
+        mkCollege("freetext-seed:he-ua-001", "freetext", "Taras Shevchenko National University of Kyiv", "Kyiv", "Kyiv", "UA", "ua-public", "uk"),
+        mkCollege("freetext-seed:he-ua-002", "freetext", "Igor Sikorsky Kyiv Polytechnic Institute", "Kyiv", "Kyiv", "UA", "ua-public", "uk"),
+        mkCollege("freetext-seed:he-ie-001", "freetext", "Trinity College Dublin", "Dublin", "Leinster", "IE", "ie-public", "en"),
+        mkCollege("freetext-seed:he-ie-002", "freetext", "University College Dublin", "Dublin", "Leinster", "IE", "ie-public", "en"),
+        mkCollege("freetext-seed:he-fr-004", "freetext", "Université Paris-Saclay", "Gif-sur-Yvette", "Île-de-France", "FR", "fr-public", "fr"),
+        // ── Middle East & Central Asia ──
+        mkCollege("freetext-seed:he-tr-001", "freetext", "Boğaziçi University", "Istanbul", "Istanbul", "TR", "tr-public", "tr"),
+        mkCollege("freetext-seed:he-tr-002", "freetext", "Middle East Technical University", "Ankara", "Ankara", "TR", "tr-public", "en"),
+        mkCollege("freetext-seed:he-tr-003", "freetext", "Istanbul Technical University", "Istanbul", "Istanbul", "TR", "tr-public", "tr"),
+        mkCollege("freetext-seed:he-tr-004", "freetext", "Koç University", "Istanbul", "Istanbul", "TR", "tr-private", "en"),
+        mkCollege("freetext-seed:he-il-001", "freetext", "Hebrew University of Jerusalem", "Jerusalem", "Jerusalem", "IL", "il-public", "he"),
+        mkCollege("freetext-seed:he-il-002", "freetext", "Technion — Israel Institute of Technology", "Haifa", "Haifa", "IL", "il-public", "he"),
+        mkCollege("freetext-seed:he-il-003", "freetext", "Tel Aviv University", "Tel Aviv", "Tel Aviv", "IL", "il-public", "he"),
+        mkCollege("freetext-seed:he-sa-001", "freetext", "King Saud University", "Riyadh", "Riyadh", "SA", "sa-public", "ar"),
+        mkCollege("freetext-seed:he-sa-002", "freetext", "King Fahd University of Petroleum and Minerals", "Dhahran", "Eastern Province", "SA", "sa-public", "en"),
+        mkCollege("freetext-seed:he-sa-003", "freetext", "King Abdullah University of Science and Technology", "Thuwal", "Makkah", "SA", "sa-public", "en"),
+        mkCollege("freetext-seed:he-qa-001", "freetext", "Qatar University", "Doha", "Doha", "QA", "qa-public", "ar"),
+        mkCollege("freetext-seed:he-kw-001", "freetext", "Kuwait University", "Kuwait City", "Al Asimah", "KW", "kw-public", "ar"),
+        mkCollege("freetext-seed:he-jo-001", "freetext", "University of Jordan", "Amman", "Amman", "JO", "jo-public", "ar"),
+        mkCollege("freetext-seed:he-lb-001", "freetext", "American University of Beirut", "Beirut", "Beirut", "LB", "lb-private", "en"),
+        mkCollege("freetext-seed:he-ae-003", "freetext", "United Arab Emirates University", "Al Ain", "Abu Dhabi", "AE", "ae-public", "en"),
+        mkCollege("freetext-seed:he-ir-001", "freetext", "University of Tehran", "Tehran", "Tehran", "IR", "ir-public", "fa"),
+        mkCollege("freetext-seed:he-ir-002", "freetext", "Sharif University of Technology", "Tehran", "Tehran", "IR", "ir-public", "fa"),
+        mkCollege("freetext-seed:he-iq-001", "freetext", "University of Baghdad", "Baghdad", "Baghdad", "IQ", "iq-public", "ar"),
+        mkCollege("freetext-seed:he-kz-001", "freetext", "Nazarbayev University", "Astana", "Astana", "KZ", "kz-autonomous", "en"),
+        mkCollege("freetext-seed:he-kz-002", "freetext", "Al-Farabi Kazakh National University", "Almaty", "Almaty", "KZ", "kz-public", "kk"),
+        mkCollege("freetext-seed:he-uz-001", "freetext", "National University of Uzbekistan", "Tashkent", "Tashkent", "UZ", "uz-public", "uz"),
+        // ── Africa ──
+        mkCollege("freetext-seed:he-eg-001", "freetext", "Cairo University", "Giza", "Giza", "EG", "eg-public", "ar"),
+        mkCollege("freetext-seed:he-eg-002", "freetext", "American University in Cairo", "New Cairo", "Cairo", "EG", "eg-private", "en"),
+        mkCollege("freetext-seed:he-eg-003", "freetext", "Ain Shams University", "Cairo", "Cairo", "EG", "eg-public", "ar"),
+        mkCollege("freetext-seed:he-ma-001", "freetext", "Mohammed V University", "Rabat", "Rabat-Salé", "MA", "ma-public", "fr"),
+        mkCollege("freetext-seed:he-ma-002", "freetext", "Al Akhawayn University", "Ifrane", "Fès-Meknès", "MA", "ma-private", "en"),
+        mkCollege("freetext-seed:he-tn-001", "freetext", "University of Tunis", "Tunis", "Tunis", "TN", "tn-public", "fr"),
+        mkCollege("freetext-seed:he-dz-001", "freetext", "University of Algiers", "Algiers", "Algiers", "DZ", "dz-public", "fr"),
+        mkCollege("freetext-seed:he-ng-001", "freetext", "University of Lagos", "Lagos", "Lagos", "NG", "ng-public", "en"),
+        mkCollege("freetext-seed:he-ng-002", "freetext", "University of Ibadan", "Ibadan", "Oyo", "NG", "ng-public", "en"),
+        mkCollege("freetext-seed:he-ng-003", "freetext", "Ahmadu Bello University", "Zaria", "Kaduna", "NG", "ng-public", "en"),
+        mkCollege("freetext-seed:he-ng-004", "freetext", "Covenant University", "Ota", "Ogun", "NG", "ng-private", "en"),
+        mkCollege("freetext-seed:he-gh-001", "freetext", "University of Ghana", "Accra", "Greater Accra", "GH", "gh-public", "en"),
+        mkCollege("freetext-seed:he-gh-002", "freetext", "Kwame Nkrumah University of Science and Technology", "Kumasi", "Ashanti", "GH", "gh-public", "en"),
+        mkCollege("freetext-seed:he-ke-001", "freetext", "University of Nairobi", "Nairobi", "Nairobi", "KE", "ke-public", "en"),
+        mkCollege("freetext-seed:he-ke-002", "freetext", "Kenyatta University", "Nairobi", "Nairobi", "KE", "ke-public", "en"),
+        mkCollege("freetext-seed:he-ke-003", "freetext", "Strathmore University", "Nairobi", "Nairobi", "KE", "ke-private", "en"),
+        mkCollege("freetext-seed:he-tz-001", "freetext", "University of Dar es Salaam", "Dar es Salaam", "Dar es Salaam", "TZ", "tz-public", "en"),
+        mkCollege("freetext-seed:he-ug-001", "freetext", "Makerere University", "Kampala", "Central", "UG", "ug-public", "en"),
+        mkCollege("freetext-seed:he-et-001", "freetext", "Addis Ababa University", "Addis Ababa", "Addis Ababa", "ET", "et-public", "en"),
+        mkCollege("freetext-seed:he-za-001", "freetext", "University of Cape Town", "Cape Town", "Western Cape", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-za-002", "freetext", "University of the Witwatersrand", "Johannesburg", "Gauteng", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-za-003", "freetext", "Stellenbosch University", "Stellenbosch", "Western Cape", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-za-004", "freetext", "University of Pretoria", "Pretoria", "Gauteng", "ZA", "za-public", "en"),
+        mkCollege("freetext-seed:he-zw-001", "freetext", "University of Zimbabwe", "Harare", "Harare", "ZW", "zw-public", "en"),
+        mkCollege("freetext-seed:he-zm-001", "freetext", "University of Zambia", "Lusaka", "Lusaka", "ZM", "zm-public", "en"),
+        // ── Americas & Oceania ──
+        mkCollege("freetext-seed:he-mx-001", "freetext", "Universidad Nacional Autónoma de México", "Mexico City", "CDMX", "MX", "mx-public", "es"),
+        mkCollege("freetext-seed:he-mx-002", "freetext", "Tecnológico de Monterrey", "Monterrey", "Nuevo León", "MX", "mx-private", "es"),
+        mkCollege("freetext-seed:he-mx-003", "freetext", "Instituto Politécnico Nacional", "Mexico City", "CDMX", "MX", "mx-public", "es"),
+        mkCollege("freetext-seed:he-mx-004", "freetext", "Universidad de Guadalajara", "Guadalajara", "Jalisco", "MX", "mx-public", "es"),
+        mkCollege("freetext-seed:he-ar-001", "freetext", "Universidad de Buenos Aires", "Buenos Aires", "CABA", "AR", "ar-public", "es"),
+        mkCollege("freetext-seed:he-ar-002", "freetext", "Universidad Nacional de Córdoba", "Córdoba", "Córdoba", "AR", "ar-public", "es"),
+        mkCollege("freetext-seed:he-cl-001", "freetext", "Pontificia Universidad Católica de Chile", "Santiago", "Santiago Metro", "CL", "cl-private", "es"),
+        mkCollege("freetext-seed:he-cl-002", "freetext", "Universidad de Chile", "Santiago", "Santiago Metro", "CL", "cl-public", "es"),
+        mkCollege("freetext-seed:he-co-001", "freetext", "Universidad Nacional de Colombia", "Bogotá", "Bogotá", "CO", "co-public", "es"),
+        mkCollege("freetext-seed:he-co-002", "freetext", "Universidad de los Andes", "Bogotá", "Bogotá", "CO", "co-private", "es"),
+        mkCollege("freetext-seed:he-pe-001", "freetext", "Pontificia Universidad Católica del Perú", "Lima", "Lima", "PE", "pe-private", "es"),
+        mkCollege("freetext-seed:he-pe-002", "freetext", "Universidad Nacional Mayor de San Marcos", "Lima", "Lima", "PE", "pe-public", "es"),
+        mkCollege("freetext-seed:he-uy-001", "freetext", "Universidad de la República", "Montevideo", "Montevideo", "UY", "uy-public", "es"),
+        mkCollege("freetext-seed:he-ec-001", "freetext", "Universidad San Francisco de Quito", "Quito", "Pichincha", "EC", "ec-private", "es"),
+        mkCollege("freetext-seed:he-ve-001", "freetext", "Universidad Central de Venezuela", "Caracas", "Capital District", "VE", "ve-public", "es"),
+        mkCollege("freetext-seed:he-cr-001", "freetext", "Universidad de Costa Rica", "San José", "San José", "CR", "cr-public", "es"),
+        mkCollege("freetext-seed:he-gt-001", "freetext", "Universidad de San Carlos de Guatemala", "Guatemala City", "Guatemala", "GT", "gt-public", "es"),
+        mkCollege("freetext-seed:he-nz-001", "freetext", "University of Auckland", "Auckland", "Auckland", "NZ", "nz-public", "en"),
+        mkCollege("freetext-seed:he-nz-002", "freetext", "University of Otago", "Dunedin", "Otago", "NZ", "nz-public", "en"),
+        mkCollege("freetext-seed:he-nz-003", "freetext", "Victoria University of Wellington", "Wellington", "Wellington", "NZ", "nz-public", "en"),
     ];
     // Merge colleges into the single searchable fixture so getSchoolById and
     // searchSchools cover both institution types from one index.
@@ -21140,6 +22337,27 @@ var LearnerToolbelt;
             else {
                 out += t.charAt(0);
             }
+        }
+        return out;
+    }
+    // Strict acronym: first letter of each ≥3-char token, SKIPPING connective
+    // tokens ("of", "de", "the", "and" all have ≤3 chars... we drop ≤2-char
+    // tokens and the 3-char words "the"/"and") — this is how real-world
+    // university acronyms are formed:
+    //   "massachusetts institute of technology"      → "mit"
+    //   "universidad nacional autónoma de méxico"    → "unam"
+    //   "lahore university of management sciences"   → "lums"
+    //   "hong kong university of science and technology" → "hkust"
+    function acronymStrict(normalizedName) {
+        var tokens = normalizedName.split(" ");
+        var out = "";
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (!t || t.length <= 2)
+                continue;
+            if (t === "the" || t === "and")
+                continue;
+            out += t.charAt(0);
         }
         return out;
     }
@@ -21179,6 +22397,10 @@ var LearnerToolbelt;
     function searchSchools(query, countryCode, limit, institutionType) {
         var q = normalize(query);
         var cc = ("" + (countryCode || "")).toUpperCase();
+        // ISO-3166 says GB; the UK fixture rows (and some legacy callers) say UK.
+        // Treat them as the same country so GB visitors actually see UK schools.
+        if (cc === "GB")
+            cc = "UK";
         var typeFilter = ("" + (institutionType || "")).toLowerCase();
         if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both")
             typeFilter = "";
@@ -21193,6 +22415,7 @@ var LearnerToolbelt;
                 continue;
             var name = normalize(rec.display_name);
             var acro = acronymOf(name);
+            var acroStrict = acronymStrict(name);
             var score = 0;
             if (name === q) {
                 score = 1000;
@@ -21203,10 +22426,13 @@ var LearnerToolbelt;
             else if (q.length >= 2 && name.indexOf(q) > 0) {
                 score = 500;
             }
-            else if (qCompact.length >= 3 && (acro === qCompact || acro.indexOf(qCompact) === 0)) {
+            else if (qCompact.length >= 3 &&
+                (acro === qCompact || acro.indexOf(qCompact) === 0 ||
+                    acroStrict === qCompact || acroStrict.indexOf(qCompact) === 0)) {
                 // Acronym match — covers "dpsrkp" → "Delhi Public School RK Puram",
-                // "dps" → all DPS branches, "njc" → "Nanyang JC", etc.
-                score = (acro === qCompact) ? 850 : 600;
+                // "dps" → all DPS branches, "njc" → "Nanyang JC", and via the strict
+                // variant "mit" / "unam" / "lums" / "kaist" / "hkust" / "unsw" etc.
+                score = (acro === qCompact || acroStrict === qCompact) ? 850 : 600;
             }
             else {
                 // Per-token substring or per-token acronym-substring.
@@ -21222,8 +22448,12 @@ var LearnerToolbelt;
                         hits2++;
                         continue;
                     }
-                    // Acronym slide: any window-of-tok.length over `acro` matches?
-                    if (tok.length <= acro.length && acro.indexOf(tok) >= 0)
+                    // Acronym slide: any window-of-tok.length over either acronym?
+                    if (tok.length <= acro.length && acro.indexOf(tok) >= 0) {
+                        hits2++;
+                        continue;
+                    }
+                    if (tok.length <= acroStrict.length && acroStrict.indexOf(tok) >= 0)
                         hits2++;
                 }
                 if (hits2 === qTokens.length && qTokens.length > 0) {
@@ -21275,6 +22505,231 @@ var LearnerToolbelt;
         return null;
     }
     LearnerToolbelt.getSchoolById = getSchoolById;
+    // ── Phase B: CockroachDB-backed index ──────────────────────────────────────
+    //
+    // The `lt_schools` table (loaded by content-factory/scripts/school_finder/
+    // ingest_schools.py — Hipolabs global colleges + NCES/Urban-Institute US K-12
+    // + GeoNames global schools/colleges, ~177k rows) is the real, comprehensive
+    // index. The fixture above stays as a curated, always-present FALLBACK so the
+    // tool never hard-fails on an empty DB (CI / fresh dev) and famous landmark
+    // institutions (Eton, IIT-B, Stanford…) always resolve even where a public
+    // dataset is sparse. At runtime we query the DB AND the fixture, then merge —
+    // so loading data only ever ADDS coverage, never regresses curated hits.
+    //
+    // Table columns (must match ingest_schools.py COLUMNS):
+    //   school_id, source, display_name, name_norm, acronym, city, state_region,
+    //   country_code, level, board, grade_band, lat, lng, language, popularity
+    // Note: the DB column is `level` ('school'|'college'); the fixture/web field
+    // is `institution_type`. We map level → institution_type on the way out.
+    // Strip SQL LIKE wildcards so user input can never inject a pattern. normalize()
+    // already drops most punctuation; this also removes %, _ and backslash.
+    function stripWildcards(s) {
+        return ("" + (s || "")).replace(/[%_\\]/g, "");
+    }
+    // Idempotent — safe to call on every server boot. Mirrors the find_friends
+    // bootstrapDatabase() pattern: every statement is best-effort and never
+    // crashes the runtime (the RPC degrades to the fixture if the table is
+    // missing). The table is created here AND by the ETL runbook, whichever
+    // runs first.
+    function bootstrapSchoolsTable(nk, logger) {
+        var statements = [
+            {
+                // pg_trgm powers the fast substring index below. Required on PostgreSQL
+                // (prod); CockroachDB ships trigram support natively but accepts this as
+                // a no-op/known statement. Best-effort — the index step degrades to a
+                // btree+seq-scan path if the extension is unavailable.
+                label: "extension pg_trgm",
+                sql: "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+            },
+            {
+                // NOTE: column type is TEXT, not CockroachDB's STRING alias — prod runs
+                // PostgreSQL, which rejects STRING (SQLSTATE 42704). TEXT is valid in
+                // both engines. INT8/FLOAT8 are accepted by both as well.
+                label: "table lt_schools",
+                sql: "CREATE TABLE IF NOT EXISTS lt_schools (" +
+                    "  school_id    TEXT PRIMARY KEY," +
+                    "  source       TEXT NOT NULL," +
+                    "  display_name TEXT NOT NULL," +
+                    "  name_norm    TEXT NOT NULL," +
+                    "  acronym      TEXT," +
+                    "  city         TEXT," +
+                    "  state_region TEXT," +
+                    "  country_code TEXT NOT NULL," +
+                    "  level        TEXT NOT NULL DEFAULT 'school'," +
+                    "  board        TEXT," +
+                    "  grade_band   TEXT," +
+                    "  lat          FLOAT8," +
+                    "  lng          FLOAT8," +
+                    "  language     TEXT," +
+                    "  popularity   INT8 DEFAULT 0" +
+                    ")",
+            },
+            {
+                label: "index idx_lt_schools_country_name",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_country_name ON lt_schools (country_code, name_norm)",
+            },
+            {
+                label: "index idx_lt_schools_country_acro",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_country_acro ON lt_schools (country_code, acronym)",
+            },
+            {
+                label: "index idx_lt_schools_level",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_level ON lt_schools (level)",
+            },
+            {
+                // Trigram GIN index makes `name_norm LIKE '%q%'` substring search fast on
+                // ~177k rows. Needs pg_trgm (created above) on PostgreSQL; native in
+                // CockroachDB v22.2+. Best effort — if unavailable the search still works
+                // via the btree indexes + seq scan.
+                label: "index idx_lt_schools_name_trgm",
+                sql: "CREATE INDEX IF NOT EXISTS idx_lt_schools_name_trgm ON lt_schools USING GIN (name_norm gin_trgm_ops)",
+            },
+        ];
+        for (var i = 0; i < statements.length; i++) {
+            var stmt = statements[i];
+            try {
+                nk.sqlExec(stmt.sql, []);
+                if (logger && logger.info)
+                    logger.info("[LearnerToolbelt] schools bootstrap OK: " + stmt.label);
+            }
+            catch (e) {
+                var emsg = (e && (e.message || String(e))) || "unknown error";
+                if (logger && logger.warn) {
+                    logger.warn("[LearnerToolbelt] schools bootstrap step '" + stmt.label +
+                        "' failed (non-fatal — search falls back to in-memory fixture): " + emsg);
+                }
+            }
+        }
+    }
+    LearnerToolbelt.bootstrapSchoolsTable = bootstrapSchoolsTable;
+    // DB-backed search. Returns [] on any error / empty table so the caller can
+    // fall back to the fixture. Ranking mirrors the fixture's intent:
+    //   exact 1000 > prefix 800 > acronym-exact 850 > acronym-prefix 600 >
+    //   substring 500 > else 200, then + popularity + country-filter boost.
+    function searchSchoolsDB(nk, query, countryCode, limit, institutionType) {
+        if (!nk || typeof nk.sqlQuery !== "function")
+            return [];
+        var q = stripWildcards(normalize(query));
+        if (!q)
+            return [];
+        var qCompact = q.replace(/\s+/g, "");
+        // Only use the acronym branch for queries of 3+ chars (matches the fixture
+        // and avoids 2-char acronym noise). Empty string disables that branch.
+        var acro = qCompact.length >= 3 ? qCompact : "";
+        var cc = ("" + (countryCode || "")).toUpperCase();
+        var typeFilter = ("" + (institutionType || "")).toLowerCase();
+        if (typeFilter === "all" || typeFilter === "any" || typeFilter === "both")
+            typeFilter = "";
+        var sql = "SELECT school_id, display_name, city, state_region, country_code, board, source, level, " +
+            "  ( CASE " +
+            "      WHEN name_norm = $1 THEN 1000 " +
+            "      WHEN name_norm LIKE $1 || '%' THEN 800 " +
+            "      WHEN $5 <> '' AND acronym = $5 THEN 850 " +
+            "      WHEN $5 <> '' AND acronym LIKE $5 || '%' THEN 600 " +
+            "      WHEN strpos(name_norm, $1) > 0 THEN 500 " +
+            "      ELSE 200 END " +
+            "    + COALESCE(popularity, 0) " +
+            "    + CASE WHEN $2 <> '' THEN 50 ELSE 0 END ) AS score " +
+            "FROM lt_schools " +
+            "WHERE ($2 = '' OR country_code = $2) " +
+            "  AND ($4 = '' OR level = $4) " +
+            "  AND ( name_norm LIKE '%' || $1 || '%' " +
+            "        OR ($5 <> '' AND acronym LIKE $5 || '%') ) " +
+            "ORDER BY score DESC, COALESCE(popularity, 0) DESC, display_name ASC " +
+            "LIMIT $3";
+        var rows;
+        try {
+            rows = nk.sqlQuery(sql, [q, cc, limit, typeFilter, acro]);
+        }
+        catch (e) {
+            return [];
+        }
+        if (!rows || !rows.length)
+            return [];
+        var hits = [];
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            hits.push({
+                school_id: "" + r.school_id,
+                display_name: "" + r.display_name,
+                city: r.city ? "" + r.city : "",
+                state_region: r.state_region ? "" + r.state_region : "",
+                country_code: ("" + (r.country_code || "")).toUpperCase(),
+                board: r.board ? "" + r.board : null,
+                source: r.source ? "" + r.source : "db",
+                institution_type: r.level ? "" + r.level : "school",
+                score: parseInt("" + r.score, 10) || 0,
+            });
+        }
+        return hits;
+    }
+    LearnerToolbelt.searchSchoolsDB = searchSchoolsDB;
+    // Merge DB hits with fixture hits, dedupe by normalized (name + country),
+    // keep the higher score, re-sort, cap at limit. Guarantees curated landmark
+    // institutions survive even after the DB is loaded.
+    function mergeHits(primary, secondary, limit) {
+        var byKey = {};
+        var merged = [];
+        function add(h) {
+            var key = normalize(h.display_name) + "|" + ("" + (h.country_code || "")).toUpperCase();
+            var existing = byKey[key];
+            if (existing) {
+                if (h.score > existing.score)
+                    existing.score = h.score;
+                return;
+            }
+            byKey[key] = h;
+            merged.push(h);
+        }
+        for (var i = 0; i < primary.length; i++)
+            add(primary[i]);
+        for (var j = 0; j < secondary.length; j++)
+            add(secondary[j]);
+        merged.sort(function (a, b) { return b.score - a.score; });
+        if (merged.length > limit)
+            merged = merged.slice(0, limit);
+        return merged;
+    }
+    LearnerToolbelt.mergeHits = mergeHits;
+    function getSchoolByIdDB(nk, schoolId) {
+        if (!nk || typeof nk.sqlQuery !== "function")
+            return null;
+        try {
+            var rows = nk.sqlQuery("SELECT school_id, source, display_name, city, state_region, country_code, " +
+                "       board, grade_band, lat, lng, language, level " +
+                "FROM lt_schools WHERE school_id = $1 LIMIT 1", [schoolId]);
+            if (rows && rows.length) {
+                var r = rows[0];
+                return {
+                    school_id: "" + r.school_id,
+                    source: "" + (r.source || "db"),
+                    display_name: "" + r.display_name,
+                    city: r.city ? "" + r.city : "",
+                    state_region: r.state_region ? "" + r.state_region : "",
+                    country_code: ("" + (r.country_code || "")).toUpperCase(),
+                    board: r.board ? "" + r.board : null,
+                    grade_band: r.grade_band ? "" + r.grade_band : "",
+                    lat: (r.lat !== null && r.lat !== undefined && r.lat !== "") ? parseFloat("" + r.lat) : null,
+                    lng: (r.lng !== null && r.lng !== undefined && r.lng !== "") ? parseFloat("" + r.lng) : null,
+                    language_of_instruction: r.language ? "" + r.language : null,
+                    institution_type: r.level ? "" + r.level : "school",
+                };
+            }
+        }
+        catch (e) {
+            return null;
+        }
+        return null;
+    }
+    LearnerToolbelt.getSchoolByIdDB = getSchoolByIdDB;
+    // DB-first detail lookup with fixture fallback.
+    function getSchoolByIdAny(nk, schoolId) {
+        var rec = getSchoolByIdDB(nk, schoolId);
+        if (rec)
+            return rec;
+        return getSchoolById(schoolId);
+    }
+    LearnerToolbelt.getSchoolByIdAny = getSchoolByIdAny;
 })(LearnerToolbelt || (LearnerToolbelt = {}));
 // per-exam-config.ts
 // ─────────────────────────────────────────────────────────────────────────────
@@ -22135,6 +23590,298 @@ var LegacyAnalytics;
 })(LegacyAnalytics || (LegacyAnalytics = {}));
 var LegacyChat;
 (function (LegacyChat) {
+    // Max characters of the message we surface in the push body preview.
+    var PUSH_PREVIEW_MAX = 120;
+    // ─── Failed-push retry queue ────────────────────────────────────────────────
+    // When a chat push returns false because the SNS/Lambda send failed (NOT
+    // because the recipient simply has no device token), we persist the attempt
+    // to a per-recipient queue. The notification scheduler calls
+    // flushFailedChatPushes() every few minutes to replay them. This makes chat
+    // pushes best-effort-with-retry instead of best-effort-fire-and-forget.
+    var FAILED_PUSH_COLLECTION = "chat_failed_push";
+    var FAILED_PUSH_INDEX_COLLECTION = "chat_failed_push_index";
+    var FAILED_PUSH_INDEX_KEY = "index";
+    var FAILED_PUSH_MAX_RETRIES = 8; // ~ a few hours at the flush cadence
+    var FAILED_PUSH_RETRY_INTERVAL_SEC = 120; // don't replay the same row too fast
+    var FAILED_PUSH_TTL_SEC = 24 * 60 * 60; // drop rows older than 24h regardless
+    // ─── Read-state tracking ────────────────────────────────────────────────────
+    // Per-user record mapping conversationKey -> last-read message createTime (ms).
+    // conversationKey is "dm:<otherUserId>" or "grp:<groupId>". Unread counts are
+    // derived by listing channel messages newer than the stored watermark.
+    var READ_STATE_COLLECTION = "chat_read_state";
+    var READ_STATE_KEY = "state";
+    // Resolve a friendly sender name for push copy: account display name first,
+    // then username, then the raw username from the socket context, else "Someone".
+    function resolveSenderName(nk, userId, fallbackUsername) {
+        try {
+            var users = nk.usersGetId([userId]);
+            if (users && users.length > 0) {
+                var u = users[0];
+                if (u.displayName && String(u.displayName).trim() !== "")
+                    return String(u.displayName);
+                if (u.username && String(u.username).trim() !== "")
+                    return String(u.username);
+            }
+        }
+        catch (_) { }
+        return (fallbackUsername && fallbackUsername.trim() !== "") ? fallbackUsername : "Someone";
+    }
+    // Build a short, single-line preview of the message body for the push.
+    function buildPreview(content) {
+        var text = "";
+        if (typeof content === "string") {
+            text = content;
+        }
+        else if (content && typeof content === "object") {
+            text = String(content.body || content.text || content.message || "");
+        }
+        text = text.replace(/\s+/g, " ").trim();
+        if (text.length > PUSH_PREVIEW_MAX)
+            text = text.substring(0, PUSH_PREVIEW_MAX - 1) + "\u2026";
+        return text;
+    }
+    // ─── Failed-push queue helpers ──────────────────────────────────────────────
+    // Add a recipient to the failed-push index so the scheduler can find them.
+    function addToFailedPushIndex(nk, recipientId) {
+        try {
+            var objs = nk.storageRead([{ collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID }]);
+            var ids = (objs && objs.length > 0 && objs[0].value && objs[0].value.userIds)
+                ? objs[0].value.userIds : [];
+            if (ids.indexOf(recipientId) < 0)
+                ids.push(recipientId);
+            nk.storageWrite([{
+                    collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID,
+                    value: { userIds: ids }, permissionRead: 0, permissionWrite: 0
+                }]);
+        }
+        catch (_) { /* non-fatal — flush just won't pick this user up this tick */ }
+    }
+    // Persist a failed chat push so the scheduler can retry it. Keyed per
+    // recipient; multiple pending messages for the same recipient are stored as a
+    // rows[] array on one record (keeps the index small and reads cheap).
+    function enqueueFailedPush(nk, logger, row) {
+        try {
+            var existing = Storage.readJson(nk, FAILED_PUSH_COLLECTION, row.recipientId, Constants.SYSTEM_USER_ID);
+            var rows = (existing && existing.rows) ? existing.rows : [];
+            // Cap per-recipient backlog so a permanently-unreachable device can't grow
+            // an unbounded record. Keep the newest 50.
+            rows.push(row);
+            if (rows.length > 50)
+                rows = rows.slice(rows.length - 50);
+            Storage.writeJson(nk, FAILED_PUSH_COLLECTION, row.recipientId, Constants.SYSTEM_USER_ID, { rows: rows }, 0, 0);
+            addToFailedPushIndex(nk, row.recipientId);
+        }
+        catch (e) {
+            logger.warn("[Chat] enqueueFailedPush failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    // Fire a localized chat push and, if it failed for a retryable reason, queue
+    // it. Returns true if the push was delivered to at least one device.
+    // sendLocalizedPushToUser returns false both when there are no tokens AND when
+    // every provider send failed; we only enqueue when there was something to
+    // retry, which we approximate by checking the recipient has tokens.
+    function deliverChatPush(ctx, logger, nk, kind, recipientId, senderId, senderName, eventType, title, body, vars, data) {
+        var delivered = false;
+        try {
+            delivered = LegacyPush.sendLocalizedPushToUser(ctx, logger, nk, recipientId, eventType, title, body, vars, { skipQuietHours: true, data: data });
+        }
+        catch (e) {
+            logger.warn("[Chat] chat push threw: %s", e && e.message ? e.message : String(e));
+        }
+        if (delivered)
+            return;
+        // Only worth retrying if the recipient actually has a registered device.
+        // Otherwise there is nothing a retry could ever deliver to.
+        if (!LegacyPush.userHasPushTokens(nk, recipientId))
+            return;
+        var now = Math.floor(Date.now() / 1000);
+        enqueueFailedPush(nk, logger, {
+            kind: kind, recipientId: recipientId, senderId: senderId, senderName: senderName,
+            eventType: eventType, title: title, body: body, data: data,
+            retries: 0, lastAttempt: now, createdAt: now
+        });
+    }
+    // ─── Read-state helpers ─────────────────────────────────────────────────────
+    function dmConversationKey(otherUserId) { return "dm:" + otherUserId; }
+    function grpConversationKey(groupId) { return "grp:" + groupId; }
+    function readReadState(nk, userId) {
+        var data = Storage.readJson(nk, READ_STATE_COLLECTION, READ_STATE_KEY, userId);
+        if (!data || !data.lastRead)
+            return { lastRead: {} };
+        return data;
+    }
+    function writeReadState(nk, userId, data) {
+        // Owner-only: read-state is private to the user. permRead=1 (owner), permWrite=0
+        // (server-authoritative — clients update via mark_*_read RPCs, never directly).
+        Storage.writeJson(nk, READ_STATE_COLLECTION, READ_STATE_KEY, userId, data, 1, 0);
+    }
+    // Set the read watermark for one conversation to nowMs (or an explicit value).
+    function markConversationRead(nk, userId, conversationKey, atMs) {
+        var state = readReadState(nk, userId);
+        var ts = (atMs !== undefined && atMs > 0) ? atMs : Date.now();
+        // Never move the watermark backwards.
+        if (!state.lastRead[conversationKey] || ts > state.lastRead[conversationKey]) {
+            state.lastRead[conversationKey] = ts;
+            writeReadState(nk, userId, state);
+        }
+    }
+    // Convert a Nakama channel message's createTime to epoch ms. createTime comes
+    // back as an RFC3339 string or {seconds} object depending on call path.
+    function messageCreateMs(msg) {
+        if (!msg)
+            return 0;
+        var ct = msg.createTime;
+        if (ct === undefined || ct === null)
+            return 0;
+        if (typeof ct === "number")
+            return ct < 1e12 ? ct * 1000 : ct;
+        if (typeof ct === "string") {
+            var parsed = Date.parse(ct);
+            return isNaN(parsed) ? 0 : parsed;
+        }
+        if (typeof ct === "object" && ct.seconds !== undefined) {
+            return Number(ct.seconds) * 1000;
+        }
+        return 0;
+    }
+    // Count messages in a channel created after the read watermark, authored by
+    // someone other than `userId`. Capped at `cap` to bound work for very active
+    // conversations (the client only needs "N" vs "N+").
+    function countUnread(nk, channelId, userId, sinceMs, cap) {
+        var unread = 0;
+        var cursor = "";
+        var pages = 0;
+        try {
+            do {
+                // forward=false → newest first, so we can stop as soon as we cross the
+                // watermark instead of scanning the whole history.
+                var result = nk.channelMessagesList(channelId, 100, false, cursor);
+                var msgs = (result && result.messages) ? result.messages : [];
+                for (var i = 0; i < msgs.length; i++) {
+                    var msg = msgs[i];
+                    var ms = messageCreateMs(msg);
+                    if (ms <= sinceMs)
+                        return unread; // reached read messages → done
+                    var sender = msg.senderId ? String(msg.senderId) : "";
+                    if (sender && sender === userId)
+                        continue; // own messages aren't "unread"
+                    unread++;
+                    if (unread >= cap)
+                        return unread;
+                }
+                cursor = (result && result.nextCursor) ? result.nextCursor : "";
+                pages++;
+            } while (cursor && pages < 20);
+        }
+        catch (_) { }
+        return unread;
+    }
+    // Fire a best-effort device push (APNs/FCM) for a direct message. Failures are
+    // swallowed — chat delivery must never fail because the recipient has no token
+    // or push is gated by quiet hours. Quiet hours ARE respected for chat.
+    function pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content) {
+        try {
+            var preview = buildPreview(content);
+            var body = preview !== "" ? preview : (senderName + " sent you a message");
+            // Chat is real-time conversation — bypass quiet hours so DMs always reach
+            // the device (parity with WhatsApp/Telegram). Quiet hours still apply to
+            // non-conversational pushes (daily quiz, reminders, etc.). On provider
+            // failure the push is queued for retry by the scheduler.
+            deliverChatPush(ctx, logger, nk, "direct", targetUserId, senderId, senderName, "direct_message", senderName, body, { name: senderName }, { screen: "chat", chatType: "direct", fromUserId: senderId, sender_name: senderName });
+        }
+        catch (e) {
+            logger.warn("[Chat] direct message push failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    // Fire a best-effort device push to every other member of a group chat.
+    function pushGroupMessage(ctx, logger, nk, senderId, senderName, groupId, content) {
+        try {
+            var groupName = "your group";
+            try {
+                var groups = nk.groupsGetId([groupId]);
+                if (groups && groups.length > 0 && groups[0].name)
+                    groupName = String(groups[0].name);
+            }
+            catch (_) { }
+            var preview = buildPreview(content);
+            var body = preview !== ""
+                ? (senderName + ": " + preview)
+                : (senderName + " sent a message in " + groupName);
+            var cursor = "";
+            var notified = 0;
+            // 2 = MEMBER, 1 = ADMIN, 0 = SUPERADMIN — notify all accepted members.
+            // No member cap: every paginated member must receive the push. The old
+            // `scanned < 500` guard silently dropped notifications for everyone past
+            // the 500th member in large groups. We page until the cursor is exhausted.
+            do {
+                var page = nk.groupUsersList(groupId, 100, undefined, cursor);
+                var members = (page && page.groupUsers) ? page.groupUsers : [];
+                for (var i = 0; i < members.length; i++) {
+                    var m = members[i];
+                    // state 4 = pending join request; skip non-members.
+                    if (m.state !== undefined && m.state > 2)
+                        continue;
+                    var memberId = m.user && m.user.id ? String(m.user.id) : "";
+                    if (!memberId || memberId === senderId)
+                        continue;
+                    notified++;
+                    // Bypass quiet hours: group chat is real-time conversation. Failed
+                    // provider sends are queued for scheduler retry per recipient.
+                    deliverChatPush(ctx, logger, nk, "group", memberId, senderId, senderName, "group_message", groupName, body, { name: senderName, group: groupName }, { screen: "chat", chatType: "group", groupId: groupId, fromUserId: senderId, sender_name: senderName });
+                }
+                cursor = (page && page.cursor) ? page.cursor : "";
+            } while (cursor);
+            logger.info("[Chat] group push fan-out complete: groupId=%s notified=%d", groupId, notified);
+        }
+        catch (e) {
+            logger.warn("[Chat] group message push failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    // After-hook for messages sent directly over the realtime socket
+    // (ChannelMessageSend), as opposed to the RPC paths above. Server-side
+    // nk.channelMessageSend() calls do NOT trigger this hook, so there is no
+    // double-push risk with the RPCs. We read the resolved target from the
+    // output ack (groupId / userIdOne / userIdTwo); the input channelId is opaque.
+    function afterChannelMessageSend(ctx, logger, nk, output, input) {
+        try {
+            var ack = output ? output.channelMessageSend : null;
+            if (!ack)
+                return;
+            var senderId = ctx.userId || (ack.senderId ? String(ack.senderId) : "");
+            if (!senderId)
+                return;
+            // Reconstruct message content from the input envelope for the preview.
+            var content = "";
+            try {
+                var sent = input ? input.channelMessageSend : null;
+                if (sent && sent.content !== undefined) {
+                    content = (typeof sent.content === "string") ? JSON.parse(sent.content) : sent.content;
+                }
+            }
+            catch (_) {
+                content = "";
+            }
+            var senderName = resolveSenderName(nk, senderId, ack.username ? String(ack.username) : (ctx.username || ""));
+            var groupId = ack.groupId ? String(ack.groupId) : "";
+            var userIdOne = ack.userIdOne ? String(ack.userIdOne) : "";
+            var userIdTwo = ack.userIdTwo ? String(ack.userIdTwo) : "";
+            if (groupId !== "") {
+                // Group channel message.
+                pushGroupMessage(ctx, logger, nk, senderId, senderName, groupId, content);
+            }
+            else if (userIdOne !== "" || userIdTwo !== "") {
+                // Direct message: push to whichever party is not the sender.
+                var targetUserId = (userIdOne === senderId) ? userIdTwo : userIdOne;
+                if (targetUserId && targetUserId !== senderId) {
+                    pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content);
+                }
+            }
+            // Room messages (roomName set) are intentionally not pushed to avoid broadcast spam.
+        }
+        catch (e) {
+            logger.warn("[Chat] afterChannelMessageSend push failed: %s", e && e.message ? e.message : String(e));
+        }
+    }
     function rpcSendGroupChatMessage(ctx, logger, nk, payload) {
         try {
             var userId = RpcHelpers.requireUserId(ctx);
@@ -22146,6 +23893,8 @@ var LegacyChat;
                 return RpcHelpers.errorResponse("groupId required");
             var channelId = nk.channelIdBuild(userId, groupId, 3);
             var ack = nk.channelMessageSend(channelId, { body: content }, userId, username, true);
+            var senderName = resolveSenderName(nk, userId, username);
+            pushGroupMessage(ctx, logger, nk, userId, senderName, groupId, content);
             return RpcHelpers.successResponse({ messageId: ack.messageId });
         }
         catch (e) {
@@ -22163,6 +23912,8 @@ var LegacyChat;
                 return RpcHelpers.errorResponse("userId required");
             var channelId = nk.channelIdBuild(userId, targetUserId, 2);
             var ack = nk.channelMessageSend(channelId, { body: content }, userId, username, true);
+            var senderName = resolveSenderName(nk, userId, username);
+            pushDirectMessage(ctx, logger, nk, userId, senderName, targetUserId, content);
             return RpcHelpers.successResponse({ messageId: ack.messageId });
         }
         catch (e) {
@@ -22255,11 +24006,171 @@ var LegacyChat;
             var targetUserId = data.userId || data.targetUserId;
             if (!targetUserId)
                 return RpcHelpers.errorResponse("userId required");
-            return RpcHelpers.successResponse({ success: true });
+            // Optional explicit watermark (ms). Defaults to now — i.e. "I've read
+            // everything up to this moment in the conversation with targetUserId".
+            var atMs = (data.upToMs !== undefined) ? Number(data.upToMs) : (data.atMs !== undefined ? Number(data.atMs) : 0);
+            markConversationRead(nk, userId, dmConversationKey(String(targetUserId)), atMs);
+            return RpcHelpers.successResponse({ success: true, userId: targetUserId });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to mark messages read");
         }
+    }
+    function rpcMarkGroupMessagesRead(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var groupId = data.groupId;
+            if (!groupId)
+                return RpcHelpers.errorResponse("groupId required");
+            var atMs = (data.upToMs !== undefined) ? Number(data.upToMs) : (data.atMs !== undefined ? Number(data.atMs) : 0);
+            markConversationRead(nk, userId, grpConversationKey(String(groupId)), atMs);
+            return RpcHelpers.successResponse({ success: true, groupId: groupId });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "Failed to mark group messages read");
+        }
+    }
+    // Return unread counts for the conversations the client asks about. Payload:
+    //   { directUserIds?: string[], groupIds?: string[], cap?: number }
+    // Response: { direct: { <userId>: count }, group: { <groupId>: count }, total }
+    // Counts are derived from per-conversation read watermarks vs. channel history,
+    // so they survive app restarts and are consistent across devices.
+    function rpcGetUnreadCounts(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var directIds = data.directUserIds || data.userIds || [];
+            var groupIds = data.groupIds || [];
+            var cap = (data.cap && data.cap > 0) ? Math.min(Number(data.cap), 999) : 99;
+            var state = readReadState(nk, userId);
+            var direct = {};
+            var group = {};
+            var total = 0;
+            for (var i = 0; i < directIds.length; i++) {
+                var other = String(directIds[i]);
+                if (!other)
+                    continue;
+                var dKey = dmConversationKey(other);
+                var dSince = state.lastRead[dKey] || 0;
+                var dChannel = nk.channelIdBuild(userId, other, 2);
+                var dCount = countUnread(nk, dChannel, userId, dSince, cap);
+                direct[other] = dCount;
+                total += dCount;
+            }
+            for (var j = 0; j < groupIds.length; j++) {
+                var gid = String(groupIds[j]);
+                if (!gid)
+                    continue;
+                var gKey = grpConversationKey(gid);
+                var gSince = state.lastRead[gKey] || 0;
+                var gChannel = nk.channelIdBuild(userId, gid, 3);
+                var gCount = countUnread(nk, gChannel, userId, gSince, cap);
+                group[gid] = gCount;
+                total += gCount;
+            }
+            return RpcHelpers.successResponse({ direct: direct, group: group, total: total });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "Failed to get unread counts");
+        }
+    }
+    // ─── Failed-push flush (called by the notification scheduler) ───────────────
+    // Walks the per-recipient failed-push index and replays provider sends for
+    // rows that are due (throttled) and under the retry/TTL limits. Successful or
+    // exhausted rows are removed; recipients with no remaining rows drop out of
+    // the index. Mirrors LegacyPush.flushPendingRegistrations' index pattern.
+    function flushFailedChatPushes(ctx, logger, nk) {
+        try {
+            var indexObjs = nk.storageRead([{ collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID }]);
+            var recipientIds = (indexObjs && indexObjs.length > 0 && indexObjs[0].value && indexObjs[0].value.userIds)
+                ? indexObjs[0].value.userIds : [];
+            if (!recipientIds || recipientIds.length === 0)
+                return;
+            var now = Math.floor(Date.now() / 1000);
+            var remaining = [];
+            for (var u = 0; u < recipientIds.length; u++) {
+                var rid = recipientIds[u];
+                try {
+                    var rec = Storage.readJson(nk, FAILED_PUSH_COLLECTION, rid, Constants.SYSTEM_USER_ID);
+                    var rows = (rec && rec.rows) ? rec.rows : [];
+                    var keep = [];
+                    for (var i = 0; i < rows.length; i++) {
+                        var row = rows[i];
+                        // Drop rows that are too old or maxed out on retries.
+                        if ((now - row.createdAt) > FAILED_PUSH_TTL_SEC)
+                            continue;
+                        if ((row.retries || 0) >= FAILED_PUSH_MAX_RETRIES) {
+                            logger.warn("[Chat] failed-push maxed retries — dropping. recipient=%s eventType=%s", rid, row.eventType);
+                            continue;
+                        }
+                        // Throttle: don't replay the same row too aggressively.
+                        if (row.lastAttempt && (now - row.lastAttempt) < FAILED_PUSH_RETRY_INTERVAL_SEC) {
+                            keep.push(row);
+                            continue;
+                        }
+                        var ok = false;
+                        try {
+                            ok = LegacyPush.retryChatProviderPush(ctx, logger, nk, row.recipientId, row.eventType, row.title, row.body, row.data);
+                        }
+                        catch (_) {
+                            ok = false;
+                        }
+                        if (ok) {
+                            logger.info("[Chat] failed-push retry SUCCESS. recipient=%s eventType=%s attempt=%d", rid, row.eventType, (row.retries || 0) + 1);
+                            continue; // delivered → drop
+                        }
+                        row.retries = (row.retries || 0) + 1;
+                        row.lastAttempt = now;
+                        // If the recipient no longer has any device, stop retrying.
+                        if (!LegacyPush.userHasPushTokens(nk, rid))
+                            continue;
+                        keep.push(row);
+                    }
+                    if (keep.length > 0) {
+                        Storage.writeJson(nk, FAILED_PUSH_COLLECTION, rid, Constants.SYSTEM_USER_ID, { rows: keep }, 0, 0);
+                        remaining.push(rid);
+                    }
+                    else {
+                        try {
+                            nk.storageDelete([{ collection: FAILED_PUSH_COLLECTION, key: rid, userId: Constants.SYSTEM_USER_ID }]);
+                        }
+                        catch (_) { }
+                    }
+                }
+                catch (ue) {
+                    logger.warn("[Chat] flushFailedChatPushes: error for recipient=%s (will retry): %s", rid, ue && ue.message ? ue.message : String(ue));
+                    remaining.push(rid); // keep so next tick retries
+                }
+            }
+            nk.storageWrite([{
+                    collection: FAILED_PUSH_INDEX_COLLECTION, key: FAILED_PUSH_INDEX_KEY, userId: Constants.SYSTEM_USER_ID,
+                    value: { userIds: remaining }, permissionRead: 0, permissionWrite: 0
+                }]);
+            logger.info("[Chat] flushFailedChatPushes done. recipients with backlog: %d", remaining.length);
+        }
+        catch (e) {
+            logger.error("[Chat] flushFailedChatPushes exception: %s", e && e.message ? e.message : String(e));
+        }
+    }
+    LegacyChat.flushFailedChatPushes = flushFailedChatPushes;
+    // Before-hook for realtime ChannelMessageSend. Forces persist=true so every
+    // chat message is written to channel history. Without persistence the message
+    // is only delivered to currently-connected sockets — offline recipients never
+    // see it, unread counts can't be derived, and history RPCs return nothing.
+    // Clients sometimes omit `persist` or send it false; we override server-side
+    // so durability is not client-dependent.
+    function beforeChannelMessageSend(ctx, logger, nk, envelope) {
+        try {
+            var msg = envelope ? envelope.channelMessageSend : null;
+            if (msg) {
+                msg.persist = true;
+            }
+        }
+        catch (e) {
+            logger.warn("[Chat] beforeChannelMessageSend failed to force persist: %s", e && e.message ? e.message : String(e));
+        }
+        return envelope;
     }
     function register(initializer) {
         initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
@@ -22269,6 +24180,13 @@ var LegacyChat;
         initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
         initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
         initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
+        initializer.registerRpc("mark_group_messages_read", rpcMarkGroupMessagesRead);
+        initializer.registerRpc("get_unread_counts", rpcGetUnreadCounts);
+        // Force durable persistence for realtime chat (offline delivery + history +
+        // unread counts), then push-notify after the message lands.
+        initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
+        // Push notifications for messages sent directly over the realtime socket.
+        initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
     }
     LegacyChat.register = register;
 })(LegacyChat || (LegacyChat = {}));
@@ -22546,9 +24464,21 @@ var LegacyDailyRewards;
             reward: rewardConfig
         });
     }
+    // QVBF_51 / QVBF_166: registration REMOVED for real.
+    //
+    // main.ts stopped calling LegacyDailyRewards.register() (QVBF_166), but
+    // postbuild's auto-invoke (section 3b) injects `register();` at IIFE scope,
+    // so the two registerRpc literals below kept winning the __rpc_* stub race
+    // with an UNGUARDED assignment. Result in production:
+    //   - response shape { success, data: {...} } — Unity's flat DailyRewardStatus
+    //     model deserialized currentStreak=0 / canClaimToday=false on every call
+    //     (the QVBF_51 "streak stuck at 0" bug)
+    //   - state stored in `daily_rewards/status_{userId}` instead of the
+    //     canonical `daily_streaks` collection.
+    // The canonical handlers live in data/modules/daily_rewards/daily_rewards.js
+    // and are registered there. Do NOT re-add registerRpc calls here.
     function register(initializer) {
-        initializer.registerRpc("daily_rewards_get_status", rpcGetStatus);
-        initializer.registerRpc("daily_rewards_claim", rpcClaim);
+        // Intentionally empty — see comment above.
     }
     LegacyDailyRewards.register = register;
 })(LegacyDailyRewards || (LegacyDailyRewards = {}));
@@ -22777,10 +24707,59 @@ var LegacyGameEntry;
 })(LegacyGameEntry || (LegacyGameEntry = {}));
 var LegacyGameRegistry;
 (function (LegacyGameRegistry) {
+    var UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
     function getGameRegistry(nk) {
         var data = Storage.readSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry");
         return data || { games: [] };
     }
+    // ── Canonical game-id resolution ───────────────────────────────────────────
+    // A single app is reachable by several identifiers — its registry UUID, its
+    // human slug ("quizverse"), or the platform aliases ("all"/"global"). Config
+    // (flags, experiments, audiences, …) is keyed by the raw string via
+    // Constants.gameKey, so the SAME app could otherwise read/write two different
+    // stores depending on which id a caller passed. resolveCanonicalGameId folds
+    // every alias of a registered app down to ONE canonical scope so all surfaces
+    // (admin console, game client, RPCs) agree.
+    //
+    // Canonical scope = the app's `slug` when set, else its `id`. We prefer the
+    // slug because that's where the existing explicit app config already lives
+    // (e.g. "quizverse:flags") — so no data migration is needed.
+    //
+    // Platform-wide aliases ("", "all", "global", "default") → undefined, which
+    // Constants.gameKey maps to the bare (platform-default) key, preserving the
+    // legacy fallback behaviour exactly.
+    var REGISTRY_CACHE = { data: null, at: 0 };
+    var REGISTRY_TTL_MS = 30000;
+    function cachedRegistry(nk) {
+        var now = Date.now();
+        if (REGISTRY_CACHE.data && (now - REGISTRY_CACHE.at) < REGISTRY_TTL_MS) {
+            return REGISTRY_CACHE.data;
+        }
+        var data = getGameRegistry(nk);
+        REGISTRY_CACHE = { data: data, at: now };
+        return data;
+    }
+    function resolveCanonicalGameId(nk, raw) {
+        if (!raw)
+            return undefined;
+        var v = String(raw).trim().toLowerCase();
+        if (v === "" || v === "all" || v === "global" || v === Constants.DEFAULT_GAME_ID) {
+            return undefined;
+        }
+        var games = cachedRegistry(nk).games || [];
+        for (var i = 0; i < games.length; i++) {
+            var g = games[i];
+            var gid = (g.id || "").toLowerCase();
+            var gslug = (g.slug || "").toLowerCase();
+            if (gid === v || (gslug && gslug === v)) {
+                return g.slug ? g.slug : g.id;
+            }
+        }
+        // Unregistered identifier — pass through unchanged so behaviour is never a
+        // surprise for ids the registry doesn't know about yet.
+        return raw;
+    }
+    LegacyGameRegistry.resolveCanonicalGameId = resolveCanonicalGameId;
     function rpcGetGameRegistry(ctx, logger, nk, payload) {
         var registry = getGameRegistry(nk);
         return RpcHelpers.successResponse({ games: registry.games, lastSyncAt: registry.lastSyncAt });
@@ -22829,10 +24808,115 @@ var LegacyGameRegistry;
             return RpcHelpers.errorResponse("Sync failed: " + err.message);
         }
     }
+    // register_game — Admin-only manual app/game registration.
+    // Payload: { title, id?, slug?, category?, description?, iconUrl? }
+    //   - If `id` is omitted, a fresh UUID is minted and returned as the AppID.
+    //   - If `id` is provided it must be a valid UUID (it becomes the gameId
+    //     apps send in analytics_log_event). Re-registering an existing id
+    //     updates that entry in place (upsert).
+    // The returned `id` is the canonical AppID used everywhere for analytics
+    // filtering — hand it to the app team to stamp on their events.
+    function rpcRegisterGame(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var title = (typeof data.title === "string" ? data.title : "").trim();
+        if (!title)
+            return RpcHelpers.errorResponse("title required");
+        var id = (typeof data.id === "string" ? data.id : "").trim();
+        if (id) {
+            if (!UUID_RE.test(id))
+                return RpcHelpers.errorResponse("id must be a valid UUID");
+            id = id.toLowerCase();
+        }
+        else {
+            id = nk.uuidv4();
+        }
+        var slug = (typeof data.slug === "string" ? data.slug : "").trim().toLowerCase();
+        if (slug && !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)) {
+            return RpcHelpers.errorResponse("slug must be lowercase alphanumeric (dashes/underscores allowed, max 64 chars)");
+        }
+        var nowIso = new Date().toISOString();
+        var registry = getGameRegistry(nk);
+        var games = registry.games || [];
+        var existingIdx = -1;
+        for (var i = 0; i < games.length; i++) {
+            if (games[i].id === id) {
+                existingIdx = i;
+                break;
+            }
+            if (slug && games[i].slug === slug) {
+                return RpcHelpers.errorResponse("slug already in use by app " + games[i].id);
+            }
+        }
+        var entry;
+        if (existingIdx >= 0) {
+            entry = games[existingIdx];
+            entry.title = title;
+            if (slug)
+                entry.slug = slug;
+            if (typeof data.category === "string")
+                entry.category = data.category;
+            if (typeof data.description === "string")
+                entry.description = data.description;
+            if (typeof data.iconUrl === "string")
+                entry.iconUrl = data.iconUrl;
+            entry.updatedAt = nowIso;
+        }
+        else {
+            entry = {
+                id: id,
+                title: title,
+                slug: slug || undefined,
+                category: typeof data.category === "string" ? data.category : undefined,
+                description: typeof data.description === "string" ? data.description : undefined,
+                iconUrl: typeof data.iconUrl === "string" ? data.iconUrl : undefined,
+                status: "active",
+                source: "manual",
+                createdAt: nowIso,
+                updatedAt: nowIso
+            };
+            games.push(entry);
+        }
+        Storage.writeSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry", {
+            games: games,
+            lastSyncAt: registry.lastSyncAt
+        });
+        return RpcHelpers.successResponse({ game: entry, created: existingIdx < 0 });
+    }
+    // delete_game — Admin-only. Removes an app from the registry catalog.
+    // Note: this only forgets the display metadata; historical analytics keyed
+    // on the UUID are untouched.
+    function rpcDeleteGame(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var id = (typeof data.id === "string" ? data.id : "").trim().toLowerCase();
+        if (!id)
+            return RpcHelpers.errorResponse("id required");
+        var registry = getGameRegistry(nk);
+        var games = registry.games || [];
+        var kept = [];
+        var removed = 0;
+        for (var i = 0; i < games.length; i++) {
+            if (games[i].id === id) {
+                removed++;
+                continue;
+            }
+            kept.push(games[i]);
+        }
+        if (removed === 0)
+            return RpcHelpers.errorResponse("App not found: " + id);
+        Storage.writeSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry", {
+            games: kept,
+            lastSyncAt: registry.lastSyncAt
+        });
+        return RpcHelpers.successResponse({ success: true, removed: removed });
+    }
     function register(initializer) {
         initializer.registerRpc("get_game_registry", rpcGetGameRegistry);
         initializer.registerRpc("get_game_by_id", rpcGetGameById);
         initializer.registerRpc("sync_game_registry", rpcSyncGameRegistry);
+        initializer.registerRpc("register_game", rpcRegisterGame);
+        initializer.registerRpc("delete_game", rpcDeleteGame);
     }
     LegacyGameRegistry.register = register;
 })(LegacyGameRegistry || (LegacyGameRegistry = {}));
@@ -24151,11 +26235,17 @@ var LegacyMultiGame;
 //      indefinitely until the process exits.
 //
 //  Multi-replica safety:
-//    * Each Nakama pod creates its own scheduler match on boot.
-//    * All five cron handlers already deduplicate per-user via the
-//      `notif_send_markers` storage collection — first writer wins, others
-//      see hasMarker() and skip. Worst-case cost across N pods is a few
-//      extra storage reads per minute.
+//    * Each Nakama pod creates its own scheduler match on boot (resilience:
+//      cron keeps firing through partial outages / rolling deploys).
+//    * Because N pods fire the SAME task at the SAME cadence boundary, the
+//      per-user notif_send_markers dedup ALONE is not enough — it is written
+//      AFTER the push is sent, so simultaneous pods all pass hasMarker() and
+//      all send (prod symptom: daily quiz delivered 4–5×, one per live pod).
+//    * dispatchSafely() therefore takes a cluster-wide CAS lock per
+//      (task, period) via tryAcquireDispatchLock(): every pod computes the
+//      same clock-aligned bucket and races to claim one system-owned storage
+//      row (Nakama version OCC). Exactly ONE pod wins and dispatches; the
+//      others skip. Per-user markers stay as a secondary cross-period guard.
 //
 //  Cadence (per-task):
 //    Each task carries its own quiet-hours window check inside the cron
@@ -24203,10 +26293,56 @@ var LegacyNotifScheduler;
         return true;
     }
     LegacyNotifScheduler.shouldDispatch = shouldDispatch;
+    // ── Cluster-wide dispatch lock ─────────────────────────────────────────────
+    // Each Nakama pod runs its OWN scheduler match (by design, for resilience),
+    // so at every cadence boundary up to N pods fire the SAME task within the
+    // same instant. The per-user notif_send_markers dedup is written AFTER the
+    // push is sent, so concurrent pods all pass hasMarker() and all send before
+    // any marker exists — production symptom: users received the daily quiz 4–5×
+    // (one push per live pod). This lock makes each (task, period) idempotent
+    // across the whole cluster: every pod computes the same period bucket and
+    // races to claim a single system-owned storage row via optimistic
+    // concurrency (version CAS). Exactly one pod wins and dispatches; the rest
+    // skip. The per-user markers remain as a secondary, cross-period safety net.
+    var DISPATCH_LOCK_COLLECTION = "notif_cron_dispatch_lock";
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    function tryAcquireDispatchLock(nk, taskName, periodMin) {
+        // Clock-aligned bucket: identical for every pod inside the same period, so
+        // simultaneous dispatchers collide on one storage key and CAS picks a
+        // single winner.
+        var bucket = Math.floor(nowMinute() / periodMin);
+        try {
+            var recs = nk.storageRead([{ collection: DISPATCH_LOCK_COLLECTION, key: taskName, userId: SYSTEM_USER_ID }]);
+            var cur = (recs && recs.length > 0) ? recs[0] : null;
+            if (cur && cur.value && cur.value.bucket === bucket) {
+                // Another pod already claimed (and is running/ran) this period.
+                return false;
+            }
+            // create-if-absent ("*") or compare-and-set against the version we read.
+            // Nakama storageWrite throws on a version mismatch, so only ONE of the
+            // racing pods succeeds; the losers land in catch and skip.
+            nk.storageWrite([{
+                    collection: DISPATCH_LOCK_COLLECTION, key: taskName, userId: SYSTEM_USER_ID,
+                    value: { bucket: bucket, at: Date.now() },
+                    version: (cur && cur.version) ? cur.version : "*",
+                    permissionRead: 2, permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (_e) {
+            // Version conflict (we lost the race) or transient storage error — either
+            // way do not dispatch; a sibling pod has it, or the next tick retries.
+            return false;
+        }
+    }
+    LegacyNotifScheduler.tryAcquireDispatchLock = tryAcquireDispatchLock;
     // Wrap each cron call in try/catch so one task's exception cannot kill the
     // scheduler match. The handlers return JSON strings on success; we ignore
-    // them. Non-fatal logging only.
-    function dispatchSafely(taskName, fn, ctx, logger, nk) {
+    // them. Non-fatal logging only. `periodMin` MUST match the shouldDispatch
+    // cadence so the cluster lock buckets line up across pods.
+    function dispatchSafely(taskName, fn, ctx, logger, nk, periodMin) {
+        if (!tryAcquireDispatchLock(nk, taskName, periodMin))
+            return;
         try {
             var ret = fn(ctx, logger, nk, "");
             logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
@@ -24249,22 +26385,28 @@ var LegacyNotifScheduler;
     LegacyNotifScheduler.matchLeaveImpl = matchLeaveImpl;
     function matchLoopImpl(ctx, logger, nk, _dispatcher, _tick, state, _messages) {
         if (shouldDispatch(state, "daily_quiz", 30))
-            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk);
+            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "weekly_quiz", 60))
-            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk);
+            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk, 60);
         if (shouldDispatch(state, "idle_winback", 30))
-            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk);
+            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "streak_warning", 30))
-            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
+            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk, 30);
         if (shouldDispatch(state, "motivation", 60))
-            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk);
+            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk, 60);
         if (shouldDispatch(state, "reminders", 5))
-            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk);
+            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk, 5);
         if (shouldDispatch(state, "review_due", 30))
-            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk);
-        if (shouldDispatch(state, "flush_pending_push", 30)) {
+            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk, 30);
+        if (shouldDispatch(state, "flush_pending_push", 30) && tryAcquireDispatchLock(nk, "flush_pending_push", 30)) {
             try {
                 LegacyPush.flushPendingRegistrations(ctx, logger, nk);
+            }
+            catch (_) { }
+        }
+        if (shouldDispatch(state, "flush_failed_chat_push", 3) && tryAcquireDispatchLock(nk, "flush_failed_chat_push", 3)) {
+            try {
+                LegacyChat.flushFailedChatPushes(ctx, logger, nk);
             }
             catch (_) { }
         }
@@ -24454,7 +26596,19 @@ var LegacyPlayer;
         if (!/^[a-z0-9_]+$/.test(username))
             return JSON.stringify({ success: false, error: "Use only letters, numbers, and underscores", error_code: "USERNAME_INVALID" });
         try {
-            nk.accountUpdateId(userId, username, null, null, null, null, null);
+            // QVBF_114: if displayName was empty or just mirrored the old username,
+            // keep it in sync — otherwise read-time enrichment (leaderboards, chat,
+            // async challenges) keeps resurfacing the old handle forever.
+            var newDisplayName = null;
+            try {
+                var curAccount = nk.accountGetId(userId);
+                var curUsername = (curAccount && curAccount.user && curAccount.user.username) || "";
+                var curDisplayName = (curAccount && curAccount.user && curAccount.user.displayName) || "";
+                if (!curDisplayName || curDisplayName === curUsername)
+                    newDisplayName = username;
+            }
+            catch (_) { /* fall back to username-only update */ }
+            nk.accountUpdateId(userId, username, newDisplayName, null, null, null, null);
             var syncResult = LegacyUserMgmtSync.pushProfile(nk, logger, userId, String(data._cognito_jwt || ""), { userName: username });
             return RpcHelpers.successResponse({ username: username, userMgmtSync: syncResult });
         }
@@ -24544,6 +26698,24 @@ var LegacyPush;
         var data = Storage.readJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId);
         return data || { tokens: [] };
     }
+    // True if the user has at least one registered device endpoint that is not
+    // known-dead. Used by the chat retry queue to decide whether a failed push is
+    // worth replaying (no point queueing for a user with zero devices).
+    function userHasPushTokens(nk, userId) {
+        try {
+            var td = getPushTokens(nk, userId);
+            if (!td || !td.tokens)
+                return false;
+            for (var i = 0; i < td.tokens.length; i++) {
+                var t = td.tokens[i];
+                if (t && t.endpointArn && !t.providerError)
+                    return true;
+            }
+        }
+        catch (_) { }
+        return false;
+    }
+    LegacyPush.userHasPushTokens = userHasPushTokens;
     function savePushTokens(nk, userId, data) {
         var key = "token_" + userId;
         Storage.writeJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId, data);
@@ -24620,6 +26792,39 @@ var LegacyPush;
             }
         }
         return { kept: kept, dropped: dropped };
+    }
+    // Collapse a user's token list to ONE deliverable endpoint per platform —
+    // the most recently updated one. Root-cause of the "two notifications
+    // continuously" bug: a device that reinstalls or refreshes its FCM/APNs
+    // token gets a NEW SNS endpoint ARN, while the OLD endpoint stays enabled
+    // for a while. Both ARNs then deliver to the SAME physical device, so a
+    // single daily-quiz send fires the push twice (or more). Audit on prod
+    // (2026-06-13) found 94 users with multiple ARNs and ALL 94 were on the
+    // same platform (0 genuine cross-platform multi-device) — i.e. every one
+    // was a stale-token duplicate. Keeping only the newest endpoint per
+    // platform dedups same-device reinstalls to a single push while still
+    // delivering to a real iOS + Android pair (one survivor per platform).
+    function dedupeTokensByPlatform(tokens) {
+        if (!tokens || tokens.length === 0)
+            return [];
+        var byPlatform = {};
+        for (var i = 0; i < tokens.length; i++) {
+            var t = tokens[i];
+            if (!t || typeof t.endpointArn !== "string" || t.endpointArn.length === 0)
+                continue;
+            var plat = platformFromArn(t.endpointArn) || normalizePlatform(t.platform);
+            var prev = byPlatform[plat];
+            var tUpd = typeof t.updatedAt === "number" ? t.updatedAt : 0;
+            var pUpd = prev && typeof prev.updatedAt === "number" ? prev.updatedAt : 0;
+            if (!prev || tUpd >= pUpd)
+                byPlatform[plat] = t;
+        }
+        var out = [];
+        for (var k in byPlatform) {
+            if (Object.prototype.hasOwnProperty.call(byPlatform, k))
+                out.push(byPlatform[k]);
+        }
+        return out;
     }
     // Native APNs tokens are hex-encoded (64 or 160 chars). Anything else —
     // notably the `<id>:APA91b...`-shaped strings that Firebase Messaging
@@ -24994,9 +27199,13 @@ var LegacyPush;
                 }
                 logger.info("[Push] push_send_event: endpoints=[%s]", platforms.join(", "));
             }
+            // Dedup to one endpoint per platform (newest) so a device with stale +
+            // fresh SNS endpoints does not receive the same push twice. Same
+            // root-cause fix as the daily-quiz cron path. See dedupeTokensByPlatform.
+            var deliverableTokens = dedupeTokensByPlatform(tokensData.tokens);
             var providerResults = [];
-            for (var i = 0; i < tokensData.tokens.length; i++) {
-                var t = tokensData.tokens[i];
+            for (var i = 0; i < deliverableTokens.length; i++) {
+                var t = deliverableTokens[i];
                 var providerResult = sendProviderPush(ctx, logger, nk, t, {
                     title: title,
                     body: body,
@@ -25203,6 +27412,26 @@ var LegacyPush;
             ko: "{name}님이 {mode}에 도전했어요. 실력을 보여주세요!", "zh-Hans": "{name} 在 {mode} 中向你挑战。亮出实力！",
             ar: "{name} تحداك في {mode}. أرِهم ما لديك!", id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
             zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
+        },
+        // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
+        chat_message_title: {
+            en: "💬 {name}", hi: "💬 {name}", es: "💬 {name}", fr: "💬 {name}",
+            de: "💬 {name}", pt: "💬 {name}", ru: "💬 {name}", ja: "💬 {name}",
+            ko: "💬 {name}", "zh-Hans": "💬 {name}", ar: "💬 {name}", id: "💬 {name}", zu: "💬 {name}"
+        },
+        chat_message_body: {
+            en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+            ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
+        },
+        // ── Chat: new group message ({name} = sender, {group} = group name, {text} = preview) ──
+        chat_group_message_title: {
+            en: "💬 {name} in {group}", hi: "💬 {group} में {name}", es: "💬 {name} en {group}", fr: "💬 {name} dans {group}",
+            de: "💬 {name} in {group}", pt: "💬 {name} em {group}", ru: "💬 {name} в {group}", ja: "💬 {group}の{name}",
+            ko: "💬 {group}의 {name}", "zh-Hans": "💬 {group} 中的 {name}", ar: "💬 {name} في {group}", id: "💬 {name} di {group}", zu: "💬 {name} ku-{group}"
+        },
+        chat_group_message_body: {
+            en: "{text}", hi: "{text}", es: "{text}", fr: "{text}", de: "{text}", pt: "{text}",
+            ru: "{text}", ja: "{text}", ko: "{text}", "zh-Hans": "{text}", ar: "{text}", id: "{text}", zu: "{text}"
         },
         // ── Study reminders (user-scheduled; body is the learner's own text via {text}) ──
         reminder_title: {
@@ -25431,9 +27660,16 @@ var LegacyPush;
                     mergedData[k] = opts.data[k];
             }
         }
+        // Dedup to one endpoint per platform (newest). Without this, users who
+        // reinstalled or refreshed their FCM token carry multiple SNS endpoint
+        // ARNs that all still reach the same device → the daily-quiz push lands
+        // 2+ times ("two notifications continuously"). See dedupeTokensByPlatform.
+        var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+        if (deliverable.length === 0)
+            return false;
         var sent = 0;
-        for (var i = 0; i < tokensData.tokens.length; i++) {
-            var t = tokensData.tokens[i];
+        for (var i = 0; i < deliverable.length; i++) {
+            var t = deliverable[i];
             var providerResult = sendProviderPush(ctx, logger, nk, t, {
                 title: title, body: body, data: mergedData,
                 gameId: opts.gameId || "quizverse", eventType: eventType
@@ -25452,7 +27688,37 @@ var LegacyPush;
         return sent > 0;
     }
     LegacyPush.sendLocalizedPushToUser = sendLocalizedPushToUser;
-    // ─── S3 fetchers (mirror the URL shapes Unity already uses) ─────────────────
+    // Provider-only push used by the chat failed-push retry queue. Unlike
+    // sendLocalizedPushToUser it does NOT (re)write a persistent in-app
+    // notification — that was already written on the first attempt, so replaying
+    // it would duplicate the recipient's notification list. Title/body are passed
+    // pre-localized (the queue stored them at original send time). Returns true if
+    // at least one device accepted the push.
+    function retryChatProviderPush(ctx, logger, nk, userId, eventType, title, body, data) {
+        var tokensData = getPushTokens(nk, userId);
+        if (!tokensData.tokens || tokensData.tokens.length === 0)
+            return false;
+        var mergedData = { eventType: eventType };
+        if (data) {
+            for (var k in data) {
+                if (k !== "eventType")
+                    mergedData[k] = data[k];
+            }
+        }
+        var deliverable = dedupeTokensByPlatform(tokensData.tokens);
+        if (deliverable.length === 0)
+            return false;
+        var sent = 0;
+        for (var i = 0; i < deliverable.length; i++) {
+            var providerResult = sendProviderPush(ctx, logger, nk, deliverable[i], {
+                title: title, body: body, data: mergedData, gameId: "quizverse", eventType: eventType
+            });
+            if (providerResult.success === true)
+                sent++;
+        }
+        return sent > 0;
+    }
+    LegacyPush.retryChatProviderPush = retryChatProviderPush;
     var S3_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
     function fetchDailyQuizForToday(nk, logger) {
         var dateStr = todayDateKey();
@@ -37261,6 +39527,191 @@ var WalletGuestSync;
     }
     WalletGuestSync.register = register;
 })(WalletGuestSync || (WalletGuestSync = {}));
+// ============================================================
+// Quest EventBus Bridge — Auto-progress quests from existing events
+//
+// This module subscribes to EventBus events (QUIZ_COMPLETED, LEVEL_UP,
+// GAME_COMPLETED, etc.) that apps/games ALREADY emit, and automatically
+// progresses matching quests.
+//
+// KEY INSIGHT: Apps don't need to call any new RPC for quest progress.
+// They just send their normal analytics/gameplay events → EventBus emits
+// → this bridge listens → quests progress automatically.
+//
+// This replaces the old approach where Unity had to call RecordEvent()
+// explicitly for quest progress.
+// ============================================================
+var QuestEventBusBridge;
+(function (QuestEventBusBridge) {
+    // ── EventBus event name → Quest eventType mapping ─────────────────────────
+    // These map the well-known EventBus events to quest step eventTypes.
+    // Quest configs define steps with eventType like "quiz_completed", "level_up", etc.
+    //
+    // IMPORTANT: this map is built LAZILY (inside a function), not at namespace
+    // eval time. Reading `EventBus.Events.*` at module scope creates an
+    // eval-time dependency on the EventBus namespace having already been
+    // initialised — but the merged bundle's namespace order is not guaranteed
+    // (it shifts with the TypeScript compiler version / file ordering). When
+    // this namespace's IIFE ran before EventBus's, `EventBus` was `undefined`
+    // and the whole goja runtime failed to load with
+    // "Cannot read property 'Events' of undefined". Deferring the reads to
+    // call-time (register(), invoked from InitModule) guarantees EventBus is
+    // fully defined first.
+    var _eventTypeMap = null;
+    function eventTypeMap() {
+        if (_eventTypeMap) {
+            return _eventTypeMap;
+        }
+        var m = {};
+        // Core gameplay events
+        m[EventBus.Events.QUIZ_COMPLETED] = "quiz_completed";
+        m[EventBus.Events.GAME_COMPLETED] = "game_completed";
+        m[EventBus.Events.GAME_STARTED] = "game_started";
+        // Progression events
+        m[EventBus.Events.LEVEL_UP] = "level_up";
+        m[EventBus.Events.XP_EARNED] = "xp_earned";
+        // Score events
+        m[EventBus.Events.SCORE_SUBMITTED] = "score_submitted";
+        // Achievement events
+        m[EventBus.Events.ACHIEVEMENT_COMPLETED] = "achievement_completed";
+        m[EventBus.Events.ACHIEVEMENT_CLAIMED] = "achievement_claimed";
+        // Challenge events
+        m[EventBus.Events.CHALLENGE_COMPLETED] = "challenge_completed";
+        // Streak events
+        m[EventBus.Events.STREAK_UPDATED] = "streak_updated";
+        m[EventBus.Events.STREAK_BROKEN] = "streak_broken";
+        // Economy events
+        m[EventBus.Events.CURRENCY_EARNED] = "currency_earned";
+        m[EventBus.Events.CURRENCY_SPENT] = "currency_spent";
+        m[EventBus.Events.STORE_PURCHASE] = "store_purchase";
+        // Inventory events
+        m[EventBus.Events.ITEM_GRANTED] = "item_granted";
+        m[EventBus.Events.ITEM_CONSUMED] = "item_consumed";
+        // Energy events
+        m[EventBus.Events.ENERGY_SPENT] = "energy_spent";
+        m[EventBus.Events.ENERGY_REFILLED] = "energy_refilled";
+        // Session events
+        m[EventBus.Events.SESSION_START] = "session_start";
+        m[EventBus.Events.SESSION_END] = "session_end";
+        // Stat events
+        m[EventBus.Events.STAT_UPDATED] = "stat_updated";
+        // Reward events
+        m[EventBus.Events.REWARD_GRANTED] = "reward_granted";
+        _eventTypeMap = m;
+        return m;
+    }
+    // ── Handler for EventBus events ───────────────────────────────────────────
+    function handleEvent(nk, logger, ctx, eventName, data) {
+        // Skip if no user context (system events without user)
+        if (!ctx.userId) {
+            return;
+        }
+        var questEventType = eventTypeMap()[eventName];
+        if (!questEventType) {
+            return;
+        }
+        // Extract common fields from event data
+        var gameId = data.gameId || data.appId || Constants.DEFAULT_GAME_ID;
+        var value = extractValue(eventName, data);
+        var metadata = extractMetadata(eventName, data);
+        logger.debug("[QuestEventBusBridge] Processing event=%s → questEventType=%s user=%s game=%s value=%d", eventName, questEventType, ctx.userId, gameId, value);
+        // Call the quest engine to process this event
+        try {
+            QuestEngine.processEvent(nk, logger, ctx, ctx.userId, gameId, questEventType, value, metadata);
+        }
+        catch (err) {
+            logger.warn("[QuestEventBusBridge] Quest processing failed for event=%s user=%s: %s", eventName, ctx.userId, err.message || String(err));
+        }
+    }
+    // ── Value extraction per event type ───────────────────────────────────────
+    function extractValue(eventName, data) {
+        switch (eventName) {
+            case EventBus.Events.QUIZ_COMPLETED:
+                return data.score || data.correctAnswers || 1;
+            case EventBus.Events.SCORE_SUBMITTED:
+                return data.score || 0;
+            case EventBus.Events.XP_EARNED:
+                return data.amount || data.xp || 0;
+            case EventBus.Events.LEVEL_UP:
+                return data.level || data.newLevel || 1;
+            case EventBus.Events.CURRENCY_EARNED:
+            case EventBus.Events.CURRENCY_SPENT:
+                return data.amount || 0;
+            case EventBus.Events.SESSION_END:
+                return data.duration || data.durationMinutes || 0;
+            case EventBus.Events.STREAK_UPDATED:
+                return data.streak || data.currentStreak || 1;
+            default:
+                return data.value || data.count || 1;
+        }
+    }
+    // ── Metadata extraction per event type ────────────────────────────────────
+    function extractMetadata(eventName, data) {
+        var meta = {};
+        // Common fields
+        if (data.gameId)
+            meta.gameId = String(data.gameId);
+        if (data.appId)
+            meta.appId = String(data.appId);
+        if (data.category)
+            meta.category = String(data.category);
+        if (data.type)
+            meta.type = String(data.type);
+        // Event-specific fields
+        switch (eventName) {
+            case EventBus.Events.QUIZ_COMPLETED:
+                if (data.quizId)
+                    meta.quizId = String(data.quizId);
+                if (data.mode)
+                    meta.mode = String(data.mode);
+                if (data.difficulty)
+                    meta.difficulty = String(data.difficulty);
+                break;
+            case EventBus.Events.ACHIEVEMENT_COMPLETED:
+                if (data.achievementId)
+                    meta.achievementId = String(data.achievementId);
+                break;
+            case EventBus.Events.CHALLENGE_COMPLETED:
+                if (data.challengeId)
+                    meta.challengeId = String(data.challengeId);
+                break;
+            case EventBus.Events.LEVEL_UP:
+                if (data.previousLevel)
+                    meta.previousLevel = String(data.previousLevel);
+                break;
+            case EventBus.Events.CURRENCY_EARNED:
+            case EventBus.Events.CURRENCY_SPENT:
+                if (data.currency)
+                    meta.currency = String(data.currency);
+                if (data.source)
+                    meta.source = String(data.source);
+                break;
+            case EventBus.Events.STORE_PURCHASE:
+                if (data.itemId)
+                    meta.itemId = String(data.itemId);
+                break;
+        }
+        return meta;
+    }
+    // ── Registration ──────────────────────────────────────────────────────────
+    function register(initializer, logger) {
+        var map = eventTypeMap();
+        var subscribedEvents = Object.keys(map);
+        logger.info("[QuestEventBusBridge] Registering EventBus subscriptions for %d events", subscribedEvents.length);
+        for (var i = 0; i < subscribedEvents.length; i++) {
+            var eventName = subscribedEvents[i];
+            // Create a closure to capture eventName for each handler
+            (function (capturedEventName) {
+                EventBus.on(capturedEventName, function (nk, logger, ctx, data) {
+                    handleEvent(nk, logger, ctx, capturedEventName, data);
+                });
+            })(eventName);
+            logger.debug("[QuestEventBusBridge] Subscribed to: %s → %s", eventName, map[eventName]);
+        }
+        logger.info("[QuestEventBusBridge] Registration complete. Quest progress will auto-track from EventBus events.");
+    }
+    QuestEventBusBridge.register = register;
+})(QuestEventBusBridge || (QuestEventBusBridge = {}));
 var QuestEngine;
 (function (QuestEngine) {
     // ─── Types ────────────────────────────────────────────────────────────────
@@ -37505,26 +39956,8 @@ var QuestEngine;
         }
         return RpcHelpers.successResponse({ quests: result });
     }
-    // ─── RPC: quest_engine_record_event ──────────────────────────────────────
-    // Reports a player action. Fans out to all matching quest steps.
-    //
-    // Two-phase design (data-integrity guarantee):
-    //   Phase 1 — scan all quests, advance steps, mark completions in memory.
-    //   Phase 2 — persist state FIRST (progress is safe even if reward fails).
-    //   Phase 3 — grant auto-rewards; each wrapped in try/catch so a reward
-    //             engine error never rolls back the player's hard-earned progress.
-    //             If auto-grant fails, claimedAt stays null and the client can
-    //             retry via quest_engine_claim_reward.
-    function rpcQuestEngineRecordEvent(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var data = RpcHelpers.parseRpcPayload(payload);
-        var gameId = resolveGameId(data);
-        var eventType = data.eventType;
-        var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
-        var metadata = data.metadata || {};
+    function processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata) {
         var now = Math.floor(Date.now() / 1000);
-        if (!eventType)
-            return RpcHelpers.errorResponse("eventType is required");
         var config = loadConfig(nk, gameId);
         var state = loadUserState(nk, userId, gameId);
         var updatedCount = 0;
@@ -37635,8 +40068,29 @@ var QuestEngine;
         if (anyClaimedAt) {
             saveUserState(nk, userId, gameId, state);
         }
-        return RpcHelpers.successResponse({ updatedQuests: updatedCount, quests: updatedQuests });
+        return { updatedCount: updatedCount, updatedQuests: updatedQuests };
     }
+    // ─── RPC: quest_engine_record_event ──────────────────────────────────────
+    // Reports a player action via RPC. Calls the internal processor.
+    function rpcQuestEngineRecordEvent(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = resolveGameId(data);
+        var eventType = data.eventType;
+        var value = (data.value !== undefined && data.value !== null) ? Number(data.value) : 0;
+        var metadata = data.metadata || {};
+        if (!eventType)
+            return RpcHelpers.errorResponse("eventType is required");
+        var result = processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
+        return RpcHelpers.successResponse({ updatedQuests: result.updatedCount, quests: result.updatedQuests });
+    }
+    // ─── Public API: processEvent ────────────────────────────────────────────
+    // Called by QuestEventBusBridge to process events from EventBus.
+    // Apps don't need to call any RPC — events flow automatically.
+    function processEvent(nk, logger, ctx, userId, gameId, eventType, value, metadata) {
+        return processEventInternal(nk, logger, ctx, userId, gameId, eventType, value, metadata);
+    }
+    QuestEngine.processEvent = processEvent;
     // ─── RPC: quest_engine_claim_reward ──────────────────────────────────────
     // Manually claims reward for a completed quest (deferred-claim UI pattern).
     function rpcQuestEngineClaimReward(ctx, logger, nk, payload) {
@@ -39499,7 +41953,8 @@ var SatoriAudienceEstimate;
         var cursor = "";
         var truncated = false;
         for (var p = 0; p < maxPages; p++) {
-            var page = nk.storageList("", Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+            // null (not "") = scan across all owners; "" is an invalid UUID and throws.
+            var page = nk.storageList(null, Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
             var objects = (page && page.objects) || [];
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
@@ -39527,6 +41982,19 @@ var SatoriAudienceEstimate;
         if (cursor)
             truncated = true;
         var matchRate = scanned > 0 ? matched / scanned : 0;
+        // Real addressable base from the analytics pipeline: distinct active users
+        // over the last 30 days (MAU). The identity-props scan only covers users who
+        // sent a Satori capture event, so projecting matchRate onto the real active
+        // base gives a far more realistic audience size than the raw matched count.
+        var mauSet = {};
+        var rangeDays = LegacyAnalytics.readRange(nk, Date.now(), 30, gameId);
+        for (var rd = 0; rd < rangeDays.length; rd++) {
+            var users = rangeDays[rd].uniqueUsers;
+            for (var u = 0; u < users.length; u++)
+                mauSet[users[u]] = true;
+        }
+        var reachableBase = Object.keys(mauSet).length;
+        var projectedSize = scanned > 0 ? Math.round(matchRate * reachableBase) : matched;
         return RpcHelpers.successResponse({
             audienceId: audienceId,
             name: def.name || audienceId,
@@ -39534,7 +42002,10 @@ var SatoriAudienceEstimate;
             scannedIdentities: scanned,
             matchRate: matchRate,
             sampleUserIds: sample,
-            truncated: truncated
+            truncated: truncated,
+            // Supplementary real-base projection (analytics pipeline MAU).
+            reachableBase: reachableBase,
+            projectedSize: projectedSize
         });
     }
     function register(initializer) {
@@ -39799,6 +42270,479 @@ var SatoriAudiences;
     }
     SatoriAudiences.register = register;
 })(SatoriAudiences || (SatoriAudiences = {}));
+// ---------------------------------------------------------------------------
+// Satori Dashboard — single admin summary RPC that powers the Satori-Cloud
+// style overview page (Active users, world map, Top countries/cities,
+// Ongoing/Scheduled experiment·live-event·message counts, events timeline).
+//
+// Everything is computed server-side in ONE call so the admin UI polls a
+// single endpoint instead of fanning out to a dozen RPCs:
+//   - "Live" signals (active users, geo, timeline, top events) come from the
+//     event-debugger ring buffer (one storage read, never a scan).
+//   - Counts come from the Satori config objects (experiments / live_events /
+//     messages), reusing the same status logic the per-feature modules use.
+//
+// Admin-only. Geo fields (country/city) are stamped onto events at capture
+// time by SatoriEventCapture; events without geo simply don't contribute to
+// the map, which the UI renders as "No data available" (matches Satori).
+// ---------------------------------------------------------------------------
+var SatoriDashboard;
+(function (SatoriDashboard) {
+    var RING_COLLECTION = "satori_debugger";
+    var RING_KEY = "recent_events";
+    // Real game telemetry (DAU / events / revenue / geo) is read through the
+    // shared LegacyAnalytics helper, which sources the legacy analytics pipeline's
+    // durable per-day aggregate docs — the same data behind analytics.htm — instead
+    // of the sparse `satori_events` capture ring.
+    var MIN_5 = 5 * 60 * 1000;
+    var HOUR = 60 * 60 * 1000;
+    var DAY = 24 * HOUR;
+    function toMs(ts) {
+        if (!ts)
+            return 0;
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    function round2(n) {
+        return Math.round(n * 100) / 100;
+    }
+    function uidOf(ev) {
+        return ev.userId || ev.identityId || "";
+    }
+    function topN(counts, n) {
+        var rows = [];
+        for (var k in counts)
+            rows.push({ key: k, count: counts[k] });
+        rows.sort(function (a, b) { return b.count - a.count; });
+        return rows.slice(0, n);
+    }
+    // ── Count helpers (status logic mirrors the per-feature modules) ──────────
+    function experimentCounts(nk, gameId) {
+        var defs = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
+        var now = Math.floor(Date.now() / 1000);
+        var ongoing = 0, scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            total++;
+            if (d.startAt && now < d.startAt) {
+                scheduled++;
+                continue;
+            }
+            if (d.status === "running" && (!d.endAt || now <= d.endAt))
+                ongoing++;
+        }
+        return { ongoing: ongoing, scheduled: scheduled, total: total };
+    }
+    function liveEventCounts(nk, gameId) {
+        var defs = ConfigLoader.loadSatoriConfigForGame(nk, "live_events", gameId, {});
+        var now = Math.floor(Date.now() / 1000);
+        var ongoing = 0, scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            total++;
+            var startAt = d.startAt, endAt = d.endAt;
+            if (d.recurrenceCron && d.recurrenceIntervalSec) {
+                var interval = d.recurrenceIntervalSec || 86400;
+                var duration = (d.endAt || 0) - (d.startAt || 0);
+                var elapsed = now - (d.startAt || 0);
+                if (elapsed >= 0) {
+                    var cycle = Math.floor(elapsed / interval);
+                    startAt = d.startAt + cycle * interval;
+                    endAt = startAt + duration;
+                }
+            }
+            if (now < startAt)
+                scheduled++;
+            else if (now <= endAt)
+                ongoing++;
+        }
+        return { ongoing: ongoing, scheduled: scheduled, total: total };
+    }
+    function messageCounts(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
+        var defs = raw && raw.messages ? raw.messages : raw;
+        var now = Math.floor(Date.now() / 1000);
+        var scheduled = 0, total = 0;
+        for (var id in defs) {
+            var d = defs[id];
+            if (!d || typeof d !== "object")
+                continue;
+            total++;
+            if (d.scheduleAt && d.scheduleAt > now)
+                scheduled++;
+        }
+        return { scheduled: scheduled, total: total };
+    }
+    // Top cities derived from the registered user base. The legacy analytics
+    // pipeline does not aggregate by_city, so we group the `location` column on
+    // the users table (format "City, Region, Country") by its leading segment.
+    function topCitiesFromAccounts(nk) {
+        try {
+            var rows = nk.sqlQuery("SELECT split_part(location, ',', 1) AS city, count(*) AS n " +
+                "FROM users WHERE location IS NOT NULL AND location <> '' " +
+                "GROUP BY split_part(location, ',', 1) ORDER BY n DESC LIMIT 8", []) || [];
+            var out = [];
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                var c = String(row.city || "").trim();
+                if (!c)
+                    continue;
+                out.push({ city: c, users: parseInt(row.n, 10) || 0 });
+            }
+            return out;
+        }
+        catch (e) {
+            return [];
+        }
+    }
+    // ── RPC ───────────────────────────────────────────────────────────────────
+    // satori_dashboard_summary — Payload: { game_id? }
+    function rpcSummary(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        var now = Date.now();
+        var buf = Storage.readSystemJson(nk, RING_COLLECTION, RING_KEY);
+        var events = (buf && buf.events) || [];
+        // Distinct-user sets per window + counts.
+        var users5m = {};
+        var users1h = {};
+        var users24h = {};
+        var events24h = 0;
+        var countryUsers = {};
+        var cityUsers = {};
+        var eventNameCounts = {};
+        // 24 hourly buckets, index 0 = oldest hour, 23 = current hour.
+        var buckets = [];
+        for (var b = 0; b < 24; b++)
+            buckets.push(0);
+        var windowStart = now - DAY;
+        for (var i = 0; i < events.length; i++) {
+            var ev = events[i];
+            var t = toMs(ev.timestamp);
+            if (t < windowStart || t > now)
+                continue;
+            var uid = uidOf(ev);
+            events24h++;
+            if (uid)
+                users24h[uid] = true;
+            if (t >= now - HOUR && uid)
+                users1h[uid] = true;
+            if (t >= now - MIN_5 && uid)
+                users5m[uid] = true;
+            eventNameCounts[ev.name] = (eventNameCounts[ev.name] || 0) + 1;
+            var bucketIdx = 23 - Math.floor((now - t) / HOUR);
+            if (bucketIdx >= 0 && bucketIdx < 24)
+                buckets[bucketIdx]++;
+            var cc = (ev.country || "").toUpperCase();
+            if (cc && uid) {
+                if (!countryUsers[cc])
+                    countryUsers[cc] = {};
+                countryUsers[cc][uid] = true;
+            }
+            var city = ev.city || "";
+            if (city && uid) {
+                if (!cityUsers[city])
+                    cityUsers[city] = {};
+                cityUsers[city][uid] = true;
+            }
+        }
+        function distinctCount(set) {
+            return Object.keys(set).length;
+        }
+        var countryCounts = {};
+        for (var cc2 in countryUsers)
+            countryCounts[cc2] = distinctCount(countryUsers[cc2]);
+        var cityCounts = {};
+        for (var ci in cityUsers)
+            cityCounts[ci] = distinctCount(cityUsers[ci]);
+        var timeline = [];
+        for (var h = 0; h < 24; h++) {
+            timeline.push({ hourMs: now - (23 - h) * HOUR, count: buckets[h] });
+        }
+        var topCountries = topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
+        var topCities = topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
+        var topEvents = topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        // ── Real game telemetry overlay (legacy analytics pipeline) ───────────────
+        // The satori_events ring only sees the web SDK. The actual game DAU / event
+        // volume / geo lives in the legacy per-day aggregate. Overlay it so the IVX
+        // console shows the same numbers as analytics.htm instead of a near-empty map.
+        var todayStr = dateStrOf(now);
+        var legacyToday = LegacyAnalytics.readDay(nk, todayStr, gameId);
+        var dauToday = legacyToday.dau;
+        var eventsToday = legacyToday.events;
+        var revenueToday = round2(legacyToday.revenue);
+        var legacyCountries = topN(legacyToday.byCountry, 8).map(function (r) { return { country: r.key, users: r.count }; });
+        if (legacyCountries.length > 0)
+            topCountries = legacyCountries;
+        var legacyCities = topN(legacyToday.byCity, 8).map(function (r) { return { city: r.key, users: r.count }; });
+        if (legacyCities.length > 0)
+            topCities = legacyCities;
+        // The legacy pipeline aggregates by_country but NOT by_city, and the ring
+        // buffer rarely carries city. Fall back to the registered user base: derive
+        // top cities from the `location` field on the users table (e.g.
+        // "Jaipur, Rajasthan, India" → "Jaipur").
+        if (topCities.length === 0)
+            topCities = topCitiesFromAccounts(nk);
+        var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        if (legacyEvents.length > 0)
+            topEvents = legacyEvents;
+        return RpcHelpers.successResponse({
+            generatedAt: now,
+            activeUsers5m: distinctCount(users5m),
+            activeUsers1h: distinctCount(users1h),
+            activeUsers24h: Math.max(distinctCount(users24h), dauToday),
+            eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
+            // Real daily truth from the analytics pipeline (matches analytics.htm).
+            dauToday: dauToday,
+            eventsToday: eventsToday,
+            revenueToday: revenueToday,
+            ringBufferSize: events.length,
+            timeline: timeline,
+            topCountries: topCountries,
+            topCities: topCities,
+            topEvents: topEvents,
+            geoAvailable: topCountries.length > 0,
+            experiments: experimentCounts(nk, gameId),
+            liveEvents: liveEventCounts(nk, gameId),
+            messages: messageCounts(nk, gameId)
+        });
+    }
+    // ── Daily game-metrics (Satori "Game Metrics" tab) ─────────────────────────
+    // Mirrors Satori Cloud's Daily Active Users / Sessions / Revenue / ARPAU
+    // charts. Instead of scanning the sparse `satori_events` ring (which only
+    // holds the web SDK's events and times out at scale), we read the durable
+    // per-day aggregate docs the legacy analytics pipeline already maintains —
+    // the same source as nakama.intelli-verse-x.ai/analytics.htm. One batched
+    // storage read per day → fast and complete.
+    var GM_MAX_DAYS = 31;
+    var GM_MONTHS = 6; // trailing calendar months for the Monthly-* charts
+    // satori_game_metrics — Payload: { days?, game_id? }
+    function rpcGameMetrics(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), GM_MAX_DAYS);
+        var gameId = (typeof data.game_id === "string" && data.game_id) ? data.game_id : "all";
+        var nowMs = Date.now();
+        var series = [];
+        var totalsSessions = 0, totalsEvents = 0, totalsRevenue = 0, dauSum = 0;
+        var totalsInstalls = 0, totalsSessionSeconds = 0;
+        for (var d = days - 1; d >= 0; d--) {
+            var dStr = dateStrOf(nowMs - d * 86400000);
+            var day = LegacyAnalytics.readDay(nk, dStr, gameId);
+            var dau = day.dau;
+            var revenue = day.revenue;
+            var payers = day.purchases;
+            // Avg session length (sec) and per-active-user playtime (sec).
+            var sessionDuration = day.sessions > 0 ? Math.round(day.sessionSeconds / day.sessions) : 0;
+            var playtime = dau > 0 ? Math.round(day.sessionSeconds / dau) : 0;
+            series.push({
+                date: dStr,
+                dau: dau,
+                installs: day.newUsers,
+                sessions: day.sessions,
+                events: day.events,
+                revenue: round2(revenue),
+                payers: payers,
+                arpau: dau > 0 ? round2(revenue / dau) : 0,
+                arppu: payers > 0 ? round2(revenue / payers) : 0,
+                sessionDuration: sessionDuration,
+                playtime: playtime
+            });
+            totalsSessions += day.sessions;
+            totalsEvents += day.events;
+            totalsRevenue += revenue;
+            totalsInstalls += day.newUsers;
+            totalsSessionSeconds += day.sessionSeconds;
+            dauSum += dau;
+        }
+        var avgDau = series.length > 0 ? Math.round(dauSum / series.length) : 0;
+        // Retention / lifetime-style rollups (match Satori Cloud "Game Metrics").
+        // dauSum = active-user-days across the window.
+        var avgSessionCount = dauSum > 0 ? round2(totalsSessions / dauSum) : 0; // sessions per active user/day
+        var avgSessionDuration = totalsSessions > 0 ? Math.round(totalsSessionSeconds / totalsSessions) : 0; // sec
+        var avgPlaytime = dauSum > 0 ? Math.round(totalsSessionSeconds / dauSum) : 0; // sec per active user/day
+        // RoAS block: LTV ≈ revenue per acquired user; CPI/RoAS need ad-spend which
+        // is not in the analytics pipeline, so they report 0 (parity with Satori).
+        var ltv = totalsInstalls > 0 ? round2(totalsRevenue / totalsInstalls) : 0;
+        var cpi = 0;
+        var roas = 0;
+        // ── Monthly rollups (mirror Satori Cloud "Monthly *" charts) ──────────────
+        // Bucket the trailing GM_MONTHS calendar months by date prefix (YYYY-MM).
+        // MAU = unique users active anywhere in the month (union of daily lists);
+        // duration/playtime are derived from session_seconds the same way as daily.
+        var months = Math.min(Math.max(parseInt(data.months, 10) || GM_MONTHS, 1), GM_MONTHS);
+        var monthBuckets = {};
+        var monthDaysScanned = 0;
+        var rangeDays = LegacyAnalytics.readRange(nk, nowMs, months * 31, gameId);
+        for (var mi = 0; mi < rangeDays.length; mi++) {
+            var rd = rangeDays[mi];
+            var ym = rd.date.slice(0, 7);
+            var b = monthBuckets[ym];
+            if (!b) {
+                b = { month: ym, sessions: 0, revenue: 0, sessionSeconds: 0, installs: 0, events: 0, users: {} };
+                monthBuckets[ym] = b;
+            }
+            b.sessions += rd.sessions;
+            b.revenue += rd.revenue;
+            b.sessionSeconds += rd.sessionSeconds;
+            b.installs += rd.newUsers;
+            b.events += rd.events;
+            for (var ui = 0; ui < rd.uniqueUsers.length; ui++)
+                b.users[rd.uniqueUsers[ui]] = 1;
+            monthDaysScanned++;
+        }
+        var monthKeys = [];
+        for (var mk in monthBuckets) {
+            if (monthBuckets.hasOwnProperty(mk))
+                monthKeys.push(mk);
+        }
+        monthKeys.sort();
+        if (monthKeys.length > months)
+            monthKeys = monthKeys.slice(monthKeys.length - months);
+        var monthly = [];
+        for (var mj = 0; mj < monthKeys.length; mj++) {
+            var mb = monthBuckets[monthKeys[mj]];
+            var mau = 0;
+            for (var uk in mb.users) {
+                if (mb.users.hasOwnProperty(uk))
+                    mau++;
+            }
+            monthly.push({
+                month: mb.month,
+                activeUsers: mau,
+                sessions: mb.sessions,
+                events: mb.events,
+                revenue: round2(mb.revenue),
+                installs: mb.installs,
+                arpau: mau > 0 ? round2(mb.revenue / mau) : 0,
+                sessionDuration: mb.sessions > 0 ? Math.round(mb.sessionSeconds / mb.sessions) : 0,
+                playtime: mau > 0 ? Math.round(mb.sessionSeconds / mau) : 0
+            });
+        }
+        return RpcHelpers.successResponse({
+            days: days,
+            months: months,
+            generatedAt: nowMs,
+            series: series,
+            monthly: monthly,
+            totals: {
+                sessions: totalsSessions,
+                events: totalsEvents,
+                revenue: round2(totalsRevenue),
+                avgDau: avgDau,
+                installs: totalsInstalls,
+                avgSessionCount: avgSessionCount,
+                avgSessionDuration: avgSessionDuration,
+                avgPlaytime: avgPlaytime,
+                ltv: ltv,
+                cpi: cpi,
+                roas: roas
+            },
+            scannedRecords: days * 2 + monthDaysScanned * 2,
+            truncated: false
+        });
+    }
+    // ── Event catalog ──────────────────────────────────────────────────────────
+    // Real event names + volume from the analytics pipeline (analytics_live_daily
+    // by_name aggregated over N days). Powers the funnel/metric builders so admins
+    // pick actual logged event names instead of guessing (e.g. the UI placeholder
+    // "quiz_completed" does not exist — the real event is "quiz_complete").
+    // satori_event_catalog — Payload: { days?, game_id? }
+    function rpcEventCatalog(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 7, 1), 31);
+        var gameId = RpcHelpers.gameId(data);
+        var nowMs = Date.now();
+        var counts = {};
+        var rangeDays = LegacyAnalytics.readRange(nk, nowMs, days, gameId);
+        for (var i = 0; i < rangeDays.length; i++) {
+            var bn = rangeDays[i].byName;
+            for (var n in bn)
+                counts[n] = (counts[n] || 0) + bn[n];
+        }
+        var events = [];
+        for (var k in counts)
+            events.push({ name: k, count: counts[k] });
+        events.sort(function (a, b) { return b.count - a.count; });
+        return RpcHelpers.successResponse({ days: days, generatedAt: nowMs, events: events });
+    }
+    // ── Segments / Explore ───────────────────────────────────────────────────
+    // The "one stop shop" filter surface (mirrors Satori's Explore). For one
+    // AppID (game_id) over N days it returns the marginal breakdowns the ingest
+    // already aggregates into analytics_live_daily — by app version, platform,
+    // country, and event name — plus a per-day event-volume series that can be
+    // narrowed to a single event name. This is what powers filtering by
+    // AppID × appVersion × platform × country × eventName in the console.
+    function countsToSorted(map) {
+        var out = [];
+        for (var k in map) {
+            if (!map.hasOwnProperty(k))
+                continue;
+            var label = (k === "" || k === null) ? "(unknown)" : k;
+            out.push({ value: label, count: map[k] || 0 });
+        }
+        out.sort(function (a, b) { return b.count - a.count; });
+        return out;
+    }
+    // satori_segments_explore — Payload: { days?, game_id?, event? }
+    function rpcSegmentsExplore(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 1), GM_MAX_DAYS);
+        var gameId = RpcHelpers.gameId(data);
+        var eventFilter = (typeof data.event === "string" && data.event) ? data.event : "";
+        var nowMs = Date.now();
+        var byVersion = {};
+        var byPlatform = {};
+        var byCountry = {};
+        var byName = {};
+        var series = [];
+        var totalEvents = 0;
+        for (var d = days - 1; d >= 0; d--) {
+            var dStr = dateStrOf(nowMs - d * 86400000);
+            var day = LegacyAnalytics.readDay(nk, dStr, gameId);
+            mergeCounts(byVersion, day.byAppVersion);
+            mergeCounts(byPlatform, day.byPlatform);
+            mergeCounts(byCountry, day.byCountry);
+            mergeCounts(byName, day.byName);
+            // Per-day event volume — total, or just the filtered event when set.
+            var dayValue = eventFilter ? (day.byName[eventFilter] || 0) : day.events;
+            totalEvents += dayValue;
+            series.push({ date: dStr, value: dayValue, dau: day.dau });
+        }
+        return RpcHelpers.successResponse({
+            days: days,
+            generatedAt: nowMs,
+            gameId: gameId,
+            eventFilter: eventFilter,
+            totalEvents: totalEvents,
+            series: series,
+            appVersions: countsToSorted(byVersion),
+            platforms: countsToSorted(byPlatform),
+            countries: countsToSorted(byCountry),
+            events: countsToSorted(byName)
+        });
+    }
+    function mergeCounts(into, from) {
+        if (!from)
+            return;
+        for (var k in from) {
+            if (from.hasOwnProperty(k))
+                into[k] = (into[k] || 0) + from[k];
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_dashboard_summary", rpcSummary);
+        initializer.registerRpc("satori_game_metrics", rpcGameMetrics);
+        initializer.registerRpc("satori_event_catalog", rpcEventCatalog);
+        initializer.registerRpc("satori_segments_explore", rpcSegmentsExplore);
+    }
+    SatoriDashboard.register = register;
+})(SatoriDashboard || (SatoriDashboard = {}));
 var SatoriDataLake;
 (function (SatoriDataLake) {
     var DEFAULT_CONFIG = {
@@ -40005,6 +42949,150 @@ var SatoriDataLake;
     }
     SatoriDataLake.register = register;
 })(SatoriDataLake || (SatoriDataLake = {}));
+// ============================================================
+// Satori EventBus Bridge — feed the Satori analytics pipeline from the
+// gameplay events Nakama ALREADY emits on its internal EventBus.
+//
+// WHY THIS EXISTS
+//   The Satori admin console (Dashboard / Timeline / Funnels / Metrics /
+//   Experiment-results) all read from the `satori_events` collection +
+//   the `satori_debugger` ring buffer. Those are ONLY written when
+//   something calls SatoriEventCapture (the `satori_event` /
+//   `satori_events_batch` / `*_external` RPCs).
+//
+//   Today nothing calls them server-side: the Unity client's Satori
+//   integration is still a stub, and the marketing web client posts to a
+//   different ingest. So the console is empty even though the game is
+//   very much alive — every quiz, session and purchase flows through the
+//   server as an EventBus event (see QuestEventBusBridge, which already
+//   listens to the exact same events to auto-progress quests).
+//
+//   This bridge mirrors QuestEventBusBridge: it subscribes to the
+//   well-known gameplay EventBus events and forwards each one into
+//   SatoriEventCapture.captureEvent(). Result: the Satori console fills
+//   with REAL gameplay analytics with ZERO client or web changes — purely
+//   server-side.
+//
+// LAZY INIT (same rationale as QuestEventBusBridge)
+//   Reading `EventBus.Events.*` at namespace-eval time creates an
+//   eval-order dependency on the EventBus namespace IIFE having already
+//   run. The merged bundle's namespace order is not guaranteed across
+//   tsc versions / file ordering, and getting it wrong crashes the whole
+//   goja runtime with "Cannot read property 'Events' of undefined".
+//   Deferring the reads to register() (called from InitModule) guarantees
+//   EventBus is fully defined first.
+//
+// WRITE-AMPLIFICATION NOTE
+//   Every captured event does extra storage writes (satori_events row +
+//   per-user history + metrics + webhooks + data-lake + debugger ring).
+//   We therefore capture a CURATED set of high-signal, lower-frequency
+//   events (session/quiz/game/purchase/progression/achievement) and
+//   deliberately skip the highest-frequency micro-events (xp_earned,
+//   currency_*, item_*, stat_updated, energy_*, achievement_progress).
+//   Tune SUBSCRIBED in one place if you want more/less granularity.
+// ============================================================
+var SatoriEventBusBridge;
+(function (SatoriEventBusBridge) {
+    // Which EventBus events to forward into Satori analytics. The captured
+    // Satori event name is the EventBus event name verbatim (already
+    // snake_case), so taxonomy schemas line up 1:1.
+    var _subscribed = null;
+    function subscribed() {
+        if (_subscribed) {
+            return _subscribed;
+        }
+        _subscribed = [
+            // Audience / DAU
+            EventBus.Events.SESSION_START,
+            EventBus.Events.SESSION_END,
+            // Core gameplay
+            EventBus.Events.QUIZ_COMPLETED,
+            EventBus.Events.GAME_STARTED,
+            EventBus.Events.GAME_COMPLETED,
+            // NOTE: SCORE_SUBMITTED is intentionally excluded — it's the highest-
+            // frequency gameplay event and would dominate write volume (and any
+            // configured webhook/data-lake fan-out). DAU/engagement is already
+            // well-covered by session/quiz/game events. Add it back here if you
+            // want score-level granularity and have headroom.
+            // Monetization
+            EventBus.Events.STORE_PURCHASE,
+            // Progression
+            EventBus.Events.LEVEL_UP,
+            // Achievements / challenges
+            EventBus.Events.ACHIEVEMENT_COMPLETED,
+            EventBus.Events.ACHIEVEMENT_CLAIMED,
+            EventBus.Events.CHALLENGE_COMPLETED,
+            // Retention loop
+            EventBus.Events.STREAK_UPDATED,
+            EventBus.Events.REWARD_GRANTED
+        ];
+        return _subscribed;
+    }
+    // Build a flat, primitive-only metadata object from the EventBus data
+    // payload. We strip nested objects (e.g. resolved reward bundles) and
+    // the userId (it's stored on the record itself), keeping the event row
+    // small and the taxonomy validator happy (it expects scalar values).
+    function buildMetadata(eventName, data) {
+        var meta = {};
+        if (!data || typeof data !== "object") {
+            return meta;
+        }
+        for (var key in data) {
+            if (key === "userId" || key === "reward") {
+                continue;
+            }
+            var v = data[key];
+            var t = typeof v;
+            if (t === "string" || t === "number" || t === "boolean") {
+                meta[key] = v;
+            }
+        }
+        // Normalize a `revenue` field for the Daily Revenue chart. Real-money
+        // IAP store_purchase events carry { iap: true, price }. We surface the
+        // numeric price as `revenue` so downstream aggregation has one canonical
+        // key regardless of the source event's field name.
+        if (eventName === EventBus.Events.STORE_PURCHASE) {
+            var price = data.price !== undefined ? data.price : data.priceUsd;
+            var n = typeof price === "number" ? price : parseFloat(price);
+            if (!isNaN(n) && n > 0) {
+                meta.revenue = n;
+            }
+        }
+        return meta;
+    }
+    function handleEvent(nk, logger, ctx, eventName, data) {
+        // Need a Nakama user to attribute the event to. captureEvent writes a
+        // per-user history keyed by this id, which must be a real Nakama UUID.
+        var userId = ctx.userId || (data && typeof data.userId === "string" ? data.userId : "");
+        if (!userId) {
+            return;
+        }
+        try {
+            SatoriEventCapture.captureEvent(nk, logger, userId, {
+                name: eventName,
+                timestamp: Date.now(),
+                metadata: buildMetadata(eventName, data)
+            });
+        }
+        catch (err) {
+            // Never let analytics capture break the gameplay path.
+            logger.warn("[SatoriEventBusBridge] capture failed for event=%s user=%s: %s", eventName, userId, err && err.message ? err.message : String(err));
+        }
+    }
+    function register(initializer, logger) {
+        var events = subscribed();
+        logger.info("[SatoriEventBusBridge] Subscribing Satori capture to %d gameplay events", events.length);
+        for (var i = 0; i < events.length; i++) {
+            (function (capturedEventName) {
+                EventBus.on(capturedEventName, function (nk, logger, ctx, data) {
+                    handleEvent(nk, logger, ctx, capturedEventName, data);
+                });
+            })(events[i]);
+        }
+        logger.info("[SatoriEventBusBridge] Registration complete. Satori console now tracks live gameplay.");
+    }
+    SatoriEventBusBridge.register = register;
+})(SatoriEventBusBridge || (SatoriEventBusBridge = {}));
 var SatoriEventCapture;
 (function (SatoriEventCapture) {
     // Inverted-timestamp event keys: storageList returns keys in ascending
@@ -40017,6 +43105,24 @@ var SatoriEventCapture;
         while (inv.length < 14)
             inv = "0" + inv;
         return "ev_0" + inv + "_" + id;
+    }
+    // Best-effort geo stamp for the Satori dashboard map. Priority:
+    //   1. client-supplied metadata.country / metadata.city (already resolved)
+    //   2. the user's 30-day cached GeoTier country (no HTTP, cache-only)
+    // Returns "" when geo is unknown — the dashboard then shows "No data".
+    function geoOf(nk, userId, event) {
+        var md = event.metadata || {};
+        var country = (md.country || md.countryCode || "") + "";
+        var city = (md.city || "") + "";
+        if (!country && userId) {
+            try {
+                country = GeoTier.getUserCountry(nk, userId) || "";
+            }
+            catch (_) {
+                country = "";
+            }
+        }
+        return { country: country.toUpperCase(), city: city };
     }
     function appendToUserHistory(nk, userId, event) {
         var history = Storage.readJson(nk, Constants.SATORI_EVENTS_COLLECTION, "history", userId);
@@ -40036,16 +43142,20 @@ var SatoriEventCapture;
         var validation = SatoriTaxonomy.validateEvent(nk, event);
         if (!validation.valid) {
             logger.warn("[EventCapture] Rejected event '%s': %s", event.name, validation.errors.join("; "));
+            SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
             return;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
         var key = eventKey(Date.now(), userId);
+        var geo = geoOf(nk, userId, event);
         var record = {
             userId: userId,
             name: event.name,
             timestamp: event.timestamp,
             metadata: event.metadata || {},
-            date: dateStr
+            date: dateStr,
+            country: geo.country,
+            city: geo.city
         };
         nk.storageWrite([{
                 collection: Constants.SATORI_EVENTS_COLLECTION,
@@ -40071,17 +43181,21 @@ var SatoriEventCapture;
             var event = events[i];
             var validation = SatoriTaxonomy.validateEvent(nk, event);
             if (!validation.valid) {
+                SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), userId);
                 continue;
             }
             validEvents.push(event);
             var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
             var key = eventKey(Date.now() + i, userId);
+            var geo = geoOf(nk, userId, event);
             var record = {
                 userId: userId,
                 name: event.name,
                 timestamp: event.timestamp,
                 metadata: event.metadata || {},
-                date: dateStr
+                date: dateStr,
+                country: geo.country,
+                city: geo.city
             };
             exportRecords.push(record);
             writes.push({
@@ -40200,17 +43314,21 @@ var SatoriEventCapture;
         var validation = SatoriTaxonomy.validateEvent(nk, event);
         if (!validation.valid) {
             logger.warn("[EventCaptureExternal] Rejected event '%s' (identity=%s): %s", event.name, identityId, validation.errors.join("; "));
+            SatoriEventDebugger.recordRejection(nk, event.name, validation.errors.join("; "), identityId);
             return false;
         }
         var dateStr = new Date(event.timestamp).toISOString().slice(0, 10);
         var key = eventKey(Date.now(), identityId);
+        var geo = geoOf(nk, "", event);
         var record = {
             identityId: identityId,
             name: event.name,
             timestamp: event.timestamp,
             metadata: event.metadata || {},
             date: dateStr,
-            external: true
+            external: true,
+            country: geo.country,
+            city: geo.city
         };
         nk.storageWrite([{
                 collection: Constants.SATORI_EVENTS_COLLECTION,
@@ -40295,6 +43413,11 @@ var SatoriEventDebugger;
     var RECENT_COLLECTION = "satori_debugger";
     var RECENT_KEY = "recent_events";
     var RECENT_MAX = 300;
+    // Rejected-event ring buffer — backs the dashboard "Event errors" panel
+    // (mirrors Satori Cloud's "Events rejected at ingestion" surface). Written
+    // by SatoriEventCapture whenever taxonomy validation fails.
+    var REJECT_KEY = "rejected_events";
+    var REJECT_MAX = 200;
     var SEARCH_PAGE_SIZE = 100;
     var SEARCH_DEFAULT_PAGES = 320; // covers the legacy (oldest-first) key tail
     var SEARCH_MAX_PAGES = 800;
@@ -40323,6 +43446,43 @@ var SatoriEventDebugger;
         }
     }
     SatoriEventDebugger.record = record;
+    // Classify a validation reason into a short, Satori-style error code.
+    function classifyReason(reason) {
+        var r = (reason || "").toLowerCase();
+        if (r.indexOf("unknown event") !== -1 || r.indexOf("strict") !== -1)
+            return "INVALID_NAME";
+        if (r.indexOf("max length") !== -1 || r.indexOf("exceeds") !== -1)
+            return "INVALID_VALUE";
+        if (r.indexOf("required metadata") !== -1 || r.indexOf("metadata required") !== -1)
+            return "MISSING_METADATA";
+        if (r.indexOf("should be") !== -1 || r.indexOf("too many metadata") !== -1)
+            return "INVALID_METADATA";
+        return "INVALID_EVENT";
+    }
+    // Record a rejected (taxonomy-invalid) event for the admin "Event errors"
+    // panel. Called by SatoriEventCapture on every validation failure.
+    function recordRejection(nk, name, reason, userId) {
+        try {
+            var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, REJECT_KEY);
+            if (!buf || !buf.events)
+                buf = { events: [] };
+            buf.events.push({
+                name: name || "(unnamed)",
+                reason: reason || "",
+                code: classifyReason(reason),
+                timestamp: Date.now(),
+                userId: userId || ""
+            });
+            if (buf.events.length > REJECT_MAX) {
+                buf.events = buf.events.slice(buf.events.length - REJECT_MAX);
+            }
+            Storage.writeSystemJson(nk, RECENT_COLLECTION, REJECT_KEY, buf);
+        }
+        catch (err) {
+            // Never break ingest on bookkeeping.
+        }
+    }
+    SatoriEventDebugger.recordRejection = recordRejection;
     // ---- Filtering ----
     function matches(ev, filters) {
         if (filters.name && ev.name !== filters.name)
@@ -40458,9 +43618,48 @@ var SatoriEventDebugger;
             nextCursor: cursor || null
         });
     }
+    // satori_event_errors — recent taxonomy-rejected events, grouped by name,
+    // for the dashboard "Event errors" panel. Payload: { limit? }
+    function rpcEventErrors(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 50, 1), REJECT_MAX);
+        var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, REJECT_KEY);
+        var all = (buf && buf.events) || [];
+        // Group by name+code so the panel shows one row per distinct error with a
+        // count and the most-recent timestamp/reason (matches Satori's layout).
+        var groups = {};
+        var order = [];
+        for (var i = 0; i < all.length; i++) {
+            var ev = all[i];
+            var k = ev.name + "|" + ev.code;
+            if (!groups[k]) {
+                groups[k] = { name: ev.name, code: ev.code, reason: ev.reason, count: 0, lastSeenMs: 0 };
+                order.push(k);
+            }
+            groups[k].count++;
+            var tms = toMs(ev.timestamp);
+            if (tms > groups[k].lastSeenMs) {
+                groups[k].lastSeenMs = tms;
+                groups[k].reason = ev.reason;
+            }
+        }
+        var rows = [];
+        for (var j = 0; j < order.length; j++)
+            rows.push(groups[order[j]]);
+        rows.sort(function (a, b) { return b.lastSeenMs - a.lastSeenMs; });
+        if (rows.length > limit)
+            rows = rows.slice(0, limit);
+        return RpcHelpers.successResponse({
+            errors: rows,
+            totalRejected: all.length,
+            distinctErrors: order.length
+        });
+    }
     function register(initializer) {
         initializer.registerRpc("satori_events_tail", rpcTail);
         initializer.registerRpc("satori_events_search", rpcSearch);
+        initializer.registerRpc("satori_event_errors", rpcEventErrors);
     }
     SatoriEventDebugger.register = register;
 })(SatoriEventDebugger || (SatoriEventDebugger = {}));
@@ -41169,6 +44368,49 @@ var SatoriFunnels;
             truncated: truncated
         };
     }
+    // ---- Legacy event-volume funnel ----
+    //
+    // The per-user funnel above needs raw per-event rows (only available in the
+    // sparse `satori_events` ring). For the common case (no experiment variant
+    // split) we instead build the funnel from the real analytics pipeline's
+    // per-day `by_name` event counts — true event volume, fast, no scan. This is
+    // an event-volume funnel (occurrences per step), not distinct-user, so a
+    // later step can exceed an earlier one; conversions are reported as-is.
+    function computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId) {
+        var stepTotals = [];
+        for (var z = 0; z < steps.length; z++)
+            stepTotals.push(0);
+        var startDayMs = new Date(LegacyAnalytics.dateStrOf(sinceMs) + "T00:00:00Z").getTime();
+        var endDayMs = new Date(LegacyAnalytics.dateStrOf(untilMs) + "T00:00:00Z").getTime();
+        var dayCount = 0;
+        for (var t = startDayMs; t <= endDayMs; t += 86400000) {
+            var day = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(t), gameId);
+            dayCount++;
+            for (var s = 0; s < steps.length; s++) {
+                stepTotals[s] += (day.byName[steps[s]] || 0);
+            }
+        }
+        var stepRows = [];
+        for (var r = 0; r < steps.length; r++) {
+            stepRows.push({
+                name: steps[r],
+                users: stepTotals[r],
+                conversionFromStart: stepTotals[0] > 0 ? stepTotals[r] / stepTotals[0] : 0,
+                conversionFromPrevious: r === 0 ? 1 : (stepTotals[r - 1] > 0 ? stepTotals[r] / stepTotals[r - 1] : 0)
+            });
+        }
+        return {
+            steps: stepRows,
+            entered: stepTotals[0],
+            completed: stepTotals[steps.length - 1],
+            overallConversion: stepTotals[0] > 0 ? stepTotals[steps.length - 1] / stepTotals[0] : 0,
+            byVariant: null,
+            scannedRecords: dayCount,
+            truncated: false,
+            source: "analytics_pipeline",
+            basis: "event_volume"
+        };
+    }
     // ---- RPCs ----
     function rpcList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -41238,12 +44480,17 @@ var SatoriFunnels;
         var sinceMs = Number(data.since_ms || data.sinceMs) || (Date.now() - 7 * 86400000);
         var untilMs = Number(data.until_ms || data.untilMs) || Date.now();
         var maxPages = Math.min(Math.max(parseInt(data.max_pages, 10) || EVENTS_DEFAULT_PAGES, 1), EVENTS_MAX_PAGES);
-        var assignments = null;
         var experimentId = data.experiment_id || data.experimentId;
+        var result;
         if (experimentId) {
-            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+            // Variant segmentation needs per-user rows → fall back to the event scan.
+            var assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+            result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
         }
-        var result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
+        else {
+            // Common case: real event-volume funnel from the analytics pipeline.
+            result = computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId);
+        }
         result.sinceMs = sinceMs;
         result.untilMs = untilMs;
         result.experimentId = experimentId || null;
@@ -41476,6 +44723,142 @@ var SatoriIdentityInspector;
     }
     SatoriIdentityInspector.register = register;
 })(SatoriIdentityInspector || (SatoriIdentityInspector = {}));
+// ---------------------------------------------------------------------------
+// LegacyAnalytics — shared reader over the legacy analytics pipeline's durable
+// per-day aggregate docs. This is the SAME data that powers
+// nakama.intelli-verse-x.ai/analytics.htm and is fed by `analytics_log_event`
+// (the real game telemetry sink, ~13K events/day), NOT the sparse Satori
+// `satori_events` capture ring.
+//
+// Two collections, both owned by SYSTEM_USER, written live on every accepted
+// event and never deleted by the rollup (rollup only clears its own meta /
+// checkpoint docs), so historical days remain readable:
+//
+//   analytics_dau         key: dau_platform_<date> | dau_<gameId>_<date>
+//                         value: { count, uniqueUsers[], newUsers, overflow_count }
+//   analytics_live_daily  key: live_all_<date>      | live_<gameId>_<date>
+//                         value: { total, by_name{}, by_country{}, by_platform{},
+//                                  revenue_usd, ad_revenue_usd, session_count,
+//                                  coins_earned, coins_spent, last_event_at }
+//
+// Money (revenue / purchases) is read from a THIRD collection when available:
+//
+//   analytics_rollup_daily key: rollup_all_<date>   | rollup_<gameId>_<date>
+//                         value: { revenue: { usd, iap_count, ad_revenue_usd, … } }
+//
+// This is the purge-aware source the standalone analytics.htm reads via
+// analytics_arpu. We prefer it over analytics_live_daily.revenue_usd, which is
+// a live counter the revenue-purge RPC never resets (so seeded/test IAP
+// revenue lingers there and inflates the console). Falls back to live_daily for
+// days not yet rolled up (e.g. today).
+//
+// All Satori admin surfaces (dashboard, game-metrics, timeline, funnels,
+// retention) read through here so they show real game data instead of the
+// near-empty capture ring. Pure helper namespace — registers no RPCs and is
+// only ever called at request time (no module-eval ordering dependency).
+// ---------------------------------------------------------------------------
+var LegacyAnalytics;
+(function (LegacyAnalytics) {
+    var DAU_COLLECTION = "analytics_dau";
+    var LIVE_COLLECTION = "analytics_live_daily";
+    // Authoritative per-day money source — the SAME rollup the standalone
+    // analytics.htm reads via analytics_arpu. `analytics_live_daily` is a live
+    // real-time counter that the revenue-purge RPC does NOT touch, so seeded/test
+    // IAP revenue lingers there and inflates the dashboard. The rollup is
+    // purge-aware, so we prefer its revenue/iap_count whenever a rollup doc
+    // exists for the day (today, pre-rollup, still falls back to live_daily).
+    var ROLLUP_COLLECTION = "analytics_rollup_daily";
+    function dateStrOf(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    LegacyAnalytics.dateStrOf = dateStrOf;
+    // "all" / "global" / empty all map to the platform-wide aggregate keys.
+    function isPlatform(gameId) {
+        return !gameId || gameId === "all" || gameId === "global";
+    }
+    function dauKeyOf(dateStr, gameId) {
+        return isPlatform(gameId) ? "dau_platform_" + dateStr : "dau_" + gameId + "_" + dateStr;
+    }
+    function liveKeyOf(dateStr, gameId) {
+        return isPlatform(gameId) ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
+    }
+    function rollupKeyOf(dateStr, gameId) {
+        return isPlatform(gameId) ? "rollup_all_" + dateStr : "rollup_" + gameId + "_" + dateStr;
+    }
+    function emptyDay(dateStr) {
+        return {
+            date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
+            sessionSeconds: 0, revenue: 0, purchases: 0, byName: {}, byCountry: {}, byCity: {}, byPlatform: {}, byAppVersion: {}, lastEventAt: 0
+        };
+    }
+    // Read the analytics_dau + analytics_live_daily aggregate docs for one date.
+    // gameId "all" / undefined maps to the platform-wide aggregate keys.
+    function readDay(nk, dateStr, gameId) {
+        var sys = Constants.SYSTEM_USER_ID;
+        var out = emptyDay(dateStr);
+        var rollupRevenue = -1; // <0 = no rollup doc for this day
+        var rollupPurchases = 0;
+        try {
+            var recs = nk.storageRead([
+                { collection: DAU_COLLECTION, key: dauKeyOf(dateStr, gameId), userId: sys },
+                { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys },
+                { collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, gameId), userId: sys }
+            ]);
+            for (var i = 0; i < recs.length; i++) {
+                var r = recs[i];
+                if (!r || !r.value)
+                    continue;
+                if (r.collection === ROLLUP_COLLECTION) {
+                    // Capture the purge-aware money figures; applied after the loop so we
+                    // never depend on storageRead result ordering.
+                    var rl = r.value;
+                    var rev = rl.revenue || {};
+                    rollupRevenue = (parseFloat(rev.usd) || 0) + (parseFloat(rev.ad_revenue_usd) || 0);
+                    rollupPurchases = parseInt(rev.iap_count, 10) || 0;
+                }
+                else if (r.collection === DAU_COLLECTION) {
+                    var dv = r.value;
+                    var list = Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers : (Array.isArray(dv.users) ? dv.users : []);
+                    out.uniqueUsers = list;
+                    out.dau = (parseInt(dv.count, 10) || 0) || list.length || 0;
+                    out.newUsers = parseInt(dv.newUsers, 10) || 0;
+                }
+                else if (r.collection === LIVE_COLLECTION) {
+                    var lv = r.value;
+                    out.events = parseInt(lv.total, 10) || 0;
+                    out.byName = lv.by_name || {};
+                    out.byCountry = lv.by_country || {};
+                    out.byCity = lv.by_city || {};
+                    out.byPlatform = lv.by_platform || {};
+                    out.byAppVersion = lv.by_app_version || {};
+                    out.revenue = (parseFloat(lv.revenue_usd) || 0) + (parseFloat(lv.ad_revenue_usd) || 0);
+                    out.sessionSeconds = parseFloat(lv.session_seconds) || 0;
+                    out.lastEventAt = parseInt(lv.last_event_at, 10) || 0;
+                    out.sessions = parseInt(lv.session_count, 10) ||
+                        out.byName.session_end || out.byName.session_start || 0;
+                    out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
+                }
+            }
+            // Prefer the rollup's purge-aware money figures over the live counter.
+            if (rollupRevenue >= 0) {
+                out.revenue = rollupRevenue;
+                out.purchases = rollupPurchases;
+            }
+        }
+        catch (e) { /* missing day → zeros */ }
+        return out;
+    }
+    LegacyAnalytics.readDay = readDay;
+    // Read a contiguous range of days [days-1 .. 0] back from `nowMs`, oldest first.
+    function readRange(nk, nowMs, days, gameId) {
+        var out = [];
+        for (var d = days - 1; d >= 0; d--) {
+            out.push(readDay(nk, dateStrOf(nowMs - d * 86400000), gameId));
+        }
+        return out;
+    }
+    LegacyAnalytics.readRange = readRange;
+})(LegacyAnalytics || (LegacyAnalytics = {}));
 var SatoriCreatorEvents;
 (function (SatoriCreatorEvents) {
     // ---- Types ----
@@ -41758,7 +45141,7 @@ var SatoriCreatorEvents;
         var cursor = "";
         for (var page = 0; page < 10; page++) {
             try {
-                var result = nk.storageList("", "live_events", 100, cursor);
+                var result = nk.storageList(null, "live_events", 100, cursor);
                 var objects = result.objects || [];
                 for (var i = 0; i < objects.length; i++) {
                     var obj = objects[i];
@@ -42914,6 +46297,102 @@ var SatoriCreatorEvents;
             return "silver";
         return "bronze";
     }
+    /**
+     * Rank every player in an event from `event_answers` and queue a
+     * `prize_fulfillments` record for each gift-card prize-tier winner — WITHOUT
+     * waiting for the winner to self-claim. Used by the admin "end event" action
+     * and the prize-backfill RPC so operators can fulfill ALL winners, not just
+     * the ones who happened to claim.
+     *
+     * Safety:
+     *  - Idempotent: skips any (event,user) that already has a fulfillment record
+     *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
+     *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
+     *    with the idempotent self-claim flow to avoid double-crediting; we only
+     *    count them for reporting.
+     *  - Records are queued as `pending`; an operator still manually approves each
+     *    one before any real gift card is minted, so a mis-rank is human-reviewable.
+     */
+    function computeAndQueueWinners(nk, logger, def, eventId) {
+        var tiers = def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
+        // Rank all players (score desc, submit-time asc) — mirrors the self-claim flow.
+        var allAnswers = [];
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, "event_answers", 100, cursor);
+            }
+            catch (lerr) {
+                logger.warn("[computeAndQueueWinners] event_answers list failed: %s", lerr.message || String(lerr));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                var v = o.value;
+                if (!o || o.key !== eventId)
+                    continue;
+                if (!v || v.eventId !== eventId)
+                    continue;
+                allAnswers.push({
+                    userId: o.userId,
+                    score: typeof v.score === "number" ? v.score : 0,
+                    submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
+                });
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < 10);
+        allAnswers.sort(function (a, b) {
+            if (a.score !== b.score)
+                return b.score - a.score;
+            return (a.submitMs || 0) - (b.submitMs || 0);
+        });
+        var ranked = allAnswers.length;
+        if (!tiers || tiers.length === 0) {
+            return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, tiersConfigured: false };
+        }
+        var nowSec = Math.floor(Date.now() / 1000);
+        var queued = 0;
+        var skipped = 0;
+        var xutWinners = 0;
+        for (var r = 0; r < allAnswers.length; r++) {
+            var rank = r + 1;
+            var tier = findTierForRank(tiers, rank);
+            if (!tier)
+                continue;
+            var winnerId = allAnswers[r].userId;
+            var fKey = eventId + ":" + winnerId;
+            var existing = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+            if (existing) {
+                skipped++;
+                continue;
+            }
+            var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+            if (isXut) {
+                xutWinners++;
+                continue;
+            }
+            Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+                userId: winnerId,
+                eventId: eventId,
+                rank: rank,
+                giftCard: tier,
+                status: "pending",
+                queuedAt: nowSec,
+                eventTitle: (def && def.title) || "",
+                region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+                source: "auto_winner",
+                email: "",
+            });
+            queued++;
+        }
+        logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d", eventId, ranked, queued, skipped, xutWinners);
+        return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
+    }
+    SatoriCreatorEvents.computeAndQueueWinners = computeAndQueueWinners;
     function rpcSpaClaim(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
         var data = RpcHelpers.parseRpcPayload(payload);
@@ -42954,7 +46433,7 @@ var SatoriCreatorEvents;
         do {
             var page;
             try {
-                page = nk.storageList("", "event_answers", 100, cursor);
+                page = nk.storageList(null, "event_answers", 100, cursor);
             }
             catch (lerr) {
                 logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
@@ -43008,7 +46487,7 @@ var SatoriCreatorEvents;
             do {
                 var pPage;
                 try {
-                    pPage = nk.storageList("", "event_participants", 100, pCursor);
+                    pPage = nk.storageList(null, "event_participants", 100, pCursor);
                 }
                 catch (perr) {
                     logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
@@ -43751,6 +47230,32 @@ var SatoriMetrics;
     function saveMetricState(nk, metricId, state, gameId) {
         Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId), state);
     }
+    var BUILTIN_METRICS = [
+        { id: "legacy_dau", name: "Daily Active Users", field: "dau", aggregation: "unique" },
+        { id: "legacy_events", name: "Events / day", field: "events", aggregation: "count" },
+        { id: "legacy_revenue", name: "Revenue / day (USD)", field: "revenue", aggregation: "sum" },
+        { id: "legacy_sessions", name: "Sessions / day", field: "sessions", aggregation: "count" },
+        { id: "legacy_payers", name: "Payers / day", field: "purchases", aggregation: "count" },
+        { id: "legacy_new_users", name: "New users / day", field: "newUsers", aggregation: "sum" }
+    ];
+    function findBuiltin(id) {
+        for (var i = 0; i < BUILTIN_METRICS.length; i++) {
+            if (BUILTIN_METRICS[i].id === id)
+                return BUILTIN_METRICS[i];
+        }
+        return null;
+    }
+    function builtinValue(day, field) {
+        switch (field) {
+            case "dau": return day.dau;
+            case "events": return day.events;
+            case "revenue": return Math.round(day.revenue * 100) / 100;
+            case "sessions": return day.sessions;
+            case "purchases": return day.purchases;
+            case "newUsers": return day.newUsers;
+        }
+        return 0;
+    }
     function processEvent(nk, logger, userId, eventName, metadata) {
         var gameId = metadata.gameId || metadata.game_id;
         var definitions = getMetricDefinitions(nk, gameId);
@@ -43858,6 +47363,18 @@ var SatoriMetrics;
                 computedAt: now
             });
         }
+        // Append built-in legacy-backed metrics (today's value) unless the caller
+        // asked for a specific subset of config metrics.
+        if (!data.metricIds) {
+            var today = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(Date.now()), gameId);
+            for (var b = 0; b < BUILTIN_METRICS.length; b++) {
+                results.push({
+                    metricId: BUILTIN_METRICS[b].id,
+                    value: builtinValue(today, BUILTIN_METRICS[b].field),
+                    computedAt: now
+                });
+            }
+        }
         return RpcHelpers.successResponse({ metrics: results });
     }
     function rpcDefine(ctx, logger, nk, payload) {
@@ -43882,23 +47399,82 @@ var SatoriMetrics;
     function rpcSetAlert(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.metricId || !data.name || data.threshold === undefined || !data.operator) {
+        var metricId = data.metricId || data.metric_id;
+        if (!metricId || !data.name || data.threshold === undefined || !data.operator) {
             return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
         }
         var alerts = getAlerts(nk);
         var existing = false;
         for (var i = 0; i < alerts.length; i++) {
             if (alerts[i].name === data.name) {
-                alerts[i] = { metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
+                alerts[i] = { metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
                 existing = true;
                 break;
             }
         }
         if (!existing) {
-            alerts.push({ metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
+            alerts.push({ metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
         }
         Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts", { alerts: alerts });
         return RpcHelpers.successResponse({ alerts: alerts });
+    }
+    // satori_metrics_series — bucketed time series for one metric (for charts).
+    // Payload: { metricId, game_id?, limit? }
+    function rpcSeries(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.metricId)
+            return RpcHelpers.errorResponse("metricId required");
+        var gameId = RpcHelpers.gameId(data);
+        var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), 500);
+        // Built-in legacy metric → daily series from the analytics pipeline.
+        var builtin = findBuiltin(data.metricId);
+        if (builtin) {
+            var nowMs = Date.now();
+            var seriesDays = Math.min(Math.max(parseInt(data.days, 10) || 30, 3), 60);
+            var rangeDays = LegacyAnalytics.readRange(nk, nowMs, seriesDays, gameId);
+            var legacyPoints = [];
+            for (var rd = 0; rd < rangeDays.length; rd++) {
+                var ld = rangeDays[rd];
+                legacyPoints.push({
+                    bucketSec: Math.floor(new Date(ld.date + "T00:00:00Z").getTime() / 1000),
+                    value: builtinValue(ld, builtin.field),
+                    count: 1
+                });
+            }
+            return RpcHelpers.successResponse({
+                metricId: data.metricId,
+                definition: { id: builtin.id, name: builtin.name, eventName: builtin.field, aggregation: builtin.aggregation, windowSec: 86400 },
+                windowed: true,
+                points: legacyPoints
+            });
+        }
+        var definitions = getMetricDefinitions(nk, gameId);
+        var def = definitions[data.metricId];
+        var state = getMetricState(nk, data.metricId, gameId);
+        var points = [];
+        for (var bk in state.buckets) {
+            var bkSec = parseInt(bk, 10);
+            points.push({
+                bucketSec: isNaN(bkSec) ? 0 : bkSec,
+                value: state.buckets[bk].value,
+                count: state.buckets[bk].count
+            });
+        }
+        points.sort(function (a, b) { return a.bucketSec - b.bucketSec; });
+        if (points.length > limit)
+            points = points.slice(points.length - limit);
+        return RpcHelpers.successResponse({
+            metricId: data.metricId,
+            definition: def || null,
+            windowed: !!(def && def.windowSec),
+            points: points
+        });
+    }
+    // satori_metrics_alerts — list configured alerts + last-triggered state.
+    function rpcAlertsList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        return RpcHelpers.successResponse({ alerts: getAlerts(nk) });
     }
     function rpcPrometheus(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -43930,6 +47506,8 @@ var SatoriMetrics;
         initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
         initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
         initializer.registerRpc("satori_metrics_get", rpcQuery);
+        initializer.registerRpc("satori_metrics_series", rpcSeries);
+        initializer.registerRpc("satori_metrics_alerts", rpcAlertsList);
     }
     SatoriMetrics.register = register;
     function registerEventHandlers() {
@@ -43951,6 +47529,80 @@ var SatoriMetrics;
     }
     SatoriMetrics.registerEventHandlers = registerEventHandlers;
 })(SatoriMetrics || (SatoriMetrics = {}));
+// ---------------------------------------------------------------------------
+// Satori Reports — saved/reusable report definitions. Mirrors Satori Cloud's
+// "Reports" surface: an admin saves a named query (a funnel, retention,
+// metric, or timeline view with its parameters) and re-runs it later. The
+// definition is stored here; the admin UI executes it by calling the existing
+// funnel / retention / metric / timeline RPCs with the saved params.
+//
+// Definitions live in satori_configs/"reports" ({ reports: { [id]: def } }).
+// Admin-only.
+// ---------------------------------------------------------------------------
+var SatoriReports;
+(function (SatoriReports) {
+    function getReports(nk) {
+        var raw = ConfigLoader.loadSatoriConfig(nk, "reports", { reports: {} });
+        return (raw && raw.reports) ? raw.reports : {};
+    }
+    function saveReports(nk, reports) {
+        ConfigLoader.saveSatoriConfig(nk, "reports", { reports: reports });
+    }
+    function toList(reports) {
+        var out = [];
+        for (var id in reports)
+            out.push(reports[id]);
+        out.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+        return out;
+    }
+    // satori_reports_list
+    function rpcList(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        return RpcHelpers.successResponse({ reports: toList(getReports(nk)) });
+    }
+    var VALID_TYPES = { funnel: true, retention: true, metric: true, timeline: true };
+    // satori_reports_save — Payload: { id?, name, type, description?, params }
+    function rpcSave(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.name)
+            return RpcHelpers.errorResponse("name required");
+        if (!data.type || !VALID_TYPES[data.type])
+            return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
+        var reports = getReports(nk);
+        var now = Math.floor(Date.now() / 1000);
+        var id = data.id || ("rep_" + now + "_" + Math.floor(Math.random() * 100000));
+        var existing = reports[id];
+        reports[id] = {
+            id: id,
+            name: String(data.name).slice(0, 120),
+            type: data.type,
+            description: data.description ? String(data.description).slice(0, 500) : "",
+            params: data.params && typeof data.params === "object" ? data.params : {},
+            createdAt: existing ? existing.createdAt : now,
+            updatedAt: now
+        };
+        saveReports(nk, reports);
+        return RpcHelpers.successResponse({ report: reports[id] });
+    }
+    // satori_reports_delete — Payload: { id }
+    function rpcDelete(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.id)
+            return RpcHelpers.errorResponse("id required");
+        var reports = getReports(nk);
+        delete reports[data.id];
+        saveReports(nk, reports);
+        return RpcHelpers.successResponse({ deleted: data.id });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_reports_list", rpcList);
+        initializer.registerRpc("satori_reports_save", rpcSave);
+        initializer.registerRpc("satori_reports_delete", rpcDelete);
+    }
+    SatoriReports.register = register;
+})(SatoriReports || (SatoriReports = {}));
 // ---------------------------------------------------------------------------
 // Satori Retention — activity-based D1/D3/D7 retention cohorts computed from
 // captured events, with optional segmentation by experiment variant.
@@ -43982,6 +47634,69 @@ var SatoriRetention;
         d.setUTCDate(d.getUTCDate() + days);
         return d.toISOString().slice(0, 10);
     }
+    function setOf(list) {
+        var s = {};
+        for (var i = 0; i < list.length; i++)
+            s[list[i]] = true;
+        return s;
+    }
+    function intersectCount(a, b) {
+        if (!b)
+            return 0;
+        var n = 0;
+        for (var u in a) {
+            if (b[u])
+                n++;
+        }
+        return n;
+    }
+    // Real rolling retention from the analytics pipeline's daily active-user lists
+    // (analytics_dau.uniqueUsers). Cohort = users active on day D; "retained" on
+    // D+N = also active on D+N. This is rolling active-user retention (not new-user
+    // cohorts, since the pipeline stores active lists, not first-seen lists) — but
+    // it is REAL data and fast (one batched read/day, no event scan).
+    function computeRetentionLegacy(nk, nowMs, days, gameId) {
+        var todayStr = dateStrOf(nowMs);
+        var legacyDays = LegacyAnalytics.readRange(nk, nowMs, days, gameId); // oldest → newest
+        var setByDate = {};
+        var union = {};
+        for (var i = 0; i < legacyDays.length; i++) {
+            var ld = legacyDays[i];
+            var s = setOf(ld.uniqueUsers);
+            setByDate[ld.date] = s;
+            for (var u in s)
+                union[u] = true;
+        }
+        var cohortRows = [];
+        for (var j = 0; j < legacyDays.length; j++) {
+            var day = legacyDays[j];
+            var set = setByDate[day.date];
+            var size = Object.keys(set).length;
+            if (size === 0)
+                continue;
+            var d1d = addDays(day.date, 1), d3d = addDays(day.date, 3), d7d = addDays(day.date, 7);
+            cohortRows.push({
+                date: day.date,
+                size: size,
+                d1Rate: (d1d <= todayStr && setByDate[d1d]) ? intersectCount(set, setByDate[d1d]) / size : null,
+                d3Rate: (d3d <= todayStr && setByDate[d3d]) ? intersectCount(set, setByDate[d3d]) / size : null,
+                d7Rate: (d7d <= todayStr && setByDate[d7d]) ? intersectCount(set, setByDate[d7d]) / size : null
+            });
+        }
+        cohortRows.sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+        return {
+            windowDays: days,
+            sinceMs: nowMs - days * 86400000,
+            experimentId: null,
+            cohorts: cohortRows,
+            byVariant: null,
+            totalUsers: Object.keys(union).length,
+            scannedRecords: legacyDays.length,
+            truncated: false,
+            basis: "active_user_rolling",
+            source: "analytics_pipeline"
+        };
+    }
     // satori_retention_compute — Payload: { days?, game_id?, experiment_id?, max_pages? }
     function rpcCompute(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -43992,11 +47707,13 @@ var SatoriRetention;
         var nowMs = Date.now();
         var sinceMs = nowMs - days * 86400000;
         var todayStr = dateStrOf(nowMs);
-        var assignments = null;
         var experimentId = data.experiment_id || data.experimentId;
-        if (experimentId) {
-            assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
+        // Common case (no variant split): real rolling retention from the pipeline.
+        if (!experimentId) {
+            return RpcHelpers.successResponse(computeRetentionLegacy(nk, nowMs, days, gameId));
         }
+        // Variant segmentation needs per-user first-seen → fall back to event scan.
+        var assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
         // userId → { first: dateStr, dates: set }
         var perUser = {};
         var cursor = "";
@@ -44118,8 +47835,29 @@ var SatoriRetention;
 })(SatoriRetention || (SatoriRetention = {}));
 var SatoriTaxonomy;
 (function (SatoriTaxonomy) {
+    // Known gameplay events forwarded by SatoriEventBusBridge. Registering
+    // them here means they validate cleanly (and survive strict mode) out of
+    // the box, and the Taxonomy admin page shows a sensible starting catalog
+    // instead of an empty list.
+    function gameplaySchema(name, category, description) {
+        return { name: name, category: category, description: description, requiredMetadata: [], optionalMetadata: [], metadataTypes: {}, maxMetadataKeys: 50, deprecated: false };
+    }
     var DEFAULT_CONFIG = {
-        schemas: {},
+        schemas: {
+            session_start: gameplaySchema("session_start", "engagement", "Player opened a session"),
+            session_end: gameplaySchema("session_end", "engagement", "Player session ended"),
+            quiz_completed: gameplaySchema("quiz_completed", "engagement", "Player finished a quiz"),
+            game_started: gameplaySchema("game_started", "engagement", "Player started a game/match"),
+            game_completed: gameplaySchema("game_completed", "engagement", "Player finished a game/match"),
+            score_submitted: gameplaySchema("score_submitted", "progression", "Player submitted a score"),
+            store_purchase: gameplaySchema("store_purchase", "monetization", "Store / IAP purchase (carries price/revenue)"),
+            level_up: gameplaySchema("level_up", "progression", "Player leveled up"),
+            achievement_completed: gameplaySchema("achievement_completed", "progression", "Achievement completed"),
+            achievement_claimed: gameplaySchema("achievement_claimed", "progression", "Achievement reward claimed"),
+            challenge_completed: gameplaySchema("challenge_completed", "engagement", "Challenge completed"),
+            streak_updated: gameplaySchema("streak_updated", "engagement", "Daily streak advanced"),
+            reward_granted: gameplaySchema("reward_granted", "progression", "Reward granted to player")
+        },
         enforceStrict: false,
         maxEventNameLength: 128,
         maxMetadataValueLength: 1024,
@@ -44257,6 +47995,77 @@ var SatoriTaxonomy;
     }
     SatoriTaxonomy.register = register;
 })(SatoriTaxonomy || (SatoriTaxonomy = {}));
+// ---------------------------------------------------------------------------
+// Satori Timeline — calendar view backing data. Mirrors Satori Cloud's
+// "Timeline" surface: a per-day metric track (DAU + events) plus activity
+// bars for experiments / live events / messages laid out across the date
+// range, so admins can see what was live on any given day.
+//
+// DAU/events are read from the legacy analytics pipeline's durable per-day
+// aggregate docs (via LegacyAnalytics) — the real game telemetry behind
+// analytics.htm — instead of scanning the sparse `satori_events` ring.
+// Activities come from the Satori config objects. Admin-only.
+// ---------------------------------------------------------------------------
+var SatoriTimeline;
+(function (SatoriTimeline) {
+    var MAX_DAYS = 31;
+    // satori_timeline — Payload: { days?, game_id? }
+    function rpcTimeline(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), MAX_DAYS);
+        var gameId = RpcHelpers.gameId(data);
+        var nowMs = Date.now();
+        var sinceMs = nowMs - days * 86400000;
+        // Per-day DAU + event volume from the real analytics aggregates.
+        var dau = [];
+        var legacyDays = LegacyAnalytics.readRange(nk, nowMs, days, gameId);
+        for (var i = 0; i < legacyDays.length; i++) {
+            var ld = legacyDays[i];
+            dau.push({ date: ld.date, users: ld.dau, events: ld.events });
+        }
+        // Activities laid out across the range (seconds → kept as seconds).
+        var activities = [];
+        var sinceSec = Math.floor(sinceMs / 1000);
+        var experiments = ConfigLoader.loadSatoriConfigForGame(nk, "experiments", gameId, {});
+        for (var ex in experiments) {
+            var e = experiments[ex];
+            if (e.endAt && e.endAt < sinceSec)
+                continue;
+            activities.push({ type: "experiment", id: ex, name: e.name || ex, startAt: e.startAt || null, endAt: e.endAt || null, status: e.status || "" });
+        }
+        var liveEvents = ConfigLoader.loadSatoriConfigForGame(nk, "live_events", gameId, {});
+        for (var le in liveEvents) {
+            var l = liveEvents[le];
+            if (l.endAt && l.endAt < sinceSec)
+                continue;
+            activities.push({ type: "live_event", id: le, name: l.name || le, startAt: l.startAt || null, endAt: l.endAt || null, category: l.category || "" });
+        }
+        var rawMsgs = ConfigLoader.loadSatoriConfigForGame(nk, "messages", gameId, {});
+        var messages = rawMsgs && rawMsgs.messages ? rawMsgs.messages : rawMsgs;
+        for (var mid in messages) {
+            var m = messages[mid];
+            if (!m || typeof m !== "object")
+                continue;
+            if (m.scheduleAt && m.scheduleAt < sinceSec)
+                continue;
+            activities.push({ type: "message", id: mid, name: m.title || mid, startAt: m.scheduleAt || null, endAt: m.expiresAt || null });
+        }
+        return RpcHelpers.successResponse({
+            days: days,
+            sinceMs: sinceMs,
+            generatedAt: nowMs,
+            dau: dau,
+            activities: activities,
+            scannedRecords: legacyDays.length,
+            truncated: false
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("satori_timeline", rpcTimeline);
+    }
+    SatoriTimeline.register = register;
+})(SatoriTimeline || (SatoriTimeline = {}));
 var SatoriVideoFeed;
 (function (SatoriVideoFeed) {
     var COLLECTION = "satori_video_feed";
@@ -44745,6 +48554,19 @@ var ConfigLoader;
 (function (ConfigLoader) {
     var configCache = {};
     var CACHE_TTL_MS = 60000; // 1 minute
+    // Fold every alias of a registered app (UUID / slug / platform aliases) down
+    // to one canonical scope before building the storage key, so the same app
+    // never splits across two config stores. Defensive: if the registry helper
+    // is unavailable for any reason, fall back to the raw id (legacy behaviour).
+    function canonicalGameId(nk, gameId) {
+        try {
+            if (typeof LegacyGameRegistry !== "undefined" && LegacyGameRegistry.resolveCanonicalGameId) {
+                return LegacyGameRegistry.resolveCanonicalGameId(nk, gameId);
+            }
+        }
+        catch (_e) { /* fall through to raw */ }
+        return gameId;
+    }
     function loadConfig(nk, configKey, defaultValue) {
         var now = Date.now();
         var cached = configCache[configKey];
@@ -44760,7 +48582,7 @@ var ConfigLoader;
     }
     ConfigLoader.loadConfig = loadConfig;
     function loadConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(gameId, configKey);
+        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
         var data = loadConfig(nk, scopedKey, defaultValue);
         if (scopedKey !== configKey && data === defaultValue) {
             return loadConfig(nk, configKey, defaultValue);
@@ -44784,7 +48606,7 @@ var ConfigLoader;
     }
     ConfigLoader.loadSatoriConfig = loadSatoriConfig;
     function loadSatoriConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(gameId, configKey);
+        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
         var data = loadSatoriConfig(nk, scopedKey, defaultValue);
         if (scopedKey !== configKey && data === defaultValue) {
             return loadSatoriConfig(nk, configKey, defaultValue);
@@ -44803,7 +48625,7 @@ var ConfigLoader;
     }
     ConfigLoader.saveSatoriConfig = saveSatoriConfig;
     function saveSatoriConfigForGame(nk, configKey, gameId, data) {
-        saveSatoriConfig(nk, Constants.gameKey(gameId, configKey), data);
+        saveSatoriConfig(nk, Constants.gameKey(canonicalGameId(nk, gameId), configKey), data);
     }
     ConfigLoader.saveSatoriConfigForGame = saveSatoriConfigForGame;
     function invalidateCache(configKey) {
@@ -44959,16 +48781,20 @@ var FortuneWheelAdSpin;
     var CYCLE_KEY = "cycle_state";
     var AD_SPINS_MAX = 3;
     var AD_COOLDOWN_SECONDS = 10800; // 3 hours
+    // Skip-cooldown: spend coins to clear the 3-day organic-spin cooldown.
+    // MUST match Unity FortuneWheelService.SKIP_COOLDOWN_COST.
+    var SKIP_COOLDOWN_COST = 50;
+    var SKIP_COOLDOWN_CURRENCY = "coins";
     // Must match SEGMENTS in fortune_wheel.js exactly
     var SEGMENTS = [
-        { type: "XP", amount: 100, label: "100 XP", weight: 20 },
-        { type: "Coins", amount: 50, label: "50 Coins", weight: 25 },
-        { type: "XP", amount: 250, label: "250 XP", weight: 15 },
-        { type: "AudiobookToken", amount: 1, label: "Audiobook Token", weight: 8 },
-        { type: "Coins", amount: 150, label: "150 Coins", weight: 12 },
-        { type: "Shield", amount: 24, label: "24h Shield", weight: 10 },
-        { type: "XP", amount: 500, label: "500 XP", weight: 5 },
-        { type: "AudiobookToken", amount: 2, label: "2 Audiobook Tokens", weight: 5 }
+        { type: "Coins", amount: 5, label: "5 Coins", weight: 20 },
+        { type: "Coins", amount: 1, label: "1 Coins", weight: 25 },
+        { type: "Coins", amount: 15, label: "15 Coins", weight: 15 },
+        { type: "Coins", amount: 20, label: "20 Coins", weight: 8 },
+        { type: "Coins", amount: 25, label: "25 Coins", weight: 12 },
+        { type: "Coins", amount: 50, label: "50 Coins", weight: 10 },
+        { type: "Coins", amount: 10, label: "10 Coins", weight: 5 },
+        { type: "Coins", amount: 35, label: "35 Coins Coins", weight: 5 }
     ];
     function getCycleState(nk, userId) {
         try {
@@ -45007,6 +48833,38 @@ var FortuneWheelAdSpin;
         }
         catch ( /* fall through */_a) { /* fall through */ }
         return {};
+    }
+    // Persist the organic wheel state. Mirrors fwSaveWheelState in legacy_runtime.js
+    // (collection "fortune_wheel", key "state", owner read-only / server write-only).
+    function saveWheelState(nk, userId, state) {
+        nk.storageWrite([{
+                collection: "fortune_wheel",
+                key: "state",
+                userId: userId,
+                value: state,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    // Mirrors fwCanUserSpin: no nextSpinTime, or the cooldown has elapsed.
+    function canUserSpin(state) {
+        if (!state.nextSpinTime)
+            return true;
+        return new Date() >= new Date(state.nextSpinTime);
+    }
+    // Read the authoritative coin balance from the Nakama account wallet.
+    // Fortune-wheel coins are granted via nk.walletUpdate({ coins }), so the
+    // balance lives on account.wallet.coins (not the per-game storage wallet).
+    function getCoinBalance(nk, userId) {
+        try {
+            var account = nk.accountGetId(userId);
+            var wallet = (account && account.wallet) || {};
+            var coins = wallet[SKIP_COOLDOWN_CURRENCY];
+            return typeof coins === "number" && isFinite(coins) ? coins : 0;
+        }
+        catch (_a) {
+            return 0;
+        }
     }
     function getWeightedRandomIndex() {
         var totalWeight = 0;
@@ -45195,11 +49053,124 @@ var FortuneWheelAdSpin;
     }
     FortuneWheelAdSpin.rpcFortuneWheelAdSpin = rpcFortuneWheelAdSpin;
     /**
+     * RPC: fortune_wheel_skip_cooldown
+     *
+     * Server-authoritative cooldown skip: spend SKIP_COOLDOWN_COST coins to clear the
+     * 3-day organic-spin cooldown so the user can spin immediately.
+     *
+     * Order of operations (fail-safe — never deducts coins on a failed skip):
+     *   1. Auth check
+     *   2. Validate the user is actually ON cooldown      → not_on_cooldown
+     *   3. Validate balance >= cost                       → insufficient_coins
+     *   4. Deduct coins atomically (walletUpdate)         → authoritative balance from `previous`
+     *   5. Clear the organic cooldown (nextSpinTime=null) — only AFTER the debit succeeds
+     *
+     * Returns SkipCooldownResponse (see Unity FortuneWheelService.SkipCooldownResponse):
+     *   { success, error?, errorCode?, coinsSpent, coinBalance, canSpin, nextSpinTime }
+     */
+    function rpcFortuneWheelSkipCooldown(ctx, logger, nk, _payload) {
+        var _a, _b;
+        var userId = ctx.userId;
+        if (!userId) {
+            return JSON.stringify({
+                success: false,
+                error: "Authentication required",
+                coinsSpent: 0,
+                coinBalance: 0,
+                canSpin: false,
+                nextSpinTime: null
+            });
+        }
+        // 1. Read current organic wheel state.
+        var state = getWheelState(nk, userId);
+        // 2. Must actually be on cooldown — no point charging otherwise.
+        if (canUserSpin(state)) {
+            return JSON.stringify({
+                success: false,
+                error: "Not on cooldown — you can already spin",
+                errorCode: "not_on_cooldown",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: true,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        // 3. Validate balance BEFORE any debit.
+        var balanceBefore = getCoinBalance(nk, userId);
+        if (balanceBefore < SKIP_COOLDOWN_COST) {
+            return JSON.stringify({
+                success: false,
+                error: "Not enough coins to skip the cooldown",
+                errorCode: "insufficient_coins",
+                coinsSpent: 0,
+                coinBalance: balanceBefore,
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        // 4. Deduct atomically. walletUpdate is authoritative and rejects negative balances.
+        var balanceAfter = balanceBefore - SKIP_COOLDOWN_COST;
+        try {
+            var result = nk.walletUpdate(userId, (_a = {}, _a[SKIP_COOLDOWN_CURRENCY] = -SKIP_COOLDOWN_COST, _a), { source: "fortune_wheel_skip_cooldown", cost: SKIP_COOLDOWN_COST, ts: new Date().toISOString() }, true);
+            // Prefer the server-reported post-debit balance when available.
+            if (result && result.updated && typeof result.updated[SKIP_COOLDOWN_CURRENCY] === "number") {
+                balanceAfter = result.updated[SKIP_COOLDOWN_CURRENCY];
+            }
+        }
+        catch (err) {
+            // Most common cause: a concurrent spend dropped the balance below cost.
+            logger.warn("[FortuneWheelSkipCooldown] coin debit failed for ".concat(userId, ": ").concat(err));
+            return JSON.stringify({
+                success: false,
+                error: "Not enough coins to skip the cooldown",
+                errorCode: "insufficient_coins",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        // 5. Clear the organic cooldown — only after the debit succeeded.
+        state.nextSpinTime = undefined;
+        try {
+            saveWheelState(nk, userId, state);
+        }
+        catch (err) {
+            // Debit already happened; refund to keep the player whole, then fail.
+            logger.error("[FortuneWheelSkipCooldown] state write failed for ".concat(userId, ", refunding: ").concat(err));
+            try {
+                nk.walletUpdate(userId, (_b = {}, _b[SKIP_COOLDOWN_CURRENCY] = +SKIP_COOLDOWN_COST, _b), { source: "fortune_wheel_skip_cooldown_refund", reason: "state_write_failed" }, true);
+            }
+            catch (refundErr) {
+                logger.error("[FortuneWheelSkipCooldown] refund ALSO failed for ".concat(userId, ": ").concat(refundErr));
+            }
+            return JSON.stringify({
+                success: false,
+                error: "Server error — cooldown not cleared (coins refunded)",
+                errorCode: "server_error",
+                coinsSpent: 0,
+                coinBalance: getCoinBalance(nk, userId),
+                canSpin: false,
+                nextSpinTime: state.nextSpinTime || null
+            });
+        }
+        logger.info("[FortuneWheelSkipCooldown] ".concat(userId, " skipped cooldown for ").concat(SKIP_COOLDOWN_COST, " coins (balance ").concat(balanceBefore, " \u2192 ").concat(balanceAfter, ")"));
+        return JSON.stringify({
+            success: true,
+            coinsSpent: SKIP_COOLDOWN_COST,
+            coinBalance: balanceAfter,
+            canSpin: true,
+            nextSpinTime: null
+        });
+    }
+    FortuneWheelAdSpin.rpcFortuneWheelSkipCooldown = rpcFortuneWheelSkipCooldown;
+    /**
      * Register all RPCs in this module.
      */
     function register(initializer, logger) {
         initializer.registerRpc("fortune_wheel_ad_spin", rpcFortuneWheelAdSpin);
-        logger.info("[FortuneWheelAdSpin] ✓ Registered RPC: fortune_wheel_ad_spin (V2)");
+        initializer.registerRpc("fortune_wheel_skip_cooldown", rpcFortuneWheelSkipCooldown);
+        logger.info("[FortuneWheelAdSpin] ✓ Registered RPCs: fortune_wheel_ad_spin (V2), fortune_wheel_skip_cooldown");
     }
     FortuneWheelAdSpin.register = register;
 })(FortuneWheelAdSpin || (FortuneWheelAdSpin = {}));
@@ -45417,6 +49388,41 @@ var GeoTier;
         return TIER_T3; // Default if no cache — safe for ad volume
     }
     GeoTier.getUserTier = getUserTier;
+    /**
+     * Returns the user's cached ISO-3166 alpha-2 country code (e.g. "US",
+     * "IN") from the 30-day geo cache, or "" when there is no fresh cache
+     * entry. Never blocks on the IP-API HTTP call — callers that need a
+     * guaranteed resolution should invoke the `country_tier_get` RPC first
+     * (which resolves + caches), then read this. Used by the "People Near
+     * You" suggestion RPC to scope candidates to the same country without
+     * introducing any new permission or storage surface.
+     *
+     * Returns "" for the "XX" fallback sentinel too, so callers can treat
+     * an unknown geo as "no nearby scoping possible".
+     */
+    function getUserCountry(nk, userId) {
+        var cached = readCache(nk, userId);
+        if (cached && cached.countryCode && cached.countryCode !== "XX") {
+            return cached.countryCode.toUpperCase();
+        }
+        return "";
+    }
+    GeoTier.getUserCountry = getUserCountry;
+    /**
+     * Resolve + cache the user's country in one call (cache-first, then
+     * IP-API fallback). Returns the resolved alpha-2 code, or "" when even
+     * the IP lookup fails (geo unknown). Unlike getUserCountry this WILL
+     * perform the HTTP lookup on a cache miss, so the very first "People
+     * Near You" load for a brand-new user still scopes correctly.
+     */
+    function resolveUserCountry(ctx, logger, nk, userId) {
+        var result = resolve(ctx, logger, nk, userId);
+        if (result && result.countryCode && result.countryCode !== "XX") {
+            return result.countryCode.toUpperCase();
+        }
+        return "";
+    }
+    GeoTier.resolveUserCountry = resolveUserCountry;
     // ─── Registration ───────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("country_tier_get", rpcCountryTierGet);
@@ -47576,8 +51582,9 @@ var Referrals;
             var username = "";
             try {
                 var acc = nk.accountsGetId([ownerId]);
+                // QVBF_114: prefer displayName so leaderboards show the friendly name.
                 if (acc && acc.length > 0)
-                    username = "" + (acc[0].user.username || "");
+                    username = "" + (acc[0].user.displayName || acc[0].user.username || "");
             }
             catch (_) { }
             nk.leaderboardRecordWrite(Referrals.LEADERBOARD_ID, ownerId, username, 1);
@@ -48297,8 +52304,9 @@ var TournamentRpcs;
             var username = "";
             try {
                 var acc = nk.accountsGetId([userId]);
+                // QVBF_114: prefer displayName so leaderboards show the friendly name.
                 if (acc && acc.length > 0)
-                    username = "" + (acc[0].user.username || "");
+                    username = "" + (acc[0].user.displayName || acc[0].user.username || "");
             }
             catch (_) { }
             TournamentLeaderboard.recordSubmit(nk, slug, userId, username, entry.score);
@@ -48748,6 +52756,9 @@ var TournamentRpcs;
             state: state || null,
             eligible: !!userId && countryAllowed && !stateBlocked && !ageBlocked,
             age_blocked: ageBlocked,
+            // Distinguishes "no verified DOB yet → show Verify-your-age CTA" from
+            // "verified DOB on file but under min_age → hard block".
+            dob_on_file: !!ageInfo.dob_iso,
             state_blocked: stateBlocked,
             country_blocked: !countryAllowed,
             entered: !!entry,
@@ -48757,6 +52768,55 @@ var TournamentRpcs;
             balance_bc: balance.balance,
             served_at: nowSec(),
         });
+    }
+    // ── RPC: kyc_profile_sync (service-only) ────────────────────────────────────
+    // Called by quests-economy when a Veriff/Didit KYC verification is approved.
+    // Writes the ID-verified date of birth into the user's account metadata —
+    // the single source the tournament age gate (readUserDob) reads from.
+    // Clients can never call this directly: account metadata is only writable
+    // server-side, and the RPC additionally requires the shared service token.
+    function rpcKycProfileSync(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isServiceCaller(ctx, data))
+            return RpcHelpers.errorResponse("service-only", 401);
+        var userId = "" + (data.user_id || "");
+        var dobIso = "" + (data.dob_iso || "");
+        var provider = "" + (data.kyc_provider || "unknown");
+        if (!userId)
+            return RpcHelpers.errorResponse("user_id required", 400);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dobIso))
+            return RpcHelpers.errorResponse("dob_iso must be YYYY-MM-DD", 400);
+        var dob = new Date(dobIso + "T00:00:00Z");
+        var now = new Date();
+        if (isNaN(dob.getTime()))
+            return RpcHelpers.errorResponse("dob_iso is not a valid date", 400);
+        if (dob.getTime() > now.getTime())
+            return RpcHelpers.errorResponse("dob_iso cannot be in the future", 400);
+        if (dob.getUTCFullYear() < now.getUTCFullYear() - 120)
+            return RpcHelpers.errorResponse("dob_iso is implausibly old", 400);
+        var metadata = {};
+        try {
+            var accounts = nk.accountsGetId([userId]);
+            if (!accounts || accounts.length === 0)
+                return RpcHelpers.errorResponse("account not found", 404);
+            metadata = accounts[0].user.metadata || {};
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse("account lookup failed", 404);
+        }
+        metadata["dob_iso"] = dobIso;
+        metadata["kyc_verified"] = true;
+        metadata["kyc_provider"] = provider;
+        metadata["kyc_verified_at"] = nowSec();
+        try {
+            nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
+        }
+        catch (e) {
+            logger.error("kyc_profile_sync: accountUpdateId failed for %s: %s", userId, e.message);
+            return RpcHelpers.errorResponse("metadata update failed", 500);
+        }
+        logger.info("kyc_profile_sync: dob set for user %s via %s", userId, provider);
+        return RpcHelpers.successResponse({ ok: true, user_id: userId, dob_iso: dobIso, kyc_provider: provider });
     }
     // ── RPC: tournament_bracket_seed_topN (service-only) ────────────────────────
     // Pushes the top-N entrants from the qualifier leaderboard into the Bracket
@@ -49632,6 +53692,7 @@ var TournamentRpcs;
         initializer.registerRpc("tournament_list", rpcList);
         initializer.registerRpc("tournament_get", rpcGet);
         initializer.registerRpc("tournament_caller_status", rpcCallerStatus);
+        initializer.registerRpc("kyc_profile_sync", rpcKycProfileSync);
         initializer.registerRpc("tournament_bracket_state", rpcBracketState);
         initializer.registerRpc("tournament_pre_enroll", auth(rpcPreEnroll));
         initializer.registerRpc("tournament_enter", auth(rpcEnter));

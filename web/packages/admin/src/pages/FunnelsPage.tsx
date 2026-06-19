@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -202,10 +203,30 @@ function FunnelSection({ gameScope }: { gameScope: string }) {
     select: (d) => d.funnels ?? [],
   });
 
-  const [stepsInput, setStepsInput] = useState("session_start, quiz_started, quiz_completed");
+  const [stepsInput, setStepsInput] = useState(
+    "session_start, media_question_started, media_question_completed",
+  );
   const [sinceDays, setSinceDays] = useState(7);
   const [experimentId, setExperimentId] = useState("");
   const [saveName, setSaveName] = useState("");
+
+  // Real logged event names (from the analytics pipeline) so the builder uses
+  // actual events instead of guessed placeholders.
+  const catalog = useQuery({
+    queryKey: ["satori", "event-catalog", gameScope, sinceDays],
+    queryFn: () =>
+      satori.getEventCatalog({ days: sinceDays, game_id: rpcGameId(gameScope) }, serverKeyAuth()),
+    select: (d) => d.events ?? [],
+    staleTime: 60_000,
+  });
+
+  const appendStep = (name: string) => {
+    setStepsInput((prev) => {
+      const steps = prev.split(",").map((s) => s.trim()).filter(Boolean);
+      if (steps.includes(name)) return prev;
+      return [...steps, name].join(", ");
+    });
+  };
 
   const compute = useMutation({
     mutationFn: (params: Parameters<typeof satori.computeFunnel>[0]) =>
@@ -294,9 +315,30 @@ function FunnelSection({ gameScope }: { gameScope: string }) {
           <input
             value={stepsInput}
             onChange={(e) => setStepsInput(e.target.value)}
-            placeholder="session_start, quiz_started, quiz_completed"
+            placeholder="session_start, media_question_started, media_question_completed"
             className="h-9 w-full rounded-md border border-border bg-background px-3 font-mono text-xs outline-none focus:border-primary"
           />
+          {(catalog.data?.length ?? 0) > 0 && (
+            <div className="mt-2">
+              <p className="mb-1 text-[11px] text-muted-foreground">
+                Click to add a real logged event ({sinceDays}d volume):
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {catalog.data!.slice(0, 24).map((ev) => (
+                  <button
+                    key={ev.name}
+                    type="button"
+                    onClick={() => appendStep(ev.name)}
+                    title={`${ev.count.toLocaleString()} events`}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:border-primary hover:text-primary"
+                  >
+                    {ev.name}
+                    <span className="text-[9px] opacity-60">{ev.count.toLocaleString()}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -547,7 +589,7 @@ function RetentionSection({ gameScope }: { gameScope: string }) {
 /* ── Main page ────────────────────────────────────────────────────── */
 
 export function FunnelsPage() {
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
 
   return (
     <div className="space-y-6">
@@ -562,15 +604,6 @@ export function FunnelsPage() {
             optionally segmented by experiment variant.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          Game ID
-          <input
-            value={gameScope}
-            onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
-            placeholder="global or quizverse"
-            className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
-          />
-        </label>
       </div>
 
       <CloudMirrorCard />

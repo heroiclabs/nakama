@@ -1,0 +1,6 @@
+**/node_modules
+**/dist
+**/.turbo
+**/.vite
+**/*.log
+**/.DS_Store

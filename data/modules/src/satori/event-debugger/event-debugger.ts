@@ -21,6 +21,12 @@ namespace SatoriEventDebugger {
   var RECENT_KEY = "recent_events";
   var RECENT_MAX = 300;
 
+  // Rejected-event ring buffer — backs the dashboard "Event errors" panel
+  // (mirrors Satori Cloud's "Events rejected at ingestion" surface). Written
+  // by SatoriEventCapture whenever taxonomy validation fails.
+  var REJECT_KEY = "rejected_events";
+  var REJECT_MAX = 200;
+
   var SEARCH_PAGE_SIZE = 100;
   var SEARCH_DEFAULT_PAGES = 320;  // covers the legacy (oldest-first) key tail
   var SEARCH_MAX_PAGES = 800;
@@ -34,6 +40,14 @@ namespace SatoriEventDebugger {
     metadata: { [key: string]: any };
     date?: string;
     external?: boolean;
+  }
+
+  interface RejectedEvent {
+    name: string;
+    reason: string;
+    code: string;
+    timestamp: number;
+    userId?: string;
   }
 
   // Normalize second-resolution timestamps to milliseconds so the UI can
@@ -56,6 +70,38 @@ namespace SatoriEventDebugger {
       Storage.writeSystemJson(nk, RECENT_COLLECTION, RECENT_KEY, buf);
     } catch (err: any) {
       // Debugger plumbing must never break event ingest.
+    }
+  }
+
+  // Classify a validation reason into a short, Satori-style error code.
+  function classifyReason(reason: string): string {
+    var r = (reason || "").toLowerCase();
+    if (r.indexOf("unknown event") !== -1 || r.indexOf("strict") !== -1) return "INVALID_NAME";
+    if (r.indexOf("max length") !== -1 || r.indexOf("exceeds") !== -1) return "INVALID_VALUE";
+    if (r.indexOf("required metadata") !== -1 || r.indexOf("metadata required") !== -1) return "MISSING_METADATA";
+    if (r.indexOf("should be") !== -1 || r.indexOf("too many metadata") !== -1) return "INVALID_METADATA";
+    return "INVALID_EVENT";
+  }
+
+  // Record a rejected (taxonomy-invalid) event for the admin "Event errors"
+  // panel. Called by SatoriEventCapture on every validation failure.
+  export function recordRejection(nk: nkruntime.Nakama, name: string, reason: string, userId?: string): void {
+    try {
+      var buf = Storage.readSystemJson<{ events: RejectedEvent[] }>(nk, RECENT_COLLECTION, REJECT_KEY);
+      if (!buf || !buf.events) buf = { events: [] };
+      buf.events.push({
+        name: name || "(unnamed)",
+        reason: reason || "",
+        code: classifyReason(reason),
+        timestamp: Date.now(),
+        userId: userId || ""
+      });
+      if (buf.events.length > REJECT_MAX) {
+        buf.events = buf.events.slice(buf.events.length - REJECT_MAX);
+      }
+      Storage.writeSystemJson(nk, RECENT_COLLECTION, REJECT_KEY, buf);
+    } catch (err: any) {
+      // Never break ingest on bookkeeping.
     }
   }
 
@@ -198,8 +244,50 @@ namespace SatoriEventDebugger {
     });
   }
 
+  // satori_event_errors — recent taxonomy-rejected events, grouped by name,
+  // for the dashboard "Event errors" panel. Payload: { limit? }
+  function rpcEventErrors(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var limit = Math.min(Math.max(parseInt(data.limit, 10) || 50, 1), REJECT_MAX);
+
+    var buf = Storage.readSystemJson<{ events: RejectedEvent[] }>(nk, RECENT_COLLECTION, REJECT_KEY);
+    var all = (buf && buf.events) || [];
+
+    // Group by name+code so the panel shows one row per distinct error with a
+    // count and the most-recent timestamp/reason (matches Satori's layout).
+    var groups: { [k: string]: any } = {};
+    var order: string[] = [];
+    for (var i = 0; i < all.length; i++) {
+      var ev = all[i];
+      var k = ev.name + "|" + ev.code;
+      if (!groups[k]) {
+        groups[k] = { name: ev.name, code: ev.code, reason: ev.reason, count: 0, lastSeenMs: 0 };
+        order.push(k);
+      }
+      groups[k].count++;
+      var tms = toMs(ev.timestamp);
+      if (tms > groups[k].lastSeenMs) {
+        groups[k].lastSeenMs = tms;
+        groups[k].reason = ev.reason;
+      }
+    }
+
+    var rows: any[] = [];
+    for (var j = 0; j < order.length; j++) rows.push(groups[order[j]]);
+    rows.sort(function (a, b) { return b.lastSeenMs - a.lastSeenMs; });
+    if (rows.length > limit) rows = rows.slice(0, limit);
+
+    return RpcHelpers.successResponse({
+      errors: rows,
+      totalRejected: all.length,
+      distinctErrors: order.length
+    });
+  }
+
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("satori_events_tail", rpcTail);
     initializer.registerRpc("satori_events_search", rpcSearch);
+    initializer.registerRpc("satori_event_errors", rpcEventErrors);
   }
 }

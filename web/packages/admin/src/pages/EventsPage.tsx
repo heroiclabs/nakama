@@ -41,15 +41,9 @@ import { cn } from "@/lib/utils";
 
 type EventStatus = "active" | "upcoming" | "ended" | "all";
 type TabId = "satori" | "creator";
-const GLOBAL_CONFIG_SCOPE = "global";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 
-// Game IDs configuration
-const GAMES = [
-  { id: "global", name: "Global", icon: "🌐" },
-  { id: "126bf539-dae2-4bcf-964d-316c0fa1f92b", name: "QuizVerse", icon: "🧠" },
-  { id: "f6f7fe36-03de-43b8-8b5d-1a1892da4eed", name: "Last To Live", icon: "🎮" },
-  { id: "cricketvr", name: "Cricket VR", icon: "🏏" },
-] as const;
+const GLOBAL_CONFIG_SCOPE = "global";
 
 // Tab configuration
 const TABS: { id: TabId; label: string; icon: typeof CalendarDays }[] = [
@@ -163,16 +157,49 @@ function useScheduleEvent(gameScope: string) {
 /*  Creator Event Hooks                                                */
 /* ------------------------------------------------------------------ */
 
+// Sources the admin_creator_events_list RPC actually returns. The backend
+// merges the `satori_creator_events` collection (events created via
+// creator_event_create) and the `live_events` collection (SPA / creator-portal
+// published). The legacy `quizverse_creator` tag is kept for older data. The
+// previous filter only allowed `quizverse_creator`, which this RPC never
+// emits — so every SPA creator event (live & ended) was silently hidden.
+const CREATOR_EVENT_SOURCES = new Set<CreatorEvent["source"]>([
+  "quizverse_creator",
+  "satori_creator_events",
+  "live_events",
+]);
+
 function useCreatorEvents(gameScope: string) {
   return useQuery({
     queryKey: ["quizverse", "creator_events", gameScope],
     queryFn: () => quizverse.listCreatorEvents(serverKeyAuth(), rpcGameId(gameScope)),
     select: (data) => {
       const all = data?.events ?? [];
-      return all.filter((ev: CreatorEvent) => ev.source === "quizverse_creator");
+      // Keep every creator-sourced event; only drop platform-scheduled ones.
+      return all
+        .filter((ev: CreatorEvent) => !ev.source || CREATOR_EVENT_SOURCES.has(ev.source))
+        .map(normalizeCreatorEvent);
     },
     staleTime: 30_000,
   });
+}
+
+// The admin_creator_events_list RPC emits `title` / `scheduled_at` / `end_at`,
+// but the UI reads `name` / `start_time_sec` / `end_time_sec`. Without this
+// mapping the cards render blank names and "—" timestamps. Prefer the canonical
+// fields when present, fall back to the RPC field names otherwise.
+function normalizeCreatorEvent(ev: CreatorEvent): CreatorEvent {
+  const raw = ev as CreatorEvent & {
+    title?: string;
+    scheduled_at?: number;
+    end_at?: number;
+  };
+  return {
+    ...ev,
+    name: ev.name ?? raw.title ?? "Untitled Event",
+    start_time_sec: ev.start_time_sec ?? raw.scheduled_at,
+    end_time_sec: ev.end_time_sec ?? raw.end_at,
+  };
 }
 
 function useCreatorEventStats(eventId: string | null) {
@@ -796,7 +823,7 @@ function CreatorEventStatsPanel({ event, stats, isLoading, onClose }: CreatorEve
 
 export function EventsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("satori");
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<EventStatus>("all");
   const [showForm, setShowForm] = useState(false);
@@ -928,20 +955,6 @@ export function EventsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Game
-            <select
-              value={gameScope}
-              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
-              className="w-52 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {GAMES.map((game) => (
-                <option key={game.id} value={game.id}>
-                  {game.icon} {game.name}
-                </option>
-              ))}
-            </select>
-          </label>
           <button
             onClick={() => activeTab === "satori" ? refetch() : refetchCreator()}
             disabled={currentLoading}

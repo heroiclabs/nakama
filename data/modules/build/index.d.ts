@@ -2,6 +2,8 @@ declare function LegacyInitModule(ctx: nkruntime.Context, logger: nkruntime.Logg
 declare var __TS_OWNED_RPCS: {
     [id: string]: boolean;
 } | undefined;
+declare function groupAfterJoinHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.JoinGroupRequest): void;
+declare function groupAfterLeaveHook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: void, request: nkruntime.LeaveGroupRequest): void;
 declare function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, initializer: nkruntime.Initializer): void;
 declare namespace AiPipelines {
     function register(initializer: nkruntime.Initializer): void;
@@ -640,6 +642,9 @@ declare namespace IntelliverseFriends {
     function bootstrapDatabase(nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace IntelliverseNearbyPlayers {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace IntelliverseFriendsList {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -1108,6 +1113,11 @@ declare namespace LearnerToolbelt {
     }
     function searchSchools(query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[];
     function getSchoolById(schoolId: string): SchoolRecord | null;
+    function bootstrapSchoolsTable(nk: nkruntime.Nakama, logger: nkruntime.Logger): void;
+    function searchSchoolsDB(nk: nkruntime.Nakama, query: string, countryCode: string, limit: number, institutionType?: string): SchoolSearchHit[];
+    function mergeHits(primary: SchoolSearchHit[], secondary: SchoolSearchHit[], limit: number): SchoolSearchHit[];
+    function getSchoolByIdDB(nk: nkruntime.Nakama, schoolId: string): SchoolRecord | null;
+    function getSchoolByIdAny(nk: nkruntime.Nakama, schoolId: string): SchoolRecord | null;
 }
 declare namespace PerExamConfig {
     type PredictorMethod = 'irt-2pl' | 'concordance' | 'ap-composite' | 'irt-section-adaptive' | 'irt-focus-edition' | 'percentile-4section' | 'raw-to-scaled-120-180' | 'cutoff-band' | 'mbe-mee-mpt-composite' | 'nta-percentile-to-air' | 'marks-vs-rank-curve' | 'section-percentile-to-oa' | 'gate-score-formula' | 'prelims-cutoff-band' | 'marks-to-nlu-rank' | 'nta-percentile-multisubject' | 'written-cutoff-only' | 'tier-1-2-composite' | 'phase-1-2-cutoff' | 'bayes-fallback' | 'uk-boundary';
@@ -1153,6 +1163,7 @@ declare namespace LegacyAnalytics {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyChat {
+    function flushFailedChatPushes(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyCoupons {
@@ -1168,6 +1179,7 @@ declare namespace LegacyGameEntry {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyGameRegistry {
+    function resolveCanonicalGameId(nk: nkruntime.Nakama, raw: string | undefined): string | undefined;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyGiftCards {
@@ -1192,7 +1204,8 @@ declare namespace LegacyNotifScheduler {
     }
     function nowMinute(): number;
     function shouldDispatch(state: SchedulerState, task: string, periodMin: number): boolean;
-    function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    function tryAcquireDispatchLock(nk: nkruntime.Nakama, taskName: string, periodMin: number): boolean;
+    function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama, periodMin: number): void;
     function matchInitImpl(_ctx: nkruntime.Context, logger: nkruntime.Logger, _nk: nkruntime.Nakama, _params: {
         [k: string]: string;
     }): {
@@ -1231,10 +1244,14 @@ declare namespace LegacyPlayer {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyPush {
+    export function userHasPushTokens(nk: nkruntime.Nakama, userId: string): boolean;
     export function sendLocalizedPushToUser(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, titleKey: string, bodyKey: string, vars: any, opts?: {
         skipQuietHours?: boolean;
         gameId?: string;
         data?: any;
+    }): boolean;
+    export function retryChatProviderPush(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, title: string, body: string, data: {
+        [k: string]: any;
     }): boolean;
     function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronWeeklyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
@@ -3275,8 +3292,21 @@ declare namespace TournamentEconomyV2 {
 declare namespace WalletGuestSync {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QuestEventBusBridge {
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
+}
 declare namespace QuestEngine {
-    function register(initializer: nkruntime.Initializer): void;
+    interface ProcessEventResult {
+        updatedCount: number;
+        updatedQuests: {
+            [questId: string]: any;
+        };
+    }
+    export function processEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, eventType: string, value: number, metadata: {
+        [k: string]: string;
+    }): ProcessEventResult;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
 }
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
@@ -3363,9 +3393,15 @@ declare namespace SatoriAudiences {
     function getExplicitIncludeIds(nk: nkruntime.Nakama, audienceId: string, gameId?: string): string[];
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriDashboard {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriDataLake {
     function exportBatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, events: any[]): void;
     function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriEventBusBridge {
+    function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
 }
 declare namespace SatoriEventCapture {
     function captureEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, event: Satori.CapturedEvent): void;
@@ -3385,6 +3421,7 @@ declare namespace SatoriEventDebugger {
         external?: boolean;
     }
     export function record(nk: nkruntime.Nakama, event: DebugEvent): void;
+    export function recordRejection(nk: nkruntime.Nakama, name: string, reason: string, userId?: string): void;
     export function register(initializer: nkruntime.Initializer): void;
     export {};
 }
@@ -3423,8 +3460,63 @@ declare namespace SatoriIdentities {
 declare namespace SatoriIdentityInspector {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace LegacyAnalytics {
+    interface Day {
+        date: string;
+        dau: number;
+        newUsers: number;
+        uniqueUsers: string[];
+        events: number;
+        sessions: number;
+        sessionSeconds: number;
+        revenue: number;
+        purchases: number;
+        byName: {
+            [name: string]: number;
+        };
+        byCountry: {
+            [country: string]: number;
+        };
+        byCity: {
+            [city: string]: number;
+        };
+        byPlatform: {
+            [platform: string]: number;
+        };
+        byAppVersion: {
+            [version: string]: number;
+        };
+        lastEventAt: number;
+    }
+    function dateStrOf(ms: number): string;
+    function readDay(nk: nkruntime.Nakama, dateStr: string, gameId?: string): Day;
+    function readRange(nk: nkruntime.Nakama, nowMs: number, days: number, gameId?: string): Day[];
+}
 declare namespace SatoriCreatorEvents {
     function register(initializer: nkruntime.Initializer): void;
+    /**
+     * Rank every player in an event from `event_answers` and queue a
+     * `prize_fulfillments` record for each gift-card prize-tier winner — WITHOUT
+     * waiting for the winner to self-claim. Used by the admin "end event" action
+     * and the prize-backfill RPC so operators can fulfill ALL winners, not just
+     * the ones who happened to claim.
+     *
+     * Safety:
+     *  - Idempotent: skips any (event,user) that already has a fulfillment record
+     *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
+     *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
+     *    with the idempotent self-claim flow to avoid double-crediting; we only
+     *    count them for reporting.
+     *  - Records are queued as `pending`; an operator still manually approves each
+     *    one before any real gift card is minted, so a mis-rank is human-reviewable.
+     */
+    function computeAndQueueWinners(nk: nkruntime.Nakama, logger: nkruntime.Logger, def: any, eventId: string): {
+        ranked: number;
+        queued: number;
+        skippedExisting: number;
+        xutWinners: number;
+        tiersConfigured: boolean;
+    };
 }
 declare namespace SatoriLiveEvents {
     function register(initializer: nkruntime.Initializer): void;
@@ -3442,6 +3534,9 @@ declare namespace SatoriMetrics {
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
 }
+declare namespace SatoriReports {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace SatoriRetention {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3452,6 +3547,9 @@ declare namespace SatoriTaxonomy {
         warnings: string[];
     }
     function validateEvent(nk: nkruntime.Nakama, event: Satori.CapturedEvent): ValidationResult;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SatoriTimeline {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace SatoriVideoFeed {
@@ -3573,6 +3671,23 @@ declare namespace FortuneWheelAdSpin {
      */
     function rpcFortuneWheelAdSpin(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     /**
+     * RPC: fortune_wheel_skip_cooldown
+     *
+     * Server-authoritative cooldown skip: spend SKIP_COOLDOWN_COST coins to clear the
+     * 3-day organic-spin cooldown so the user can spin immediately.
+     *
+     * Order of operations (fail-safe — never deducts coins on a failed skip):
+     *   1. Auth check
+     *   2. Validate the user is actually ON cooldown      → not_on_cooldown
+     *   3. Validate balance >= cost                       → insufficient_coins
+     *   4. Deduct coins atomically (walletUpdate)         → authoritative balance from `previous`
+     *   5. Clear the organic cooldown (nextSpinTime=null) — only AFTER the debit succeeds
+     *
+     * Returns SkipCooldownResponse (see Unity FortuneWheelService.SkipCooldownResponse):
+     *   { success, error?, errorCode?, coinsSpent, coinBalance, canSpin, nextSpinTime }
+     */
+    function rpcFortuneWheelSkipCooldown(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string;
+    /**
      * Register all RPCs in this module.
      */
     function register(initializer: nkruntime.Initializer, logger: nkruntime.Logger): void;
@@ -3583,6 +3698,27 @@ declare namespace GeoTier {
      * Returns the tier string (t1/t2/t3). Uses cache, never blocks on API.
      */
     function getUserTier(nk: nkruntime.Nakama, userId: string): string;
+    /**
+     * Returns the user's cached ISO-3166 alpha-2 country code (e.g. "US",
+     * "IN") from the 30-day geo cache, or "" when there is no fresh cache
+     * entry. Never blocks on the IP-API HTTP call — callers that need a
+     * guaranteed resolution should invoke the `country_tier_get` RPC first
+     * (which resolves + caches), then read this. Used by the "People Near
+     * You" suggestion RPC to scope candidates to the same country without
+     * introducing any new permission or storage surface.
+     *
+     * Returns "" for the "XX" fallback sentinel too, so callers can treat
+     * an unknown geo as "no nearby scoping possible".
+     */
+    function getUserCountry(nk: nkruntime.Nakama, userId: string): string;
+    /**
+     * Resolve + cache the user's country in one call (cache-first, then
+     * IP-API fallback). Returns the resolved alpha-2 code, or "" when even
+     * the IP lookup fails (geo unknown). Unlike getUserCountry this WILL
+     * perform the HTTP lookup on a cache miss, so the very first "People
+     * Near You" load for a brand-new user still scopes correctly.
+     */
+    function resolveUserCountry(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace JsRuntimeHealth {

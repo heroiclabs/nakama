@@ -36,7 +36,8 @@ namespace SatoriAudienceEstimate {
     var truncated = false;
 
     for (var p = 0; p < maxPages; p++) {
-      var page = nk.storageList("", Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+      // null (not "") = scan across all owners; "" is an invalid UUID and throws.
+      var page = nk.storageList(null, Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
       var objects = (page && page.objects) || [];
 
       for (var i = 0; i < objects.length; i++) {
@@ -63,6 +64,19 @@ namespace SatoriAudienceEstimate {
 
     var matchRate = scanned > 0 ? matched / scanned : 0;
 
+    // Real addressable base from the analytics pipeline: distinct active users
+    // over the last 30 days (MAU). The identity-props scan only covers users who
+    // sent a Satori capture event, so projecting matchRate onto the real active
+    // base gives a far more realistic audience size than the raw matched count.
+    var mauSet: { [u: string]: boolean } = {};
+    var rangeDays = LegacyAnalytics.readRange(nk, Date.now(), 30, gameId);
+    for (var rd = 0; rd < rangeDays.length; rd++) {
+      var users = rangeDays[rd].uniqueUsers;
+      for (var u = 0; u < users.length; u++) mauSet[users[u]] = true;
+    }
+    var reachableBase = Object.keys(mauSet).length;
+    var projectedSize = scanned > 0 ? Math.round(matchRate * reachableBase) : matched;
+
     return RpcHelpers.successResponse({
       audienceId: audienceId,
       name: def.name || audienceId,
@@ -70,7 +84,10 @@ namespace SatoriAudienceEstimate {
       scannedIdentities: scanned,
       matchRate: matchRate,
       sampleUserIds: sample,
-      truncated: truncated
+      truncated: truncated,
+      // Supplementary real-base projection (analytics pipeline MAU).
+      reachableBase: reachableBase,
+      projectedSize: projectedSize
     });
   }
 

@@ -14,6 +14,43 @@ namespace SatoriMetrics {
     Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, metricId), state);
   }
 
+  // ---- Built-in metrics (real game telemetry from the analytics pipeline) ----
+  //
+  // Config-defined metrics rely on the sparse Satori capture path. These
+  // built-ins are always present and read from LegacyAnalytics (analytics_dau /
+  // analytics_live_daily), so the Metrics surface shows real DAU/revenue/etc.
+  // even before any custom metric is defined. IDs are prefixed `legacy_`.
+
+  interface BuiltinMetric { id: string; name: string; field: string; aggregation: string; }
+
+  var BUILTIN_METRICS: BuiltinMetric[] = [
+    { id: "legacy_dau",       name: "Daily Active Users",  field: "dau",       aggregation: "unique" },
+    { id: "legacy_events",    name: "Events / day",        field: "events",    aggregation: "count" },
+    { id: "legacy_revenue",   name: "Revenue / day (USD)", field: "revenue",   aggregation: "sum" },
+    { id: "legacy_sessions",  name: "Sessions / day",      field: "sessions",  aggregation: "count" },
+    { id: "legacy_payers",    name: "Payers / day",        field: "purchases", aggregation: "count" },
+    { id: "legacy_new_users", name: "New users / day",     field: "newUsers",  aggregation: "sum" }
+  ];
+
+  function findBuiltin(id: string): BuiltinMetric | null {
+    for (var i = 0; i < BUILTIN_METRICS.length; i++) {
+      if (BUILTIN_METRICS[i].id === id) return BUILTIN_METRICS[i];
+    }
+    return null;
+  }
+
+  function builtinValue(day: LegacyAnalytics.Day, field: string): number {
+    switch (field) {
+      case "dau": return day.dau;
+      case "events": return day.events;
+      case "revenue": return Math.round(day.revenue * 100) / 100;
+      case "sessions": return day.sessions;
+      case "purchases": return day.purchases;
+      case "newUsers": return day.newUsers;
+    }
+    return 0;
+  }
+
   export function processEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, eventName: string, metadata: { [key: string]: string }): void {
     var gameId = metadata.gameId || metadata.game_id;
     var definitions = getMetricDefinitions(nk, gameId);
@@ -131,6 +168,19 @@ namespace SatoriMetrics {
       });
     }
 
+    // Append built-in legacy-backed metrics (today's value) unless the caller
+    // asked for a specific subset of config metrics.
+    if (!data.metricIds) {
+      var today = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(Date.now()), gameId);
+      for (var b = 0; b < BUILTIN_METRICS.length; b++) {
+        results.push({
+          metricId: BUILTIN_METRICS[b].id,
+          value: builtinValue(today, BUILTIN_METRICS[b].field),
+          computedAt: now
+        });
+      }
+    }
+
     return RpcHelpers.successResponse({ metrics: results });
   }
 
@@ -159,23 +209,86 @@ namespace SatoriMetrics {
   function rpcSetAlert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
-    if (!data.metricId || !data.name || data.threshold === undefined || !data.operator) {
+    var metricId = data.metricId || data.metric_id;
+    if (!metricId || !data.name || data.threshold === undefined || !data.operator) {
       return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
     }
     var alerts = getAlerts(nk);
     var existing = false;
     for (var i = 0; i < alerts.length; i++) {
       if (alerts[i].name === data.name) {
-        alerts[i] = { metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
+        alerts[i] = { metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false };
         existing = true;
         break;
       }
     }
     if (!existing) {
-      alerts.push({ metricId: data.metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
+      alerts.push({ metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
     }
     Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts", { alerts: alerts });
     return RpcHelpers.successResponse({ alerts: alerts });
+  }
+
+  // satori_metrics_series — bucketed time series for one metric (for charts).
+  // Payload: { metricId, game_id?, limit? }
+  function rpcSeries(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.metricId) return RpcHelpers.errorResponse("metricId required");
+    var gameId = RpcHelpers.gameId(data);
+    var limit = Math.min(Math.max(parseInt(data.limit, 10) || 100, 1), 500);
+
+    // Built-in legacy metric → daily series from the analytics pipeline.
+    var builtin = findBuiltin(data.metricId);
+    if (builtin) {
+      var nowMs = Date.now();
+      var seriesDays = Math.min(Math.max(parseInt(data.days, 10) || 30, 3), 60);
+      var rangeDays = LegacyAnalytics.readRange(nk, nowMs, seriesDays, gameId);
+      var legacyPoints: { bucketSec: number; value: number; count: number }[] = [];
+      for (var rd = 0; rd < rangeDays.length; rd++) {
+        var ld = rangeDays[rd];
+        legacyPoints.push({
+          bucketSec: Math.floor(new Date(ld.date + "T00:00:00Z").getTime() / 1000),
+          value: builtinValue(ld, builtin.field),
+          count: 1
+        });
+      }
+      return RpcHelpers.successResponse({
+        metricId: data.metricId,
+        definition: { id: builtin.id, name: builtin.name, eventName: builtin.field, aggregation: builtin.aggregation, windowSec: 86400 },
+        windowed: true,
+        points: legacyPoints
+      });
+    }
+
+    var definitions = getMetricDefinitions(nk, gameId);
+    var def = definitions[data.metricId];
+    var state = getMetricState(nk, data.metricId, gameId);
+
+    var points: { bucketSec: number; value: number; count: number }[] = [];
+    for (var bk in state.buckets) {
+      var bkSec = parseInt(bk, 10);
+      points.push({
+        bucketSec: isNaN(bkSec) ? 0 : bkSec,
+        value: state.buckets[bk].value,
+        count: state.buckets[bk].count
+      });
+    }
+    points.sort(function (a, b) { return a.bucketSec - b.bucketSec; });
+    if (points.length > limit) points = points.slice(points.length - limit);
+
+    return RpcHelpers.successResponse({
+      metricId: data.metricId,
+      definition: def || null,
+      windowed: !!(def && def.windowSec),
+      points: points
+    });
+  }
+
+  // satori_metrics_alerts — list configured alerts + last-triggered state.
+  function rpcAlertsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    return RpcHelpers.successResponse({ alerts: getAlerts(nk) });
   }
 
   function rpcPrometheus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -209,6 +322,8 @@ namespace SatoriMetrics {
     initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
     initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
     initializer.registerRpc("satori_metrics_get", rpcQuery);
+    initializer.registerRpc("satori_metrics_series", rpcSeries);
+    initializer.registerRpc("satori_metrics_alerts", rpcAlertsList);
   }
 
   export function registerEventHandlers(): void {
