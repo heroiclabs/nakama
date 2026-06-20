@@ -902,87 +902,7 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
     });
 }
 
-function rpcFriendsList(ctx, logger, nk, payload) {
-    logInfo(logger, "RPC friends_list called");
 
-    var userId = ctx.userId;
-    if (!userId) {
-        return handleError(ctx, null, "User not authenticated");
-    }
-
-    var limit = 100;
-    if (payload) {
-        var parsed = safeJsonParse(payload);
-        if (parsed.success && parsed.data.limit) {
-            limit = parsed.data.limit;
-        }
-    }
-
-    var friends = [];
-    try {
-        var friendsList = nk.friendsList(userId, limit, null, null);
-        for (var i = 0; i < friendsList.friends.length; i++) {
-            var friend = friendsList.friends[i];
-            
-            // 1. Safely resolve numerical state (Goja wraps this in an object under some versions)
-            var state = (friend.state && typeof friend.state === 'object' && 'value' in friend.state)
-                ? friend.state.value : friend.state;
-                
-            // 2. Standardize numerical state to relationshipStatus strings for C# parsing
-            var relationshipStatus = "none";
-            if (state === 0) relationshipStatus = "friend";
-            else if (state === 1) relationshipStatus = "pending_sent";
-            else if (state === 2) relationshipStatus = "pending_received";
-            else if (state === 3) relationshipStatus = "blocked";
-
-            // 3. Extract country from friend's metadata
-            var country = "";
-            try {
-                if (friend.user && friend.user.metadata) {
-                    var meta = typeof friend.user.metadata === 'string' 
-                        ? JSON.parse(friend.user.metadata) 
-                        : friend.user.metadata;
-                    country = meta.country_code || meta.geo_location || "";
-                }
-            } catch (_) {}
-
-            // 4. Return flat structure compatible with FriendsListResponse
-            friends.push({
-                userId: friend.user.id,
-                username: friend.user.username,
-                displayName: friend.user.displayName || friend.user.username || "",
-                avatarUrl: friend.user.avatarUrl || "",
-                online: friend.user.online || false,
-                relationshipStatus: relationshipStatus,
-                country: country,
-                state: state
-            });
-        }
-    } catch (err) {
-        return handleError(ctx, err, "Failed to list friends");
-    }
-
-    // 5. Fetch caller's own country code for same-country suggestions ("People Near You")
-    var callerCountry = "";
-    try {
-        var callerAccount = nk.accountGetId(userId);
-        if (callerAccount && callerAccount.user && callerAccount.user.metadata) {
-            var callerMeta = typeof callerAccount.user.metadata === 'string'
-                ? JSON.parse(callerAccount.user.metadata)
-                : callerAccount.user.metadata;
-            callerCountry = callerMeta.country_code || callerMeta.geo_location || "";
-        }
-    } catch (_) {}
-
-    return JSON.stringify({
-        success: true,
-        userId: userId,
-        friends: friends,
-        count: friends.length,
-        country: callerCountry,
-        timestamp: getCurrentTimestamp()
-    });
-}
 
 // ============================================================================
 // Module Init — register all friend-invite RPCs
@@ -999,7 +919,6 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc('decline_friend_invite',      rpcFriendsDeclineInvite);
     initializer.registerRpc('cancel_friend_invite',       rpcFriendsCancelInvite);
     initializer.registerRpc('list_pending_friend_invites', rpcFriendsListPendingInvites);
-    initializer.registerRpc('friends_list', rpcFriendsList);
 
     if (logger && logger.info) {
         logger.info('[FriendInvites] Registered 5 canonical friend-invite RPCs');
