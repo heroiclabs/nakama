@@ -23870,8 +23870,9 @@ var LegacyChat;
                 // Group channel message.
                 pushGroupMessage(ctx, logger, nk, senderId, senderName, groupId, content);
             }
-            else if (userIdOne !== "" || userIdTwo !== "") {
-                // Direct message: push to whichever party is not the sender.
+            else if (userIdOne !== "" && userIdTwo !== "") {
+                // Direct message (both user IDs must be set — `||` would admit a malformed ack
+                // where one ID is missing, producing a wrong targetUserId calculation).
                 var targetUserId = (userIdOne === senderId) ? userIdTwo : userIdOne;
                 if (targetUserId && targetUserId !== senderId) {
                     pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content);
@@ -23932,6 +23933,75 @@ var LegacyChat;
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to send direct message");
+        }
+    }
+    // ─── Pending offline message delivery ───────────────────────────────────────
+    // Challenge messages are written to `pending_chat_messages` storage when the
+    // Nakama channel send fails (recipient offline / channel not yet created).
+    // This RPC is called by the Unity client once per session (on first socket
+    // connect) to flush those queued messages into the DM channel. Messages are
+    // deleted only after a confirmed delivery; failed items stay for next session.
+    //
+    // Registered as: quizverse_deliver_pending_chat_messages
+    // ─────────────────────────────────────────────────────────────────────────────
+    function rpcDeliverPendingChatMessages(ctx, logger, nk, _payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var delivered = 0;
+            var cursor = "";
+            var keysToDelete = [];
+            // Page through all pending records owned by this recipient.
+            do {
+                var page = nk.storageList(userId, "pending_chat_messages", 50, cursor);
+                var objects = (page && page.objects) ? page.objects : [];
+                cursor = (page && page.cursor) ? page.cursor : "";
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    try {
+                        var msg = obj.value;
+                        var senderId = msg && msg.senderId ? String(msg.senderId) : "";
+                        var senderName = msg && msg.senderName ? String(msg.senderName) : "";
+                        var content = msg && msg.content ? msg.content : null;
+                        if (!senderId || !content) {
+                            // Corrupt record — remove it so it doesn't block future delivery.
+                            keysToDelete.push({ collection: "pending_chat_messages", key: obj.key, userId: userId });
+                            continue;
+                        }
+                        // nk.channelIdBuild sorts the two IDs internally, so A→B and B→A
+                        // produce the same channel — matches the ID Unity's client uses.
+                        var channelId = nk.channelIdBuild(senderId, userId, 2);
+                        // Re-deliver with the original sender identity (server-authoritative,
+                        // no active session required for the sender).
+                        // content was stored as a JS object; cast to the required map type.
+                        var msgObj = (typeof content === "object" && content !== null)
+                            ? content
+                            : { body: String(content) };
+                        nk.channelMessageSend(channelId, msgObj, senderId, senderName, true);
+                        keysToDelete.push({ collection: "pending_chat_messages", key: obj.key, userId: userId });
+                        delivered++;
+                    }
+                    catch (itemErr) {
+                        // Keep the record — it will be retried on the next session connect.
+                        logger.warn("[Chat] Pending message delivery failed for key %s: %s", obj.key, itemErr && itemErr.message ? itemErr.message : String(itemErr));
+                    }
+                }
+            } while (cursor && cursor !== "");
+            // Best-effort delete of successfully delivered records.
+            if (keysToDelete.length > 0) {
+                try {
+                    nk.storageDelete(keysToDelete);
+                }
+                catch (delErr) {
+                    logger.warn("[Chat] Failed to delete %d delivered pending records: %s", keysToDelete.length, delErr && delErr.message ? delErr.message : String(delErr));
+                }
+            }
+            if (delivered > 0) {
+                logger.info("[Chat] Delivered %d pending chat messages for user %s", delivered, userId);
+            }
+            return RpcHelpers.successResponse({ delivered: delivered });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e && e.message ? e.message : "Failed to deliver pending messages");
         }
     }
     function rpcSendChatRoomMessage(ctx, logger, nk, payload) {
@@ -24190,6 +24260,8 @@ var LegacyChat;
         initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
         initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
         initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);
+        // Delivers queued offline challenge messages; Unity calls this once per session.
+        initializer.registerRpc("quizverse_deliver_pending_chat_messages", rpcDeliverPendingChatMessages);
         initializer.registerRpc("get_group_chat_history", rpcGetGroupChatHistory);
         initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
         initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
