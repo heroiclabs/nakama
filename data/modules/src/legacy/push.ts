@@ -756,6 +756,22 @@ namespace LegacyPush {
       ar: "{name} تحداك في {mode}. أرِهم ما لديك!",                            id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
       zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
     },
+    // ── Friend request accepted ({name} = the acceptor's display name) ──────
+    // Sent to the SENDER when their outgoing request is accepted.
+    friend_accepted_title: {
+      en: "🎉 Friend Request Accepted!",   hi: "🎉 फ्रेंड रिक्वेस्ट स्वीकार हो गई!",    es: "🎉 ¡Solicitud aceptada!",         fr: "🎉 Demande acceptée !",
+      de: "🎉 Freundschaftsanfrage angenommen!", pt: "🎉 Pedido aceito!",             ru: "🎉 Запрос принят!",              ja: "🎉 友達リクエストが承認されました！",
+      ko: "🎉 친구 요청 수락됨!",          "zh-Hans": "🎉 好友申请已通过！",         ar: "🎉 تم قبول طلب الصداقة!",         id: "🎉 Permintaan teman diterima!",    zu: "🎉 Isicelo somngane samukelwe!"
+    },
+    friend_accepted_body: {
+      en: "{name} accepted your friend request. Say hi!",        hi: "{name} ने आपकी फ्रेंड रिक्वेस्ट स्वीकार कर ली। हाय बोलें!",
+      es: "{name} aceptó tu solicitud. ¡Salúdalo!",              fr: "{name} a accepté ta demande. Dis bonjour !",
+      de: "{name} hat deine Anfrage angenommen. Sag Hallo!",     pt: "{name} aceitou seu pedido. Diga oi!",
+      ru: "{name} принял(а) запрос. Поздоровайся!",              ja: "{name}さんがリクエストを承認しました。挨拶しよう！",
+      ko: "{name}님이 요청을 수락했어요. 인사해보세요!",         "zh-Hans": "{name} 接受了你的好友申请。打个招呼吧！",
+      ar: "قبل {name} طلب صداقتك. قل مرحباً!",                  id: "{name} menerima permintaan temanmu. Sapa dia!",
+      zu: "U-{name} wamukel' isicelo sakho somngane. Sho sawubona!"
+    },
     // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
     chat_message_title: {
       en: "💬 {name}",                hi: "💬 {name}",                 es: "💬 {name}",               fr: "💬 {name}",
@@ -984,7 +1000,7 @@ namespace LegacyPush {
   export function sendLocalizedPushToUser(
     ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
     userId: string, eventType: string, titleKey: string, bodyKey: string,
-    vars: any, opts?: { skipQuietHours?: boolean; gameId?: string; data?: any }
+    vars: any, opts?: { skipQuietHours?: boolean; gameId?: string; data?: any; skipInAppNotification?: boolean }
   ): boolean {
     opts = opts || {};
     if (!opts.skipQuietHours && isInQuietHours(nk, userId)) return false;
@@ -1023,13 +1039,15 @@ namespace LegacyPush {
       if (providerResult.success === true) sent++;
     }
 
-    try {
-      nk.notificationsSend([{
-        userId: userId, subject: eventType,
-        content: { eventType: eventType, title: title, body: body, data: mergedData },
-        code: DEFAULT_PUSH_NOTIFICATION_CODE, persistent: true
-      }]);
-    } catch (_) {}
+    if (!opts.skipInAppNotification) {
+      try {
+        nk.notificationsSend([{
+          userId: userId, subject: eventType,
+          content: { eventType: eventType, title: title, body: body, data: mergedData },
+          code: DEFAULT_PUSH_NOTIFICATION_CODE, persistent: true
+        }]);
+      } catch (_) {}
+    }
 
     return sent > 0;
   }

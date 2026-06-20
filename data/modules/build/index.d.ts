@@ -1249,6 +1249,7 @@ declare namespace LegacyPush {
         skipQuietHours?: boolean;
         gameId?: string;
         data?: any;
+        skipInAppNotification?: boolean;
     }): boolean;
     export function retryChatProviderPush(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, title: string, body: string, data: {
         [k: string]: any;

@@ -7370,10 +7370,9 @@ var IntelliverseFriendsList;
         }
         return ok({
             results: results,
+            friends: results, // Dual-mapping alias for absolute C# serialization safety
             count: results.length,
             nextCursor: nextCursor,
-            // Caller's resolved ISO alpha-2 country (upper-cased) or "" when
-            // unknown. Enables the client "Friends Nearby" same-country filter.
             country: myCountry
         });
     }
@@ -27415,6 +27414,22 @@ var LegacyPush;
             ar: "{name} تحداك في {mode}. أرِهم ما لديك!", id: "{name} menantangmu di {mode}. Tunjukkan kehebatanmu!",
             zu: "U-{name} ukuphonsele inselelo ku-{mode}. Mbonise ukuthi unamandla!"
         },
+        // ── Friend request accepted ({name} = the acceptor's display name) ──────
+        // Sent to the SENDER when their outgoing request is accepted.
+        friend_accepted_title: {
+            en: "🎉 Friend Request Accepted!", hi: "🎉 फ्रेंड रिक्वेस्ट स्वीकार हो गई!", es: "🎉 ¡Solicitud aceptada!", fr: "🎉 Demande acceptée !",
+            de: "🎉 Freundschaftsanfrage angenommen!", pt: "🎉 Pedido aceito!", ru: "🎉 Запрос принят!", ja: "🎉 友達リクエストが承認されました！",
+            ko: "🎉 친구 요청 수락됨!", "zh-Hans": "🎉 好友申请已通过！", ar: "🎉 تم قبول طلب الصداقة!", id: "🎉 Permintaan teman diterima!", zu: "🎉 Isicelo somngane samukelwe!"
+        },
+        friend_accepted_body: {
+            en: "{name} accepted your friend request. Say hi!", hi: "{name} ने आपकी फ्रेंड रिक्वेस्ट स्वीकार कर ली। हाय बोलें!",
+            es: "{name} aceptó tu solicitud. ¡Salúdalo!", fr: "{name} a accepté ta demande. Dis bonjour !",
+            de: "{name} hat deine Anfrage angenommen. Sag Hallo!", pt: "{name} aceitou seu pedido. Diga oi!",
+            ru: "{name} принял(а) запрос. Поздоровайся!", ja: "{name}さんがリクエストを承認しました。挨拶しよう！",
+            ko: "{name}님이 요청을 수락했어요. 인사해보세요!", "zh-Hans": "{name} 接受了你的好友申请。打个招呼吧！",
+            ar: "قبل {name} طلب صداقتك. قل مرحباً!", id: "{name} menerima permintaan temanmu. Sapa dia!",
+            zu: "U-{name} wamukel' isicelo sakho somngane. Sho sawubona!"
+        },
         // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
         chat_message_title: {
             en: "💬 {name}", hi: "💬 {name}", es: "💬 {name}", fr: "💬 {name}",
@@ -27679,14 +27694,16 @@ var LegacyPush;
             if (providerResult.success === true)
                 sent++;
         }
-        try {
-            nk.notificationsSend([{
-                    userId: userId, subject: eventType,
-                    content: { eventType: eventType, title: title, body: body, data: mergedData },
-                    code: DEFAULT_PUSH_NOTIFICATION_CODE, persistent: true
-                }]);
+        if (!opts.skipInAppNotification) {
+            try {
+                nk.notificationsSend([{
+                        userId: userId, subject: eventType,
+                        content: { eventType: eventType, title: title, body: body, data: mergedData },
+                        code: DEFAULT_PUSH_NOTIFICATION_CODE, persistent: true
+                    }]);
+            }
+            catch (_) { }
         }
-        catch (_) { }
         return sent > 0;
     }
     LegacyPush.sendLocalizedPushToUser = sendLocalizedPushToUser;
@@ -29114,6 +29131,8 @@ var LegacyWallet;
                 wallet.currencies.global = wallet.currencies.xut || 0;
             if (wallet.currencies.xut === undefined)
                 wallet.currencies.xut = wallet.currencies.global || 0;
+            if (wallet.currencies.xp === undefined)
+                wallet.currencies.xp = 0; //adding for xp
         }
         return wallet;
     }
@@ -29284,28 +29303,44 @@ var LegacyWallet;
             // Route global currencies to the GLOBAL wallet (separate storage object).
             // Previously every currency was written into the game wallet's currencies map,
             // so global credits never reached global_<userId> and read back as 0 on initial load.
-            var isGlobal = currency === "global" || currency === "xut";
+            var isGlobal = currency === "global" || currency === "xut" || currency === "xp";
             // Always load the game wallet so the response can include game_balance for the client snapshot.
             var gameWallet = WalletHelpers.getGameWallet(nk, userId, data.gameId);
             var globalWallet = getGlobalWallet(nk, userId);
             var newBalance = 0;
             if (isGlobal) {
-                // Mirror "global" <-> "xut" so legacy clients keep working regardless of which alias they use.
-                var globalKeys = ["global", "xut"];
-                for (var gi = 0; gi < globalKeys.length; gi++) {
-                    var gk = globalKeys[gi];
-                    if (globalWallet.currencies[gk] === undefined)
-                        globalWallet.currencies[gk] = 0;
-                    if (op === "add")
-                        globalWallet.currencies[gk] += amt;
-                    else {
-                        globalWallet.currencies[gk] -= amt;
-                        if (globalWallet.currencies[gk] < 0)
-                            globalWallet.currencies[gk] = 0;
+                if (currency === "xp") {
+                    if (globalWallet.currencies.xp === undefined)
+                        globalWallet.currencies.xp = 0;
+                    if (op === "add") {
+                        globalWallet.currencies.xp += amt;
                     }
+                    else {
+                        globalWallet.currencies.xp -= amt;
+                        if (globalWallet.currencies.xp < 0)
+                            globalWallet.currencies.xp = 0;
+                    }
+                    saveGlobalWallet(nk, userId, globalWallet);
+                    newBalance = globalWallet.currencies.xp;
                 }
-                saveGlobalWallet(nk, userId, globalWallet);
-                newBalance = globalWallet.currencies[currency] || globalWallet.currencies.global || 0;
+                else {
+                    // Mirror "global" <-> "xut" so legacy clients keep working regardless of which alias they use.
+                    var globalKeys = ["global", "xut"];
+                    for (var gi = 0; gi < globalKeys.length; gi++) {
+                        var gk = globalKeys[gi];
+                        if (globalWallet.currencies[gk] === undefined)
+                            globalWallet.currencies[gk] = 0;
+                        if (op === "add")
+                            globalWallet.currencies[gk] += amt;
+                        else {
+                            globalWallet.currencies[gk] -= amt;
+                            if (globalWallet.currencies[gk] < 0)
+                                globalWallet.currencies[gk] = 0;
+                        }
+                    }
+                    saveGlobalWallet(nk, userId, globalWallet);
+                    newBalance = globalWallet.currencies[currency] || globalWallet.currencies.global || 0;
+                }
             }
             else {
                 // Game-scoped currency. Mirror "game" <-> "tokens" for the same backward-compat reason.
