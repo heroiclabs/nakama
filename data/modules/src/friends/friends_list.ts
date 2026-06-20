@@ -354,10 +354,9 @@ namespace IntelliverseFriendsList {
 
     return ok({
       results:    results,
+      friends:    results, // Dual-mapping alias for absolute C# serialization safety
       count:      results.length,
       nextCursor: nextCursor,
-      // Caller's resolved ISO alpha-2 country (upper-cased) or "" when
-      // unknown. Enables the client "Friends Nearby" same-country filter.
       country:    myCountry
     });
   }
