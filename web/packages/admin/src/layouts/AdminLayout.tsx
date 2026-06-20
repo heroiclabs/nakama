@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAdminStore } from "@/stores/admin-store";
+import { useActiveApp } from "@/hooks/useScopedGame";
 import { useAdminAuth } from "@/auth/admin-auth";
 
 interface NavItem {
@@ -170,6 +171,7 @@ export function AdminLayout() {
   const { session, logout } = useAdminAuth();
 
   const pageTitle = getPageTitle(location.pathname);
+  const activeApp = useActiveApp();
 
   function toggleTheme() {
     const next = theme === "light" ? "dark" : theme === "dark" ? "system" : "light";
@@ -241,7 +243,25 @@ export function AdminLayout() {
 
       <main className="flex-1 overflow-y-auto">
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-card/80 px-6 backdrop-blur">
-          <h1 className="text-lg font-semibold">{pageTitle}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-semibold">{pageTitle}</h1>
+            <span
+              title={
+                activeApp.isAllApps
+                  ? "Showing combined data across all apps"
+                  : `Scoped to ${activeApp.label}`
+              }
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                activeApp.isAllApps
+                  ? "border-border bg-muted text-muted-foreground"
+                  : "border-primary/30 bg-primary/10 text-primary",
+              )}
+            >
+              <Boxes size={12} />
+              {activeApp.label}
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <AppSelector />
             <button

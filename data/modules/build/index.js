@@ -577,7 +577,9 @@ function InitModule(ctx, logger, nk, initializer) {
     // ---- Fortune Wheel Ad Spin (PLAN-ADS-OPTIMIZATION-v2 §4 #19) ----
     try {
         logger.info("[FortuneWheelAdSpin] Registering fortune_wheel_ad_spin RPC...");
-        FortuneWheelAdSpin.register(initializer, logger);
+        // QVBF_218: register() is single-arg on purpose so postbuild auto-invokes it
+        // at IIFE scope (VM-pool safe). Do not pass logger here.
+        FortuneWheelAdSpin.register(initializer);
         logger.info("[FortuneWheelAdSpin] Fortune wheel ad spin registered successfully");
     }
     catch (err) {
@@ -24712,6 +24714,54 @@ var LegacyGameRegistry;
         var data = Storage.readSystemJson(nk, Constants.GAME_REGISTRY_COLLECTION, "registry");
         return data || { games: [] };
     }
+    // ── Canonical game-id resolution ───────────────────────────────────────────
+    // A single app is reachable by several identifiers — its registry UUID, its
+    // human slug ("quizverse"), or the platform aliases ("all"/"global"). Config
+    // (flags, experiments, audiences, …) is keyed by the raw string via
+    // Constants.gameKey, so the SAME app could otherwise read/write two different
+    // stores depending on which id a caller passed. resolveCanonicalGameId folds
+    // every alias of a registered app down to ONE canonical scope so all surfaces
+    // (admin console, game client, RPCs) agree.
+    //
+    // Canonical scope = the app's `slug` when set, else its `id`. We prefer the
+    // slug because that's where the existing explicit app config already lives
+    // (e.g. "quizverse:flags") — so no data migration is needed.
+    //
+    // Platform-wide aliases ("", "all", "global", "default") → undefined, which
+    // Constants.gameKey maps to the bare (platform-default) key, preserving the
+    // legacy fallback behaviour exactly.
+    var REGISTRY_CACHE = { data: null, at: 0 };
+    var REGISTRY_TTL_MS = 30000;
+    function cachedRegistry(nk) {
+        var now = Date.now();
+        if (REGISTRY_CACHE.data && (now - REGISTRY_CACHE.at) < REGISTRY_TTL_MS) {
+            return REGISTRY_CACHE.data;
+        }
+        var data = getGameRegistry(nk);
+        REGISTRY_CACHE = { data: data, at: now };
+        return data;
+    }
+    function resolveCanonicalGameId(nk, raw) {
+        if (!raw)
+            return undefined;
+        var v = String(raw).trim().toLowerCase();
+        if (v === "" || v === "all" || v === "global" || v === Constants.DEFAULT_GAME_ID) {
+            return undefined;
+        }
+        var games = cachedRegistry(nk).games || [];
+        for (var i = 0; i < games.length; i++) {
+            var g = games[i];
+            var gid = (g.id || "").toLowerCase();
+            var gslug = (g.slug || "").toLowerCase();
+            if (gid === v || (gslug && gslug === v)) {
+                return g.slug ? g.slug : g.id;
+            }
+        }
+        // Unregistered identifier — pass through unchanged so behaviour is never a
+        // surprise for ids the registry doesn't know about yet.
+        return raw;
+    }
+    LegacyGameRegistry.resolveCanonicalGameId = resolveCanonicalGameId;
     function rpcGetGameRegistry(ctx, logger, nk, payload) {
         var registry = getGameRegistry(nk);
         return RpcHelpers.successResponse({ games: registry.games, lastSyncAt: registry.lastSyncAt });
@@ -44693,6 +44743,17 @@ var SatoriIdentityInspector;
 //                                  revenue_usd, ad_revenue_usd, session_count,
 //                                  coins_earned, coins_spent, last_event_at }
 //
+// Money (revenue / purchases) is read from a THIRD collection when available:
+//
+//   analytics_rollup_daily key: rollup_all_<date>   | rollup_<gameId>_<date>
+//                         value: { revenue: { usd, iap_count, ad_revenue_usd, … } }
+//
+// This is the purge-aware source the standalone analytics.htm reads via
+// analytics_arpu. We prefer it over analytics_live_daily.revenue_usd, which is
+// a live counter the revenue-purge RPC never resets (so seeded/test IAP
+// revenue lingers there and inflates the console). Falls back to live_daily for
+// days not yet rolled up (e.g. today).
+//
 // All Satori admin surfaces (dashboard, game-metrics, timeline, funnels,
 // retention) read through here so they show real game data instead of the
 // near-empty capture ring. Pure helper namespace — registers no RPCs and is
@@ -44702,6 +44763,13 @@ var LegacyAnalytics;
 (function (LegacyAnalytics) {
     var DAU_COLLECTION = "analytics_dau";
     var LIVE_COLLECTION = "analytics_live_daily";
+    // Authoritative per-day money source — the SAME rollup the standalone
+    // analytics.htm reads via analytics_arpu. `analytics_live_daily` is a live
+    // real-time counter that the revenue-purge RPC does NOT touch, so seeded/test
+    // IAP revenue lingers there and inflates the dashboard. The rollup is
+    // purge-aware, so we prefer its revenue/iap_count whenever a rollup doc
+    // exists for the day (today, pre-rollup, still falls back to live_daily).
+    var ROLLUP_COLLECTION = "analytics_rollup_daily";
     function dateStrOf(ms) {
         return new Date(ms).toISOString().slice(0, 10);
     }
@@ -44716,6 +44784,9 @@ var LegacyAnalytics;
     function liveKeyOf(dateStr, gameId) {
         return isPlatform(gameId) ? "live_all_" + dateStr : "live_" + gameId + "_" + dateStr;
     }
+    function rollupKeyOf(dateStr, gameId) {
+        return isPlatform(gameId) ? "rollup_all_" + dateStr : "rollup_" + gameId + "_" + dateStr;
+    }
     function emptyDay(dateStr) {
         return {
             date: dateStr, dau: 0, newUsers: 0, uniqueUsers: [], events: 0, sessions: 0,
@@ -44727,16 +44798,27 @@ var LegacyAnalytics;
     function readDay(nk, dateStr, gameId) {
         var sys = Constants.SYSTEM_USER_ID;
         var out = emptyDay(dateStr);
+        var rollupRevenue = -1; // <0 = no rollup doc for this day
+        var rollupPurchases = 0;
         try {
             var recs = nk.storageRead([
                 { collection: DAU_COLLECTION, key: dauKeyOf(dateStr, gameId), userId: sys },
-                { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys }
+                { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys },
+                { collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, gameId), userId: sys }
             ]);
             for (var i = 0; i < recs.length; i++) {
                 var r = recs[i];
                 if (!r || !r.value)
                     continue;
-                if (r.collection === DAU_COLLECTION) {
+                if (r.collection === ROLLUP_COLLECTION) {
+                    // Capture the purge-aware money figures; applied after the loop so we
+                    // never depend on storageRead result ordering.
+                    var rl = r.value;
+                    var rev = rl.revenue || {};
+                    rollupRevenue = (parseFloat(rev.usd) || 0) + (parseFloat(rev.ad_revenue_usd) || 0);
+                    rollupPurchases = parseInt(rev.iap_count, 10) || 0;
+                }
+                else if (r.collection === DAU_COLLECTION) {
                     var dv = r.value;
                     var list = Array.isArray(dv.uniqueUsers) ? dv.uniqueUsers : (Array.isArray(dv.users) ? dv.users : []);
                     out.uniqueUsers = list;
@@ -44758,6 +44840,11 @@ var LegacyAnalytics;
                         out.byName.session_end || out.byName.session_start || 0;
                     out.purchases = out.byName.iap_purchased || out.byName.iap_purchase || 0;
                 }
+            }
+            // Prefer the rollup's purge-aware money figures over the live counter.
+            if (rollupRevenue >= 0) {
+                out.revenue = rollupRevenue;
+                out.purchases = rollupPurchases;
             }
         }
         catch (e) { /* missing day → zeros */ }
@@ -45296,6 +45383,7 @@ var SatoriCreatorEvents;
             eventId: eventId,
             playerId: userId,
             deviceId: data.deviceId || data.device_id || "",
+            playerName: String(data.playerName || data.displayName || data.player_name || ctx.username || "").trim(),
             answer: scoreResult.answer,
             correct: scoreResult.correct,
             score: scoreResult.score,
@@ -45325,7 +45413,8 @@ var SatoriCreatorEvents;
         }
         var leaderboardId = LEADERBOARD_PREFIX + eventId;
         try {
-            nk.leaderboardRecordWrite(leaderboardId, userId, ctx.username || "", scoreResult.score, 0);
+            var lbUsername = String(data.playerName || data.displayName || data.player_name || ctx.username || "").trim();
+            nk.leaderboardRecordWrite(leaderboardId, userId, lbUsername, scoreResult.score, 0);
         }
         catch (err) {
             logger.warn("[CreatorEvent] Leaderboard write failed: %s", err.message || String(err));
@@ -48467,6 +48556,19 @@ var ConfigLoader;
 (function (ConfigLoader) {
     var configCache = {};
     var CACHE_TTL_MS = 60000; // 1 minute
+    // Fold every alias of a registered app (UUID / slug / platform aliases) down
+    // to one canonical scope before building the storage key, so the same app
+    // never splits across two config stores. Defensive: if the registry helper
+    // is unavailable for any reason, fall back to the raw id (legacy behaviour).
+    function canonicalGameId(nk, gameId) {
+        try {
+            if (typeof LegacyGameRegistry !== "undefined" && LegacyGameRegistry.resolveCanonicalGameId) {
+                return LegacyGameRegistry.resolveCanonicalGameId(nk, gameId);
+            }
+        }
+        catch (_e) { /* fall through to raw */ }
+        return gameId;
+    }
     function loadConfig(nk, configKey, defaultValue) {
         var now = Date.now();
         var cached = configCache[configKey];
@@ -48482,7 +48584,7 @@ var ConfigLoader;
     }
     ConfigLoader.loadConfig = loadConfig;
     function loadConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(gameId, configKey);
+        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
         var data = loadConfig(nk, scopedKey, defaultValue);
         if (scopedKey !== configKey && data === defaultValue) {
             return loadConfig(nk, configKey, defaultValue);
@@ -48506,7 +48608,7 @@ var ConfigLoader;
     }
     ConfigLoader.loadSatoriConfig = loadSatoriConfig;
     function loadSatoriConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(gameId, configKey);
+        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
         var data = loadSatoriConfig(nk, scopedKey, defaultValue);
         if (scopedKey !== configKey && data === defaultValue) {
             return loadSatoriConfig(nk, configKey, defaultValue);
@@ -48525,7 +48627,7 @@ var ConfigLoader;
     }
     ConfigLoader.saveSatoriConfig = saveSatoriConfig;
     function saveSatoriConfigForGame(nk, configKey, gameId, data) {
-        saveSatoriConfig(nk, Constants.gameKey(gameId, configKey), data);
+        saveSatoriConfig(nk, Constants.gameKey(canonicalGameId(nk, gameId), configKey), data);
     }
     ConfigLoader.saveSatoriConfigForGame = saveSatoriConfigForGame;
     function invalidateCache(configKey) {
@@ -49066,11 +49168,19 @@ var FortuneWheelAdSpin;
     FortuneWheelAdSpin.rpcFortuneWheelSkipCooldown = rpcFortuneWheelSkipCooldown;
     /**
      * Register all RPCs in this module.
+     *
+     * QVBF_218 fix: this MUST take ONLY `(initializer)`. postbuild.js auto-invokes
+     * single-arg register() functions at IIFE/module scope, which sets the
+     * `__rpc_fortune_wheel_*` globals on EVERY pooled Goja VM. With the previous
+     * `(initializer, logger)` signature postbuild skipped auto-invoke, so the
+     * globals were only set on the first VM (where InitModule runs) and were
+     * `undefined` on the VMs that actually serve traffic — making
+     * fortune_wheel_skip_cooldown / fortune_wheel_ad_spin time out with retries.
+     * Do NOT add a second parameter here.
      */
-    function register(initializer, logger) {
+    function register(initializer) {
         initializer.registerRpc("fortune_wheel_ad_spin", rpcFortuneWheelAdSpin);
         initializer.registerRpc("fortune_wheel_skip_cooldown", rpcFortuneWheelSkipCooldown);
-        logger.info("[FortuneWheelAdSpin] ✓ Registered RPCs: fortune_wheel_ad_spin (V2), fortune_wheel_skip_cooldown");
     }
     FortuneWheelAdSpin.register = register;
 })(FortuneWheelAdSpin || (FortuneWheelAdSpin = {}));

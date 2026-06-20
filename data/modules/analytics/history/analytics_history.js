@@ -237,14 +237,23 @@ function arvFoldInto(into, from) {
         }
     }
 
-    // Date bookkeeping — bucket spans from earliest to latest folded date
-    var fromDate = from.date || from.range_end || from.range_start || null;
-    if (fromDate) {
-        if (!into.range_start || fromDate < into.range_start) into.range_start = fromDate;
-        if (!into.range_end   || fromDate > into.range_end)   into.range_end   = fromDate;
-    }
+    // Date bookkeeping — bucket spans from earliest to latest folded date.
+    // `from` may be a single daily rollup (has `date`) or an already-aggregated
+    // monthly/yearly bucket (has `range_start`/`range_end`). For aggregated
+    // buckets we must honor BOTH ends of the span, not just one date, otherwise
+    // the parent tier's range collapses to a single boundary date.
+    var fromStart = from.date || from.range_start || from.range_end || null;
+    var fromEnd   = from.date || from.range_end   || from.range_start || null;
+    if (fromStart && (!into.range_start || fromStart < into.range_start)) into.range_start = fromStart;
+    if (fromEnd   && (!into.range_end   || fromEnd   > into.range_end))   into.range_end   = fromEnd;
 
-    into.days_folded = (into.days_folded || 0) + 1;
+    // Accumulate the number of days the source represents. A daily rollup has
+    // no `days_folded` field and counts as 1; a monthly/yearly bucket already
+    // carries the total days it folded, so add that (don't count it as 1).
+    var fromDays = (typeof from.days_folded === "number" && from.days_folded > 0)
+        ? from.days_folded
+        : 1;
+    into.days_folded = (into.days_folded || 0) + fromDays;
     return into;
 }
 

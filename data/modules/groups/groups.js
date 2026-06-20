@@ -51,121 +51,6 @@ function qvNormalizeJoinPolicy(raw) {
     return QV_GROUP_JOIN_POLICY.OPEN; // default: open
 }
 
-// ----------------------------------------------------------------------------
-// Custom Storage Wallet Helpers (QuizVerse Economy Sync)
-// ----------------------------------------------------------------------------
-function qvResolveGameId(gameId) {
-    if (gameId === "quizverse" || gameId === "QuizVerse" || gameId === "quiz-verse") {
-        return "126bf539-dae2-4bcf-964d-316c0fa1f92b";
-    }
-    return gameId;
-}
-
-function qvGetCoinBalanceFromStorage(nk, userId, gameId) {
-    var resolvedGameId = qvResolveGameId(gameId);
-    var key = "wallet_" + userId + "_" + resolvedGameId;
-    try {
-        var records = nk.storageRead([{
-            collection: "wallets",
-            key: key,
-            userId: userId
-        }]);
-        if (records && records.length > 0 && records[0].value) {
-            var wallet = records[0].value;
-            var bal = parseInt(wallet.currencies.game || wallet.currencies.tokens, 10);
-            return isNaN(bal) ? 0 : bal;
-        }
-    } catch (e) { /* treat as zero balance */ }
-    return 0;
-}
-
-function qvDeductCoinBalanceFromStorage(nk, userId, gameId, amount) {
-    var resolvedGameId = qvResolveGameId(gameId);
-    var key = "wallet_" + userId + "_" + resolvedGameId;
-    try {
-        var records = nk.storageRead([{
-            collection: "wallets",
-            key: key,
-            userId: userId
-        }]);
-        
-        var wallet;
-        if (records && records.length > 0 && records[0].value) {
-            wallet = records[0].value;
-        } else {
-            // Auto-create wallet structure if missing
-            wallet = {
-                userId: userId,
-                gameId: resolvedGameId,
-                currencies: { game: 0, tokens: 0, xp: 0 },
-                createdAt: new Date().toISOString()
-            };
-        }
-        
-        var current = parseInt(wallet.currencies.game || wallet.currencies.tokens || 0, 10);
-        if (current < amount) {
-            return false;
-        }
-        
-        wallet.currencies.game = current - amount;
-        wallet.currencies.tokens = wallet.currencies.game;
-        wallet.updatedAt = new Date().toISOString();
-        
-        nk.storageWrite([{
-            collection: "wallets",
-            key: key,
-            userId: userId,
-            value: wallet,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-        return true;
-    } catch (e) {
-        return false;
-    }
-}
-
-function qvRefundCoinBalanceFromStorage(nk, userId, gameId, amount) {
-    var resolvedGameId = qvResolveGameId(gameId);
-    var key = "wallet_" + userId + "_" + resolvedGameId;
-    try {
-        var records = nk.storageRead([{
-            collection: "wallets",
-            key: key,
-            userId: userId
-        }]);
-        
-        var wallet;
-        if (records && records.length > 0 && records[0].value) {
-            wallet = records[0].value;
-        } else {
-            wallet = {
-                userId: userId,
-                gameId: resolvedGameId,
-                currencies: { game: 0, tokens: 0, xp: 0 },
-                createdAt: new Date().toISOString()
-            };
-        }
-        
-        var current = parseInt(wallet.currencies.game || wallet.currencies.tokens || 0, 10);
-        wallet.currencies.game = current + amount;
-        wallet.currencies.tokens = wallet.currencies.game;
-        wallet.updatedAt = new Date().toISOString();
-        
-        nk.storageWrite([{
-            collection: "wallets",
-            key: key,
-            userId: userId,
-            value: wallet,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-        return true;
-    } catch (e) {
-        return false;
-    }
-}
-
 function qvGetCoinBalance(nk, userId) {
     try {
         var account = nk.accountGetId(userId);
@@ -333,19 +218,24 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
             return JSON.stringify({ success: false, error: "Authentication required" });
         }
 
+        logger.info("[socialzone-group] 🔍 QVBF_111/126 - CreateQuizverseGroup RPC called | userID=" + ctx.userId + " | payload=" + payload + " | timestamp=" + Date.now());
+
         var data;
         try {
             data = JSON.parse(payload || "{}");
         } catch (err) {
+            logger.error("[socialzone-group] ❌ QVBF_111/126 - Invalid JSON payload | userID=" + ctx.userId + " | error=" + err.message);
             return JSON.stringify({ success: false, error: "Invalid JSON payload" });
         }
 
         // --- Validate inputs -------------------------------------------------
         var name = (data.name === undefined || data.name === null) ? "" : String(data.name).trim();
         if (name.length === 0) {
+            logger.error("[socialzone-group] ❌ QVBF_111/126 - Missing group name | userID=" + ctx.userId);
             return JSON.stringify({ success: false, error: "Missing required field: name" });
         }
         if (name.length > 64) {
+            logger.error("[socialzone-group] ❌ QVBF_111/126 - Group name too long | userID=" + ctx.userId + " | nameLength=" + name.length);
             return JSON.stringify({ success: false, error: "Group name too long (max 64 characters)" });
         }
 
@@ -363,9 +253,14 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
         // to that; private & invite-only are closed groups gated by metadata.
         var nakamaOpen = (joinPolicy === QV_GROUP_JOIN_POLICY.OPEN);
 
+        logger.debug("[socialzone-group] 📋 QVBF_111/126 - Parsed request | userID=" + ctx.userId + " | name=" + name + " | badge=" + badge + " | maxMembers=" + maxCount + " | joinPolicy=" + joinPolicy + " | nakamaOpen=" + nakamaOpen);
+
         // --- Charge coins (balance check + atomic deduct) --------------------
-        var balanceBefore = qvGetCoinBalanceFromStorage(nk, ctx.userId, gameId);
+        var balanceBefore = qvGetCoinBalance(nk, ctx.userId);
+        logger.info("[socialzone-group] 💰 QVBF_111/126 - Coin balance check | userID=" + ctx.userId + " | balance=" + balanceBefore + " | required=" + QV_GROUP_CREATE_COST);
+        
         if (balanceBefore < QV_GROUP_CREATE_COST) {
+            logger.warn("[socialzone-group] ⚠️ QVBF_111/126 - Insufficient coins | userID=" + ctx.userId + " | has=" + balanceBefore + " | needs=" + QV_GROUP_CREATE_COST);
             return JSON.stringify({
                 success: false,
                 error: "insufficient_coins",
@@ -374,14 +269,26 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
             });
         }
 
-        var charged = qvDeductCoinBalanceFromStorage(nk, ctx.userId, gameId, QV_GROUP_CREATE_COST);
-        if (!charged) {
-            logger.warn("[Groups] Coin charge failed for group create by " + ctx.userId);
+        var charged = false;
+        try {
+            var deductChangeset = {};
+            deductChangeset[QV_GROUP_CURRENCY_KEY] = -QV_GROUP_CREATE_COST;
+            // walletUpdate throws if the balance would go negative, so a
+            // concurrent spend between the check and here is safe (only one wins).
+            nk.walletUpdate(ctx.userId, deductChangeset, {
+                reason: "group_create",
+                gameId: gameId
+            }, false);
+            charged = true;
+            logger.info("[socialzone-group] ✅ QVBF_111/126 - Coins charged | userID=" + ctx.userId + " | amount=" + QV_GROUP_CREATE_COST + " | newBalance=" + (balanceBefore - QV_GROUP_CREATE_COST));
+        } catch (err) {
+            logger.warn("[socialzone-group] ❌ QVBF_111/126 - Coin charge failed | userID=" + ctx.userId +
+                " | error=" + (err && err.message ? err.message : String(err)));
             return JSON.stringify({
                 success: false,
                 error: "insufficient_coins",
                 required: QV_GROUP_CREATE_COST,
-                balance: qvGetCoinBalanceFromStorage(nk, ctx.userId, gameId)
+                balance: qvGetCoinBalance(nk, ctx.userId)
             });
         }
 
@@ -389,6 +296,8 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
         var metadata = createGroupMetadata(gameId, data.groupType || "guild", data.customData);
         metadata.badge = badge;
         metadata.joinPolicy = joinPolicy;
+
+        logger.info("[socialzone-group] 🔨 QVBF_111/126 - Creating group | userID=" + ctx.userId + " | name=" + name + " | badge=" + badge + " | joinPolicy=" + joinPolicy);
 
         var group;
         try {
@@ -402,19 +311,26 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
                 nakamaOpen,
                 maxCount
             );
+            logger.info("[socialzone-group] ✅ QVBF_111/126 - Group created successfully | groupID=" + group.id + " | creatorID=" + ctx.userId + " | name=" + name + " | edgeCount=" + group.edgeCount + " | timestamp=" + Date.now());
         } catch (err) {
+            logger.error("[socialzone-group] ❌ QVBF_111/126 - Group creation failed | userID=" + ctx.userId + " | name=" + name + " | error=" + (err && err.message ? err.message : String(err)));
             // Refund the coins we already deducted — the player must not be
             // charged for a group that was never created.
             if (charged) {
                 try {
-                    qvRefundCoinBalanceFromStorage(nk, ctx.userId, gameId, QV_GROUP_CREATE_COST);
+                    var refundChangeset = {};
+                    refundChangeset[QV_GROUP_CURRENCY_KEY] = QV_GROUP_CREATE_COST;
+                    nk.walletUpdate(ctx.userId, refundChangeset, {
+                        reason: "group_create_refund",
+                        gameId: gameId
+                    }, false);
+                    logger.info("[socialzone-group] ✅ QVBF_111/126 - Coins refunded | userID=" + ctx.userId + " | amount=" + QV_GROUP_CREATE_COST);
                 } catch (refundErr) {
-                    logger.error("[Groups] CRITICAL: failed to refund " + QV_GROUP_CREATE_COST +
+                    logger.error("[socialzone-group] 🚨 QVBF_111/126 - CRITICAL: failed to refund " + QV_GROUP_CREATE_COST +
                         " coins to " + ctx.userId + " after group create failure: " +
                         (refundErr && refundErr.message ? refundErr.message : String(refundErr)));
                 }
             }
-            logger.error("[Groups] Failed to create group: " + (err && err.message ? err.message : String(err)));
             return JSON.stringify({
                 success: false,
                 error: "Failed to create group"
@@ -442,7 +358,7 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
             logger.warn("[Groups] Failed to create group wallet: " + err.message);
         }
 
-        var balanceAfter = qvGetCoinBalanceFromStorage(nk, ctx.userId, gameId);
+        var balanceAfter = qvGetCoinBalance(nk, ctx.userId);
         logger.info("[Groups] Created QuizVerse group " + group.id + " for " + ctx.userId +
             " (cost " + QV_GROUP_CREATE_COST + ", policy " + joinPolicy + ")");
 
@@ -846,10 +762,13 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
             });
         }
 
+        logger.info("[socialzone-group] 🔍 QVBF_111/126 - GetUserGroups RPC called | userID=" + ctx.userId + " | payload=" + payload + " | timestamp=" + Date.now());
+
         var data;
         try {
             data = JSON.parse(payload || "{}");
         } catch (err) {
+            logger.error("[socialzone-group] ❌ QVBF_111/126 - GetUserGroups invalid JSON | userID=" + ctx.userId + " | error=" + err.message);
             return JSON.stringify({
                 success: false,
                 error: "Invalid JSON payload"
@@ -862,7 +781,9 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
         var userGroups;
         try {
             userGroups = nk.userGroupsList(ctx.userId);
+            logger.info("[socialzone-group] 📡 QVBF_111/126 - userGroupsList returned | userID=" + ctx.userId + " | rawCount=" + (userGroups && userGroups.userGroups ? userGroups.userGroups.length : 0));
         } catch (err) {
+            logger.error("[socialzone-group] ❌ QVBF_111/126 - userGroupsList failed | userID=" + ctx.userId + " | error=" + err.message);
             return JSON.stringify({
                 success: false,
                 error: "Failed to retrieve user groups"
@@ -878,8 +799,11 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
 
                 // Filter by gameId if provided
                 if (gameId && metadata.gameId !== gameId) {
+                    logger.debug("[socialzone-group] 🔍 QVBF_111/126 - Filtering out group (wrong gameId) | groupID=" + group.id + " | groupGameId=" + metadata.gameId + " | filterGameId=" + gameId);
                     continue;
                 }
+
+                logger.debug("[socialzone-group] 📋 QVBF_111/126 - Group[" + i + "] | groupID=" + group.id + " | name=" + group.name + " | state=" + ug.state + " | edgeCount=" + group.edgeCount);
 
                 groups.push({
                     id: group.id,
@@ -899,6 +823,8 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
             }
         }
 
+        logger.info("[socialzone-group] ✅ QVBF_111/126 - GetUserGroups returning | userID=" + ctx.userId + " | count=" + groups.length + " | gameIdFilter=" + gameId + " | timestamp=" + Date.now());
+
         return JSON.stringify({
             success: true,
             userId: ctx.userId,
@@ -909,7 +835,7 @@ function rpcGetUserGroups(ctx, logger, nk, payload) {
         });
 
     } catch (err) {
-        logger.error("[Groups] Unexpected error in rpcGetUserGroups: " + err.message);
+        logger.error("[socialzone-group] ❌ QVBF_111/126 - Unexpected error in rpcGetUserGroups | userID=" + ctx.userId + " | error=" + err.message);
         return JSON.stringify({
             success: false,
             error: "An unexpected error occurred"
@@ -1629,10 +1555,14 @@ var GROUP_NOTIF_TITLE = {
  */
 function sendGroupSyncNotification(nk, logger, subjectKey, userId, groupId, extra) {
     try {
+        logger.info("[socialzone-group] 📡 QVBF_111/126 - sendGroupSyncNotification called | subjectKey=" + subjectKey + " | userID=" + userId + " | groupID=" + groupId);
+        
         if (!GROUP_NOTIF_SUBJECT.hasOwnProperty(subjectKey)) {
+            logger.warn("[socialzone-group] ⚠️ QVBF_111/126 - Invalid subject key | subjectKey=" + subjectKey);
             return false;
         }
         if (!userId || !groupId) {
+            logger.warn("[socialzone-group] ⚠️ QVBF_111/126 - Missing userId or groupId | userID=" + userId + " | groupID=" + groupId);
             return false;
         }
 
@@ -1654,6 +1584,8 @@ function sendGroupSyncNotification(nk, logger, subjectKey, userId, groupId, extr
             }
         }
 
+        logger.debug("[socialzone-group] 📋 QVBF_111/126 - Notification content | code=" + code + " | subject=" + subject + " | title=" + title);
+
         nk.notificationsSend([{
             userId:     userId,
             subject:    subject,
@@ -1666,11 +1598,12 @@ function sendGroupSyncNotification(nk, logger, subjectKey, userId, groupId, extr
             persistent: false
         }]);
 
+        logger.info("[socialzone-group] ✅ QVBF_111/126 - Notification sent successfully | code=" + code + " | userID=" + userId + " | groupID=" + groupId);
         return true;
     } catch (err) {
         if (logger && logger.warn) {
-            logger.warn('[Groups] sendGroupSyncNotification(' + subjectKey + ') failed for ' +
-                userId + '/' + groupId + ': ' + (err && err.message ? err.message : String(err)));
+            logger.warn('[socialzone-group] ❌ QVBF_111/126 - sendGroupSyncNotification failed | subjectKey=' + subjectKey + ' | userID=' +
+                userId + ' | groupID=' + groupId + ' | error=' + (err && err.message ? err.message : String(err)));
         }
         return false;
     }
@@ -1689,11 +1622,31 @@ function groupAfterJoinHook(ctx, logger, nk, data, request) {
     try {
         var userId  = ctx && ctx.userId;
         var groupId = request && request.groupId;
-        if (!userId || !groupId) return;
+        
+        logger.info("[socialzone-group] ✅ QVBF_111/126 - User joined group | userID=" + userId + " | groupID=" + groupId + " | timestamp=" + Date.now());
+        
+        if (!userId || !groupId) {
+            logger.warn("[socialzone-group] ⚠️ QVBF_111/126 - Join hook missing data | userID=" + userId + " | groupID=" + groupId);
+            return;
+        }
+
+        // Get group info for context
+        try {
+            var groups = nk.groupsGetId([groupId]);
+            if (groups && groups.length > 0) {
+                var group = groups[0];
+                logger.info("[socialzone-group] 📋 QVBF_111/126 - Group info after join | groupID=" + groupId + " | name=" + group.name + " | memberCount=" + group.edgeCount + " | maxCount=" + group.maxCount);
+            }
+        } catch (err) {
+            logger.warn("[socialzone-group] ⚠️ QVBF_111/126 - Failed to get group info after join | groupID=" + groupId + " | error=" + err.message);
+        }
+
+        logger.info("[socialzone-group] 📡 QVBF_111/126 - Sending sync notification | userID=" + userId + " | groupID=" + groupId);
         sendGroupSyncNotification(nk, logger, 'GROUP_JOINED', userId, groupId);
+        logger.info("[socialzone-group] ✅ QVBF_111/126 - Sync notification sent | userID=" + userId + " | groupID=" + groupId);
     } catch (err) {
         if (logger && logger.warn) {
-            logger.warn('[Groups] groupAfterJoinHook failed: ' +
+            logger.warn('[socialzone-group] ❌ QVBF_111/126 - groupAfterJoinHook failed | error=' +
                 (err && err.message ? err.message : String(err)));
         }
     }
@@ -1709,11 +1662,20 @@ function groupAfterLeaveHook(ctx, logger, nk, data, request) {
     try {
         var userId  = ctx && ctx.userId;
         var groupId = request && request.groupId;
-        if (!userId || !groupId) return;
+        
+        logger.info("[socialzone-group] ✅ QVBF_111/126 - User left group | userID=" + userId + " | groupID=" + groupId + " | timestamp=" + Date.now());
+        
+        if (!userId || !groupId) {
+            logger.warn("[socialzone-group] ⚠️ QVBF_111/126 - Leave hook missing data | userID=" + userId + " | groupID=" + groupId);
+            return;
+        }
+        
+        logger.info("[socialzone-group] 📡 QVBF_111/126 - Sending leave sync notification | userID=" + userId + " | groupID=" + groupId);
         sendGroupSyncNotification(nk, logger, 'GROUP_LEFT', userId, groupId);
+        logger.info("[socialzone-group] ✅ QVBF_111/126 - Leave sync notification sent | userID=" + userId + " | groupID=" + groupId);
     } catch (err) {
         if (logger && logger.warn) {
-            logger.warn('[Groups] groupAfterLeaveHook failed: ' +
+            logger.warn('[socialzone-group] ❌ QVBF_111/126 - groupAfterLeaveHook failed | error=' +
                 (err && err.message ? err.message : String(err)));
         }
     }

@@ -73,6 +73,8 @@ function validateHiroConfig(system: HiroSystem, value: unknown): string | null {
   return null;
 }
 
+import { useScopedGameId } from "@/hooks/useScopedGame";
+
 const GLOBAL_CONFIG_SCOPE = "global";
 
 function rpcGameId(scope: string) {
@@ -166,7 +168,7 @@ function Toast({
 export function HiroConfigPage() {
   const theme = useAdminStore((s) => s.theme);
   const [activeSystem, setActiveSystem] = useState<HiroSystem>("economy");
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [editorValue, setEditorValue] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -350,18 +352,6 @@ export function HiroConfigPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Game ID
-            <input
-              value={gameScope}
-              onChange={(e) => {
-                setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE);
-                setIsDirty(false);
-              }}
-              placeholder="global or quizverse"
-              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
-            />
-          </label>
           {isDirty && (
             <span className="flex items-center gap-1.5 text-xs font-medium text-yellow-600 dark:text-yellow-400">
               <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />

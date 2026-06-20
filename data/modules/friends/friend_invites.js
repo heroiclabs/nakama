@@ -465,56 +465,81 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
 // ============================================================================
 function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     var userId = ctx.userId;
-    if (!userId) return _fiErr('Authentication required', 'unauthenticated');
+    logger.info('[FriendInvites] QVB_142 - Accept START | userId=' + userId + ' | timestamp=' + Date.now());
+    
+    if (!userId) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: unauthenticated');
+        return _fiErr('Authentication required', 'unauthenticated');
+    }
 
     var p = _fiParsePayload(payload);
-    if (!p.ok) return _fiErr(p.error, 'invalid_payload');
+    if (!p.ok) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: invalid payload | error=' + p.error);
+        return _fiErr(p.error, 'invalid_payload');
+    }
 
     var inviteId = (p.data || {}).inviteId;
+    logger.info('[FriendInvites] QVB_142 - Accept: inviteId=' + inviteId);
+    
     if (!inviteId || typeof inviteId !== 'string') {
+        logger.warn('[FriendInvites] QVB_142 - Accept: inviteId missing');
         return _fiErr('inviteId is required', 'invalid_payload');
     }
 
     // Read invite (it is stored under the target = the caller).
     var rows;
+    logger.info('[FriendInvites] QVB_142 - Accept: Reading storage | collection=' + FRIEND_INVITES_COLLECTION + ' | key=' + inviteId + ' | userId=' + userId);
     try {
         rows = nk.storageRead([{
             collection: FRIEND_INVITES_COLLECTION,
             key:        inviteId,
             userId:     userId
         }]);
+        logger.info('[FriendInvites] QVB_142 - Accept: Storage read success | rowCount=' + (rows ? rows.length : 0));
     } catch (e) {
+        logger.error('[FriendInvites] QVB_142 - Accept: Storage read FAILED | error=' + e.message);
         return _fiErr('Failed to read invite: ' + e.message, 'storage_read_failed');
     }
 
     if (!rows || rows.length === 0 || !rows[0].value) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Invite not found | inviteId=' + inviteId);
         return _fiErr('Friend invite not found', 'invite_not_found');
     }
 
     var invite     = rows[0].value;
     var rowVersion = rows[0].version; // for optimistic concurrency
+    
+    logger.info('[FriendInvites] QVB_142 - Accept: Invite loaded | fromUserId=' + invite.fromUserId + ' | targetUserId=' + invite.targetUserId + ' | status=' + invite.status + ' | version=' + rowVersion);
 
     if (invite.targetUserId !== userId) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Invite not for caller | expected=' + userId + ' | actual=' + invite.targetUserId);
         return _fiErr('This invite is not for you', 'invite_not_for_caller');
     }
 
     if (invite.status === INVITE_STATUS_ACCEPTED) {
         // Idempotent — second click on the same accept button must not error.
+        logger.info('[FriendInvites] QVB_142 - Accept: Already accepted (idempotent) | inviteId=' + inviteId);
         return _fiOk({ inviteId: inviteId, alreadyAccepted: true,
                        friendUserId: invite.fromUserId,
                        friendDisplayName: invite.fromDisplayName });
     }
     if (invite.status !== INVITE_STATUS_PENDING) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Invite not pending | status=' + invite.status);
         return _fiErr('This invite has already been ' + invite.status,
                       'invite_not_pending', { currentStatus: invite.status });
     }
 
     // Graph is source of truth — reconcile storage when already friends/blocked.
+    logger.info('[FriendInvites] QVB_142 - Accept: Checking Nakama relation | userId=' + userId + ' | fromUserId=' + invite.fromUserId);
     var acceptRel = _fiNakamaRelation(nk, userId, invite.fromUserId);
+    logger.info('[FriendInvites] QVB_142 - Accept: Relation state | acceptRel=' + acceptRel + ' | FRIEND=' + FR_STATE_FRIEND + ' | BLOCKED=' + FR_STATE_BLOCKED);
+    
     if (acceptRel === FR_STATE_BLOCKED) {
+        logger.warn('[FriendInvites] QVB_142 - Accept: Target is blocked');
         return _fiErr('You cannot accept an invite from a blocked user', 'caller_blocked_target');
     }
     if (acceptRel === FR_STATE_FRIEND) {
+        logger.info('[FriendInvites] QVB_142 - Accept: Already friends, updating storage');
         invite.status     = INVITE_STATUS_ACCEPTED;
         invite.acceptedAt = invite.acceptedAt || _fiNowIso();
         invite.updatedAt  = _fiNowIso();
@@ -528,8 +553,9 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
                 permissionRead:  1,
                 permissionWrite: 0
             }]);
+            logger.info('[FriendInvites] QVB_142 - Accept: Storage reconcile success');
         } catch (reconcileErr) {
-            logger.warn('[FriendInvites] accept reconcile storageWrite: ' + reconcileErr.message);
+            logger.warn('[FriendInvites] QVB_142 - Accept: reconcile storageWrite failed | error=' + reconcileErr.message);
         }
         return _fiOk({ inviteId: inviteId, alreadyFriends: true,
                        friendUserId: invite.fromUserId,
@@ -538,10 +564,12 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
 
     // Add the reciprocal friend edge. Combined with the INVITE_SENT
     // edge created at send-time this transitions BOTH users to FRIEND.
+    logger.info('[FriendInvites] QVB_142 - Accept: Adding friend via nk.friendsAdd | acceptor=' + userId + ' | sender=' + invite.fromUserId);
     try {
         nk.friendsAdd(userId, ctx.username || userId, [invite.fromUserId], null, {});
+        logger.info('[FriendInvites] QVB_142 - Accept: nk.friendsAdd SUCCESS');
     } catch (e) {
-        logger.error('[FriendInvites] accept nk.friendsAdd failed: ' + e.message);
+        logger.error('[FriendInvites] QVB_142 - Accept: nk.friendsAdd FAILED | error=' + e.message);
         return _fiErr('Failed to add friend: ' + e.message, 'friends_add_failed');
     }
 
@@ -552,6 +580,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     invite.acceptedAt = _fiNowIso();
     invite.updatedAt  = _fiNowIso();
 
+    logger.info('[FriendInvites] QVB_142 - Accept: Updating storage to accepted | inviteId=' + inviteId + ' | version=' + rowVersion);
     try {
         nk.storageWrite([{
             collection:      FRIEND_INVITES_COLLECTION,
@@ -562,13 +591,15 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
             permissionRead:  1,
             permissionWrite: 0
         }]);
+        logger.info('[FriendInvites] QVB_142 - Accept: Storage update SUCCESS');
     } catch (e) {
         // Friend was added to Nakama already — log and continue. The graph
         // is the source of truth; the storage row is just a UI hint.
-        logger.warn('[FriendInvites] accept storageWrite failed (non-fatal): ' + e.message);
+        logger.warn('[FriendInvites] QVB_142 - Accept: storageWrite failed (non-fatal) | error=' + e.message);
     }
 
     // Notify the original sender that their request was accepted.
+    logger.info('[FriendInvites] QVB_142 - Accept: Sending notification to sender | senderId=' + invite.fromUserId);
     try {
         var acceptorName = _fiUserDisplayName(nk, userId, ctx.username);
         sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_ACCEPTED', invite.fromUserId, {
@@ -577,10 +608,12 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
             acceptedByUsername:     ctx.username || userId,
             acceptedByDisplayName:  acceptorName
         }, userId);
+        logger.info('[FriendInvites] QVB_142 - Accept: Notification sent SUCCESS');
     } catch (e) {
-        logger.warn('[FriendInvites] notify sender of accept failed: ' + e.message);
+        logger.warn('[FriendInvites] QVB_142 - Accept: notify sender failed | error=' + e.message);
     }
 
+    logger.info('[FriendInvites] QVB_142 - Accept SUCCESS | inviteId=' + inviteId + ' | friendUserId=' + invite.fromUserId);
     return _fiOk({
         inviteId:           inviteId,
         friendUserId:       invite.fromUserId,

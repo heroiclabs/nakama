@@ -248,6 +248,179 @@ function calculatePerformanceRating(accuracy, avgTime, won) {
     return Math.min(5, Math.round(rating * 10) / 10);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MANAGER PLAYER SUMMARY — helpers (QVBF player-tracking)
+// ─────────────────────────────────────────────────────────────────────────────
+// A single clean, human-readable per-player document that the manager can read
+// straight off the Nakama Console → Storage tab. Collection: "qv_player_stats",
+// Key: "summary" (owner = userId, server-write only). Holds exactly the 5 asked
+// metrics: Accuracy, Quizzes Taken, Quiz Scores, Consistency, Participation.
+
+/** UTC calendar date string (YYYY-MM-DD). */
+function qvDateStr(d) {
+    return d.getUTCFullYear() + "-" +
+        String(d.getUTCMonth() + 1).padStart(2, "0") + "-" +
+        String(d.getUTCDate()).padStart(2, "0");
+}
+
+/** Whole days between two YYYY-MM-DD strings (b - a). */
+function qvDaysBetween(a, b) {
+    var ms = Date.parse(b + "T00:00:00Z") - Date.parse(a + "T00:00:00Z");
+    return Math.round(ms / 86400000);
+}
+
+/**
+ * Build the compact, manager-facing player summary from the aggregate stats.
+ * Pure function (no I/O) so it can be reused by both the write path
+ * (updateUserStats) and the read path (quizverse_get_player_summary).
+ *
+ * Holds exactly the manager-requested metrics — Accuracy, Quizzes Taken,
+ * Quiz Scores, Consistency, Participation — plus the raw counts behind them
+ * for full transparency in the Nakama Console Storage tab.
+ */
+function buildPlayerSummary(stats) {
+    stats = stats || {};
+
+    var totalGames    = stats.totalGames || 0;
+    var totalQuestions = stats.totalQuestions || 0;
+    var totalCorrect  = stats.totalCorrect || 0;
+    var totalScore    = stats.totalScore || 0;
+    var totalTime     = stats.totalTimePlayed || 0;
+
+    var accuracyPct = totalQuestions > 0
+        ? Math.round((totalCorrect / totalQuestions) * 1000) / 10 : 0;
+    var avgScore = totalGames > 0 ? Math.round(totalScore / totalGames) : 0;
+    var winRatePct = totalGames > 0
+        ? Math.round((stats.totalWins || 0) / totalGames * 100) : 0;
+    var avgSecondsPerQuestion = totalQuestions > 0
+        ? Math.round((totalTime / totalQuestions) * 10) / 10 : 0;
+
+    // Consistency = how regularly they play: active days vs days since first play.
+    var windowDays = (stats.firstPlayedDate && stats.lastPlayedDate)
+        ? qvDaysBetween(stats.firstPlayedDate, stats.lastPlayedDate) + 1 : 1;
+    if (windowDays < 1) windowDays = 1;
+    var consistencyPct = Math.min(100, Math.round(((stats.activeDays || 0) / windowDays) * 100));
+
+    return {
+        // ── Quizzes Taken ──
+        quizzesTaken: totalGames,
+        // ── Accuracy ──
+        accuracyPct: accuracyPct,
+        correctAnswers: totalCorrect,
+        totalQuestions: totalQuestions,
+        // ── Quiz Scores ──
+        totalScore: totalScore,
+        avgScore: avgScore,
+        highestScore: stats.highestScore || 0,
+        // ── Performance ──
+        wins: stats.totalWins || 0,
+        winRatePct: winRatePct,
+        perfectQuizzes: stats.perfectGames || 0,
+        timePlayedSeconds: totalTime,
+        avgSecondsPerQuestion: avgSecondsPerQuestion,
+        // ── Consistency ──
+        consistency: {
+            consistencyPct: consistencyPct,
+            currentStreakDays: stats.currentStreakDays || 0,
+            longestStreakDays: stats.longestStreakDays || 0,
+            activeDays: stats.activeDays || 0,
+            firstPlayedDate: stats.firstPlayedDate || null,
+            lastPlayedDate: stats.lastPlayedDate || null
+        },
+        // ── Participation (per game mode) ──
+        participationByMode: stats.modeStats || {},
+        updatedAt: utils.getCurrentTimestamp()
+    };
+}
+
+/**
+ * Build a compact, flat snapshot for the Nakama Console **Account tab**
+ * (account.metadata). Kept small + string-friendly so it reads cleanly in the
+ * metadata box. Full structured data still lives in the Storage tab.
+ */
+function buildAccountStatsSnapshot(summary) {
+    return {
+        quizzesTaken: summary.quizzesTaken,
+        accuracyPct: summary.accuracyPct,
+        avgScore: summary.avgScore,
+        highestScore: summary.highestScore,
+        totalScore: summary.totalScore,
+        wins: summary.wins,
+        winRatePct: summary.winRatePct,
+        consistencyPct: summary.consistency.consistencyPct,
+        currentStreakDays: summary.consistency.currentStreakDays,
+        longestStreakDays: summary.consistency.longestStreakDays,
+        activeDays: summary.consistency.activeDays,
+        lastPlayedDate: summary.consistency.lastPlayedDate,
+        updatedAt: summary.updatedAt
+    };
+}
+
+/**
+ * Merge the quiz-stats snapshot into the player's account.metadata so it shows
+ * on the Console **Account tab**. Reads existing metadata first and merges,
+ * so pre-existing keys (e.g. country) are preserved. Non-critical.
+ */
+function writeAccountStatsMeta(nk, logger, userId, summary) {
+    try {
+        var meta = {};
+        var user = null;
+        try {
+            var acct = nk.accountGetId(userId);
+            user = (acct && acct.user) || null;
+            if (user && user.metadata) {
+                meta = user.metadata;
+            }
+        } catch (readErr) {
+            // user may not exist yet / no account — skip silently
+            return;
+        }
+
+        meta.quizStats = buildAccountStatsSnapshot(summary);
+
+        // Backfill native Account-tab fields ONLY when empty — never clobber
+        // real values the user/profile-sync already set.
+        //   • Display name → fall back to username
+        //   • Location     → fall back to the country already in metadata (e.g. "IN")
+        var displayName = null;
+        if (user && (!user.displayName || user.displayName === "") && user.username) {
+            displayName = user.username;
+        }
+        var location = null;
+        if (user && (!user.location || user.location === "") && meta && meta.country) {
+            location = String(meta.country);
+        }
+
+        // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
+        nk.accountUpdateId(userId, null, displayName, null, location, null, null, meta);
+    } catch (err) {
+        utils.logWarning(logger, "[PlayerSummary] account metadata update failed (non-critical): " + err.message);
+    }
+}
+
+/**
+ * Write the compact manager-facing summary from the aggregate stats to BOTH:
+ *   1. Storage tab  → qv_player_stats/summary  (full structured doc)
+ *   2. Account tab  → account.metadata.quizStats (compact snapshot)
+ * Non-critical: never blocks result submission.
+ */
+function writePlayerSummary(nk, logger, userId, stats) {
+    var summary = buildPlayerSummary(stats);
+    try {
+        nk.storageWrite([{
+            collection: "qv_player_stats",
+            key: "summary",
+            userId: userId,
+            value: summary,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+    } catch (err) {
+        utils.logWarning(logger, "[PlayerSummary] storage write failed (non-critical): " + err.message);
+    }
+    writeAccountStatsMeta(nk, logger, userId, summary);
+}
+
 /**
  * Update user's aggregate statistics
  */
@@ -272,6 +445,12 @@ function updateUserStats(nk, logger, userId, gameId, result, metrics) {
             highestScore: 0,
             longestStreak: 0,
             currentStreak: 0,
+            // Day-based consistency (distinct calendar days played)
+            firstPlayedDate: null,
+            lastPlayedDate: null,
+            activeDays: 0,
+            currentStreakDays: 0,
+            longestStreakDays: 0,
             lastPlayedAt: null,
             modeStats: {},
             createdAt: utils.getCurrentTimestamp()
@@ -299,6 +478,21 @@ function updateUserStats(nk, logger, userId, gameId, result, metrics) {
     
     stats.highestScore = Math.max(stats.highestScore, result.score || 0);
     stats.lastPlayedAt = utils.getCurrentTimestamp();
+
+    // ── Day-based consistency tracking (distinct calendar days + day streak) ──
+    var todayStr = qvDateStr(new Date());
+    if (!stats.firstPlayedDate) stats.firstPlayedDate = todayStr;
+    if (stats.lastPlayedDate !== todayStr) {
+        // New distinct day played.
+        stats.activeDays = (stats.activeDays || 0) + 1;
+        if (stats.lastPlayedDate && qvDaysBetween(stats.lastPlayedDate, todayStr) === 1) {
+            stats.currentStreakDays = (stats.currentStreakDays || 0) + 1; // consecutive day
+        } else {
+            stats.currentStreakDays = 1; // first day or a gap → reset
+        }
+        stats.longestStreakDays = Math.max(stats.longestStreakDays || 0, stats.currentStreakDays);
+        stats.lastPlayedDate = todayStr;
+    }
     
     // Update per-mode stats
     var mode = result.gameMode || "unknown";
@@ -322,7 +516,10 @@ function updateUserStats(nk, logger, userId, gameId, result, metrics) {
     
     // Save stats
     utils.writeStorage(nk, logger, collection, key, userId, stats);
-    
+
+    // Write the compact manager-facing summary (qv_player_stats/summary).
+    writePlayerSummary(nk, logger, userId, stats);
+
     return stats;
 }
 
@@ -826,6 +1023,128 @@ function rpcQuizCheckDailyCompletion(ctx, logger, nk, payload) {
     }
 }
 
+/**
+ * RPC: quizverse_get_player_summary
+ * Returns the compact, manager-facing player summary (accuracy, quizzes taken,
+ * scores, consistency, participation) for the authenticated user.
+ *
+ * Read order (world-class, never empty for an existing player):
+ *   1. qv_player_stats/summary           — the canonical pre-built doc
+ *   2. quiz_user_stats_<gameId>/stats_*  — fallback: build on the fly AND
+ *                                          lazily backfill the summary doc
+ *   3. zeroed summary                    — brand-new player (no quizzes yet)
+ *
+ * Optional payload: { "gameId": "<uuid>" } (defaults to the QuizVerse game id).
+ */
+var QV_DEFAULT_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+
+function rpcQuizverseGetPlayerSummary(ctx, logger, nk, payload) {
+    var userId = ctx.userId;
+    if (!userId) {
+        return JSON.stringify({ success: false, error: "User not authenticated" });
+    }
+
+    var gameId = QV_DEFAULT_GAME_ID;
+    if (payload) {
+        var parsed = utils.safeJsonParse(payload);
+        if (parsed.success && parsed.data && parsed.data.gameId && utils.isValidUUID(parsed.data.gameId)) {
+            gameId = parsed.data.gameId;
+        }
+    }
+
+    try {
+        // 1. Canonical pre-built summary.
+        var existing = utils.readStorage(nk, logger, "qv_player_stats", "summary", userId);
+        if (existing) {
+            return JSON.stringify({ success: true, summary: existing, source: "summary" });
+        }
+
+        // 2. Fallback: build from aggregate stats + lazily backfill the summary doc.
+        var stats = utils.readStorage(nk, logger, getUserStatsCollection(gameId), "stats_" + userId, userId);
+        if (stats) {
+            var built = buildPlayerSummary(stats);
+            try { writePlayerSummary(nk, logger, userId, stats); } catch (e) { /* non-critical */ }
+            return JSON.stringify({ success: true, summary: built, source: "backfill" });
+        }
+
+        // 3. Brand-new player — return a complete, zeroed summary (never null).
+        return JSON.stringify({ success: true, summary: buildPlayerSummary({}), source: "empty" });
+
+    } catch (err) {
+        utils.logError(logger, "quizverse_get_player_summary failed: " + err.message);
+        return JSON.stringify({ success: false, error: "Failed to load summary: " + err.message });
+    }
+}
+
+/**
+ * RPC: quizverse_backfill_player_summaries  (ADMIN / one-time)
+ * Scans every existing `quiz_user_stats_<gameId>/stats_*` doc across ALL users
+ * and writes their summary (Storage tab) + account snapshot (Account tab).
+ * Use this once after deploy so players who already played show up immediately
+ * instead of only after their next quiz.
+ *
+ * Security: runtime-only. Must be called WITHOUT a user session (Nakama Console
+ * API Explorer "Run as the system" / server HTTP key). A logged-in user cannot
+ * run it.
+ *
+ * Optional payload: { "gameId": "<uuid>" } (defaults to the QuizVerse game id).
+ * Returns: { success, gameId, processed, errors }.
+ */
+function rpcQuizverseBackfillPlayerSummaries(ctx, logger, nk, payload) {
+    // Admin gate: allow only runtime/system callers.
+    //   • HTTP server-key call  → ctx.userId === ""        (empty)
+    //   • Console "run as system" → ctx.userId === zero-UUID
+    // A real logged-in player is rejected.
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    if (ctx.userId && ctx.userId !== SYSTEM_USER_ID) {
+        return JSON.stringify({ success: false, error: "Admin only — run without a user session (server key) or as the system user." });
+    }
+
+    var gameId = QV_DEFAULT_GAME_ID;
+    if (payload) {
+        var parsed = utils.safeJsonParse(payload);
+        if (parsed.success && parsed.data && parsed.data.gameId && utils.isValidUUID(parsed.data.gameId)) {
+            gameId = parsed.data.gameId;
+        }
+    }
+
+    var collection = getUserStatsCollection(gameId);
+    var processed = 0;
+    var errors = 0;
+    var cursor = "";
+
+    try {
+        do {
+            // userId = null → list this collection across ALL users (admin scan).
+            var page = nk.storageList(null, collection, 100, cursor);
+            var objects = (page && page.objects) || [];
+
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                try {
+                    var stats = obj.value;
+                    if (typeof stats === "string") {
+                        stats = JSON.parse(stats);
+                    }
+                    writePlayerSummary(nk, logger, obj.userId, stats);
+                    processed++;
+                } catch (rowErr) {
+                    errors++;
+                    utils.logWarning(logger, "[Backfill] failed for user " + (obj && obj.userId) + ": " + rowErr.message);
+                }
+            }
+
+            cursor = (page && page.cursor) || "";
+        } while (cursor);
+
+        utils.logInfo(logger, "[Backfill] done — gameId=" + gameId + " processed=" + processed + " errors=" + errors);
+        return JSON.stringify({ success: true, gameId: gameId, processed: processed, errors: errors });
+    } catch (err) {
+        utils.logError(logger, "quizverse_backfill_player_summaries failed: " + err.message);
+        return JSON.stringify({ success: false, error: err.message, processed: processed, errors: errors });
+    }
+}
+
 // ============================================================================
 // MODULE INIT (postbuild AST hook)
 // ----------------------------------------------------------------------------
@@ -840,6 +1159,8 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("quiz_get_history",           rpcQuizGetHistory);
     initializer.registerRpc("quiz_get_stats",             rpcQuizGetStats);
     initializer.registerRpc("quiz_check_daily_completion", rpcQuizCheckDailyCompletion);
+    initializer.registerRpc("quizverse_get_player_summary", rpcQuizverseGetPlayerSummary);
+    initializer.registerRpc("quizverse_backfill_player_summaries", rpcQuizverseBackfillPlayerSummaries);
 
     // ── Cross-module bridge ───────────────────────────────────────────────────
     // Expose appendKnowledgeMapHistory on globalThis so sibling modules

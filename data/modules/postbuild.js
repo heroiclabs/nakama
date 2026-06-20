@@ -198,6 +198,77 @@ if (modulesContent && legacyContent) {
   }
 }
 
+// ── 0.4b. Resolve var-EXPRESSION handler collisions (QVBF_216) ────
+//
+// The resolver above only sees `function NAME(){}` declarations. Handlers
+// declared as `var NAME = function(...)` are INVISIBLE to it. Because legacy
+// merges AFTER the module folders, a legacy `var NAME = ...` assignment runs
+// later and silently overwrites the modern module copy at global scope — this
+// is exactly what broke the Fortune Wheel (legacy V1 fortuneWheelGetState /
+// fortuneWheelSpin clobbered the V2 handlers, so organicSpinDone was never set
+// and ad-spins / get_state returned the stale V1 shape).
+//
+// Fix: rename ONLY the legacy *definition* to `__legacy_<name>` so the modern
+// module's `var NAME` is the sole global. We intentionally do NOT rewrite
+// legacy call/registration sites: a leftover `registerRpc('id', NAME)` in
+// legacy then binds the MODERN global, which is correct whether the module
+// self-registers (modules-first stub ordering wins anyway) or relies on the
+// legacy registration (the Fortune Wheel anti-pattern). This mirrors the manual
+// fix applied to legacy_runtime.js and prevents the whole class from recurring.
+//
+// NOTE: only var∩var collisions are handled here. "Mixed" cases (a name that is
+// a function-declaration in one file and a var-expression in the other) are NOT
+// auto-resolved — auto-renaming those would risk destabilizing core
+// quizverse_*/lasttolive_* RPCs. They are reported as a WARN for manual review.
+function findTopLevelVarFunctionNames(content) {
+  var names = new Set();
+  var re = /^(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*function\b/gm;
+  var m;
+  while ((m = re.exec(content)) !== null) names.add(m[1]);
+  return names;
+}
+
+if (modulesContent && legacyContent) {
+  var moduleVarFns = findTopLevelVarFunctionNames(modulesContent);
+  var legacyVarFns = findTopLevelVarFunctionNames(legacyContent);
+  var moduleFnDecls = findTopLevelFunctionNames(modulesContent);
+  var legacyFnDecls = findTopLevelFunctionNames(legacyContent);
+
+  var varCollisions = [];
+  legacyVarFns.forEach(function (name) {
+    if (moduleVarFns.has(name)) varCollisions.push(name);
+  });
+
+  if (varCollisions.length > 0) {
+    console.log('[postbuild] Detected ' + varCollisions.length +
+      ' var-expression handler collision(s) — renaming the LEGACY definition so the module copy wins:');
+    for (var vci = 0; vci < varCollisions.length; vci++) {
+      var vName = varCollisions[vci];
+      var defRe = new RegExp('^((?:var|let|const)\\s+)' + vName + '(\\s*=\\s*function\\b)', 'm');
+      if (defRe.test(legacyContent)) {
+        legacyContent = legacyContent.replace(defRe, '$1__legacy_' + vName + '$2');
+        console.log('[postbuild]   renamed legacy definition: ' + vName + ' -> __legacy_' + vName +
+          ' (registration/call sites left bound to the modern global)');
+      } else {
+        console.log('[postbuild]   WARN: var-collision "' + vName +
+          '" detected but legacy definition not locatable — left untouched');
+      }
+    }
+  } else {
+    console.log('[postbuild] No var-expression handler collisions detected between modules and legacy');
+  }
+
+  // Report (do NOT auto-fix) mixed-shape collisions so they stay on the radar.
+  var mixedSet = {};
+  legacyVarFns.forEach(function (n) { if (moduleFnDecls.has(n)) mixedSet[n] = true; });
+  moduleVarFns.forEach(function (n) { if (legacyFnDecls.has(n)) mixedSet[n] = true; });
+  var mixed = Object.keys(mixedSet).sort();
+  if (mixed.length > 0) {
+    console.log('[postbuild] WARN: ' + mixed.length + ' mixed-shape name collision(s) (function-decl vs var-expression) ' +
+      'NOT auto-resolved — review if any of these RPCs misbehave: ' + mixed.join(', '));
+  }
+}
+
 buildContent = buildContent.replace(/^"use strict";\r?\n?/, '');
 
 // ── 0.5. Expand dynamic RPC registrations ────────────────────────

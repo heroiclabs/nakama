@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Crown,
@@ -1016,7 +1017,7 @@ function SeasonRow({ season, onEdit, onDuplicate, onDelete, onToggle, isDeleting
 /* ------------------------------------------------------------------ */
 
 export function BattlepassConfigPage() {
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<SeasonStatus>("all");
   const [showForm, setShowForm] = useState(false);
@@ -1121,15 +1122,6 @@ export function BattlepassConfigPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Game ID
-            <input
-              value={gameScope}
-              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
-              placeholder="global or quizverse"
-              className="w-44 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
-            />
-          </label>
           <button
             onClick={() => refetch()}
             disabled={isLoading}

@@ -660,7 +660,9 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   // ---- Fortune Wheel Ad Spin (PLAN-ADS-OPTIMIZATION-v2 §4 #19) ----
   try {
     logger.info("[FortuneWheelAdSpin] Registering fortune_wheel_ad_spin RPC...");
-    FortuneWheelAdSpin.register(initializer, logger);
+    // QVBF_218: register() is single-arg on purpose so postbuild auto-invokes it
+    // at IIFE scope (VM-pool safe). Do not pass logger here.
+    FortuneWheelAdSpin.register(initializer);
     logger.info("[FortuneWheelAdSpin] Fortune wheel ad spin registered successfully");
   } catch (err: any) {
     logger.error("[FortuneWheelAdSpin] Failed to register: " + (err.message || String(err)));

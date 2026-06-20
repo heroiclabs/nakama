@@ -41,15 +41,9 @@ import { cn } from "@/lib/utils";
 
 type EventStatus = "active" | "upcoming" | "ended" | "all";
 type TabId = "satori" | "creator";
-const GLOBAL_CONFIG_SCOPE = "global";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 
-// Game IDs configuration
-const GAMES = [
-  { id: "global", name: "Global", icon: "🌐" },
-  { id: "126bf539-dae2-4bcf-964d-316c0fa1f92b", name: "QuizVerse", icon: "🧠" },
-  { id: "f6f7fe36-03de-43b8-8b5d-1a1892da4eed", name: "Last To Live", icon: "🎮" },
-  { id: "cricketvr", name: "Cricket VR", icon: "🏏" },
-] as const;
+const GLOBAL_CONFIG_SCOPE = "global";
 
 // Tab configuration
 const TABS: { id: TabId; label: string; icon: typeof CalendarDays }[] = [
@@ -829,7 +823,7 @@ function CreatorEventStatsPanel({ event, stats, isLoading, onClose }: CreatorEve
 
 export function EventsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("satori");
-  const [gameScope, setGameScope] = useState(GLOBAL_CONFIG_SCOPE);
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<EventStatus>("all");
   const [showForm, setShowForm] = useState(false);
@@ -961,20 +955,6 @@ export function EventsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            Game
-            <select
-              value={gameScope}
-              onChange={(e) => setGameScope(e.target.value || GLOBAL_CONFIG_SCOPE)}
-              className="w-52 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {GAMES.map((game) => (
-                <option key={game.id} value={game.id}>
-                  {game.icon} {game.name}
-                </option>
-              ))}
-            </select>
-          </label>
           <button
             onClick={() => activeTab === "satori" ? refetch() : refetchCreator()}
             disabled={currentLoading}
