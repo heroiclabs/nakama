@@ -24374,7 +24374,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         logger.info('[Friends] Registered RPC: friends_unblock');
         initializer.registerRpc('friends_remove', rpcFriendsRemove);
         logger.info('[Friends] Registered RPC: friends_remove');
-        initializer.registerRpc('friends_list', rpcFriendsList);
+        // initializer.registerRpc('friends_list', rpcFriendsList); // Disabled to prevent clobbering Phase-4 friends_list.ts
         logger.info('[Friends] Registered RPC: friends_list');
         // ── Phase 3a: friends_challenge_user + friends_spectate are now
         //    registered by data/modules/friends/friend_challenges.js with

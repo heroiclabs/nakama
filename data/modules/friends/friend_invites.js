@@ -364,7 +364,7 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
     }
     if (callerRel === FR_STATE_INVITE_RECEIVED) {
         // Target already invited caller. Auto-accept reciprocal edge.
-        try { nk.friendsAdd(fromUserId, ctx.username || fromUserId, [targetUserId], null, {}); }
+        try { nk.friendsAdd(fromUserId, ctx.username || fromUserId, [targetUserId], [], {}); }
         catch (e) {
             return _fiErr('Failed to auto-accept reciprocal invite: ' + e.message,
                           'autoaccept_failed');
@@ -566,7 +566,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     // edge created at send-time this transitions BOTH users to FRIEND.
     logger.info('[FriendInvites] QVB_142 - Accept: Adding friend via nk.friendsAdd | acceptor=' + userId + ' | sender=' + invite.fromUserId);
     try {
-        nk.friendsAdd(userId, ctx.username || userId, [invite.fromUserId], null, {});
+        nk.friendsAdd(userId, ctx.username || userId, [invite.fromUserId], [], {});
         logger.info('[FriendInvites] QVB_142 - Accept: nk.friendsAdd SUCCESS');
     } catch (e) {
         logger.error('[FriendInvites] QVB_142 - Accept: nk.friendsAdd FAILED | error=' + e.message);
@@ -673,7 +673,7 @@ function rpcFriendsDeclineInvite(ctx, logger, nk, payload) {
     // from the SENDER's list (decline = "they no longer have a sent
     // invite to me"). nk.friendsDelete is idempotent.
     try {
-        nk.friendsDelete(invite.fromUserId, invite.fromUsername || _fiUserUsername(nk, invite.fromUserId), [userId], null);
+        nk.friendsDelete(invite.fromUserId, invite.fromUsername || _fiUserUsername(nk, invite.fromUserId), [userId], []);
     } catch (e) {
         logger.warn('[FriendInvites] decline nk.friendsDelete failed (non-fatal): ' + e.message);
     }
@@ -766,7 +766,7 @@ function rpcFriendsCancelInvite(ctx, logger, nk, payload) {
 
     // Delete the INVITE_SENT relation in Nakama's graph regardless.
     try {
-        nk.friendsDelete(userId, ctx.username || _fiUserUsername(nk, userId), [targetUserId], null);
+        nk.friendsDelete(userId, ctx.username || _fiUserUsername(nk, userId), [targetUserId], []);
     } catch (e) {
         logger.warn('[FriendInvites] cancel nk.friendsDelete failed: ' + e.message);
     }
