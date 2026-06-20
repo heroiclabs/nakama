@@ -23875,6 +23875,13 @@ var LegacyChat;
                 var targetUserId = (userIdOne === senderId) ? userIdTwo : userIdOne;
                 if (targetUserId && targetUserId !== senderId) {
                     pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content);
+                    // Ephemeral in-app socket notification (code 9001 = incoming_dm).
+                    // Delivered to recipient's connected socket without requiring channel join,
+                    // enabling real-time Social Zone badge/toast updates when chat screen is closed.
+                    try {
+                        nk.notificationSend(targetUserId, senderName, { screen: "chat", fromUserId: senderId, preview: buildPreview(content) }, 9001, senderId, false);
+                    }
+                    catch (_) { }
                 }
             }
             // Room messages (roomName set) are intentionally not pushed to avoid broadcast spam.
@@ -23889,7 +23896,7 @@ var LegacyChat;
             var username = ctx.username || "";
             var data = RpcHelpers.parseRpcPayload(payload);
             var groupId = data.groupId;
-            var content = data.content || data.message || "";
+            var content = data.content || data.message || data.messageText || "";
             if (!groupId)
                 return RpcHelpers.errorResponse("groupId required");
             var channelId = nk.channelIdBuild(userId, groupId, 3);
@@ -23908,13 +23915,19 @@ var LegacyChat;
             var username = ctx.username || "";
             var data = RpcHelpers.parseRpcPayload(payload);
             var targetUserId = data.userId || data.targetUserId;
-            var content = data.content || data.message || "";
+            var content = data.content || data.message || data.messageText || "";
             if (!targetUserId)
                 return RpcHelpers.errorResponse("userId required");
             var channelId = nk.channelIdBuild(userId, targetUserId, 2);
             var ack = nk.channelMessageSend(channelId, { body: content }, userId, username, true);
             var senderName = resolveSenderName(nk, userId, username);
             pushDirectMessage(ctx, logger, nk, userId, senderName, targetUserId, content);
+            // Ephemeral in-app socket notification — delivered to recipient's connected socket
+            // without requiring them to have joined the DM channel (code 9001 = incoming_dm).
+            try {
+                nk.notificationSend(targetUserId, senderName, { screen: "chat", fromUserId: userId, preview: buildPreview(content) }, 9001, userId, false);
+            }
+            catch (_) { }
             return RpcHelpers.successResponse({ messageId: ack.messageId });
         }
         catch (e) {
