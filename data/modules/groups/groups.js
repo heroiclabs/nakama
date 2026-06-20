@@ -125,14 +125,15 @@ function rpcCreateGameGroup(ctx, logger, nk, payload) {
         var group;
         try {
             group = nk.groupCreate(
-                ctx.userId,
-                name,
-                description,
-                avatarUrl,
-                langTag,
-                JSON.stringify(metadata),
-                open,
-                maxCount
+                ctx.userId,     // 1. userId
+                name,           // 2. name
+                ctx.userId,     // 3. creatorId
+                langTag,        // 4. lang
+                description,    // 5. description
+                avatarUrl,      // 6. avatarURL
+                open,           // 7. open
+                metadata,       // 8. metadata (pass directly as a plain JS object, not stringified)
+                maxCount        // 9. maxCount
             );
         } catch (err) {
             logger.error("[Groups] Failed to create group: " + err.message);
@@ -285,14 +286,15 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
         var group;
         try {
             group = nk.groupCreate(
-                ctx.userId,
-                name,
-                description,
-                avatarUrl,
-                langTag,
-                JSON.stringify(metadata),
-                nakamaOpen,
-                maxCount
+                ctx.userId,     // 1. userId
+                name,           // 2. name
+                ctx.userId,     // 3. creatorId (associated superadmin)
+                langTag,        // 4. lang
+                description,    // 5. description
+                avatarUrl,      // 6. avatarURL
+                nakamaOpen,     // 7. open
+                metadata,       // 8. metadata (pass directly as a plain JS object, not stringified)
+                maxCount        // 9. maxCount
             );
         } catch (err) {
             // Refund the coins we already deducted — the player must not be
@@ -309,7 +311,7 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
             logger.error("[Groups] Failed to create group: " + (err && err.message ? err.message : String(err)));
             return JSON.stringify({
                 success: false,
-                error: "Failed to create group"
+                error: "Failed to create group: " + (err && err.message ? err.message : String(err))
             });
         }
 
