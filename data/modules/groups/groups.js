@@ -256,11 +256,8 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
         logger.debug("[socialzone-group] 📋 QVBF_111/126 - Parsed request | userID=" + ctx.userId + " | name=" + name + " | badge=" + badge + " | maxMembers=" + maxCount + " | joinPolicy=" + joinPolicy + " | nakamaOpen=" + nakamaOpen);
 
         // --- Charge coins (balance check + atomic deduct) --------------------
-        var balanceBefore = qvGetCoinBalance(nk, ctx.userId);
-        logger.info("[socialzone-group] 💰 QVBF_111/126 - Coin balance check | userID=" + ctx.userId + " | balance=" + balanceBefore + " | required=" + QV_GROUP_CREATE_COST);
-        
+        var balanceBefore = qvGetCoinBalanceFromStorage(nk, ctx.userId, gameId);
         if (balanceBefore < QV_GROUP_CREATE_COST) {
-            logger.warn("[socialzone-group] ⚠️ QVBF_111/126 - Insufficient coins | userID=" + ctx.userId + " | has=" + balanceBefore + " | needs=" + QV_GROUP_CREATE_COST);
             return JSON.stringify({
                 success: false,
                 error: "insufficient_coins",
@@ -269,26 +266,14 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
             });
         }
 
-        var charged = false;
-        try {
-            var deductChangeset = {};
-            deductChangeset[QV_GROUP_CURRENCY_KEY] = -QV_GROUP_CREATE_COST;
-            // walletUpdate throws if the balance would go negative, so a
-            // concurrent spend between the check and here is safe (only one wins).
-            nk.walletUpdate(ctx.userId, deductChangeset, {
-                reason: "group_create",
-                gameId: gameId
-            }, false);
-            charged = true;
-            logger.info("[socialzone-group] ✅ QVBF_111/126 - Coins charged | userID=" + ctx.userId + " | amount=" + QV_GROUP_CREATE_COST + " | newBalance=" + (balanceBefore - QV_GROUP_CREATE_COST));
-        } catch (err) {
-            logger.warn("[socialzone-group] ❌ QVBF_111/126 - Coin charge failed | userID=" + ctx.userId +
-                " | error=" + (err && err.message ? err.message : String(err)));
+        var charged = qvDeductCoinBalanceFromStorage(nk, ctx.userId, gameId, QV_GROUP_CREATE_COST);
+        if (!charged) {
+            logger.warn("[Groups] Coin charge failed for group create by " + ctx.userId);
             return JSON.stringify({
                 success: false,
                 error: "insufficient_coins",
                 required: QV_GROUP_CREATE_COST,
-                balance: qvGetCoinBalance(nk, ctx.userId)
+                balance: qvGetCoinBalanceFromStorage(nk, ctx.userId, gameId)
             });
         }
 
@@ -296,8 +281,6 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
         var metadata = createGroupMetadata(gameId, data.groupType || "guild", data.customData);
         metadata.badge = badge;
         metadata.joinPolicy = joinPolicy;
-
-        logger.info("[socialzone-group] 🔨 QVBF_111/126 - Creating group | userID=" + ctx.userId + " | name=" + name + " | badge=" + badge + " | joinPolicy=" + joinPolicy);
 
         var group;
         try {
@@ -311,26 +294,19 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
                 nakamaOpen,
                 maxCount
             );
-            logger.info("[socialzone-group] ✅ QVBF_111/126 - Group created successfully | groupID=" + group.id + " | creatorID=" + ctx.userId + " | name=" + name + " | edgeCount=" + group.edgeCount + " | timestamp=" + Date.now());
         } catch (err) {
-            logger.error("[socialzone-group] ❌ QVBF_111/126 - Group creation failed | userID=" + ctx.userId + " | name=" + name + " | error=" + (err && err.message ? err.message : String(err)));
             // Refund the coins we already deducted — the player must not be
             // charged for a group that was never created.
             if (charged) {
                 try {
-                    var refundChangeset = {};
-                    refundChangeset[QV_GROUP_CURRENCY_KEY] = QV_GROUP_CREATE_COST;
-                    nk.walletUpdate(ctx.userId, refundChangeset, {
-                        reason: "group_create_refund",
-                        gameId: gameId
-                    }, false);
-                    logger.info("[socialzone-group] ✅ QVBF_111/126 - Coins refunded | userID=" + ctx.userId + " | amount=" + QV_GROUP_CREATE_COST);
+                    qvRefundCoinBalanceFromStorage(nk, ctx.userId, gameId, QV_GROUP_CREATE_COST);
                 } catch (refundErr) {
-                    logger.error("[socialzone-group] 🚨 QVBF_111/126 - CRITICAL: failed to refund " + QV_GROUP_CREATE_COST +
+                    logger.error("[Groups] CRITICAL: failed to refund " + QV_GROUP_CREATE_COST +
                         " coins to " + ctx.userId + " after group create failure: " +
                         (refundErr && refundErr.message ? refundErr.message : String(refundErr)));
                 }
             }
+            logger.error("[Groups] Failed to create group: " + (err && err.message ? err.message : String(err)));
             return JSON.stringify({
                 success: false,
                 error: "Failed to create group"
@@ -358,7 +334,7 @@ function rpcCreateQuizverseGroup(ctx, logger, nk, payload) {
             logger.warn("[Groups] Failed to create group wallet: " + err.message);
         }
 
-        var balanceAfter = qvGetCoinBalance(nk, ctx.userId);
+        var balanceAfter = qvGetCoinBalanceFromStorage(nk, ctx.userId, gameId);
         logger.info("[Groups] Created QuizVerse group " + group.id + " for " + ctx.userId +
             " (cost " + QV_GROUP_CREATE_COST + ", policy " + joinPolicy + ")");
 
@@ -1605,6 +1581,121 @@ function sendGroupSyncNotification(nk, logger, subjectKey, userId, groupId, extr
             logger.warn('[socialzone-group] ❌ QVBF_111/126 - sendGroupSyncNotification failed | subjectKey=' + subjectKey + ' | userID=' +
                 userId + ' | groupID=' + groupId + ' | error=' + (err && err.message ? err.message : String(err)));
         }
+        return false;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// Custom Storage Wallet Helpers (QuizVerse Economy Sync)
+// ----------------------------------------------------------------------------
+function qvResolveGameId(gameId) {
+    if (gameId === "quizverse" || gameId === "QuizVerse" || gameId === "quiz-verse") {
+        return "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    }
+    return gameId;
+}
+
+function qvGetCoinBalanceFromStorage(nk, userId, gameId) {
+    var resolvedGameId = qvResolveGameId(gameId);
+    var key = "wallet_" + userId + "_" + resolvedGameId;
+    try {
+        var records = nk.storageRead([{
+            collection: "wallets",
+            key: key,
+            userId: userId
+        }]);
+        if (records && records.length > 0 && records[0].value) {
+            var wallet = records[0].value;
+            var bal = parseInt(wallet.currencies.game || wallet.currencies.tokens, 10);
+            return isNaN(bal) ? 0 : bal;
+        }
+    } catch (e) { /* treat as zero balance */ }
+    return 0;
+}
+
+function qvDeductCoinBalanceFromStorage(nk, userId, gameId, amount) {
+    var resolvedGameId = qvResolveGameId(gameId);
+    var key = "wallet_" + userId + "_" + resolvedGameId;
+    try {
+        var records = nk.storageRead([{
+            collection: "wallets",
+            key: key,
+            userId: userId
+        }]);
+        
+        var wallet;
+        if (records && records.length > 0 && records[0].value) {
+            wallet = records[0].value;
+        } else {
+            // Auto-create wallet structure if missing
+            wallet = {
+                userId: userId,
+                gameId: resolvedGameId,
+                currencies: { game: 0, tokens: 0, xp: 0 },
+                createdAt: new Date().toISOString()
+            };
+        }
+        
+        var current = parseInt(wallet.currencies.game || wallet.currencies.tokens || 0, 10);
+        if (current < amount) {
+            return false;
+        }
+        
+        wallet.currencies.game = current - amount;
+        wallet.currencies.tokens = wallet.currencies.game;
+        wallet.updatedAt = new Date().toISOString();
+        
+        nk.storageWrite([{
+            collection: "wallets",
+            key: key,
+            userId: userId,
+            value: wallet,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+function qvRefundCoinBalanceFromStorage(nk, userId, gameId, amount) {
+    var resolvedGameId = qvResolveGameId(gameId);
+    var key = "wallet_" + userId + "_" + resolvedGameId;
+    try {
+        var records = nk.storageRead([{
+            collection: "wallets",
+            key: key,
+            userId: userId
+        }]);
+        
+        var wallet;
+        if (records && records.length > 0 && records[0].value) {
+            wallet = records[0].value;
+        } else {
+            wallet = {
+                userId: userId,
+                gameId: resolvedGameId,
+                currencies: { game: 0, tokens: 0, xp: 0 },
+                createdAt: new Date().toISOString()
+            };
+        }
+        
+        var current = parseInt(wallet.currencies.game || wallet.currencies.tokens || 0, 10);
+        wallet.currencies.game = current + amount;
+        wallet.currencies.tokens = wallet.currencies.game;
+        wallet.updatedAt = new Date().toISOString();
+        
+        nk.storageWrite([{
+            collection: "wallets",
+            key: key,
+            userId: userId,
+            value: wallet,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (e) {
         return false;
     }
 }
