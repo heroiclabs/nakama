@@ -1,4 +1,4 @@
-import { callRpc, type RpcOptions } from "../client";
+import { callRpc, callDashboardApi, type RpcOptions } from "../client";
 
 export type ProductMetricsSlice =
   | "overview"
@@ -122,9 +122,15 @@ export function fetchProductMetricsSlice<S extends ProductMetricsSlice>(
   opts: RpcOptions,
   params?: { days?: number },
 ): Promise<ProductMetricsResult<S>> {
+  const body = { slice, days: params?.days };
+  if (opts.auth.type === "server-key") {
+    return callDashboardApi<ProductMetricsResult<S>>("/quizverse/metrics", body, opts).then((value) =>
+      unwrapData<ProductMetricsResult<S>>(value),
+    );
+  }
   return callRpc<{ slice: S; days?: number }, ProductMetricsResult<S>>(
     "quizverse_product_metrics",
-    { slice, days: params?.days },
+    body,
     opts,
   ).then((value) => unwrapData<ProductMetricsResult<S>>(value));
 }

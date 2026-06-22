@@ -121,6 +121,17 @@ function useProductOverview() {
   });
 }
 
+function productMetricsErrorMessage(err: unknown): string {
+  if (err && typeof err === "object" && "body" in err) {
+    const body = (err as { body?: unknown }).body;
+    if (body && typeof body === "object") {
+      const msg = (body as { error?: string; detail?: unknown }).error;
+      if (msg) return msg;
+    }
+  }
+  return err instanceof Error ? err.message : "Failed to load CRM metrics";
+}
+
 function useHiroStatus() {
   return useQuery({
     queryKey: ["admin", "hiro-status"],
@@ -361,11 +372,13 @@ function StatusTab({
   summaryLoading,
   productOverview,
   productLoading,
+  productError,
 }: {
   summary?: DashboardSummary;
   summaryLoading: boolean;
   productOverview?: quizverse.OverviewSlice;
   productLoading: boolean;
+  productError?: string | null;
 }) {
   const countryRows = (summary?.topCountries ?? []).map((c) => ({
     label: countryName(c.country),
@@ -380,6 +393,16 @@ function StatusTab({
   return (
     <div className="space-y-6">
       <ActiveUsersHero summary={summary} loading={summaryLoading} />
+
+      {productError && !productLoading && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">CRM metrics unavailable</p>
+            <p className="mt-1 text-xs opacity-90">{productError}</p>
+          </div>
+        </div>
+      )}
 
       <CrmDualRunBanner crmDau={productOverview?.dau} nakamaDau={summary?.dauToday} />
 
@@ -1409,6 +1432,11 @@ export function DashboardPage() {
           summaryLoading={summary.isLoading}
           productOverview={productOverview.data?.data}
           productLoading={productOverview.isLoading}
+          productError={
+            productOverview.isError
+              ? productMetricsErrorMessage(productOverview.error)
+              : null
+          }
         />
       ) : (
         <GameMetricsTab
