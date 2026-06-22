@@ -661,6 +661,9 @@ declare namespace QuizVerseGenerator {
     function registerNk(nk: nkruntime.Nakama): void;
     function buildAll(): MpKernelSyncTurn.IGenerator[];
 }
+declare namespace QuizVerseGrowthSnapshot {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QuizVersePlugin {
     var RPC_CREATE_MATCH: string;
     var RPC_LOAD_PACK: string;
@@ -700,6 +703,9 @@ declare namespace QuizVersePackStore {
     var COLLECTION: string;
     function readPack(nk: nkruntime.Nakama, packId: string): QuizVerseGame.IPack;
     function writePack(nk: nkruntime.Nakama, pack: QuizVerseGame.IPack): void;
+}
+declare namespace QuizVerseProductMetrics {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace QuizVerseGame {
     var Op: {

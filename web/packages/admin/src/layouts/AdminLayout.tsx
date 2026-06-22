@@ -32,6 +32,7 @@ import {
   BarChart3,
   Boxes,
   Settings,
+  TrendingUp,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -81,6 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Insights",
     items: [
       { label: "Metrics", to: "/metrics", icon: Gauge },
+      { label: "Product Telemetry", to: "/product-telemetry", icon: TrendingUp },
       { label: "Reports", to: "/reports", icon: FileBarChart },
       { label: "Analytics", to: "/analytics", icon: BarChart3 },
     ],
