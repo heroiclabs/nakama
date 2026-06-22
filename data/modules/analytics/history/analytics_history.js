@@ -44,6 +44,7 @@ var ARV_YEARLY_COLLECTION       = "analytics_rollup_yearly";
 var ARV_LIFETIME_COLLECTION     = "analytics_lifetime_totals";
 var ARV_HISTORY_META_COLLECTION = "analytics_history_meta";
 var ARV_EVENTS_COLLECTION       = "analytics_events";
+var ARV_FIRST_SEEN_COLLECTION   = "analytics_user_first_seen";
 
 // Hard caps on long-tail panel response sizes. Keeps a 5-year monthly
 // chart under 60 docs (~ 200 KB) and a yearly chart under 5 docs.
@@ -118,6 +119,54 @@ function arvWriteOne(nk, collection, key, value) {
         }]);
         return true;
     } catch (e) { return false; }
+}
+
+// Count distinct users in analytics_user_first_seen for a game.
+// Keys: first_<userId>_<gameId>. This is the canonical "new users ever"
+// registry — summing daily rollup new_users under-counts (rollup gaps,
+// folded window ends before today).
+function arvCountFirstSeenUsers(nk, gameId) {
+    gameId = arvResolveGameId(gameId) || "all";
+    try {
+        if (gameId === "all") {
+            var rowsAll = nk.sqlQuery(
+                "SELECT COUNT(*)::int AS cnt FROM storage WHERE collection = $1 AND LEFT(key, 6) = $2",
+                [ARV_FIRST_SEEN_COLLECTION, "first_"]
+            );
+            if (rowsAll && rowsAll.length > 0) {
+                return parseInt(rowsAll[0].cnt, 10) || 0;
+            }
+        } else {
+            var suffix = "_" + gameId;
+            var rows = nk.sqlQuery(
+                "SELECT COUNT(*)::int AS cnt FROM storage WHERE collection = $1 AND RIGHT(key, LENGTH($2)) = $2",
+                [ARV_FIRST_SEEN_COLLECTION, suffix]
+            );
+            if (rows && rows.length > 0) {
+                return parseInt(rows[0].cnt, 10) || 0;
+            }
+        }
+    } catch (e) { /* SQL unavailable — paginate below */ }
+
+    // Fallback: cursor-paginate storageList (slower, no SQL dependency).
+    var suffixFilter = gameId === "all" ? null : ("_" + gameId);
+    var count = 0;
+    var cursor = null;
+    var pages = 0;
+    while (pages < 200) {
+        var page = nk.storageList(ARV_SYSTEM_USER, ARV_FIRST_SEEN_COLLECTION, 100, cursor);
+        if (!page || !page.objects || page.objects.length === 0) break;
+        for (var i = 0; i < page.objects.length; i++) {
+            var k = page.objects[i].key || "";
+            if (k.indexOf("first_") !== 0) continue;
+            if (suffixFilter && k.slice(-suffixFilter.length) !== suffixFilter) continue;
+            count++;
+        }
+        pages++;
+        if (!page.cursor) break;
+        cursor = page.cursor;
+    }
+    return count;
 }
 
 // ─── Aggregator: fold daily rollup into a long-tail bucket ────
@@ -642,7 +691,22 @@ function rpcAnalyticsHistoryLifetimeRead(ctx, logger, nk, payload) {
             hint: "No lifetime totals computed yet. Trigger analytics_history_recompute or wait for the next analytics_rollup_run."
         });
     }
-    return arvOk({ game_id: gameId, doc: doc });
+
+    // Authoritative new-user total: count first_seen registry docs, not the
+    // folded rollup sum (which only covers days_folded and can lag behind).
+    var firstSeenTotal = arvCountFirstSeenUsers(nk, gameId);
+    var rollupNewUsers = doc.new_users || 0;
+    doc.new_users_rollup_sum = rollupNewUsers;
+    doc.new_users_first_seen = firstSeenTotal;
+    doc.new_users = firstSeenTotal;
+    doc.new_users_source = "first_seen";
+
+    return arvOk({
+        game_id: gameId,
+        doc: doc,
+        new_users_first_seen: firstSeenTotal,
+        new_users_rollup_sum: rollupNewUsers
+    });
 }
 
 // ─── RPC: archive browser (raw event reader, unbounded date range) ──

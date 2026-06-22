@@ -6615,6 +6615,9 @@
                 }
                 const d = data.doc;
                 const rev = d.revenue || {};
+                const lifetimeNewUsers = (typeof data.new_users_first_seen === 'number')
+                    ? data.new_users_first_seen
+                    : (typeof d.new_users_first_seen === 'number' ? d.new_users_first_seen : (d.new_users || 0));
                 if (range) {
                     if (hasCustomDateRange()) {
                         range.textContent = 'All-time · not filtered by date picker above';
@@ -6634,7 +6637,7 @@
                     <div class="kpi-card">
                         <div class="icon">👥</div>
                         <div class="label">Total New Users</div>
-                        <div class="value">${formatNumber(d.new_users || 0)}</div>
+                        <div class="value">${formatNumber(lifetimeNewUsers)}</div>
                         <div class="trend">first-seen across lifetime</div>
                     </div>
                     <div class="kpi-card">
@@ -6820,6 +6823,9 @@
                 }
                 const d = data.doc;
                 const rev = d.revenue || {};
+                const lifetimeNewUsers = (typeof data.new_users_first_seen === 'number')
+                    ? data.new_users_first_seen
+                    : (typeof d.new_users_first_seen === 'number' ? d.new_users_first_seen : (d.new_users || 0));
                 host.innerHTML = `
                     <div class="kpi-card">
                         <div class="icon">📅</div>
@@ -6835,7 +6841,7 @@
                     <div class="kpi-card">
                         <div class="icon">👥</div>
                         <div class="label">New Users Lifetime</div>
-                        <div class="value">${formatNumber(d.new_users || 0)}</div>
+                        <div class="value">${formatNumber(lifetimeNewUsers)}</div>
                     </div>
                     <div class="kpi-card">
                         <div class="icon">💰</div>
