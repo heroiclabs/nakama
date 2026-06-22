@@ -1,4 +1,4 @@
-import { callRpc, type RpcOptions } from "../client";
+import { callRpc, callDashboardApi, type RpcOptions } from "../client";
 
 export type GrowthSnapshotSource = "gsc" | "ga4" | "newsletter" | "users";
 
@@ -187,6 +187,19 @@ export function fetchGrowthSnapshot<S extends GrowthSnapshotSource>(
         ? BeehiivSnapshot
         : UsersSnapshot
 >> {
+  if (opts.auth.type === "server-key") {
+    return callDashboardApi<GrowthSnapshotResult>(`/quizverse/growth`, { source }, opts).then((value) =>
+      unwrapData(value),
+    ) as Promise<GrowthSnapshotResult<
+      S extends "gsc"
+        ? GscSnapshot
+        : S extends "ga4"
+          ? Ga4Snapshot
+          : S extends "newsletter"
+            ? BeehiivSnapshot
+            : UsersSnapshot
+    >>;
+  }
   return callRpc<{ source: S }, GrowthSnapshotResult>(
     "quizverse_growth_snapshot",
     { source },
