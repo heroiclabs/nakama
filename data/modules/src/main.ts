@@ -104,6 +104,23 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[LiveBanner] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- QuizVerse product telemetry (quizverse_product_metrics → n8n WF-09) ----
+  // Independent of QuizVerse Next.js /admin/metrics — both may call WF-09 in parallel.
+  try {
+    QuizVerseProductMetrics.register(initializer);
+    logger.info("[ProductMetrics] quizverse_product_metrics registered");
+  } catch (err: any) {
+    logger.error("[ProductMetrics] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- QuizVerse growth snapshots (quizverse_growth_snapshot → n8n WF-32/33/40/41) ----
+  try {
+    QuizVerseGrowthSnapshot.register(initializer);
+    logger.info("[GrowthSnapshot] quizverse_growth_snapshot registered");
+  } catch (err: any) {
+    logger.error("[GrowthSnapshot] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- IAP Entitlements (qv_entitlements collection RPCs) ----
   try {
     QvEntitlements.register(initializer);

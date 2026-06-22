@@ -21,6 +21,7 @@ import {
   TrendingUp,
   DollarSign,
   AlertCircle,
+  Megaphone,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -38,6 +39,7 @@ import {
   serverKeyAuth,
   nakama,
   satori,
+  quizverse,
   HIRO_SYSTEMS,
   SATORI_SYSTEMS,
   callRpc,
@@ -105,6 +107,15 @@ function useEventErrors() {
   return useQuery<EventErrorsResult>({
     queryKey: ["admin", "event-errors"],
     queryFn: () => satori.getEventErrors(serverKeyAuth()),
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+}
+
+function useProductOverview() {
+  return useQuery({
+    queryKey: ["admin", "product-metrics", "overview"],
+    queryFn: () => quizverse.fetchProductMetricsSlice("overview", serverKeyAuth()),
     refetchInterval: 60_000,
     retry: 1,
   });
@@ -295,9 +306,67 @@ function StatusPill({ name, status }: { name: string; status: "ok" | "error" | "
   );
 }
 
+// ─── CRM dual-run banner (Sprint 2) ──────────────────────────────────
+
+function CrmDualRunBanner({
+  crmDau,
+  nakamaDau,
+}: {
+  crmDau?: number;
+  nakamaDau?: number;
+}) {
+  if (crmDau == null || nakamaDau == null || nakamaDau <= 0) return null;
+  const deltaPct = ((crmDau - nakamaDau) / nakamaDau) * 100;
+  const absPct = Math.abs(deltaPct);
+  if (absPct < 1) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-4 py-2.5 text-sm">
+      <AlertCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="text-muted-foreground">
+        Dual-run: CRM DAU{" "}
+        <strong className="text-foreground">{quizverse.formatCompactNumber(crmDau)}</strong>
+        {" vs "}
+        Nakama live DAU{" "}
+        <strong className="text-foreground">{quizverse.formatCompactNumber(nakamaDau)}</strong>
+        {" — "}
+        <span className={deltaPct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+          {deltaPct >= 0 ? "+" : ""}
+          {deltaPct.toFixed(1)}%
+        </span>
+        {" (CRM is canonical for product decisions)"}
+      </span>
+    </div>
+  );
+}
+
+function CrmFreshnessFooter({ overview }: { overview?: quizverse.OverviewSlice }) {
+  if (!overview) return null;
+  const stale = quizverse.isRollupStale(overview.last_rollup_at);
+  return (
+    <p className="text-xs text-muted-foreground">
+      CRM freshness · last event {quizverse.formatRelative(overview.last_event_at)} · last rollup{" "}
+      {quizverse.formatRelative(overview.last_rollup_at)}
+      {stale && (
+        <span className="ml-2 text-amber-600 dark:text-amber-400">· rollup stale (&gt;15m)</span>
+      )}
+    </p>
+  );
+}
+
 // ─── Tabs content ────────────────────────────────────────────────────
 
-function StatusTab({ summary, summaryLoading }: { summary?: DashboardSummary; summaryLoading: boolean }) {
+function StatusTab({
+  summary,
+  summaryLoading,
+  productOverview,
+  productLoading,
+}: {
+  summary?: DashboardSummary;
+  summaryLoading: boolean;
+  productOverview?: quizverse.OverviewSlice;
+  productLoading: boolean;
+}) {
   const countryRows = (summary?.topCountries ?? []).map((c) => ({
     label: countryName(c.country),
     flag: flagEmoji(c.country),
@@ -311,6 +380,93 @@ function StatusTab({ summary, summaryLoading }: { summary?: DashboardSummary; su
   return (
     <div className="space-y-6">
       <ActiveUsersHero summary={summary} loading={summaryLoading} />
+
+      <CrmDualRunBanner crmDau={productOverview?.dau} nakamaDau={summary?.dauToday} />
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-violet-500" />
+            <h3 className="text-sm font-semibold">Product telemetry · CRM</h3>
+          </div>
+          <span className="text-xs text-muted-foreground">via n8n WF-09 · 5m rollup</span>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <CountCard
+            label="DAU · today"
+            value={
+              productLoading
+                ? "—"
+                : quizverse.formatCompactNumber(productOverview?.dau ?? 0)
+            }
+            accent="bg-violet-500/10 text-violet-500"
+            icon={Users}
+            to="/product-telemetry"
+            loading={productLoading}
+          />
+          <CountCard
+            label="WAU · 7d rolling"
+            value={
+              productLoading
+                ? "—"
+                : quizverse.formatCompactNumber(productOverview?.wau ?? 0)
+            }
+            accent="bg-sky-500/10 text-sky-500"
+            icon={TrendingUp}
+            to="/product-telemetry"
+            loading={productLoading}
+          />
+          <CountCard
+            label="MAU · 30d rolling"
+            value={
+              productLoading
+                ? "—"
+                : quizverse.formatCompactNumber(productOverview?.mau ?? 0)
+            }
+            accent="bg-emerald-500/10 text-emerald-500"
+            icon={Activity}
+            to="/product-telemetry"
+            loading={productLoading}
+          />
+          <CountCard
+            label="Events · 24h"
+            value={
+              productLoading
+                ? "—"
+                : quizverse.formatCompactNumber(productOverview?.events_24h ?? 0)
+            }
+            accent="bg-amber-500/10 text-amber-500"
+            icon={Activity}
+            to="/product-telemetry"
+            loading={productLoading}
+          />
+          <CountCard
+            label="Players · 24h"
+            value={
+              productLoading
+                ? "—"
+                : quizverse.formatCompactNumber(productOverview?.players_24h ?? 0)
+            }
+            accent="bg-cyan-500/10 text-cyan-500"
+            icon={Users}
+            to="/product-telemetry"
+            loading={productLoading}
+          />
+          <CountCard
+            label="Sponsor imp · 30d"
+            value={
+              productLoading
+                ? "—"
+                : quizverse.formatCompactNumber(productOverview?.sponsor_imp_30d ?? 0)
+            }
+            accent="bg-fuchsia-500/10 text-fuchsia-500"
+            icon={Megaphone}
+            to="/product-telemetry"
+            loading={productLoading}
+          />
+        </div>
+        <CrmFreshnessFooter overview={productOverview} />
+      </div>
 
       {/* Count cards — mirrors Satori's overview strip */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
@@ -1138,6 +1294,7 @@ export function DashboardPage() {
   const gameMetrics = useGameMetrics(metricsDays, selectedAppId);
   const segments = useSegmentsExplore(metricsDays, eventFilter, selectedAppId);
   const eventErrors = useEventErrors();
+  const productOverview = useProductOverview();
   const hiroStatus = useHiroStatus();
   const satoriStatus = useSatoriStatus();
 
@@ -1164,6 +1321,7 @@ export function DashboardPage() {
           onClick={() => {
             health.refetch();
             summary.refetch();
+            productOverview.refetch();
             gameMetrics.refetch();
             eventErrors.refetch();
             hiroStatus.refetch();
@@ -1246,7 +1404,12 @@ export function DashboardPage() {
       </div>
 
       {tab === "status" ? (
-        <StatusTab summary={summary.data} summaryLoading={summary.isLoading} />
+        <StatusTab
+          summary={summary.data}
+          summaryLoading={summary.isLoading}
+          productOverview={productOverview.data?.data}
+          productLoading={productOverview.isLoading}
+        />
       ) : (
         <GameMetricsTab
           summary={summary.data}

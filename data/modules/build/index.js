@@ -96,6 +96,23 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[LiveBanner] failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- QuizVerse product telemetry (quizverse_product_metrics → n8n WF-09) ----
+    // Independent of QuizVerse Next.js /admin/metrics — both may call WF-09 in parallel.
+    try {
+        QuizVerseProductMetrics.register(initializer);
+        logger.info("[ProductMetrics] quizverse_product_metrics registered");
+    }
+    catch (err) {
+        logger.error("[ProductMetrics] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- QuizVerse growth snapshots (quizverse_growth_snapshot → n8n WF-32/33/40/41) ----
+    try {
+        QuizVerseGrowthSnapshot.register(initializer);
+        logger.info("[GrowthSnapshot] quizverse_growth_snapshot registered");
+    }
+    catch (err) {
+        logger.error("[GrowthSnapshot] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- IAP Entitlements (qv_entitlements collection RPCs) ----
     try {
         QvEntitlements.register(initializer);
@@ -8417,6 +8434,90 @@ var QuizVerseGenerator;
     }
     QuizVerseGenerator.buildAll = buildAll;
 })(QuizVerseGenerator || (QuizVerseGenerator = {}));
+// =============================================================================
+// RPC: quizverse_growth_snapshot
+//
+// Path B — server-side fetch of n8n growth webhooks (GSC, GA4, Beehiiv, Users).
+// Same endpoints QuizVerse /admin/metrics uses; Nakama does not depend on Next.js.
+//
+// Payload: { source: "gsc" | "ga4" | "newsletter" | "users" }
+// =============================================================================
+var QuizVerseGrowthSnapshot;
+(function (QuizVerseGrowthSnapshot) {
+    var VALID_SOURCES = {
+        gsc: true,
+        ga4: true,
+        newsletter: true,
+        users: true,
+    };
+    var WEBHOOK_PATHS = {
+        gsc: "/webhook/qv-gsc-snapshot",
+        ga4: "/webhook/qv-ga4-snapshot",
+        newsletter: "/webhook/qv-newsletter-snapshot",
+        users: "/webhook/qv-users-snapshot",
+    };
+    function env(ctx, key) {
+        return (ctx.env && ctx.env[key]) || "";
+    }
+    function rpcGrowthSnapshot(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var req;
+        try {
+            req = RpcHelpers.parseRpcPayload(payload);
+        }
+        catch (err) {
+            return RpcHelpers.errorResponse(err.message || "invalid payload", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var source = (req.source && String(req.source)) || "";
+        if (!VALID_SOURCES[source]) {
+            return RpcHelpers.errorResponse("invalid source — allowed: gsc, ga4, newsletter, users", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var baseUrl = env(ctx, "QUIZVERSE_N8N_BASE_URL");
+        var token = env(ctx, "QUIZVERSE_ADMIN_API_TOKEN");
+        if (!baseUrl || !token) {
+            return RpcHelpers.errorResponse("growth snapshots not configured — set QUIZVERSE_N8N_BASE_URL and QUIZVERSE_ADMIN_API_TOKEN on Nakama", 503);
+        }
+        baseUrl = baseUrl.replace(/\/$/, "");
+        var path = WEBHOOK_PATHS[source];
+        var url = baseUrl +
+            path +
+            "?token=" +
+            encodeURIComponent(token);
+        try {
+            var resp = nk.httpRequest(url, "get", { Accept: "application/json" }, "", 20000);
+            if (resp.code < 200 || resp.code >= 300) {
+                logger.warn("[GrowthSnapshot] n8n HTTP " +
+                    resp.code +
+                    " source=" +
+                    source +
+                    " body=" +
+                    (resp.body || "").substring(0, 240));
+                return RpcHelpers.errorResponse("upstream growth HTTP " + resp.code, resp.code);
+            }
+            var parsed = RpcHelpers.safeJsonParse(resp.body || "{}");
+            if (!parsed.success) {
+                return RpcHelpers.errorResponse("upstream returned invalid JSON", 502);
+            }
+            var body = parsed.data;
+            return RpcHelpers.successResponse({
+                source: source,
+                ok: !!(body && body.ok),
+                snapshot: body && body.snapshot !== undefined ? body.snapshot : null,
+                error: body && body.error ? String(body.error) : null,
+            });
+        }
+        catch (err) {
+            var msg = err && err.message ? String(err.message) : String(err);
+            logger.error("[GrowthSnapshot] transport error source=" + source + ": " + msg);
+            RpcHelpers.logRpcError(nk, logger, "quizverse_growth_snapshot", msg, ctx.userId);
+            return RpcHelpers.errorResponse("failed to fetch growth snapshot", 502);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("quizverse_growth_snapshot", rpcGrowthSnapshot);
+    }
+    QuizVerseGrowthSnapshot.register = register;
+})(QuizVerseGrowthSnapshot || (QuizVerseGrowthSnapshot = {}));
 // QuizVerse multiplayer plugin — wires the QuizVerse turn generator into
 // the IVX SyncTurnMatch template and exposes thin wrapper RPCs for
 // client adapters that prefer game-specific endpoints over the generic
@@ -11444,6 +11545,108 @@ var QuizVersePackStore;
     }
     QuizVersePackStore.writePack = writePack;
 })(QuizVersePackStore || (QuizVersePackStore = {}));
+// =============================================================================
+// src/games/quizverse/product-metrics.ts
+// =============================================================================
+// RPC: quizverse_product_metrics
+//
+// Path B data access — Nakama admin calls n8n WF-09 (/webhook/admin/metrics)
+// server-side via nk.httpRequest. QuizVerse Next.js continues to call the same
+// webhook directly; removing the QuizVerse UI later does not affect this RPC
+// as long as WF-09 + the CRM ingest pipeline (WF-14 / WF-16) stay live.
+//
+// Env (must be in RUNTIME_ENV_KEYS + docker-compose environment:):
+//   QUIZVERSE_N8N_BASE_URL      e.g. https://n8n.intelli-verse-x.ai
+//   QUIZVERSE_ADMIN_API_TOKEN   Bearer token (n8n ADMIN_API_TOKEN)
+//
+// Payload: { slice?: string, days?: number }
+//   slice — overview | funnel | retention | mode-mix | sponsors | experiments | timeseries
+//   days  — used by timeseries (default 30)
+// =============================================================================
+var QuizVerseProductMetrics;
+(function (QuizVerseProductMetrics) {
+    var VALID_SLICES = {
+        "overview": true,
+        "funnel": true,
+        "retention": true,
+        "mode-mix": true,
+        "sponsors": true,
+        "experiments": true,
+        "timeseries": true,
+    };
+    function env(ctx, key) {
+        return (ctx.env && ctx.env[key]) || "";
+    }
+    function rpcProductMetrics(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var req;
+        try {
+            req = RpcHelpers.parseRpcPayload(payload);
+        }
+        catch (err) {
+            return RpcHelpers.errorResponse(err.message || "invalid payload", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var slice = (req.slice && String(req.slice)) || "overview";
+        if (!VALID_SLICES[slice]) {
+            return RpcHelpers.errorResponse("invalid slice — allowed: overview, funnel, retention, mode-mix, sponsors, experiments, timeseries", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var days = (typeof req.days === "number") ? req.days : 30;
+        if (days < 1 || days > 365) {
+            days = 30;
+        }
+        var baseUrl = env(ctx, "QUIZVERSE_N8N_BASE_URL");
+        var token = env(ctx, "QUIZVERSE_ADMIN_API_TOKEN");
+        if (!baseUrl || !token) {
+            return RpcHelpers.errorResponse("product metrics not configured — set QUIZVERSE_N8N_BASE_URL and QUIZVERSE_ADMIN_API_TOKEN on Nakama", 503);
+        }
+        baseUrl = baseUrl.replace(/\/$/, "");
+        var url = baseUrl +
+            "/webhook/admin/metrics?slice=" +
+            encodeURIComponent(slice) +
+            "&days=" +
+            encodeURIComponent(String(days));
+        try {
+            var resp = nk.httpRequest(url, "get", { Authorization: "Bearer " + token, Accept: "application/json" }, "", 15000);
+            if (resp.code < 200 || resp.code >= 300) {
+                logger.warn("[ProductMetrics] n8n HTTP " +
+                    resp.code +
+                    " slice=" +
+                    slice +
+                    " body=" +
+                    (resp.body || "").substring(0, 240));
+                return RpcHelpers.errorResponse("upstream metrics HTTP " + resp.code, resp.code);
+            }
+            var parsed = RpcHelpers.safeJsonParse(resp.body || "{}");
+            if (!parsed.success) {
+                return RpcHelpers.errorResponse("upstream returned invalid JSON", 502);
+            }
+            var body = parsed.data;
+            var sliceData = body;
+            var generatedAt = null;
+            // WF-09 wraps payloads as { slice, generated_at, data: <payload> }.
+            if (body && body.data !== undefined && body.slice) {
+                sliceData = body.data;
+                generatedAt = body.generated_at ? String(body.generated_at) : null;
+            }
+            return RpcHelpers.successResponse({
+                slice: slice,
+                generated_at: generatedAt,
+                days: days,
+                data: sliceData,
+            });
+        }
+        catch (err) {
+            var msg = err && err.message ? String(err.message) : String(err);
+            logger.error("[ProductMetrics] transport error slice=" + slice + ": " + msg);
+            RpcHelpers.logRpcError(nk, logger, "quizverse_product_metrics", msg, ctx.userId);
+            return RpcHelpers.errorResponse("failed to fetch product metrics", 502);
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("quizverse_product_metrics", rpcProductMetrics);
+    }
+    QuizVerseProductMetrics.register = register;
+})(QuizVerseProductMetrics || (QuizVerseProductMetrics = {}));
 // QuizVerse — game-specific opcode + type definitions.
 //
 // Mirrors `schemas/multiplayer/games/quizverse.proto` (reserved range
