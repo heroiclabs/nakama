@@ -718,11 +718,13 @@ namespace Research {
       // Per-participant accumulator keyed by one-way participant_hash. Powers
       // the de-identified `participants[]` CSV the dashboard exports.
       var byHash: { [h: string]: any } = {};
-      function ensureRow(h: string): any {
+      // Function expression (not a declaration) so tsc stays ES5-strict clean:
+      // function declarations inside a block (this try{}) trip TS1250.
+      var ensureRow = function (h: string): any {
         if (!h) h = "unknown";
         if (!byHash[h]) byHash[h] = { participant_hash: h };
         return byHash[h];
-      }
+      };
 
       // --- consent rows (base participant rows: arm / role / locale + count) ---
       var consentCount = 0;
