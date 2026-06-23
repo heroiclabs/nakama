@@ -366,14 +366,27 @@ namespace AdminConsole {
     return String(data.game_id || data.gameId || "").trim();
   }
 
+  // Normalise any raw game identifier (UUID, slug, "global", "all") to the
+  // canonical slug/id before building the storage key, so admin writes and
+  // player reads always land on the same key.
+  function adminCanonicalGameId(nk: nkruntime.Nakama, gameId: string): string {
+    try {
+      if (typeof LegacyGameRegistry !== "undefined" && LegacyGameRegistry.resolveCanonicalGameId) {
+        return LegacyGameRegistry.resolveCanonicalGameId(nk, gameId) || gameId;
+      }
+    } catch (_e) { /* pass through on any error */ }
+    return gameId;
+  }
+
   function adminConfigKey(system: string, gameId: string): string {
     return Constants.gameKey(gameId || undefined, system);
   }
 
   function readScopedConfig(nk: nkruntime.Nakama, collection: string, system: string, gameId: string, defaultValue: any): any {
-    var key = adminConfigKey(system, gameId);
+    var canonId = adminCanonicalGameId(nk, gameId);
+    var key = adminConfigKey(system, canonId);
     var config = Storage.readSystemJson<any>(nk, collection, key);
-    if ((!config || objectCount(config) === 0) && gameId) {
+    if ((!config || objectCount(config) === 0) && canonId) {
       config = Storage.readSystemJson<any>(nk, collection, system);
     }
     if (!config || objectCount(config) === 0) config = defaultValue;
@@ -381,7 +394,8 @@ namespace AdminConsole {
   }
 
   function saveScopedSatoriConfig(nk: nkruntime.Nakama, system: string, gameId: string, config: any): string {
-    var key = adminConfigKey(system, gameId);
+    var canonId = adminCanonicalGameId(nk, gameId);
+    var key = adminConfigKey(system, canonId);
     ConfigLoader.saveSatoriConfig(nk, key, config);
     return key;
   }
