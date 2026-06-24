@@ -39,7 +39,20 @@ namespace OnboardingAnalytics {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   }
 
-  /** Cognito sub (custom_id) → Nakama user UUID. Idempotent on custom_id. */
+  function usernameFromHint(hint: string, cognitoSub: string): string {
+    var raw = (hint || "").trim();
+    if (raw.indexOf("@") >= 0) {
+      raw = raw.split("@")[0];
+    }
+    raw = raw.replace(/[^a-zA-Z0-9_]/g, "");
+    if (!raw) {
+      raw = "ob_" + cognitoSub.replace(/-/g, "").substr(0, 12);
+    }
+    if (raw.length > 128) raw = raw.substr(0, 128);
+    return raw;
+  }
+
+  /** Cognito sub (custom_id) → Nakama user UUID. Mirrors web /api/auth/login retries. */
   function resolveNakamaUserId(
     nk: nkruntime.Nakama,
     logger: nkruntime.Logger,
@@ -48,26 +61,91 @@ namespace OnboardingAnalytics {
   ): string | null {
     if (!cognitoSub) return null;
     if (isLikelyNakamaUuid(cognitoSub)) return cognitoSub;
-    var username = usernameHint || ("ob_" + cognitoSub.replace(/-/g, "").substr(0, 12));
-    if (username.length > 128) username = username.substr(0, 128);
-    try {
-      var authResult = nk.authenticateCustom(cognitoSub, username, true);
-      if (authResult && authResult.userId) return authResult.userId;
-    } catch (e: any) {
-      logger.warn("[OnboardingAnalytics] authenticateCustom failed for cognitoSub=%s: %s",
-        cognitoSub, e && e.message ? e.message : String(e));
+    var username = usernameFromHint(usernameHint, cognitoSub);
+    var attempts: { username: string; create: boolean }[] = [
+      { username: "", create: false },
+      { username: username, create: true },
+      { username: "", create: true }
+    ];
+    for (var a = 0; a < attempts.length; a++) {
+      try {
+        var authResult = nk.authenticateCustom(
+          cognitoSub,
+          attempts[a].username,
+          attempts[a].create
+        );
+        if (authResult && authResult.userId) return authResult.userId;
+      } catch (e: any) {
+        logger.warn("[OnboardingAnalytics] authenticateCustom attempt %s for cognitoSub=%s: %s",
+          a, cognitoSub, e && e.message ? e.message : String(e));
+      }
     }
     return null;
   }
 
   function readIdentityByAnon(nk: nkruntime.Nakama, anonId: string): any {
+    var key = "link_anon_" + sanitizeId(anonId, 80);
+    var row = Storage.readSystemJson<any>(
+      nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, key);
+    if (row) return row;
+    // Legacy pre-UUID-fix key: link_<anonId>
     return Storage.readSystemJson<any>(
-      nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_anon_" + sanitizeId(anonId, 80));
+      nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_" + sanitizeId(anonId, 80));
   }
 
   function readIdentityByCognito(nk: nkruntime.Nakama, cognitoSub: string): any {
     return Storage.readSystemJson<any>(
       nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_cog_" + sanitizeId(cognitoSub, 80));
+  }
+
+  /** Copy anon funnel events from system lake → player storage (Console lookup by User ID). */
+  function backfillEventsToPlayer(
+    nk: nkruntime.Nakama,
+    identityId: string,
+    nakamaUserId: string,
+    cognitoSub: string
+  ): number {
+    var copied = 0;
+    var cursor = "";
+    var pending: nkruntime.StorageWriteRequest[] = [];
+    var MAX_BACKFILL = 250;
+
+    for (var p = 0; p < MAX_SCAN_PAGES && copied < MAX_BACKFILL; p++) {
+      var page = nk.storageList(
+        Constants.SYSTEM_USER_ID,
+        Constants.QV_ONBOARDING_EVENTS_COLLECTION,
+        PAGE_SIZE,
+        cursor
+      );
+      var objects = (page && page.objects) || [];
+      for (var i = 0; i < objects.length; i++) {
+        if (copied >= MAX_BACKFILL) break;
+        var obj = objects[i];
+        if (!obj || !obj.value || !obj.key) continue;
+        var rec = obj.value as any;
+        if (rec.identityId !== identityId) continue;
+        rec.nakamaUserId = nakamaUserId;
+        rec.userId = nakamaUserId;
+        rec.cognitoSub = cognitoSub;
+        pending.push({
+          collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
+          key: obj.key,
+          userId: nakamaUserId,
+          value: rec,
+          permissionRead: 2 as nkruntime.ReadPermissionValues,
+          permissionWrite: 0 as nkruntime.WritePermissionValues
+        });
+        copied++;
+        if (pending.length >= 50) {
+          Storage.writeMultiple(nk, pending);
+          pending = [];
+        }
+      }
+      cursor = (page && page.cursor) || "";
+      if (!cursor) break;
+    }
+    if (pending.length > 0) Storage.writeMultiple(nk, pending);
+    return copied;
   }
 
   function writePlayerProfile(
@@ -249,7 +327,11 @@ namespace OnboardingAnalytics {
       return RpcHelpers.errorResponse("user_id must be cognito sub, not nakama uuid — use nakama_user_id if already known");
     }
 
-    var nakamaUserId = resolveNakamaUserId(nk, logger, cognitoSub, usernameHint);
+    var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
+    if (nakamaUserId && !isLikelyNakamaUuid(nakamaUserId)) nakamaUserId = null;
+    if (!nakamaUserId) {
+      nakamaUserId = resolveNakamaUserId(nk, logger, cognitoSub, usernameHint);
+    }
     if (!nakamaUserId) {
       return RpcHelpers.errorResponse("could not resolve Nakama user for cognito sub");
     }
@@ -267,19 +349,15 @@ namespace OnboardingAnalytics {
     var nakKey = "link_nak_" + sanitizeId(nakamaUserId, 80);
 
     var existing = Storage.readSystemJson<any>(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, anonKey);
-    if (existing && existing.nakamaUserId === nakamaUserId) {
-      return RpcHelpers.successResponse({
-        linked: true,
-        idempotent: true,
-        anon_id: anonId,
-        cognito_sub: cognitoSub,
-        nakama_user_id: nakamaUserId
-      });
+    var idempotent = !!(existing && existing.nakamaUserId === nakamaUserId);
+
+    if (!idempotent) {
+      Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, anonKey, linkPayload);
+      Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, cogKey, linkPayload);
+      Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, nakKey, linkPayload);
     }
 
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, anonKey, linkPayload);
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, cogKey, linkPayload);
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, nakKey, linkPayload);
+    var backfilled = backfillEventsToPlayer(nk, anonId, nakamaUserId, cognitoSub);
 
     var anonProfile = Storage.readSystemJson<any>(
       nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(anonId, 64));
@@ -294,9 +372,12 @@ namespace OnboardingAnalytics {
       snapshot: anonProfile ? anonProfile.snapshot : {}
     });
 
-    logger.info("[OnboardingAnalytics] linked anon=%s cognito=%s → nakama=%s", anonId, cognitoSub, nakamaUserId);
+    logger.info("[OnboardingAnalytics] linked anon=%s cognito=%s → nakama=%s backfilled=%s",
+      anonId, cognitoSub, nakamaUserId, backfilled);
     return RpcHelpers.successResponse({
       linked: true,
+      idempotent: idempotent,
+      backfilled: backfilled,
       anon_id: anonId,
       cognito_sub: cognitoSub,
       nakama_user_id: nakamaUserId
