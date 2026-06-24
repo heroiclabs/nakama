@@ -38638,16 +38638,18 @@ var MpVoiceLiveKit;
 // ---------------------------------------------------------------------------
 // Web onboarding analytics — dedicated event lake for onboarding.quizverse.world
 //
-// Separate from satori_events (no strict taxonomy). Browser sends batched
-// ob_* events via Next.js /api/onboarding/analytics → onboarding_events_batch
-// (http_key). Storage layout mirrors satori_events: inverted-time keys under
-// SYSTEM_USER for efficient recent-first scans.
+// Events are written under SYSTEM_USER (global funnel scans) AND under the
+// player's Nakama UUID (visible in Console → Player → Storage).
+//
+// Auth API returns Cognito sub; we resolve Nakama UUID via authenticateCustom
+// (custom_id = cognito sub, idempotent) at identity link time.
 // ---------------------------------------------------------------------------
 var OnboardingAnalytics;
 (function (OnboardingAnalytics) {
     var PAGE_SIZE = 100;
     var MAX_SCAN_PAGES = 400;
     var MAX_BATCH = 50;
+    var PROFILE_KEY = "profile";
     function eventKey(tsMs, id) {
         var inv = "" + (100000000000000 - tsMs);
         while (inv.length < 14)
@@ -38666,22 +38668,97 @@ var OnboardingAnalytics;
     function sanitizeId(raw, maxLen) {
         return (raw || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, maxLen);
     }
-    function captureEvents(nk, identityId, userId, events) {
+    function isLikelyNakamaUuid(id) {
+        if (!id || id.length !== 36)
+            return false;
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    }
+    /** Cognito sub (custom_id) → Nakama user UUID. Idempotent on custom_id. */
+    function resolveNakamaUserId(nk, logger, cognitoSub, usernameHint) {
+        if (!cognitoSub)
+            return null;
+        if (isLikelyNakamaUuid(cognitoSub))
+            return cognitoSub;
+        var username = usernameHint || ("ob_" + cognitoSub.replace(/-/g, "").substr(0, 12));
+        if (username.length > 128)
+            username = username.substr(0, 128);
+        try {
+            var authResult = nk.authenticateCustom(cognitoSub, username, true);
+            if (authResult && authResult.userId)
+                return authResult.userId;
+        }
+        catch (e) {
+            logger.warn("[OnboardingAnalytics] authenticateCustom failed for cognitoSub=%s: %s", cognitoSub, e && e.message ? e.message : String(e));
+        }
+        return null;
+    }
+    function readIdentityByAnon(nk, anonId) {
+        return Storage.readSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_anon_" + sanitizeId(anonId, 80));
+    }
+    function readIdentityByCognito(nk, cognitoSub) {
+        return Storage.readSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_cog_" + sanitizeId(cognitoSub, 80));
+    }
+    function writePlayerProfile(nk, nakamaUserId, payload) {
+        Storage.writeJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, PROFILE_KEY, nakamaUserId, payload, 2, 0);
+    }
+    function writeProfileSnapshots(nk, identityId, nakamaUserId, cognitoSub, lastScreen, lastEvent, lastSnapshot) {
+        var payload = {
+            identityId: identityId,
+            nakamaUserId: nakamaUserId,
+            cognitoSub: cognitoSub,
+            userId: nakamaUserId,
+            updatedAt: Date.now(),
+            lastScreen: lastScreen,
+            lastEvent: lastEvent,
+            snapshot: lastSnapshot
+        };
+        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(identityId, 64), payload);
+        if (nakamaUserId) {
+            writePlayerProfile(nk, nakamaUserId, payload);
+        }
+    }
+    function captureEvents(nk, logger, identityId, cognitoSub, nakamaUserId, events) {
         var writes = [];
         var captured = 0;
         var lastSnapshot = null;
         var lastScreen = "";
         var lastEvent = "";
+        if (!nakamaUserId && cognitoSub) {
+            var linked = readIdentityByCognito(nk, cognitoSub);
+            if (linked && linked.nakamaUserId)
+                nakamaUserId = linked.nakamaUserId;
+        }
+        if (!nakamaUserId && identityId) {
+            var linkedAnon = readIdentityByAnon(nk, identityId);
+            if (linkedAnon && linkedAnon.nakamaUserId)
+                nakamaUserId = linkedAnon.nakamaUserId;
+            if (!cognitoSub && linkedAnon && linkedAnon.cognitoSub)
+                cognitoSub = linkedAnon.cognitoSub;
+        }
         for (var i = 0; i < events.length; i++) {
             var e = events[i];
             if (!e || !e.name)
                 continue;
             var tsMs = toMs(e.timestamp);
             var eventId = (e.eventId || randomId()).toString();
-            var recordUserId = userId || e.userId || null;
+            var eventCognito = cognitoSub || e.cognitoSub || e.cognito_sub || null;
+            var eventNakama = nakamaUserId || e.nakamaUserId || e.nakama_user_id || null;
+            if (!eventNakama && eventCognito) {
+                var linkRow = readIdentityByCognito(nk, eventCognito);
+                if (linkRow && linkRow.nakamaUserId)
+                    eventNakama = linkRow.nakamaUserId;
+            }
+            if (!eventCognito && e.userId && !isLikelyNakamaUuid("" + e.userId)) {
+                eventCognito = "" + e.userId;
+            }
+            if (!eventNakama && e.userId && isLikelyNakamaUuid("" + e.userId)) {
+                eventNakama = "" + e.userId;
+            }
             var record = {
                 identityId: identityId,
-                userId: recordUserId,
+                userId: eventNakama,
+                nakamaUserId: eventNakama,
+                cognitoSub: eventCognito,
                 name: e.name,
                 timestamp: tsMs,
                 screen: e.screen || "",
@@ -38691,33 +38768,42 @@ var OnboardingAnalytics;
                 userSnapshot: e.userSnapshot || {},
                 date: new Date(tsMs).toISOString().slice(0, 10)
             };
-            writes.push({
+            var key = eventKey(tsMs + i, eventId);
+            var systemWrite = {
                 collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
-                key: eventKey(tsMs + i, eventId),
+                key: key,
                 userId: Constants.SYSTEM_USER_ID,
                 value: record,
                 permissionRead: 0,
                 permissionWrite: 0
-            });
+            };
+            writes.push(systemWrite);
+            if (eventNakama) {
+                writes.push({
+                    collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
+                    key: key,
+                    userId: eventNakama,
+                    value: record,
+                    permissionRead: 2,
+                    permissionWrite: 0
+                });
+            }
             captured++;
             if (e.userSnapshot)
                 lastSnapshot = e.userSnapshot;
             if (e.screen)
                 lastScreen = e.screen;
             lastEvent = e.name;
+            if (eventNakama)
+                nakamaUserId = eventNakama;
+            if (eventCognito)
+                cognitoSub = eventCognito;
         }
         if (writes.length > 0) {
             Storage.writeMultiple(nk, writes);
         }
         if (lastSnapshot) {
-            Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(identityId, 64), {
-                identityId: identityId,
-                userId: userId,
-                updatedAt: Date.now(),
-                lastScreen: lastScreen,
-                lastEvent: lastEvent,
-                snapshot: lastSnapshot
-            });
+            writeProfileSnapshots(nk, identityId, nakamaUserId, cognitoSub, lastScreen, lastEvent, lastSnapshot);
         }
         return captured;
     }
@@ -38731,34 +38817,78 @@ var OnboardingAnalytics;
             return RpcHelpers.errorResponse("events array required");
         }
         var events = data.events.slice(0, MAX_BATCH);
-        var userId = (data.user_id || data.userId || "").toString() || null;
-        var captured = captureEvents(nk, identityId, userId, events);
-        return RpcHelpers.successResponse({ captured: captured, submitted: data.events.length, identity_id: identityId });
+        var cognitoSub = (data.cognito_sub || data.cognitoSub || data.user_id || data.userId || "").toString() || null;
+        var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
+        if (nakamaUserId && !isLikelyNakamaUuid(nakamaUserId))
+            nakamaUserId = null;
+        if (cognitoSub && isLikelyNakamaUuid(cognitoSub)) {
+            nakamaUserId = cognitoSub;
+            cognitoSub = null;
+        }
+        var captured = captureEvents(nk, logger, identityId, cognitoSub, nakamaUserId, events);
+        return RpcHelpers.successResponse({
+            captured: captured,
+            submitted: data.events.length,
+            identity_id: identityId,
+            nakama_user_id: nakamaUserId
+        });
     }
     function rpcIdentityLink(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);
         var anonId = (data.anon_id || data.anonId || "").toString();
-        var userId = (data.user_id || data.userId || "").toString();
-        if (!anonId || !userId) {
-            return RpcHelpers.errorResponse("anon_id and user_id required");
+        var cognitoSub = (data.cognito_sub || data.cognitoSub || data.user_id || data.userId || "").toString();
+        var usernameHint = (data.username || data.email || "").toString();
+        if (!anonId || !cognitoSub) {
+            return RpcHelpers.errorResponse("anon_id and user_id (cognito sub) required");
         }
-        var linkKey = "link_" + sanitizeId(anonId, 80);
-        var existing = Storage.readSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey);
-        if (existing && existing.userId === userId) {
-            return RpcHelpers.successResponse({ linked: true, idempotent: true, anon_id: anonId, user_id: userId });
+        if (isLikelyNakamaUuid(cognitoSub)) {
+            return RpcHelpers.errorResponse("user_id must be cognito sub, not nakama uuid — use nakama_user_id if already known");
         }
-        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey, {
+        var nakamaUserId = resolveNakamaUserId(nk, logger, cognitoSub, usernameHint);
+        if (!nakamaUserId) {
+            return RpcHelpers.errorResponse("could not resolve Nakama user for cognito sub");
+        }
+        var linkPayload = {
             anonId: anonId,
-            userId: userId,
+            cognitoSub: cognitoSub,
+            nakamaUserId: nakamaUserId,
+            userId: nakamaUserId,
             linkedAt: Date.now()
-        });
-        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(userId, 64), {
+        };
+        var anonKey = "link_anon_" + sanitizeId(anonId, 80);
+        var cogKey = "link_cog_" + sanitizeId(cognitoSub, 80);
+        var nakKey = "link_nak_" + sanitizeId(nakamaUserId, 80);
+        var existing = Storage.readSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, anonKey);
+        if (existing && existing.nakamaUserId === nakamaUserId) {
+            return RpcHelpers.successResponse({
+                linked: true,
+                idempotent: true,
+                anon_id: anonId,
+                cognito_sub: cognitoSub,
+                nakama_user_id: nakamaUserId
+            });
+        }
+        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, anonKey, linkPayload);
+        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, cogKey, linkPayload);
+        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, nakKey, linkPayload);
+        var anonProfile = Storage.readSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(anonId, 64));
+        writePlayerProfile(nk, nakamaUserId, {
             identityId: anonId,
-            userId: userId,
-            linkedAt: Date.now()
+            nakamaUserId: nakamaUserId,
+            cognitoSub: cognitoSub,
+            userId: nakamaUserId,
+            linkedAt: Date.now(),
+            lastScreen: anonProfile ? anonProfile.lastScreen : "",
+            lastEvent: anonProfile ? anonProfile.lastEvent : "ob_identity_linked",
+            snapshot: anonProfile ? anonProfile.snapshot : {}
         });
-        logger.info("[OnboardingAnalytics] linked anon=%s → user=%s", anonId, userId);
-        return RpcHelpers.successResponse({ linked: true, anon_id: anonId, user_id: userId });
+        logger.info("[OnboardingAnalytics] linked anon=%s cognito=%s → nakama=%s", anonId, cognitoSub, nakamaUserId);
+        return RpcHelpers.successResponse({
+            linked: true,
+            anon_id: anonId,
+            cognito_sub: cognitoSub,
+            nakama_user_id: nakamaUserId
+        });
     }
     function countKeys(obj) {
         var n = 0;
@@ -38791,7 +38921,7 @@ var OnboardingAnalytics;
                     continue;
                 if (pathwayFilter && rec.userSnapshot && rec.userSnapshot.pathway !== pathwayFilter)
                     continue;
-                var uid = rec.userId || rec.identityId;
+                var uid = rec.nakamaUserId || rec.userId || rec.identityId;
                 if (!uid)
                     continue;
                 if (!userState[uid]) {
