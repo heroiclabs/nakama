@@ -11,6 +11,12 @@ namespace OnboardingAnalytics {
   var PAGE_SIZE = 100;
   var MAX_SCAN_PAGES = 400;
   var MAX_BATCH = 50;
+  var PROFILE_KEY = "profile";
+
+  function isNakamaUuid(id: string): boolean {
+    if (!id || id.length !== 36) return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  }
 
   function eventKey(tsMs: number, id: string): string {
     var inv = "" + (100000000000000 - tsMs);
@@ -35,7 +41,8 @@ namespace OnboardingAnalytics {
   function captureEvents(
     nk: nkruntime.Nakama,
     identityId: string,
-    userId: string | null,
+    cognitoSub: string | null,
+    nakamaUserId: string | null,
     events: any[]
   ): number {
     var writes: nkruntime.StorageWriteRequest[] = [];
@@ -49,10 +56,14 @@ namespace OnboardingAnalytics {
       if (!e || !e.name) continue;
       var tsMs = toMs(e.timestamp);
       var eventId = (e.eventId || randomId()).toString();
-      var recordUserId = userId || e.userId || null;
+      var recordCognito = cognitoSub || e.userId || null;
+      var recordNakama = nakamaUserId || null;
+      var key = eventKey(tsMs + i, eventId);
       var record = {
         identityId: identityId,
-        userId: recordUserId,
+        userId: recordNakama || recordCognito,
+        cognitoSub: recordCognito,
+        nakamaUserId: recordNakama,
         name: e.name,
         timestamp: tsMs,
         screen: e.screen || "",
@@ -64,12 +75,22 @@ namespace OnboardingAnalytics {
       };
       writes.push({
         collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
-        key: eventKey(tsMs + i, eventId),
+        key: key,
         userId: Constants.SYSTEM_USER_ID,
         value: record,
         permissionRead: 0 as nkruntime.ReadPermissionValues,
         permissionWrite: 0 as nkruntime.WritePermissionValues
       });
+      if (recordNakama) {
+        writes.push({
+          collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
+          key: key,
+          userId: recordNakama,
+          value: record,
+          permissionRead: 2 as nkruntime.ReadPermissionValues,
+          permissionWrite: 0 as nkruntime.WritePermissionValues
+        });
+      }
       captured++;
       if (e.userSnapshot) lastSnapshot = e.userSnapshot;
       if (e.screen) lastScreen = e.screen;
@@ -81,14 +102,28 @@ namespace OnboardingAnalytics {
     }
 
     if (lastSnapshot) {
-      Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(identityId, 64), {
+      var profilePayload = {
         identityId: identityId,
-        userId: userId,
+        userId: nakamaUserId || cognitoSub,
+        cognitoSub: cognitoSub,
+        nakamaUserId: nakamaUserId,
         updatedAt: Date.now(),
         lastScreen: lastScreen,
         lastEvent: lastEvent,
         snapshot: lastSnapshot
-      });
+      };
+      Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(identityId, 64), profilePayload);
+      if (nakamaUserId) {
+        Storage.writeJson(
+          nk,
+          Constants.QV_ONBOARDING_PROFILES_COLLECTION,
+          PROFILE_KEY,
+          nakamaUserId,
+          profilePayload,
+          2 as nkruntime.ReadPermissionValues,
+          0 as nkruntime.WritePermissionValues
+        );
+      }
     }
 
     return captured;
@@ -104,35 +139,65 @@ namespace OnboardingAnalytics {
       return RpcHelpers.errorResponse("events array required");
     }
     var events = data.events.slice(0, MAX_BATCH);
-    var userId = (data.user_id || data.userId || "").toString() || null;
-    var captured = captureEvents(nk, identityId, userId, events);
-    return RpcHelpers.successResponse({ captured: captured, submitted: data.events.length, identity_id: identityId });
+    var cognitoSub = (data.user_id || data.userId || "").toString() || null;
+    var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
+    if (nakamaUserId && !isNakamaUuid(nakamaUserId)) nakamaUserId = null;
+    var captured = captureEvents(nk, identityId, cognitoSub, nakamaUserId, events);
+    return RpcHelpers.successResponse({
+      captured: captured,
+      submitted: data.events.length,
+      identity_id: identityId,
+      nakama_user_id: nakamaUserId
+    });
   }
 
   function rpcIdentityLink(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var data = RpcHelpers.parseRpcPayload(payload);
     var anonId = (data.anon_id || data.anonId || "").toString();
-    var userId = (data.user_id || data.userId || "").toString();
-    if (!anonId || !userId) {
+    var cognitoSub = (data.user_id || data.userId || "").toString();
+    var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
+    if (nakamaUserId && !isNakamaUuid(nakamaUserId)) nakamaUserId = null;
+    if (!anonId || !cognitoSub) {
       return RpcHelpers.errorResponse("anon_id and user_id required");
     }
     var linkKey = "link_" + sanitizeId(anonId, 80);
-    var existing = Storage.readSystemJson<any>(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey);
-    if (existing && existing.userId === userId) {
-      return RpcHelpers.successResponse({ linked: true, idempotent: true, anon_id: anonId, user_id: userId });
-    }
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey, {
+    var linkPayload = {
       anonId: anonId,
-      userId: userId,
+      userId: cognitoSub,
+      cognitoSub: cognitoSub,
+      nakamaUserId: nakamaUserId,
       linkedAt: Date.now()
+    };
+    var existing = Storage.readSystemJson<any>(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey);
+    if (existing && existing.userId === cognitoSub && existing.nakamaUserId === nakamaUserId) {
+      return RpcHelpers.successResponse({
+        linked: true,
+        idempotent: true,
+        anon_id: anonId,
+        user_id: cognitoSub,
+        nakama_user_id: nakamaUserId
+      });
+    }
+    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey, linkPayload);
+    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(anonId, 64), linkPayload);
+    if (nakamaUserId) {
+      Storage.writeJson(
+        nk,
+        Constants.QV_ONBOARDING_PROFILES_COLLECTION,
+        PROFILE_KEY,
+        nakamaUserId,
+        linkPayload,
+        2 as nkruntime.ReadPermissionValues,
+        0 as nkruntime.WritePermissionValues
+      );
+    }
+    logger.info("[OnboardingAnalytics] linked anon=%s cognito=%s nakama=%s", anonId, cognitoSub, nakamaUserId || "none");
+    return RpcHelpers.successResponse({
+      linked: true,
+      anon_id: anonId,
+      user_id: cognitoSub,
+      nakama_user_id: nakamaUserId
     });
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(userId, 64), {
-      identityId: anonId,
-      userId: userId,
-      linkedAt: Date.now()
-    });
-    logger.info("[OnboardingAnalytics] linked anon=%s → user=%s", anonId, userId);
-    return RpcHelpers.successResponse({ linked: true, anon_id: anonId, user_id: userId });
   }
 
   function countKeys(obj: { [k: string]: boolean }): number {
