@@ -66,6 +66,15 @@ spec:
                   name: nakama-console-secret
                   key: password
                   optional: true
+            # QuizVerse CRM metrics proxy (WF-09 / growth webhooks) — same token as QuizVerse Next.js
+            - name: QUIZVERSE_N8N_BASE_URL
+              value: "https://n8n.intelli-verse-x.ai"
+            - name: QUIZVERSE_ADMIN_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: quizverse-admin-secret
+                  key: admin_api_token
+                  optional: true
           readinessProbe:
             httpGet:
               path: /healthz

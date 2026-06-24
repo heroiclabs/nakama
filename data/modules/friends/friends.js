@@ -153,11 +153,13 @@ function sendChallengePushNotification(nk, logger, targetUserId, gameId, challen
  *                                   fromUserId, fromDisplayName, expiresAt }
  */
 function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, challengeData) {
+    // Use nk.channelIdBuild(type=2) — the canonical DM channel ID used by UnifiedChatController.
+    // The old hand-built "dm_<uuid>_<uuid>" key produced a different channel than the client
+    // reads, so challenge messages were never visible in chat history. nk.channelIdBuild
+    // sorts the two user IDs internally so A→B and B→A produce the same channel.
     var channelId = null;
     try {
-        // Sort user IDs so both sides resolve to the same DM channel
-        var sortedIds = [senderId, receiverId].sort();
-        channelId = "dm_" + sortedIds[0] + "_" + sortedIds[1];
+        channelId = nk.channelIdBuild(senderId, receiverId, 2);
     } catch (err) {
         utils.logWarn(logger, "Could not create channel ID: " + err.message);
         return;
@@ -189,12 +191,12 @@ function sendChallengeChatMessage(nk, logger, senderId, receiverId, senderName, 
         );
         utils.logInfo(logger, "Challenge chat message sent to channel " + channelId);
     } catch (chatErr) {
-        // Fallback: if the DM channel doesn't exist yet, persist the message
-        // so it can be replayed when the channel is later opened.
+        // Fallback: store under RECIPIENT's userId so they can read it (permRead=1 = owner).
+        // Previously stored under senderId which the recipient could never access.
         utils.logWarn(logger, "Channel message failed, using storage fallback: " + chatErr.message);
 
-        var msgKey = "pending_chat_" + receiverId + "_" + Date.now();
-        utils.writeStorage(nk, logger, "pending_chat_messages", msgKey, senderId, {
+        var msgKey = "pending_chat_" + senderId + "_" + Date.now();
+        utils.writeStorage(nk, logger, "pending_chat_messages", msgKey, receiverId, {
             senderId:    senderId,
             senderName:  senderName,
             receiverId:  receiverId,

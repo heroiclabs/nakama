@@ -340,8 +340,11 @@ namespace LegacyMultiGame {
     var userKey = "event_" + userId + "_" + canonicalGameId + "_" + now;
     Storage.writeJson(nk, "analytics_events", userKey, userId, event, 1, 1);
 
-    // 6. Write to analytics_events under SYSTEM_USER (dashboard aggregation)
-    var dashKey = "dash_" + getStartOfDay() + "_" + eventName + "_" + now;
+    // 6. Write to analytics_events under SYSTEM_USER (dashboard aggregation).
+    // Key format must match what dashboard_events_timeline and analytics_rollup
+    // expect: dash_<gameId>_<YYYY-MM-DD>_<eventName>_<ts>_<rand>
+    var rand6 = Math.random().toString(36).slice(2, 8);
+    var dashKey = "dash_" + canonicalGameId + "_" + getStartOfDay() + "_" + eventName + "_" + now + "_" + rand6;
     Storage.writeJson(nk, "analytics_events", dashKey, Constants.SYSTEM_USER_ID, event, 0, 0);
 
     // 7. Also write to legacy collection for backward compat
@@ -411,7 +414,7 @@ namespace LegacyMultiGame {
           var summaryKey = "session_summary_" + userId + "_" + gameId + "_" + existing.startTime;
           Storage.writeJson(nk, "analytics_session_summaries", summaryKey, userId, existing, 1, 1);
 
-          aggregateSessionStats(nk, existing.duration);
+          aggregateSessionStats(nk, existing.duration, gameId);
           Storage.writeJson(nk, "analytics_sessions", sessionKey, userId, { active: false }, 1, 1);
         } else {
           // Orphaned session_end — no matching session_start (crash recovery)
@@ -422,24 +425,28 @@ namespace LegacyMultiGame {
               userId: userId, gameId: gameId, duration: duration,
               endTimestamp: new Date().toISOString(), orphaned: true
             }, 1, 1);
-            aggregateSessionStats(nk, duration);
+            aggregateSessionStats(nk, duration, gameId);
           }
         }
       }
     } catch (e) { /* Session tracking non-fatal */ }
   }
 
-  function aggregateSessionStats(nk: nkruntime.Nakama, durationSeconds: number): void {
+  function aggregateSessionStats(nk: nkruntime.Nakama, durationSeconds: number, gameId?: string): void {
     var today = getStartOfDay();
-    var statsKey = "session_stats_" + today;
-    var stats = Storage.readSystemJson<any>(nk, "analytics_sessions", statsKey);
-    if (!stats) {
-      stats = { date: today, totalSessions: 0, totalDuration: 0, avgDuration: 0 };
+    var statsKeys = ["session_stats_" + today];
+    if (gameId) statsKeys.push("session_stats_" + gameId + "_" + today);
+    for (var k = 0; k < statsKeys.length; k++) {
+      var statsKey = statsKeys[k];
+      var stats = Storage.readSystemJson<any>(nk, "analytics_sessions", statsKey);
+      if (!stats) {
+        stats = { date: today, totalSessions: 0, totalDuration: 0, avgDuration: 0 };
+      }
+      stats.totalSessions++;
+      stats.totalDuration += (durationSeconds || 0);
+      stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
+      Storage.writeJson(nk, "analytics_sessions", statsKey, Constants.SYSTEM_USER_ID, stats, 0, 0);
     }
-    stats.totalSessions++;
-    stats.totalDuration += (durationSeconds || 0);
-    stats.avgDuration = stats.totalSessions > 0 ? Math.round(stats.totalDuration / stats.totalSessions) : 0;
-    Storage.writeJson(nk, "analytics_sessions", statsKey, Constants.SYSTEM_USER_ID, stats, 0, 0);
   }
 
   function trackSessionStart(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: any, userId: string, gId: string): any {
@@ -492,7 +499,7 @@ namespace LegacyMultiGame {
         var summaryKey = "session_summary_" + userId + "_" + canonicalGameId + "_" + existing.startTime;
         Storage.writeJson(nk, "analytics_session_summaries", summaryKey, userId, existing, 1, 1);
 
-        aggregateSessionStats(nk, existing.duration);
+        aggregateSessionStats(nk, existing.duration, canonicalGameId);
 
         // Clear active session
         Storage.writeJson(nk, "analytics_sessions", sessionKey, userId, { active: false }, 1, 1);
@@ -505,7 +512,7 @@ namespace LegacyMultiGame {
             userId: userId, gameId: canonicalGameId, duration: duration,
             endTimestamp: new Date().toISOString(), orphaned: true
           }, 1, 1);
-          aggregateSessionStats(nk, duration);
+          aggregateSessionStats(nk, duration, canonicalGameId);
         }
       }
     } catch (e) { /* Session end tracking non-fatal */ }

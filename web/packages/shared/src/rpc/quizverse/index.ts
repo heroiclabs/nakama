@@ -266,3 +266,33 @@ export function autoFulfillPrize(
 ): Promise<AutoFulfillPrizeResult> {
   return callDashboardApi<AutoFulfillPrizeResult>("/prize-fulfill", input, opts);
 }
+
+export {
+  fetchProductMetricsSlice,
+  formatCompactNumber,
+  formatPct,
+  type ProductMetricsSlice,
+  type ProductMetricsResult,
+  type OverviewSlice,
+  type FunnelStep,
+  type RetentionCell,
+  type SponsorRow,
+  type ExperimentRow,
+  type TimeseriesSlice,
+  type TimeseriesPoint,
+  type ModeShare,
+  type GameMode,
+} from "./product-metrics";
+
+export {
+  fetchGrowthSnapshot,
+  formatRelative,
+  formatBeehiivPublishDate,
+  isRollupStale,
+  type GrowthSnapshotSource,
+  type GrowthSnapshotResult,
+  type GscSnapshot,
+  type Ga4Snapshot,
+  type BeehiivSnapshot,
+  type UsersSnapshot,
+} from "./growth-snapshot";

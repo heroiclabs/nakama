@@ -33,6 +33,7 @@ const LogsPage = lazy(() => import("./pages/LogsPage"));
 const EconomyPage = lazy(() => import("./pages/EconomyPage"));
 const RetentionPage = lazy(() => import("./pages/RetentionPage"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
+const ProductTelemetryPage = lazy(() => import("./pages/ProductTelemetryPage"));
 const ConfigExportPage = lazy(() => import("./pages/ConfigExportPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const DevGuidePage = lazy(() => import("./pages/DevGuidePage"));
@@ -69,6 +70,7 @@ function ProtectedRoutes() {
         <Route path="timeline" element={<TimelinePage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="metrics" element={<MetricsPage />} />
+        <Route path="product-telemetry" element={<ProductTelemetryPage />} />
         <Route path="taxonomy" element={<TaxonomyPage />} />
         <Route path="experiments" element={<ExperimentsPage />} />
         <Route path="audiences" element={<AudiencesPage />} />
