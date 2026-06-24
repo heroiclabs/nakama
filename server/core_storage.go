@@ -907,7 +907,7 @@ func storageIndexWrite(ctx context.Context, storageIndex StorageIndex, ops Stora
 			Value:           o.Object.Value,
 			Version:         acks[i].Version,
 			PermissionRead:  o.Object.PermissionRead.GetValue(),
-			PermissionWrite: o.Object.PermissionRead.GetValue(),
+			PermissionWrite: o.Object.PermissionWrite.GetValue(),
 			CreateTime:      acks[i].CreateTime,
 			UpdateTime:      acks[i].UpdateTime,
 		})

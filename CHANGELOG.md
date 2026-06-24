@@ -8,6 +8,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 - Improve logic in Apple JWS receipts validation.
 ### Fixed
 - Fix an issue where group admin account deletion could leave orphaned group edges.
+- Fix In-App Purchase validation persist parameter handling for Apple JWS receipts.
 
 ## [3.39.0] - 2026-05-20
 ### Added
