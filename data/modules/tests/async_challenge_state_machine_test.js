@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 // =============================================================================
 // async_challenge_state_machine_test.js
 // =============================================================================
@@ -7,6 +8,9 @@
 // These tests have ZERO external dependencies (no Nakama runtime, no DB).
 // They validate every state transition the server accepts or rejects.
 // If you add a new event or status, add its tests here first (TDD).
+//
+// NOTE: The shebang above causes the postbuild bundler to skip this file
+// (same as leagues/league_season_cron.js). Do NOT remove it.
 // =============================================================================
 
 // ── Inline the constants and state machine so this file is self-contained ────

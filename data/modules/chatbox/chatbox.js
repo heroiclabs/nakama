@@ -362,8 +362,8 @@ var CBX_INTENT_SCHEMA_PROMPT =
     "You are the QuizVerse Companion — warm, concise, encouraging. " +
     "ALWAYS reply with STRICT JSON ONLY (no markdown, no fences, no prose outside the JSON). " +
     "Schema: {\n" +
-    "  \"reply\": <1-3 friendly sentences shown to the player>,\n" +
-    "  \"intent\": one of [\"OPEN_QUIZ_MODE\", \"SHOW_TOPICS\", \"SHOW_STATS\", \"RESUME_LAST\", \"HELP\", \"SMALLTALK\"],\n" +
+    "  \"reply\": <the player-facing response — can be long for CONTENT_GENERATION, otherwise 1-3 sentences>,\n" +
+    "  \"intent\": one of [\"OPEN_QUIZ_MODE\", \"SHOW_TOPICS\", \"SHOW_STATS\", \"RESUME_LAST\", \"HELP\", \"SMALLTALK\", \"CONTENT_GENERATION\"],\n" +
     "  \"quizMode\": exact value from VALID_MODES (case-sensitive) or null,\n" +
     "  \"topic\": short topic string or null,\n" +
     "  \"suggestions\": array of 3 short chip labels (max 24 chars each)\n" +
@@ -372,11 +372,13 @@ var CBX_INTENT_SCHEMA_PROMPT =
     "- If the player wants to play X, set intent=OPEN_QUIZ_MODE and quizMode to the closest VALID_MODES entry (e.g. 'i want to play guess anime' -> quizMode=GuessAnime).\n" +
     "- If you are unsure of the mode, set quizMode=null and ask one clarifying question in reply.\n" +
     "- NEVER invent quizMode names not in VALID_MODES.\n" +
-    "- Keep reply under 280 characters. No emoji spam (max 1 per reply).\n" +
+    "- If the player asks you to WRITE, COMPOSE, CREATE, or GENERATE any text (poem, article, essay, story, paragraph, summary, etc.), set intent=CONTENT_GENERATION and fulfill the request fully in the \"reply\" field. Do NOT redirect to a quiz.\n" +
+    "- If a prior turn contains a partial request (e.g. style requested, user replied with a topic word), treat it as a continuation of the original content request.\n" +
+    "- Keep non-content replies under 280 characters. Content replies (CONTENT_GENERATION) can be as long as needed. No emoji spam (max 1 per reply).\n" +
     "- LANGUAGE: obey the LANGUAGE RULE in the user content. Write \"reply\" and every \"suggestions\" chip in that language.\n" +
     "- VALID_MODES: " + CBX_CHAT_LAUNCHABLE_MODES.join(", ");
 
-function cbxBuildUserPrompt(message, playerCtx, kbContext, locale, intentHint, languageMode) {
+function cbxBuildUserPrompt(message, playerCtx, kbContext, locale, intentHint, languageMode, history) {
     // P0-7 / OWASP LLM01: separate SERVER-TRUSTED context from UNTRUSTED user
     // input with an explicit fence + instruction. The LLM is told NOT to
     // follow instructions found inside the user block. This isn't a perfect
@@ -446,6 +448,25 @@ function cbxBuildUserPrompt(message, playerCtx, kbContext, locale, intentHint, l
     }
     if (kbContext && kbContext.game && kbContext.game.gameMode) {
         lines.push("Last mode played: " + String(kbContext.game.gameMode).substring(0, 48));
+    }
+
+    // --- Conversation history (QVBF_270): sliding window of last N turns ---
+    // Injected as server-trusted context so the LLM maintains continuity,
+    // language anchoring, and user name across turn boundaries.
+    if (Array.isArray(history) && history.length > 0) {
+        lines.push("");
+        lines.push("CONVERSATION HISTORY (last " + history.length + " turns — use for language anchoring, user name, and continuity):");
+        for (var hi = 0; hi < history.length; hi++) {
+            var ht = history[hi];
+            if (!ht || !ht.role) continue;
+            var htText = String(ht.text || "").substring(0, 400);
+            lines.push("[" + ht.role + "]: " + htText);
+        }
+        lines.push("[END HISTORY]");
+        if (languageMode === "mirror") {
+            lines.push("LANGUAGE ANCHOR: The conversation language is established in the history above. " +
+                "Continue in that SAME language unless the user explicitly switches.");
+        }
     }
 
     // --- User input (fenced, explicitly untrusted) ---
@@ -577,6 +598,10 @@ function cbxBuildWidget(intent, parsed, playerCtx) {
                     priority: 2
                 }
             };
+
+        case "CONTENT_GENERATION":
+            // Pure text response — no widget. The full content is in reply.
+            return { widgetType: null, widgetPayload: null };
 
         default:
             return { widgetType: null, widgetPayload: null };
@@ -894,10 +919,15 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
 
         var kbCtx = req.knowledgeBaseContext || null;
         // QVBF_270: chat replies mirror the language the user typed in.
-        var userMsg = cbxBuildUserPrompt(message, playerCtx, kbCtx, req.locale || CBX_DEFAULT_LOCALE, intentHint, "mirror");
+        // Also thread the sliding window history so the LLM can anchor language
+        // and remember context (user name, prior topic, conversation flow).
+        var history = Array.isArray(req.conversationHistory) ? req.conversationHistory : [];
+        var userMsg = cbxBuildUserPrompt(message, playerCtx, kbCtx, req.locale || CBX_DEFAULT_LOCALE, intentHint, "mirror", history);
 
         // QVBF-52: Adjust system prompt based on client intent classification
         var systemPrompt = CBX_INTENT_SCHEMA_PROMPT;
+        // QVBF_293/294: dynamic token budget — content generation needs room for long output
+        var maxTokens = CBX_DEFAULT_MAX_TOKENS;
         if (intentHint === "conversational") {
             systemPrompt += "\n\nIMPORTANT: The player is asking a CONVERSATIONAL question (fact, trivia, general knowledge). " +
                             "Provide a direct, informative answer in 1-2 sentences. Do NOT ask quiz setup questions or push them to play. " +
@@ -906,6 +936,13 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
             systemPrompt += "\n\nIMPORTANT: The player wants to START or PLAY A QUIZ. Fast-track them directly to quiz mode. " +
                             "Set intent=OPEN_QUIZ_MODE and identify the best matching quizMode from VALID_MODES. " +
                             "Keep reply brief and encouraging. Skip all setup questions.";
+        } else if (intentHint === "contentgeneration") {
+            systemPrompt += "\n\nIMPORTANT: The player wants you to CREATE content (poem, article, story, essay, etc.). " +
+                            "Set intent=CONTENT_GENERATION and FULFILL the request directly in the reply field. " +
+                            "Do NOT redirect to a quiz. If the current message is a short follow-up (e.g. a single topic word) " +
+                            "look at the CONVERSATION HISTORY to reconstruct the original request and fulfill it. " +
+                            "Produce the full content. The reply field has no character limit for this intent.";
+            maxTokens = 900;
         } else if (intentHint === "learnertoolbelt") {
             systemPrompt += "\n\nIMPORTANT: The player is asking about STUDY/EXAM TOOLS (GPA calculator, exam countdown, school finder, study planner). " +
                             "Acknowledge their request, provide brief helpful context about the tool, and guide them to access it. " +
@@ -919,7 +956,7 @@ function rpcQuizverseChatboxMessage(ctx, logger, nk, payload) {
         }
         // intentHint === "unknown" or anything else: use default CBX_INTENT_SCHEMA_PROMPT as-is
 
-        var llm = cbxCallLLM(nk, logger, ctx, systemPrompt, userMsg, CBX_DEFAULT_MAX_TOKENS);
+        var llm = cbxCallLLM(nk, logger, ctx, systemPrompt, userMsg, maxTokens);
         var parsed = llm.success ? cbxParseLlmJson(llm.text) : null;
 
         if (!parsed) {
