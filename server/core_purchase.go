@@ -107,7 +107,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	dbPurchase.rawResponse = string(receiptJson)
 
 	dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{dbPurchase})
-	if err != nil {
+	if err != nil || len(dbPurchases) == 0  {
 		logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to store app store purchase data")
 	}
@@ -123,7 +123,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	validatedPurchase.CreateTime = timestamppb.New(dbPurchase.createTime)
 	validatedPurchase.UpdateTime = timestamppb.New(dbPurchase.updateTime)
 	validatedPurchase.RefundTime = timestamppb.New(dbPurchase.refundTime)
-	validatedPurchase.ProviderResponse = ""
+	validatedPurchase.ProviderResponse = "" // Do not set for jws validation; no point in returning the incoming receipt.
 
 	return &api.ValidatePurchaseResponse{ValidatedPurchases: []*api.ValidatedPurchase{validatedPurchase}}, nil
 }
