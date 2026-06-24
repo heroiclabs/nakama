@@ -568,6 +568,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[AccountMerge] failed to register: " + (err && err.message ? err.message : String(err)));
     }
 
+    logger.info("[OnboardingAnalytics] Registering web onboarding event ingest + funnel RPCs...");
+    try {
+      OnboardingAnalytics.register(initializer);
+      logger.info("[OnboardingAnalytics] onboarding_events_batch, onboarding_identity_link, onboarding_funnel_screens registered");
+    } catch (err: any) {
+      logger.error("[OnboardingAnalytics] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     // ── Tournaments + P2E (plan §1-§3) ─────────────────────────────────────
     // Full launch-slate tournament system. Registers 25 RPCs across:
     //   - user-callable (list/get/enter/submit/leaderboard×6/claim/picks/pre-enroll/...)
