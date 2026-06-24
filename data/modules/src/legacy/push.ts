@@ -1246,12 +1246,47 @@ namespace LegacyPush {
     var skipQuiet = data.skip_quiet_hours === true;
     var surveyUrl = "https://quizverse.world/app?survey=push&utm_source=push&utm_medium=app&utm_campaign=survey500";
 
+    // ── Fast reach probe (count_only) ─────────────────────────────────────
+    // Answers "how many can we reach?" with a single indexed SQL COUNT rather
+    // than paging the whole opted-in base. The per-user dry_run below does 2
+    // storage reads/user, which CANNOT return within the HTTP gateway window
+    // against a five-figure base (it 502/504s). count_only short-circuits
+    // before any per-user work and returns instantly.
+    if (data.count_only === true) {
+      var optedInTotal = 0, optedInEn = 0;
+      try {
+        var rc1: any = nk.sqlQuery(
+          "SELECT count(DISTINCT user_id) AS c FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000'",
+          [Constants.PUSH_TOKENS_COLLECTION]);
+        if (rc1 && rc1.length) optedInTotal = Number(rc1[0].c || 0);
+      } catch (e1) {}
+      try {
+        var rc2: any = nk.sqlQuery(
+          "SELECT count(DISTINCT s.user_id) AS c FROM storage s JOIN users u ON u.id = s.user_id WHERE s.collection = $1 AND s.user_id <> '00000000-0000-0000-0000-000000000000' AND u.lang_tag ILIKE 'en%'",
+          [Constants.PUSH_TOKENS_COLLECTION]);
+        if (rc2 && rc2.length) optedInEn = Number(rc2[0].c || 0);
+      } catch (e2) {}
+      return RpcHelpers.successResponse({
+        count_only: true, campaign: campaign,
+        opted_in_total: optedInTotal, opted_in_en: optedInEn
+      });
+    }
+
+    // Per-user path (dry_run sample or live send). scan_limit bounds the scan
+    // so it always returns inside the gateway window; dry_run defaults to a
+    // bounded sample (pass scan_limit:0 to force a full, slow scan).
+    var scanLimit = (typeof data.scan_limit === "number" && data.scan_limit >= 0)
+      ? data.scan_limit
+      : (dryRun ? 5000 : 0);
+
     var sent = 0, gated = 0, scanned = 0, eligible = 0, alreadyDone = 0, localeSkipped = 0;
+    var truncated = false;
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
       if (!users || users.length === 0) break;
       for (var i = 0; i < users.length; i++) {
+        if (scanLimit > 0 && scanned >= scanLimit) { truncated = true; break; }
         scanned++;
         var u = users[i];
         if (localeFilter && getUserLocale(nk, u) !== localeFilter) { localeSkipped++; continue; }
@@ -1260,9 +1295,9 @@ namespace LegacyPush {
         if (dryRun) continue;
         if (maxSends > 0 && sent >= maxSends) {
           return RpcHelpers.successResponse({
-            dry_run: false, campaign: campaign, capped: true,
-            sent: sent, gated: gated, scanned: scanned, eligible: eligible,
-            already_done: alreadyDone, locale_skipped: localeSkipped
+            dry_run: false, campaign: campaign, capped: true, truncated: truncated,
+            scan_limit: scanLimit, sent: sent, gated: gated, scanned: scanned,
+            eligible: eligible, already_done: alreadyDone, locale_skipped: localeSkipped
           });
         }
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "survey_invite",
@@ -1270,11 +1305,12 @@ namespace LegacyPush {
           { skipQuietHours: skipQuiet, data: { screen: "survey", url: surveyUrl } });
         if (ok) { recordMarker(nk, u, "survey_invite", campaign); sent++; } else { gated++; }
       }
+      if (truncated) break;
       offset += batch;
       if (users.length < batch) break;
     }
     return RpcHelpers.successResponse({
-      dry_run: dryRun, campaign: campaign,
+      dry_run: dryRun, campaign: campaign, truncated: truncated, scan_limit: scanLimit,
       sent: sent, gated: gated, scanned: scanned, eligible: eligible,
       already_done: alreadyDone, locale_skipped: localeSkipped
     });
