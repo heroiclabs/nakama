@@ -302,7 +302,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		env = api.StoreEnvironment_SANDBOX
 	}
 
-	sub := &storageSubscription{
+	dbSubscription := &storageSubscription{
 		userID:                userID,
 		originalTransactionId: transactionInfo.OriginalTransactionId,
 		store:                 api.StoreProvider_APPLE_APP_STORE,
@@ -310,12 +310,35 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		purchaseTime:          parseMillisecondUnixTimestamp(transactionInfo.OriginalPurchaseDate),
 		environment:           env,
 		expireTime:            parseMillisecondUnixTimestamp(transactionInfo.ExpiresDate),
-		rawResponse:           receipt,
 		refundTime:            parseMillisecondUnixTimestamp(transactionInfo.RevocationDate),
 	}
 
+	validatedSub := &api.ValidatedSubscription{
+		UserId:                userID.String(),
+		ProductId:             dbSubscription.productId,
+		OriginalTransactionId: dbSubscription.originalTransactionId,
+		Store:                 api.StoreProvider_APPLE_APP_STORE,
+		PurchaseTime:          timestamppb.New(dbSubscription.purchaseTime),
+		Environment:           env,
+		ExpiryTime:            timestamppb.New(dbSubscription.expireTime),
+		RefundTime:            timestamppb.New(dbSubscription.refundTime),
+		Active:                dbSubscription.Active(),
+	}
+
+	if !persist {
+		// First validated sub is the one with the highest expiry time.
+		return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
+	}
+
+	receiptJson, err := json.Marshal(map[string]string{"jws": receipt})
+	if err != nil {
+		logger.Error("Failed to marshal Apple receipt JSON", zap.Error(err))
+		return nil, status.Error(codes.Internal, "Error validating Apple JWS receipt")
+	}
+	dbSubscription.rawResponse = string(receiptJson)
+
 	if err = ExecuteInTx(ctx, db, func(tx *sql.Tx) error {
-		if err = upsertSubscription(ctx, tx, sub); err != nil {
+		if err = upsertSubscription(ctx, tx, dbSubscription); err != nil {
 			return err
 		}
 		return nil
@@ -324,26 +347,20 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 		return nil, status.Error(codes.Internal, "Failed to validate apple jws subscription receipt")
 	}
 
-	active := false
-	if sub.expireTime.After(time.Now()) && sub.refundTime.Unix() == 0 {
-		active = true
+	suid := dbSubscription.userID.String()
+	if dbSubscription.userID.IsNil() {
+		suid = ""
 	}
 
-	validatedSub := &api.ValidatedSubscription{
-		UserId:                userID.String(),
-		ProductId:             sub.productId,
-		OriginalTransactionId: sub.originalTransactionId,
-		Store:                 api.StoreProvider_APPLE_APP_STORE,
-		PurchaseTime:          timestamppb.New(sub.purchaseTime),
-		CreateTime:            timestamppb.New(sub.createTime),
-		UpdateTime:            timestamppb.New(sub.updateTime),
-		Environment:           env,
-		ExpiryTime:            timestamppb.New(sub.expireTime),
-		RefundTime:            timestamppb.New(sub.refundTime),
-		ProviderResponse:      sub.rawResponse,
-		ProviderNotification:  sub.rawNotification,
-		Active:                active,
-	}
+	// Upsert may have updated storageSub values.
+	validatedSub.UserId = suid
+	validatedSub.CreateTime = timestamppb.New(dbSubscription.createTime)
+	validatedSub.UpdateTime = timestamppb.New(dbSubscription.updateTime)
+	validatedSub.ExpiryTime = timestamppb.New(dbSubscription.expireTime)
+	validatedSub.RefundTime = timestamppb.New(dbSubscription.refundTime)
+	validatedSub.ProviderNotification = dbSubscription.rawNotification
+	validatedSub.Active = dbSubscription.Active()
+	validatedSub.ProviderResponse = ""  // Do not set for jws validation; no point in returning the incoming receipt.
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
@@ -352,8 +369,7 @@ func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Log
 	validation, raw, err := iap.ValidateLegacyReceiptApple(ctx, httpc, password, receipt)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
-			var vErr *iap.ValidationError
-			if errors.As(err, &vErr) {
+			if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 				logger.Debug("Error validating Apple receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
 			}
@@ -466,9 +482,8 @@ func validateLegacySubscriptionReceiptApple(ctx context.Context, logger *zap.Log
 func ValidateSubscriptionGoogle(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPGoogleConfig, receipt string, persist bool) (*api.ValidateSubscriptionResponse, error) {
 	gResponse, gReceipt, rawResponse, err := iap.ValidateSubscriptionReceiptGoogle(ctx, httpc, config.ClientEmail, config.PrivateKey, receipt)
 	if err != nil {
-		if err != context.Canceled {
-			var vErr *iap.ValidationError
-			if errors.As(err, &vErr) {
+		if !errors.Is(err, context.Canceled) {
+			if vErr, ok := errors.AsType[*iap.ValidationError](err); ok {
 				logger.Error("Error validating Google receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
 				return nil, vErr
 			} else {
@@ -569,7 +584,7 @@ WHERE
     user_id = $1 AND
     product_id = $2
 `, userID, productID).Scan(&originalTransactionId, &dbUserID, &dbProductID, &store, &purchaseTime, &createTime, &updateTime, &expireTime, &environment, &rawResponse, &rawNotification); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrSubscriptionNotFound
 		}
 		logger.Error("Failed to get subscription", zap.Error(err))
@@ -636,7 +651,7 @@ func getSubscriptionByOriginalTransactionId(ctx context.Context, logger *zap.Log
 		WHERE original_transaction_id = $1
 `, originalTransactionId).Scan(&dbUserId, &dbStore, &dbOriginalTransactionId, &dbCreateTime, &dbUpdateTime, &dbExpireTime, &dbPurchaseTime, &dbRefundTime, &dbProductId, &dbEnvironment, &dbRawResponse, &dbRawNotification)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			// Not found
 			return nil, nil
 		}
@@ -684,6 +699,14 @@ type storageSubscription struct {
 	expireTime            time.Time
 	rawResponse           string
 	rawNotification       string
+}
+
+func (s *storageSubscription) Active() bool {
+	if s.expireTime.After(time.Now()) && s.refundTime.Unix() == 0 {
+		return true
+	}
+
+	return false
 }
 
 func upsertSubscription(ctx context.Context, db *sql.Tx, sub *storageSubscription) error {

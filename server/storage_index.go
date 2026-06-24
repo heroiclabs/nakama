@@ -474,6 +474,7 @@ LIMIT $2`
 				})
 				if err != nil {
 					si.logger.Error("Error invoking custom Storage Index Filter function", zap.String("index_name", idx.Name), zap.Error(err))
+					continue
 				}
 				if !ok {
 					continue
