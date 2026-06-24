@@ -834,6 +834,221 @@
             color: var(--success);
         }
 
+        /* Web onboarding funnel (qv_onboarding_events) */
+        .ob-panel { display: none; }
+        .ob-panel.active { display: block; }
+        .ob-paywall-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .ob-paywall-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            text-align: center;
+        }
+        .ob-paywall-card .ob-val {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent-light);
+            margin: 0.25rem 0;
+        }
+        .ob-paywall-card.danger .ob-val { color: var(--danger); }
+        .ob-paywall-card.success .ob-val { color: var(--success); }
+        .ob-paywall-card .ob-lbl {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .ob-journey-step {
+            display: flex;
+            align-items: stretch;
+            gap: 0.75rem;
+            margin-bottom: 0.35rem;
+        }
+        .ob-journey-rail {
+            width: 28px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .ob-journey-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: 2px solid var(--bg-primary);
+            box-shadow: 0 0 0 2px var(--accent);
+            flex-shrink: 0;
+        }
+        .ob-journey-line {
+            flex: 1;
+            width: 2px;
+            background: linear-gradient(var(--accent), var(--border));
+            min-height: 12px;
+        }
+        .ob-journey-body {
+            flex: 1;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.65rem 1rem;
+            margin-bottom: 0.25rem;
+        }
+        .ob-journey-body.hot { border-left: 3px solid var(--danger); }
+        .ob-journey-body.paywall { border-left: 3px solid #f59e0b; }
+        .ob-journey-title { font-weight: 600; font-size: 0.92rem; color: var(--text-primary); }
+        .ob-journey-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
+        .ob-journey-bar-wrap {
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            margin-top: 0.45rem;
+            overflow: hidden;
+        }
+        .ob-journey-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent-light));
+            border-radius: 4px;
+            transition: width 0.4s ease;
+        }
+        .ob-user-row { cursor: pointer; }
+        .ob-user-row:hover { background: rgba(99,102,241,0.08); }
+        .ob-status-pill {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .ob-status-done { background: rgba(16,185,129,0.15); color: var(--success); }
+        .ob-status-drop { background: rgba(239,68,68,0.12); color: var(--danger); }
+        .ob-status-paywall { background: rgba(245,158,11,0.15); color: #f59e0b; }
+        .ob-status-subscribed { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+        .ob-status-preregister { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+        .ob-screen-funnel { display: flex; flex-direction: column; gap: 0.5rem; }
+        .ob-screen-row {
+            display: grid;
+            grid-template-columns: minmax(140px, 22%) 1fr minmax(70px, 8%) minmax(60px, 7%) minmax(70px, 8%);
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.55rem 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.82rem;
+        }
+        .ob-screen-row.top-drop-1 { border-left: 3px solid #ef4444; }
+        .ob-screen-row.top-drop-2 { border-left: 3px solid #f97316; }
+        .ob-screen-row.top-drop-3 { border-left: 3px solid #f59e0b; }
+        .ob-screen-bar-wrap {
+            height: 10px;
+            background: var(--bg-tertiary);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .ob-screen-bar { height: 100%; background: var(--accent); border-radius: 5px; }
+        .ob-copy-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.75rem;
+            padding: 0 0.25rem;
+        }
+        .ob-copy-btn:hover { color: var(--accent-light); }
+        .ob-profile-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0; }
+        .ob-chip {
+            padding: 0.25rem 0.55rem;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+        }
+        .ob-event-cat-completion .ob-journey-dot { background: var(--success); box-shadow: 0 0 0 2px var(--success); }
+        .ob-event-cat-identity .ob-journey-dot { background: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
+        .ob-event-cat-paywall .ob-journey-dot { background: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
+        .ob-event-cat-screen .ob-journey-dot { background: var(--text-muted); box-shadow: 0 0 0 2px var(--text-muted); }
+        .ob-event-payload {
+            margin-top: 0.35rem;
+            padding: 0.4rem 0.5rem;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.68rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: none;
+        }
+        .ob-event-payload.open { display: block; }
+        .ob-platform-badge {
+            display: inline-block;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            background: var(--bg-tertiary);
+        }
+        .ob-paywall-icons { font-size: 0.85rem; letter-spacing: 0.15rem; }
+        .ob-user-search {
+            width: 100%;
+            max-width: 360px;
+            padding: 0.55rem 0.75rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+        }
+        .ob-journey-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+        .ob-journey-modal-inner {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            max-width: 720px;
+            width: 100%;
+            max-height: 85vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .ob-journey-modal-head {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .ob-journey-modal-body {
+            padding: 1rem 1.25rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .ob-event-row {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.82rem;
+        }
+        .ob-event-time { color: var(--text-muted); min-width: 72px; flex-shrink: 0; }
+        .ob-event-name { font-weight: 500; color: var(--accent-light); min-width: 140px; }
+        .legacy-funnel-panel.hidden { display: none !important; }
+
         .score-badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -2331,12 +2546,35 @@
             <!-- Funnel Header with Controls -->
             <div class="funnel-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
                 <div>
-                    <h2 style="margin:0;font-size:1.5rem;color:var(--text-primary);">Conversion Funnel Analysis</h2>
-                    <p style="margin:0.25rem 0 0;color:var(--text-muted);font-size:0.9rem;">Track user journey from first touch to conversion</p>
+                    <h2 id="funnelHeaderTitle" style="margin:0;font-size:1.5rem;color:var(--text-primary);">Conversion Funnel Analysis</h2>
+                    <p id="funnelHeaderSubtitle" style="margin:0.25rem 0 0;color:var(--text-muted);font-size:0.9rem;">Track user journey from first touch to conversion</p>
                 </div>
                 <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-                    <select id="funnelTypeSelect" onchange="loadFunnel()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:180px;">
-                        <option value="onboarding">Onboarding Flow</option>
+                    <select id="funnelPathwaySelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:140px;">
+                        <option value="">All pathways</option>
+                        <option value="warrior">Warrior</option>
+                        <option value="scholar">Scholar</option>
+                        <option value="explorer">Explorer</option>
+                        <option value="creator">Creator</option>
+                    </select>
+                    <select id="funnelPlatformSelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:150px;">
+                        <option value="">All platforms</option>
+                        <option value="unity_webview">Unity WebView</option>
+                        <option value="ios_web">iOS web</option>
+                        <option value="android_web">Android web</option>
+                        <option value="desktop_web">Desktop web</option>
+                    </select>
+                    <select id="funnelStatusSelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:150px;">
+                        <option value="">All statuses</option>
+                        <option value="completed">Completed</option>
+                        <option value="dropped">Dropped</option>
+                        <option value="at_paywall">At paywall</option>
+                        <option value="subscribed">Subscribed</option>
+                        <option value="pre_register">Pre-register only</option>
+                    </select>
+                    <select id="funnelTypeSelect" onchange="onFunnelTypeChange()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:180px;">
+                        <option value="onboarding">Web Onboarding (Live)</option>
+                        <option value="onboarding_legacy">Onboarding (App Events)</option>
                         <option value="extended">Extended Onboarding</option>
                         <option value="quiz">Quiz Journey</option>
                         <option value="purchase">Purchase Funnel</option>
@@ -2360,6 +2598,65 @@
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
                 <div class="skeleton-card"><span class="skeleton skeleton-h2" style="width:40%"></span><span class="skeleton skeleton-h1" style="margin:.4rem 0"></span></div>
             </div>
+
+            <!-- Web onboarding panel (qv_onboarding_events) -->
+            <div id="obOnboardingPanel" class="ob-panel active">
+                <div class="chart-card" style="margin-bottom:1.5rem;">
+                    <h3>Screen funnel — step by step
+                        <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                    </h3>
+                    <div class="card-body" id="obScreenFunnel" style="overflow-x:auto;">
+                        <div class="loading">Loading funnel…</div>
+                    </div>
+                </div>
+                <div class="chart-grid" style="grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+                    <div class="chart-card">
+                        <h3>Drop-off hotspots
+                            <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                        </h3>
+                        <div class="card-body" id="obDropoffHotspots">
+                            <div class="loading">Analyzing drop-offs…</div>
+                        </div>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Pathway breakdown
+                            <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                        </h3>
+                        <div class="card-body" id="obPathwayBreakdown">
+                            <div class="loading">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <h3>User journeys — click a row for full timeline
+                        <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                    </h3>
+                    <div class="card-body" style="overflow-x:auto;">
+                        <input type="search" id="obUserSearch" class="ob-user-search" placeholder="Search by Nakama ID, guest ID, or last screen…" oninput="filterObUsersTable()">
+                        <div id="obUsersCount" style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;"></div>
+                        <table class="data-table" id="obUsersTable">
+                            <thead>
+                                <tr>
+                                    <th onclick="sortObUsers('lastTs')" style="cursor:pointer">Last active ↕</th>
+                                    <th>Nakama User ID</th>
+                                    <th>Guest ID</th>
+                                    <th>Pathway</th>
+                                    <th>Platform</th>
+                                    <th>Country</th>
+                                    <th>Last screen</th>
+                                    <th>Status</th>
+                                    <th>Paywall</th>
+                                    <th onclick="sortObUsers('durationMs')" style="cursor:pointer">Duration ↕</th>
+                                    <th onclick="sortObUsers('eventCount')" style="cursor:pointer">Events ↕</th>
+                                </tr>
+                            </thead>
+                            <tbody><tr><td colspan="11" class="loading">Loading users…</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="legacyFunnelPanel" class="legacy-funnel-panel hidden">
             <!-- Main Funnel Visualization -->
             <div class="chart-card" style="margin-bottom:1.5rem;">
                 <h3 style="display:flex;justify-content:space-between;align-items:center;">
@@ -2579,6 +2876,7 @@
                     </div>
                 </div>
             </div>
+            </div><!-- /legacyFunnelPanel -->
         </div>
 
         <!-- Economy Tab -->
@@ -3982,7 +4280,9 @@
             'external_poll_all',
             'admin_login',
             'admin_session_bootstrap',
-            'admin_diagnose_env'
+            'admin_diagnose_env',
+            'onboarding_funnel_analytics',
+            'onboarding_user_journey'
         ]);
 
         function rpcCacheKey(rpcId, payload) {
@@ -4924,8 +5224,409 @@
         // Chart instances for funnel tab
         let funnelBarChartInstance = null;
         let ttvMiniChartInstance = null;
+        let obDwellChartInstance = null;
         let funnelTrendChartInstance = null;
         let currentFunnelView = 'bars'; // 'bars' or 'horizontal'
+        let obUsersCache = [];
+        let obUsersSortKey = 'lastTs';
+        let obUsersSortDir = -1;
+
+        function updateFunnelHeaderForMode(isWebOb) {
+            const title = document.getElementById('funnelHeaderTitle');
+            const subtitle = document.getElementById('funnelHeaderSubtitle');
+            const pathwaySel = document.getElementById('funnelPathwaySelect');
+            const platformSel = document.getElementById('funnelPlatformSelect');
+            const statusSel = document.getElementById('funnelStatusSelect');
+            if (title) title.textContent = isWebOb ? 'Onboarding Analytics' : 'Conversion Funnel Analysis';
+            if (subtitle) {
+                subtitle.textContent = isWebOb
+                    ? 'Web funnel · per-user journeys · last ' + (selectedDays || 30) + ' days'
+                    : 'Track user journey from first touch to conversion';
+            }
+            [pathwaySel, platformSel, statusSel].forEach(function(el) {
+                if (el) el.style.display = isWebOb ? '' : 'none';
+            });
+        }
+
+        function onFunnelTypeChange() {
+            const type = (document.getElementById('funnelTypeSelect') || {}).value || 'onboarding';
+            const isWebOb = type === 'onboarding';
+            updateFunnelHeaderForMode(isWebOb);
+            const obPanel = document.getElementById('obOnboardingPanel');
+            const legacyPanel = document.getElementById('legacyFunnelPanel');
+            if (obPanel) obPanel.classList.toggle('active', isWebOb);
+            if (legacyPanel) legacyPanel.classList.toggle('hidden', isWebOb);
+            loadFunnel();
+        }
+
+        function unwrapObRpc(parsed) {
+            if (!parsed) return {};
+            if (parsed.success === false) return { error: parsed.error || 'RPC failed' };
+            if (parsed.success === true && parsed.data) return parsed.data;
+            return parsed;
+        }
+
+        function formatRelativeTime(ts) {
+            if (!ts) return '—';
+            const ms = typeof ts === 'number' ? ts : Date.parse(ts);
+            if (isNaN(ms)) return '—';
+            const diff = Date.now() - ms;
+            if (diff < 60000) return 'just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+            if (diff < 604800000) return Math.floor(diff / 86400000) + 'd ago';
+            return new Date(ms).toLocaleDateString();
+        }
+
+        function copyObText(text, btn) {
+            if (!text) return;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    if (btn) { btn.textContent = '✓'; setTimeout(function() { btn.textContent = '⎘'; }, 1200); }
+                }).catch(function() { window.prompt('Copy:', text); });
+            } else {
+                window.prompt('Copy:', text);
+            }
+        }
+
+        function obUserStatusLabel(u) {
+            const status = u.status || (u.completed ? 'completed' : 'dropped');
+            const map = {
+                completed: { text: 'Completed', cls: 'ob-status-done' },
+                dropped: { text: 'Dropped', cls: 'ob-status-drop' },
+                at_paywall: { text: 'At paywall', cls: 'ob-status-paywall' },
+                subscribed: { text: 'Subscribed', cls: 'ob-status-subscribed' },
+                pre_register: { text: 'Pre-register', cls: 'ob-status-preregister' }
+            };
+            return map[status] || map.dropped;
+        }
+
+        function obPlatformLabel(platform) {
+            if (!platform) return '—';
+            const p = platform.toLowerCase();
+            if (p.indexOf('unity') >= 0) return 'Unity WebView';
+            if (p.indexOf('ios') >= 0) return 'iOS web';
+            if (p.indexOf('android') >= 0) return 'Android web';
+            if (p === 'web' || p.indexOf('desktop') >= 0) return 'Desktop web';
+            return platform;
+        }
+
+        function obPaywallIcons(u) {
+            const parts = [];
+            if (u.paywallSeen) parts.push('👁');
+            if (u.paywallSubscribe || u.subscribed) parts.push('✓');
+            if (u.paywallSkip) parts.push('⏭');
+            return parts.length ? '<span class="ob-paywall-icons" title="Seen / Subscribed / Skipped">' + parts.join(' ') + '</span>' : '—';
+        }
+
+        function formatDurationMs(ms) {
+            if (!ms || ms <= 0) return '—';
+            const sec = Math.round(ms / 1000);
+            if (sec < 60) return sec + 's';
+            const min = Math.floor(sec / 60);
+            const rem = sec % 60;
+            if (min < 60) return min + 'm ' + rem + 's';
+            return Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+        }
+
+        function renderObScreenFunnel(screenFunnel) {
+            const el = document.getElementById('obScreenFunnel');
+            if (!el) return;
+            if (!screenFunnel || !screenFunnel.length) {
+                el.innerHTML = '<div class="empty-state">No onboarding events in this period.</div>';
+                return;
+            }
+            const maxUsers = screenFunnel[0].users || 1;
+            let html = '<div class="ob-screen-funnel">';
+            html += '<div class="ob-screen-row" style="font-weight:600;color:var(--text-muted);background:transparent;border:none;font-size:0.72rem;text-transform:uppercase;">' +
+                '<div>Step</div><div>Users reached</div><div>% start</div><div>Avg time</div><div>Drop-offs</div></div>';
+            screenFunnel.forEach(function(step) {
+                const widthPct = Math.max(4, Math.round((step.users / maxUsers) * 100));
+                const topCls = step.topDropRank ? ' top-drop-' + step.topDropRank : '';
+                html += '<div class="ob-screen-row' + topCls + '">' +
+                    '<div><strong>' + escapeHtml(step.label || step.screen) + '</strong></div>' +
+                    '<div><div class="ob-screen-bar-wrap"><div class="ob-screen-bar" style="width:' + widthPct + '%"></div></div>' +
+                    '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.2rem">' + formatNumber(step.users) + ' users</div></div>' +
+                    '<div>' + (step.pctOfStart || 0) + '%</div>' +
+                    '<div>' + (step.avgDwellSec || 0) + 's</div>' +
+                    '<div>' + (step.dropCount ? formatNumber(step.dropCount) : '—') + '</div></div>';
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        }
+
+        function renderObDropoffHotspots(hotspots) {
+            const el = document.getElementById('obDropoffHotspots');
+            if (!el) return;
+            if (!hotspots || !hotspots.length) {
+                el.innerHTML = '<div class="empty-state">No drop-off data yet.</div>';
+                return;
+            }
+            let html = '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 0.75rem 0;">Ranked screens where incomplete users stopped.</p>';
+            hotspots.slice(0, 10).forEach(function(h, idx) {
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.75rem;margin-bottom:0.5rem;background:var(--bg-tertiary);border-radius:8px;border-left:3px solid var(--danger);">' +
+                    '<div><div style="font-weight:600;font-size:0.9rem;">' + (idx + 1) + '. ' + escapeHtml(h.label || h.screen) + '</div>' +
+                    '<div style="font-size:0.75rem;color:var(--text-muted);">' + formatNumber(h.users) + ' users stuck</div></div>' +
+                    '<div style="font-size:1.1rem;font-weight:700;color:var(--danger);">' + (h.pctOfIncomplete || 0) + '%</div></div>';
+            });
+            el.innerHTML = html;
+        }
+
+        function renderObPathways(pathways) {
+            const el = document.getElementById('obPathwayBreakdown');
+            if (!el) return;
+            if (!pathways || !pathways.length) {
+                el.innerHTML = '<div class="empty-state">No pathway data.</div>';
+                return;
+            }
+            el.innerHTML = '<table class="data-table"><thead><tr><th>Pathway</th><th>Users</th><th>Completed</th><th>Completion %</th></tr></thead><tbody>' +
+                pathways.map(function(p) {
+                    return '<tr><td><strong>' + escapeHtml(p.pathway || '—') + '</strong></td>' +
+                        '<td>' + formatNumber(p.users) + '</td><td>' + formatNumber(p.completed) + '</td>' +
+                        '<td>' + (p.completionRatePct || 0) + '%</td></tr>';
+                }).join('') + '</tbody></table>';
+        }
+
+        function renderObUsersTable(users) {
+            obUsersCache = users || [];
+            filterObUsersTable();
+        }
+
+        function sortObUsers(key) {
+            if (obUsersSortKey === key) obUsersSortDir *= -1;
+            else { obUsersSortKey = key; obUsersSortDir = -1; }
+            filterObUsersTable();
+        }
+
+        function filterObUsersTable() {
+            const tbody = document.querySelector('#obUsersTable tbody');
+            const countEl = document.getElementById('obUsersCount');
+            if (!tbody) return;
+            const q = ((document.getElementById('obUserSearch') || {}).value || '').toLowerCase().trim();
+            let list = obUsersCache.slice();
+            if (q) {
+                list = list.filter(function(u) {
+                    return (u.nakamaUserId || '').toLowerCase().indexOf(q) >= 0 ||
+                        (u.guestId || '').toLowerCase().indexOf(q) >= 0 ||
+                        (u.lastScreenLabel || u.lastScreen || '').toLowerCase().indexOf(q) >= 0;
+                });
+            }
+            list.sort(function(a, b) {
+                const av = a[obUsersSortKey] || 0;
+                const bv = b[obUsersSortKey] || 0;
+                return (av - bv) * obUsersSortDir;
+            });
+            if (countEl) countEl.textContent = list.length + ' of ' + obUsersCache.length + ' users shown';
+            if (!list.length) {
+                tbody.innerHTML = '<tr><td colspan="11" class="empty-state">' + (q ? 'No matches.' : 'No users in this range.') + '</td></tr>';
+                return;
+            }
+            tbody.innerHTML = list.map(function(u) {
+                const st = obUserStatusLabel(u);
+                const uid = u.nakamaUserId || '';
+                const guest = u.guestId || '';
+                const uidShort = uid ? uid.substring(0, 8) + '…' : '—';
+                const guestShort = guest ? guest.substring(0, 8) + '…' : '—';
+                const rowId = uid || guest;
+                return '<tr class="ob-user-row" data-uid="' + escapeHtml(uid) + '" data-guest="' + escapeHtml(guest) + '" onclick="openOnboardingUserJourney(this.getAttribute(\'data-uid\'), this.getAttribute(\'data-guest\'))">' +
+                    '<td>' + formatRelativeTime(u.lastTs) + '</td>' +
+                    '<td><code style="font-size:0.72rem">' + escapeHtml(uidShort) + '</code>' +
+                    (uid ? ' <button class="ob-copy-btn" data-copy="' + uid + '" onclick="event.stopPropagation();copyObText(this.getAttribute(\'data-copy\'),this)" title="Copy">⎘</button>' : '') +
+                    (!uid && guest ? ' <span class="ob-status-pill ob-status-preregister">Not linked</span>' : '') + '</td>' +
+                    '<td><code style="font-size:0.72rem">' + escapeHtml(guestShort) + '</code>' +
+                    (guest ? ' <button class="ob-copy-btn" data-copy="' + guest + '" onclick="event.stopPropagation();copyObText(this.getAttribute(\'data-copy\'),this)" title="Copy">⎘</button>' : '') + '</td>' +
+                    '<td>' + escapeHtml(u.pathway || '—') + '</td>' +
+                    '<td><span class="ob-platform-badge">' + escapeHtml(obPlatformLabel(u.platform)) + '</span></td>' +
+                    '<td>' + escapeHtml(u.country || '—') + '</td>' +
+                    '<td>' + escapeHtml(u.lastScreenLabel || '—') + '</td>' +
+                    '<td><span class="ob-status-pill ' + st.cls + '">' + st.text + '</span></td>' +
+                    '<td>' + obPaywallIcons(u) + '</td>' +
+                    '<td>' + formatDurationMs(u.durationMs) + '</td>' +
+                    '<td>' + formatNumber(u.eventCount || 0) + '</td></tr>';
+            }).join('');
+        }
+
+        function renderObProfileChips(snap) {
+            if (!snap || typeof snap !== 'object') return '';
+            const chips = [];
+            function chip(label, val) {
+                if (val === undefined || val === null || val === '') return;
+                if (Array.isArray(val) && !val.length) return;
+                const display = Array.isArray(val) ? val.join(', ') : String(val);
+                chips.push('<span class="ob-chip"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(display) + '</span>');
+            }
+            chip('Name set', snap.nameSet === true ? 'Yes' : (snap.nameSet === false ? 'No' : null));
+            chip('Gamer tag', snap.gamerTag);
+            chip('Age band', snap.age);
+            chip('Brain type', snap.brainType || snap.brainCode);
+            chip('Quiz score', snap.quizScore != null ? snap.quizScore + (snap.quizQuestions ? '/' + snap.quizQuestions : '') : null);
+            chip('Avg answer time', snap.avgAnswerTime != null ? snap.avgAnswerTime + 'ms' : null);
+            chip('Intent', snap.intent);
+            chip('Motivation', snap.motivation);
+            chip('Subject', snap.subject);
+            chip('Arena', snap.arena);
+            chip('Tier', snap.tier);
+            chip('Education', snap.education);
+            chip('Daily goal', snap.dailyGoal);
+            chip('Interests', snap.interests);
+            chip('XP', snap.xp);
+            chip('Coins', snap.coins);
+            chip('Streak', snap.streak);
+            chip('Auth', snap.authProvider);
+            chip('Sign-in', snap.signinStatus);
+            chip('Verified', snap.verified === true ? 'Yes' : (snap.verified === false ? 'No' : null));
+            chip('Phone verified', snap.phoneVerified === true ? 'Yes' : null);
+            chip('Newsletter', snap.newsletterOptIn === true ? 'Yes' : null);
+            chip('Subscribed', snap.subscribed === true ? 'Yes' : null);
+            chip('Plan', snap.selectedPlan);
+            chip('Paywall variant', snap.paywallVariant);
+            chip('Closing offer seen', snap.closingOfferSeen === true ? 'Yes' : null);
+            chip('Closing offer claimed', snap.closingOfferClaimed === true ? 'Yes' : null);
+            chip('Creator published', snap.creatorPublished === true ? 'Yes' : null);
+            chip('Creator goal', snap.creatorGoal);
+            chip('Attribution', snap.attributionSource);
+            chip('Creative', snap.acquisitionCreative);
+            chip('UTM source', snap.utm_source);
+            chip('UTM campaign', snap.utm_campaign);
+            chip('Email domain', snap.emailDomain);
+            chip('Phone tail', snap.phoneTail);
+            chip('Current step', snap.currentStep);
+            chip('Completed at', snap.completedAt ? new Date(snap.completedAt).toLocaleString() : null);
+            return chips.length ? '<div class="ob-profile-chips">' + chips.join('') + '</div>' : '';
+        }
+
+        async function openOnboardingUserJourney(nakamaUserId, guestId) {
+            if (!nakamaUserId && !guestId) return;
+            let modal = document.getElementById('obJourneyModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'obJourneyModal';
+                modal.className = 'ob-journey-modal';
+                modal.innerHTML = '<div class="ob-journey-modal-inner"><div class="ob-journey-modal-head"><h3 style="margin:0">User journey detail</h3><button onclick="closeObJourneyModal()" style="background:none;border:none;color:var(--text-primary);font-size:1.5rem;cursor:pointer">&times;</button></div><div class="ob-journey-modal-body" id="obJourneyModalBody"><div class="loading">Loading…</div></div></div>';
+                modal.addEventListener('click', function(e) { if (e.target === modal) closeObJourneyModal(); });
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'flex';
+            const body = document.getElementById('obJourneyModalBody');
+            const lookup = nakamaUserId || guestId;
+            body.innerHTML = '<div class="loading">Loading journey…</div>';
+            try {
+                const payload = {};
+                if (nakamaUserId) payload.nakama_user_id = nakamaUserId;
+                if (guestId) payload.guest_id = guestId;
+                const raw = await callRpc('onboarding_user_journey', payload, { timeoutMs: 45000 });
+                const data = unwrapObRpc(raw);
+                const events = data.events || [];
+                const profile = data.profile || {};
+                const snap = (profile.snapshot || data.snapshot) || {};
+                const st = obUserStatusLabel({ status: data.status, completed: data.status === 'completed' });
+                let head = '<div style="margin-bottom:1rem;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;font-size:0.82rem;line-height:1.6;">';
+                if (data.nakamaUserId) {
+                    head += '<div><strong>Nakama User ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.nakamaUserId) + '</code> <button class="ob-copy-btn" data-copy="' + data.nakamaUserId + '" onclick="copyObText(this.getAttribute(\'data-copy\'),this)">⎘</button></div>';
+                }
+                if (data.guestId) {
+                    head += '<div><strong>Guest ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.guestId) + '</code> <button class="ob-copy-btn" data-copy="' + data.guestId + '" onclick="copyObText(this.getAttribute(\'data-copy\'),this)">⎘</button></div>';
+                }
+                if (data.cognitoSub) {
+                    head += '<div><strong>Auth ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.cognitoSub) + '</code></div>';
+                }
+                head += '<div><strong>Pathway:</strong> ' + escapeHtml(snap.pathway || profile.pathway || '—') +
+                    ' · <strong>Platform:</strong> ' + escapeHtml(obPlatformLabel(snap.platform || profile.platform)) +
+                    ' · <strong>Country:</strong> ' + escapeHtml(snap.country || '—') +
+                    ' · <span class="ob-status-pill ' + st.cls + '">' + st.text + '</span></div>';
+                head += '<div><strong>Started:</strong> ' + (data.startedAt ? new Date(data.startedAt).toLocaleString() : '—') +
+                    ' · <strong>Last seen:</strong> ' + (data.lastSeenAt ? new Date(data.lastSeenAt).toLocaleString() : '—') +
+                    ' · <strong>Duration:</strong> ' + formatDurationMs(data.durationMs) + '</div>';
+                if (profile.lastEvent || profile.lastScreen) {
+                    head += '<div><strong>Last event:</strong> ' + escapeHtml(profile.lastEvent || '—') +
+                        ' · <strong>Last screen:</strong> ' + escapeHtml(profile.lastScreen || '—') + '</div>';
+                }
+                head += renderObProfileChips(snap);
+                head += '</div>';
+                if (!events.length) {
+                    body.innerHTML = head + '<div class="empty-state">No player-scoped events yet — user may be pre-register only.</div>';
+                    return;
+                }
+                let tree = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem;">Event timeline (' + events.length + ' events) · green=completion · blue=identity · gold=paywall · gray=screen</div>';
+                events.forEach(function(ev, i) {
+                    const t = new Date(ev.timestamp);
+                    const timeStr = t.toLocaleString();
+                    const cat = ev.category || 'other';
+                    const payloadStr = ev.data && Object.keys(ev.data).length ? JSON.stringify(ev.data, null, 2) : '';
+                    const payloadId = 'ob-payload-' + i;
+                    tree += '<div class="ob-journey-step ob-event-cat-' + cat + '" style="margin-bottom:0">' +
+                        '<div class="ob-journey-rail"><div class="ob-journey-dot"></div>' +
+                        (i < events.length - 1 ? '<div class="ob-journey-line"></div>' : '') + '</div>' +
+                        '<div class="ob-event-row" style="flex:1;border:none;padding:0.35rem 0 0.75rem 0;flex-direction:column;align-items:flex-start">' +
+                        '<div style="display:flex;gap:0.75rem;width:100%">' +
+                        '<div class="ob-event-time">' + escapeHtml(timeStr) + '</div>' +
+                        '<div style="flex:1"><div class="ob-event-name">' + escapeHtml(ev.name) + '</div>' +
+                        '<div style="color:var(--text-muted);font-size:0.75rem">' + escapeHtml(ev.screenLabel || ev.screen || '') +
+                        (ev.dwellMs ? ' · dwell ' + Math.round(ev.dwellMs / 1000) + 's' : '') +
+                        (payloadStr ? ' · <a href="#" style="color:var(--accent-light)" onclick="event.preventDefault();document.getElementById(\'' + payloadId + '\').classList.toggle(\'open\')">payload ▾</a>' : '') +
+                        '</div></div></div>' +
+                        (payloadStr ? '<pre class="ob-event-payload" id="' + payloadId + '">' + escapeHtml(payloadStr) + '</pre>' : '') +
+                        '</div></div>';
+                });
+                body.innerHTML = head + tree;
+            } catch (e) {
+                body.innerHTML = '<div class="error">' + escapeHtml(e.message || String(e)) + '</div>';
+            }
+        }
+
+        function closeObJourneyModal() {
+            const modal = document.getElementById('obJourneyModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        async function loadOnboardingFunnelAnalytics() {
+            updateFunnelHeaderForMode(true);
+            const pathway = (document.getElementById('funnelPathwaySelect') || {}).value || '';
+            const platform = (document.getElementById('funnelPlatformSelect') || {}).value || '';
+            const status = (document.getElementById('funnelStatusSelect') || {}).value || '';
+            const payload = { days: selectedDays, user_limit: 500, ...getGamePayload() };
+            if (pathway) payload.pathway = pathway;
+            if (platform) payload.platform = platform;
+            if (status) payload.status = status;
+
+            document.getElementById('funnelKpis').innerHTML = skKpi(6);
+            ['obScreenFunnel', 'obDropoffHotspots', 'obPathwayBreakdown'].forEach(function(id) {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '<div class="loading">Loading…</div>';
+            });
+
+            const raw = await callRpc('onboarding_funnel_analytics', payload, { timeoutMs: 60000, bypassCache: true });
+            const data = unwrapObRpc(raw);
+            if (data.error) throw new Error(data.error);
+
+            const summary = data.summary || {};
+            const pw = data.paywall || {};
+            window.lastObFunnelData = data;
+
+            document.getElementById('funnelKpis').innerHTML =
+                '<div class="kpi-card"><div class="icon">▶</div><div class="label">Started</div><div class="value plain">' + formatNumber(summary.started || summary.totalUsers || 0) + '</div><div class="trend">users in range</div></div>' +
+                '<div class="kpi-card"><div class="icon">✓</div><div class="label">Completed</div><div class="value positive">' + formatNumber(summary.completed || 0) + '</div><div class="trend">users finished</div></div>' +
+                '<div class="kpi-card"><div class="icon">%</div><div class="label">Completion rate</div><div class="value">' + (summary.completionRatePct || 0) + '%</div><div class="trend">started → finished</div></div>' +
+                '<div class="kpi-card"><div class="icon">⏱</div><div class="label">Median time</div><div class="value plain">' + (summary.medianDurationMin || 0) + ' min</div><div class="trend">in funnel</div></div>' +
+                '<div class="kpi-card"><div class="icon">💳</div><div class="label">Paywall seen</div><div class="value">' + formatNumber(pw.seen || 0) + '</div><div class="trend">' + (pw.seenPctOfStart || 0) + '% of started</div></div>' +
+                '<div class="kpi-card"><div class="icon">★</div><div class="label">Subscribed</div><div class="value positive">' + formatNumber(pw.subscribed || 0) + '</div><div class="trend">' + (pw.subscribeRatePct || 0) + '% of paywall</div></div>';
+
+            renderObScreenFunnel(data.screenFunnel || []);
+            renderObDropoffHotspots(data.dropoffHotspots || []);
+            renderObPathways(data.pathways || []);
+            renderObUsersTable(data.users || []);
+
+            const panel = document.getElementById('obOnboardingPanel');
+            const oldNote = panel && panel.querySelector('.ob-truncated-note');
+            if (oldNote) oldNote.remove();
+            if (data.truncated && panel) {
+                const note = document.createElement('div');
+                note.className = 'ob-truncated-note';
+                note.style.cssText = 'margin:0 0 1rem;padding:0.75rem;background:rgba(245,158,11,0.1);border-radius:8px;font-size:0.82rem;color:#f59e0b';
+                note.textContent = 'Results may be truncated — try a shorter date range.';
+                panel.insertBefore(note, panel.firstChild);
+            }
+        }
         
         function toggleFunnelView() {
             currentFunnelView = currentFunnelView === 'bars' ? 'horizontal' : 'bars';
@@ -4963,7 +5664,14 @@
             try {
                 const funnelSelect = document.getElementById('funnelTypeSelect');
                 const funnelType = funnelSelect ? funnelSelect.value : 'onboarding';
-                const payload = { days: selectedDays, funnel: funnelType, ...getGamePayload() };
+
+                if (funnelType === 'onboarding') {
+                    await loadOnboardingFunnelAnalytics();
+                    return;
+                }
+
+                const legacyType = funnelType === 'onboarding_legacy' ? 'onboarding' : funnelType;
+                const payload = { days: selectedDays, funnel: legacyType, ...getGamePayload() };
                 
                 // Show loading states
                 document.getElementById('funnelVisualization').innerHTML = '<div class="loading">Loading funnel data...</div>';
