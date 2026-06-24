@@ -126,6 +126,15 @@ phases:
             echo "FATAL: dashboard frontend serverKey patch failed — the literal serverKey: 'defaultkey' was not found in web/analytics-dashboard/index.html. Refusing to ship a broken dashboard."
             exit 1
           fi
+          echo "=== Patching web/analytics-dashboard/index.html bootstrapSecret ==="
+          BOOT_BEFORE=$(grep -c "bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8'" web/analytics-dashboard/index.html || true)
+          sed -i "s|bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8'|bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'|g" web/analytics-dashboard/index.html
+          BOOT_AFTER=$(grep -c "bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'" web/analytics-dashboard/index.html || true)
+          echo "bootstrapSecret occurrences before=$BOOT_BEFORE  after=$BOOT_AFTER  (expect equal & non-zero)"
+          if [ "$BOOT_BEFORE" -eq 0 ] || [ "$BOOT_AFTER" -eq 0 ]; then
+            echo "FATAL: dashboard frontend bootstrapSecret patch failed — literal placeholder not found in web/analytics-dashboard/index.html."
+            exit 1
+          fi
         else
           echo "WARN: web/analytics-dashboard/index.html missing — Dockerfile overlay will be a no-op and the embedded legacy dashboard will be served"
         fi

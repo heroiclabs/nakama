@@ -3426,6 +3426,11 @@
         // lockstep with --runtime.http_key even when ops rotate the secret.
         // For local dev (docker-compose), the runtime is set to the placeholder
         // value explicitly, so the file works as-is without patching.
+        //
+        // bootstrapSecret enables silent auto-login on page load (admin-only
+        // dashboard). CodeBuild patches this from nakama-secret/dashboard_secret
+        // so it stays in sync with DASHBOARD_SECRET on the server. The literal
+        // below matches AA_FALLBACK_DASHBOARD_SECRET / docker-compose default.
         // serverUrl is cross-origin (page: nakama.*, API: nakama-rest.*). Nakama
         // returns Access-Control-Allow-Origin on normal responses; browser
         // "CORS blocked" errors usually mean the gateway timed out (502) before
@@ -3433,6 +3438,7 @@
         const CONFIG = {
             serverUrl: 'https://nakama-rest.intelli-verse-x.ai',
             serverKey: 'defaultkey',
+            bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8',
             nakamaConsoleUrl: 'https://nakama-rest.intelli-verse-x.ai',
             adminTokenStorageKey: 'ivx_admin_token_v2',
             games: {
@@ -3452,14 +3458,144 @@
         let revenuePeriod = '30d';
         let selectedMode = '';
         let autoRefreshTimer = null;
+        let autoKickIntervalStarted = false;
 
         // ─────────────────────────────────────────────────────────────────────
         // Admin Authentication
         // ─────────────────────────────────────────────────────────────────────
 
+        function readStoredSession() {
+            const stores = [window.localStorage, window.sessionStorage];
+            for (let i = 0; i < stores.length; i++) {
+                try {
+                    const raw = stores[i].getItem(CONFIG.adminTokenStorageKey);
+                    if (!raw) continue;
+                    const saved = JSON.parse(raw);
+                    if (!saved || !saved.token) continue;
+                    if (saved.expiresAt && saved.expiresAt < Math.floor(Date.now() / 1000) + 60) {
+                        clearAdminSession();
+                        return null;
+                    }
+                    return saved;
+                } catch { /* try next store */ }
+            }
+            return null;
+        }
+
+        function persistAdminSession(saved) {
+            const raw = JSON.stringify(saved);
+            try { window.localStorage.setItem(CONFIG.adminTokenStorageKey, raw); } catch { /* quota */ }
+            try { window.sessionStorage.setItem(CONFIG.adminTokenStorageKey, raw); } catch { /* quota */ }
+        }
+
+        function clearAdminSession() {
+            try { window.localStorage.removeItem(CONFIG.adminTokenStorageKey); } catch { /* ignore */ }
+            try { window.sessionStorage.removeItem(CONFIG.adminTokenStorageKey); } catch { /* ignore */ }
+            try { window.sessionStorage.removeItem('qv_analytics_auth'); } catch { /* ignore */ }
+        }
+
+        function applySession(saved, statusLabel) {
+            sessionToken    = saved.token;
+            adminUsername   = saved.username || 'admin';
+            adminExpiresAt  = saved.expiresAt || null;
+            isAuthenticated = true;
+            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('connectionStatus').className = 'status connected';
+            document.getElementById('connectionStatus').textContent = statusLabel || 'Connected';
+            const hdr = document.getElementById('adminBadge');
+            if (hdr) hdr.textContent = adminUsername;
+        }
+
+        function finalizeLogin(data, options) {
+            const opts = options || {};
+            const username = data.username || adminUsername || 'admin';
+            persistAdminSession({
+                token: data.token,
+                username: username,
+                expiresAt: data.expiresAt || null
+            });
+            applySession({
+                token: data.token,
+                username: username,
+                expiresAt: data.expiresAt || null
+            }, opts.silent ? 'Connected (auto)' : 'Connected');
+
+            refreshAll();
+            onAutoRefreshChange();
+            setTimeout(() => refreshModeFilterOptions().catch(() => {}), 800);
+            setTimeout(() => loadDiagnose().catch(() => {}), 400);
+            setTimeout(() => callRpc('analytics_auto_kick', {}).catch(() => {}), 600);
+            if (!autoKickIntervalStarted) {
+                autoKickIntervalStarted = true;
+                setInterval(() => {
+                    if (isAuthenticated) {
+                        callRpc('analytics_auto_kick', {}).catch(() => {});
+                    }
+                }, 90000);
+            }
+        }
+
+        function isAllowedTokenOrigin(origin) {
+            if (!origin) return false;
+            if (origin === location.origin) return true;
+            try {
+                const allowed = [CONFIG.serverUrl, CONFIG.nakamaConsoleUrl];
+                for (let i = 0; i < allowed.length; i++) {
+                    if (new URL(allowed[i]).origin === origin) return true;
+                }
+            } catch { /* ignore bad URL */ }
+            return false;
+        }
+
+        async function trySilentBootstrap() {
+            if (location.protocol === 'file:') return false;
+            if (!CONFIG.bootstrapSecret) return false;
+
+            const errEl = document.getElementById('loginError');
+            const btn = document.querySelector('.login-box button');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Connecting…';
+            }
+            errEl.classList.remove('show');
+
+            const controller = new AbortController();
+            const timer = setTimeout(function() { controller.abort(); }, 15000);
+
+            try {
+                const resp = await fetch(
+                    `${CONFIG.serverUrl}/v2/rpc/admin_session_bootstrap?http_key=${encodeURIComponent(CONFIG.serverKey)}`,
+                    {
+                        method: 'POST',
+                        signal: controller.signal,
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(JSON.stringify({ dashboard_secret: CONFIG.bootstrapSecret }))
+                    }
+                );
+
+                if (!resp.ok) return false;
+
+                const wrapped = await resp.json();
+                const data = wrapped && wrapped.payload ? JSON.parse(wrapped.payload) : wrapped;
+                if (!data || !data.success || !data.token) return false;
+
+                finalizeLogin(data, { silent: true });
+                return true;
+            } catch (e) {
+                console.warn('[analytics] silent bootstrap failed', e);
+                return false;
+            } finally {
+                clearTimeout(timer);
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
+                }
+            }
+        }
+
         // Calls the server-side `admin_login` RPC. On success we get a real
-        // Nakama admin session token, stored in sessionStorage so page refreshes
-        // stay authenticated until token expiry.
+        // Nakama admin session token, stored in localStorage + sessionStorage
+        // so page refreshes and browser restarts stay authenticated until expiry.
         async function attemptLogin() {
             const username = document.getElementById('adminUsername').value.trim();
             const password = document.getElementById('adminPassword').value;
@@ -3479,9 +3615,9 @@
             const isLocalFile = location.protocol === 'file:';
             if (isLocalFile) {
                 const LOCAL_USER = 'ivx-admin';
-                const LOCAL_PASS = 'bLxIgt83GIZ55kAK';
+                const LOCAL_PASS = 'e200d2640355cdb433f72e9c4e034ee0b2c13bae';
                 if (username !== LOCAL_USER || password !== LOCAL_PASS) {
-                    errEl.textContent = `Local mode — use ivx-admin / bLxIgt83GIZ55kAK`;
+                    errEl.textContent = `Local mode — use ivx-admin / (see analytics_admin.js)`;
                     errEl.classList.add('show');
                     document.getElementById('adminPassword').value = '';
                     return;
@@ -3490,9 +3626,9 @@
                 adminUsername   = username;
                 adminExpiresAt  = null;
                 isAuthenticated = true;
-                sessionStorage.setItem(CONFIG.adminTokenStorageKey, JSON.stringify({
+                persistAdminSession({
                     token: sessionToken, username: adminUsername, expiresAt: null
-                }));
+                });
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('connectionStatus').className = 'status connected';
                 document.getElementById('connectionStatus').textContent = 'Local Mode';
@@ -3544,47 +3680,7 @@
                     return;
                 }
 
-                sessionToken     = data.token;
-                adminUsername    = data.username || username;
-                adminExpiresAt   = data.expiresAt || null;
-                isAuthenticated  = true;
-
-                sessionStorage.setItem(CONFIG.adminTokenStorageKey, JSON.stringify({
-                    token: sessionToken,
-                    username: adminUsername,
-                    expiresAt: adminExpiresAt
-                }));
-
-                document.getElementById('loginOverlay').classList.add('hidden');
-                document.getElementById('connectionStatus').className = 'status connected';
-                document.getElementById('connectionStatus').textContent = 'Connected';
-
-                // Optionally display who's logged in
-                const hdr = document.getElementById('adminBadge');
-                if (hdr) hdr.textContent = adminUsername;
-
-                refreshAll();
-                // Start auto-refresh timer based on the default selected interval (30s).
-                onAutoRefreshChange();
-                // Populate the global mode-filter dropdown once (uses the
-                // analytics_modes_breakdown RPC to discover what quiz_modes
-                // actually exist for the selected game/range).
-                setTimeout(() => refreshModeFilterOptions().catch(() => {}), 800);
-                // Run a diagnose immediately so the operator sees env/module health.
-                setTimeout(() => loadDiagnose().catch(() => {}), 400);
-                // 2026-05 — kick the auto-backfill state machine. The state
-                // machine piggybacks on `analytics_log_event` traffic to
-                // advance through identity → events_replay → dau_synthetic
-                // → rollup. In production there is virtually no live event
-                // traffic between dashboard sessions, so we kick once on
-                // login (and again every 90s while the dashboard is open)
-                // to keep historical replay progressing.
-                setTimeout(() => callRpc('analytics_auto_kick', {}).catch(() => {}), 600);
-                setInterval(() => {
-                    if (isAuthenticated) {
-                        callRpc('analytics_auto_kick', {}).catch(() => {});
-                    }
-                }, 90000);
+                finalizeLogin(data);
             } catch (e) {
                 console.error('attemptLogin error', e);
                 errEl.textContent = 'Network error: ' + (e.message || e) + ' — check if the server is reachable.';
@@ -3599,34 +3695,17 @@
             sessionToken = null;
             adminUsername = null;
             adminExpiresAt = null;
-            sessionStorage.removeItem(CONFIG.adminTokenStorageKey);
-            // Also clean up legacy key from previous builds
-            sessionStorage.removeItem('qv_analytics_auth');
+            clearAdminSession();
             document.getElementById('loginOverlay').classList.remove('hidden');
             document.getElementById('connectionStatus').className = 'status disconnected';
             document.getElementById('connectionStatus').textContent = 'Disconnected';
         }
 
         function checkAuth() {
-            const raw = sessionStorage.getItem(CONFIG.adminTokenStorageKey);
-            if (!raw) return false;
-            try {
-                const saved = JSON.parse(raw);
-                if (!saved || !saved.token) return false;
-                // Expire proactively one minute before server-side expiry.
-                if (saved.expiresAt && saved.expiresAt < Math.floor(Date.now() / 1000) + 60) {
-                    sessionStorage.removeItem(CONFIG.adminTokenStorageKey);
-                    return false;
-                }
-                sessionToken    = saved.token;
-                adminUsername   = saved.username || 'admin';
-                adminExpiresAt  = saved.expiresAt || null;
-                isAuthenticated = true;
-                document.getElementById('loginOverlay').classList.add('hidden');
-                document.getElementById('connectionStatus').className = 'status connected';
-                document.getElementById('connectionStatus').textContent = 'Connected';
-                return true;
-            } catch { return false; }
+            const saved = readStoredSession();
+            if (!saved) return false;
+            applySession(saved);
+            return true;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -3902,6 +3981,7 @@
             'external_poll_ugs',
             'external_poll_all',
             'admin_login',
+            'admin_session_bootstrap',
             'admin_diagnose_env'
         ]);
 
@@ -10489,31 +10569,48 @@
 
         // Auto-login via postMessage from the Nakama admin dashboard iframe
         window.addEventListener('message', (event) => {
-            if (event.data && event.data.type === 'IVX_ADMIN_TOKEN') {
-                const { token, username, expiresAt } = event.data;
-                if (!token) return;
-                sessionStorage.setItem(CONFIG.adminTokenStorageKey, JSON.stringify({
-                    token,
-                    username: username || 'admin',
-                    expiresAt: expiresAt || null
-                }));
-                if (!isAuthenticated && checkAuth()) {
-                    loadTab('overview');
-                }
-            }
+            if (!isAllowedTokenOrigin(event.origin)) return;
+            const msg = event.data;
+            if (!msg || typeof msg !== 'object') return;
+            if (msg.type !== 'IVX_ADMIN_TOKEN' && msg.type !== 'IVX_NAKAMA_ADMIN_SESSION') return;
+
+            const token = msg.token;
+            if (!token) return;
+
+            finalizeLogin({
+                token: token,
+                username: msg.username || 'admin',
+                expiresAt: msg.expiresAt || null
+            }, { silent: true });
+            loadTab('overview');
         });
 
-        document.addEventListener('DOMContentLoaded', () => {
-            // Restore session auth and lazy-load the initial (overview) tab
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 1) Restore saved session (localStorage survives browser restarts)
+            // 2) Silent bootstrap via dashboard_secret (first visit / expired token)
+            // 3) Fall back to manual login form
             if (checkAuth()) {
                 loadTab('overview');
+                onAutoRefreshChange();
+                setTimeout(() => refreshModeFilterOptions().catch(() => {}), 800);
+                setTimeout(() => loadDiagnose().catch(() => {}), 400);
+                if (!autoKickIntervalStarted) {
+                    autoKickIntervalStarted = true;
+                    setInterval(() => {
+                        if (isAuthenticated) {
+                            callRpc('analytics_auto_kick', {}).catch(() => {});
+                        }
+                    }, 90000);
+                }
+            } else if (await trySilentBootstrap()) {
+                loadTab('overview');
+            } else {
+                document.getElementById('adminUsername').focus();
             }
 
-            // Allow Enter key on login inputs
             const handleLoginKeypress = (e) => { if (e.key === 'Enter') attemptLogin(); };
             document.getElementById('adminUsername').addEventListener('keypress', handleLoginKeypress);
             document.getElementById('adminPassword').addEventListener('keypress', handleLoginKeypress);
-            document.getElementById('adminUsername').focus();
 
             // ── Keyboard shortcuts ──────────────────────────────────────────
             document.addEventListener('keydown', e => {
