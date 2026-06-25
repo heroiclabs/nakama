@@ -225,9 +225,11 @@ namespace OnboardingAnalytics {
   };
 
   var COMPLETION_EVENTS: { [name: string]: boolean } = {
+    "ob_complete": true,
     "ob_congrats_seen": true,
     "ob_deeplink_fire": true,
-    "ob_unity_return": true
+    "ob_unity_return": true,
+    "ob_app_launch_success": true
   };
 
   function screenLabel(screen: string): string {
@@ -254,8 +256,8 @@ namespace OnboardingAnalytics {
 
   function deriveUserStatus(u: any): string {
     if (u.completed) return "completed";
-    if (u.paywallSubscribe || u.subscribed) return "subscribed";
-    if (u.paywallSeen && !u.completed && !u.paywallSubscribe) return "at_paywall";
+    if (u.paywallSubscribe || u.paywallTrialStart || u.subscribed) return "subscribed";
+    if (u.paywallSeen && !u.completed && !u.paywallSubscribe && !u.paywallTrialStart) return "at_paywall";
     if (!u.identityLinked && !u.nakamaUserId) return "pre_register";
     return "dropped";
   }
@@ -433,6 +435,8 @@ namespace OnboardingAnalytics {
             completed: false,
             paywallSeen: false,
             paywallSubscribe: false,
+            paywallTrialStart: false,
+            paywallDismiss: false,
             paywallSkip: false,
             closingOfferSeen: false,
             closingOfferClaimed: false,
@@ -463,6 +467,8 @@ namespace OnboardingAnalytics {
         if (rec.name === "ob_start" || rec.name === "ob_launch") u.started = true;
         if (rec.name === "ob_paywall_seen") u.paywallSeen = true;
         if (rec.name === "ob_paywall_subscribe") { u.paywallSubscribe = true; u.subscribed = true; }
+        if (rec.name === "ob_paywall_trial_start") { u.paywallTrialStart = true; u.subscribed = true; }
+        if (rec.name === "ob_paywall_dismiss") u.paywallDismiss = true;
         if (rec.name === "ob_paywall_skip") u.paywallSkip = true;
         if (rec.name === "ob_closing_offer_seen") u.closingOfferSeen = true;
         if (rec.name === "ob_closing_offer_claim") u.closingOfferClaimed = true;
@@ -551,6 +557,8 @@ namespace OnboardingAnalytics {
     var completedCount = 0;
     var paywallSeen = 0;
     var paywallSubscribe = 0;
+    var paywallTrialStart = 0;
+    var paywallDismiss = 0;
     var paywallSkip = 0;
     var paywallDrop = 0;
     var durationSamples: number[] = [];
@@ -565,8 +573,10 @@ namespace OnboardingAnalytics {
       if (u.completed) completedCount++;
       if (u.paywallSeen) paywallSeen++;
       if (u.paywallSubscribe) paywallSubscribe++;
+      if (u.paywallTrialStart) paywallTrialStart++;
+      if (u.paywallDismiss) paywallDismiss++;
       if (u.paywallSkip) paywallSkip++;
-      if (u.paywallSeen && !u.paywallSubscribe && !u.completed && !u.paywallSkip) paywallDrop++;
+      if (u.paywallSeen && !u.paywallSubscribe && !u.paywallTrialStart && !u.completed && !u.paywallSkip && !u.paywallDismiss) paywallDrop++;
 
       var elapsed = (u.snapshot && u.snapshot.elapsedMs) ? u.snapshot.elapsedMs : (u.lastTs - u.firstTs);
       if (elapsed > 0) durationSamples.push(elapsed);
@@ -674,6 +684,8 @@ namespace OnboardingAnalytics {
         subscribed: ur.subscribed,
         paywallSeen: ur.paywallSeen,
         paywallSubscribe: ur.paywallSubscribe,
+        paywallTrialStart: ur.paywallTrialStart,
+        paywallDismiss: ur.paywallDismiss,
         paywallSkip: ur.paywallSkip,
         identityLinked: ur.identityLinked,
         eventCount: ur.eventCount,
@@ -708,10 +720,14 @@ namespace OnboardingAnalytics {
         seen: paywallSeen,
         seenPctOfStart: totalUsers > 0 ? Math.round((paywallSeen / totalUsers) * 1000) / 10 : 0,
         subscribed: paywallSubscribe,
+        trialStarts: paywallTrialStart,
+        dismissed: paywallDismiss,
         skipped: paywallSkip,
         dropOff: paywallDrop,
         subscribeRatePct: paywallSeen > 0 ? Math.round((paywallSubscribe / paywallSeen) * 1000) / 10 : 0,
-        skipRatePct: paywallSeen > 0 ? Math.round((paywallSkip / paywallSeen) * 1000) / 10 : 0
+        trialRatePct: paywallSeen > 0 ? Math.round((paywallTrialStart / paywallSeen) * 1000) / 10 : 0,
+        skipRatePct: paywallSeen > 0 ? Math.round((paywallSkip / paywallSeen) * 1000) / 10 : 0,
+        dismissRatePct: paywallSeen > 0 ? Math.round((paywallDismiss / paywallSeen) * 1000) / 10 : 0
       },
       screenFunnel: screenFunnel,
       dropoffHotspots: dropoffHotspots.slice(0, 15),
@@ -778,6 +794,8 @@ namespace OnboardingAnalytics {
       completed: false,
       paywallSeen: false,
       paywallSubscribe: false,
+      paywallTrialStart: false,
+      paywallDismiss: false,
       paywallSkip: false,
       subscribed: !!snap.subscribed,
       identityLinked: !!profile && !!(profile.cognitoSub || profile.nakamaUserId),
@@ -788,6 +806,8 @@ namespace OnboardingAnalytics {
       if (isCompletionEvent(en)) journeyUser.completed = true;
       if (en === "ob_paywall_seen") journeyUser.paywallSeen = true;
       if (en === "ob_paywall_subscribe") { journeyUser.paywallSubscribe = true; journeyUser.subscribed = true; }
+      if (en === "ob_paywall_trial_start") { journeyUser.paywallTrialStart = true; journeyUser.subscribed = true; }
+      if (en === "ob_paywall_dismiss") journeyUser.paywallDismiss = true;
       if (en === "ob_paywall_skip") journeyUser.paywallSkip = true;
       if (en === "ob_identity_linked") journeyUser.identityLinked = true;
     }
