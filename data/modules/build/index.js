@@ -104,6 +104,14 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Explainer video consumables (qv_entitlements / consumables) ----
+    try {
+        QvExplainerVideos.register(initializer);
+        logger.info("[QvExplainerVideos] quizverse_videos_status/consume/grant registered");
+    }
+    catch (err) {
+        logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- Legacy System Registration (backward-compatible RPCs) ----
     try {
         logger.info("[Legacy] Registering wallet RPCs...");
@@ -17207,7 +17215,7 @@ var HiroUnlockables;
 //
 //  Collection: qv_entitlements
 //   key "subscriptions" : { tier, expiresAt?, productId, store }
-//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed, boosterCredits }
+//   key "consumables"   : { aiVoiceCredits, explainerVideoCredits, explainerFreePreviewUsed, voiceSessionsUsed, boosterCredits }
 //   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
 //                           examPacks[], starterPackGrantCount }
 //
@@ -17378,6 +17386,27 @@ var QvEntitlements;
         // ── Consumable path (AI Voice session credits) ───────────────────────
         // Triggered by web Stripe webhook (store = "web_stripe") or RC consumable
         // purchases.  productId pattern: *.aivoice.*  or  *.voice_pack.*
+        var isExplainerVideo = productId.indexOf("videos_") !== -1 ||
+            productId.indexOf("price_qv_videos_") !== -1;
+        if (isExplainerVideo) {
+            var evQty = Number(event.quantity) || 0;
+            if (evQty <= 0) {
+                if (productId.indexOf("videos_20") !== -1 || productId.indexOf("price_qv_videos_20_") !== -1)
+                    evQty = 20;
+                else if (productId.indexOf("videos_5") !== -1 || productId.indexOf("price_qv_videos_5_") !== -1)
+                    evQty = 5;
+                else
+                    evQty = 1;
+            }
+            try {
+                var granted = QvExplainerVideos.grantExplainerCredits(nk, logger, targetUserId, productId, evQty);
+                return RpcHelpers.successResponse({ explainerVideoCredits: granted, granted: evQty, productId: productId });
+            }
+            catch (e) {
+                logger.error("[QvEntitlements] rc_sync explainer write error: " + (e && e.message ? e.message : String(e)));
+                return RpcHelpers.errorResponse("Failed to write explainer video entitlement");
+            }
+        }
         var isAiVoice = productId.indexOf("aivoice") !== -1 || productId.indexOf("voice_pack") !== -1;
         if (isAiVoice) {
             var quantity = Number(event.quantity) || 0;
@@ -17417,11 +17446,19 @@ var QvEntitlements;
                 try {
                     var isConsumableRc = productId.indexOf("aivoice") !== -1 ||
                         productId.indexOf("boosterpack") !== -1 ||
-                        productId.indexOf("starterpack") !== -1;
+                        productId.indexOf("starterpack") !== -1 ||
+                        productId.indexOf("videos_") !== -1;
                     if (isConsumableRc) {
-                        var qty = productId.indexOf(".50") !== -1 ? 50
-                            : productId.indexOf(".10") !== -1 ? 10 : 1;
-                        QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+                        var qty = productId.indexOf("videos_20") !== -1 ? 20
+                            : productId.indexOf("videos_5") !== -1 ? 5
+                                : productId.indexOf(".50") !== -1 ? 50
+                                    : productId.indexOf(".10") !== -1 ? 10 : 1;
+                        if (productId.indexOf("videos_") !== -1) {
+                            QvExplainerVideos.grantExplainerCredits(nk, logger, targetUserId, productId, qty);
+                        }
+                        else {
+                            QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+                        }
                         logger.info("[QvEntitlements] rc_sync: RC GRANT consumable productId=" + productId + " qty=" + qty + " user=" + targetUserId);
                     }
                     else {
@@ -17536,6 +17573,9 @@ var QvEntitlements;
             if (productId.indexOf("aivoice") !== -1) {
                 existing.aiVoiceCredits = (existing.aiVoiceCredits || 0) + quantity;
             }
+            else if (productId.indexOf("videos_") !== -1) {
+                existing.explainerVideoCredits = (existing.explainerVideoCredits || 0) + quantity;
+            }
             else if (productId.indexOf("boosterpack") !== -1) {
                 existing.boosterCredits = (existing.boosterCredits || 0) + quantity;
             }
@@ -17594,6 +17634,186 @@ var QvEntitlements;
     }
     QvEntitlements.register = register;
 })(QvEntitlements || (QvEntitlements = {}));
+// ---------------------------------------------------------------------------
+//  explainer-videos.ts — quizverse_videos_status / consume / grant
+//
+//  Storage: qv_entitlements / consumables
+//    explainerVideoCredits  — purchased pack balance
+//    explainerFreePreviewUsed — one-time 30s preview consumed
+// ---------------------------------------------------------------------------
+var QvExplainerVideos;
+(function (QvExplainerVideos) {
+    var COLLECTION = "qv_entitlements";
+    var KEY_CONS = "consumables";
+    var FREE_PREVIEW_SECONDS = 30;
+    var PACK_UNITS = {
+        "videos_1_v3_1": 1,
+        "videos_5_v3_1": 5,
+        "videos_20_v3_1": 20,
+        // legacy v1 ids (still grant if RC sends them)
+        "videos_1_v1": 1,
+        "videos_5_v1": 5,
+        "videos_20_v1": 20
+    };
+    function readCons(nk, userId) {
+        return Storage.readJson(nk, COLLECTION, KEY_CONS, userId) || {};
+    }
+    function writeCons(nk, userId, cons) {
+        cons.updatedAt = new Date().toISOString();
+        Storage.writeJson(nk, COLLECTION, KEY_CONS, userId, cons);
+    }
+    function unitsForProductId(productId) {
+        if (!productId)
+            return 0;
+        if (PACK_UNITS[productId])
+            return PACK_UNITS[productId];
+        if (productId.indexOf("videos_20") !== -1)
+            return 20;
+        if (productId.indexOf("videos_5") !== -1)
+            return 5;
+        if (productId.indexOf("videos_1") !== -1)
+            return 1;
+        return 0;
+    }
+    function normalizeProductId(raw) {
+        if (!raw)
+            return "";
+        if (PACK_UNITS[raw])
+            return raw;
+        // Stripe price id → RC product id
+        if (raw.indexOf("price_qv_videos_1_") === 0)
+            return "videos_1_v3_1";
+        if (raw.indexOf("price_qv_videos_5_") === 0)
+            return "videos_5_v3_1";
+        if (raw.indexOf("price_qv_videos_20_") === 0)
+            return "videos_20_v3_1";
+        return raw;
+    }
+    function buildStatus(cons) {
+        var balance = Number(cons.explainerVideoCredits) || 0;
+        var freePreviewUsed = !!cons.explainerFreePreviewUsed;
+        var mode = balance > 0 ? "full" : (!freePreviewUsed ? "preview" : "blocked");
+        return {
+            balance: balance,
+            freePreviewUsed: freePreviewUsed,
+            freePreviewSeconds: FREE_PREVIEW_SECONDS,
+            mode: mode,
+            canGenerate: mode !== "blocked"
+        };
+    }
+    function rpcVideosStatus(ctx, logger, nk, _payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        try {
+            var cons = readCons(nk, userId);
+            return RpcHelpers.successResponse(buildStatus(cons));
+        }
+        catch (e) {
+            logger.warn("[QvExplainerVideos] status error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to read explainer video status");
+        }
+    }
+    function rpcVideosConsume(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data;
+        try {
+            data = RpcHelpers.parseRpcPayload(payload);
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "bad payload");
+        }
+        var mode = (data.mode || data.consume_mode || "full");
+        if (mode !== "preview" && mode !== "full") {
+            return RpcHelpers.errorResponse("mode must be preview or full");
+        }
+        try {
+            var cons = readCons(nk, userId);
+            var balance = Number(cons.explainerVideoCredits) || 0;
+            var freePreviewUsed = !!cons.explainerFreePreviewUsed;
+            if (mode === "full") {
+                if (balance <= 0) {
+                    return RpcHelpers.errorResponse("no explainer video credits", 7);
+                }
+                cons.explainerVideoCredits = balance - 1;
+                writeCons(nk, userId, cons);
+                logger.info("[QvExplainerVideos] consume full user=" + userId + " balance=" + cons.explainerVideoCredits);
+                return RpcHelpers.successResponse({
+                    consumed: true,
+                    consumeMode: "full",
+                    balance: cons.explainerVideoCredits,
+                    freePreviewUsed: !!cons.explainerFreePreviewUsed
+                });
+            }
+            // preview — one-time only
+            if (freePreviewUsed) {
+                return RpcHelpers.errorResponse("free preview already used", 7);
+            }
+            cons.explainerFreePreviewUsed = true;
+            writeCons(nk, userId, cons);
+            logger.info("[QvExplainerVideos] consume preview user=" + userId);
+            return RpcHelpers.successResponse({
+                consumed: true,
+                consumeMode: "preview",
+                balance: Number(cons.explainerVideoCredits) || 0,
+                freePreviewUsed: true,
+                previewMaxSeconds: FREE_PREVIEW_SECONDS
+            });
+        }
+        catch (e) {
+            logger.warn("[QvExplainerVideos] consume error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to consume explainer video credit");
+        }
+    }
+    function rpcVideosGrant(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data;
+        try {
+            data = RpcHelpers.parseRpcPayload(payload);
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "bad payload");
+        }
+        var productId = normalizeProductId(String(data.product_id || data.productId || ""));
+        var units = Number(data.quantity) || unitsForProductId(productId);
+        if (units <= 0) {
+            return RpcHelpers.errorResponse("unknown explainer video product: " + productId);
+        }
+        try {
+            var cons = readCons(nk, userId);
+            var prev = Number(cons.explainerVideoCredits) || 0;
+            cons.explainerVideoCredits = prev + units;
+            writeCons(nk, userId, cons);
+            logger.info("[QvExplainerVideos] grant user=" + userId + " product=" + productId + " +" + units + " now=" + cons.explainerVideoCredits);
+            return RpcHelpers.successResponse({
+                granted: units,
+                productId: productId,
+                balance: cons.explainerVideoCredits
+            });
+        }
+        catch (e) {
+            logger.warn("[QvExplainerVideos] grant error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to grant explainer video credits");
+        }
+    }
+    /** Called from entitlements rc_sync / grantConsumable. */
+    function grantExplainerCredits(nk, logger, userId, productId, quantity) {
+        var units = quantity > 0 ? quantity : unitsForProductId(normalizeProductId(productId));
+        if (units <= 0)
+            return 0;
+        var cons = readCons(nk, userId);
+        var prev = Number(cons.explainerVideoCredits) || 0;
+        cons.explainerVideoCredits = prev + units;
+        writeCons(nk, userId, cons);
+        logger.info("[QvExplainerVideos] grantExplainerCredits user=" + userId + " +" + units + " now=" + cons.explainerVideoCredits);
+        return units;
+    }
+    QvExplainerVideos.grantExplainerCredits = grantExplainerCredits;
+    function register(initializer) {
+        initializer.registerRpc("quizverse_videos_status", rpcVideosStatus);
+        initializer.registerRpc("quizverse_videos_consume", rpcVideosConsume);
+        initializer.registerRpc("quizverse_videos_grant", rpcVideosGrant);
+    }
+    QvExplainerVideos.register = register;
+})(QvExplainerVideos || (QvExplainerVideos = {}));
 // =============================================================================
 // account_merge.ts — Ghost Nakama user → Cognito user merge
 //

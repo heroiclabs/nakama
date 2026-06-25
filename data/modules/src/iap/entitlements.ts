@@ -3,7 +3,7 @@
 //
 //  Collection: qv_entitlements
 //   key "subscriptions" : { tier, expiresAt?, productId, store }
-//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed, boosterCredits }
+//   key "consumables"   : { aiVoiceCredits, explainerVideoCredits, explainerFreePreviewUsed, voiceSessionsUsed, boosterCredits }
 //   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
 //                           examPacks[], starterPackGrantCount }
 //
@@ -191,6 +191,24 @@ namespace QvEntitlements {
     // ── Consumable path (AI Voice session credits) ───────────────────────
     // Triggered by web Stripe webhook (store = "web_stripe") or RC consumable
     // purchases.  productId pattern: *.aivoice.*  or  *.voice_pack.*
+    var isExplainerVideo = productId.indexOf("videos_") !== -1 ||
+                           productId.indexOf("price_qv_videos_") !== -1;
+    if (isExplainerVideo) {
+      var evQty: number = Number(event.quantity) || 0;
+      if (evQty <= 0) {
+        if (productId.indexOf("videos_20") !== -1 || productId.indexOf("price_qv_videos_20_") !== -1) evQty = 20;
+        else if (productId.indexOf("videos_5") !== -1 || productId.indexOf("price_qv_videos_5_") !== -1) evQty = 5;
+        else evQty = 1;
+      }
+      try {
+        var granted = QvExplainerVideos.grantExplainerCredits(nk, logger, targetUserId, productId, evQty);
+        return RpcHelpers.successResponse({ explainerVideoCredits: granted, granted: evQty, productId: productId });
+      } catch (e: any) {
+        logger.error("[QvEntitlements] rc_sync explainer write error: " + (e && e.message ? e.message : String(e)));
+        return RpcHelpers.errorResponse("Failed to write explainer video entitlement");
+      }
+    }
+
     var isAiVoice = productId.indexOf("aivoice") !== -1 || productId.indexOf("voice_pack") !== -1;
     if (isAiVoice) {
       var quantity: number = Number(event.quantity) || 0;
@@ -230,11 +248,18 @@ namespace QvEntitlements {
         try {
           var isConsumableRc = productId.indexOf("aivoice") !== -1 ||
                                productId.indexOf("boosterpack") !== -1 ||
-                               productId.indexOf("starterpack") !== -1;
+                               productId.indexOf("starterpack") !== -1 ||
+                               productId.indexOf("videos_") !== -1;
           if (isConsumableRc) {
-            var qty = productId.indexOf(".50") !== -1 ? 50
+            var qty = productId.indexOf("videos_20") !== -1 ? 20
+                    : productId.indexOf("videos_5") !== -1 ? 5
+                    : productId.indexOf(".50") !== -1 ? 50
                     : productId.indexOf(".10") !== -1 ? 10 : 1;
-            QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+            if (productId.indexOf("videos_") !== -1) {
+              QvExplainerVideos.grantExplainerCredits(nk, logger, targetUserId, productId, qty);
+            } else {
+              QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+            }
             logger.info("[QvEntitlements] rc_sync: RC GRANT consumable productId=" + productId + " qty=" + qty + " user=" + targetUserId);
           } else {
             QvEntitlements.grantOneTime(nk, logger, targetUserId, productId);
@@ -370,6 +395,8 @@ namespace QvEntitlements {
       var existing = Storage.readJson<any>(nk, COLLECTION, KEY_CONS, userId) || {};
       if (productId.indexOf("aivoice") !== -1) {
         existing.aiVoiceCredits = (existing.aiVoiceCredits || 0) + quantity;
+      } else if (productId.indexOf("videos_") !== -1) {
+        existing.explainerVideoCredits = (existing.explainerVideoCredits || 0) + quantity;
       } else if (productId.indexOf("boosterpack") !== -1) {
         existing.boosterCredits = (existing.boosterCredits || 0) + quantity;
       } else if (productId.indexOf("starterpack") !== -1) {
