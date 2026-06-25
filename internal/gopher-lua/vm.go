@@ -783,10 +783,7 @@ func init() {
 									   namedparam1 <- lbase
 									   namedparam2
 							*/
-							nvarargs := nargs - np
-							if nvarargs < 0 {
-								nvarargs = 0
-							}
+							nvarargs := max(nargs-np, 0)
 
 							ls.reg.SetTop(cf.LocalBase + nargs + np)
 							for i := 0; i < np; i++ {
@@ -965,10 +962,7 @@ func init() {
 									   namedparam1 <- lbase
 									   namedparam2
 							*/
-							nvarargs := nargs - np
-							if nvarargs < 0 {
-								nvarargs = 0
-							}
+							nvarargs := max(nargs-np, 0)
 
 							ls.reg.SetTop(cf.LocalBase + nargs + np)
 							for i := 0; i < np; i++ {
@@ -1452,10 +1446,7 @@ func init() {
 			RA := lbase + A
 			B := int(inst & 0x1ff) //GETB
 			nparams := int(cf.Fn.Proto.NumParameters)
-			nvarargs := cf.NArgs - nparams
-			if nvarargs < 0 {
-				nvarargs = 0
-			}
+			nvarargs := max(cf.NArgs-nparams, 0)
 			nwant := B - 1
 			if B == 0 {
 				nwant = nvarargs
