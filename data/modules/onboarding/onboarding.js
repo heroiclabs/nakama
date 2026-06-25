@@ -374,16 +374,17 @@ function trackUserSession(nk, logger, userId) {
             sessionData.totalSessions++;
             sessionData.lastSessionAt = now;
 
-            // Track D1 return (returned within 24-48 hours)
             if (!sessionData.d1Returned && hoursSinceFirst >= 20 && hoursSinceFirst <= 48) {
                 sessionData.d1Returned = true;
                 logger.info(`[Onboarding] User ${userId} returned on D1!`);
+                obAnalyticsEmitEvent(nk, userId, "ob_d1_return", { hoursSinceFirst: Math.round(hoursSinceFirst) });
             }
 
             // Track D7 return
             if (!sessionData.d7Returned && hoursSinceFirst >= 144 && hoursSinceFirst <= 192) {
                 sessionData.d7Returned = true;
                 logger.info(`[Onboarding] User ${userId} returned on D7!`);
+                obAnalyticsEmitEvent(nk, userId, "ob_d7_return", { hoursSinceFirst: Math.round(hoursSinceFirst) });
             }
 
             nk.storageWrite([{
@@ -783,8 +784,9 @@ function rpcClaimWelcomeBonus(ctx, logger, nk, payload) {
         }]);
 
         logger.info(`[Onboarding] User ${userId} claimed welcome bonus: ${WELCOME_BONUS} coins`);
+        obAnalyticsEmitEvent(nk, userId, "ob_welcome_bonus_claimed", { coinsAwarded: WELCOME_BONUS });
 
-        return JSON.stringify({ 
+        return JSON.stringify({
             success: true, 
             coinsAwarded: WELCOME_BONUS,
             message: "Welcome! Here's 50 free coins! 🎉"
@@ -856,8 +858,13 @@ function rpcFirstQuizComplete(ctx, logger, nk, payload) {
         });
 
         logger.info(`[Onboarding] User ${userId} completed first quiz: ${FIRST_QUIZ_BONUS} coins + streak shield`);
+        obAnalyticsEmitEvent(nk, userId, "ob_streak_shield_activated", {
+            streakShieldHours: 48,
+            source: "first_quiz_bonus",
+            coinsAwarded: FIRST_QUIZ_BONUS
+        });
 
-        return JSON.stringify({ 
+        return JSON.stringify({
             success: true, 
             coinsAwarded: FIRST_QUIZ_BONUS,
             streakShieldHours: 48,

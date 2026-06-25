@@ -5517,8 +5517,10 @@ select { color-scheme: dark; }
             const parts = [];
             if (u.paywallSeen) parts.push('👁');
             if (u.paywallSubscribe || u.subscribed) parts.push('✓');
+            if (u.paywallTrialStart) parts.push('🎁');
+            if (u.paywallDismiss) parts.push('✕');
             if (u.paywallSkip) parts.push('⏭');
-            return parts.length ? '<span class="ob-paywall-icons" title="Seen / Subscribed / Skipped">' + parts.join(' ') + '</span>' : '—';
+            return parts.length ? '<span class="ob-paywall-icons" title="Seen / Paid / Trial / Dismiss / Skip">' + parts.join(' ') + '</span>' : '—';
         }
 
         function formatDurationMs(ms) {
@@ -5811,7 +5813,9 @@ select { color-scheme: dark; }
                 '<div class="kpi-card"><div class="icon">%</div><div class="label">Completion rate</div><div class="value">' + (summary.completionRatePct || 0) + '%</div><div class="trend">started → finished</div></div>' +
                 '<div class="kpi-card"><div class="icon">⏱</div><div class="label">Median time</div><div class="value plain">' + (summary.medianDurationMin || 0) + ' min</div><div class="trend">in funnel</div></div>' +
                 '<div class="kpi-card"><div class="icon">💳</div><div class="label">Paywall seen</div><div class="value">' + formatNumber(pw.seen || 0) + '</div><div class="trend">' + (pw.seenPctOfStart || 0) + '% of started</div></div>' +
-                '<div class="kpi-card"><div class="icon">★</div><div class="label">Subscribed</div><div class="value positive">' + formatNumber(pw.subscribed || 0) + '</div><div class="trend">' + (pw.subscribeRatePct || 0) + '% of paywall</div></div>';
+                '<div class="kpi-card"><div class="icon">★</div><div class="label">Paid</div><div class="value positive">' + formatNumber(pw.subscribed || 0) + '</div><div class="trend">' + (pw.subscribeRatePct || 0) + '% of paywall</div></div>' +
+                '<div class="kpi-card"><div class="icon">🎁</div><div class="label">Trial starts</div><div class="value positive">' + formatNumber(pw.trialStarts || 0) + '</div><div class="trend">' + (pw.trialRatePct || 0) + '% of paywall</div></div>' +
+                '<div class="kpi-card"><div class="icon">✕</div><div class="label">Dismissed</div><div class="value">' + formatNumber(pw.dismissed || 0) + '</div><div class="trend">' + (pw.dismissRatePct || 0) + '% of paywall</div></div>';
 
             renderObScreenFunnel(data.screenFunnel || []);
             renderObDropoffHotspots(data.dropoffHotspots || []);
