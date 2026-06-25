@@ -4,6 +4,10 @@ nakama-server
 local.yml
 .firecrawl/
 
+# Analytics dashboard: source is web/analytics-dashboard/index.html only.
+# Dockerfile.production copies it to console/ui/dist/analytics.html before go build.
+console/ui/dist/analytics.html
+
 # Created by https://www.toptal.com/developers/gitignore/api/go,angular,node,intellij+all,visualstudiocode,visualstudio,sublimetext,windows,linux,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=go,angular,node,intellij+all,visualstudiocode,visualstudio,sublimetext,windows,linux,macos
 
