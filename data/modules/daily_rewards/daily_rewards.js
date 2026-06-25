@@ -48,6 +48,102 @@ var REWARD_CONFIGS = {
 };
 
 /**
+ * UTC day helpers — daily rewards use UTC dates (matches claimHistory writes
+ * and LegacyDailyRewards.getTodayDateString). Do not use utils.getStartOfDay
+ * here; it uses local timezone.
+ */
+function pad2Utc(n) {
+    return n < 10 ? "0" + n : String(n);
+}
+
+function getUtcDateStringFromUnix(ts) {
+    var d = new Date(ts * 1000);
+    return d.getUTCFullYear() + "-" + pad2Utc(d.getUTCMonth() + 1) + "-" + pad2Utc(d.getUTCDate());
+}
+
+function getTodayUtcDateString() {
+    var d = new Date();
+    return d.getUTCFullYear() + "-" + pad2Utc(d.getUTCMonth() + 1) + "-" + pad2Utc(d.getUTCDate());
+}
+
+function getUtcDayStartUnix(ts) {
+    var d = new Date(ts * 1000);
+    d.setUTCHours(0, 0, 0, 0);
+    return Math.floor(d.getTime() / 1000);
+}
+
+function getUtcDayStartUnixFromDateString(dateStr) {
+    if (!dateStr || typeof dateStr !== "string") return 0;
+    var parts = dateStr.split("-");
+    if (parts.length !== 3) return 0;
+    var y = parseInt(parts[0], 10);
+    var m = parseInt(parts[1], 10) - 1;
+    var d = parseInt(parts[2], 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return 0;
+    return Math.floor(Date.UTC(y, m, d, 0, 0, 0, 0) / 1000);
+}
+
+function maxUtcDateString(a, b) {
+    if (!a) return b || "";
+    if (!b) return a || "";
+    return a > b ? a : b;
+}
+
+/**
+ * Reconcile lastClaimTimestamp against claimHistory and legacy daily_rewards
+ * storage so eligibility checks use the true most-recent claim date.
+ */
+function reconcileStreakLastClaim(nk, logger, userId, gameId, data) {
+    var effectiveDate = "";
+    var changed = false;
+
+    if (data.lastClaimTimestamp > 0) {
+        effectiveDate = getUtcDateStringFromUnix(data.lastClaimTimestamp);
+    }
+
+    if (data.claimHistory && data.claimHistory.length > 0) {
+        var lastHistory = data.claimHistory[data.claimHistory.length - 1];
+        effectiveDate = maxUtcDateString(effectiveDate, lastHistory);
+    }
+
+    try {
+        var tsStatus = utils.readStorage(nk, logger, "daily_rewards", "status_" + userId, userId);
+        if (tsStatus) {
+            if (tsStatus.lastClaimDate) {
+                effectiveDate = maxUtcDateString(effectiveDate, tsStatus.lastClaimDate);
+            }
+            if (tsStatus.rewards && tsStatus.rewards.length) {
+                for (var ri = 0; ri < tsStatus.rewards.length; ri++) {
+                    if (tsStatus.rewards[ri] && tsStatus.rewards[ri].date) {
+                        effectiveDate = maxUtcDateString(effectiveDate, tsStatus.rewards[ri].date);
+                    }
+                }
+            }
+        }
+    } catch (reconcileErr) {
+        utils.logWarn(logger, "[DailyRewards] Legacy reconcile skipped: " + reconcileErr.message);
+    }
+
+    if (effectiveDate) {
+        var tsDate = data.lastClaimTimestamp > 0
+            ? getUtcDateStringFromUnix(data.lastClaimTimestamp)
+            : "";
+        if (effectiveDate > tsDate) {
+            data.lastClaimTimestamp = getUtcDayStartUnixFromDateString(effectiveDate);
+            changed = true;
+            utils.logInfo(logger, "[DailyRewards] Reconciled lastClaimTimestamp for " + userId +
+                ": " + (tsDate || "none") + " -> " + effectiveDate);
+        }
+    }
+
+    if (changed) {
+        saveStreakData(nk, logger, userId, gameId, data);
+    }
+
+    return data;
+}
+
+/**
  * Get or create streak data for user
  * @param {object} nk - Nakama runtime
  * @param {object} logger - Logger instance
@@ -82,7 +178,15 @@ function getStreakData(nk, logger, userId, gameId) {
         try {
             var tsStatus = utils.readStorage(nk, logger, "daily_rewards", "status_" + userId, userId);
             if (tsStatus && tsStatus.streak > 0 && tsStatus.lastClaimDate) {
-                var migratedTs = Math.floor(new Date(tsStatus.lastClaimDate).getTime() / 1000);
+                var migratedDate = tsStatus.lastClaimDate;
+                if (tsStatus.rewards && tsStatus.rewards.length) {
+                    for (var mi = 0; mi < tsStatus.rewards.length; mi++) {
+                        if (tsStatus.rewards[mi] && tsStatus.rewards[mi].date) {
+                            migratedDate = maxUtcDateString(migratedDate, tsStatus.rewards[mi].date);
+                        }
+                    }
+                }
+                var migratedTs = getUtcDayStartUnixFromDateString(migratedDate);
                 if (migratedTs > 0) {
                     data.currentStreak = tsStatus.streak;
                     data.bestStreak = tsStatus.streak;
@@ -106,7 +210,9 @@ function getStreakData(nk, logger, userId, gameId) {
     // Backfill fields for records created before QVBF_51
     if (typeof data.bestStreak !== "number") data.bestStreak = data.currentStreak || 0;
     if (!data.claimHistory) data.claimHistory = [];
-    
+
+    data = reconcileStreakLastClaim(nk, logger, userId, gameId, data);
+
     return data;
 }
 
@@ -131,32 +237,33 @@ function saveStreakData(nk, logger, userId, gameId, data) {
  * @returns {object} { canClaim: boolean, reason: string }
  */
 function canClaimToday(streakData) {
-    var now = utils.getUnixTimestamp();
     var lastClaim = streakData.lastClaimTimestamp;
-    
+
     // First claim ever
     if (lastClaim === 0) {
         return { canClaim: true, reason: "first_claim" };
     }
-    
-    var lastClaimStartOfDay = utils.getStartOfDay(new Date(lastClaim * 1000));
-    var todayStartOfDay = utils.getStartOfDay();
-    
-    // Already claimed today
-    if (lastClaimStartOfDay === todayStartOfDay) {
+
+    var lastDate = getUtcDateStringFromUnix(lastClaim);
+    var today = getTodayUtcDateString();
+
+    if (lastDate === today) {
         return { canClaim: false, reason: "already_claimed_today" };
     }
-    
-    // Can claim
+
     return { canClaim: true, reason: "eligible" };
 }
 
 /**
- * Update streak status based on time elapsed
+ * Update streak status based on time elapsed; persist when streak breaks.
+ * @param {object} nk - Nakama runtime
+ * @param {object} logger - Logger instance
+ * @param {string} userId - User ID
+ * @param {string} gameId - Game ID (UUID)
  * @param {object} streakData - Current streak data
  * @returns {object} Updated streak data
  */
-function updateStreakStatus(streakData) {
+function updateStreakStatus(nk, logger, userId, gameId, streakData) {
     var now = utils.getUnixTimestamp();
     var lastClaim = streakData.lastClaimTimestamp;
     
@@ -167,7 +274,10 @@ function updateStreakStatus(streakData) {
     
     // Check if more than 48 hours passed (streak broken)
     if (!utils.isWithinHours(lastClaim, now, 48)) {
-        streakData.currentStreak = 0;
+        if (streakData.currentStreak !== 0) {
+            streakData.currentStreak = 0;
+            saveStreakData(nk, logger, userId, gameId, streakData);
+        }
     }
     
     return streakData;
@@ -227,7 +337,7 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
     
     // Get current streak data
     var streakData = getStreakData(nk, logger, userId, gameId);
-    streakData = updateStreakStatus(streakData);
+    streakData = updateStreakStatus(nk, logger, userId, gameId, streakData);
     
     // Check if can claim
     var claimCheck = canClaimToday(streakData);
@@ -290,7 +400,7 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
     
     // Get current streak data
     var streakData = getStreakData(nk, logger, userId, gameId);
-    streakData = updateStreakStatus(streakData);
+    streakData = updateStreakStatus(nk, logger, userId, gameId, streakData);
     
     // Check if can claim
     var claimCheck = canClaimToday(streakData);
@@ -302,6 +412,20 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
         });
     }
     
+    // Reset streak when gap spans more than one UTC day or exceeds 48h grace
+    // (matches LegacyDailyRewards dayDiff > 1 rule before increment).
+    var lastClaimTs = streakData.lastClaimTimestamp;
+    if (lastClaimTs > 0) {
+        var lastDate = getUtcDateStringFromUnix(lastClaimTs);
+        var today = getTodayUtcDateString();
+        var lastDayStart = getUtcDayStartUnixFromDateString(lastDate);
+        var todayDayStart = getUtcDayStartUnixFromDateString(today);
+        var dayDiff = Math.floor((todayDayStart - lastDayStart) / 86400);
+        if (dayDiff > 1 || !utils.isWithinHours(lastClaimTs, utils.getUnixTimestamp(), 48)) {
+            streakData.currentStreak = 0;
+        }
+    }
+
     // Update streak
     streakData.currentStreak += 1;
     streakData.lastClaimTimestamp = utils.getUnixTimestamp();
@@ -411,7 +535,7 @@ function rpcDailyRewardsGetHistory(ctx, logger, nk, payload) {
     }
 
     var streakData = getStreakData(nk, logger, userId, gameId);
-    streakData = updateStreakStatus(streakData);
+    streakData = updateStreakStatus(nk, logger, userId, gameId, streakData);
 
     return JSON.stringify({
         success: true,
