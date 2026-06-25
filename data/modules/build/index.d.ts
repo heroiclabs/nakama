@@ -944,6 +944,11 @@ declare namespace QvEntitlements {
     function grantOneTime(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string): void;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvExplainerVideos {
+    /** Called from entitlements rc_sync / grantConsumable. */
+    function grantExplainerCredits(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string, quantity: number): number;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace AccountMerge {
     function register(initializer: nkruntime.Initializer): void;
 }

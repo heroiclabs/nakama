@@ -1,11 +1,10 @@
 // ---------------------------------------------------------------------------
 // Web onboarding analytics — dedicated event lake for onboarding.quizverse.world
 //
-// Events are written under SYSTEM_USER (global funnel scans) AND under the
-// player's Nakama UUID (visible in Console → Player → Storage).
-//
-// Auth API returns Cognito sub; we resolve Nakama UUID via authenticateCustom
-// (custom_id = cognito sub, idempotent) at identity link time.
+// Separate from satori_events (no strict taxonomy). Browser sends batched
+// ob_* events via Next.js /api/onboarding/analytics → onboarding_events_batch
+// (http_key). Storage layout mirrors satori_events: inverted-time keys under
+// SYSTEM_USER for efficient recent-first scans.
 // ---------------------------------------------------------------------------
 namespace OnboardingAnalytics {
 
@@ -13,6 +12,11 @@ namespace OnboardingAnalytics {
   var MAX_SCAN_PAGES = 400;
   var MAX_BATCH = 50;
   var PROFILE_KEY = "profile";
+
+  function isNakamaUuid(id: string): boolean {
+    if (!id || id.length !== 36) return false;
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  }
 
   function eventKey(tsMs: number, id: string): string {
     var inv = "" + (100000000000000 - tsMs);
@@ -34,91 +38,8 @@ namespace OnboardingAnalytics {
     return (raw || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, maxLen);
   }
 
-  function isLikelyNakamaUuid(id: string): boolean {
-    if (!id || id.length !== 36) return false;
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-  }
-
-  /** Cognito sub (custom_id) → Nakama user UUID. Idempotent on custom_id. */
-  function resolveNakamaUserId(
-    nk: nkruntime.Nakama,
-    logger: nkruntime.Logger,
-    cognitoSub: string,
-    usernameHint: string
-  ): string | null {
-    if (!cognitoSub) return null;
-    if (isLikelyNakamaUuid(cognitoSub)) return cognitoSub;
-    var username = usernameHint || ("ob_" + cognitoSub.replace(/-/g, "").substr(0, 12));
-    if (username.length > 128) username = username.substr(0, 128);
-    try {
-      var authResult = nk.authenticateCustom(cognitoSub, username, true);
-      if (authResult && authResult.userId) return authResult.userId;
-    } catch (e: any) {
-      logger.warn("[OnboardingAnalytics] authenticateCustom failed for cognitoSub=%s: %s",
-        cognitoSub, e && e.message ? e.message : String(e));
-    }
-    return null;
-  }
-
-  function readIdentityByAnon(nk: nkruntime.Nakama, anonId: string): any {
-    return Storage.readSystemJson<any>(
-      nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_anon_" + sanitizeId(anonId, 80));
-  }
-
-  function readIdentityByCognito(nk: nkruntime.Nakama, cognitoSub: string): any {
-    return Storage.readSystemJson<any>(
-      nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_cog_" + sanitizeId(cognitoSub, 80));
-  }
-
-  function writePlayerProfile(
-    nk: nkruntime.Nakama,
-    nakamaUserId: string,
-    payload: any
-  ): void {
-    Storage.writeJson(
-      nk,
-      Constants.QV_ONBOARDING_PROFILES_COLLECTION,
-      PROFILE_KEY,
-      nakamaUserId,
-      payload,
-      2 as nkruntime.ReadPermissionValues,
-      0 as nkruntime.WritePermissionValues
-    );
-  }
-
-  function writeProfileSnapshots(
-    nk: nkruntime.Nakama,
-    identityId: string,
-    nakamaUserId: string | null,
-    cognitoSub: string | null,
-    lastScreen: string,
-    lastEvent: string,
-    lastSnapshot: any
-  ): void {
-    var payload = {
-      identityId: identityId,
-      nakamaUserId: nakamaUserId,
-      cognitoSub: cognitoSub,
-      userId: nakamaUserId,
-      updatedAt: Date.now(),
-      lastScreen: lastScreen,
-      lastEvent: lastEvent,
-      snapshot: lastSnapshot
-    };
-    Storage.writeSystemJson(
-      nk,
-      Constants.QV_ONBOARDING_PROFILES_COLLECTION,
-      "prof_" + sanitizeId(identityId, 64),
-      payload
-    );
-    if (nakamaUserId) {
-      writePlayerProfile(nk, nakamaUserId, payload);
-    }
-  }
-
   function captureEvents(
     nk: nkruntime.Nakama,
-    logger: nkruntime.Logger,
     identityId: string,
     cognitoSub: string | null,
     nakamaUserId: string | null,
@@ -130,39 +51,19 @@ namespace OnboardingAnalytics {
     var lastScreen = "";
     var lastEvent = "";
 
-    if (!nakamaUserId && cognitoSub) {
-      var linked = readIdentityByCognito(nk, cognitoSub);
-      if (linked && linked.nakamaUserId) nakamaUserId = linked.nakamaUserId;
-    }
-    if (!nakamaUserId && identityId) {
-      var linkedAnon = readIdentityByAnon(nk, identityId);
-      if (linkedAnon && linkedAnon.nakamaUserId) nakamaUserId = linkedAnon.nakamaUserId;
-      if (!cognitoSub && linkedAnon && linkedAnon.cognitoSub) cognitoSub = linkedAnon.cognitoSub;
-    }
-
     for (var i = 0; i < events.length; i++) {
       var e = events[i];
       if (!e || !e.name) continue;
       var tsMs = toMs(e.timestamp);
       var eventId = (e.eventId || randomId()).toString();
-      var eventCognito = cognitoSub || e.cognitoSub || e.cognito_sub || null;
-      var eventNakama = nakamaUserId || e.nakamaUserId || e.nakama_user_id || null;
-      if (!eventNakama && eventCognito) {
-        var linkRow = readIdentityByCognito(nk, eventCognito);
-        if (linkRow && linkRow.nakamaUserId) eventNakama = linkRow.nakamaUserId;
-      }
-      if (!eventCognito && e.userId && !isLikelyNakamaUuid("" + e.userId)) {
-        eventCognito = "" + e.userId;
-      }
-      if (!eventNakama && e.userId && isLikelyNakamaUuid("" + e.userId)) {
-        eventNakama = "" + e.userId;
-      }
-
+      var recordCognito = cognitoSub || e.userId || null;
+      var recordNakama = nakamaUserId || null;
+      var key = eventKey(tsMs + i, eventId);
       var record = {
         identityId: identityId,
-        userId: eventNakama,
-        nakamaUserId: eventNakama,
-        cognitoSub: eventCognito,
+        userId: recordNakama || recordCognito,
+        cognitoSub: recordCognito,
+        nakamaUserId: recordNakama,
         name: e.name,
         timestamp: tsMs,
         screen: e.screen || "",
@@ -172,21 +73,19 @@ namespace OnboardingAnalytics {
         userSnapshot: e.userSnapshot || {},
         date: new Date(tsMs).toISOString().slice(0, 10)
       };
-      var key = eventKey(tsMs + i, eventId);
-      var systemWrite: nkruntime.StorageWriteRequest = {
+      writes.push({
         collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
         key: key,
         userId: Constants.SYSTEM_USER_ID,
         value: record,
         permissionRead: 0 as nkruntime.ReadPermissionValues,
         permissionWrite: 0 as nkruntime.WritePermissionValues
-      };
-      writes.push(systemWrite);
-      if (eventNakama) {
+      });
+      if (recordNakama) {
         writes.push({
           collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
           key: key,
-          userId: eventNakama,
+          userId: recordNakama,
           value: record,
           permissionRead: 2 as nkruntime.ReadPermissionValues,
           permissionWrite: 0 as nkruntime.WritePermissionValues
@@ -196,8 +95,6 @@ namespace OnboardingAnalytics {
       if (e.userSnapshot) lastSnapshot = e.userSnapshot;
       if (e.screen) lastScreen = e.screen;
       lastEvent = e.name;
-      if (eventNakama) nakamaUserId = eventNakama;
-      if (eventCognito) cognitoSub = eventCognito;
     }
 
     if (writes.length > 0) {
@@ -205,7 +102,28 @@ namespace OnboardingAnalytics {
     }
 
     if (lastSnapshot) {
-      writeProfileSnapshots(nk, identityId, nakamaUserId, cognitoSub, lastScreen, lastEvent, lastSnapshot);
+      var profilePayload = {
+        identityId: identityId,
+        userId: nakamaUserId || cognitoSub,
+        cognitoSub: cognitoSub,
+        nakamaUserId: nakamaUserId,
+        updatedAt: Date.now(),
+        lastScreen: lastScreen,
+        lastEvent: lastEvent,
+        snapshot: lastSnapshot
+      };
+      Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(identityId, 64), profilePayload);
+      if (nakamaUserId) {
+        Storage.writeJson(
+          nk,
+          Constants.QV_ONBOARDING_PROFILES_COLLECTION,
+          PROFILE_KEY,
+          nakamaUserId,
+          profilePayload,
+          2 as nkruntime.ReadPermissionValues,
+          0 as nkruntime.WritePermissionValues
+        );
+      }
     }
 
     return captured;
@@ -221,14 +139,10 @@ namespace OnboardingAnalytics {
       return RpcHelpers.errorResponse("events array required");
     }
     var events = data.events.slice(0, MAX_BATCH);
-    var cognitoSub = (data.cognito_sub || data.cognitoSub || data.user_id || data.userId || "").toString() || null;
+    var cognitoSub = (data.user_id || data.userId || "").toString() || null;
     var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
-    if (nakamaUserId && !isLikelyNakamaUuid(nakamaUserId)) nakamaUserId = null;
-    if (cognitoSub && isLikelyNakamaUuid(cognitoSub)) {
-      nakamaUserId = cognitoSub;
-      cognitoSub = null;
-    }
-    var captured = captureEvents(nk, logger, identityId, cognitoSub, nakamaUserId, events);
+    if (nakamaUserId && !isNakamaUuid(nakamaUserId)) nakamaUserId = null;
+    var captured = captureEvents(nk, identityId, cognitoSub, nakamaUserId, events);
     return RpcHelpers.successResponse({
       captured: captured,
       submitted: data.events.length,
@@ -240,66 +154,666 @@ namespace OnboardingAnalytics {
   function rpcIdentityLink(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var data = RpcHelpers.parseRpcPayload(payload);
     var anonId = (data.anon_id || data.anonId || "").toString();
-    var cognitoSub = (data.cognito_sub || data.cognitoSub || data.user_id || data.userId || "").toString();
-    var usernameHint = (data.username || data.email || "").toString();
+    var cognitoSub = (data.user_id || data.userId || "").toString();
+    var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
+    if (nakamaUserId && !isNakamaUuid(nakamaUserId)) nakamaUserId = null;
     if (!anonId || !cognitoSub) {
-      return RpcHelpers.errorResponse("anon_id and user_id (cognito sub) required");
+      return RpcHelpers.errorResponse("anon_id and user_id required");
     }
-    if (isLikelyNakamaUuid(cognitoSub)) {
-      return RpcHelpers.errorResponse("user_id must be cognito sub, not nakama uuid — use nakama_user_id if already known");
-    }
-
-    var nakamaUserId = resolveNakamaUserId(nk, logger, cognitoSub, usernameHint);
-    if (!nakamaUserId) {
-      return RpcHelpers.errorResponse("could not resolve Nakama user for cognito sub");
-    }
-
+    var linkKey = "link_" + sanitizeId(anonId, 80);
     var linkPayload = {
       anonId: anonId,
+      userId: cognitoSub,
       cognitoSub: cognitoSub,
       nakamaUserId: nakamaUserId,
-      userId: nakamaUserId,
       linkedAt: Date.now()
     };
-
-    var anonKey = "link_anon_" + sanitizeId(anonId, 80);
-    var cogKey = "link_cog_" + sanitizeId(cognitoSub, 80);
-    var nakKey = "link_nak_" + sanitizeId(nakamaUserId, 80);
-
-    var existing = Storage.readSystemJson<any>(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, anonKey);
-    if (existing && existing.nakamaUserId === nakamaUserId) {
+    var existing = Storage.readSystemJson<any>(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey);
+    if (existing && existing.userId === cognitoSub && existing.nakamaUserId === nakamaUserId) {
       return RpcHelpers.successResponse({
         linked: true,
         idempotent: true,
         anon_id: anonId,
-        cognito_sub: cognitoSub,
+        user_id: cognitoSub,
         nakama_user_id: nakamaUserId
       });
     }
-
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, anonKey, linkPayload);
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, cogKey, linkPayload);
-    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, nakKey, linkPayload);
-
-    var anonProfile = Storage.readSystemJson<any>(
-      nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(anonId, 64));
-    writePlayerProfile(nk, nakamaUserId, {
-      identityId: anonId,
-      nakamaUserId: nakamaUserId,
-      cognitoSub: cognitoSub,
-      userId: nakamaUserId,
-      linkedAt: Date.now(),
-      lastScreen: anonProfile ? anonProfile.lastScreen : "",
-      lastEvent: anonProfile ? anonProfile.lastEvent : "ob_identity_linked",
-      snapshot: anonProfile ? anonProfile.snapshot : {}
-    });
-
-    logger.info("[OnboardingAnalytics] linked anon=%s cognito=%s → nakama=%s", anonId, cognitoSub, nakamaUserId);
+    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey, linkPayload);
+    Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(anonId, 64), linkPayload);
+    if (nakamaUserId) {
+      Storage.writeJson(
+        nk,
+        Constants.QV_ONBOARDING_PROFILES_COLLECTION,
+        PROFILE_KEY,
+        nakamaUserId,
+        linkPayload,
+        2 as nkruntime.ReadPermissionValues,
+        0 as nkruntime.WritePermissionValues
+      );
+    }
+    logger.info("[OnboardingAnalytics] linked anon=%s cognito=%s nakama=%s", anonId, cognitoSub, nakamaUserId || "none");
     return RpcHelpers.successResponse({
       linked: true,
       anon_id: anonId,
-      cognito_sub: cognitoSub,
+      user_id: cognitoSub,
       nakama_user_id: nakamaUserId
+    });
+  }
+
+  var SCREEN_LABELS: { [screen: string]: string } = {
+    "/onboarding": "Start",
+    "/onboarding/welcome": "Welcome",
+    "/onboarding/world": "Pick Your World",
+    "/onboarding/intent": "Your Goal",
+    "/onboarding/source": "How You Found Us",
+    "/onboarding/name": "Your Name",
+    "/onboarding/age": "Age",
+    "/onboarding/subject": "Subject",
+    "/onboarding/brain-type": "Brain Type",
+    "/onboarding/quiz": "Quick Quiz",
+    "/onboarding/plan": "Choose Plan",
+    "/onboarding/paywall": "Subscription Paywall",
+    "/onboarding/pro": "Pro Upgrade",
+    "/onboarding/pro/closing": "Closing Offer",
+    "/onboarding/congrats": "All Done!",
+    "/onboarding/signup": "Sign Up",
+    "/onboarding/signin": "Sign In",
+    "/onboarding/register": "Register",
+    "/onboarding/newsletter": "Newsletter",
+    "/onboarding/phone": "Phone Verify",
+    "/onboarding/challenge": "Challenge a Friend"
+  };
+
+  var COMPLETION_EVENTS: { [name: string]: boolean } = {
+    "ob_congrats_seen": true,
+    "ob_deeplink_fire": true,
+    "ob_unity_return": true
+  };
+
+  function screenLabel(screen: string): string {
+    if (!screen) return "Unknown";
+    if (SCREEN_LABELS[screen]) return SCREEN_LABELS[screen];
+    var tail = screen.replace(/^\/onboarding\/?/, "");
+    if (!tail) return "Start";
+    return tail.split("/").map(function (part) {
+      return part.replace(/-/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    }).join(" \u203a ");
+  }
+
+  function isCompletionEvent(name: string): boolean {
+    return !!COMPLETION_EVENTS[name];
+  }
+
+  function eventCategory(name: string): string {
+    if (isCompletionEvent(name)) return "completion";
+    if (name === "ob_identity_linked" || name === "ob_register_complete" || name === "ob_verify_complete") return "identity";
+    if (name.indexOf("paywall") >= 0 || name.indexOf("closing_offer") >= 0) return "paywall";
+    if (name === "ob_screen_seen" || name === "ob_screen_exit") return "screen";
+    return "other";
+  }
+
+  function deriveUserStatus(u: any): string {
+    if (u.completed) return "completed";
+    if (u.paywallSubscribe || u.subscribed) return "subscribed";
+    if (u.paywallSeen && !u.completed && !u.paywallSubscribe) return "at_paywall";
+    if (!u.identityLinked && !u.nakamaUserId) return "pre_register";
+    return "dropped";
+  }
+
+  function matchesPlatformFilter(platform: string, filter: string | null): boolean {
+    if (!filter) return true;
+    var p = (platform || "").toLowerCase();
+    if (filter === "unity_webview") return p.indexOf("unity") >= 0;
+    if (filter === "ios_web") return p.indexOf("ios") >= 0;
+    if (filter === "android_web") return p.indexOf("android") >= 0;
+    if (filter === "desktop_web") return p === "web" || p.indexOf("desktop") >= 0;
+    return p.indexOf(filter) >= 0;
+  }
+
+  function sanitizeSnapshot(snap: any): any {
+    if (!snap || typeof snap !== "object") return {};
+    return {
+      pathway: snap.pathway,
+      country: snap.country,
+      platform: snap.platform,
+      age: snap.age,
+      brainCode: snap.brainCode,
+      brainType: snap.brainType,
+      quizScore: snap.quizScore,
+      quizQuestions: snap.quizQuestions,
+      avgAnswerTime: snap.avgAnswerTime,
+      nameSet: snap.nameSet,
+      gamerTag: snap.gamerTag,
+      authProvider: snap.authProvider,
+      signinStatus: snap.signinStatus,
+      verified: snap.verified,
+      phoneVerified: snap.phoneVerified,
+      newsletterOptIn: snap.newsletterOptIn,
+      subscribed: snap.subscribed,
+      selectedPlan: snap.selectedPlan,
+      paywallVariant: snap.paywallVariant,
+      attributionSource: snap.attributionSource,
+      acquisitionCreative: snap.acquisitionCreative,
+      utm_source: snap.utm_source,
+      utm_medium: snap.utm_medium,
+      utm_campaign: snap.utm_campaign,
+      emailDomain: snap.emailDomain,
+      phoneTail: snap.phoneTail,
+      startedAt: snap.startedAt,
+      completedAt: snap.completedAt,
+      elapsedMs: snap.elapsedMs,
+      currentStep: snap.currentStep,
+      intent: snap.intent,
+      motivation: snap.motivation,
+      subject: snap.subject,
+      arena: snap.arena,
+      tier: snap.tier,
+      education: snap.education,
+      dailyGoal: snap.dailyGoal,
+      interests: snap.interests,
+      xp: snap.xp,
+      coins: snap.coins,
+      streak: snap.streak,
+      creatorGoal: snap.creatorGoal,
+      creatorPublished: snap.creatorPublished,
+      closingOfferSeen: snap.closingOfferSeen,
+      closingOfferClaimed: snap.closingOfferClaimed,
+      reviewGiven: snap.reviewGiven
+    };
+  }
+
+  function pushEventFromRecord(rec: any, seen: { [k: string]: boolean }, events: any[]): void {
+    var dedupeKey = (rec.name || "") + "_" + toMs(rec.timestamp) + "_" + (rec.screen || "");
+    if (seen[dedupeKey]) return;
+    seen[dedupeKey] = true;
+    events.push({
+      name: rec.name,
+      screen: rec.screen || "",
+      screenLabel: screenLabel(rec.screen || ""),
+      timestamp: toMs(rec.timestamp),
+      dwellMs: rec.dwellMs || 0,
+      data: rec.data || {},
+      category: eventCategory(rec.name)
+    });
+  }
+
+  function loadEventsFromStorageUser(
+    nk: nkruntime.Nakama,
+    storageUserId: string,
+    seen: { [k: string]: boolean },
+    events: any[]
+  ): void {
+    var cursor = "";
+    for (var p = 0; p < MAX_SCAN_PAGES; p++) {
+      var page = nk.storageList(storageUserId, Constants.QV_ONBOARDING_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+      var objects = (page && page.objects) || [];
+      for (var i = 0; i < objects.length; i++) {
+        var obj = objects[i];
+        if (!obj.value) continue;
+        pushEventFromRecord(obj.value as any, seen, events);
+      }
+      cursor = (page && page.cursor) || "";
+      if (!cursor) break;
+    }
+  }
+
+  function loadEventsFromSystemFilter(
+    nk: nkruntime.Nakama,
+    nakamaUserId: string,
+    guestId: string,
+    seen: { [k: string]: boolean },
+    events: any[],
+    maxPages: number
+  ): void {
+    var cursor = "";
+    for (var p = 0; p < maxPages; p++) {
+      var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.QV_ONBOARDING_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+      var objects = (page && page.objects) || [];
+      for (var i = 0; i < objects.length; i++) {
+        var obj = objects[i];
+        if (!obj.value) continue;
+        var rec = obj.value as any;
+        var match = false;
+        if (nakamaUserId && rec.nakamaUserId === nakamaUserId) match = true;
+        if (!match && guestId && (rec.identityId === guestId || rec.userId === guestId)) match = true;
+        if (!match) continue;
+        pushEventFromRecord(rec, seen, events);
+      }
+      cursor = (page && page.cursor) || "";
+      if (!cursor) break;
+    }
+  }
+
+  function resolveUserKey(rec: any): string {
+    return (rec.nakamaUserId || rec.identityId || rec.userId || "").toString();
+  }
+
+  function scanOnboardingEvents(
+    nk: nkruntime.Nakama,
+    sinceMs: number,
+    untilMs: number,
+    pathwayFilter: string | null,
+    platformFilter: string | null
+  ): { users: { [uid: string]: any }; truncated: boolean } {
+    var users: { [uid: string]: any } = {};
+    var cursor = "";
+    var truncated = false;
+
+    for (var p = 0; p < MAX_SCAN_PAGES; p++) {
+      var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.QV_ONBOARDING_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+      var objects = (page && page.objects) || [];
+      for (var i = 0; i < objects.length; i++) {
+        var obj = objects[i];
+        if (!obj.value) continue;
+        var rec = obj.value as any;
+        var ts = toMs(rec.timestamp);
+        if (ts < sinceMs || ts > untilMs) continue;
+
+        var snap = rec.userSnapshot || {};
+        if (pathwayFilter && snap.pathway && snap.pathway !== pathwayFilter) continue;
+        var plat = snap.platform || rec.platform || "";
+        if (platformFilter && !matchesPlatformFilter(plat, platformFilter)) continue;
+
+        var uid = resolveUserKey(rec);
+        if (!uid) continue;
+
+        if (!users[uid]) {
+          users[uid] = {
+            userId: uid,
+            nakamaUserId: rec.nakamaUserId || "",
+            identityId: rec.identityId || "",
+            cognitoSub: rec.cognitoSub || "",
+            pathway: snap.pathway || "",
+            country: snap.country || "",
+            platform: snap.platform || "",
+            identityLinked: false,
+            started: false,
+            screens: {},
+            eventNames: {},
+            completed: false,
+            paywallSeen: false,
+            paywallSubscribe: false,
+            paywallSkip: false,
+            closingOfferSeen: false,
+            closingOfferClaimed: false,
+            subscribed: !!snap.subscribed,
+            lastScreen: "",
+            lastTs: 0,
+            lastEvent: "",
+            firstTs: ts,
+            eventCount: 0,
+            snapshot: snap
+          };
+        }
+
+        var u = users[uid];
+        u.eventCount++;
+        u.eventNames[rec.name] = (u.eventNames[rec.name] || 0) + 1;
+        if (snap.pathway && !u.pathway) u.pathway = snap.pathway;
+        if (snap.country && !u.country) u.country = snap.country;
+        if (snap.platform && !u.platform) u.platform = snap.platform;
+        if (rec.userSnapshot) u.snapshot = rec.userSnapshot;
+
+        if (rec.nakamaUserId && !u.nakamaUserId) u.nakamaUserId = rec.nakamaUserId;
+        if (rec.identityId && !u.identityId) u.identityId = rec.identityId;
+        if (rec.cognitoSub && !u.cognitoSub) u.cognitoSub = rec.cognitoSub;
+
+        if (isCompletionEvent(rec.name)) u.completed = true;
+        if (rec.name === "ob_identity_linked" || rec.cognitoSub) u.identityLinked = true;
+        if (rec.name === "ob_start" || rec.name === "ob_launch") u.started = true;
+        if (rec.name === "ob_paywall_seen") u.paywallSeen = true;
+        if (rec.name === "ob_paywall_subscribe") { u.paywallSubscribe = true; u.subscribed = true; }
+        if (rec.name === "ob_paywall_skip") u.paywallSkip = true;
+        if (rec.name === "ob_closing_offer_seen") u.closingOfferSeen = true;
+        if (rec.name === "ob_closing_offer_claim") u.closingOfferClaimed = true;
+
+        if (rec.name === "ob_screen_seen" && rec.screen) {
+          if (!u.screens[rec.screen]) {
+            u.screens[rec.screen] = { seen: 0, dwellMs: 0, firstTs: ts };
+          }
+          u.screens[rec.screen].seen++;
+          u.screens[rec.screen].dwellMs += (rec.dwellMs || 0);
+          if (ts < u.screens[rec.screen].firstTs) u.screens[rec.screen].firstTs = ts;
+        }
+        if (rec.name === "ob_screen_exit" && rec.screen) {
+          if (!u.screens[rec.screen]) {
+            u.screens[rec.screen] = { seen: 0, dwellMs: 0, firstTs: ts };
+          }
+          u.screens[rec.screen].dwellMs += (rec.dwellMs || 0);
+        }
+
+        if (ts >= u.lastTs) {
+          u.lastTs = ts;
+          u.lastEvent = rec.name;
+          if (rec.screen) u.lastScreen = rec.screen;
+        }
+      }
+      cursor = (page && page.cursor) || "";
+      if (!cursor) break;
+    }
+    if (cursor) truncated = true;
+    return { users: users, truncated: truncated };
+  }
+
+  function median(values: number[]): number {
+    if (!values.length) return 0;
+    var sorted = values.slice().sort(function (a, b) { return a - b; });
+    var mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  function buildScreenOrder(users: { [uid: string]: any }): string[] {
+    var rankSum: { [screen: string]: { total: number; count: number } } = {};
+    for (var uid in users) {
+      if (!Object.prototype.hasOwnProperty.call(users, uid)) continue;
+      var screens = users[uid].screens || {};
+      var ordered: { screen: string; firstTs: number }[] = [];
+      for (var sc in screens) {
+        if (!Object.prototype.hasOwnProperty.call(screens, sc)) continue;
+        ordered.push({ screen: sc, firstTs: screens[sc].firstTs });
+      }
+      ordered.sort(function (a, b) { return a.firstTs - b.firstTs; });
+      for (var j = 0; j < ordered.length; j++) {
+        var sname = ordered[j].screen;
+        if (!rankSum[sname]) rankSum[sname] = { total: 0, count: 0 };
+        rankSum[sname].total += j;
+        rankSum[sname].count++;
+      }
+    }
+    var screenRanks: { screen: string; avgRank: number }[] = [];
+    for (var s in rankSum) {
+      if (!Object.prototype.hasOwnProperty.call(rankSum, s)) continue;
+      screenRanks.push({ screen: s, avgRank: rankSum[s].total / rankSum[s].count });
+    }
+    screenRanks.sort(function (a, b) { return a.avgRank - b.avgRank; });
+    return screenRanks.map(function (x) { return x.screen; });
+  }
+
+  function rpcOnboardingFunnelAnalytics(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var days = data.days ? parseInt("" + data.days, 10) : 30;
+    if (isNaN(days) || days < 1) days = 30;
+    if (days > 365) days = 365;
+    var sinceMs = data.since_ms || data.sinceMs || (Date.now() - days * 86400000);
+    var untilMs = data.until_ms || data.untilMs || Date.now();
+    var pathwayFilter = data.pathway ? ("" + data.pathway) : null;
+    var platformFilter = data.platform ? ("" + data.platform) : null;
+    var statusFilter = data.status ? ("" + data.status) : null;
+    var userLimit = data.user_limit || data.userLimit || 500;
+    if (userLimit > 1000) userLimit = 1000;
+
+    var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
+    var usersMap = scan.users;
+    var screenOrder = buildScreenOrder(usersMap);
+
+    var totalUsers = countKeys(usersMap);
+    var completedCount = 0;
+    var paywallSeen = 0;
+    var paywallSubscribe = 0;
+    var paywallSkip = 0;
+    var paywallDrop = 0;
+    var durationSamples: number[] = [];
+    var pathwayCounts: { [pathway: string]: { users: number; completed: number } } = {};
+
+    var screenAgg: { [screen: string]: { users: { [uid: string]: boolean }; dwellMs: number; dwellCount: number; exits: number } } = {};
+    var dropMap: { [screen: string]: number } = {};
+
+    for (var uid2 in usersMap) {
+      if (!Object.prototype.hasOwnProperty.call(usersMap, uid2)) continue;
+      var u = usersMap[uid2];
+      if (u.completed) completedCount++;
+      if (u.paywallSeen) paywallSeen++;
+      if (u.paywallSubscribe) paywallSubscribe++;
+      if (u.paywallSkip) paywallSkip++;
+      if (u.paywallSeen && !u.paywallSubscribe && !u.completed && !u.paywallSkip) paywallDrop++;
+
+      var elapsed = (u.snapshot && u.snapshot.elapsedMs) ? u.snapshot.elapsedMs : (u.lastTs - u.firstTs);
+      if (elapsed > 0) durationSamples.push(elapsed);
+
+      var pw = u.pathway || "unknown";
+      if (!pathwayCounts[pw]) pathwayCounts[pw] = { users: 0, completed: 0 };
+      pathwayCounts[pw].users++;
+      if (u.completed) pathwayCounts[pw].completed++;
+
+      for (var sc2 in u.screens) {
+        if (!Object.prototype.hasOwnProperty.call(u.screens, sc2)) continue;
+        if (!screenAgg[sc2]) screenAgg[sc2] = { users: {}, dwellMs: 0, dwellCount: 0, exits: 0 };
+        screenAgg[sc2].users[uid2] = true;
+        var sd = u.screens[sc2];
+        if (sd.dwellMs > 0) {
+          screenAgg[sc2].dwellMs += sd.dwellMs;
+          screenAgg[sc2].dwellCount++;
+        }
+      }
+
+      if (!u.completed && u.lastScreen) {
+        dropMap[u.lastScreen] = (dropMap[u.lastScreen] || 0) + 1;
+        if (screenAgg[u.lastScreen]) screenAgg[u.lastScreen].exits++;
+      }
+    }
+
+    var screenFunnel: any[] = [];
+    var seenInOrder: { [screen: string]: boolean } = {};
+    var orderList = screenOrder.slice();
+    for (var sc3 in screenAgg) {
+      if (!Object.prototype.hasOwnProperty.call(screenAgg, sc3)) continue;
+      if (orderList.indexOf(sc3) < 0) orderList.push(sc3);
+    }
+    for (var oi = 0; oi < orderList.length; oi++) {
+      var screen = orderList[oi];
+      if (!screenAgg[screen]) continue;
+      seenInOrder[screen] = true;
+      var agg = screenAgg[screen];
+      var userCount = countKeys(agg.users);
+      screenFunnel.push({
+        screen: screen,
+        label: screenLabel(screen),
+        users: userCount,
+        pctOfStart: totalUsers > 0 ? Math.round((userCount / totalUsers) * 1000) / 10 : 0,
+        avgDwellSec: agg.dwellCount > 0 ? Math.round((agg.dwellMs / agg.dwellCount) / 100) / 10 : 0,
+        exits: agg.exits || 0,
+        dropCount: dropMap[screen] || 0
+      });
+    }
+
+    var dropoffHotspots: any[] = [];
+    for (var ds in dropMap) {
+      if (!Object.prototype.hasOwnProperty.call(dropMap, ds)) continue;
+      dropoffHotspots.push({
+        screen: ds,
+        label: screenLabel(ds),
+        users: dropMap[ds],
+        pctOfIncomplete: (totalUsers - completedCount) > 0
+          ? Math.round((dropMap[ds] / (totalUsers - completedCount)) * 1000) / 10
+          : 0
+      });
+    }
+    dropoffHotspots.sort(function (a, b) { return b.users - a.users; });
+    var topDropScreens: { [screen: string]: number } = {};
+    for (var td = 0; td < dropoffHotspots.length && td < 3; td++) {
+      topDropScreens[dropoffHotspots[td].screen] = td + 1;
+    }
+    for (var sf = 0; sf < screenFunnel.length; sf++) {
+      var rank = topDropScreens[screenFunnel[sf].screen];
+      if (rank) screenFunnel[sf].topDropRank = rank;
+    }
+
+    var pathways: any[] = [];
+    for (var pk in pathwayCounts) {
+      if (!Object.prototype.hasOwnProperty.call(pathwayCounts, pk)) continue;
+      var pc = pathwayCounts[pk];
+      pathways.push({
+        pathway: pk,
+        users: pc.users,
+        completed: pc.completed,
+        completionRatePct: pc.users > 0 ? Math.round((pc.completed / pc.users) * 1000) / 10 : 0
+      });
+    }
+    pathways.sort(function (a, b) { return b.users - a.users; });
+
+    var userRows: any[] = [];
+    for (var uid3 in usersMap) {
+      if (!Object.prototype.hasOwnProperty.call(usersMap, uid3)) continue;
+      var ur = usersMap[uid3];
+      var status = deriveUserStatus(ur);
+      if (statusFilter && status !== statusFilter) continue;
+      var startedAt = (ur.snapshot && ur.snapshot.startedAt) ? ur.snapshot.startedAt : null;
+      userRows.push({
+        nakamaUserId: ur.nakamaUserId || "",
+        guestId: ur.identityId || "",
+        cognitoSub: ur.cognitoSub || "",
+        pathway: ur.pathway || "",
+        country: ur.country || "",
+        platform: ur.platform || "",
+        lastScreen: ur.lastScreen,
+        lastScreenLabel: screenLabel(ur.lastScreen),
+        lastEvent: ur.lastEvent,
+        status: status,
+        completed: ur.completed,
+        subscribed: ur.subscribed,
+        paywallSeen: ur.paywallSeen,
+        paywallSubscribe: ur.paywallSubscribe,
+        paywallSkip: ur.paywallSkip,
+        identityLinked: ur.identityLinked,
+        eventCount: ur.eventCount,
+        firstTs: ur.firstTs,
+        lastTs: ur.lastTs,
+        startedAt: startedAt,
+        durationMs: (ur.snapshot && ur.snapshot.elapsedMs) ? ur.snapshot.elapsedMs : Math.max(0, ur.lastTs - ur.firstTs)
+      });
+    }
+    userRows.sort(function (a, b) { return (b.lastTs || 0) - (a.lastTs || 0); });
+    var totalUsersFiltered = userRows.length;
+    userRows = userRows.slice(0, userLimit);
+
+    return RpcHelpers.successResponse({
+      sinceMs: sinceMs,
+      untilMs: untilMs,
+      days: days,
+      pathway: pathwayFilter,
+      platform: platformFilter,
+      status: statusFilter,
+      truncated: scan.truncated,
+      summary: {
+        totalUsers: totalUsers,
+        started: totalUsers,
+        completed: completedCount,
+        completionRatePct: totalUsers > 0 ? Math.round((completedCount / totalUsers) * 1000) / 10 : 0,
+        medianDurationMin: durationSamples.length > 0
+          ? Math.round((median(durationSamples) / 60000) * 10) / 10
+          : 0
+      },
+      paywall: {
+        seen: paywallSeen,
+        seenPctOfStart: totalUsers > 0 ? Math.round((paywallSeen / totalUsers) * 1000) / 10 : 0,
+        subscribed: paywallSubscribe,
+        skipped: paywallSkip,
+        dropOff: paywallDrop,
+        subscribeRatePct: paywallSeen > 0 ? Math.round((paywallSubscribe / paywallSeen) * 1000) / 10 : 0,
+        skipRatePct: paywallSeen > 0 ? Math.round((paywallSkip / paywallSeen) * 1000) / 10 : 0
+      },
+      screenFunnel: screenFunnel,
+      dropoffHotspots: dropoffHotspots.slice(0, 15),
+      pathways: pathways,
+      users: userRows,
+      usersTotal: totalUsersFiltered
+    });
+  }
+
+  function loadEventsForUser(nk: nkruntime.Nakama, nakamaUserId: string, guestId: string): any[] {
+    var events: any[] = [];
+    var seen: { [k: string]: boolean } = {};
+
+    // Fast path: all post-register events live under the player's storage user (see Nakama console)
+    if (nakamaUserId) {
+      loadEventsFromStorageUser(nk, nakamaUserId, seen, events);
+    }
+
+    // Pre-register / guest-only events are only in the system lake — merge by identityId
+    if (guestId) {
+      loadEventsFromSystemFilter(nk, nakamaUserId, guestId, seen, events, 80);
+    } else if (!nakamaUserId) {
+      loadEventsFromSystemFilter(nk, "", guestId, seen, events, MAX_SCAN_PAGES);
+    }
+
+    events.sort(function (a, b) { return a.timestamp - b.timestamp; });
+    return events;
+  }
+
+  function rpcOnboardingUserJourney(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString();
+    var guestId = (data.guest_id || data.guestId || data.identity_id || data.identityId || "").toString();
+    if (!nakamaUserId && !guestId) {
+      return RpcHelpers.errorResponse("nakama_user_id or guest_id required");
+    }
+
+    var profile: any = null;
+    if (nakamaUserId) {
+      try {
+        var profReads = nk.storageRead([{
+          collection: Constants.QV_ONBOARDING_PROFILES_COLLECTION,
+          key: PROFILE_KEY,
+          userId: nakamaUserId
+        }]);
+        if (profReads && profReads.length > 0) profile = profReads[0].value;
+      } catch (e) { /* ignore */ }
+    }
+    if (!profile && guestId) {
+      try {
+        var sysProf = Storage.readSystemJson<any>(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(guestId, 64));
+        if (sysProf) profile = sysProf;
+      } catch (e2) { /* ignore */ }
+    }
+
+    var resolvedGuestId = guestId || (profile && profile.identityId) || "";
+    var events = loadEventsForUser(nk, nakamaUserId, resolvedGuestId);
+
+    var snap = profile && profile.snapshot ? sanitizeSnapshot(profile.snapshot) : {};
+    var startedAt = snap.startedAt || (events.length ? events[0].timestamp : null);
+    var lastTs = events.length ? events[events.length - 1].timestamp : (profile && profile.updatedAt ? profile.updatedAt : null);
+    var journeyUser = {
+      completed: false,
+      paywallSeen: false,
+      paywallSubscribe: false,
+      paywallSkip: false,
+      subscribed: !!snap.subscribed,
+      identityLinked: !!profile && !!(profile.cognitoSub || profile.nakamaUserId),
+      nakamaUserId: nakamaUserId || (profile && profile.nakamaUserId) || ""
+    };
+    for (var ei = 0; ei < events.length; ei++) {
+      var en = events[ei].name;
+      if (isCompletionEvent(en)) journeyUser.completed = true;
+      if (en === "ob_paywall_seen") journeyUser.paywallSeen = true;
+      if (en === "ob_paywall_subscribe") { journeyUser.paywallSubscribe = true; journeyUser.subscribed = true; }
+      if (en === "ob_paywall_skip") journeyUser.paywallSkip = true;
+      if (en === "ob_identity_linked") journeyUser.identityLinked = true;
+    }
+    if (!journeyUser.identityLinked && guestId && !nakamaUserId) journeyUser.identityLinked = false;
+
+    return RpcHelpers.successResponse({
+      nakamaUserId: nakamaUserId || null,
+      guestId: guestId || (profile && profile.identityId) || null,
+      cognitoSub: (profile && profile.cognitoSub) || null,
+      status: deriveUserStatus(journeyUser),
+      eventCount: events.length,
+      events: events,
+      profile: profile ? {
+        lastScreen: profile.lastScreen || "",
+        lastEvent: profile.lastEvent || "",
+        pathway: snap.pathway || "",
+        platform: snap.platform || "",
+        country: snap.country || "",
+        identityId: profile.identityId || resolvedGuestId || "",
+        updatedAt: profile.updatedAt || null,
+        snapshot: snap
+      } : null,
+      startedAt: startedAt,
+      lastSeenAt: lastTs,
+      durationMs: snap.elapsedMs || (startedAt && lastTs ? Math.max(0, lastTs - toMs(startedAt)) : 0),
+      playerScopedEvents: !!nakamaUserId && events.length > 0
     });
   }
 
@@ -334,7 +848,7 @@ namespace OnboardingAnalytics {
         if (ts < sinceMs || ts > untilMs) continue;
         if (pathwayFilter && rec.userSnapshot && rec.userSnapshot.pathway !== pathwayFilter) continue;
 
-        var uid = rec.nakamaUserId || rec.userId || rec.identityId;
+        var uid = rec.userId || rec.identityId;
         if (!uid) continue;
 
         if (!userState[uid]) {
@@ -395,5 +909,7 @@ namespace OnboardingAnalytics {
     initializer.registerRpc("onboarding_events_batch", rpcEventsBatch);
     initializer.registerRpc("onboarding_identity_link", rpcIdentityLink);
     initializer.registerRpc("onboarding_funnel_screens", rpcFunnelScreens);
+    initializer.registerRpc("onboarding_funnel_analytics", rpcOnboardingFunnelAnalytics);
+    initializer.registerRpc("onboarding_user_journey", rpcOnboardingUserJourney);
   }
 }

@@ -129,6 +129,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Explainer video consumables (qv_entitlements / consumables) ----
+  try {
+    QvExplainerVideos.register(initializer);
+    logger.info("[QvExplainerVideos] quizverse_videos_status/consume/grant registered");
+  } catch (err: any) {
+    logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");

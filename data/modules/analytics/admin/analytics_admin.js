@@ -2,6 +2,7 @@
 //
 // Registers:
 //   - admin_login              : bcrypt login, mints a Nakama session with admin role.
+//   - admin_session_bootstrap  : dashboard_secret login for silent auto-auth (no password).
 //   - admin_diagnose_env       : returns which required env vars are present on the running container.
 //   - dashboard_events_timeline: admin-gated, reads analytics_events without relying on Satori.
 //   - dashboard_storage_list   : admin-gated, lists objects in any storage collection.
@@ -43,8 +44,8 @@ var AA_SESSION_TTL_SEC = 12 * 60 * 60; // 12 hours
 // new values here, then `git push`. Or patch the k8s Secret with the same
 // keys (env wins over the hardcoded constants for any single key).
 var AA_FALLBACK_ADMIN_USERNAME      = "ivx-admin";
-var AA_FALLBACK_ADMIN_PASSWORD      = "bLxIgt83GIZ55kAK";
-var AA_FALLBACK_ADMIN_PASSWORD_HASH = "$2b$12$lWkKQoDKGN7fI8zL5PMxYeBSdD./TtXJ37veFxoZqoBMzVPY4KTqS";
+var AA_FALLBACK_ADMIN_PASSWORD      = "e200d2640355cdb433f72e9c4e034ee0b2c13bae";
+var AA_FALLBACK_ADMIN_PASSWORD_HASH = "$2b$12$ovKoUnhPwGIo2YFlkW.sSuYz0UimEGkLhd7Msz6RyyUUyZBJDPdOC";
 var AA_FALLBACK_DASHBOARD_SECRET    = "2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8";
 
 // Slug→UUID alias for legacy ingestion ("quizverse" → "126bf539-...").
@@ -243,56 +244,12 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
         return aaErr("Invalid credentials", 401);
     }
 
-    // Ensure an admin user exists and authenticate to generate a session token.
-    var customId = "admin:" + expectedUser;
-    var authResult;
-    try {
-        authResult = nk.authenticateCustom(customId, customId, true);
-    } catch (e) {
-        logger.error("[analytics_admin] authenticateCustom failed: " + e.message);
-        return aaErr("Failed to mint admin session: " + e.message, 500);
+    var minted = aaMintAdminSession(ctx, logger, nk, expectedUser);
+    if (!minted.ok) {
+        return aaErr(minted.error || "Failed to mint admin session", minted.code || 500);
     }
 
-    var userId = (authResult && (authResult.userId || authResult.user_id)) || null;
-    if (!userId) {
-        return aaErr("Admin session mint returned no userId", 500);
-    }
-
-    var now = Math.floor(Date.now() / 1000);
-    var expiresAt = now + AA_SESSION_TTL_SEC;
-
-    // Persist admin marker (for aaIsAdminUser on subsequent RPCs).
-    try {
-        nk.storageWrite([{
-            collection: AA_ADMIN_USERS_COLLECTION,
-            key: "profile",
-            userId: userId,
-            value: {
-                username: expectedUser,
-                isAdmin: true,
-                role: "admin",
-                loginAt: now,
-                expiresAt: expiresAt
-            },
-            permissionRead: 0,
-            permissionWrite: 0
-        }]);
-    } catch (e) {
-        logger.error("[analytics_admin] failed to write admin profile: " + e.message);
-        return aaErr("Failed to persist admin profile: " + e.message, 500);
-    }
-
-    // Mint a session token bound to the admin user. expiresAt is seconds since epoch.
-    var token;
-    try {
-        var tokenResult = nk.authenticateTokenGenerate(userId, customId, expiresAt, { role: "admin" });
-        token = tokenResult && (tokenResult.token || tokenResult.Token);
-    } catch (e) {
-        logger.error("[analytics_admin] authenticateTokenGenerate failed: " + e.message);
-        return aaErr("Failed to generate admin token: " + e.message, 500);
-    }
-
-    logger.info("[analytics_admin] admin_login ok user=" + expectedUser + " userId=" + userId);
+    logger.info("[analytics_admin] admin_login ok user=" + expectedUser + " userId=" + minted.userId);
 
     // Auto-drain piggyback: opening the dashboard kicks one debounced tick
     // of the historical-backfill state machine. Especially useful right
@@ -313,11 +270,108 @@ function rpcAdminLogin(ctx, logger, nk, payload) {
     } catch (e) { /* swallow */ }
 
     return aaOk({
-        token: token,
-        userId: userId,
+        token: minted.token,
+        userId: minted.userId,
         username: expectedUser,
         role: "admin",
-        expiresAt: expiresAt,
+        expiresAt: minted.expiresAt,
+        expiresInSeconds: AA_SESSION_TTL_SEC
+    });
+}
+
+/**
+ * Mint a Nakama admin session token for the configured admin user.
+ * Shared by admin_login (after password check) and admin_session_bootstrap.
+ */
+function aaMintAdminSession(ctx, logger, nk, expectedUser) {
+    var customId = "admin:" + expectedUser;
+    var authResult;
+    try {
+        authResult = nk.authenticateCustom(customId, customId, true);
+    } catch (e) {
+        logger.error("[analytics_admin] authenticateCustom failed: " + e.message);
+        return { ok: false, error: "Failed to mint admin session: " + e.message, code: 500 };
+    }
+
+    var userId = (authResult && (authResult.userId || authResult.user_id)) || null;
+    if (!userId) {
+        return { ok: false, error: "Admin session mint returned no userId", code: 500 };
+    }
+
+    var now = Math.floor(Date.now() / 1000);
+    var expiresAt = now + AA_SESSION_TTL_SEC;
+
+    try {
+        nk.storageWrite([{
+            collection: AA_ADMIN_USERS_COLLECTION,
+            key: "profile",
+            userId: userId,
+            value: {
+                username: expectedUser,
+                isAdmin: true,
+                role: "admin",
+                loginAt: now,
+                expiresAt: expiresAt
+            },
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        logger.error("[analytics_admin] failed to write admin profile: " + e.message);
+        return { ok: false, error: "Failed to persist admin profile: " + e.message, code: 500 };
+    }
+
+    var token;
+    try {
+        var tokenResult = nk.authenticateTokenGenerate(userId, customId, expiresAt, { role: "admin" });
+        token = tokenResult && (tokenResult.token || tokenResult.Token);
+    } catch (e) {
+        logger.error("[analytics_admin] authenticateTokenGenerate failed: " + e.message);
+        return { ok: false, error: "Failed to generate admin token: " + e.message, code: 500 };
+    }
+
+    if (!token) {
+        return { ok: false, error: "Failed to generate admin token", code: 500 };
+    }
+
+    return { ok: true, token: token, userId: userId, expiresAt: expiresAt };
+}
+
+// ─── RPC: admin_session_bootstrap ─────────────────────────
+//
+// Silent auto-login for the analytics dashboard. Validates DASHBOARD_SECRET
+// (same secret analytics_cron uses) and mints an admin session without a
+// password. Called anonymously with http_key from the deployed dashboard HTML.
+// Skips backfill/segment piggybacks so page load stays fast.
+function rpcAdminSessionBootstrap(ctx, logger, nk, payload) {
+    var data = aaParse(payload);
+    var configuredSecret = aaEnv(ctx, "DASHBOARD_SECRET");
+    if (!configuredSecret) {
+        logger.error("[analytics_admin] admin_session_bootstrap: DASHBOARD_SECRET not configured");
+        return aaErr("Bootstrap not configured on server", 503);
+    }
+    if (!data.dashboard_secret || String(data.dashboard_secret) !== configuredSecret) {
+        return aaErr("Invalid bootstrap credentials", 401);
+    }
+
+    var expectedUser = aaEnv(ctx, "ADMIN_USERNAME");
+    if (!expectedUser) {
+        return aaErr("Admin not configured on server", 503);
+    }
+
+    var minted = aaMintAdminSession(ctx, logger, nk, expectedUser);
+    if (!minted.ok) {
+        return aaErr(minted.error || "Failed to mint admin session", minted.code || 500);
+    }
+
+    logger.info("[analytics_admin] admin_session_bootstrap ok user=" + expectedUser + " userId=" + minted.userId);
+
+    return aaOk({
+        token: minted.token,
+        userId: minted.userId,
+        username: expectedUser,
+        role: "admin",
+        expiresAt: minted.expiresAt,
         expiresInSeconds: AA_SESSION_TTL_SEC
     });
 }
@@ -707,9 +761,10 @@ function rpcDashboardStorageList(ctx, logger, nk, payload) {
 
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("admin_login", rpcAdminLogin);
+    initializer.registerRpc("admin_session_bootstrap", rpcAdminSessionBootstrap);
     initializer.registerRpc("admin_diagnose_env", rpcAdminDiagnoseEnv);
     initializer.registerRpc("analytics_creds_check", rpcAnalyticsCredsCheck);
     initializer.registerRpc("dashboard_events_timeline", rpcDashboardEventsTimeline);
     initializer.registerRpc("dashboard_storage_list", rpcDashboardStorageList);
-    logger.info("[analytics_admin] Module registered: 5 RPCs (admin_login, admin_diagnose_env, analytics_creds_check, dashboard_events_timeline, dashboard_storage_list)");
+    logger.info("[analytics_admin] Module registered: 6 RPCs (admin_login, admin_session_bootstrap, admin_diagnose_env, analytics_creds_check, dashboard_events_timeline, dashboard_storage_list)");
 }
