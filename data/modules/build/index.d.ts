@@ -661,6 +661,9 @@ declare namespace QuizVerseGenerator {
     function registerNk(nk: nkruntime.Nakama): void;
     function buildAll(): MpKernelSyncTurn.IGenerator[];
 }
+declare namespace QuizVerseGrowthSnapshot {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QuizVersePlugin {
     var RPC_CREATE_MATCH: string;
     var RPC_LOAD_PACK: string;
@@ -700,6 +703,9 @@ declare namespace QuizVersePackStore {
     var COLLECTION: string;
     function readPack(nk: nkruntime.Nakama, packId: string): QuizVerseGame.IPack;
     function writePack(nk: nkruntime.Nakama, pack: QuizVerseGame.IPack): void;
+}
+declare namespace QuizVerseProductMetrics {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace QuizVerseGame {
     var Op: {
@@ -3048,6 +3054,9 @@ declare namespace MpVoiceLiveKit {
     function urlFor(cfg: IConfig, region: string): string;
     function makeMinter(cfg: IConfig, b64url: (s: string) => string, hmacSha256: (key: string, msg: string) => string): MpKernelVoice.ITokenMinter;
 }
+declare namespace OnboardingAnalytics {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace BrainCoins {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3315,6 +3324,10 @@ declare namespace QuestEngine {
     export {};
 }
 declare namespace QvAgent {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace Research {
+    var MODULE_VERSION: string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace AnalyticsAlerts {
@@ -3629,6 +3642,9 @@ declare namespace Constants {
     const ADMIN_AUDIT_COLLECTION = "admin_audit_events";
     const PLAYER_METADATA_COLLECTION = "player_metadata";
     const PUSH_TOKENS_COLLECTION = "push_tokens";
+    const QV_ONBOARDING_EVENTS_COLLECTION = "qv_onboarding_events";
+    const QV_ONBOARDING_IDENTITY_COLLECTION = "qv_onboarding_identity";
+    const QV_ONBOARDING_PROFILES_COLLECTION = "qv_onboarding_profiles";
 }
 declare namespace EventBus {
     type EventHandler = (nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, data: any) => void;

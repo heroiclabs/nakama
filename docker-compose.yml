@@ -56,6 +56,7 @@ services:
           SLACK_OPS_WEBHOOK_URL
           DISCORD_QV_OPS_WEBHOOK_URL DISCORD_NAKAMA_WEBHOOK_URL
           IVX_AI_SVC_BASE_URL IVX_INSIGHTS_SHARED_SECRET IVX_INSIGHTS_BUCKET_MS
+          QUIZVERSE_N8N_BASE_URL QUIZVERSE_ADMIN_API_TOKEN
         "
         RUNTIME_ENV_FLAGS=""
         for k in $$RUNTIME_ENV_KEYS; do
@@ -152,6 +153,9 @@ services:
       - IVX_AI_SVC_BASE_URL=${IVX_AI_SVC_BASE_URL:-}
       - IVX_INSIGHTS_SHARED_SECRET=${IVX_INSIGHTS_SHARED_SECRET:-}
       - IVX_INSIGHTS_BUCKET_MS=${IVX_INSIGHTS_BUCKET_MS:-}
+      # QuizVerse CRM product telemetry (WF-09 via quizverse_product_metrics RPC)
+      - QUIZVERSE_N8N_BASE_URL=${QUIZVERSE_N8N_BASE_URL:-}
+      - QUIZVERSE_ADMIN_API_TOKEN=${QUIZVERSE_ADMIN_API_TOKEN:-}
       # Geo-aware quiz uses iTunes RSS and Deezer API — both free, no key needed
     volumes:
       - ./:/nakama/data

@@ -822,6 +822,27 @@ namespace LegacyPush {
       ar: "{count} مفاهيم جاهزة — رسّخها في ذاكرتك بعيدة المدى.",
       id: "{count} konsep siap diulang — tanamkan ke memori jangka panjang.",
       zu: "Ama-concept angu-{count} akulindele — wagxilise enkumbulweni yesikhathi eside."
+    },
+    // ── Research survey invite (server-triggered campaign; $100 gift-card draw) ──
+    survey_invite_title: {
+      en: "📣 2-min survey — win $100!",   hi: "📣 2 मिनट का सर्वे — $100 जीतें!",   es: "📣 Encuesta de 2 min — ¡gana $100!",   fr: "📣 Sondage 2 min — gagnez 100 $ !",
+      de: "📣 2-Min-Umfrage — 100 $ gewinnen!", pt: "📣 Pesquisa de 2 min — ganhe $100!", ru: "📣 Опрос 2 мин — выиграй $100!",  ja: "📣 2分アンケート — $100が当たる！",
+      ko: "📣 2분 설문 — $100 당첨 기회!",  "zh-Hans": "📣 2分钟问卷 — 赢取$100！",   ar: "📣 استبيان دقيقتين — اربح 100$!",  id: "📣 Survei 2 menit — menangkan $100!", zu: "📣 Inhlolovo yemizuzu emi-2 — wina u-$100!"
+    },
+    survey_invite_body: {
+      en: "Tell us what you think of our new AI study tool. Finish for a chance to win one of several $100 gift cards!",
+      hi: "हमारे नए AI स्टडी टूल के बारे में अपनी राय दें। पूरा करें और कई $100 गिफ्ट कार्ड में से एक जीतने का मौका पाएं!",
+      es: "Cuéntanos qué opinas de nuestra nueva herramienta de estudio con IA. Termínala y participa por una de varias tarjetas de $100.",
+      fr: "Donnez votre avis sur notre nouvel outil d'étude IA. Terminez pour tenter de gagner l'une des cartes-cadeaux de 100 $ !",
+      de: "Sag uns deine Meinung zu unserem neuen KI-Lerntool. Abschließen und eine von mehreren 100-$-Geschenkkarten gewinnen!",
+      pt: "Diga o que acha da nossa nova ferramenta de estudo com IA. Conclua e concorra a um de vários vales de $100!",
+      ru: "Поделитесь мнением о нашем новом ИИ-помощнике для учёбы. Пройдите опрос и выиграйте одну из карт на $100!",
+      ja: "新しいAI学習ツールについて教えてください。完了で複数の$100ギフトカードのいずれかが当たるチャンス！",
+      ko: "새 AI 학습 도구에 대한 의견을 들려주세요. 완료하면 여러 장의 $100 기프트카드 중 하나에 당첨될 기회!",
+      "zh-Hans": "告诉我们你对全新 AI 学习工具的看法。完成问卷即有机会赢取多张 $100 礼品卡之一！",
+      ar: "أخبرنا برأيك في أداة الدراسة الذكية الجديدة. أكمل الاستبيان لدخول سحب إحدى بطاقات الهدايا بقيمة 100$!",
+      id: "Beri tahu pendapatmu tentang alat belajar AI baru kami. Selesaikan untuk berkesempatan menang satu dari beberapa kartu hadiah $100!",
+      zu: "Sitshele ukuthi ucabangani ngethuluzi lethu elisha le-AI lokufunda. Qedela ukuze uthole ithuba lokuwina elinye lamakhadi esipho angu-$100!"
     }
   };
 
@@ -1203,6 +1224,96 @@ namespace LegacyPush {
       if (users.length < batch) break;
     }
     return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: pickQuizTopic(quiz, "en") });
+  }
+
+  // ─── 1b. Research survey-invite push (server-triggered campaign) ────────────
+  // Drives the customer-discovery survey (quizverse_research_survey_submit) to
+  // the opted-in install base via APNs/FCM. Admin/http_key only (no ctx.userId).
+  // Payload: {
+  //   dry_run?:  boolean  — count reachable users WITHOUT sending (reach probe)
+  //   locale?:   string   — only push to users whose resolved locale matches
+  //   max?:      number   — stop after this many successful sends (throttle)
+  //   campaign?: string   — once-per-user marker key (default "survey_2026_06")
+  //   skip_quiet_hours?: boolean — bypass the 22:00–08:00 local quiet window
+  // }
+  function rpcNotifCronSurveyPush(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
+    var data = RpcHelpers.parseRpcPayload(payload) || {};
+    var dryRun = data.dry_run === true;
+    var localeFilter = data.locale ? normalizeLocale(String(data.locale)) : "";
+    var maxSends = (typeof data.max === "number" && data.max > 0) ? data.max : 0;
+    var campaign = String(data.campaign || "survey_2026_06");
+    var skipQuiet = data.skip_quiet_hours === true;
+    var surveyUrl = "https://quizverse.world/app?survey=push&utm_source=push&utm_medium=app&utm_campaign=survey500";
+
+    // ── Fast reach probe (count_only) ─────────────────────────────────────
+    // Answers "how many can we reach?" with a single indexed SQL COUNT rather
+    // than paging the whole opted-in base. The per-user dry_run below does 2
+    // storage reads/user, which CANNOT return within the HTTP gateway window
+    // against a five-figure base (it 502/504s). count_only short-circuits
+    // before any per-user work and returns instantly.
+    if (data.count_only === true) {
+      var optedInTotal = 0, optedInEn = 0;
+      try {
+        var rc1: any = nk.sqlQuery(
+          "SELECT count(DISTINCT user_id) AS c FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000'",
+          [Constants.PUSH_TOKENS_COLLECTION]);
+        if (rc1 && rc1.length) optedInTotal = Number(rc1[0].c || 0);
+      } catch (e1) {}
+      try {
+        var rc2: any = nk.sqlQuery(
+          "SELECT count(DISTINCT s.user_id) AS c FROM storage s JOIN users u ON u.id = s.user_id WHERE s.collection = $1 AND s.user_id <> '00000000-0000-0000-0000-000000000000' AND u.lang_tag ILIKE 'en%'",
+          [Constants.PUSH_TOKENS_COLLECTION]);
+        if (rc2 && rc2.length) optedInEn = Number(rc2[0].c || 0);
+      } catch (e2) {}
+      return RpcHelpers.successResponse({
+        count_only: true, campaign: campaign,
+        opted_in_total: optedInTotal, opted_in_en: optedInEn
+      });
+    }
+
+    // Per-user path (dry_run sample or live send). scan_limit bounds the scan
+    // so it always returns inside the gateway window; dry_run defaults to a
+    // bounded sample (pass scan_limit:0 to force a full, slow scan).
+    var scanLimit = (typeof data.scan_limit === "number" && data.scan_limit >= 0)
+      ? data.scan_limit
+      : (dryRun ? 5000 : 0);
+
+    var sent = 0, gated = 0, scanned = 0, eligible = 0, alreadyDone = 0, localeSkipped = 0;
+    var truncated = false;
+    var batch = 100, offset = 0;
+    while (true) {
+      var users = listOptedInUsers(nk, batch, offset);
+      if (!users || users.length === 0) break;
+      for (var i = 0; i < users.length; i++) {
+        if (scanLimit > 0 && scanned >= scanLimit) { truncated = true; break; }
+        scanned++;
+        var u = users[i];
+        if (localeFilter && getUserLocale(nk, u) !== localeFilter) { localeSkipped++; continue; }
+        if (hasMarker(nk, u, "survey_invite", campaign)) { alreadyDone++; continue; }
+        eligible++;
+        if (dryRun) continue;
+        if (maxSends > 0 && sent >= maxSends) {
+          return RpcHelpers.successResponse({
+            dry_run: false, campaign: campaign, capped: true, truncated: truncated,
+            scan_limit: scanLimit, sent: sent, gated: gated, scanned: scanned,
+            eligible: eligible, already_done: alreadyDone, locale_skipped: localeSkipped
+          });
+        }
+        var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "survey_invite",
+          "survey_invite_title", "survey_invite_body", {},
+          { skipQuietHours: skipQuiet, data: { screen: "survey", url: surveyUrl } });
+        if (ok) { recordMarker(nk, u, "survey_invite", campaign); sent++; } else { gated++; }
+      }
+      if (truncated) break;
+      offset += batch;
+      if (users.length < batch) break;
+    }
+    return RpcHelpers.successResponse({
+      dry_run: dryRun, campaign: campaign, truncated: truncated, scan_limit: scanLimit,
+      sent: sent, gated: gated, scanned: scanned, eligible: eligible,
+      already_done: alreadyDone, locale_skipped: localeSkipped
+    });
   }
 
   // ─── 2. Weekly quiz cron (read 5 types × 13 langs daily, push only on diff) ─
@@ -1768,6 +1879,7 @@ namespace LegacyPush {
     initializer.registerRpc("push_flush_pending", rpcPushFlushPending);
     // Notification broadcaster — admin/server-key callers only (no userId in ctx).
     initializer.registerRpc("notif_cron_daily_quiz", rpcNotifCronDailyQuiz);
+    initializer.registerRpc("notif_cron_survey_push", rpcNotifCronSurveyPush);
     initializer.registerRpc("notif_cron_weekly_quiz", rpcNotifCronWeeklyQuiz);
     initializer.registerRpc("notif_cron_idle_winback", rpcNotifCronIdleWinback);
     initializer.registerRpc("notif_cron_streak_warning", rpcNotifCronStreakWarning);

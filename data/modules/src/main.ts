@@ -104,6 +104,23 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[LiveBanner] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- QuizVerse product telemetry (quizverse_product_metrics → n8n WF-09) ----
+  // Independent of QuizVerse Next.js /admin/metrics — both may call WF-09 in parallel.
+  try {
+    QuizVerseProductMetrics.register(initializer);
+    logger.info("[ProductMetrics] quizverse_product_metrics registered");
+  } catch (err: any) {
+    logger.error("[ProductMetrics] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- QuizVerse growth snapshots (quizverse_growth_snapshot → n8n WF-32/33/40/41) ----
+  try {
+    QuizVerseGrowthSnapshot.register(initializer);
+    logger.info("[GrowthSnapshot] quizverse_growth_snapshot registered");
+  } catch (err: any) {
+    logger.error("[GrowthSnapshot] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- IAP Entitlements (qv_entitlements collection RPCs) ----
   try {
     QvEntitlements.register(initializer);
@@ -559,6 +576,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[AccountMerge] failed to register: " + (err && err.message ? err.message : String(err)));
     }
 
+    logger.info("[OnboardingAnalytics] Registering web onboarding event ingest + funnel RPCs...");
+    try {
+      OnboardingAnalytics.register(initializer);
+      logger.info("[OnboardingAnalytics] onboarding_events_batch, onboarding_identity_link, onboarding_funnel_screens registered");
+    } catch (err: any) {
+      logger.error("[OnboardingAnalytics] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     // ── Tournaments + P2E (plan §1-§3) ─────────────────────────────────────
     // Full launch-slate tournament system. Registers 25 RPCs across:
     //   - user-callable (list/get/enter/submit/leaderboard×6/claim/picks/pre-enroll/...)
@@ -732,6 +757,21 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[BlogEmbed] Blog-quiz embed RPCs registered successfully");
   } catch (err: any) {
     logger.error("[BlogEmbed] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- Research & Validation instrument (SBIR/IES grant evidence) ----
+  // Consent (COPPA/FERPA-aware), A/B assignment (adaptive vs control), pre/post
+  // diagnostic with normalized learning gain, surveys (student/teacher/customer/
+  // SUS/NPS), waitlist capture, and an admin/service-only aggregate export that
+  // produces the proposal-appendix numbers. Single-arg register() so postbuild's
+  // autoInvokeRegister re-runs it on every pooled Goja VM.
+  // See data/modules/src/research/research.ts.
+  try {
+    logger.info("[Research] Registering quizverse_research_* RPCs (consent, assignment, diagnostic, survey, waitlist, export)...");
+    Research.register(initializer);
+    logger.info("[Research] quizverse_research_consent/_assignment_get/_diagnostic_submit/_survey_submit/_waitlist_join/_export registered");
+  } catch (err: any) {
+    logger.error("[Research] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
   // ---- Fantasy Cricket RPCs ----

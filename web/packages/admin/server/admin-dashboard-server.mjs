@@ -34,6 +34,15 @@ const liveEventsFulfillBaseUrl = stripTrailingSlash(
 );
 const liveEventsAdminKey = process.env.LIVE_EVENTS_ADMIN_KEY ?? "";
 
+// QuizVerse CRM metrics (WF-09) + growth snapshots (WF-32/33/40/41).
+// Proxied here so tokens stay on the admin-dashboard pod — Nakama runtime
+// RPCs still work when QUIZVERSE_* is set on intelliverse-nakama instead.
+const quizverseN8nBaseUrl = stripTrailingSlash(
+  process.env.QUIZVERSE_N8N_BASE_URL ?? "https://n8n.intelli-verse-x.ai",
+);
+const quizverseAdminApiToken =
+  process.env.QUIZVERSE_ADMIN_API_TOKEN ?? process.env.ADMIN_API_TOKEN ?? "";
+
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -306,6 +315,135 @@ async function handlePrizeFulfill(req, res) {
   sendJson(res, response.status, parsed ?? { ok: false, error: "fulfillment endpoint returned no body" });
 }
 
+function normalizeMetricsSliceBody(body, slice) {
+  if (!body || typeof body !== "object") return null;
+  // Prod WF-09 often returns flat slice payloads: { dau, wau, ... }
+  if (slice === "overview" && body.dau !== undefined) return body;
+  if (Array.isArray(body)) return body;
+  // Wrapper: { slice, generated_at, data: <payload> }
+  if (body.slice && body.data !== undefined) {
+    const inner = body.data;
+    if (inner && typeof inner === "object" && !Array.isArray(inner) && inner.data !== undefined && inner.slice) {
+      return inner.data;
+    }
+    return inner;
+  }
+  if (body.data !== undefined) return body.data;
+  return body;
+}
+
+async function requireAdminSession(req, res, access = "analytics_read") {
+  const token = getBearerToken(req);
+  const adminSession = await validateAdminToken(token);
+  if (!adminSession) {
+    sendJson(res, 401, { success: false, error: "admin authentication required" });
+    return null;
+  }
+  if (!roleCanAccess(adminSession.role, access)) {
+    sendJson(res, 403, { success: false, error: `role '${adminSession.role}' cannot perform ${access}` });
+    return null;
+  }
+  return adminSession;
+}
+
+async function handleQuizverseMetrics(req, res) {
+  const session = await requireAdminSession(req, res, "analytics_read");
+  if (!session) return;
+
+  if (!quizverseN8nBaseUrl || !quizverseAdminApiToken) {
+    sendJson(res, 503, {
+      success: false,
+      error: "QUIZVERSE_N8N_BASE_URL and QUIZVERSE_ADMIN_API_TOKEN must be set on the admin-dashboard proxy",
+    });
+    return;
+  }
+
+  const payload = req.method === "GET" ? Object.fromEntries(new URL(req.url ?? "/", "http://local").searchParams) : await readJson(req);
+  const slice = String(payload.slice ?? "overview");
+  const days = Number(payload.days ?? 30) || 30;
+  const url = `${quizverseN8nBaseUrl}/webhook/admin/metrics?slice=${encodeURIComponent(slice)}&days=${encodeURIComponent(String(days))}`;
+
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${quizverseAdminApiToken}`, Accept: "application/json" },
+  });
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    sendJson(res, 502, { success: false, error: `WF-09 returned non-JSON (${response.status})` });
+    return;
+  }
+  if (!response.ok) {
+    sendJson(res, response.status, { success: false, error: `WF-09 HTTP ${response.status}`, detail: parsed });
+    return;
+  }
+
+  const sliceData = normalizeMetricsSliceBody(parsed, slice);
+  sendJson(res, 200, {
+    success: true,
+    data: {
+      slice,
+      generated_at: parsed?.generated_at ?? null,
+      days,
+      data: sliceData,
+    },
+  });
+}
+
+const GROWTH_WEBHOOKS = {
+  gsc: "qv-gsc-snapshot",
+  ga4: "qv-ga4-snapshot",
+  newsletter: "qv-newsletter-snapshot",
+  users: "qv-users-snapshot",
+};
+
+async function handleQuizverseGrowth(req, res) {
+  const session = await requireAdminSession(req, res, "analytics_read");
+  if (!session) return;
+
+  if (!quizverseN8nBaseUrl || !quizverseAdminApiToken) {
+    sendJson(res, 503, {
+      success: false,
+      error: "QUIZVERSE_N8N_BASE_URL and QUIZVERSE_ADMIN_API_TOKEN must be set on the admin-dashboard proxy",
+    });
+    return;
+  }
+
+  const payload = req.method === "GET" ? Object.fromEntries(new URL(req.url ?? "/", "http://local").searchParams) : await readJson(req);
+  const source = String(payload.source ?? "");
+  const path = GROWTH_WEBHOOKS[source];
+  if (!path) {
+    sendJson(res, 400, { success: false, error: "invalid source — use gsc, ga4, newsletter, or users" });
+    return;
+  }
+
+  const url = `${quizverseN8nBaseUrl}/webhook/${path}?token=${encodeURIComponent(quizverseAdminApiToken)}`;
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  const text = await response.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    sendJson(res, 502, { success: false, error: `growth webhook returned non-JSON (${response.status})` });
+    return;
+  }
+  if (!response.ok) {
+    sendJson(res, response.status, { success: false, error: `growth HTTP ${response.status}`, detail: parsed });
+    return;
+  }
+
+  sendJson(res, 200, {
+    success: true,
+    data: {
+      source,
+      ok: !!(parsed && parsed.ok),
+      snapshot: parsed?.snapshot ?? null,
+      error: parsed?.error ?? null,
+    },
+  });
+}
+
 async function rawBody(req) {
   const chunks = [];
   let total = 0;
@@ -396,6 +534,14 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname === `${apiPrefix}/prize-fulfill` && req.method === "POST") {
       await handlePrizeFulfill(req, res);
+      return;
+    }
+    if (url.pathname === `${apiPrefix}/quizverse/metrics` && (req.method === "POST" || req.method === "GET")) {
+      await handleQuizverseMetrics(req, res);
+      return;
+    }
+    if (url.pathname === `${apiPrefix}/quizverse/growth` && (req.method === "POST" || req.method === "GET")) {
+      await handleQuizverseGrowth(req, res);
       return;
     }
     if (url.pathname.startsWith(`${apiPrefix}/rpc/`) && req.method === "POST") {

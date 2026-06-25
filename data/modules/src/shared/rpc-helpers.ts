@@ -128,6 +128,22 @@ namespace RpcHelpers {
   export function requireAdmin(ctx: nkruntime.Context, nk: nkruntime.Nakama): void {
     // Server-to-server calls via http_key have no userId — treat as trusted
     if (!ctx.userId) return;
+
+    // Dashboard admin sessions minted by admin_login (custom_id admin:<name>)
+    if (ctx.username && ctx.username.indexOf("admin:") === 0) {
+      try {
+        var adminReads = nk.storageRead([{
+          collection: "admin_users",
+          key: "profile",
+          userId: ctx.userId
+        }]);
+        if (adminReads && adminReads.length > 0) {
+          var adminRec = adminReads[0].value as any;
+          if (adminRec && adminRec.isAdmin) return;
+        }
+      } catch (_) {}
+    }
+
     try {
       var accounts = nk.accountsGetId([ctx.userId]);
       if (accounts && accounts.length > 0) {
