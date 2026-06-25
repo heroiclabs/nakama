@@ -16,8 +16,11 @@
     <!-- Admin auth overlay: spinner while auto-login runs, form if it fails -->
     <div id="loginOverlay" class="login-overlay">
         <div id="authLoadingState" class="auth-loading-panel">
-            <div class="loader" aria-hidden="true">Loading</div>
-            <p id="authLoadingText" class="auth-loading-text">Please wait…</p>
+            <div class="apple-spinner" role="status" aria-label="Loading">
+                <span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span>
+            </div>
         </div>
         <div id="loginFormState" class="login-box hidden">
             <div class="login-logo">📊</div>
@@ -2014,13 +2017,11 @@
             document.getElementById('loginOverlay').classList.add('hidden');
         }
 
-        function showAuthLoading(message) {
+        function showAuthLoading() {
             const overlay = document.getElementById('loginOverlay');
             overlay.classList.remove('hidden');
             document.getElementById('authLoadingState').classList.remove('hidden');
             document.getElementById('loginFormState').classList.add('hidden');
-            const txt = document.getElementById('authLoadingText');
-            if (txt) txt.textContent = message || 'Please wait…';
         }
 
         function showLoginForm() {
@@ -2078,7 +2079,7 @@
         async function trySilentBootstrap() {
             if (!canAttemptSilentBootstrap()) return false;
 
-            showAuthLoading('Signing in…');
+            showAuthLoading();
 
             const controller = new AbortController();
             const timer = setTimeout(function() { controller.abort(); }, 15000);
