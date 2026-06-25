@@ -1565,6 +1565,225 @@ select { color-scheme: dark; }
 }
 
 
+
+
+/* ==========================================================================
+   24. Web onboarding funnel (qv_onboarding_events)
+   ========================================================================== */
+/* Web onboarding funnel (qv_onboarding_events) */
+.ob-panel { display: none; }
+.ob-panel.active { display: block; }
+.ob-paywall-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.ob-paywall-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    text-align: center;
+}
+.ob-paywall-card .ob-val {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--accent-light);
+    margin: 0.25rem 0;
+}
+.ob-paywall-card.danger .ob-val { color: var(--danger); }
+.ob-paywall-card.success .ob-val { color: var(--success); }
+.ob-paywall-card .ob-lbl {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.ob-journey-step {
+    display: flex;
+    align-items: stretch;
+    gap: 0.75rem;
+    margin-bottom: 0.35rem;
+}
+.ob-journey-rail {
+    width: 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+}
+.ob-journey-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--bg-primary);
+    box-shadow: 0 0 0 2px var(--accent);
+    flex-shrink: 0;
+}
+.ob-journey-line {
+    flex: 1;
+    width: 2px;
+    background: linear-gradient(var(--accent), var(--border));
+    min-height: 12px;
+}
+.ob-journey-body {
+    flex: 1;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    margin-bottom: 0.25rem;
+}
+.ob-journey-body.hot { border-left: 3px solid var(--danger); }
+.ob-journey-body.paywall { border-left: 3px solid #f59e0b; }
+.ob-journey-title { font-weight: 600; font-size: 0.92rem; color: var(--text-primary); }
+.ob-journey-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem; }
+.ob-journey-bar-wrap {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    margin-top: 0.45rem;
+    overflow: hidden;
+}
+.ob-journey-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-light));
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+.ob-user-row { cursor: pointer; }
+.ob-user-row:hover { background: rgba(99,102,241,0.08); }
+.ob-status-pill {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.ob-status-done { background: rgba(16,185,129,0.15); color: var(--success); }
+.ob-status-drop { background: rgba(239,68,68,0.12); color: var(--danger); }
+.ob-status-paywall { background: rgba(245,158,11,0.15); color: #f59e0b; }
+.ob-status-subscribed { background: rgba(99,102,241,0.15); color: var(--accent-light); }
+.ob-status-preregister { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+.ob-screen-funnel { display: flex; flex-direction: column; gap: 0.5rem; }
+.ob-screen-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 22%) 1fr minmax(70px, 8%) minmax(60px, 7%) minmax(70px, 8%);
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.55rem 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.82rem;
+}
+.ob-screen-row.top-drop-1 { border-left: 3px solid #ef4444; }
+.ob-screen-row.top-drop-2 { border-left: 3px solid #f97316; }
+.ob-screen-row.top-drop-3 { border-left: 3px solid #f59e0b; }
+.ob-screen-bar-wrap {
+    height: 10px;
+    background: var(--bg-tertiary);
+    border-radius: 5px;
+    overflow: hidden;
+}
+.ob-screen-bar { height: 100%; background: var(--accent); border-radius: 5px; }
+.ob-copy-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0 0.25rem;
+}
+.ob-copy-btn:hover { color: var(--accent-light); }
+.ob-profile-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0; }
+.ob-chip {
+    padding: 0.25rem 0.55rem;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+}
+.ob-event-cat-completion .ob-journey-dot { background: var(--success); box-shadow: 0 0 0 2px var(--success); }
+.ob-event-cat-identity .ob-journey-dot { background: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
+.ob-event-cat-paywall .ob-journey-dot { background: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
+.ob-event-cat-screen .ob-journey-dot { background: var(--text-muted); box-shadow: 0 0 0 2px var(--text-muted); }
+.ob-event-payload {
+    margin-top: 0.35rem;
+    padding: 0.4rem 0.5rem;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.68rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    display: none;
+}
+.ob-event-payload.open { display: block; }
+.ob-platform-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    background: var(--bg-tertiary);
+}
+.ob-paywall-icons { font-size: 0.85rem; letter-spacing: 0.15rem; }
+.ob-user-search {
+    width: 100%;
+    max-width: 360px;
+    padding: 0.55rem 0.75rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+.ob-journey-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.ob-journey-modal-inner {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    max-width: 720px;
+    width: 100%;
+    max-height: 85vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.ob-journey-modal-head {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.ob-journey-modal-body {
+    padding: 1rem 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+}
+.ob-event-row {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.82rem;
+}
+.ob-event-time { color: var(--text-muted); min-width: 72px; flex-shrink: 0; }
+.ob-event-name { font-weight: 500; color: var(--accent-light); min-width: 140px; }
+.legacy-funnel-panel.hidden { display: none !important; }
 /* ==========================================================================
    23. Auth overlay — login form, auto-login spinner, local dev hint
    ========================================================================== */
