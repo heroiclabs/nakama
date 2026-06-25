@@ -248,8 +248,10 @@ namespace OnboardingAnalytics {
 
   function eventCategory(name: string): string {
     if (isCompletionEvent(name)) return "completion";
-    if (name === "ob_identity_linked" || name === "ob_register_complete" || name === "ob_verify_complete") return "identity";
+    if (name === "ob_identity_linked" || name === "ob_register_complete" || name === "ob_verify_complete" || name === "ob_register_start") return "identity";
     if (name.indexOf("paywall") >= 0 || name.indexOf("closing_offer") >= 0) return "paywall";
+    if (name === "ob_d1_return" || name === "ob_d7_return" || name === "ob_welcome_bonus_claimed" || name === "ob_streak_shield_activated") return "retention";
+    if (name === "ob_pathway_confirmed" || name === "ob_name_set" || name === "ob_quiz_first_answer_time" || name === "ob_review_prompt_shown" || name === "ob_newsletter_skip") return "quality";
     if (name === "ob_screen_seen" || name === "ob_screen_exit") return "screen";
     return "other";
   }
@@ -440,6 +442,20 @@ namespace OnboardingAnalytics {
             paywallSkip: false,
             closingOfferSeen: false,
             closingOfferClaimed: false,
+            registerStart: false,
+            appLaunchSuccess: false,
+            obComplete: false,
+            pathwayConfirmed: false,
+            nameSetEvent: false,
+            quizFirstAnswer: false,
+            quizFirstAnswerMs: 0,
+            reviewPromptShown: false,
+            newsletterSkip: false,
+            planViewed: false,
+            d1Return: false,
+            d7Return: false,
+            welcomeBonusClaimed: false,
+            streakShieldActivated: false,
             subscribed: !!snap.subscribed,
             lastScreen: "",
             lastTs: 0,
@@ -472,6 +488,22 @@ namespace OnboardingAnalytics {
         if (rec.name === "ob_paywall_skip") u.paywallSkip = true;
         if (rec.name === "ob_closing_offer_seen") u.closingOfferSeen = true;
         if (rec.name === "ob_closing_offer_claim") u.closingOfferClaimed = true;
+        if (rec.name === "ob_register_start") u.registerStart = true;
+        if (rec.name === "ob_app_launch_success") u.appLaunchSuccess = true;
+        if (rec.name === "ob_complete") u.obComplete = true;
+        if (rec.name === "ob_pathway_confirmed") u.pathwayConfirmed = true;
+        if (rec.name === "ob_name_set") u.nameSetEvent = true;
+        if (rec.name === "ob_quiz_first_answer_time") {
+          u.quizFirstAnswer = true;
+          if (rec.data && rec.data.timeMs) u.quizFirstAnswerMs = rec.data.timeMs;
+        }
+        if (rec.name === "ob_review_prompt_shown") u.reviewPromptShown = true;
+        if (rec.name === "ob_newsletter_skip") u.newsletterSkip = true;
+        if (rec.name === "ob_paywall_plan_viewed") u.planViewed = true;
+        if (rec.name === "ob_d1_return") u.d1Return = true;
+        if (rec.name === "ob_d7_return") u.d7Return = true;
+        if (rec.name === "ob_welcome_bonus_claimed") u.welcomeBonusClaimed = true;
+        if (rec.name === "ob_streak_shield_activated") u.streakShieldActivated = true;
 
         if (rec.name === "ob_screen_seen" && rec.screen) {
           if (!u.screens[rec.screen]) {
@@ -562,6 +594,20 @@ namespace OnboardingAnalytics {
     var paywallSkip = 0;
     var paywallDrop = 0;
     var durationSamples: number[] = [];
+    var quizFirstAnswerSamples: number[] = [];
+    var sigRegisterStart = 0;
+    var sigAppLaunch = 0;
+    var sigObComplete = 0;
+    var sigPathwayConfirmed = 0;
+    var sigNameSet = 0;
+    var sigQuizFirstAnswer = 0;
+    var sigReviewPrompt = 0;
+    var sigNewsletterSkip = 0;
+    var sigPlanViewed = 0;
+    var sigD1Return = 0;
+    var sigD7Return = 0;
+    var sigWelcomeBonus = 0;
+    var sigStreakShield = 0;
     var pathwayCounts: { [pathway: string]: { users: number; completed: number } } = {};
 
     var screenAgg: { [screen: string]: { users: { [uid: string]: boolean }; dwellMs: number; dwellCount: number; exits: number } } = {};
@@ -577,6 +623,23 @@ namespace OnboardingAnalytics {
       if (u.paywallDismiss) paywallDismiss++;
       if (u.paywallSkip) paywallSkip++;
       if (u.paywallSeen && !u.paywallSubscribe && !u.paywallTrialStart && !u.completed && !u.paywallSkip && !u.paywallDismiss) paywallDrop++;
+
+      if (u.registerStart) sigRegisterStart++;
+      if (u.appLaunchSuccess) sigAppLaunch++;
+      if (u.obComplete) sigObComplete++;
+      if (u.pathwayConfirmed) sigPathwayConfirmed++;
+      if (u.nameSetEvent) sigNameSet++;
+      if (u.quizFirstAnswer) {
+        sigQuizFirstAnswer++;
+        if (u.quizFirstAnswerMs > 0) quizFirstAnswerSamples.push(u.quizFirstAnswerMs);
+      }
+      if (u.reviewPromptShown) sigReviewPrompt++;
+      if (u.newsletterSkip) sigNewsletterSkip++;
+      if (u.planViewed) sigPlanViewed++;
+      if (u.d1Return) sigD1Return++;
+      if (u.d7Return) sigD7Return++;
+      if (u.welcomeBonusClaimed) sigWelcomeBonus++;
+      if (u.streakShieldActivated) sigStreakShield++;
 
       var elapsed = (u.snapshot && u.snapshot.elapsedMs) ? u.snapshot.elapsedMs : (u.lastTs - u.firstTs);
       if (elapsed > 0) durationSamples.push(elapsed);
@@ -687,6 +750,16 @@ namespace OnboardingAnalytics {
         paywallTrialStart: ur.paywallTrialStart,
         paywallDismiss: ur.paywallDismiss,
         paywallSkip: ur.paywallSkip,
+        registerStart: ur.registerStart,
+        appLaunchSuccess: ur.appLaunchSuccess,
+        obComplete: ur.obComplete,
+        pathwayConfirmed: ur.pathwayConfirmed,
+        nameSetEvent: ur.nameSetEvent,
+        quizFirstAnswer: ur.quizFirstAnswer,
+        d1Return: ur.d1Return,
+        d7Return: ur.d7Return,
+        welcomeBonusClaimed: ur.welcomeBonusClaimed,
+        streakShieldActivated: ur.streakShieldActivated,
         identityLinked: ur.identityLinked,
         eventCount: ur.eventCount,
         firstTs: ur.firstTs,
@@ -728,6 +801,43 @@ namespace OnboardingAnalytics {
         trialRatePct: paywallSeen > 0 ? Math.round((paywallTrialStart / paywallSeen) * 1000) / 10 : 0,
         skipRatePct: paywallSeen > 0 ? Math.round((paywallSkip / paywallSeen) * 1000) / 10 : 0,
         dismissRatePct: paywallSeen > 0 ? Math.round((paywallDismiss / paywallSeen) * 1000) / 10 : 0
+      },
+      eventSignals: {
+        funnel: {
+          registerStart: sigRegisterStart,
+          registerStartPct: totalUsers > 0 ? Math.round((sigRegisterStart / totalUsers) * 1000) / 10 : 0,
+          obComplete: sigObComplete,
+          obCompletePct: totalUsers > 0 ? Math.round((sigObComplete / totalUsers) * 1000) / 10 : 0,
+          appLaunchSuccess: sigAppLaunch,
+          appLaunchSuccessPct: completedCount > 0 ? Math.round((sigAppLaunch / completedCount) * 1000) / 10 : 0
+        },
+        quality: {
+          pathwayConfirmed: sigPathwayConfirmed,
+          pathwayConfirmedPct: totalUsers > 0 ? Math.round((sigPathwayConfirmed / totalUsers) * 1000) / 10 : 0,
+          nameSet: sigNameSet,
+          nameSetPct: totalUsers > 0 ? Math.round((sigNameSet / totalUsers) * 1000) / 10 : 0,
+          quizFirstAnswer: sigQuizFirstAnswer,
+          quizFirstAnswerPct: totalUsers > 0 ? Math.round((sigQuizFirstAnswer / totalUsers) * 1000) / 10 : 0,
+          medianQuizFirstAnswerSec: quizFirstAnswerSamples.length > 0
+            ? Math.round((median(quizFirstAnswerSamples) / 1000) * 10) / 10
+            : 0,
+          reviewPromptShown: sigReviewPrompt,
+          reviewPromptShownPct: totalUsers > 0 ? Math.round((sigReviewPrompt / totalUsers) * 1000) / 10 : 0,
+          newsletterSkip: sigNewsletterSkip,
+          newsletterSkipPct: totalUsers > 0 ? Math.round((sigNewsletterSkip / totalUsers) * 1000) / 10 : 0,
+          planViewed: sigPlanViewed,
+          planViewedPct: paywallSeen > 0 ? Math.round((sigPlanViewed / paywallSeen) * 1000) / 10 : 0
+        },
+        retention: {
+          d1Return: sigD1Return,
+          d1ReturnPct: completedCount > 0 ? Math.round((sigD1Return / completedCount) * 1000) / 10 : 0,
+          d7Return: sigD7Return,
+          d7ReturnPct: completedCount > 0 ? Math.round((sigD7Return / completedCount) * 1000) / 10 : 0,
+          welcomeBonusClaimed: sigWelcomeBonus,
+          welcomeBonusClaimedPct: completedCount > 0 ? Math.round((sigWelcomeBonus / completedCount) * 1000) / 10 : 0,
+          streakShieldActivated: sigStreakShield,
+          streakShieldActivatedPct: completedCount > 0 ? Math.round((sigStreakShield / completedCount) * 1000) / 10 : 0
+        }
       },
       screenFunnel: screenFunnel,
       dropoffHotspots: dropoffHotspots.slice(0, 15),
@@ -875,7 +985,7 @@ namespace OnboardingAnalytics {
           userState[uid] = { lastScreen: "", lastTs: 0, completed: false };
         }
 
-        if (rec.name === "ob_congrats_seen" || rec.name === "ob_unity_return" || rec.name === "ob_deeplink_fire") {
+        if (rec.name === "ob_congrats_seen" || rec.name === "ob_unity_return" || rec.name === "ob_deeplink_fire" || rec.name === "ob_complete" || rec.name === "ob_app_launch_success") {
           userState[uid].completed = true;
         }
 

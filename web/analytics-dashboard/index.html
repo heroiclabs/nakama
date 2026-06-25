@@ -1722,6 +1722,23 @@ select { color-scheme: dark; }
 .ob-event-cat-identity .ob-journey-dot { background: #3b82f6; box-shadow: 0 0 0 2px #3b82f6; }
 .ob-event-cat-paywall .ob-journey-dot { background: #f59e0b; box-shadow: 0 0 0 2px #f59e0b; }
 .ob-event-cat-screen .ob-journey-dot { background: var(--text-muted); box-shadow: 0 0 0 2px var(--text-muted); }
+.ob-event-cat-quality .ob-journey-dot { background: #8b5cf6; box-shadow: 0 0 0 2px #8b5cf6; }
+.ob-event-cat-retention .ob-journey-dot { background: #06b6d4; box-shadow: 0 0 0 2px #06b6d4; }
+.ob-signals-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+}
+.ob-signals-col h4 {
+    margin: 0 0 0.75rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+@media (max-width: 960px) {
+    .ob-signals-grid { grid-template-columns: 1fr; }
+}
 .ob-event-payload {
     margin-top: 0.35rem;
     padding: 0.4rem 0.5rem;
@@ -2844,6 +2861,14 @@ select { color-scheme: dark; }
                         </div>
                     </div>
                 </div>
+                <div class="chart-card" style="margin-bottom:1.5rem;">
+                    <h3>Event signals — funnel, quality &amp; retention
+                        <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                    </h3>
+                    <div class="card-body" id="obEventSignals">
+                        <div class="loading">Loading event signals…</div>
+                    </div>
+                </div>
                 <div class="chart-card">
                     <h3>User journeys — click a row for full timeline
                         <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
@@ -2863,11 +2888,12 @@ select { color-scheme: dark; }
                                     <th>Last screen</th>
                                     <th>Status</th>
                                     <th>Paywall</th>
+                                    <th title="Funnel completion &amp; retention milestones">Signals</th>
                                     <th onclick="sortObUsers('durationMs')" style="cursor:pointer">Duration ↕</th>
                                     <th onclick="sortObUsers('eventCount')" style="cursor:pointer">Events ↕</th>
                                 </tr>
                             </thead>
-                            <tbody><tr><td colspan="11" class="loading">Loading users…</td></tr></tbody>
+                            <tbody><tr><td colspan="12" class="loading">Loading users…</td></tr></tbody>
                         </table>
                     </div>
                 </div>
@@ -5523,6 +5549,62 @@ select { color-scheme: dark; }
             return parts.length ? '<span class="ob-paywall-icons" title="Seen / Paid / Trial / Dismiss / Skip">' + parts.join(' ') + '</span>' : '—';
         }
 
+        function obUserSignalIcons(u) {
+            const parts = [];
+            if (u.obComplete) parts.push('✅');
+            if (u.appLaunchSuccess) parts.push('📱');
+            if (u.registerStart) parts.push('📝');
+            if (u.pathwayConfirmed) parts.push('🛤');
+            if (u.d1Return) parts.push('D1');
+            if (u.d7Return) parts.push('D7');
+            if (u.welcomeBonusClaimed) parts.push('🎉');
+            if (u.streakShieldActivated) parts.push('🛡');
+            return parts.length ? '<span class="ob-paywall-icons" title="Complete / App launch / Register / Pathway / D1 / D7 / Bonus / Shield">' + parts.join(' ') + '</span>' : '—';
+        }
+
+        function renderObEventSignals(signals) {
+            const el = document.getElementById('obEventSignals');
+            if (!el) return;
+            if (!signals) {
+                el.innerHTML = '<div class="empty-state">No event signal data yet.</div>';
+                return;
+            }
+            const f = signals.funnel || {};
+            const q = signals.quality || {};
+            const r = signals.retention || {};
+            function sigCard(label, val, pct, sub) {
+                return '<div class="ob-paywall-card">' +
+                    '<div class="ob-lbl">' + escapeHtml(label) + '</div>' +
+                    '<div class="ob-val">' + formatNumber(val || 0) + '</div>' +
+                    (pct != null ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.15rem">' + pct + '%</div>' : '') +
+                    (sub ? '<div style="font-size:0.68rem;color:var(--text-muted);margin-top:0.2rem">' + escapeHtml(sub) + '</div>' : '') +
+                    '</div>';
+            }
+            el.innerHTML =
+                '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1rem 0;">Counts unique users who fired each new onboarding event in the selected range.</p>' +
+                '<div class="ob-signals-grid">' +
+                '<div class="ob-signals-col"><h4>Funnel completion</h4><div class="ob-paywall-grid">' +
+                sigCard('Register started', f.registerStart, f.registerStartPct, 'ob_register_start') +
+                sigCard('Funnel complete', f.obComplete, f.obCompletePct, 'ob_complete') +
+                sigCard('App launch OK', f.appLaunchSuccess, f.appLaunchSuccessPct, 'ob_app_launch_success · % of completed') +
+                '</div></div>' +
+                '<div class="ob-signals-col"><h4>Quality signals</h4><div class="ob-paywall-grid">' +
+                sigCard('Pathway confirmed', q.pathwayConfirmed, q.pathwayConfirmedPct, 'ob_pathway_confirmed') +
+                sigCard('Name set', q.nameSet, q.nameSetPct, 'ob_name_set') +
+                sigCard('Quiz 1st answer', q.quizFirstAnswer, q.quizFirstAnswerPct, 'ob_quiz_first_answer_time') +
+                sigCard('Median 1st answer', q.medianQuizFirstAnswerSec, null, (q.medianQuizFirstAnswerSec || 0) + ' sec') +
+                sigCard('Review prompt', q.reviewPromptShown, q.reviewPromptShownPct, 'ob_review_prompt_shown') +
+                sigCard('Newsletter skip', q.newsletterSkip, q.newsletterSkipPct, 'ob_newsletter_skip') +
+                sigCard('Plan viewed', q.planViewed, q.planViewedPct, 'ob_paywall_plan_viewed · % of paywall') +
+                '</div></div>' +
+                '<div class="ob-signals-col"><h4>Retention hooks</h4><div class="ob-paywall-grid">' +
+                sigCard('Day 1 return', r.d1Return, r.d1ReturnPct, 'ob_d1_return · % of completed') +
+                sigCard('Day 7 return', r.d7Return, r.d7ReturnPct, 'ob_d7_return · % of completed') +
+                sigCard('Welcome bonus', r.welcomeBonusClaimed, r.welcomeBonusClaimedPct, 'ob_welcome_bonus_claimed') +
+                sigCard('Streak shield', r.streakShieldActivated, r.streakShieldActivatedPct, 'ob_streak_shield_activated') +
+                '</div></div></div>';
+        }
+
         function formatDurationMs(ms) {
             if (!ms || ms <= 0) return '—';
             const sec = Math.round(ms / 1000);
@@ -5622,7 +5704,7 @@ select { color-scheme: dark; }
             });
             if (countEl) countEl.textContent = list.length + ' of ' + obUsersCache.length + ' users shown';
             if (!list.length) {
-                tbody.innerHTML = '<tr><td colspan="11" class="empty-state">' + (q ? 'No matches.' : 'No users in this range.') + '</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" class="empty-state">' + (q ? 'No matches.' : 'No users in this range.') + '</td></tr>';
                 return;
             }
             tbody.innerHTML = list.map(function(u) {
@@ -5645,6 +5727,7 @@ select { color-scheme: dark; }
                     '<td>' + escapeHtml(u.lastScreenLabel || '—') + '</td>' +
                     '<td><span class="ob-status-pill ' + st.cls + '">' + st.text + '</span></td>' +
                     '<td>' + obPaywallIcons(u) + '</td>' +
+                    '<td>' + obUserSignalIcons(u) + '</td>' +
                     '<td>' + formatDurationMs(u.durationMs) + '</td>' +
                     '<td>' + formatNumber(u.eventCount || 0) + '</td></tr>';
             }).join('');
@@ -5751,7 +5834,7 @@ select { color-scheme: dark; }
                     body.innerHTML = head + '<div class="empty-state">No player-scoped events yet — user may be pre-register only.</div>';
                     return;
                 }
-                let tree = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem;">Event timeline (' + events.length + ' events) · green=completion · blue=identity · gold=paywall · gray=screen</div>';
+                let tree = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem;">Event timeline (' + events.length + ' events) · green=completion · blue=identity · gold=paywall · purple=quality · cyan=retention · gray=screen</div>';
                 events.forEach(function(ev, i) {
                     const t = new Date(ev.timestamp);
                     const timeStr = t.toLocaleString();
@@ -5794,7 +5877,7 @@ select { color-scheme: dark; }
             if (status) payload.status = status;
 
             document.getElementById('funnelKpis').innerHTML = skKpi(6);
-            ['obScreenFunnel', 'obDropoffHotspots', 'obPathwayBreakdown'].forEach(function(id) {
+            ['obScreenFunnel', 'obDropoffHotspots', 'obPathwayBreakdown', 'obEventSignals'].forEach(function(id) {
                 const el = document.getElementById(id);
                 if (el) el.innerHTML = '<div class="loading">Loading…</div>';
             });
@@ -5820,6 +5903,7 @@ select { color-scheme: dark; }
             renderObScreenFunnel(data.screenFunnel || []);
             renderObDropoffHotspots(data.dropoffHotspots || []);
             renderObPathways(data.pathways || []);
+            renderObEventSignals(data.eventSignals || null);
             renderObUsersTable(data.users || []);
 
             const panel = document.getElementById('obOnboardingPanel');
