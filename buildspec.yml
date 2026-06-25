@@ -135,8 +135,6 @@ phases:
             echo "FATAL: dashboard frontend bootstrapSecret patch failed — literal placeholder not found in web/analytics-dashboard/index.html."
             exit 1
           fi
-          echo "=== Bundling analytics dashboard (inline CSS for /analytics.html) ==="
-          node web/analytics-dashboard/prepare-dist.mjs
         else
           echo "WARN: web/analytics-dashboard/index.html missing — Dockerfile overlay will be a no-op and the embedded legacy dashboard will be served"
         fi

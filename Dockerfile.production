@@ -77,15 +77,8 @@ COPY . .
 # in the Dockerfile RUN shell, so a real failure (e.g. unreadable file) would
 # still abort the build.
 RUN if [ -f web/analytics-dashboard/index.html ]; then \
-      if command -v node >/dev/null 2>&1; then \
-        node web/analytics-dashboard/prepare-dist.mjs; \
-      else \
-        cp web/analytics-dashboard/index.html console/ui/dist/analytics.html && \
-        cp web/analytics-dashboard/index.html console/ui/dist/analytics2.html && \
-        cp web/analytics-dashboard/dashboard.css console/ui/dist/dashboard.css 2>/dev/null || true; \
-        echo ">>> WARNING: node not found — copied HTML + dashboard.css without inlining"; \
-      fi; \
-      echo ">>> Overlaid modern analytics dashboard onto console/ui/dist/analytics.html and analytics2.html"; \
+      cp web/analytics-dashboard/index.html console/ui/dist/analytics.html; \
+      echo ">>> Overlaid modern analytics dashboard onto console/ui/dist/analytics.html"; \
     else \
       echo ">>> WARNING: web/analytics-dashboard/index.html missing — embedded dashboard stays on legacy version"; \
     fi
