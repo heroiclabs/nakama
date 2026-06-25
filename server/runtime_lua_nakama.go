@@ -278,6 +278,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
 		"purchase_validate_facebook_instant":        n.purchaseValidateFacebookInstant,
+		"purchase_validate_samsung":                 n.purchaseValidateSamsung,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
@@ -8214,6 +8215,48 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFacebookInstant(l *lua.LState) 
 	validation, err := ValidatePurchaseFacebookInstant(l.Context(), n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
 	if err != nil {
 		l.RaiseError("error validating Facebook Instant receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(purchaseValidationToLuaTable(l, validation))
+	return 1
+}
+
+// @group purchases
+// @summary Validates and stores a purchase receipt from the Samsung Galaxy Store.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param purchaseId(type=string) The purchase ID returned by the Samsung IAP SDK PurchaseVo.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) purchaseValidateSamsung(l *lua.LState) int {
+	if n.config.GetIAP().Samsung.ServiceAccountID == "" || n.config.GetIAP().Samsung.PrivateKey == "" || n.config.GetIAP().Samsung.PackageName == "" {
+		l.RaiseError("Samsung IAP is not configured.")
+		return 0
+	}
+
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	purchaseId := l.CheckString(2)
+	if purchaseId == "" {
+		l.ArgError(2, "expects purchaseId")
+		return 0
+	}
+
+	persist := l.OptBool(3, true)
+
+	validation, err := ValidatePurchaseSamsung(l.Context(), n.logger, n.db, uid, n.config.GetIAP().Samsung, purchaseId, persist)
+	if err != nil {
+		l.RaiseError("error validating Samsung receipt: %v", err.Error())
 		return 0
 	}
 

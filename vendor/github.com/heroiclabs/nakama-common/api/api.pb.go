@@ -24,13 +24,14 @@
 package api
 
 import (
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
+
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
 )
 
 const (
@@ -52,6 +53,8 @@ const (
 	StoreProvider_HUAWEI_APP_GALLERY StoreProvider = 2
 	// Facebook Instant Store
 	StoreProvider_FACEBOOK_INSTANT_STORE StoreProvider = 3
+	// Samsung Galaxy Store
+	StoreProvider_SAMSUNG_GALAXY_STORE StoreProvider = 4
 )
 
 // Enum value maps for StoreProvider.
@@ -61,12 +64,14 @@ var (
 		1: "GOOGLE_PLAY_STORE",
 		2: "HUAWEI_APP_GALLERY",
 		3: "FACEBOOK_INSTANT_STORE",
+		4: "SAMSUNG_GALAXY_STORE",
 	}
 	StoreProvider_value = map[string]int32{
 		"APPLE_APP_STORE":        0,
 		"GOOGLE_PLAY_STORE":      1,
 		"HUAWEI_APP_GALLERY":     2,
 		"FACEBOOK_INSTANT_STORE": 3,
+		"SAMSUNG_GALAXY_STORE":   4,
 	}
 )
 
@@ -7520,6 +7525,35 @@ func (x *ValidatePurchaseFacebookInstantRequest) GetSignedRequest() string {
 }
 
 func (x *ValidatePurchaseFacebookInstantRequest) GetPersist() *wrapperspb.BoolValue {
+	if x != nil {
+		return x.Persist
+	}
+	return nil
+}
+
+// Samsung IAP Purchase validation request.
+type ValidatePurchaseSamsungRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The purchase ID returned by the Samsung IAP SDK PurchaseVo.
+	PurchaseId string `protobuf:"bytes,1,opt,name=purchase_id,json=purchaseId,proto3" json:"purchase_id,omitempty"`
+	// Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+	Persist       *wrapperspb.BoolValue `protobuf:"bytes,2,opt,name=persist,proto3" json:"persist,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidatePurchaseSamsungRequest) Reset()         {}
+func (x *ValidatePurchaseSamsungRequest) String() string { return "ValidatePurchaseSamsungRequest" }
+func (*ValidatePurchaseSamsungRequest) ProtoMessage()    {}
+
+func (x *ValidatePurchaseSamsungRequest) GetPurchaseId() string {
+	if x != nil {
+		return x.PurchaseId
+	}
+	return ""
+}
+
+func (x *ValidatePurchaseSamsungRequest) GetPersist() *wrapperspb.BoolValue {
 	if x != nil {
 		return x.Persist
 	}

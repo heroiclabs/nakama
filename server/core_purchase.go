@@ -495,6 +495,88 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 	}, nil
 }
 
+func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPSamsungConfig, purchaseId string, persist bool) (*api.ValidatePurchaseResponse, error) {
+	if config.ServiceAccountID == "" || config.PrivateKey == "" || config.PackageName == "" {
+		return nil, status.Error(codes.FailedPrecondition, "Samsung IAP is not configured.")
+	}
+
+	orderResp, raw, err := iap.ValidateReceiptSamsung(ctx, httpc, config.ServiceAccountID, config.PrivateKey, config.PackageName, purchaseId)
+	if err != nil {
+		if err != context.Canceled {
+			var vErr *iap.ValidationError
+			if errors.As(err, &vErr) {
+				logger.Debug("Error validating Samsung receipt", zap.Error(vErr.Err), zap.Int("status_code", vErr.StatusCode), zap.String("payload", vErr.Payload))
+				return nil, vErr
+			} else {
+				logger.Error("Error validating Samsung receipt", zap.Error(err))
+			}
+		}
+		return nil, err
+	}
+
+	env := api.StoreEnvironment_PRODUCTION
+	if orderResp.PassFlag == iap.SamsungPassFlagSandbox {
+		env = api.StoreEnvironment_SANDBOX
+	}
+
+	sPurchase := &storagePurchase{
+		userID:        userID,
+		store:         api.StoreProvider_SAMSUNG_GALAXY_STORE,
+		productId:     orderResp.ItemId,
+		transactionId: orderResp.PurchaseId,
+		rawResponse:   string(raw),
+		purchaseTime:  iap.ParseSamsungPurchaseDate(orderResp.PurchaseDate),
+		environment:   env,
+	}
+
+	if !persist {
+		return &api.ValidatePurchaseResponse{
+			ValidatedPurchases: []*api.ValidatedPurchase{
+				{
+					ProductId:        sPurchase.productId,
+					TransactionId:    sPurchase.transactionId,
+					Store:            sPurchase.store,
+					PurchaseTime:     timestamppb.New(sPurchase.purchaseTime),
+					ProviderResponse: string(raw),
+					Environment:      sPurchase.environment,
+				},
+			},
+		}, nil
+	}
+
+	purchases, err := upsertPurchases(ctx, db, []*storagePurchase{sPurchase})
+	if err != nil {
+		if err != context.Canceled {
+			logger.Error("Error storing Samsung receipt", zap.Error(err))
+		}
+		return nil, err
+	}
+
+	validatedPurchases := make([]*api.ValidatedPurchase, 0, len(purchases))
+	for _, p := range purchases {
+		suid := p.userID.String()
+		if p.userID.IsNil() {
+			suid = ""
+		}
+		validatedPurchases = append(validatedPurchases, &api.ValidatedPurchase{
+			UserId:           suid,
+			ProductId:        p.productId,
+			TransactionId:    p.transactionId,
+			Store:            p.store,
+			PurchaseTime:     timestamppb.New(p.purchaseTime),
+			CreateTime:       timestamppb.New(p.createTime),
+			UpdateTime:       timestamppb.New(p.updateTime),
+			ProviderResponse: string(raw),
+			SeenBefore:       p.seenBefore,
+			Environment:      p.environment,
+		})
+	}
+
+	return &api.ValidatePurchaseResponse{
+		ValidatedPurchases: validatedPurchases,
+	}, nil
+}
+
 func GetPurchaseByTransactionId(ctx context.Context, logger *zap.Logger, db *sql.DB, transactionID string) (*api.ValidatedPurchase, error) {
 	var (
 		dbTransactionId string
