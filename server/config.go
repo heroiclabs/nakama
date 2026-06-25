@@ -1354,6 +1354,7 @@ var _ runtime.IAPConfig = (*IAPConfig)(nil)
 
 type IAPConfig struct {
 	Apple           *IAPAppleConfig           `yaml:"apple" json:"apple" usage:"Apple App Store purchase validation configuration."`
+	Amazon          *IAPAmazonConfig          `yaml:"amazon" json:"amazon" usage:"Amazon Appstore purchase validation configuration."`
 	Google          *IAPGoogleConfig          `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
 	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
@@ -1361,6 +1362,10 @@ type IAPConfig struct {
 
 func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
 	return cfg.Apple
+}
+
+func (cfg *IAPConfig) GetAmazon() runtime.IAPAmazonConfig {
+	return cfg.Amazon
 }
 
 func (cfg *IAPConfig) GetGoogle() runtime.IAPGoogleConfig {
@@ -1405,6 +1410,7 @@ func (cfg *IAPConfig) Clone() *IAPConfig {
 func NewIAPConfig() *IAPConfig {
 	return &IAPConfig{
 		Apple:           &IAPAppleConfig{},
+		Amazon:          &IAPAmazonConfig{},
 		Google:          &IAPGoogleConfig{},
 		Huawei:          &IAPHuaweiConfig{},
 		FacebookInstant: &IAPFacebookInstantConfig{},
@@ -1425,6 +1431,16 @@ func (iap IAPAppleConfig) GetSharedPassword() string {
 func (iap IAPAppleConfig) GetNotificationsEndpointId() string {
 	return iap.NotificationsEndpointId
 }
+
+var _ runtime.IAPAmazonConfig = (*IAPAmazonConfig)(nil)
+
+type IAPAmazonConfig struct {
+	DeveloperSecret string `yaml:"developer_secret" json:"developer_secret" usage:"The Amazon developer secret for In-App Purchase validation. Found in the Amazon Developer Console under Apps & Services > In-App Purchasing."`
+	Sandbox         bool   `yaml:"sandbox" json:"sandbox" usage:"Enables the Amazon RVS sandbox endpoint. Enable this for development and test purchases."`
+}
+
+func (i IAPAmazonConfig) GetDeveloperSecret() string { return i.DeveloperSecret }
+func (i IAPAmazonConfig) GetSandbox() bool           { return i.Sandbox }
 
 var _ runtime.IAPGoogleConfig = (*IAPGoogleConfig)(nil)
 

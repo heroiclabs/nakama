@@ -262,6 +262,7 @@ func (n *RuntimeJavascriptNakamaModule) mappings(r *goja.Runtime) map[string]fun
 		"purchaseValidateGoogle":               n.purchaseValidateGoogle(r),
 		"purchaseValidateHuawei":               n.purchaseValidateHuawei(r),
 		"purchaseValidateFacebookInstant":      n.purchaseValidateFacebookInstant(r),
+		"purchaseValidateAmazon":               n.purchaseValidateAmazon(r),
 		"purchaseGetByTransactionId":           n.purchaseGetByTransactionId(r),
 		"purchasesList":                        n.purchasesList(r),
 		"subscriptionValidateApple":            n.subscriptionValidateApple(r),
@@ -6520,6 +6521,55 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateFacebookInstant(r *goja.
 		validation, err := ValidatePurchaseFacebookInstant(n.ctx, n.logger, n.db, uid, n.config.GetIAP().FacebookInstant, signedRequest, persist)
 		if err != nil {
 			panic(r.NewGoError(fmt.Errorf("error validating Facebook Instant receipt: %s", err.Error())))
+		}
+
+		validationResult := purchaseResponseToJsObject(validation)
+
+		return r.ToValue(validationResult)
+	}
+}
+
+// @group purchases
+// @summary Validates and stores a purchase receipt from the Amazon Appstore.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param receiptId(type=string) The receipt ID returned by the Amazon Appstore SDK PurchaseResponse.
+// @param amazonUserId(type=string) The user ID returned by the Amazon Appstore SDK UserDataResponse.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(nkruntime.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeJavascriptNakamaModule) purchaseValidateAmazon(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
+	return func(f goja.FunctionCall) goja.Value {
+		if n.config.GetIAP().Amazon.DeveloperSecret == "" {
+			panic(r.NewGoError(errors.New("amazon IAP is not configured")))
+		}
+
+		userID := getJsString(r, f.Argument(0))
+		if userID == "" {
+			panic(r.NewTypeError("expects a user ID string"))
+		}
+		uid, err := uuid.FromString(userID)
+		if err != nil {
+			panic(r.NewTypeError("expects user ID to be a valid identifier"))
+		}
+
+		receiptId := getJsString(r, f.Argument(1))
+		if receiptId == "" {
+			panic(r.NewTypeError("expects receiptId"))
+		}
+
+		amazonUserId := getJsString(r, f.Argument(2))
+		if amazonUserId == "" {
+			panic(r.NewTypeError("expects amazonUserId"))
+		}
+
+		persist := true
+		if f.Argument(3) != goja.Undefined() && f.Argument(3) != goja.Null() {
+			persist = getJsBool(r, f.Argument(3))
+		}
+
+		validation, err := ValidatePurchaseAmazon(n.ctx, n.logger, n.db, uid, n.config.GetIAP().Amazon, receiptId, amazonUserId, persist)
+		if err != nil {
+			panic(r.NewGoError(fmt.Errorf("error validating Amazon receipt: %s", err.Error())))
 		}
 
 		validationResult := purchaseResponseToJsObject(validation)
