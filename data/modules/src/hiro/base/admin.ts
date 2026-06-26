@@ -2382,6 +2382,7 @@ namespace AdminConsole {
     // Live-event prize fulfillment (admin console)
     initializer.registerRpc("admin_prize_fulfillments_list", rpcAdminPrizeFulfillmentsList);
     initializer.registerRpc("admin_prize_fulfillment_settle", rpcAdminPrizeFulfillmentSettle);
+    initializer.registerRpc("admin_prize_backfill_emails", rpcAdminPrizeBackfillEmails);
     initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
     initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
     initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
@@ -2697,6 +2698,69 @@ namespace AdminConsole {
     logger.info("[admin_prize_fulfillment_settle] %s settled key=%s status=%s", ctx.userId || "admin", fKey, status);
 
     return RpcHelpers.successResponse({ success: true, key: fKey, status: status, settledAt: settledAt });
+  }
+
+  /**
+   * Scans all pending prize_fulfillments records with an empty email field
+   * and attempts to populate them from the winner's Nakama account (works for
+   * email+password registrations; social-login users will remain empty and
+   * require admin to enter the email manually in the Approve panel).
+   */
+  function rpcAdminPrizeBackfillEmails(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var patched = 0;
+    var skippedNoAccount = 0;
+    var cursor: string | undefined = undefined;
+    var pages = 0;
+    do {
+      var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", 100, cursor);
+      var objs = (res && res.objects) || [];
+      cursor = (res && res.cursor) ? res.cursor : undefined;
+
+      // Batch all userIds in this page that have empty email and are pending
+      var needEmail: Array<{ key: string; userId: string; value: any }> = [];
+      for (var i = 0; i < objs.length; i++) {
+        var v: any = objs[i].value || {};
+        if (!v.email && v.status === "pending" && v.userId) {
+          needEmail.push({ key: objs[i].key, userId: v.userId, value: v });
+        }
+      }
+
+      if (needEmail.length === 0) { pages++; continue; }
+
+      // Batch-fetch accounts
+      var uids = needEmail.map(function(n) { return n.userId; });
+      var emailMap: { [uid: string]: string } = {};
+      try {
+        var accounts = nk.accountsGetId(uids);
+        for (var ai = 0; ai < accounts.length; ai++) {
+          var acct = accounts[ai];
+          var uid = acct && acct.user && acct.user.id;
+          var email = (acct && acct.email) || "";
+          if (uid && email) emailMap[uid] = email;
+        }
+      } catch (lookupErr: any) {
+        logger.warn("[admin_prize_backfill_emails] batch account lookup failed: %s", lookupErr.message || String(lookupErr));
+      }
+
+      // Write back records where we found an email
+      for (var ni = 0; ni < needEmail.length; ni++) {
+        var entry = needEmail[ni];
+        var foundEmail = emailMap[entry.userId] || "";
+        if (!foundEmail) { skippedNoAccount++; continue; }
+        var updated = Object.assign({}, entry.value, { email: foundEmail });
+        try {
+          Storage.writeSystemJson(nk, "prize_fulfillments", entry.key, updated);
+          patched++;
+        } catch (writeErr: any) {
+          logger.warn("[admin_prize_backfill_emails] write failed for %s: %s", entry.key, writeErr.message || String(writeErr));
+        }
+      }
+      pages++;
+    } while (cursor && pages < 20);
+
+    logger.info("[admin_prize_backfill_emails] patched=%d skipped_no_account=%d", patched, skippedNoAccount);
+    return RpcHelpers.successResponse({ patched: patched, skippedNoAccount: skippedNoAccount });
   }
 
   function rpcGiftClaimsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {

@@ -1758,6 +1758,27 @@ namespace SatoriCreatorEvents {
     var skipped = 0;
     var xutWinners = 0;
 
+    // Pre-fetch emails for all ranked players in one batch call.
+    var emailByUserId: { [uid: string]: string } = {};
+    var allWinnerIds: string[] = [];
+    for (var wi = 0; wi < allAnswers.length; wi++) {
+      var wuid = allAnswers[wi].userId;
+      if (wuid) allWinnerIds.push(wuid);
+    }
+    if (allWinnerIds.length > 0) {
+      try {
+        var accounts = nk.accountsGetId(allWinnerIds);
+        for (var ai = 0; ai < accounts.length; ai++) {
+          var acct = accounts[ai];
+          var uid = acct && acct.user && acct.user.id;
+          var email = (acct && acct.email) || "";
+          if (uid) emailByUserId[uid] = email || "";
+        }
+      } catch (emailErr: any) {
+        logger.warn("[computeAndQueueWinners] Failed to batch-fetch account emails: %s", emailErr.message || String(emailErr));
+      }
+    }
+
     for (var r = 0; r < allAnswers.length; r++) {
       var rank = r + 1;
       var tier = findTierForRank(tiers, rank);
@@ -1785,7 +1806,7 @@ namespace SatoriCreatorEvents {
         eventTitle: (def && def.title) || "",
         region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
         source: "auto_winner",
-        email: "",
+        email: emailByUserId[winnerId] || "",
       });
       queued++;
     }
