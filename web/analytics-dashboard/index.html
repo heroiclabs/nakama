@@ -5718,9 +5718,9 @@ select { color-scheme: dark; }
                 '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1rem 0;">Counts unique users who fired each new onboarding event in the selected range.</p>' +
                 '<div class="ob-signals-grid">' +
                 '<div class="ob-signals-col"><h4>Funnel completion</h4><div class="ob-paywall-grid">' +
-                sigCard('Register started', f.registerStart, f.registerStartPct, 'ob_register_start') +
-                sigCard('Funnel complete', f.obComplete, f.obCompletePct, 'ob_complete') +
-                sigCard('App launch OK', f.appLaunchSuccess, f.appLaunchSuccessPct, 'ob_app_launch_success · % of completed') +
+                sigCard('Started sign-up (not yet done)', f.registerStart, f.registerStartPct, 'ob_register_start · opened the register form') +
+                sigCard('Onboarding complete signal', f.obComplete, f.obCompletePct, 'ob_complete · reached congrats screen') +
+                sigCard('Unity app opened after onboarding', f.appLaunchSuccess, f.appLaunchSuccessPct, 'ob_app_launch_success · % of completed · fired from Unity') +
                 '</div></div>' +
                 '<div class="ob-signals-col"><h4>Unity handoff (existing users)</h4><div class="ob-paywall-grid">' +
                 sigCard('Welcome → app', h.welcomeReturnToApp, h.welcomeReturnPct, 'ob_welcome_return_to_app · Already signed in') +
