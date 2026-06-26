@@ -1802,6 +1802,41 @@ select { color-scheme: dark; }
     padding: 1rem 1.25rem;
     overflow-y: auto;
     flex: 1;
+    max-height: 70vh;
+}
+.ob-journey-pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.75rem 0 1rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.ob-journey-load-more {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+.ob-journey-load-more:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.ob-identity-note {
+    margin: 0 0 1rem;
+    padding: 0.75rem;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    color: #93c5fd;
 }
 .ob-event-row {
     display: flex;
@@ -5789,9 +5824,143 @@ select { color-scheme: dark; }
             return chips.length ? '<div class="ob-profile-chips">' + chips.join('') + '</div>' : '';
         }
 
+        var obJourneyState = null;
+
+        function renderObJourneyEvents(events, startIndex, totalEvents) {
+            if (!events || !events.length) return '';
+            var tree = '';
+            events.forEach(function(ev, i) {
+                var globalIdx = startIndex + i;
+                var t = new Date(ev.timestamp);
+                var timeStr = t.toLocaleString();
+                var cat = ev.category || 'other';
+                var payloadStr = ev.data && Object.keys(ev.data).length ? JSON.stringify(ev.data, null, 2) : '';
+                var payloadId = 'ob-payload-' + globalIdx;
+                var isLastInPage = i === events.length - 1;
+                tree += '<div class="ob-journey-step ob-event-cat-' + cat + '" style="margin-bottom:0">' +
+                    '<div class="ob-journey-rail"><div class="ob-journey-dot"></div>' +
+                    (!isLastInPage ? '<div class="ob-journey-line"></div>' : '') + '</div>' +
+                    '<div class="ob-event-row" style="flex:1;border:none;padding:0.35rem 0 0.75rem 0;flex-direction:column;align-items:flex-start">' +
+                    '<div style="display:flex;gap:0.75rem;width:100%">' +
+                    '<div class="ob-event-time">' + escapeHtml(timeStr) + '</div>' +
+                    '<div style="flex:1"><div class="ob-event-name">' + escapeHtml(ev.name) + '</div>' +
+                    '<div style="color:var(--text-muted);font-size:0.75rem">' + escapeHtml(ev.screenLabel || ev.screen || '') +
+                    (ev.dwellMs ? ' · dwell ' + Math.round(ev.dwellMs / 1000) + 's' : '') +
+                    (payloadStr ? ' · <a href="#" style="color:var(--accent-light)" onclick="event.preventDefault();document.getElementById(\'' + payloadId + '\').classList.toggle(\'open\')">payload ▾</a>' : '') +
+                    '</div></div></div>' +
+                    (payloadStr ? '<pre class="ob-event-payload" id="' + payloadId + '">' + escapeHtml(payloadStr) + '</pre>' : '') +
+                    '</div></div>';
+            });
+            return tree;
+        }
+
+        function buildObJourneyHead(data, snap, profile, st) {
+            var head = '<div style="margin-bottom:1rem;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;font-size:0.82rem;line-height:1.6;">';
+            if (data.nakamaUserId) {
+                head += '<div><strong>Nakama User ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.nakamaUserId) + '</code> <button class="ob-copy-btn" data-copy="' + data.nakamaUserId + '" onclick="copyObText(this.getAttribute(\'data-copy\'),this)">⎘</button></div>';
+            }
+            if (data.guestId) {
+                head += '<div><strong>Guest ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.guestId) + '</code> <button class="ob-copy-btn" data-copy="' + data.guestId + '" onclick="copyObText(this.getAttribute(\'data-copy\'),this)">⎘</button></div>';
+            }
+            if (data.cognitoSub) {
+                head += '<div><strong>Auth ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.cognitoSub) + '</code></div>';
+            }
+            head += '<div><strong>Pathway:</strong> ' + escapeHtml(snap.pathway || profile.pathway || '—') +
+                ' · <strong>Platform:</strong> ' + escapeHtml(obPlatformLabel(snap.platform || profile.platform)) +
+                ' · <strong>Country:</strong> ' + escapeHtml(snap.country || '—') +
+                ' · <span class="ob-status-pill ' + st.cls + '">' + st.text + '</span></div>';
+            head += '<div><strong>Started:</strong> ' + (data.startedAt ? new Date(data.startedAt).toLocaleString() : '—') +
+                ' · <strong>Last seen:</strong> ' + (data.lastSeenAt ? new Date(data.lastSeenAt).toLocaleString() : '—') +
+                ' · <strong>Duration:</strong> ' + formatDurationMs(data.durationMs) + '</div>';
+            if (profile.lastEvent || profile.lastScreen) {
+                head += '<div><strong>Last event:</strong> ' + escapeHtml(profile.lastEvent || '—') +
+                    ' · <strong>Last screen:</strong> ' + escapeHtml(profile.lastScreen || '—') + '</div>';
+            }
+            head += renderObProfileChips(snap);
+            head += '</div>';
+            return head;
+        }
+
+        async function loadObJourneyPage(append) {
+            var st = obJourneyState;
+            if (!st) return;
+            var body = document.getElementById('obJourneyModalBody');
+            var listEl = document.getElementById('obJourneyEventsList');
+            var pagerEl = document.getElementById('obJourneyPager');
+            if (!append) {
+                body.innerHTML = '<div class="loading">Loading journey…</div>';
+            } else if (pagerEl) {
+                var btn = pagerEl.querySelector('.ob-journey-load-more');
+                if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+            }
+            try {
+                var payload = { event_limit: st.limit || 40 };
+                if (st.nakamaUserId) payload.nakama_user_id = st.nakamaUserId;
+                if (st.guestId) payload.guest_id = st.guestId;
+                if (append && st.nextCursor) payload.event_cursor = st.nextCursor;
+                else payload.event_cursor = '0';
+
+                var raw = await callRpc('onboarding_user_journey', payload, { timeoutMs: 45000, bypassCache: true });
+                var data = unwrapObRpc(raw);
+                var events = data.events || [];
+                var pag = data.eventPagination || {};
+                var totalEvents = pag.total != null ? pag.total : (data.eventCount || events.length);
+                st.nextCursor = pag.nextCursor || null;
+                st.totalEvents = totalEvents;
+
+                if (!append) {
+                    var profile = data.profile || {};
+                    var snap = (profile.snapshot || data.snapshot) || {};
+                    var statusLabel = obUserStatusLabel({ status: data.status, completed: data.status === 'completed' });
+                    var head = buildObJourneyHead(data, snap, profile, statusLabel);
+                    var pagerHtml = '<div class="ob-journey-pager" id="obJourneyPager">' +
+                        '<span id="obJourneyPagerText">Showing 0 of ' + formatNumber(totalEvents) + ' events</span>' +
+                        (pag.hasMore ? '<button type="button" class="ob-journey-load-more" onclick="loadObJourneyPage(true)">Load more</button>' : '<span></span>') +
+                        '</div>';
+                    var legend = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;">Event timeline · green=completion · blue=identity · gold=paywall · purple=quality · cyan=retention · gray=screen</div>';
+                    if (!totalEvents) {
+                        body.innerHTML = head + '<div class="empty-state">No events found for this user.</div>';
+                        return;
+                    }
+                    body.innerHTML = head + pagerHtml + legend + '<div class="ob-journey-events-wrap" id="obJourneyEventsList"></div>';
+                    listEl = document.getElementById('obJourneyEventsList');
+                    st.renderedCount = 0;
+                }
+
+                if (!listEl) return;
+                var offset = st.renderedCount || 0;
+                listEl.insertAdjacentHTML('beforeend', renderObJourneyEvents(events, offset, totalEvents));
+                st.renderedCount = offset + events.length;
+
+                pagerEl = document.getElementById('obJourneyPager');
+                if (pagerEl) {
+                    var textEl = document.getElementById('obJourneyPagerText');
+                    if (textEl) textEl.textContent = 'Showing ' + formatNumber(st.renderedCount) + ' of ' + formatNumber(totalEvents) + ' events';
+                    var existingBtn = pagerEl.querySelector('.ob-journey-load-more');
+                    if (pag.hasMore) {
+                        if (!existingBtn) {
+                            pagerEl.insertAdjacentHTML('beforeend', '<button type="button" class="ob-journey-load-more" onclick="loadObJourneyPage(true)">Load more</button>');
+                        } else {
+                            existingBtn.disabled = false;
+                            existingBtn.textContent = 'Load more';
+                        }
+                    } else if (existingBtn) {
+                        existingBtn.remove();
+                    }
+                }
+            } catch (e) {
+                if (!append) {
+                    body.innerHTML = '<div class="error">' + escapeHtml(e.message || String(e)) + '</div>';
+                } else if (pagerEl) {
+                    var errBtn = pagerEl.querySelector('.ob-journey-load-more');
+                    if (errBtn) { errBtn.disabled = false; errBtn.textContent = 'Retry'; }
+                }
+            }
+        }
+
         async function openOnboardingUserJourney(nakamaUserId, guestId) {
             if (!nakamaUserId && !guestId) return;
-            let modal = document.getElementById('obJourneyModal');
+            var modal = document.getElementById('obJourneyModal');
             if (!modal) {
                 modal = document.createElement('div');
                 modal.id = 'obJourneyModal';
@@ -5801,76 +5970,21 @@ select { color-scheme: dark; }
                 document.body.appendChild(modal);
             }
             modal.style.display = 'flex';
-            const body = document.getElementById('obJourneyModalBody');
-            const lookup = nakamaUserId || guestId;
-            body.innerHTML = '<div class="loading">Loading journey…</div>';
-            try {
-                const payload = {};
-                if (nakamaUserId) payload.nakama_user_id = nakamaUserId;
-                if (guestId) payload.guest_id = guestId;
-                const raw = await callRpc('onboarding_user_journey', payload, { timeoutMs: 45000 });
-                const data = unwrapObRpc(raw);
-                const events = data.events || [];
-                const profile = data.profile || {};
-                const snap = (profile.snapshot || data.snapshot) || {};
-                const st = obUserStatusLabel({ status: data.status, completed: data.status === 'completed' });
-                let head = '<div style="margin-bottom:1rem;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;font-size:0.82rem;line-height:1.6;">';
-                if (data.nakamaUserId) {
-                    head += '<div><strong>Nakama User ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.nakamaUserId) + '</code> <button class="ob-copy-btn" data-copy="' + data.nakamaUserId + '" onclick="copyObText(this.getAttribute(\'data-copy\'),this)">⎘</button></div>';
-                }
-                if (data.guestId) {
-                    head += '<div><strong>Guest ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.guestId) + '</code> <button class="ob-copy-btn" data-copy="' + data.guestId + '" onclick="copyObText(this.getAttribute(\'data-copy\'),this)">⎘</button></div>';
-                }
-                if (data.cognitoSub) {
-                    head += '<div><strong>Auth ID:</strong> <code style="font-size:0.75rem">' + escapeHtml(data.cognitoSub) + '</code></div>';
-                }
-                head += '<div><strong>Pathway:</strong> ' + escapeHtml(snap.pathway || profile.pathway || '—') +
-                    ' · <strong>Platform:</strong> ' + escapeHtml(obPlatformLabel(snap.platform || profile.platform)) +
-                    ' · <strong>Country:</strong> ' + escapeHtml(snap.country || '—') +
-                    ' · <span class="ob-status-pill ' + st.cls + '">' + st.text + '</span></div>';
-                head += '<div><strong>Started:</strong> ' + (data.startedAt ? new Date(data.startedAt).toLocaleString() : '—') +
-                    ' · <strong>Last seen:</strong> ' + (data.lastSeenAt ? new Date(data.lastSeenAt).toLocaleString() : '—') +
-                    ' · <strong>Duration:</strong> ' + formatDurationMs(data.durationMs) + '</div>';
-                if (profile.lastEvent || profile.lastScreen) {
-                    head += '<div><strong>Last event:</strong> ' + escapeHtml(profile.lastEvent || '—') +
-                        ' · <strong>Last screen:</strong> ' + escapeHtml(profile.lastScreen || '—') + '</div>';
-                }
-                head += renderObProfileChips(snap);
-                head += '</div>';
-                if (!events.length) {
-                    body.innerHTML = head + '<div class="empty-state">No player-scoped events yet — user may be pre-register only.</div>';
-                    return;
-                }
-                let tree = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem;">Event timeline (' + events.length + ' events) · green=completion · blue=identity · gold=paywall · purple=quality · cyan=retention · gray=screen</div>';
-                events.forEach(function(ev, i) {
-                    const t = new Date(ev.timestamp);
-                    const timeStr = t.toLocaleString();
-                    const cat = ev.category || 'other';
-                    const payloadStr = ev.data && Object.keys(ev.data).length ? JSON.stringify(ev.data, null, 2) : '';
-                    const payloadId = 'ob-payload-' + i;
-                    tree += '<div class="ob-journey-step ob-event-cat-' + cat + '" style="margin-bottom:0">' +
-                        '<div class="ob-journey-rail"><div class="ob-journey-dot"></div>' +
-                        (i < events.length - 1 ? '<div class="ob-journey-line"></div>' : '') + '</div>' +
-                        '<div class="ob-event-row" style="flex:1;border:none;padding:0.35rem 0 0.75rem 0;flex-direction:column;align-items:flex-start">' +
-                        '<div style="display:flex;gap:0.75rem;width:100%">' +
-                        '<div class="ob-event-time">' + escapeHtml(timeStr) + '</div>' +
-                        '<div style="flex:1"><div class="ob-event-name">' + escapeHtml(ev.name) + '</div>' +
-                        '<div style="color:var(--text-muted);font-size:0.75rem">' + escapeHtml(ev.screenLabel || ev.screen || '') +
-                        (ev.dwellMs ? ' · dwell ' + Math.round(ev.dwellMs / 1000) + 's' : '') +
-                        (payloadStr ? ' · <a href="#" style="color:var(--accent-light)" onclick="event.preventDefault();document.getElementById(\'' + payloadId + '\').classList.toggle(\'open\')">payload ▾</a>' : '') +
-                        '</div></div></div>' +
-                        (payloadStr ? '<pre class="ob-event-payload" id="' + payloadId + '">' + escapeHtml(payloadStr) + '</pre>' : '') +
-                        '</div></div>';
-                });
-                body.innerHTML = head + tree;
-            } catch (e) {
-                body.innerHTML = '<div class="error">' + escapeHtml(e.message || String(e)) + '</div>';
-            }
+            obJourneyState = {
+                nakamaUserId: nakamaUserId || '',
+                guestId: guestId || '',
+                limit: 40,
+                nextCursor: null,
+                renderedCount: 0,
+                totalEvents: 0
+            };
+            await loadObJourneyPage(false);
         }
 
         function closeObJourneyModal() {
-            const modal = document.getElementById('obJourneyModal');
+            var modal = document.getElementById('obJourneyModal');
             if (modal) modal.style.display = 'none';
+            obJourneyState = null;
         }
 
         async function loadOnboardingFunnelAnalytics() {
@@ -5916,6 +6030,16 @@ select { color-scheme: dark; }
             const panel = document.getElementById('obOnboardingPanel');
             const oldNote = panel && panel.querySelector('.ob-truncated-note');
             if (oldNote) oldNote.remove();
+            const oldIdNote = panel && panel.querySelector('.ob-identity-note');
+            if (oldIdNote) oldIdNote.remove();
+            if (summary.identityLinksTotal != null && panel) {
+                const idNote = document.createElement('div');
+                idNote.className = 'ob-identity-note';
+                idNote.textContent = formatNumber(summary.identityLinksTotal) + ' identity links in storage · ' +
+                    formatNumber(summary.identityMergesApplied || 0) + ' guest→Nakama rows merged · ' +
+                    formatNumber(summary.linkedUsersInFunnel || 0) + ' linked users in funnel';
+                panel.insertBefore(idNote, panel.firstChild);
+            }
             if (data.truncated && panel) {
                 const note = document.createElement('div');
                 note.className = 'ob-truncated-note';
