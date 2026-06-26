@@ -5658,19 +5658,26 @@ select { color-scheme: dark; }
             el.innerHTML = html;
         }
 
-        function renderObPathways(pathways) {
+        function renderObPathways(pathways, prePathway) {
             const el = document.getElementById('obPathwayBreakdown');
             if (!el) return;
-            if (!pathways || !pathways.length) {
+            if ((!pathways || !pathways.length) && (!prePathway || !prePathway.users)) {
                 el.innerHTML = '<div class="empty-state">No pathway data.</div>';
                 return;
             }
-            el.innerHTML = '<table class="data-table"><thead><tr><th>Pathway</th><th>Users</th><th>Completed</th><th>Completion %</th></tr></thead><tbody>' +
-                pathways.map(function(p) {
-                    return '<tr><td><strong>' + escapeHtml(p.pathway || '—') + '</strong></td>' +
-                        '<td>' + formatNumber(p.users) + '</td><td>' + formatNumber(p.completed) + '</td>' +
-                        '<td>' + (p.completionRatePct || 0) + '%</td></tr>';
-                }).join('') + '</tbody></table>';
+            var html = '<table class="data-table"><thead><tr><th>Pathway</th><th>Users</th><th>Completed</th><th>Completion %</th></tr></thead><tbody>';
+            (pathways || []).forEach(function(p) {
+                html += '<tr><td><strong>' + escapeHtml(p.label || p.pathway || '—') + '</strong></td>' +
+                    '<td>' + formatNumber(p.users) + '</td><td>' + formatNumber(p.completed) + '</td>' +
+                    '<td>' + (p.completionRatePct || 0) + '%</td></tr>';
+            });
+            html += '</tbody></table>';
+            if (prePathway && prePathway.users > 0) {
+                html += '<p style="font-size:0.82rem;color:var(--text-muted);margin:0.75rem 0 0;line-height:1.45">' +
+                    '<strong>' + formatNumber(prePathway.users) + '</strong> users (' + (prePathway.pctOfStart || 0) +
+                    '% of started) left before choosing Scholar, Warrior, Explorer, or Creator — shown separately, not as a pathway row.</p>';
+            }
+            el.innerHTML = html;
         }
 
         function renderObUsersTable(users) {
@@ -5902,7 +5909,7 @@ select { color-scheme: dark; }
 
             renderObScreenFunnel(data.screenFunnel || []);
             renderObDropoffHotspots(data.dropoffHotspots || []);
-            renderObPathways(data.pathways || []);
+            renderObPathways(data.pathways || [], data.prePathway || null);
             renderObEventSignals(data.eventSignals || null);
             renderObUsersTable(data.users || []);
 
