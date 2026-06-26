@@ -274,6 +274,46 @@ namespace OnboardingAnalytics {
     return p.indexOf(filter) >= 0;
   }
 
+  function parseTimeMs(value: any): number {
+    if (!value) return 0;
+    if (typeof value === "number") return toMs(value);
+    var parsed = Date.parse("" + value);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+
+  function snapshotHasProfile(snap: any): boolean {
+    if (!snap || typeof snap !== "object") return false;
+    if (snap.elapsedMs > 0) return true;
+    if (snap.startedAt) return true;
+    if (snap.pathway) return true;
+    if (snap.currentStep) return true;
+    if (snap.country) return true;
+    return Object.keys(snap).length > 0;
+  }
+
+  /** Best-effort funnel duration — prefers snapshot elapsedMs over event span. */
+  function resolveUserDurationMs(u: any): number {
+    if (u.maxElapsedMs > 0) return u.maxElapsedMs;
+    var snap = u.snapshot || {};
+    if (snap.elapsedMs > 0) return toMs(snap.elapsedMs);
+    var started = parseTimeMs(snap.startedAt);
+    var completed = parseTimeMs(snap.completedAt);
+    if (started > 0 && completed > started) return completed - started;
+    if (u.lastTs > 0 && u.firstTs > 0 && u.lastTs > u.firstTs) return u.lastTs - u.firstTs;
+    return 0;
+  }
+
+  function absorbSnapshotMetrics(u: any, snap: any, ts: number): void {
+    if (!snap || typeof snap !== "object") return;
+    if (snap.elapsedMs > 0) {
+      var elapsed = toMs(snap.elapsedMs);
+      if (!u.maxElapsedMs || elapsed > u.maxElapsedMs) u.maxElapsedMs = elapsed;
+    }
+    if (ts >= u.lastTs && snapshotHasProfile(snap)) {
+      u.snapshot = snap;
+    }
+  }
+
   function sanitizeSnapshot(snap: any): any {
     if (!snap || typeof snap !== "object") return {};
     return {
@@ -472,12 +512,13 @@ namespace OnboardingAnalytics {
     if (source.identityId && !target.identityId) target.identityId = source.identityId;
     if (source.cognitoSub && !target.cognitoSub) target.cognitoSub = source.cognitoSub;
     if (source.firstTs && source.firstTs < target.firstTs) target.firstTs = source.firstTs;
+    if (source.maxElapsedMs > (target.maxElapsedMs || 0)) target.maxElapsedMs = source.maxElapsedMs;
     if (source.lastTs >= target.lastTs) {
       target.lastTs = source.lastTs;
       if (source.lastScreen) target.lastScreen = source.lastScreen;
       if (source.lastEvent) target.lastEvent = source.lastEvent;
-      if (source.snapshot) target.snapshot = source.snapshot;
-    } else if (!target.snapshot && source.snapshot) {
+      if (source.snapshot && snapshotHasProfile(source.snapshot)) target.snapshot = source.snapshot;
+    } else if ((!target.snapshot || !snapshotHasProfile(target.snapshot)) && source.snapshot && snapshotHasProfile(source.snapshot)) {
       target.snapshot = source.snapshot;
     }
   }
@@ -659,6 +700,7 @@ namespace OnboardingAnalytics {
             lastEvent: "",
             firstTs: ts,
             eventCount: 0,
+            maxElapsedMs: 0,
             snapshot: snap
           };
         }
@@ -669,7 +711,8 @@ namespace OnboardingAnalytics {
         applyPathwayHints(u, rec);
         if (snap.country && !u.country) u.country = snap.country;
         if (snap.platform && !u.platform) u.platform = snap.platform;
-        if (rec.userSnapshot) u.snapshot = rec.userSnapshot;
+        if (ts < u.firstTs) u.firstTs = ts;
+        absorbSnapshotMetrics(u, rec.userSnapshot, ts);
 
         if (rec.nakamaUserId && !u.nakamaUserId) u.nakamaUserId = rec.nakamaUserId;
         if (rec.identityId && !u.identityId) u.identityId = rec.identityId;
@@ -860,7 +903,7 @@ namespace OnboardingAnalytics {
       if (u.welcomeBonusClaimed) sigWelcomeBonus++;
       if (u.streakShieldActivated) sigStreakShield++;
 
-      var elapsed = (u.snapshot && u.snapshot.elapsedMs) ? u.snapshot.elapsedMs : (u.lastTs - u.firstTs);
+      var elapsed = resolveUserDurationMs(u);
       if (elapsed > 0) durationSamples.push(elapsed);
 
       if (!isValidPathway(u.pathway)) {
@@ -1009,7 +1052,7 @@ namespace OnboardingAnalytics {
         firstTs: ur.firstTs,
         lastTs: ur.lastTs,
         startedAt: startedAt,
-        durationMs: (ur.snapshot && ur.snapshot.elapsedMs) ? ur.snapshot.elapsedMs : Math.max(0, ur.lastTs - ur.firstTs)
+        durationMs: resolveUserDurationMs(ur)
       });
     }
     userRows.sort(function (a, b) { return (b.lastTs || 0) - (a.lastTs || 0); });
