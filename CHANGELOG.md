@@ -5,6 +5,11 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 
 ## [Unreleased]
 
+## [3.39.1] - 2026-06-26
+### Backports
+- #2514: Database and Console route extension points
+
+
 ## [3.39.0] - 2026-05-20
 ### Added
 - Add new runtime function to update storage objects with retries.
