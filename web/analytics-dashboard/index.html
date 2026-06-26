@@ -2837,12 +2837,12 @@ select { color-scheme: dark; }
                     </select>
                     <select id="funnelStatusSelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:150px;">
                         <option value="">All statuses</option>
-                        <option value="completed">Completed</option>
+                        <option value="completed">Onboarding Done</option>
                         <option value="returned_to_app">Returned to app</option>
                         <option value="dropped">Dropped</option>
                         <option value="at_paywall">At paywall</option>
                         <option value="subscribed">Subscribed</option>
-                        <option value="pre_register">Pre-register only</option>
+                        <option value="pre_register">Guest (no account)</option>
                     </select>
                     <select id="funnelWelcomeThemeSelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:160px;">
                         <option value="">All themes (A/B)</option>
@@ -5580,12 +5580,12 @@ select { color-scheme: dark; }
         function obUserStatusLabel(u) {
             const status = u.status || (u.completed ? 'completed' : 'dropped');
             const map = {
-                completed: { text: 'Completed', cls: 'ob-status-done' },
+                completed: { text: 'Onboarding Done ✓', cls: 'ob-status-done' },
                 returned_to_app: { text: 'Returned to app', cls: 'ob-status-handoff' },
                 dropped: { text: 'Dropped', cls: 'ob-status-drop' },
                 at_paywall: { text: 'At paywall', cls: 'ob-status-paywall' },
                 subscribed: { text: 'Subscribed', cls: 'ob-status-subscribed' },
-                pre_register: { text: 'Pre-register', cls: 'ob-status-preregister' }
+                pre_register: { text: 'Guest (no account)', cls: 'ob-status-preregister' }
             };
             return map[status] || map.dropped;
         }
@@ -5718,9 +5718,9 @@ select { color-scheme: dark; }
                 '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1rem 0;">Counts unique users who fired each new onboarding event in the selected range.</p>' +
                 '<div class="ob-signals-grid">' +
                 '<div class="ob-signals-col"><h4>Funnel completion</h4><div class="ob-paywall-grid">' +
-                sigCard('Register started', f.registerStart, f.registerStartPct, 'ob_register_start') +
-                sigCard('Funnel complete', f.obComplete, f.obCompletePct, 'ob_complete') +
-                sigCard('App launch OK', f.appLaunchSuccess, f.appLaunchSuccessPct, 'ob_app_launch_success · % of completed') +
+                sigCard('Started sign-up (not yet done)', f.registerStart, f.registerStartPct, 'ob_register_start · opened the register form') +
+                sigCard('Onboarding complete signal', f.obComplete, f.obCompletePct, 'ob_complete · reached congrats screen') +
+                sigCard('Unity app opened after onboarding', f.appLaunchSuccess, f.appLaunchSuccessPct, 'ob_app_launch_success · % of completed · fired from Unity') +
                 '</div></div>' +
                 '<div class="ob-signals-col"><h4>Unity handoff (existing users)</h4><div class="ob-paywall-grid">' +
                 sigCard('Welcome → app', h.welcomeReturnToApp, h.welcomeReturnPct, 'ob_welcome_return_to_app · Already signed in') +
@@ -5808,7 +5808,7 @@ select { color-scheme: dark; }
                 el.innerHTML = '<div class="empty-state">No pathway data.</div>';
                 return;
             }
-            var html = '<table class="data-table"><thead><tr><th>Pathway</th><th>Users</th><th>Completed</th><th>Completion %</th></tr></thead><tbody>';
+            var html = '<table class="data-table"><thead><tr><th>Pathway</th><th>Users</th><th>Finished Onboarding</th><th>Completion %</th></tr></thead><tbody>';
             (pathways || []).forEach(function(p) {
                 html += '<tr><td><strong>' + escapeHtml(p.label || p.pathway || '—') + '</strong></td>' +
                     '<td>' + formatNumber(p.users) + '</td><td>' + formatNumber(p.completed) + '</td>' +
@@ -5868,7 +5868,7 @@ select { color-scheme: dark; }
                     '<td>' + formatRelativeTime(u.lastTs) + '</td>' +
                     '<td><code style="font-size:0.72rem">' + escapeHtml(uidShort) + '</code>' +
                     (uid ? ' <button class="ob-copy-btn" data-copy="' + uid + '" onclick="event.stopPropagation();copyObText(this.getAttribute(\'data-copy\'),this)" title="Copy">⎘</button>' : '') +
-                    (!uid && guest ? ' <span class="ob-status-pill ob-status-preregister">Not linked</span>' : '') + '</td>' +
+                    (!uid && guest ? ' <span class="ob-status-pill ob-status-preregister">No account</span>' : '') + '</td>' +
                     '<td><code style="font-size:0.72rem">' + escapeHtml(guestShort) + '</code>' +
                     (guest ? ' <button class="ob-copy-btn" data-copy="' + guest + '" onclick="event.stopPropagation();copyObText(this.getAttribute(\'data-copy\'),this)" title="Copy">⎘</button>' : '') + '</td>' +
                     '<td>' + escapeHtml(u.pathway || '—') + '</td>' +
@@ -6123,7 +6123,7 @@ select { color-scheme: dark; }
 
             document.getElementById('funnelKpis').innerHTML =
                 '<div class="kpi-card"><div class="icon">▶</div><div class="label">Started</div><div class="value plain">' + formatNumber(summary.started || summary.totalUsers || 0) + '</div><div class="trend">users in range</div></div>' +
-                '<div class="kpi-card"><div class="icon">✓</div><div class="label">Completed</div><div class="value positive">' + formatNumber(summary.completed || 0) + '</div><div class="trend">users finished</div></div>' +
+                '<div class="kpi-card"><div class="icon">✓</div><div class="label">Completed Onboarding</div><div class="value positive">' + formatNumber(summary.completed || 0) + '</div><div class="trend">reached the app successfully</div></div>' +
                 '<div class="kpi-card"><div class="icon">↩</div><div class="label">Returned to app</div><div class="value" style="color:#22d3ee">' + formatNumber(summary.returnedToApp || 0) + '</div><div class="trend">' + (summary.returnedToAppPct || 0) + '% · existing users</div></div>' +
                 '<div class="kpi-card"><div class="icon">%</div><div class="label">Completion rate</div><div class="value">' + (summary.completionRatePct || 0) + '%</div><div class="trend">started → finished</div></div>' +
                 '<div class="kpi-card"><div class="icon">⏱</div><div class="label">Median time</div><div class="value plain">' + (summary.medianDurationMin || 0) + ' min</div><div class="trend">in funnel</div></div>' +

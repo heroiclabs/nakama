@@ -314,11 +314,12 @@ namespace OnboardingAnalytics {
     return Object.keys(snap).length > 0;
   }
 
-  /** Best-effort funnel duration — prefers snapshot elapsedMs over event span. */
+  /** Best-effort funnel duration — prefers snapshot elapsedMs over event span.
+   * NOTE: snap.elapsedMs is already in milliseconds — do NOT pass through toMs(). */
   function resolveUserDurationMs(u: any): number {
     if (u.maxElapsedMs > 0) return u.maxElapsedMs;
     var snap = u.snapshot || {};
-    if (snap.elapsedMs > 0) return toMs(snap.elapsedMs);
+    if (snap.elapsedMs > 0) return snap.elapsedMs;
     var started = parseTimeMs(snap.startedAt);
     var completed = parseTimeMs(snap.completedAt);
     if (started > 0 && completed > started) return completed - started;
@@ -329,7 +330,7 @@ namespace OnboardingAnalytics {
   function absorbSnapshotMetrics(u: any, snap: any, ts: number): void {
     if (!snap || typeof snap !== "object") return;
     if (snap.elapsedMs > 0) {
-      var elapsed = toMs(snap.elapsedMs);
+      var elapsed = snap.elapsedMs;
       if (!u.maxElapsedMs || elapsed > u.maxElapsedMs) u.maxElapsedMs = elapsed;
     }
     if (ts >= u.lastTs && snapshotHasProfile(snap)) {

@@ -14670,6 +14670,7 @@ var AdminConsole;
         // Live-event prize fulfillment (admin console)
         initializer.registerRpc("admin_prize_fulfillments_list", rpcAdminPrizeFulfillmentsList);
         initializer.registerRpc("admin_prize_fulfillment_settle", rpcAdminPrizeFulfillmentSettle);
+        initializer.registerRpc("admin_prize_backfill_emails", rpcAdminPrizeBackfillEmails);
         initializer.registerRpc("admin_experiment_setup", rpcExperimentSetup);
         initializer.registerRpc("admin_satori_message_broadcast", rpcAdminMessageBroadcast);
         initializer.registerRpc("quizverse_game_intelligence_report", rpcQuizverseGameIntelligenceReport);
@@ -14968,6 +14969,72 @@ var AdminConsole;
         logAdminAudit(nk, ctx, "admin_prize_fulfillment_settle", { eventId: eventId, userId: targetUserId }, { status: status, orderId: (rec.voucher && rec.voucher.orderId) || "" });
         logger.info("[admin_prize_fulfillment_settle] %s settled key=%s status=%s", ctx.userId || "admin", fKey, status);
         return RpcHelpers.successResponse({ success: true, key: fKey, status: status, settledAt: settledAt });
+    }
+    /**
+     * Scans all pending prize_fulfillments records with an empty email field
+     * and attempts to populate them from the winner's Nakama account (works for
+     * email+password registrations; social-login users will remain empty and
+     * require admin to enter the email manually in the Approve panel).
+     */
+    function rpcAdminPrizeBackfillEmails(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var patched = 0;
+        var skippedNoAccount = 0;
+        var cursor = undefined;
+        var pages = 0;
+        do {
+            var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", 100, cursor);
+            var objs = (res && res.objects) || [];
+            cursor = (res && res.cursor) ? res.cursor : undefined;
+            // Batch all userIds in this page that have empty email and are pending
+            var needEmail = [];
+            for (var i = 0; i < objs.length; i++) {
+                var v = objs[i].value || {};
+                if (!v.email && v.status === "pending" && v.userId) {
+                    needEmail.push({ key: objs[i].key, userId: v.userId, value: v });
+                }
+            }
+            if (needEmail.length === 0) {
+                pages++;
+                continue;
+            }
+            // Batch-fetch accounts
+            var uids = needEmail.map(function (n) { return n.userId; });
+            var emailMap = {};
+            try {
+                var accounts = nk.accountsGetId(uids);
+                for (var ai = 0; ai < accounts.length; ai++) {
+                    var acct = accounts[ai];
+                    var uid = acct && acct.user && acct.user.id;
+                    var email = (acct && acct.email) || "";
+                    if (uid && email)
+                        emailMap[uid] = email;
+                }
+            }
+            catch (lookupErr) {
+                logger.warn("[admin_prize_backfill_emails] batch account lookup failed: %s", lookupErr.message || String(lookupErr));
+            }
+            // Write back records where we found an email
+            for (var ni = 0; ni < needEmail.length; ni++) {
+                var entry = needEmail[ni];
+                var foundEmail = emailMap[entry.userId] || "";
+                if (!foundEmail) {
+                    skippedNoAccount++;
+                    continue;
+                }
+                var updated = Object.assign({}, entry.value, { email: foundEmail });
+                try {
+                    Storage.writeSystemJson(nk, "prize_fulfillments", entry.key, updated);
+                    patched++;
+                }
+                catch (writeErr) {
+                    logger.warn("[admin_prize_backfill_emails] write failed for %s: %s", entry.key, writeErr.message || String(writeErr));
+                }
+            }
+            pages++;
+        } while (cursor && pages < 20);
+        logger.info("[admin_prize_backfill_emails] patched=%d skipped_no_account=%d", patched, skippedNoAccount);
+        return RpcHelpers.successResponse({ patched: patched, skippedNoAccount: skippedNoAccount });
     }
     function rpcGiftClaimsList(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -39165,13 +39232,14 @@ var OnboardingAnalytics;
             return true;
         return Object.keys(snap).length > 0;
     }
-    /** Best-effort funnel duration — prefers snapshot elapsedMs over event span. */
+    /** Best-effort funnel duration — prefers snapshot elapsedMs over event span.
+     * NOTE: snap.elapsedMs is already in milliseconds — do NOT pass through toMs(). */
     function resolveUserDurationMs(u) {
         if (u.maxElapsedMs > 0)
             return u.maxElapsedMs;
         var snap = u.snapshot || {};
         if (snap.elapsedMs > 0)
-            return toMs(snap.elapsedMs);
+            return snap.elapsedMs;
         var started = parseTimeMs(snap.startedAt);
         var completed = parseTimeMs(snap.completedAt);
         if (started > 0 && completed > started)
@@ -39184,7 +39252,7 @@ var OnboardingAnalytics;
         if (!snap || typeof snap !== "object")
             return;
         if (snap.elapsedMs > 0) {
-            var elapsed = toMs(snap.elapsedMs);
+            var elapsed = snap.elapsedMs;
             if (!u.maxElapsedMs || elapsed > u.maxElapsedMs)
                 u.maxElapsedMs = elapsed;
         }
@@ -49480,12 +49548,23 @@ var SatoriCreatorEvents;
             nextEvent: nextEvent,
             idempotencyKey: "event_ended_" + def.id,
         });
+        var prizeQueueResult = null;
+        try {
+            prizeQueueResult = computeAndQueueWinners(nk, logger, def, def.id);
+            if (prizeQueueResult.queued > 0) {
+                logger.info("[CreatorEvent] Auto-queued %d prize fulfillments for event %s (ranked=%d xut=%d skipped=%d)", prizeQueueResult.queued, def.id, prizeQueueResult.ranked, prizeQueueResult.xutWinners, prizeQueueResult.skippedExisting);
+            }
+        }
+        catch (pqErr) {
+            logger.warn("[CreatorEvent] Prize auto-queue failed for event %s (non-fatal): %s", def.id, pqErr.message || String(pqErr));
+        }
         return RpcHelpers.successResponse({
             success: true,
             eventId: def.id,
             totalParticipants: allRecords.length,
             tierAssignments: tierAssignments,
             winnersPerTier: winnersPerTier,
+            prizeQueue: prizeQueueResult || undefined,
         });
     }
     /**
@@ -49713,6 +49792,29 @@ var SatoriCreatorEvents;
         var queued = 0;
         var skipped = 0;
         var xutWinners = 0;
+        // Pre-fetch emails for all ranked players in one batch call.
+        var emailByUserId = {};
+        var allWinnerIds = [];
+        for (var wi = 0; wi < allAnswers.length; wi++) {
+            var wuid = allAnswers[wi].userId;
+            if (wuid)
+                allWinnerIds.push(wuid);
+        }
+        if (allWinnerIds.length > 0) {
+            try {
+                var accounts = nk.accountsGetId(allWinnerIds);
+                for (var ai = 0; ai < accounts.length; ai++) {
+                    var acct = accounts[ai];
+                    var uid = acct && acct.user && acct.user.id;
+                    var email = (acct && acct.email) || "";
+                    if (uid)
+                        emailByUserId[uid] = email || "";
+                }
+            }
+            catch (emailErr) {
+                logger.warn("[computeAndQueueWinners] Failed to batch-fetch account emails: %s", emailErr.message || String(emailErr));
+            }
+        }
         for (var r = 0; r < allAnswers.length; r++) {
             var rank = r + 1;
             var tier = findTierForRank(tiers, rank);
@@ -49740,7 +49842,7 @@ var SatoriCreatorEvents;
                 eventTitle: (def && def.title) || "",
                 region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
                 source: "auto_winner",
-                email: "",
+                email: emailByUserId[winnerId] || "",
             });
             queued++;
         }
