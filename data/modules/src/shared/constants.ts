@@ -62,4 +62,9 @@ namespace Constants {
   export const ADMIN_AUDIT_COLLECTION = "admin_audit_events";
   export const PLAYER_METADATA_COLLECTION = "player_metadata";
   export const PUSH_TOKENS_COLLECTION = "push_tokens";
+
+  // Web onboarding analytics (browser → Next.js → Nakama http_key RPC)
+  export const QV_ONBOARDING_EVENTS_COLLECTION = "qv_onboarding_events";
+  export const QV_ONBOARDING_IDENTITY_COLLECTION = "qv_onboarding_identity";
+  export const QV_ONBOARDING_PROFILES_COLLECTION = "qv_onboarding_profiles";
 }

@@ -121,6 +121,14 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Explainer video consumables (qv_entitlements / consumables) ----
+    try {
+        QvExplainerVideos.register(initializer);
+        logger.info("[QvExplainerVideos] quizverse_videos_status/consume/grant registered");
+    }
+    catch (err) {
+        logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- Legacy System Registration (backward-compatible RPCs) ----
     try {
         logger.info("[Legacy] Registering wallet RPCs...");
@@ -507,6 +515,14 @@ function InitModule(ctx, logger, nk, initializer) {
         catch (err) {
             logger.error("[AccountMerge] failed to register: " + (err && err.message ? err.message : String(err)));
         }
+        logger.info("[OnboardingAnalytics] Registering web onboarding event ingest + funnel RPCs...");
+        try {
+            OnboardingAnalytics.register(initializer);
+            logger.info("[OnboardingAnalytics] onboarding_events_batch, onboarding_identity_link, onboarding_funnel_screens registered");
+        }
+        catch (err) {
+            logger.error("[OnboardingAnalytics] failed to register: " + (err && err.message ? err.message : String(err)));
+        }
         // ── Tournaments + P2E (plan §1-§3) ─────────────────────────────────────
         // Full launch-slate tournament system. Registers 25 RPCs across:
         //   - user-callable (list/get/enter/submit/leaderboard×6/claim/picks/pre-enroll/...)
@@ -659,6 +675,21 @@ function InitModule(ctx, logger, nk, initializer) {
     }
     catch (err) {
         logger.error("[BlogEmbed] Failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- Research & Validation instrument (SBIR/IES grant evidence) ----
+    // Consent (COPPA/FERPA-aware), A/B assignment (adaptive vs control), pre/post
+    // diagnostic with normalized learning gain, surveys (student/teacher/customer/
+    // SUS/NPS), waitlist capture, and an admin/service-only aggregate export that
+    // produces the proposal-appendix numbers. Single-arg register() so postbuild's
+    // autoInvokeRegister re-runs it on every pooled Goja VM.
+    // See data/modules/src/research/research.ts.
+    try {
+        logger.info("[Research] Registering quizverse_research_* RPCs (consent, assignment, diagnostic, survey, waitlist, export)...");
+        Research.register(initializer);
+        logger.info("[Research] quizverse_research_consent/_assignment_get/_diagnostic_submit/_survey_submit/_waitlist_join/_export registered");
+    }
+    catch (err) {
+        logger.error("[Research] Failed to register: " + (err && err.message ? err.message : String(err)));
     }
     // ---- Fantasy Cricket RPCs ----
     try {
@@ -12768,13 +12799,26 @@ var AdminConsole;
     function adminGameId(data) {
         return String(data.game_id || data.gameId || "").trim();
     }
+    // Normalise any raw game identifier (UUID, slug, "global", "all") to the
+    // canonical slug/id before building the storage key, so admin writes and
+    // player reads always land on the same key.
+    function adminCanonicalGameId(nk, gameId) {
+        try {
+            if (typeof LegacyGameRegistry !== "undefined" && LegacyGameRegistry.resolveCanonicalGameId) {
+                return LegacyGameRegistry.resolveCanonicalGameId(nk, gameId) || gameId;
+            }
+        }
+        catch (_e) { /* pass through on any error */ }
+        return gameId;
+    }
     function adminConfigKey(system, gameId) {
         return Constants.gameKey(gameId || undefined, system);
     }
     function readScopedConfig(nk, collection, system, gameId, defaultValue) {
-        var key = adminConfigKey(system, gameId);
+        var canonId = adminCanonicalGameId(nk, gameId);
+        var key = adminConfigKey(system, canonId);
         var config = Storage.readSystemJson(nk, collection, key);
-        if ((!config || objectCount(config) === 0) && gameId) {
+        if ((!config || objectCount(config) === 0) && canonId) {
             config = Storage.readSystemJson(nk, collection, system);
         }
         if (!config || objectCount(config) === 0)
@@ -12782,7 +12826,8 @@ var AdminConsole;
         return config || {};
     }
     function saveScopedSatoriConfig(nk, system, gameId, config) {
-        var key = adminConfigKey(system, gameId);
+        var canonId = adminCanonicalGameId(nk, gameId);
+        var key = adminConfigKey(system, canonId);
         ConfigLoader.saveSatoriConfig(nk, key, config);
         return key;
     }
@@ -17410,7 +17455,7 @@ var HiroUnlockables;
 //
 //  Collection: qv_entitlements
 //   key "subscriptions" : { tier, expiresAt?, productId, store }
-//   key "consumables"   : { aiVoiceCredits, voiceSessionsUsed, boosterCredits }
+//   key "consumables"   : { aiVoiceCredits, explainerVideoCredits, explainerFreePreviewUsed, voiceSessionsUsed, boosterCredits }
 //   key "one_time"      : { noAds, partyMode, microphone, inventorySlots,
 //                           examPacks[], starterPackGrantCount }
 //
@@ -17581,6 +17626,27 @@ var QvEntitlements;
         // ── Consumable path (AI Voice session credits) ───────────────────────
         // Triggered by web Stripe webhook (store = "web_stripe") or RC consumable
         // purchases.  productId pattern: *.aivoice.*  or  *.voice_pack.*
+        var isExplainerVideo = productId.indexOf("videos_") !== -1 ||
+            productId.indexOf("price_qv_videos_") !== -1;
+        if (isExplainerVideo) {
+            var evQty = Number(event.quantity) || 0;
+            if (evQty <= 0) {
+                if (productId.indexOf("videos_20") !== -1 || productId.indexOf("price_qv_videos_20_") !== -1)
+                    evQty = 20;
+                else if (productId.indexOf("videos_5") !== -1 || productId.indexOf("price_qv_videos_5_") !== -1)
+                    evQty = 5;
+                else
+                    evQty = 1;
+            }
+            try {
+                var granted = QvExplainerVideos.grantExplainerCredits(nk, logger, targetUserId, productId, evQty);
+                return RpcHelpers.successResponse({ explainerVideoCredits: granted, granted: evQty, productId: productId });
+            }
+            catch (e) {
+                logger.error("[QvEntitlements] rc_sync explainer write error: " + (e && e.message ? e.message : String(e)));
+                return RpcHelpers.errorResponse("Failed to write explainer video entitlement");
+            }
+        }
         var isAiVoice = productId.indexOf("aivoice") !== -1 || productId.indexOf("voice_pack") !== -1;
         if (isAiVoice) {
             var quantity = Number(event.quantity) || 0;
@@ -17620,11 +17686,19 @@ var QvEntitlements;
                 try {
                     var isConsumableRc = productId.indexOf("aivoice") !== -1 ||
                         productId.indexOf("boosterpack") !== -1 ||
-                        productId.indexOf("starterpack") !== -1;
+                        productId.indexOf("starterpack") !== -1 ||
+                        productId.indexOf("videos_") !== -1;
                     if (isConsumableRc) {
-                        var qty = productId.indexOf(".50") !== -1 ? 50
-                            : productId.indexOf(".10") !== -1 ? 10 : 1;
-                        QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+                        var qty = productId.indexOf("videos_20") !== -1 ? 20
+                            : productId.indexOf("videos_5") !== -1 ? 5
+                                : productId.indexOf(".50") !== -1 ? 50
+                                    : productId.indexOf(".10") !== -1 ? 10 : 1;
+                        if (productId.indexOf("videos_") !== -1) {
+                            QvExplainerVideos.grantExplainerCredits(nk, logger, targetUserId, productId, qty);
+                        }
+                        else {
+                            QvEntitlements.grantConsumable(nk, logger, targetUserId, productId, qty);
+                        }
                         logger.info("[QvEntitlements] rc_sync: RC GRANT consumable productId=" + productId + " qty=" + qty + " user=" + targetUserId);
                     }
                     else {
@@ -17739,6 +17813,9 @@ var QvEntitlements;
             if (productId.indexOf("aivoice") !== -1) {
                 existing.aiVoiceCredits = (existing.aiVoiceCredits || 0) + quantity;
             }
+            else if (productId.indexOf("videos_") !== -1) {
+                existing.explainerVideoCredits = (existing.explainerVideoCredits || 0) + quantity;
+            }
             else if (productId.indexOf("boosterpack") !== -1) {
                 existing.boosterCredits = (existing.boosterCredits || 0) + quantity;
             }
@@ -17797,6 +17874,186 @@ var QvEntitlements;
     }
     QvEntitlements.register = register;
 })(QvEntitlements || (QvEntitlements = {}));
+// ---------------------------------------------------------------------------
+//  explainer-videos.ts — quizverse_videos_status / consume / grant
+//
+//  Storage: qv_entitlements / consumables
+//    explainerVideoCredits  — purchased pack balance
+//    explainerFreePreviewUsed — one-time 30s preview consumed
+// ---------------------------------------------------------------------------
+var QvExplainerVideos;
+(function (QvExplainerVideos) {
+    var COLLECTION = "qv_entitlements";
+    var KEY_CONS = "consumables";
+    var FREE_PREVIEW_SECONDS = 30;
+    var PACK_UNITS = {
+        "videos_1_v3_1": 1,
+        "videos_5_v3_1": 5,
+        "videos_20_v3_1": 20,
+        // legacy v1 ids (still grant if RC sends them)
+        "videos_1_v1": 1,
+        "videos_5_v1": 5,
+        "videos_20_v1": 20
+    };
+    function readCons(nk, userId) {
+        return Storage.readJson(nk, COLLECTION, KEY_CONS, userId) || {};
+    }
+    function writeCons(nk, userId, cons) {
+        cons.updatedAt = new Date().toISOString();
+        Storage.writeJson(nk, COLLECTION, KEY_CONS, userId, cons);
+    }
+    function unitsForProductId(productId) {
+        if (!productId)
+            return 0;
+        if (PACK_UNITS[productId])
+            return PACK_UNITS[productId];
+        if (productId.indexOf("videos_20") !== -1)
+            return 20;
+        if (productId.indexOf("videos_5") !== -1)
+            return 5;
+        if (productId.indexOf("videos_1") !== -1)
+            return 1;
+        return 0;
+    }
+    function normalizeProductId(raw) {
+        if (!raw)
+            return "";
+        if (PACK_UNITS[raw])
+            return raw;
+        // Stripe price id → RC product id
+        if (raw.indexOf("price_qv_videos_1_") === 0)
+            return "videos_1_v3_1";
+        if (raw.indexOf("price_qv_videos_5_") === 0)
+            return "videos_5_v3_1";
+        if (raw.indexOf("price_qv_videos_20_") === 0)
+            return "videos_20_v3_1";
+        return raw;
+    }
+    function buildStatus(cons) {
+        var balance = Number(cons.explainerVideoCredits) || 0;
+        var freePreviewUsed = !!cons.explainerFreePreviewUsed;
+        var mode = balance > 0 ? "full" : (!freePreviewUsed ? "preview" : "blocked");
+        return {
+            balance: balance,
+            freePreviewUsed: freePreviewUsed,
+            freePreviewSeconds: FREE_PREVIEW_SECONDS,
+            mode: mode,
+            canGenerate: mode !== "blocked"
+        };
+    }
+    function rpcVideosStatus(ctx, logger, nk, _payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        try {
+            var cons = readCons(nk, userId);
+            return RpcHelpers.successResponse(buildStatus(cons));
+        }
+        catch (e) {
+            logger.warn("[QvExplainerVideos] status error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to read explainer video status");
+        }
+    }
+    function rpcVideosConsume(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data;
+        try {
+            data = RpcHelpers.parseRpcPayload(payload);
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "bad payload");
+        }
+        var mode = (data.mode || data.consume_mode || "full");
+        if (mode !== "preview" && mode !== "full") {
+            return RpcHelpers.errorResponse("mode must be preview or full");
+        }
+        try {
+            var cons = readCons(nk, userId);
+            var balance = Number(cons.explainerVideoCredits) || 0;
+            var freePreviewUsed = !!cons.explainerFreePreviewUsed;
+            if (mode === "full") {
+                if (balance <= 0) {
+                    return RpcHelpers.errorResponse("no explainer video credits", 7);
+                }
+                cons.explainerVideoCredits = balance - 1;
+                writeCons(nk, userId, cons);
+                logger.info("[QvExplainerVideos] consume full user=" + userId + " balance=" + cons.explainerVideoCredits);
+                return RpcHelpers.successResponse({
+                    consumed: true,
+                    consumeMode: "full",
+                    balance: cons.explainerVideoCredits,
+                    freePreviewUsed: !!cons.explainerFreePreviewUsed
+                });
+            }
+            // preview — one-time only
+            if (freePreviewUsed) {
+                return RpcHelpers.errorResponse("free preview already used", 7);
+            }
+            cons.explainerFreePreviewUsed = true;
+            writeCons(nk, userId, cons);
+            logger.info("[QvExplainerVideos] consume preview user=" + userId);
+            return RpcHelpers.successResponse({
+                consumed: true,
+                consumeMode: "preview",
+                balance: Number(cons.explainerVideoCredits) || 0,
+                freePreviewUsed: true,
+                previewMaxSeconds: FREE_PREVIEW_SECONDS
+            });
+        }
+        catch (e) {
+            logger.warn("[QvExplainerVideos] consume error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to consume explainer video credit");
+        }
+    }
+    function rpcVideosGrant(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data;
+        try {
+            data = RpcHelpers.parseRpcPayload(payload);
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse(e.message || "bad payload");
+        }
+        var productId = normalizeProductId(String(data.product_id || data.productId || ""));
+        var units = Number(data.quantity) || unitsForProductId(productId);
+        if (units <= 0) {
+            return RpcHelpers.errorResponse("unknown explainer video product: " + productId);
+        }
+        try {
+            var cons = readCons(nk, userId);
+            var prev = Number(cons.explainerVideoCredits) || 0;
+            cons.explainerVideoCredits = prev + units;
+            writeCons(nk, userId, cons);
+            logger.info("[QvExplainerVideos] grant user=" + userId + " product=" + productId + " +" + units + " now=" + cons.explainerVideoCredits);
+            return RpcHelpers.successResponse({
+                granted: units,
+                productId: productId,
+                balance: cons.explainerVideoCredits
+            });
+        }
+        catch (e) {
+            logger.warn("[QvExplainerVideos] grant error: " + (e && e.message ? e.message : String(e)));
+            return RpcHelpers.errorResponse("Failed to grant explainer video credits");
+        }
+    }
+    /** Called from entitlements rc_sync / grantConsumable. */
+    function grantExplainerCredits(nk, logger, userId, productId, quantity) {
+        var units = quantity > 0 ? quantity : unitsForProductId(normalizeProductId(productId));
+        if (units <= 0)
+            return 0;
+        var cons = readCons(nk, userId);
+        var prev = Number(cons.explainerVideoCredits) || 0;
+        cons.explainerVideoCredits = prev + units;
+        writeCons(nk, userId, cons);
+        logger.info("[QvExplainerVideos] grantExplainerCredits user=" + userId + " +" + units + " now=" + cons.explainerVideoCredits);
+        return units;
+    }
+    QvExplainerVideos.grantExplainerCredits = grantExplainerCredits;
+    function register(initializer) {
+        initializer.registerRpc("quizverse_videos_status", rpcVideosStatus);
+        initializer.registerRpc("quizverse_videos_consume", rpcVideosConsume);
+        initializer.registerRpc("quizverse_videos_grant", rpcVideosGrant);
+    }
+    QvExplainerVideos.register = register;
+})(QvExplainerVideos || (QvExplainerVideos = {}));
 // =============================================================================
 // account_merge.ts — Ghost Nakama user → Cognito user merge
 //
@@ -27776,6 +28033,27 @@ var LegacyPush;
             ar: "{count} مفاهيم جاهزة — رسّخها في ذاكرتك بعيدة المدى.",
             id: "{count} konsep siap diulang — tanamkan ke memori jangka panjang.",
             zu: "Ama-concept angu-{count} akulindele — wagxilise enkumbulweni yesikhathi eside."
+        },
+        // ── Research survey invite (server-triggered campaign; $100 gift-card draw) ──
+        survey_invite_title: {
+            en: "📣 2-min survey — win $100!", hi: "📣 2 मिनट का सर्वे — $100 जीतें!", es: "📣 Encuesta de 2 min — ¡gana $100!", fr: "📣 Sondage 2 min — gagnez 100 $ !",
+            de: "📣 2-Min-Umfrage — 100 $ gewinnen!", pt: "📣 Pesquisa de 2 min — ganhe $100!", ru: "📣 Опрос 2 мин — выиграй $100!", ja: "📣 2分アンケート — $100が当たる！",
+            ko: "📣 2분 설문 — $100 당첨 기회!", "zh-Hans": "📣 2分钟问卷 — 赢取$100！", ar: "📣 استبيان دقيقتين — اربح 100$!", id: "📣 Survei 2 menit — menangkan $100!", zu: "📣 Inhlolovo yemizuzu emi-2 — wina u-$100!"
+        },
+        survey_invite_body: {
+            en: "Tell us what you think of our new AI study tool. Finish for a chance to win one of several $100 gift cards!",
+            hi: "हमारे नए AI स्टडी टूल के बारे में अपनी राय दें। पूरा करें और कई $100 गिफ्ट कार्ड में से एक जीतने का मौका पाएं!",
+            es: "Cuéntanos qué opinas de nuestra nueva herramienta de estudio con IA. Termínala y participa por una de varias tarjetas de $100.",
+            fr: "Donnez votre avis sur notre nouvel outil d'étude IA. Terminez pour tenter de gagner l'une des cartes-cadeaux de 100 $ !",
+            de: "Sag uns deine Meinung zu unserem neuen KI-Lerntool. Abschließen und eine von mehreren 100-$-Geschenkkarten gewinnen!",
+            pt: "Diga o que acha da nossa nova ferramenta de estudo com IA. Conclua e concorra a um de vários vales de $100!",
+            ru: "Поделитесь мнением о нашем новом ИИ-помощнике для учёбы. Пройдите опрос и выиграйте одну из карт на $100!",
+            ja: "新しいAI学習ツールについて教えてください。完了で複数の$100ギフトカードのいずれかが当たるチャンス！",
+            ko: "새 AI 학습 도구에 대한 의견을 들려주세요. 완료하면 여러 장의 $100 기프트카드 중 하나에 당첨될 기회!",
+            "zh-Hans": "告诉我们你对全新 AI 学习工具的看法。完成问卷即有机会赢取多张 $100 礼品卡之一！",
+            ar: "أخبرنا برأيك في أداة الدراسة الذكية الجديدة. أكمل الاستبيان لدخول سحب إحدى بطاقات الهدايا بقيمة 100$!",
+            id: "Beri tahu pendapatmu tentang alat belajar AI baru kami. Selesaikan untuk berkesempatan menang satu dari beberapa kartu hadiah $100!",
+            zu: "Sitshele ukuthi ucabangani ngethuluzi lethu elisha le-AI lokufunda. Qedela ukuze uthole ithuba lokuwina elinye lamakhadi esipho angu-$100!"
         }
     };
     function localize(locale, key, vars) {
@@ -28191,6 +28469,110 @@ var LegacyPush;
                 break;
         }
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: pickQuizTopic(quiz, "en") });
+    }
+    // ─── 1b. Research survey-invite push (server-triggered campaign) ────────────
+    // Drives the customer-discovery survey (quizverse_research_survey_submit) to
+    // the opted-in install base via APNs/FCM. Admin/http_key only (no ctx.userId).
+    // Payload: {
+    //   dry_run?:  boolean  — count reachable users WITHOUT sending (reach probe)
+    //   locale?:   string   — only push to users whose resolved locale matches
+    //   max?:      number   — stop after this many successful sends (throttle)
+    //   campaign?: string   — once-per-user marker key (default "survey_2026_06")
+    //   skip_quiet_hours?: boolean — bypass the 22:00–08:00 local quiet window
+    // }
+    function rpcNotifCronSurveyPush(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var data = RpcHelpers.parseRpcPayload(payload) || {};
+        var dryRun = data.dry_run === true;
+        var localeFilter = data.locale ? normalizeLocale(String(data.locale)) : "";
+        var maxSends = (typeof data.max === "number" && data.max > 0) ? data.max : 0;
+        var campaign = String(data.campaign || "survey_2026_06");
+        var skipQuiet = data.skip_quiet_hours === true;
+        var surveyUrl = "https://quizverse.world/app?survey=push&utm_source=push&utm_medium=app&utm_campaign=survey500";
+        // ── Fast reach probe (count_only) ─────────────────────────────────────
+        // Answers "how many can we reach?" with a single indexed SQL COUNT rather
+        // than paging the whole opted-in base. The per-user dry_run below does 2
+        // storage reads/user, which CANNOT return within the HTTP gateway window
+        // against a five-figure base (it 502/504s). count_only short-circuits
+        // before any per-user work and returns instantly.
+        if (data.count_only === true) {
+            var optedInTotal = 0, optedInEn = 0;
+            try {
+                var rc1 = nk.sqlQuery("SELECT count(DISTINCT user_id) AS c FROM storage WHERE collection = $1 AND user_id <> '00000000-0000-0000-0000-000000000000'", [Constants.PUSH_TOKENS_COLLECTION]);
+                if (rc1 && rc1.length)
+                    optedInTotal = Number(rc1[0].c || 0);
+            }
+            catch (e1) { }
+            try {
+                var rc2 = nk.sqlQuery("SELECT count(DISTINCT s.user_id) AS c FROM storage s JOIN users u ON u.id = s.user_id WHERE s.collection = $1 AND s.user_id <> '00000000-0000-0000-0000-000000000000' AND u.lang_tag ILIKE 'en%'", [Constants.PUSH_TOKENS_COLLECTION]);
+                if (rc2 && rc2.length)
+                    optedInEn = Number(rc2[0].c || 0);
+            }
+            catch (e2) { }
+            return RpcHelpers.successResponse({
+                count_only: true, campaign: campaign,
+                opted_in_total: optedInTotal, opted_in_en: optedInEn
+            });
+        }
+        // Per-user path (dry_run sample or live send). scan_limit bounds the scan
+        // so it always returns inside the gateway window; dry_run defaults to a
+        // bounded sample (pass scan_limit:0 to force a full, slow scan).
+        var scanLimit = (typeof data.scan_limit === "number" && data.scan_limit >= 0)
+            ? data.scan_limit
+            : (dryRun ? 5000 : 0);
+        var sent = 0, gated = 0, scanned = 0, eligible = 0, alreadyDone = 0, localeSkipped = 0;
+        var truncated = false;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listOptedInUsers(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                if (scanLimit > 0 && scanned >= scanLimit) {
+                    truncated = true;
+                    break;
+                }
+                scanned++;
+                var u = users[i];
+                if (localeFilter && getUserLocale(nk, u) !== localeFilter) {
+                    localeSkipped++;
+                    continue;
+                }
+                if (hasMarker(nk, u, "survey_invite", campaign)) {
+                    alreadyDone++;
+                    continue;
+                }
+                eligible++;
+                if (dryRun)
+                    continue;
+                if (maxSends > 0 && sent >= maxSends) {
+                    return RpcHelpers.successResponse({
+                        dry_run: false, campaign: campaign, capped: true, truncated: truncated,
+                        scan_limit: scanLimit, sent: sent, gated: gated, scanned: scanned,
+                        eligible: eligible, already_done: alreadyDone, locale_skipped: localeSkipped
+                    });
+                }
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "survey_invite", "survey_invite_title", "survey_invite_body", {}, { skipQuietHours: skipQuiet, data: { screen: "survey", url: surveyUrl } });
+                if (ok) {
+                    recordMarker(nk, u, "survey_invite", campaign);
+                    sent++;
+                }
+                else {
+                    gated++;
+                }
+            }
+            if (truncated)
+                break;
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        return RpcHelpers.successResponse({
+            dry_run: dryRun, campaign: campaign, truncated: truncated, scan_limit: scanLimit,
+            sent: sent, gated: gated, scanned: scanned, eligible: eligible,
+            already_done: alreadyDone, locale_skipped: localeSkipped
+        });
     }
     // ─── 2. Weekly quiz cron (read 5 types × 13 langs daily, push only on diff) ─
     function rpcNotifCronWeeklyQuiz(ctx, logger, nk, payload) {
@@ -28857,6 +29239,7 @@ var LegacyPush;
         initializer.registerRpc("push_flush_pending", rpcPushFlushPending);
         // Notification broadcaster — admin/server-key callers only (no userId in ctx).
         initializer.registerRpc("notif_cron_daily_quiz", rpcNotifCronDailyQuiz);
+        initializer.registerRpc("notif_cron_survey_push", rpcNotifCronSurveyPush);
         initializer.registerRpc("notif_cron_weekly_quiz", rpcNotifCronWeeklyQuiz);
         initializer.registerRpc("notif_cron_idle_winback", rpcNotifCronIdleWinback);
         initializer.registerRpc("notif_cron_streak_warning", rpcNotifCronStreakWarning);
@@ -38472,6 +38855,1429 @@ var MpVoiceLiveKit;
     }
     MpVoiceLiveKit.makeMinter = makeMinter;
 })(MpVoiceLiveKit || (MpVoiceLiveKit = {}));
+// ---------------------------------------------------------------------------
+// Web onboarding analytics — dedicated event lake for onboarding.quizverse.world
+//
+// Separate from satori_events (no strict taxonomy). Browser sends batched
+// ob_* events via Next.js /api/onboarding/analytics → onboarding_events_batch
+// (http_key). Storage layout mirrors satori_events: inverted-time keys under
+// SYSTEM_USER for efficient recent-first scans.
+// ---------------------------------------------------------------------------
+var OnboardingAnalytics;
+(function (OnboardingAnalytics) {
+    var PAGE_SIZE = 100;
+    var MAX_SCAN_PAGES = 400;
+    var MAX_BATCH = 50;
+    var PROFILE_KEY = "profile";
+    function isNakamaUuid(id) {
+        if (!id || id.length !== 36)
+            return false;
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    }
+    function eventKey(tsMs, id) {
+        var inv = "" + (100000000000000 - tsMs);
+        while (inv.length < 14)
+            inv = "0" + inv;
+        var safe = (id || "x").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+        return "ev_0" + inv + "_" + safe;
+    }
+    function randomId() {
+        return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    }
+    function toMs(ts) {
+        if (!ts)
+            return Date.now();
+        return ts < 100000000000 ? ts * 1000 : ts;
+    }
+    function sanitizeId(raw, maxLen) {
+        return (raw || "").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, maxLen);
+    }
+    function captureEvents(nk, identityId, cognitoSub, nakamaUserId, events) {
+        var writes = [];
+        var captured = 0;
+        var lastSnapshot = null;
+        var lastScreen = "";
+        var lastEvent = "";
+        for (var i = 0; i < events.length; i++) {
+            var e = events[i];
+            if (!e || !e.name)
+                continue;
+            var tsMs = toMs(e.timestamp);
+            var eventId = (e.eventId || randomId()).toString();
+            var recordCognito = cognitoSub || e.userId || null;
+            var recordNakama = nakamaUserId || null;
+            var key = eventKey(tsMs + i, eventId);
+            var record = {
+                identityId: identityId,
+                userId: recordNakama || recordCognito,
+                cognitoSub: recordCognito,
+                nakamaUserId: recordNakama,
+                name: e.name,
+                timestamp: tsMs,
+                screen: e.screen || "",
+                sessionId: e.sessionId || "",
+                dwellMs: e.dwellMs || 0,
+                data: e.data || {},
+                userSnapshot: e.userSnapshot || {},
+                date: new Date(tsMs).toISOString().slice(0, 10)
+            };
+            writes.push({
+                collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
+                key: key,
+                userId: Constants.SYSTEM_USER_ID,
+                value: record,
+                permissionRead: 0,
+                permissionWrite: 0
+            });
+            if (recordNakama) {
+                writes.push({
+                    collection: Constants.QV_ONBOARDING_EVENTS_COLLECTION,
+                    key: key,
+                    userId: recordNakama,
+                    value: record,
+                    permissionRead: 2,
+                    permissionWrite: 0
+                });
+            }
+            captured++;
+            if (e.userSnapshot)
+                lastSnapshot = e.userSnapshot;
+            if (e.screen)
+                lastScreen = e.screen;
+            lastEvent = e.name;
+        }
+        if (writes.length > 0) {
+            Storage.writeMultiple(nk, writes);
+        }
+        if (lastSnapshot) {
+            var profilePayload = {
+                identityId: identityId,
+                userId: nakamaUserId || cognitoSub,
+                cognitoSub: cognitoSub,
+                nakamaUserId: nakamaUserId,
+                updatedAt: Date.now(),
+                lastScreen: lastScreen,
+                lastEvent: lastEvent,
+                snapshot: lastSnapshot
+            };
+            Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(identityId, 64), profilePayload);
+            if (nakamaUserId) {
+                Storage.writeJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, PROFILE_KEY, nakamaUserId, profilePayload, 2, 0);
+            }
+        }
+        return captured;
+    }
+    function rpcEventsBatch(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var identityId = (data.identity_id || data.identityId || "").toString();
+        if (!identityId) {
+            return RpcHelpers.errorResponse("identity_id required");
+        }
+        if (!data.events || !Array.isArray(data.events)) {
+            return RpcHelpers.errorResponse("events array required");
+        }
+        var events = data.events.slice(0, MAX_BATCH);
+        var cognitoSub = (data.user_id || data.userId || "").toString() || null;
+        var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
+        if (nakamaUserId && !isNakamaUuid(nakamaUserId))
+            nakamaUserId = null;
+        var captured = captureEvents(nk, identityId, cognitoSub, nakamaUserId, events);
+        return RpcHelpers.successResponse({
+            captured: captured,
+            submitted: data.events.length,
+            identity_id: identityId,
+            nakama_user_id: nakamaUserId
+        });
+    }
+    function rpcIdentityLink(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var anonId = (data.anon_id || data.anonId || "").toString();
+        var cognitoSub = (data.user_id || data.userId || "").toString();
+        var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString() || null;
+        if (nakamaUserId && !isNakamaUuid(nakamaUserId))
+            nakamaUserId = null;
+        if (!anonId || !cognitoSub) {
+            return RpcHelpers.errorResponse("anon_id and user_id required");
+        }
+        var linkKey = "link_" + sanitizeId(anonId, 80);
+        var linkPayload = {
+            anonId: anonId,
+            userId: cognitoSub,
+            cognitoSub: cognitoSub,
+            nakamaUserId: nakamaUserId,
+            linkedAt: Date.now()
+        };
+        var existing = Storage.readSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey);
+        if (existing && existing.userId === cognitoSub && existing.nakamaUserId === nakamaUserId) {
+            return RpcHelpers.successResponse({
+                linked: true,
+                idempotent: true,
+                anon_id: anonId,
+                user_id: cognitoSub,
+                nakama_user_id: nakamaUserId
+            });
+        }
+        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, linkKey, linkPayload);
+        Storage.writeSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(anonId, 64), linkPayload);
+        if (nakamaUserId) {
+            Storage.writeJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, PROFILE_KEY, nakamaUserId, linkPayload, 2, 0);
+        }
+        logger.info("[OnboardingAnalytics] linked anon=%s cognito=%s nakama=%s", anonId, cognitoSub, nakamaUserId || "none");
+        return RpcHelpers.successResponse({
+            linked: true,
+            anon_id: anonId,
+            user_id: cognitoSub,
+            nakama_user_id: nakamaUserId
+        });
+    }
+    var SCREEN_LABELS = {
+        "/onboarding": "Start",
+        "/onboarding/welcome": "Welcome",
+        "/onboarding/world": "Pick Your World",
+        "/onboarding/intent": "Your Goal",
+        "/onboarding/source": "How You Found Us",
+        "/onboarding/name": "Your Name",
+        "/onboarding/age": "Age",
+        "/onboarding/subject": "Subject",
+        "/onboarding/brain-type": "Brain Type",
+        "/onboarding/quiz": "Quick Quiz",
+        "/onboarding/plan": "Choose Plan",
+        "/onboarding/paywall": "Subscription Paywall",
+        "/onboarding/pro": "Pro Upgrade",
+        "/onboarding/pro/closing": "Closing Offer",
+        "/onboarding/congrats": "All Done!",
+        "/onboarding/signup": "Sign Up",
+        "/onboarding/signin": "Sign In",
+        "/onboarding/register": "Register",
+        "/onboarding/newsletter": "Newsletter",
+        "/onboarding/phone": "Phone Verify",
+        "/onboarding/challenge": "Challenge a Friend"
+    };
+    var COMPLETION_EVENTS = {
+        "ob_complete": true,
+        "ob_congrats_seen": true,
+        "ob_deeplink_fire": true,
+        "ob_unity_return": true,
+        "ob_app_launch_success": true
+    };
+    function screenLabel(screen) {
+        if (!screen)
+            return "Unknown";
+        if (SCREEN_LABELS[screen])
+            return SCREEN_LABELS[screen];
+        var tail = screen.replace(/^\/onboarding\/?/, "");
+        if (!tail)
+            return "Start";
+        return tail.split("/").map(function (part) {
+            return part.replace(/-/g, " ").replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+        }).join(" \u203a ");
+    }
+    function isCompletionEvent(name) {
+        return !!COMPLETION_EVENTS[name];
+    }
+    function eventCategory(name) {
+        if (isCompletionEvent(name))
+            return "completion";
+        if (name === "ob_identity_linked" || name === "ob_register_complete" || name === "ob_verify_complete" || name === "ob_register_start")
+            return "identity";
+        if (name.indexOf("paywall") >= 0 || name.indexOf("closing_offer") >= 0)
+            return "paywall";
+        if (name === "ob_d1_return" || name === "ob_d7_return" || name === "ob_welcome_bonus_claimed" || name === "ob_streak_shield_activated")
+            return "retention";
+        if (name === "ob_pathway_confirmed" || name === "ob_name_set" || name === "ob_quiz_first_answer_time" || name === "ob_review_prompt_shown" || name === "ob_newsletter_skip")
+            return "quality";
+        if (name === "ob_screen_seen" || name === "ob_screen_exit")
+            return "screen";
+        return "other";
+    }
+    function deriveUserStatus(u) {
+        if (u.completed)
+            return "completed";
+        if (u.paywallSubscribe || u.paywallTrialStart || u.subscribed)
+            return "subscribed";
+        if (u.paywallSeen && !u.completed && !u.paywallSubscribe && !u.paywallTrialStart)
+            return "at_paywall";
+        if (!u.identityLinked && !u.nakamaUserId)
+            return "pre_register";
+        return "dropped";
+    }
+    function matchesPlatformFilter(platform, filter) {
+        if (!filter)
+            return true;
+        var p = (platform || "").toLowerCase();
+        if (filter === "unity_webview")
+            return p.indexOf("unity") >= 0;
+        if (filter === "ios_web")
+            return p.indexOf("ios") >= 0;
+        if (filter === "android_web")
+            return p.indexOf("android") >= 0;
+        if (filter === "desktop_web")
+            return p === "web" || p.indexOf("desktop") >= 0;
+        return p.indexOf(filter) >= 0;
+    }
+    function sanitizeSnapshot(snap) {
+        if (!snap || typeof snap !== "object")
+            return {};
+        return {
+            pathway: snap.pathway,
+            country: snap.country,
+            platform: snap.platform,
+            age: snap.age,
+            brainCode: snap.brainCode,
+            brainType: snap.brainType,
+            quizScore: snap.quizScore,
+            quizQuestions: snap.quizQuestions,
+            avgAnswerTime: snap.avgAnswerTime,
+            nameSet: snap.nameSet,
+            gamerTag: snap.gamerTag,
+            authProvider: snap.authProvider,
+            signinStatus: snap.signinStatus,
+            verified: snap.verified,
+            phoneVerified: snap.phoneVerified,
+            newsletterOptIn: snap.newsletterOptIn,
+            subscribed: snap.subscribed,
+            selectedPlan: snap.selectedPlan,
+            paywallVariant: snap.paywallVariant,
+            attributionSource: snap.attributionSource,
+            acquisitionCreative: snap.acquisitionCreative,
+            utm_source: snap.utm_source,
+            utm_medium: snap.utm_medium,
+            utm_campaign: snap.utm_campaign,
+            emailDomain: snap.emailDomain,
+            phoneTail: snap.phoneTail,
+            startedAt: snap.startedAt,
+            completedAt: snap.completedAt,
+            elapsedMs: snap.elapsedMs,
+            currentStep: snap.currentStep,
+            intent: snap.intent,
+            motivation: snap.motivation,
+            subject: snap.subject,
+            arena: snap.arena,
+            tier: snap.tier,
+            education: snap.education,
+            dailyGoal: snap.dailyGoal,
+            interests: snap.interests,
+            xp: snap.xp,
+            coins: snap.coins,
+            streak: snap.streak,
+            creatorGoal: snap.creatorGoal,
+            creatorPublished: snap.creatorPublished,
+            closingOfferSeen: snap.closingOfferSeen,
+            closingOfferClaimed: snap.closingOfferClaimed,
+            reviewGiven: snap.reviewGiven
+        };
+    }
+    function pushEventFromRecord(rec, seen, events) {
+        var dedupeKey = (rec.name || "") + "_" + toMs(rec.timestamp) + "_" + (rec.screen || "");
+        if (seen[dedupeKey])
+            return;
+        seen[dedupeKey] = true;
+        events.push({
+            name: rec.name,
+            screen: rec.screen || "",
+            screenLabel: screenLabel(rec.screen || ""),
+            timestamp: toMs(rec.timestamp),
+            dwellMs: rec.dwellMs || 0,
+            data: rec.data || {},
+            category: eventCategory(rec.name)
+        });
+    }
+    function loadEventsFromStorageUser(nk, storageUserId, seen, events) {
+        var cursor = "";
+        for (var p = 0; p < MAX_SCAN_PAGES; p++) {
+            var page = nk.storageList(storageUserId, Constants.QV_ONBOARDING_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.value)
+                    continue;
+                pushEventFromRecord(obj.value, seen, events);
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+    }
+    function loadEventsFromSystemFilter(nk, nakamaUserId, guestId, seen, events, maxPages) {
+        var cursor = "";
+        for (var p = 0; p < maxPages; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.QV_ONBOARDING_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.value)
+                    continue;
+                var rec = obj.value;
+                var match = false;
+                if (nakamaUserId && rec.nakamaUserId === nakamaUserId)
+                    match = true;
+                if (!match && guestId && (rec.identityId === guestId || rec.userId === guestId))
+                    match = true;
+                if (!match)
+                    continue;
+                pushEventFromRecord(rec, seen, events);
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+    }
+    function resolveUserKey(rec) {
+        return (rec.nakamaUserId || rec.identityId || rec.userId || "").toString();
+    }
+    function loadIdentityLinks(nk) {
+        var links = [];
+        var cursor = "";
+        var truncated = false;
+        for (var p = 0; p < MAX_SCAN_PAGES; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                if (objects[i].value)
+                    links.push(objects[i].value);
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        return { links: links, truncated: truncated };
+    }
+    function readIdentityLink(nk, anonId) {
+        if (!anonId)
+            return null;
+        return Storage.readSystemJson(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_" + sanitizeId(anonId, 80));
+    }
+    function mergeUserBuckets(target, source) {
+        target.eventCount = (target.eventCount || 0) + (source.eventCount || 0);
+        var srcNames = source.eventNames || {};
+        for (var en in srcNames) {
+            if (!Object.prototype.hasOwnProperty.call(srcNames, en))
+                continue;
+            target.eventNames[en] = (target.eventNames[en] || 0) + srcNames[en];
+        }
+        var srcScreens = source.screens || {};
+        for (var sc in srcScreens) {
+            if (!Object.prototype.hasOwnProperty.call(srcScreens, sc))
+                continue;
+            if (!target.screens[sc]) {
+                target.screens[sc] = {
+                    seen: srcScreens[sc].seen || 0,
+                    dwellMs: srcScreens[sc].dwellMs || 0,
+                    firstTs: srcScreens[sc].firstTs || 0
+                };
+            }
+            else {
+                target.screens[sc].seen += srcScreens[sc].seen || 0;
+                target.screens[sc].dwellMs += srcScreens[sc].dwellMs || 0;
+                if (srcScreens[sc].firstTs && srcScreens[sc].firstTs < target.screens[sc].firstTs) {
+                    target.screens[sc].firstTs = srcScreens[sc].firstTs;
+                }
+            }
+        }
+        if (source.completed)
+            target.completed = true;
+        if (source.paywallSeen)
+            target.paywallSeen = true;
+        if (source.paywallSubscribe)
+            target.paywallSubscribe = true;
+        if (source.paywallTrialStart)
+            target.paywallTrialStart = true;
+        if (source.paywallDismiss)
+            target.paywallDismiss = true;
+        if (source.paywallSkip)
+            target.paywallSkip = true;
+        if (source.closingOfferSeen)
+            target.closingOfferSeen = true;
+        if (source.closingOfferClaimed)
+            target.closingOfferClaimed = true;
+        if (source.registerStart)
+            target.registerStart = true;
+        if (source.appLaunchSuccess)
+            target.appLaunchSuccess = true;
+        if (source.obComplete)
+            target.obComplete = true;
+        if (source.pathwayConfirmed)
+            target.pathwayConfirmed = true;
+        if (source.nameSetEvent)
+            target.nameSetEvent = true;
+        if (source.quizFirstAnswer)
+            target.quizFirstAnswer = true;
+        if (source.reviewPromptShown)
+            target.reviewPromptShown = true;
+        if (source.newsletterSkip)
+            target.newsletterSkip = true;
+        if (source.planViewed)
+            target.planViewed = true;
+        if (source.d1Return)
+            target.d1Return = true;
+        if (source.d7Return)
+            target.d7Return = true;
+        if (source.welcomeBonusClaimed)
+            target.welcomeBonusClaimed = true;
+        if (source.streakShieldActivated)
+            target.streakShieldActivated = true;
+        if (source.subscribed)
+            target.subscribed = true;
+        if (source.identityLinked)
+            target.identityLinked = true;
+        if (source.started)
+            target.started = true;
+        if (source.quizFirstAnswerMs > 0 && (!target.quizFirstAnswerMs || source.quizFirstAnswerMs < target.quizFirstAnswerMs)) {
+            target.quizFirstAnswerMs = source.quizFirstAnswerMs;
+        }
+        if (!isValidPathway(target.pathway) && isValidPathway(source.pathway))
+            target.pathway = source.pathway;
+        if (!target.country && source.country)
+            target.country = source.country;
+        if (!target.platform && source.platform)
+            target.platform = source.platform;
+        if (source.nakamaUserId && !target.nakamaUserId)
+            target.nakamaUserId = source.nakamaUserId;
+        if (source.identityId && !target.identityId)
+            target.identityId = source.identityId;
+        if (source.cognitoSub && !target.cognitoSub)
+            target.cognitoSub = source.cognitoSub;
+        if (source.firstTs && source.firstTs < target.firstTs)
+            target.firstTs = source.firstTs;
+        if (source.lastTs >= target.lastTs) {
+            target.lastTs = source.lastTs;
+            if (source.lastScreen)
+                target.lastScreen = source.lastScreen;
+            if (source.lastEvent)
+                target.lastEvent = source.lastEvent;
+            if (source.snapshot)
+                target.snapshot = source.snapshot;
+        }
+        else if (!target.snapshot && source.snapshot) {
+            target.snapshot = source.snapshot;
+        }
+    }
+    /**
+     * Merge guest / cognito buckets into canonical Nakama user using qv_onboarding_identity.
+     */
+    function mergeUsersByIdentityLinks(usersMap, links) {
+        var merges = 0;
+        for (var i = 0; i < links.length; i++) {
+            var link = links[i];
+            var anonId = (link.anonId || "").toString();
+            var nakamaId = (link.nakamaUserId || "").toString();
+            var cognitoSub = (link.cognitoSub || link.userId || "").toString();
+            if (!anonId || !nakamaId || !isNakamaUuid(nakamaId))
+                continue;
+            var guestBucket = usersMap[anonId];
+            var nakamaBucket = usersMap[nakamaId];
+            var cognitoBucket = cognitoSub && cognitoSub !== nakamaId && cognitoSub !== anonId ? usersMap[cognitoSub] : null;
+            if (!guestBucket && !nakamaBucket && !cognitoBucket)
+                continue;
+            if (!nakamaBucket) {
+                nakamaBucket = guestBucket || cognitoBucket;
+                usersMap[nakamaId] = nakamaBucket;
+                nakamaBucket.userId = nakamaId;
+                if (guestBucket && usersMap[anonId])
+                    delete usersMap[anonId];
+                if (cognitoBucket && cognitoSub && usersMap[cognitoSub])
+                    delete usersMap[cognitoSub];
+                merges++;
+            }
+            else {
+                if (guestBucket && anonId !== nakamaId) {
+                    mergeUserBuckets(nakamaBucket, guestBucket);
+                    delete usersMap[anonId];
+                    merges++;
+                }
+                if (cognitoBucket && cognitoSub && usersMap[cognitoSub]) {
+                    mergeUserBuckets(nakamaBucket, cognitoBucket);
+                    delete usersMap[cognitoSub];
+                    merges++;
+                }
+            }
+            nakamaBucket = usersMap[nakamaId];
+            if (nakamaBucket) {
+                nakamaBucket.nakamaUserId = nakamaId;
+                nakamaBucket.identityLinked = true;
+                if (!nakamaBucket.identityId)
+                    nakamaBucket.identityId = anonId;
+                if (cognitoSub && !nakamaBucket.cognitoSub)
+                    nakamaBucket.cognitoSub = cognitoSub;
+            }
+        }
+        return { users: usersMap, merges: merges };
+    }
+    var VALID_PATHWAYS = {
+        scholar: true,
+        warrior: true,
+        explorer: true,
+        creator: true
+    };
+    var PATHWAY_ORDER = ["scholar", "warrior", "explorer", "creator"];
+    function isValidPathway(pathway) {
+        return !!pathway && !!VALID_PATHWAYS[pathway];
+    }
+    /** Resolve pathway from screen URL (/onboarding/scholar/...) or currentStep (scholar/details). */
+    function pathwayFromScreenOrStep(screenOrStep) {
+        if (!screenOrStep)
+            return "";
+        var s = screenOrStep;
+        var m = s.match(/\/onboarding\/(scholar|warrior|explorer|creator)(?:\/|$|\?)/);
+        if (m)
+            return m[1];
+        var step = s.replace(/^\/onboarding\/?/, "").split("/")[0];
+        if (step && VALID_PATHWAYS[step])
+            return step;
+        return "";
+    }
+    /**
+     * Production pathway resolution — snapshot, event data, screen, and currentStep.
+     * Replaces bare userSnapshot.pathway so pathway breakdown is not polluted with "unknown".
+     */
+    function applyPathwayHints(u, rec) {
+        if (isValidPathway(u.pathway))
+            return;
+        var snap = rec.userSnapshot || {};
+        if (isValidPathway(snap.pathway)) {
+            u.pathway = snap.pathway;
+            return;
+        }
+        var data = rec.data || {};
+        if (isValidPathway(data.pathway)) {
+            u.pathway = data.pathway;
+            return;
+        }
+        var fromScreen = pathwayFromScreenOrStep(rec.screen || "");
+        if (fromScreen) {
+            u.pathway = fromScreen;
+            return;
+        }
+        if (snap.currentStep) {
+            fromScreen = pathwayFromScreenOrStep(snap.currentStep);
+            if (fromScreen)
+                u.pathway = fromScreen;
+        }
+    }
+    function pathwayDisplayLabel(pathway) {
+        if (!pathway)
+            return "";
+        return pathway.charAt(0).toUpperCase() + pathway.slice(1);
+    }
+    function scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter) {
+        var users = {};
+        var cursor = "";
+        var truncated = false;
+        for (var p = 0; p < MAX_SCAN_PAGES; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.QV_ONBOARDING_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.value)
+                    continue;
+                var rec = obj.value;
+                var ts = toMs(rec.timestamp);
+                if (ts < sinceMs || ts > untilMs)
+                    continue;
+                var snap = rec.userSnapshot || {};
+                var plat = snap.platform || rec.platform || "";
+                if (platformFilter && !matchesPlatformFilter(plat, platformFilter))
+                    continue;
+                var uid = resolveUserKey(rec);
+                if (!uid)
+                    continue;
+                if (!users[uid]) {
+                    users[uid] = {
+                        userId: uid,
+                        nakamaUserId: rec.nakamaUserId || "",
+                        identityId: rec.identityId || "",
+                        cognitoSub: rec.cognitoSub || "",
+                        pathway: snap.pathway || "",
+                        country: snap.country || "",
+                        platform: snap.platform || "",
+                        identityLinked: false,
+                        started: false,
+                        screens: {},
+                        eventNames: {},
+                        completed: false,
+                        paywallSeen: false,
+                        paywallSubscribe: false,
+                        paywallTrialStart: false,
+                        paywallDismiss: false,
+                        paywallSkip: false,
+                        closingOfferSeen: false,
+                        closingOfferClaimed: false,
+                        registerStart: false,
+                        appLaunchSuccess: false,
+                        obComplete: false,
+                        pathwayConfirmed: false,
+                        nameSetEvent: false,
+                        quizFirstAnswer: false,
+                        quizFirstAnswerMs: 0,
+                        reviewPromptShown: false,
+                        newsletterSkip: false,
+                        planViewed: false,
+                        d1Return: false,
+                        d7Return: false,
+                        welcomeBonusClaimed: false,
+                        streakShieldActivated: false,
+                        subscribed: !!snap.subscribed,
+                        lastScreen: "",
+                        lastTs: 0,
+                        lastEvent: "",
+                        firstTs: ts,
+                        eventCount: 0,
+                        snapshot: snap
+                    };
+                }
+                var u = users[uid];
+                u.eventCount++;
+                u.eventNames[rec.name] = (u.eventNames[rec.name] || 0) + 1;
+                applyPathwayHints(u, rec);
+                if (snap.country && !u.country)
+                    u.country = snap.country;
+                if (snap.platform && !u.platform)
+                    u.platform = snap.platform;
+                if (rec.userSnapshot)
+                    u.snapshot = rec.userSnapshot;
+                if (rec.nakamaUserId && !u.nakamaUserId)
+                    u.nakamaUserId = rec.nakamaUserId;
+                if (rec.identityId && !u.identityId)
+                    u.identityId = rec.identityId;
+                if (rec.cognitoSub && !u.cognitoSub)
+                    u.cognitoSub = rec.cognitoSub;
+                if (isCompletionEvent(rec.name))
+                    u.completed = true;
+                if (rec.name === "ob_identity_linked" || rec.cognitoSub)
+                    u.identityLinked = true;
+                if (rec.name === "ob_start" || rec.name === "ob_launch")
+                    u.started = true;
+                if (rec.name === "ob_paywall_seen")
+                    u.paywallSeen = true;
+                if (rec.name === "ob_paywall_subscribe") {
+                    u.paywallSubscribe = true;
+                    u.subscribed = true;
+                }
+                if (rec.name === "ob_paywall_trial_start") {
+                    u.paywallTrialStart = true;
+                    u.subscribed = true;
+                }
+                if (rec.name === "ob_paywall_dismiss")
+                    u.paywallDismiss = true;
+                if (rec.name === "ob_paywall_skip")
+                    u.paywallSkip = true;
+                if (rec.name === "ob_closing_offer_seen")
+                    u.closingOfferSeen = true;
+                if (rec.name === "ob_closing_offer_claim")
+                    u.closingOfferClaimed = true;
+                if (rec.name === "ob_register_start")
+                    u.registerStart = true;
+                if (rec.name === "ob_app_launch_success")
+                    u.appLaunchSuccess = true;
+                if (rec.name === "ob_complete")
+                    u.obComplete = true;
+                if (rec.name === "ob_pathway_confirmed") {
+                    u.pathwayConfirmed = true;
+                    if (rec.data && isValidPathway(rec.data.pathway))
+                        u.pathway = rec.data.pathway;
+                }
+                if (rec.name === "ob_world_picked" && rec.data && isValidPathway(rec.data.pathway)) {
+                    u.pathway = rec.data.pathway;
+                }
+                if (rec.name === "ob_name_set")
+                    u.nameSetEvent = true;
+                if (rec.name === "ob_quiz_first_answer_time") {
+                    u.quizFirstAnswer = true;
+                    if (rec.data && rec.data.timeMs)
+                        u.quizFirstAnswerMs = rec.data.timeMs;
+                }
+                if (rec.name === "ob_review_prompt_shown")
+                    u.reviewPromptShown = true;
+                if (rec.name === "ob_newsletter_skip")
+                    u.newsletterSkip = true;
+                if (rec.name === "ob_paywall_plan_viewed")
+                    u.planViewed = true;
+                if (rec.name === "ob_d1_return")
+                    u.d1Return = true;
+                if (rec.name === "ob_d7_return")
+                    u.d7Return = true;
+                if (rec.name === "ob_welcome_bonus_claimed")
+                    u.welcomeBonusClaimed = true;
+                if (rec.name === "ob_streak_shield_activated")
+                    u.streakShieldActivated = true;
+                if (rec.name === "ob_screen_seen" && rec.screen) {
+                    if (!u.screens[rec.screen]) {
+                        u.screens[rec.screen] = { seen: 0, dwellMs: 0, firstTs: ts };
+                    }
+                    u.screens[rec.screen].seen++;
+                    u.screens[rec.screen].dwellMs += (rec.dwellMs || 0);
+                    if (ts < u.screens[rec.screen].firstTs)
+                        u.screens[rec.screen].firstTs = ts;
+                }
+                if (rec.name === "ob_screen_exit" && rec.screen) {
+                    if (!u.screens[rec.screen]) {
+                        u.screens[rec.screen] = { seen: 0, dwellMs: 0, firstTs: ts };
+                    }
+                    u.screens[rec.screen].dwellMs += (rec.dwellMs || 0);
+                }
+                if (ts >= u.lastTs) {
+                    u.lastTs = ts;
+                    u.lastEvent = rec.name;
+                    if (rec.screen)
+                        u.lastScreen = rec.screen;
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        return { users: users, truncated: truncated };
+    }
+    function median(values) {
+        if (!values.length)
+            return 0;
+        var sorted = values.slice().sort(function (a, b) { return a - b; });
+        var mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+    function buildScreenOrder(users) {
+        var rankSum = {};
+        for (var uid in users) {
+            if (!Object.prototype.hasOwnProperty.call(users, uid))
+                continue;
+            var screens = users[uid].screens || {};
+            var ordered = [];
+            for (var sc in screens) {
+                if (!Object.prototype.hasOwnProperty.call(screens, sc))
+                    continue;
+                ordered.push({ screen: sc, firstTs: screens[sc].firstTs });
+            }
+            ordered.sort(function (a, b) { return a.firstTs - b.firstTs; });
+            for (var j = 0; j < ordered.length; j++) {
+                var sname = ordered[j].screen;
+                if (!rankSum[sname])
+                    rankSum[sname] = { total: 0, count: 0 };
+                rankSum[sname].total += j;
+                rankSum[sname].count++;
+            }
+        }
+        var screenRanks = [];
+        for (var s in rankSum) {
+            if (!Object.prototype.hasOwnProperty.call(rankSum, s))
+                continue;
+            screenRanks.push({ screen: s, avgRank: rankSum[s].total / rankSum[s].count });
+        }
+        screenRanks.sort(function (a, b) { return a.avgRank - b.avgRank; });
+        return screenRanks.map(function (x) { return x.screen; });
+    }
+    function rpcOnboardingFunnelAnalytics(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var days = data.days ? parseInt("" + data.days, 10) : 30;
+        if (isNaN(days) || days < 1)
+            days = 30;
+        if (days > 365)
+            days = 365;
+        var sinceMs = data.since_ms || data.sinceMs || (Date.now() - days * 86400000);
+        var untilMs = data.until_ms || data.untilMs || Date.now();
+        var pathwayFilter = data.pathway ? ("" + data.pathway) : null;
+        var platformFilter = data.platform ? ("" + data.platform) : null;
+        var statusFilter = data.status ? ("" + data.status) : null;
+        var userLimit = data.user_limit || data.userLimit || 500;
+        if (userLimit > 1000)
+            userLimit = 1000;
+        var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
+        var identityLoad = loadIdentityLinks(nk);
+        var mergeResult = mergeUsersByIdentityLinks(scan.users, identityLoad.links);
+        var usersMap = mergeResult.users;
+        var identityMerges = mergeResult.merges;
+        var identityLinksTotal = identityLoad.links.length;
+        if (pathwayFilter) {
+            var filteredUsers = {};
+            for (var fuid in usersMap) {
+                if (!Object.prototype.hasOwnProperty.call(usersMap, fuid))
+                    continue;
+                if (usersMap[fuid].pathway === pathwayFilter)
+                    filteredUsers[fuid] = usersMap[fuid];
+            }
+            usersMap = filteredUsers;
+        }
+        var screenOrder = buildScreenOrder(usersMap);
+        var totalUsers = countKeys(usersMap);
+        var completedCount = 0;
+        var paywallSeen = 0;
+        var paywallSubscribe = 0;
+        var paywallTrialStart = 0;
+        var paywallDismiss = 0;
+        var paywallSkip = 0;
+        var paywallDrop = 0;
+        var durationSamples = [];
+        var quizFirstAnswerSamples = [];
+        var sigRegisterStart = 0;
+        var sigAppLaunch = 0;
+        var sigObComplete = 0;
+        var sigPathwayConfirmed = 0;
+        var sigNameSet = 0;
+        var sigQuizFirstAnswer = 0;
+        var sigReviewPrompt = 0;
+        var sigNewsletterSkip = 0;
+        var sigPlanViewed = 0;
+        var sigD1Return = 0;
+        var sigD7Return = 0;
+        var sigWelcomeBonus = 0;
+        var sigStreakShield = 0;
+        var pathwayCounts = {};
+        var prePathwayUsers = 0;
+        var prePathwayCompleted = 0;
+        var screenAgg = {};
+        var dropMap = {};
+        for (var uid2 in usersMap) {
+            if (!Object.prototype.hasOwnProperty.call(usersMap, uid2))
+                continue;
+            var u = usersMap[uid2];
+            if (u.completed)
+                completedCount++;
+            if (u.paywallSeen)
+                paywallSeen++;
+            if (u.paywallSubscribe)
+                paywallSubscribe++;
+            if (u.paywallTrialStart)
+                paywallTrialStart++;
+            if (u.paywallDismiss)
+                paywallDismiss++;
+            if (u.paywallSkip)
+                paywallSkip++;
+            if (u.paywallSeen && !u.paywallSubscribe && !u.paywallTrialStart && !u.completed && !u.paywallSkip && !u.paywallDismiss)
+                paywallDrop++;
+            if (u.registerStart)
+                sigRegisterStart++;
+            if (u.appLaunchSuccess)
+                sigAppLaunch++;
+            if (u.obComplete)
+                sigObComplete++;
+            if (u.pathwayConfirmed)
+                sigPathwayConfirmed++;
+            if (u.nameSetEvent)
+                sigNameSet++;
+            if (u.quizFirstAnswer) {
+                sigQuizFirstAnswer++;
+                if (u.quizFirstAnswerMs > 0)
+                    quizFirstAnswerSamples.push(u.quizFirstAnswerMs);
+            }
+            if (u.reviewPromptShown)
+                sigReviewPrompt++;
+            if (u.newsletterSkip)
+                sigNewsletterSkip++;
+            if (u.planViewed)
+                sigPlanViewed++;
+            if (u.d1Return)
+                sigD1Return++;
+            if (u.d7Return)
+                sigD7Return++;
+            if (u.welcomeBonusClaimed)
+                sigWelcomeBonus++;
+            if (u.streakShieldActivated)
+                sigStreakShield++;
+            var elapsed = (u.snapshot && u.snapshot.elapsedMs) ? u.snapshot.elapsedMs : (u.lastTs - u.firstTs);
+            if (elapsed > 0)
+                durationSamples.push(elapsed);
+            if (!isValidPathway(u.pathway)) {
+                prePathwayUsers++;
+                if (u.completed)
+                    prePathwayCompleted++;
+            }
+            else {
+                var pw = u.pathway;
+                if (!pathwayCounts[pw])
+                    pathwayCounts[pw] = { users: 0, completed: 0 };
+                pathwayCounts[pw].users++;
+                if (u.completed)
+                    pathwayCounts[pw].completed++;
+            }
+            for (var sc2 in u.screens) {
+                if (!Object.prototype.hasOwnProperty.call(u.screens, sc2))
+                    continue;
+                if (!screenAgg[sc2])
+                    screenAgg[sc2] = { users: {}, dwellMs: 0, dwellCount: 0, exits: 0 };
+                screenAgg[sc2].users[uid2] = true;
+                var sd = u.screens[sc2];
+                if (sd.dwellMs > 0) {
+                    screenAgg[sc2].dwellMs += sd.dwellMs;
+                    screenAgg[sc2].dwellCount++;
+                }
+            }
+            if (!u.completed && u.lastScreen) {
+                dropMap[u.lastScreen] = (dropMap[u.lastScreen] || 0) + 1;
+                if (screenAgg[u.lastScreen])
+                    screenAgg[u.lastScreen].exits++;
+            }
+        }
+        var screenFunnel = [];
+        var seenInOrder = {};
+        var orderList = screenOrder.slice();
+        for (var sc3 in screenAgg) {
+            if (!Object.prototype.hasOwnProperty.call(screenAgg, sc3))
+                continue;
+            if (orderList.indexOf(sc3) < 0)
+                orderList.push(sc3);
+        }
+        for (var oi = 0; oi < orderList.length; oi++) {
+            var screen = orderList[oi];
+            if (!screenAgg[screen])
+                continue;
+            seenInOrder[screen] = true;
+            var agg = screenAgg[screen];
+            var userCount = countKeys(agg.users);
+            screenFunnel.push({
+                screen: screen,
+                label: screenLabel(screen),
+                users: userCount,
+                pctOfStart: totalUsers > 0 ? Math.round((userCount / totalUsers) * 1000) / 10 : 0,
+                avgDwellSec: agg.dwellCount > 0 ? Math.round((agg.dwellMs / agg.dwellCount) / 100) / 10 : 0,
+                exits: agg.exits || 0,
+                dropCount: dropMap[screen] || 0
+            });
+        }
+        var dropoffHotspots = [];
+        for (var ds in dropMap) {
+            if (!Object.prototype.hasOwnProperty.call(dropMap, ds))
+                continue;
+            dropoffHotspots.push({
+                screen: ds,
+                label: screenLabel(ds),
+                users: dropMap[ds],
+                pctOfIncomplete: (totalUsers - completedCount) > 0
+                    ? Math.round((dropMap[ds] / (totalUsers - completedCount)) * 1000) / 10
+                    : 0
+            });
+        }
+        dropoffHotspots.sort(function (a, b) { return b.users - a.users; });
+        var topDropScreens = {};
+        for (var td = 0; td < dropoffHotspots.length && td < 3; td++) {
+            topDropScreens[dropoffHotspots[td].screen] = td + 1;
+        }
+        for (var sf = 0; sf < screenFunnel.length; sf++) {
+            var rank = topDropScreens[screenFunnel[sf].screen];
+            if (rank)
+                screenFunnel[sf].topDropRank = rank;
+        }
+        var pathways = [];
+        for (var oi2 = 0; oi2 < PATHWAY_ORDER.length; oi2++) {
+            var pkOrdered = PATHWAY_ORDER[oi2];
+            if (!pathwayCounts[pkOrdered])
+                continue;
+            var pcOrdered = pathwayCounts[pkOrdered];
+            pathways.push({
+                pathway: pkOrdered,
+                label: pathwayDisplayLabel(pkOrdered),
+                users: pcOrdered.users,
+                completed: pcOrdered.completed,
+                completionRatePct: pcOrdered.users > 0 ? Math.round((pcOrdered.completed / pcOrdered.users) * 1000) / 10 : 0
+            });
+        }
+        for (var pk in pathwayCounts) {
+            if (!Object.prototype.hasOwnProperty.call(pathwayCounts, pk))
+                continue;
+            if (PATHWAY_ORDER.indexOf(pk) >= 0)
+                continue;
+            var pcExtra = pathwayCounts[pk];
+            pathways.push({
+                pathway: pk,
+                label: pathwayDisplayLabel(pk),
+                users: pcExtra.users,
+                completed: pcExtra.completed,
+                completionRatePct: pcExtra.users > 0 ? Math.round((pcExtra.completed / pcExtra.users) * 1000) / 10 : 0
+            });
+        }
+        var prePathway = {
+            users: prePathwayUsers,
+            completed: prePathwayCompleted,
+            completionRatePct: prePathwayUsers > 0 ? Math.round((prePathwayCompleted / prePathwayUsers) * 1000) / 10 : 0,
+            pctOfStart: totalUsers > 0 ? Math.round((prePathwayUsers / totalUsers) * 1000) / 10 : 0
+        };
+        var userRows = [];
+        for (var uid3 in usersMap) {
+            if (!Object.prototype.hasOwnProperty.call(usersMap, uid3))
+                continue;
+            var ur = usersMap[uid3];
+            var status = deriveUserStatus(ur);
+            if (statusFilter && status !== statusFilter)
+                continue;
+            var startedAt = (ur.snapshot && ur.snapshot.startedAt) ? ur.snapshot.startedAt : null;
+            userRows.push({
+                nakamaUserId: ur.nakamaUserId || "",
+                guestId: ur.identityId || "",
+                cognitoSub: ur.cognitoSub || "",
+                pathway: ur.pathway || "",
+                country: ur.country || "",
+                platform: ur.platform || "",
+                lastScreen: ur.lastScreen,
+                lastScreenLabel: screenLabel(ur.lastScreen),
+                lastEvent: ur.lastEvent,
+                status: status,
+                completed: ur.completed,
+                subscribed: ur.subscribed,
+                paywallSeen: ur.paywallSeen,
+                paywallSubscribe: ur.paywallSubscribe,
+                paywallTrialStart: ur.paywallTrialStart,
+                paywallDismiss: ur.paywallDismiss,
+                paywallSkip: ur.paywallSkip,
+                registerStart: ur.registerStart,
+                appLaunchSuccess: ur.appLaunchSuccess,
+                obComplete: ur.obComplete,
+                pathwayConfirmed: ur.pathwayConfirmed,
+                nameSetEvent: ur.nameSetEvent,
+                quizFirstAnswer: ur.quizFirstAnswer,
+                d1Return: ur.d1Return,
+                d7Return: ur.d7Return,
+                welcomeBonusClaimed: ur.welcomeBonusClaimed,
+                streakShieldActivated: ur.streakShieldActivated,
+                identityLinked: ur.identityLinked,
+                eventCount: ur.eventCount,
+                firstTs: ur.firstTs,
+                lastTs: ur.lastTs,
+                startedAt: startedAt,
+                durationMs: (ur.snapshot && ur.snapshot.elapsedMs) ? ur.snapshot.elapsedMs : Math.max(0, ur.lastTs - ur.firstTs)
+            });
+        }
+        userRows.sort(function (a, b) { return (b.lastTs || 0) - (a.lastTs || 0); });
+        var totalUsersFiltered = userRows.length;
+        userRows = userRows.slice(0, userLimit);
+        return RpcHelpers.successResponse({
+            sinceMs: sinceMs,
+            untilMs: untilMs,
+            days: days,
+            pathway: pathwayFilter,
+            platform: platformFilter,
+            status: statusFilter,
+            truncated: scan.truncated,
+            summary: {
+                totalUsers: totalUsers,
+                started: totalUsers,
+                completed: completedCount,
+                completionRatePct: totalUsers > 0 ? Math.round((completedCount / totalUsers) * 1000) / 10 : 0,
+                medianDurationMin: durationSamples.length > 0
+                    ? Math.round((median(durationSamples) / 60000) * 10) / 10
+                    : 0,
+                identityLinksTotal: identityLinksTotal,
+                identityMergesApplied: identityMerges,
+                linkedUsersInFunnel: (function () {
+                    var n = 0;
+                    for (var lid in usersMap) {
+                        if (!Object.prototype.hasOwnProperty.call(usersMap, lid))
+                            continue;
+                        if (usersMap[lid].identityLinked || usersMap[lid].nakamaUserId)
+                            n++;
+                    }
+                    return n;
+                })()
+            },
+            paywall: {
+                seen: paywallSeen,
+                seenPctOfStart: totalUsers > 0 ? Math.round((paywallSeen / totalUsers) * 1000) / 10 : 0,
+                subscribed: paywallSubscribe,
+                trialStarts: paywallTrialStart,
+                dismissed: paywallDismiss,
+                skipped: paywallSkip,
+                dropOff: paywallDrop,
+                subscribeRatePct: paywallSeen > 0 ? Math.round((paywallSubscribe / paywallSeen) * 1000) / 10 : 0,
+                trialRatePct: paywallSeen > 0 ? Math.round((paywallTrialStart / paywallSeen) * 1000) / 10 : 0,
+                skipRatePct: paywallSeen > 0 ? Math.round((paywallSkip / paywallSeen) * 1000) / 10 : 0,
+                dismissRatePct: paywallSeen > 0 ? Math.round((paywallDismiss / paywallSeen) * 1000) / 10 : 0
+            },
+            eventSignals: {
+                funnel: {
+                    registerStart: sigRegisterStart,
+                    registerStartPct: totalUsers > 0 ? Math.round((sigRegisterStart / totalUsers) * 1000) / 10 : 0,
+                    obComplete: sigObComplete,
+                    obCompletePct: totalUsers > 0 ? Math.round((sigObComplete / totalUsers) * 1000) / 10 : 0,
+                    appLaunchSuccess: sigAppLaunch,
+                    appLaunchSuccessPct: completedCount > 0 ? Math.round((sigAppLaunch / completedCount) * 1000) / 10 : 0
+                },
+                quality: {
+                    pathwayConfirmed: sigPathwayConfirmed,
+                    pathwayConfirmedPct: totalUsers > 0 ? Math.round((sigPathwayConfirmed / totalUsers) * 1000) / 10 : 0,
+                    nameSet: sigNameSet,
+                    nameSetPct: totalUsers > 0 ? Math.round((sigNameSet / totalUsers) * 1000) / 10 : 0,
+                    quizFirstAnswer: sigQuizFirstAnswer,
+                    quizFirstAnswerPct: totalUsers > 0 ? Math.round((sigQuizFirstAnswer / totalUsers) * 1000) / 10 : 0,
+                    medianQuizFirstAnswerSec: quizFirstAnswerSamples.length > 0
+                        ? Math.round((median(quizFirstAnswerSamples) / 1000) * 10) / 10
+                        : 0,
+                    reviewPromptShown: sigReviewPrompt,
+                    reviewPromptShownPct: totalUsers > 0 ? Math.round((sigReviewPrompt / totalUsers) * 1000) / 10 : 0,
+                    newsletterSkip: sigNewsletterSkip,
+                    newsletterSkipPct: totalUsers > 0 ? Math.round((sigNewsletterSkip / totalUsers) * 1000) / 10 : 0,
+                    planViewed: sigPlanViewed,
+                    planViewedPct: paywallSeen > 0 ? Math.round((sigPlanViewed / paywallSeen) * 1000) / 10 : 0
+                },
+                retention: {
+                    d1Return: sigD1Return,
+                    d1ReturnPct: completedCount > 0 ? Math.round((sigD1Return / completedCount) * 1000) / 10 : 0,
+                    d7Return: sigD7Return,
+                    d7ReturnPct: completedCount > 0 ? Math.round((sigD7Return / completedCount) * 1000) / 10 : 0,
+                    welcomeBonusClaimed: sigWelcomeBonus,
+                    welcomeBonusClaimedPct: completedCount > 0 ? Math.round((sigWelcomeBonus / completedCount) * 1000) / 10 : 0,
+                    streakShieldActivated: sigStreakShield,
+                    streakShieldActivatedPct: completedCount > 0 ? Math.round((sigStreakShield / completedCount) * 1000) / 10 : 0
+                }
+            },
+            screenFunnel: screenFunnel,
+            dropoffHotspots: dropoffHotspots.slice(0, 15),
+            pathways: pathways,
+            prePathway: prePathway,
+            users: userRows,
+            usersTotal: totalUsersFiltered
+        });
+    }
+    function loadEventsForUser(nk, nakamaUserId, guestId) {
+        var events = [];
+        var seen = {};
+        // Fast path: all post-register events live under the player's storage user (see Nakama console)
+        if (nakamaUserId) {
+            loadEventsFromStorageUser(nk, nakamaUserId, seen, events);
+        }
+        // Pre-register / guest-only events are only in the system lake — merge by identityId
+        if (guestId) {
+            loadEventsFromSystemFilter(nk, nakamaUserId, guestId, seen, events, 80);
+        }
+        else if (!nakamaUserId) {
+            loadEventsFromSystemFilter(nk, "", guestId, seen, events, MAX_SCAN_PAGES);
+        }
+        events.sort(function (a, b) { return a.timestamp - b.timestamp; });
+        return events;
+    }
+    function rpcOnboardingUserJourney(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var nakamaUserId = (data.nakama_user_id || data.nakamaUserId || "").toString();
+        var guestId = (data.guest_id || data.guestId || data.identity_id || data.identityId || "").toString();
+        if (!nakamaUserId && !guestId) {
+            return RpcHelpers.errorResponse("nakama_user_id or guest_id required");
+        }
+        var eventLimit = data.event_limit || data.limit || 40;
+        eventLimit = parseInt("" + eventLimit, 10);
+        if (isNaN(eventLimit) || eventLimit < 1)
+            eventLimit = 40;
+        if (eventLimit > 200)
+            eventLimit = 200;
+        var eventOffset = 0;
+        var eventCursor = data.event_cursor || data.cursor || "";
+        if (eventCursor) {
+            var parsedOffset = parseInt("" + eventCursor, 10);
+            if (!isNaN(parsedOffset) && parsedOffset >= 0)
+                eventOffset = parsedOffset;
+        }
+        if (!nakamaUserId && guestId) {
+            var guestLink = readIdentityLink(nk, guestId);
+            if (guestLink && guestLink.nakamaUserId && isNakamaUuid(guestLink.nakamaUserId)) {
+                nakamaUserId = guestLink.nakamaUserId;
+            }
+        }
+        if (nakamaUserId && !guestId) {
+            var identityLoad = loadIdentityLinks(nk);
+            for (var li = 0; li < identityLoad.links.length; li++) {
+                var lk = identityLoad.links[li];
+                if (lk.nakamaUserId === nakamaUserId && lk.anonId) {
+                    guestId = lk.anonId;
+                    break;
+                }
+            }
+        }
+        var profile = null;
+        if (nakamaUserId) {
+            try {
+                var profReads = nk.storageRead([{
+                        collection: Constants.QV_ONBOARDING_PROFILES_COLLECTION,
+                        key: PROFILE_KEY,
+                        userId: nakamaUserId
+                    }]);
+                if (profReads && profReads.length > 0)
+                    profile = profReads[0].value;
+            }
+            catch (e) { /* ignore */ }
+        }
+        if (!profile && guestId) {
+            try {
+                var sysProf = Storage.readSystemJson(nk, Constants.QV_ONBOARDING_PROFILES_COLLECTION, "prof_" + sanitizeId(guestId, 64));
+                if (sysProf)
+                    profile = sysProf;
+            }
+            catch (e2) { /* ignore */ }
+        }
+        var resolvedGuestId = guestId || (profile && profile.identityId) || "";
+        var events = loadEventsForUser(nk, nakamaUserId, resolvedGuestId);
+        var snap = profile && profile.snapshot ? sanitizeSnapshot(profile.snapshot) : {};
+        var startedAt = snap.startedAt || (events.length ? events[0].timestamp : null);
+        var lastTs = events.length ? events[events.length - 1].timestamp : (profile && profile.updatedAt ? profile.updatedAt : null);
+        var journeyUser = {
+            completed: false,
+            paywallSeen: false,
+            paywallSubscribe: false,
+            paywallTrialStart: false,
+            paywallDismiss: false,
+            paywallSkip: false,
+            subscribed: !!snap.subscribed,
+            identityLinked: !!profile && !!(profile.cognitoSub || profile.nakamaUserId),
+            nakamaUserId: nakamaUserId || (profile && profile.nakamaUserId) || ""
+        };
+        for (var ei = 0; ei < events.length; ei++) {
+            var en = events[ei].name;
+            if (isCompletionEvent(en))
+                journeyUser.completed = true;
+            if (en === "ob_paywall_seen")
+                journeyUser.paywallSeen = true;
+            if (en === "ob_paywall_subscribe") {
+                journeyUser.paywallSubscribe = true;
+                journeyUser.subscribed = true;
+            }
+            if (en === "ob_paywall_trial_start") {
+                journeyUser.paywallTrialStart = true;
+                journeyUser.subscribed = true;
+            }
+            if (en === "ob_paywall_dismiss")
+                journeyUser.paywallDismiss = true;
+            if (en === "ob_paywall_skip")
+                journeyUser.paywallSkip = true;
+            if (en === "ob_identity_linked")
+                journeyUser.identityLinked = true;
+        }
+        var guestLinkMeta = guestId ? readIdentityLink(nk, guestId) : null;
+        if (guestLinkMeta && guestLinkMeta.nakamaUserId)
+            journeyUser.identityLinked = true;
+        if (!journeyUser.identityLinked && nakamaUserId)
+            journeyUser.identityLinked = true;
+        var totalEvents = events.length;
+        var pageEvents = events.slice(eventOffset, eventOffset + eventLimit);
+        var nextOffset = eventOffset + pageEvents.length;
+        var hasMoreEvents = nextOffset < totalEvents;
+        return RpcHelpers.successResponse({
+            nakamaUserId: nakamaUserId || null,
+            guestId: guestId || (profile && profile.identityId) || null,
+            cognitoSub: (profile && profile.cognitoSub) || null,
+            status: deriveUserStatus(journeyUser),
+            eventCount: totalEvents,
+            events: pageEvents,
+            eventPagination: {
+                total: totalEvents,
+                offset: eventOffset,
+                limit: eventLimit,
+                returned: pageEvents.length,
+                nextCursor: hasMoreEvents ? ("" + nextOffset) : null,
+                hasMore: hasMoreEvents
+            },
+            profile: profile ? {
+                lastScreen: profile.lastScreen || "",
+                lastEvent: profile.lastEvent || "",
+                pathway: snap.pathway || "",
+                platform: snap.platform || "",
+                country: snap.country || "",
+                identityId: profile.identityId || resolvedGuestId || "",
+                updatedAt: profile.updatedAt || null,
+                snapshot: snap
+            } : null,
+            startedAt: startedAt,
+            lastSeenAt: lastTs,
+            durationMs: snap.elapsedMs || (startedAt && lastTs ? Math.max(0, lastTs - toMs(startedAt)) : 0),
+            playerScopedEvents: !!nakamaUserId && events.length > 0
+        });
+    }
+    function countKeys(obj) {
+        var n = 0;
+        for (var k in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, k))
+                n++;
+        }
+        return n;
+    }
+    function rpcFunnelScreens(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var sinceMs = data.since_ms || data.sinceMs || (Date.now() - 7 * 86400000);
+        var untilMs = data.until_ms || data.untilMs || Date.now();
+        var pathwayFilter = data.pathway ? ("" + data.pathway) : null;
+        var screenUsers = {};
+        var userState = {};
+        var cursor = "";
+        var truncated = false;
+        for (var p = 0; p < MAX_SCAN_PAGES; p++) {
+            var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.QV_ONBOARDING_EVENTS_COLLECTION, PAGE_SIZE, cursor);
+            var objects = (page && page.objects) || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (!obj.value)
+                    continue;
+                var rec = obj.value;
+                var ts = toMs(rec.timestamp);
+                if (ts < sinceMs || ts > untilMs)
+                    continue;
+                if (pathwayFilter && rec.userSnapshot && rec.userSnapshot.pathway !== pathwayFilter)
+                    continue;
+                var uid = rec.userId || rec.identityId;
+                if (!uid)
+                    continue;
+                if (!userState[uid]) {
+                    userState[uid] = { lastScreen: "", lastTs: 0, completed: false };
+                }
+                if (rec.name === "ob_congrats_seen" || rec.name === "ob_unity_return" || rec.name === "ob_deeplink_fire" || rec.name === "ob_complete" || rec.name === "ob_app_launch_success") {
+                    userState[uid].completed = true;
+                }
+                if (rec.name === "ob_screen_seen" && rec.screen) {
+                    if (!screenUsers[rec.screen])
+                        screenUsers[rec.screen] = {};
+                    screenUsers[rec.screen][uid] = true;
+                    if (ts >= userState[uid].lastTs) {
+                        userState[uid].lastScreen = rec.screen;
+                        userState[uid].lastTs = ts;
+                    }
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            if (!cursor)
+                break;
+        }
+        if (cursor)
+            truncated = true;
+        var screenReach = [];
+        for (var sc in screenUsers) {
+            if (!Object.prototype.hasOwnProperty.call(screenUsers, sc))
+                continue;
+            screenReach.push({ screen: sc, users: countKeys(screenUsers[sc]) });
+        }
+        screenReach.sort(function (a, b) { return b.users - a.users; });
+        var dropMap = {};
+        for (var uid2 in userState) {
+            if (!Object.prototype.hasOwnProperty.call(userState, uid2))
+                continue;
+            var st = userState[uid2];
+            if (!st.completed && st.lastScreen) {
+                dropMap[st.lastScreen] = (dropMap[st.lastScreen] || 0) + 1;
+            }
+        }
+        var dropoffByLastScreen = [];
+        for (var ds in dropMap) {
+            if (!Object.prototype.hasOwnProperty.call(dropMap, ds))
+                continue;
+            dropoffByLastScreen.push({ screen: ds, users: dropMap[ds] });
+        }
+        dropoffByLastScreen.sort(function (a, b) { return b.users - a.users; });
+        return RpcHelpers.successResponse({
+            sinceMs: sinceMs,
+            untilMs: untilMs,
+            pathway: pathwayFilter,
+            truncated: truncated,
+            screenReach: screenReach,
+            dropoffByLastScreen: dropoffByLastScreen
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("onboarding_events_batch", rpcEventsBatch);
+        initializer.registerRpc("onboarding_identity_link", rpcIdentityLink);
+        initializer.registerRpc("onboarding_funnel_screens", rpcFunnelScreens);
+        initializer.registerRpc("onboarding_funnel_analytics", rpcOnboardingFunnelAnalytics);
+        initializer.registerRpc("onboarding_user_journey", rpcOnboardingUserJourney);
+    }
+    OnboardingAnalytics.register = register;
+})(OnboardingAnalytics || (OnboardingAnalytics = {}));
 // =============================================================================
 // Brain Coins — soft-currency play-to-earn ledger
 //
@@ -41102,6 +42908,974 @@ var QvAgent;
     }
     QvAgent.register = register;
 })(QvAgent || (QvAgent = {}));
+// research.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// QuizVerse Research & Validation instrument (grant-evidence pipeline).
+//
+// Purpose
+// -------
+// Generate the IRB-shaped evidence that SBIR / IES (and EB-1A traction) review
+// panels look for and that consultants CANNOT manufacture for us:
+//
+//   1. Informed consent (COPPA/FERPA-aware: parental consent gate for minors)
+//   2. A/B assignment      — "adaptive DeepTutor path" vs "static control quiz"
+//   3. Pre/Post diagnostic — normalized learning gain (Hake's g) per topic
+//   4. Surveys             — student / teacher / customer-interview / SUS / NPS
+//   5. Waitlist            — "meaningful waitlist signups" metric
+//   6. Aggregate export    — one call → the numbers that go in the proposal
+//                            appendix (n, mean gain, effect size, SUS, NPS)
+//
+// Design notes
+// ------------
+// • Every RPC is ES5-safe (var / function) — Goja VM has no ES2015+.
+// • Functions are top-level inside the namespace; registration is via
+//   `Research.register(initializer)` with STRING-LITERAL registerRpc ids so
+//   postbuild.js v2 hoists them (see nakama-rpc skill).
+// • No module-level mutable state (Goja pools VMs — state resets per call).
+// • Privacy by construction: aggregation rows are keyed by a one-way
+//   participant_hash (sha256(participantId).slice(0,16)) — never the raw id.
+// • Auth model (mirrors learner-toolbelt): a participant is resolved from
+//     (a) ctx.userId (Nakama session), OR
+//     (b) service_token + user_id   (gateway / web proxy, token ==
+//         ctx.env["QV_RESEARCH_SERVICE_TOKEN"]), OR
+//     (c) payload.participant_id    (anon browser UUID — marketing site /
+//         pre-auth webview; still gives a stable id for the study).
+//   The aggregate export RPC additionally requires admin (http_key
+//   server-to-server) OR the service token.
+//
+// Storage shapes (all permissionRead/Write = 0 — server-only)
+// -----------------------------------------------------------
+//   qv_research_consent     key "<study_id>"                 userId=participant
+//   qv_research_diag        key "<study_id>:<topic>:<phase>" userId=participant
+//   qv_research_survey_done key "<study_id>:<survey_type>"   userId=participant (dedupe)
+//   qv_research_metrics     key "gain_…" | "sus_…"           userId=SYSTEM  (export scan)
+//   qv_research_survey      key "<survey_type>_…"            userId=SYSTEM  (export scan)
+//   qv_research_waitlist    key "wl_…"                       userId=SYSTEM  (export scan)
+//
+// RPCs registered (6)
+//   quizverse_research_consent            consent + returns A/B arm + hash
+//   quizverse_research_assignment_get     deterministic A/B arm lookup
+//   quizverse_research_diagnostic_submit  pre/post; computes normalized gain
+//   quizverse_research_survey_submit      student/teacher/customer/sus (+NPS)
+//   quizverse_research_waitlist_join      waitlist email capture
+//   quizverse_research_export             admin/service-only aggregate
+var Research;
+(function (Research) {
+    // ── Collections ────────────────────────────────────────────────────────────
+    var COLLECTION_CONSENT = "qv_research_consent";
+    var COLLECTION_DIAG = "qv_research_diag";
+    var COLLECTION_SURVEY_DONE = "qv_research_survey_done";
+    var COLLECTION_METRICS = "qv_research_metrics"; // SYSTEM mirror (aggregation)
+    var COLLECTION_SURVEY = "qv_research_survey"; // SYSTEM mirror (aggregation)
+    var COLLECTION_WAITLIST = "qv_research_waitlist"; // SYSTEM mirror (aggregation)
+    Research.MODULE_VERSION = "research/1.1.0";
+    var ARM_ADAPTIVE = "adaptive"; // DeepTutor weak-area diagnostic + adaptive path
+    var ARM_CONTROL = "control"; // static, non-adaptive quiz (comparison group)
+    var DEFAULT_STUDY_ID = "qv_learning_outcomes_2026";
+    var CONSENT_VERSION = "v1-2026";
+    // Discriminates the IES concept-testing variant inside a `student` survey so
+    // the export can isolate the exact population the IES reviewer asked for
+    // (U.S. grade 11–12, SAT/ACT math, reacting to the Cognitive Mastery Engine
+    // mock-ups). Stored by the web client under `answers.survey_variant`; MUST
+    // stay in sync with CONCEPT_TEST_VARIANT in web/lib/research/client.ts.
+    var CONCEPT_TEST_VARIANT = "concept_test_us_hs_math_2026";
+    // Likert keys the concept-test survey collects (1..5). Surfaced as means in
+    // the export's concept_test.likert_means for the dashboard + proposal table.
+    var CONCEPT_LIKERT_KEYS = ["q_clear", "q_use", "q_better", "q_trust"];
+    var VALID_SURVEY_TYPES = {
+        student: true,
+        teacher: true,
+        customer_interview: true,
+        sus: true, // System Usability Scale (10 items → 0..100)
+        parent: true,
+    };
+    // Personalized-path interventions a participant may have received between the
+    // pre and post diagnostic. The whiteboard explainer-video engine (Simi /
+    // Lamina Labs, surfaced via Hermes) and the Math Animator (Manim) are the
+    // differentiating ones — the export attributes learning gain to "explainer
+    // video on vs off" so the proposal can isolate the explainer effect, not just
+    // the adaptive-arm effect.
+    var VALID_INTERVENTIONS = {
+        explainer_video: true, // Simi / Lamina whiteboard explainer for the weak concept
+        math_animator: true, // DeepTutor Math Animator (Manim) for derivations
+        adaptive_quiz: true, // adaptive question path
+        flashcards: true, // spaced-repetition flashcards
+        tutorbot: true, // persistent-memory conversational tutor
+        audiobook: true, // concept audiobook
+    };
+    function normalizeInterventions(raw) {
+        var out = [];
+        if (!raw || !raw.length)
+            return out;
+        for (var i = 0; i < raw.length; i++) {
+            var key = ("" + raw[i]).toLowerCase().slice(0, 32);
+            if (VALID_INTERVENTIONS[key] && out.indexOf(key) < 0)
+                out.push(key);
+        }
+        return out;
+    }
+    function hasIntervention(list, name) {
+        if (!list || !list.length)
+            return false;
+        for (var i = 0; i < list.length; i++) {
+            if (("" + list[i]) === name)
+                return true;
+        }
+        return false;
+    }
+    var EXPORT_SCAN_PAGE = 100; // storageList page size
+    var EXPORT_SCAN_MAX = 5000; // safety cap on rows scanned per collection
+    // ── Small helpers ───────────────────────────────────────────────────────────
+    function nowSec() {
+        return Math.floor(Date.now() / 1000);
+    }
+    function dateStr() {
+        return new Date().toISOString().slice(0, 10);
+    }
+    function randSuffix() {
+        return Math.random().toString(36).slice(2, 8);
+    }
+    function isServiceCaller(ctx, data) {
+        var token = data && data.service_token;
+        if (!token)
+            return false;
+        var expected = "" + ((ctx.env && ctx.env["QV_RESEARCH_SERVICE_TOKEN"]) || "");
+        return expected.length > 0 && token === expected;
+    }
+    // Resolve a stable participant id from session / service-token / anon UUID.
+    function resolveParticipant(ctx, data) {
+        if (ctx.userId) {
+            return { id: ctx.userId, source: "session" };
+        }
+        if (isServiceCaller(ctx, data)) {
+            var u = "" + (data.user_id || data.participant_id || "");
+            if (!u)
+                return { id: "", source: "service", error: "user_id required for service caller", code: 400 };
+            return { id: u, source: "service" };
+        }
+        // Anonymous browser path — accept a client-generated stable UUID.
+        var anon = "" + (data.participant_id || data.anon_id || "");
+        if (anon && anon.length >= 8 && anon.length <= 128) {
+            return { id: anon, source: "anon" };
+        }
+        return { id: "", source: "none", error: "participant_id (or sign-in / service token) required", code: 401 };
+    }
+    function participantHash(nk, participantId) {
+        try {
+            return nk.sha256Hash(participantId).slice(0, 16);
+        }
+        catch (_e) {
+            return ("" + participantId).slice(0, 16);
+        }
+    }
+    // Deterministic 50/50 A/B arm from sha256(studyId + ":" + participantId).
+    // Same participant always lands in the same arm for a given study.
+    function assignArm(nk, studyId, participantId) {
+        var h;
+        try {
+            h = nk.sha256Hash(studyId + ":" + participantId);
+        }
+        catch (_e) {
+            h = "" + participantId;
+        }
+        var firstNibble = parseInt((h.charAt(0) || "0"), 16);
+        if (isNaN(firstNibble))
+            firstNibble = 0;
+        return (firstNibble % 2 === 0) ? ARM_ADAPTIVE : ARM_CONTROL;
+    }
+    // Standard System Usability Scale scoring. answers = 10 ints in [1..5].
+    // Odd items (0-indexed even): contribution = v - 1.
+    // Even items (0-indexed odd): contribution = 5 - v.
+    // total * 2.5 → 0..100.
+    function scoreSus(answers) {
+        if (!answers || answers.length !== 10)
+            return null;
+        var total = 0;
+        for (var i = 0; i < 10; i++) {
+            var v = parseInt("" + answers[i], 10);
+            if (isNaN(v) || v < 1 || v > 5)
+                return null;
+            total += (i % 2 === 0) ? (v - 1) : (5 - v);
+        }
+        return Math.round(total * 2.5 * 10) / 10; // one decimal place
+    }
+    // Hake's normalized gain g = (post - pre) / (100 - pre), scores as percent.
+    function normalizedGain(prePct, postPct) {
+        if (prePct >= 100)
+            return null; // undefined when no headroom
+        var g = (postPct - prePct) / (100 - prePct);
+        return Math.round(g * 1000) / 1000;
+    }
+    function clampPct(n) {
+        var v = parseFloat("" + n);
+        if (isNaN(v))
+            return 0;
+        if (v < 0)
+            return 0;
+        if (v > 100)
+            return 100;
+        return Math.round(v * 100) / 100;
+    }
+    // Per-participant rows are owned by the SYSTEM user and keyed by the one-way
+    // participant_hash. Anonymous browser participants (marketing site / pre-auth
+    // webview) have no Nakama account, so owning rows by their UUID would violate
+    // the storage→users foreign key. Hashing + SYSTEM ownership keeps the corpus
+    // de-identified AND writable for session, service, and anon callers alike.
+    function consentKey(studyId, pHash) {
+        return studyId + ":" + pHash;
+    }
+    function readConsent(nk, participantId, studyId) {
+        try {
+            var pHash = participantHash(nk, participantId);
+            var rows = nk.storageRead([{ collection: COLLECTION_CONSENT, key: consentKey(studyId, pHash), userId: Constants.SYSTEM_USER_ID }]);
+            if (rows && rows.length > 0 && rows[0].value)
+                return rows[0].value;
+        }
+        catch (_e) { /* none */ }
+        return null;
+    }
+    // COPPA/FERPA gate: a minor may only contribute data when parental consent
+    // is on file. Returns null when OK, or an error envelope string when blocked.
+    function consentGateError(consent) {
+        if (!consent) {
+            return RpcHelpers.errorResponse("consent required before submitting study data", 403);
+        }
+        if (consent.is_minor === true && consent.parental_consent !== true) {
+            return RpcHelpers.errorResponse("parental consent required for participants under 18", 403);
+        }
+        if (consent.granted !== true) {
+            return RpcHelpers.errorResponse("active consent not on file", 403);
+        }
+        return null;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: quizverse_research_consent
+    //   { study_id?, role?, is_minor?, parental_consent?, consent_version?,
+    //     granted?, locale?, participant_id?/user_id?, service_token? }
+    //   → { participant_hash, arm, consent: {...} }
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcConsent(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var who = resolveParticipant(ctx, data);
+            if (who.error)
+                return RpcHelpers.errorResponse(who.error, who.code);
+            var studyId = "" + (data.study_id || DEFAULT_STUDY_ID);
+            var role = ("" + (data.role || "student")).toLowerCase();
+            var isMinor = data.is_minor === true;
+            var parentalConsent = data.parental_consent === true;
+            var granted = data.granted !== false; // default true (caller is opting in)
+            var locale = "" + (data.locale || "en");
+            // A minor cannot self-consent without parental sign-off.
+            if (granted && isMinor && !parentalConsent) {
+                return RpcHelpers.errorResponse("parental consent required for participants under 18", 403);
+            }
+            var arm = assignArm(nk, studyId, who.id);
+            var pHash = participantHash(nk, who.id);
+            var record = {
+                study_id: studyId,
+                role: role,
+                is_minor: isMinor,
+                parental_consent: parentalConsent,
+                consent_version: "" + (data.consent_version || CONSENT_VERSION),
+                granted: granted,
+                arm: arm,
+                participant_hash: pHash,
+                source: who.source,
+                locale: locale,
+                granted_unix: nowSec(),
+                date: dateStr(),
+            };
+            // SYSTEM-owned, keyed by participant_hash → idempotent (re-consent
+            // overwrites, never duplicates) and scannable by the aggregate export.
+            nk.storageWrite([{
+                    collection: COLLECTION_CONSENT,
+                    key: consentKey(studyId, pHash),
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: record,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            return RpcHelpers.successResponse({
+                ok: true,
+                study_id: studyId,
+                arm: arm,
+                participant_hash: pHash,
+                granted: granted,
+                is_minor: isMinor,
+                parental_consent: parentalConsent,
+                consent_version: record.consent_version,
+                module_version: Research.MODULE_VERSION,
+                generated_unix: nowSec(),
+            });
+        }
+        catch (err) {
+            logger.error("quizverse_research_consent failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: quizverse_research_assignment_get
+    //   { study_id?, participant_id?/user_id?, service_token? }
+    //   → { arm, has_consent }
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcAssignmentGet(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var who = resolveParticipant(ctx, data);
+            if (who.error)
+                return RpcHelpers.errorResponse(who.error, who.code);
+            var studyId = "" + (data.study_id || DEFAULT_STUDY_ID);
+            var consent = readConsent(nk, who.id, studyId);
+            // Prefer the arm persisted at consent time; else compute deterministically.
+            var arm = (consent && consent.arm) ? consent.arm : assignArm(nk, studyId, who.id);
+            return RpcHelpers.successResponse({
+                ok: true,
+                study_id: studyId,
+                arm: arm,
+                has_consent: !!(consent && consent.granted === true),
+                participant_hash: participantHash(nk, who.id),
+                module_version: Research.MODULE_VERSION,
+                generated_unix: nowSec(),
+            });
+        }
+        catch (err) {
+            logger.error("quizverse_research_assignment_get failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: quizverse_research_diagnostic_submit
+    //   { study_id?, topic, phase: "pre"|"post", score_pct, items_total?,
+    //     items_correct?, duration_sec?, participant_id?/user_id?, service_token? }
+    //   On "post": reads the matching "pre", computes normalized gain, and writes
+    //   a SYSTEM metrics-mirror row for aggregate export.
+    //   → { recorded, phase, gain: { pre_pct, post_pct, normalized_gain } | null }
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcDiagnosticSubmit(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var who = resolveParticipant(ctx, data);
+            if (who.error)
+                return RpcHelpers.errorResponse(who.error, who.code);
+            var studyId = "" + (data.study_id || DEFAULT_STUDY_ID);
+            var topic = ("" + (data.topic || "")).toLowerCase().slice(0, 64);
+            var phase = ("" + (data.phase || "")).toLowerCase();
+            if (!topic)
+                return RpcHelpers.errorResponse("topic required", 400);
+            if (phase !== "pre" && phase !== "post")
+                return RpcHelpers.errorResponse("phase must be 'pre' or 'post'", 400);
+            var consent = readConsent(nk, who.id, studyId);
+            var gateErr = consentGateError(consent);
+            if (gateErr)
+                return gateErr;
+            var scorePct = clampPct(data.score_pct);
+            var itemsTotal = parseInt("" + (data.items_total || 0), 10) || 0;
+            var itemsCorrect = parseInt("" + (data.items_correct || 0), 10) || 0;
+            var durationSec = parseInt("" + (data.duration_sec || 0), 10) || 0;
+            var arm = (consent && consent.arm) ? consent.arm : assignArm(nk, studyId, who.id);
+            // Interventions the learner received before this (post) diagnostic — e.g.
+            // the auto-generated explainer video for their weak concept.
+            var interventions = normalizeInterventions(data.interventions);
+            var record = {
+                study_id: studyId,
+                topic: topic,
+                phase: phase,
+                score_pct: scorePct,
+                items_total: itemsTotal,
+                items_correct: itemsCorrect,
+                duration_sec: durationSec,
+                arm: arm,
+                interventions: interventions,
+                submitted_unix: nowSec(),
+                date: dateStr(),
+            };
+            var dHash = participantHash(nk, who.id);
+            nk.storageWrite([{
+                    collection: COLLECTION_DIAG,
+                    key: studyId + ":" + topic + ":" + phase + ":" + dHash,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: record,
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            var gainOut = null;
+            if (phase === "post") {
+                // Pair with the pre-diagnostic for this (study, topic, participant).
+                var preRows = [];
+                try {
+                    preRows = nk.storageRead([{
+                            collection: COLLECTION_DIAG,
+                            key: studyId + ":" + topic + ":pre:" + dHash,
+                            userId: Constants.SYSTEM_USER_ID,
+                        }]);
+                }
+                catch (_e) {
+                    preRows = [];
+                }
+                if (preRows && preRows.length > 0 && preRows[0].value) {
+                    var pre = preRows[0].value;
+                    var prePct = clampPct(pre.score_pct);
+                    var g = normalizedGain(prePct, scorePct);
+                    gainOut = {
+                        pre_pct: prePct,
+                        post_pct: scorePct,
+                        raw_gain_pct: Math.round((scorePct - prePct) * 100) / 100,
+                        normalized_gain: g,
+                    };
+                    // SYSTEM mirror row for the aggregate export (anonymized).
+                    var metricKey = "gain_" + studyId + "_" + nowSec() + "_" + randSuffix();
+                    nk.storageWrite([{
+                            collection: COLLECTION_METRICS,
+                            key: metricKey,
+                            userId: Constants.SYSTEM_USER_ID,
+                            value: {
+                                kind: "gain",
+                                study_id: studyId,
+                                topic: topic,
+                                arm: arm,
+                                interventions: interventions,
+                                pre_pct: prePct,
+                                post_pct: scorePct,
+                                raw_gain_pct: gainOut.raw_gain_pct,
+                                normalized_gain: g,
+                                participant_hash: participantHash(nk, who.id),
+                                date: dateStr(),
+                                unix: nowSec(),
+                            },
+                            permissionRead: 0,
+                            permissionWrite: 0,
+                        }]);
+                }
+            }
+            return RpcHelpers.successResponse({
+                ok: true,
+                recorded: true,
+                study_id: studyId,
+                topic: topic,
+                phase: phase,
+                arm: arm,
+                gain: gainOut,
+                module_version: Research.MODULE_VERSION,
+                generated_unix: nowSec(),
+            });
+        }
+        catch (err) {
+            logger.error("quizverse_research_diagnostic_submit failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: quizverse_research_survey_submit
+    //   { study_id?, survey_type, answers{} | answers[] (sus), nps?, comment?,
+    //     wants_interview?, locale?, participant_id?/user_id?, service_token? }
+    //   → { recorded, survey_type, sus_score? }
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcSurveySubmit(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var who = resolveParticipant(ctx, data);
+            if (who.error)
+                return RpcHelpers.errorResponse(who.error, who.code);
+            var studyId = "" + (data.study_id || DEFAULT_STUDY_ID);
+            var surveyType = ("" + (data.survey_type || "")).toLowerCase();
+            if (!VALID_SURVEY_TYPES[surveyType]) {
+                return RpcHelpers.errorResponse("survey_type must be one of student|teacher|parent|customer_interview|sus", 400);
+            }
+            // Consent gate applies to identified study surveys. Customer interviews
+            // (which can be founders/admins or external partners) are exempt so
+            // discovery interviews can be logged without a study consent record.
+            if (surveyType !== "customer_interview") {
+                var consent = readConsent(nk, who.id, studyId);
+                var gateErr = consentGateError(consent);
+                if (gateErr)
+                    return gateErr;
+            }
+            var pHash = participantHash(nk, who.id);
+            var nps = (data.nps !== undefined && data.nps !== null) ? parseInt("" + data.nps, 10) : null;
+            if (nps !== null && (isNaN(nps) || nps < 0 || nps > 10))
+                nps = null;
+            var susScore = null;
+            if (surveyType === "sus") {
+                susScore = scoreSus(Array.isArray(data.answers) ? data.answers : []);
+                if (susScore === null) {
+                    return RpcHelpers.errorResponse("sus survey requires answers[] of exactly 10 integers in [1..5]", 400);
+                }
+            }
+            var surveyKey = surveyType + "_" + nowSec() + "_" + randSuffix();
+            nk.storageWrite([{
+                    collection: COLLECTION_SURVEY,
+                    key: surveyKey,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: {
+                        kind: "survey",
+                        study_id: studyId,
+                        survey_type: surveyType,
+                        participant_hash: pHash,
+                        role: (data.role ? ("" + data.role).toLowerCase() : null),
+                        answers: data.answers || {},
+                        nps: nps,
+                        sus_score: susScore,
+                        comment: ("" + (data.comment || "")).slice(0, 2000),
+                        wants_interview: data.wants_interview === true,
+                        locale: "" + (data.locale || "en"),
+                        source: who.source,
+                        date: dateStr(),
+                        unix: nowSec(),
+                    },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            // SUS also lands in the metrics mirror so the export can average it
+            // alongside learning gains without scanning the full survey corpus.
+            if (susScore !== null) {
+                nk.storageWrite([{
+                        collection: COLLECTION_METRICS,
+                        key: "sus_" + studyId + "_" + nowSec() + "_" + randSuffix(),
+                        userId: Constants.SYSTEM_USER_ID,
+                        value: {
+                            kind: "sus",
+                            study_id: studyId,
+                            sus_score: susScore,
+                            participant_hash: pHash,
+                            date: dateStr(),
+                            unix: nowSec(),
+                        },
+                        permissionRead: 0,
+                        permissionWrite: 0,
+                    }]);
+            }
+            // Per-participant dedupe marker (latest write wins; lets clients show
+            // "already completed" without exposing the SYSTEM corpus).
+            try {
+                nk.storageWrite([{
+                        collection: COLLECTION_SURVEY_DONE,
+                        key: studyId + ":" + surveyType + ":" + pHash,
+                        userId: Constants.SYSTEM_USER_ID,
+                        value: { survey_type: surveyType, participant_hash: pHash, last_unix: nowSec() },
+                        permissionRead: 0,
+                        permissionWrite: 0,
+                    }]);
+            }
+            catch (_e) { /* non-fatal */ }
+            return RpcHelpers.successResponse({
+                ok: true,
+                recorded: true,
+                study_id: studyId,
+                survey_type: surveyType,
+                sus_score: susScore,
+                wants_interview: data.wants_interview === true,
+                module_version: Research.MODULE_VERSION,
+                generated_unix: nowSec(),
+            });
+        }
+        catch (err) {
+            logger.error("quizverse_research_survey_submit failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: quizverse_research_waitlist_join
+    //   { email, source?, role?, locale?, study_id? }   (anonymous-OK)
+    //   → { recorded }
+    // ────────────────────────────────────────────────────────────────────────
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    function rpcWaitlistJoin(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            var email = ("" + (data.email || "")).trim().toLowerCase().slice(0, 254);
+            if (!EMAIL_RE.test(email))
+                return RpcHelpers.errorResponse("valid email required", 400);
+            // Hash the email for the aggregate corpus; keep the plaintext only on a
+            // dedicated row so a future export can dedupe by hash without scanning PII.
+            var emailHash;
+            try {
+                emailHash = nk.sha256Hash(email).slice(0, 24);
+            }
+            catch (_e) {
+                emailHash = email.slice(0, 24);
+            }
+            nk.storageWrite([{
+                    collection: COLLECTION_WAITLIST,
+                    key: "wl_" + emailHash, // keyed by hash → idempotent (no duplicate signups)
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: {
+                        kind: "waitlist",
+                        email: email,
+                        email_hash: emailHash,
+                        source: ("" + (data.source || "web")).slice(0, 64),
+                        role: ("" + (data.role || "")).toLowerCase().slice(0, 32),
+                        study_id: "" + (data.study_id || DEFAULT_STUDY_ID),
+                        locale: "" + (data.locale || "en"),
+                        date: dateStr(),
+                        unix: nowSec(),
+                    },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                }]);
+            return RpcHelpers.successResponse({
+                ok: true,
+                recorded: true,
+                module_version: Research.MODULE_VERSION,
+                generated_unix: nowSec(),
+            });
+        }
+        catch (err) {
+            logger.error("quizverse_research_waitlist_join failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── Aggregation helpers (export) ────────────────────────────────────────────
+    function scanSystemCollection(nk, collection, onRow) {
+        var cursor = "";
+        var scanned = 0;
+        for (var page = 0; page < (EXPORT_SCAN_MAX / EXPORT_SCAN_PAGE) + 1; page++) {
+            var res;
+            try {
+                res = nk.storageList(Constants.SYSTEM_USER_ID, collection, EXPORT_SCAN_PAGE, cursor);
+            }
+            catch (_e) {
+                break;
+            }
+            var objs = (res && res.objects) ? res.objects : [];
+            for (var i = 0; i < objs.length; i++) {
+                if (objs[i] && objs[i].value) {
+                    onRow(objs[i].value);
+                    scanned++;
+                    if (scanned >= EXPORT_SCAN_MAX)
+                        return scanned;
+                }
+            }
+            cursor = (res && res.cursor) ? res.cursor : "";
+            if (!cursor)
+                break;
+        }
+        return scanned;
+    }
+    function mean(arr) {
+        if (!arr.length)
+            return null;
+        var s = 0;
+        for (var i = 0; i < arr.length; i++)
+            s += arr[i];
+        return Math.round((s / arr.length) * 1000) / 1000;
+    }
+    function stddev(arr, m) {
+        if (!arr.length || m === null)
+            return null;
+        var s = 0;
+        for (var i = 0; i < arr.length; i++) {
+            var d = arr[i] - m;
+            s += d * d;
+        }
+        return Math.round(Math.sqrt(s / arr.length) * 1000) / 1000;
+    }
+    // Cohen's d (pooled SD) between two groups — the between-group effect size
+    // reviewers look for. Returns null when either group is too small.
+    function cohensDBetween(a, b, ma, mb, sa, sb) {
+        if (ma === null || mb === null || a.length < 2 || b.length < 2)
+            return null;
+        var n1 = a.length, n2 = b.length;
+        var s1 = sa || 0, s2 = sb || 0;
+        var pooledVar = ((n1 - 1) * s1 * s1 + (n2 - 1) * s2 * s2) / (n1 + n2 - 2);
+        var pooledSd = Math.sqrt(pooledVar);
+        if (pooledSd <= 0)
+            return null;
+        return Math.round(((ma - mb) / pooledSd) * 1000) / 1000;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+    // RPC: quizverse_research_export   (admin OR service-token gated)
+    //   { study_id? }
+    //   → grant-appendix aggregate: n, mean gain by arm, Cohen's d, SUS, NPS,
+    //     survey counts, waitlist count.
+    // ────────────────────────────────────────────────────────────────────────
+    function rpcExport(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload);
+            // Gate: service token OR admin (http_key server-to-server passes requireAdmin).
+            if (!isServiceCaller(ctx, data)) {
+                try {
+                    RpcHelpers.requireAdmin(ctx, nk);
+                }
+                catch (_e) {
+                    return RpcHelpers.errorResponse("admin or service token required", 403);
+                }
+            }
+            var studyId = "" + (data.study_id || DEFAULT_STUDY_ID);
+            // Per-participant accumulator keyed by one-way participant_hash. Powers
+            // the de-identified `participants[]` CSV the dashboard exports.
+            var byHash = {};
+            // Function expression (not a declaration) so tsc stays ES5-strict clean:
+            // function declarations inside a block (this try{}) trip TS1250.
+            var ensureRow = function (h) {
+                if (!h)
+                    h = "unknown";
+                if (!byHash[h])
+                    byHash[h] = { participant_hash: h };
+                return byHash[h];
+            };
+            // --- consent rows (base participant rows: arm / role / locale + count) ---
+            var consentCount = 0;
+            scanSystemCollection(nk, COLLECTION_CONSENT, function (v) {
+                if (!v || ("" + v.study_id) !== studyId)
+                    return;
+                consentCount++;
+                var rc = ensureRow("" + v.participant_hash);
+                if (v.arm)
+                    rc.arm = v.arm;
+                if (v.role)
+                    rc.role = v.role;
+                if (v.locale)
+                    rc.locale = v.locale;
+            });
+            // --- learning-gain rows (by arm, and by explainer-video exposure) ---
+            var adaptiveGains = [];
+            var controlGains = [];
+            var explainerGains = []; // received the Simi/Lamina explainer video
+            var noExplainerGains = []; // did not
+            var susScores = [];
+            var gainRowCount = 0;
+            scanSystemCollection(nk, COLLECTION_METRICS, function (v) {
+                if (!v || ("" + v.study_id) !== studyId)
+                    return;
+                if (v.kind === "gain" && v.normalized_gain !== null && v.normalized_gain !== undefined) {
+                    var g = parseFloat("" + v.normalized_gain);
+                    if (!isNaN(g)) {
+                        gainRowCount++;
+                        if (("" + v.arm) === ARM_CONTROL)
+                            controlGains.push(g);
+                        else
+                            adaptiveGains.push(g);
+                        if (hasIntervention(v.interventions, "explainer_video"))
+                            explainerGains.push(g);
+                        else
+                            noExplainerGains.push(g);
+                        var rg = ensureRow("" + v.participant_hash);
+                        if (v.arm)
+                            rg.arm = v.arm;
+                        if (v.pre_pct !== undefined)
+                            rg.pre_pct = v.pre_pct;
+                        if (v.post_pct !== undefined)
+                            rg.post_pct = v.post_pct;
+                        rg.normalized_gain = g;
+                        rg.interventions = v.interventions || [];
+                    }
+                }
+                else if (v.kind === "sus") {
+                    var s = parseFloat("" + v.sus_score);
+                    if (!isNaN(s)) {
+                        susScores.push(s);
+                        if (v.participant_hash)
+                            ensureRow("" + v.participant_hash).sus_score = s;
+                    }
+                }
+            });
+            // --- surveys (counts by type, NPS, concept-test, per-participant merge) ---
+            var surveyCounts = {};
+            var npsScores = [];
+            var interviewVolunteers = 0;
+            var surveyTotal = 0;
+            var ctN = 0;
+            var ctOnTarget = 0;
+            var ctLikert = {};
+            for (var li = 0; li < CONCEPT_LIKERT_KEYS.length; li++)
+                ctLikert[CONCEPT_LIKERT_KEYS[li]] = [];
+            var ctMostUseful = {};
+            var ctPmfVery = 0;
+            var ctPmfTotal = 0;
+            scanSystemCollection(nk, COLLECTION_SURVEY, function (v) {
+                if (!v || ("" + v.study_id) !== studyId)
+                    return;
+                surveyTotal++;
+                var t = "" + (v.survey_type || "unknown");
+                surveyCounts[t] = (surveyCounts[t] || 0) + 1;
+                var a = v.answers || {};
+                var r = ensureRow("" + v.participant_hash);
+                if (v.role)
+                    r.role = v.role;
+                if (v.locale)
+                    r.locale = v.locale;
+                if (t === "customer_interview") {
+                    if (v.wants_interview === true)
+                        interviewVolunteers++;
+                    if (a.wants_pilot !== undefined && a.wants_pilot !== null)
+                        r.wants_pilot = a.wants_pilot === true;
+                    if (a.prize_entry !== undefined && a.prize_entry !== null)
+                        r.prize_entry = a.prize_entry === true;
+                    return;
+                }
+                // student / teacher / parent surveys
+                if (v.nps !== null && v.nps !== undefined) {
+                    var n = parseInt("" + v.nps, 10);
+                    if (!isNaN(n)) {
+                        npsScores.push(n);
+                        r.nps = n;
+                    }
+                }
+                if (a.survey_variant)
+                    r.survey_variant = "" + a.survey_variant;
+                if (a.country)
+                    r.country = "" + a.country;
+                if (a.grade)
+                    r.grade = "" + a.grade;
+                if (a.exam_target)
+                    r.exam_target = "" + a.exam_target;
+                if (a.current_tool)
+                    r.current_tool = "" + a.current_tool;
+                var cap = a.most_useful_capability || a.most_useful_modality;
+                if (cap)
+                    r.most_useful_capability = "" + cap;
+                if (a.after_wrong)
+                    r.after_wrong = a.after_wrong;
+                if (a.pmf_disappointment)
+                    r.pmf_disappointment = "" + a.pmf_disappointment;
+                if (a.who_pays)
+                    r.who_pays = "" + a.who_pays;
+                if (("" + a.survey_variant) === CONCEPT_TEST_VARIANT) {
+                    ctN++;
+                    if (("" + a.country) === "us" && (("" + a.grade) === "g11" || ("" + a.grade) === "g12"))
+                        ctOnTarget++;
+                    for (var ki = 0; ki < CONCEPT_LIKERT_KEYS.length; ki++) {
+                        var lk = CONCEPT_LIKERT_KEYS[ki];
+                        var lv = parseFloat("" + a[lk]);
+                        if (!isNaN(lv))
+                            ctLikert[lk].push(lv);
+                    }
+                    if (cap)
+                        ctMostUseful["" + cap] = (ctMostUseful["" + cap] || 0) + 1;
+                    if (a.pmf_disappointment) {
+                        ctPmfTotal++;
+                        if (("" + a.pmf_disappointment) === "very")
+                            ctPmfVery++;
+                    }
+                }
+            });
+            // --- waitlist (unique by hash key) ---
+            var waitlistCount = 0;
+            scanSystemCollection(nk, COLLECTION_WAITLIST, function (v) {
+                if (!v)
+                    return;
+                if (("" + (v.study_id || DEFAULT_STUDY_ID)) === studyId || !v.study_id)
+                    waitlistCount++;
+            });
+            // --- derived stats (gains / effect sizes) ---
+            var mAdaptive = mean(adaptiveGains);
+            var mControl = mean(controlGains);
+            var sdAdaptive = stddev(adaptiveGains, mAdaptive);
+            var sdControl = stddev(controlGains, mControl);
+            var cohensD = cohensDBetween(adaptiveGains, controlGains, mAdaptive, mControl, sdAdaptive, sdControl);
+            var mExplainer = mean(explainerGains);
+            var mNoExplainer = mean(noExplainerGains);
+            var sdExplainer = stddev(explainerGains, mExplainer);
+            var sdNoExplainer = stddev(noExplainerGains, mNoExplainer);
+            var explainerD = cohensDBetween(explainerGains, noExplainerGains, mExplainer, mNoExplainer, sdExplainer, sdNoExplainer);
+            // NPS = %promoters (9-10) - %detractors (0-6); passives 7-8.
+            var npsValue = null;
+            var promoters = 0, passives = 0, detractors = 0;
+            for (var i = 0; i < npsScores.length; i++) {
+                if (npsScores[i] >= 9)
+                    promoters++;
+                else if (npsScores[i] >= 7)
+                    passives++;
+                else
+                    detractors++;
+            }
+            if (npsScores.length > 0)
+                npsValue = Math.round(((promoters - detractors) / npsScores.length) * 100);
+            // concept-test likert means
+            var ctLikertMeans = {};
+            for (var mi = 0; mi < CONCEPT_LIKERT_KEYS.length; mi++) {
+                var mk = CONCEPT_LIKERT_KEYS[mi];
+                var mm = mean(ctLikert[mk]);
+                if (mm !== null)
+                    ctLikertMeans[mk] = mm;
+            }
+            // Flatten participant rows (sorted for stable CSV output).
+            var participants = [];
+            var hashes = Object.keys(byHash);
+            hashes.sort();
+            for (var hi = 0; hi < hashes.length; hi++)
+                participants.push(byHash[hashes[hi]]);
+            var susMean = mean(susScores);
+            var susSd = stddev(susScores, susMean);
+            var adaptiveGroup = { n: adaptiveGains.length, mean_normalized_gain: mAdaptive, sd: sdAdaptive };
+            var controlGroup = { n: controlGains.length, mean_normalized_gain: mControl, sd: sdControl };
+            var explainerWith = { n: explainerGains.length, mean_normalized_gain: mExplainer, sd: sdExplainer };
+            var explainerWithout = { n: noExplainerGains.length, mean_normalized_gain: mNoExplainer, sd: sdNoExplainer };
+            return RpcHelpers.successResponse({
+                ok: true,
+                study_id: studyId,
+                generated_at: new Date().toISOString(),
+                generated_unix: nowSec(),
+                generated_date: dateStr(),
+                module_version: Research.MODULE_VERSION,
+                counts: {
+                    consents: consentCount,
+                    diagnostics: gainRowCount,
+                    surveys: surveyTotal,
+                    waitlist: waitlistCount,
+                    interview_volunteers: interviewVolunteers,
+                    prize_entrants: waitlistCount,
+                    student: surveyCounts["student"] || 0,
+                    teacher: surveyCounts["teacher"] || 0,
+                    parent: surveyCounts["parent"] || 0,
+                },
+                // Flat shape the dashboard + grant appendix read.
+                learning_outcomes: {
+                    adaptive: adaptiveGroup,
+                    control: controlGroup,
+                    cohens_d: cohensD,
+                    explainer_video: {
+                        with: explainerWith,
+                        without: explainerWithout,
+                        cohens_d: explainerD,
+                        note: "Isolates the Simi/Lamina auto-generated explainer-video effect on learning gain (independent of the adaptive arm).",
+                    },
+                    // Legacy nested keys retained for backward compatibility.
+                    arms: { adaptive: adaptiveGroup, control: controlGroup },
+                    cohens_d_adaptive_vs_control: cohensD,
+                    interpretation_note: "normalized_gain is Hake's g = (post-pre)/(100-pre); Cohen's d>0.4 is a meaningful between-group effect.",
+                },
+                sus: { n: susScores.length, mean: susMean, sd: susSd },
+                nps: { n: npsScores.length, score: npsValue, value: npsValue, promoters: promoters, passives: passives, detractors: detractors },
+                concept_test: {
+                    n: ctN,
+                    us_grade_11_12: ctOnTarget,
+                    likert_means: ctLikertMeans,
+                    most_useful_modality: ctMostUseful,
+                    pmf_very_disappointed_pct: ctPmfTotal > 0 ? Math.round((100 * ctPmfVery / ctPmfTotal) * 10) / 10 : null,
+                },
+                // Legacy top-level blocks (kept so older consumers don't break).
+                usability: {
+                    sus: { n: susScores.length, mean: susMean, sd: susSd },
+                    sus_benchmark_note: "SUS mean >68 is above the industry average; >80 is excellent.",
+                },
+                surveys: {
+                    counts_by_type: surveyCounts,
+                    nps: { n: npsScores.length, value: npsValue },
+                    interview_volunteers: interviewVolunteers,
+                },
+                waitlist: { signups: waitlistCount },
+                participants: participants,
+            });
+        }
+        catch (err) {
+            logger.error("quizverse_research_export failed: " + (err && err.message ? err.message : String(err)));
+            return RpcHelpers.errorResponse("internal error", 500);
+        }
+    }
+    // ── Registration ────────────────────────────────────────────────────────────
+    // STRING-LITERAL ids only (postbuild.js v2 hoists literal registerRpc calls).
+    function register(initializer) {
+        initializer.registerRpc("quizverse_research_consent", rpcConsent);
+        initializer.registerRpc("quizverse_research_assignment_get", rpcAssignmentGet);
+        initializer.registerRpc("quizverse_research_diagnostic_submit", rpcDiagnosticSubmit);
+        initializer.registerRpc("quizverse_research_survey_submit", rpcSurveySubmit);
+        initializer.registerRpc("quizverse_research_waitlist_join", rpcWaitlistJoin);
+        initializer.registerRpc("quizverse_research_export", rpcExport);
+    }
+    Research.register = register;
+})(Research || (Research = {}));
 // =============================================================================
 // AnalyticsAlerts — Hardened RPC analytics + Discord summaries for Nakama
 // =============================================================================
@@ -49032,6 +51806,10 @@ var Constants;
     Constants.ADMIN_AUDIT_COLLECTION = "admin_audit_events";
     Constants.PLAYER_METADATA_COLLECTION = "player_metadata";
     Constants.PUSH_TOKENS_COLLECTION = "push_tokens";
+    // Web onboarding analytics (browser → Next.js → Nakama http_key RPC)
+    Constants.QV_ONBOARDING_EVENTS_COLLECTION = "qv_onboarding_events";
+    Constants.QV_ONBOARDING_IDENTITY_COLLECTION = "qv_onboarding_identity";
+    Constants.QV_ONBOARDING_PROFILES_COLLECTION = "qv_onboarding_profiles";
 })(Constants || (Constants = {}));
 var EventBus;
 (function (EventBus) {
@@ -50333,6 +53111,22 @@ var RpcHelpers;
         // Server-to-server calls via http_key have no userId — treat as trusted
         if (!ctx.userId)
             return;
+        // Dashboard admin sessions minted by admin_login (custom_id admin:<name>)
+        if (ctx.username && ctx.username.indexOf("admin:") === 0) {
+            try {
+                var adminReads = nk.storageRead([{
+                        collection: "admin_users",
+                        key: "profile",
+                        userId: ctx.userId
+                    }]);
+                if (adminReads && adminReads.length > 0) {
+                    var adminRec = adminReads[0].value;
+                    if (adminRec && adminRec.isAdmin)
+                        return;
+                }
+            }
+            catch (_) { }
+        }
         try {
             var accounts = nk.accountsGetId([ctx.userId]);
             if (accounts && accounts.length > 0) {

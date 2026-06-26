@@ -129,6 +129,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Explainer video consumables (qv_entitlements / consumables) ----
+  try {
+    QvExplainerVideos.register(initializer);
+    logger.info("[QvExplainerVideos] quizverse_videos_status/consume/grant registered");
+  } catch (err: any) {
+    logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");
@@ -568,6 +576,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[AccountMerge] failed to register: " + (err && err.message ? err.message : String(err)));
     }
 
+    logger.info("[OnboardingAnalytics] Registering web onboarding event ingest + funnel RPCs...");
+    try {
+      OnboardingAnalytics.register(initializer);
+      logger.info("[OnboardingAnalytics] onboarding_events_batch, onboarding_identity_link, onboarding_funnel_screens registered");
+    } catch (err: any) {
+      logger.error("[OnboardingAnalytics] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+
     // ── Tournaments + P2E (plan §1-§3) ─────────────────────────────────────
     // Full launch-slate tournament system. Registers 25 RPCs across:
     //   - user-callable (list/get/enter/submit/leaderboard×6/claim/picks/pre-enroll/...)
@@ -741,6 +757,21 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[BlogEmbed] Blog-quiz embed RPCs registered successfully");
   } catch (err: any) {
     logger.error("[BlogEmbed] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- Research & Validation instrument (SBIR/IES grant evidence) ----
+  // Consent (COPPA/FERPA-aware), A/B assignment (adaptive vs control), pre/post
+  // diagnostic with normalized learning gain, surveys (student/teacher/customer/
+  // SUS/NPS), waitlist capture, and an admin/service-only aggregate export that
+  // produces the proposal-appendix numbers. Single-arg register() so postbuild's
+  // autoInvokeRegister re-runs it on every pooled Goja VM.
+  // See data/modules/src/research/research.ts.
+  try {
+    logger.info("[Research] Registering quizverse_research_* RPCs (consent, assignment, diagnostic, survey, waitlist, export)...");
+    Research.register(initializer);
+    logger.info("[Research] quizverse_research_consent/_assignment_get/_diagnostic_submit/_survey_submit/_waitlist_join/_export registered");
+  } catch (err: any) {
+    logger.error("[Research] Failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
   // ---- Fantasy Cricket RPCs ----

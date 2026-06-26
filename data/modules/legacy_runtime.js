@@ -19256,7 +19256,11 @@ var COLLECTION_ASYNC_INDEX = 'async_challenge_index';
 var ASYNC_CHALLENGE_SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
 var ASYNC_CHALLENGE_EXPIRY_HOURS = 168; // 7 days (1 week max)
 var ASYNC_CHALLENGE_MAX_PER_USER = 10;
-var ASYNC_CHALLENGE_RATE_LIMIT_MINUTES = 1; // Min time between challenge creations
+// Min time between consecutive challenge creations (in minutes).
+// 1 min was too aggressive — a user who cancels and retries within 60 s
+// hits RATE_LIMITED even though they have zero active challenges.
+// 10 seconds prevents spam while not punishing normal cancel-and-retry flows.
+var ASYNC_CHALLENGE_RATE_LIMIT_MINUTES = 10 / 60; // ~10 seconds
 var ASYNC_CHALLENGE_WIN_COINS = 50; // Coins for winning
 var ASYNC_CHALLENGE_PARTICIPATION_COINS = 10; // Coins for completing (loser)
 var ASYNC_CHALLENGE_WIN_XP = 100; // XP for winning
@@ -19268,6 +19272,10 @@ var ASYNC_STATUS_OPPONENT_JOINED = 1;
 var ASYNC_STATUS_BOTH_COMPLETED = 2;
 var ASYNC_STATUS_EXPIRED = 3;
 var ASYNC_STATUS_CANCELLED = 4;
+// CREATOR_PLAYED (5): creator has submitted their score but no opponent has joined yet.
+// Clients can show "Your results are in — share the code so your opponent can play!" instead
+// of showing the generic "waiting" state that looks identical to "not started".
+var ASYNC_STATUS_CREATOR_PLAYED = 5;
 
 /**
  * Get or create user async challenge statistics
@@ -19367,51 +19375,57 @@ function asyncChallengeFindSessionByKey(nk, logger, sessionId) {
  * @param {string} creatorId - Creator user ID
  */
 function asyncChallengeIndexOpponent(nk, opponentId, sessionId, creatorId) {
-    try {
-        // Get current index
-        var indexResults = nk.storageRead([{
-            collection: COLLECTION_ASYNC_INDEX,
-            key: 'opponent_' + opponentId,
-            userId: opponentId
-        }]);
+    // Retry up to 3 times on OCC version conflict so concurrent joins for different sessions
+    // by the same opponent don't silently drop entries from the index.
+    var maxRetries = 3;
+    for (var attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+            var indexResults = nk.storageRead([{
+                collection: COLLECTION_ASYNC_INDEX,
+                key: 'opponent_' + opponentId,
+                userId: opponentId
+            }]);
 
-        var index = { sessions: [] };
-        if (indexResults.length > 0) {
-            index = indexResults[0].value;
-        }
-
-        // Add session if not exists
-        var exists = false;
-        for (var i = 0; i < index.sessions.length; i++) {
-            if (index.sessions[i].sessionId === sessionId) {
-                exists = true;
-                break;
-            }
-        }
-
-        if (!exists) {
-            index.sessions.push({
-                sessionId: sessionId,
-                creatorId: creatorId,
-                addedAt: Date.now()
-            });
-
-            // Keep only recent 50 entries
-            if (index.sessions.length > 50) {
-                index.sessions = index.sessions.slice(-50);
+            var index = { sessions: [] };
+            var indexVersion = null;
+            if (indexResults.length > 0) {
+                index = indexResults[0].value;
+                indexVersion = indexResults[0].version;
             }
 
-            nk.storageWrite([{
+            // Skip if entry already present.
+            var exists = false;
+            for (var i = 0; i < index.sessions.length; i++) {
+                if (index.sessions[i].sessionId === sessionId) { exists = true; break; }
+            }
+            if (exists) return;
+
+            index.sessions.push({ sessionId: sessionId, creatorId: creatorId, addedAt: Date.now() });
+
+            // Keep only the most recent 100 entries (pruning keeps the doc small).
+            if (index.sessions.length > 100) {
+                index.sessions = index.sessions.slice(-100);
+            }
+
+            var writeObj = {
                 collection: COLLECTION_ASYNC_INDEX,
                 key: 'opponent_' + opponentId,
                 userId: opponentId,
                 value: index,
                 permissionRead: 1,
                 permissionWrite: 1
-            }]);
+            };
+            // OCC guard: only write if index hasn't changed since we read it.
+            if (indexVersion !== null) writeObj.version = indexVersion;
+
+            nk.storageWrite([writeObj]);
+            return; // success
+        } catch (err) {
+            // Version conflict from a concurrent index update — retry with fresh read.
+            if (attempt === maxRetries - 1) {
+                // Give up silently; lookup will fall back to SQL for this session.
+            }
         }
-    } catch (err) {
-        // Non-critical indexing failure
     }
 }
 
@@ -19426,27 +19440,19 @@ function asyncChallengeIndexOpponent(nk, opponentId, sessionId, creatorId) {
  */
 function asyncChallengeAwardRewards(nk, logger, userId, coins, xp, reason) {
     try {
-        // Award coins via wallet
-        if (coins > 0) {
-            var changeset = { coins: coins };
-            nk.walletUpdate(userId, changeset, { reason: reason }, true);
-            logger.debug('[AsyncChallenge] Awarded ' + coins + ' coins to ' + userId + ' for: ' + reason);
-        }
+        // Award coins AND xp atomically via a single wallet update.
+        // Using walletUpdate (server-side ledger) avoids the race condition that existed
+        // when XP was stored in account metadata (read-modify-write with no OCC).
+        var changeset = {};
+        if (coins > 0) changeset.coins = coins;
+        if (xp > 0)    changeset.xp    = xp;
 
-        // Award XP - use account metadata or dedicated storage
-        if (xp > 0) {
-            try {
-                var account = nk.accountGetId(userId);
-                var metadata = account.user.metadata || {};
-                metadata.totalXp = (metadata.totalXp || 0) + xp;
-                nk.accountUpdateId(userId, null, null, null, null, null, null, metadata);
-                logger.debug('[AsyncChallenge] Awarded ' + xp + ' XP to ' + userId + ' for: ' + reason);
-            } catch (xpErr) {
-                logger.warn('[AsyncChallenge] Could not award XP: ' + xpErr.message);
-            }
+        if (Object.keys(changeset).length > 0) {
+            nk.walletUpdate(userId, changeset, { reason: reason }, true);
+            logger.debug('[AsyncChallenge] Awarded coins=' + (coins || 0) + ' xp=' + (xp || 0) + ' to ' + userId + ' for: ' + reason);
         }
     } catch (err) {
-        logger.warn('[AsyncChallenge] Reward error: ' + err.message);
+        logger.warn('[AsyncChallenge] Reward error for ' + userId + ': ' + err.message);
     }
 }
 
@@ -19573,7 +19579,7 @@ function asyncChallengeGenerateShareCode(nk) {
  * @param {string} content - Notification message
  * @param {object} data - Additional notification data
  */
-function asyncChallengeSendNotification(nk, userId, subject, content, data) {
+function asyncChallengeSendNotification(nk, userId, subject, content, data, logger) {
     try {
         var notifications = [{
             userId: userId,
@@ -19586,8 +19592,14 @@ function asyncChallengeSendNotification(nk, userId, subject, content, data) {
             persistent: true
         }];
         nk.notificationsSend(notifications);
+        if (logger) {
+            logger.debug('[AsyncChallenge] notify code=101 type=' + (data && data.type ? data.type : 'unknown') +
+                ' target=' + userId + ' session=' + (data && data.sessionId ? data.sessionId : '?'));
+        }
     } catch (e) {
-        // Silently fail if notification fails - non-critical
+        if (logger) {
+            logger.warn('[AsyncChallenge] notify failed type=' + (data && data.type ? data.type : 'unknown') + ' target=' + userId + ' err=' + (e.message || String(e)));
+        }
     }
 }
 
@@ -19598,11 +19610,53 @@ function asyncChallengeSendNotification(nk, userId, subject, content, data) {
  * @param {string} fallback - Fallback display name
  * @returns {string} Display name
  */
+/**
+ * Returns true if `name` looks like a machine-generated login ID rather than
+ * a human display name — e.g. a UUID, an email address, or a Nakama auto-
+ * username like "xyzabc123" with no vowels / no spaces / all lowercase alnum.
+ * Used to decide whether to prefer a client-supplied name over the Nakama
+ * account name when they differ.
+ */
+function asyncChallengeIsLoginIdName(name) {
+    if (!name || typeof name !== 'string') return true;
+    var s = name.trim();
+    if (s.length === 0) return true;
+    // Generic placeholders used by the client SDKs
+    var lower = s.toLowerCase();
+    if (lower === 'player' || lower === 'player a' || lower === 'player b'
+        || lower === 'unknown' || lower === 'unknown player' || lower === 'user') return true;
+    // Contains @ → email / Firebase UID style
+    if (s.indexOf('@') >= 0) return true;
+    // UUID pattern (8-4-4-4-12 hex)
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return true;
+    // Long pure hex string (Firebase / Supabase UID)
+    if (/^[0-9a-f]{20,}$/i.test(s)) return true;
+    // All digits (numeric UID)
+    if (/^\d+$/.test(s)) return true;
+    return false;
+}
+
 function asyncChallengeGetDisplayName(nk, userId, fallback) {
+    // QVBF_304: if the caller already supplied a real human name (not a
+    // generic placeholder or machine-generated login ID), use it directly.
+    // Nakama's account displayName / username fields are often email-derived
+    // or auto-generated, so the client-supplied name is the more reliable source.
+    if (fallback && !asyncChallengeIsLoginIdName(fallback)) {
+        return fallback;
+    }
+
+    // Fallback is absent or looks machine-generated — try the Nakama account.
     try {
         var users = nk.usersGetId([userId]);
         if (users && users.length > 0) {
-            return users[0].displayName || users[0].username || fallback;
+            var nakamaName = users[0].displayName || users[0].username || '';
+            // Prefer the Nakama name only if it looks like a real human name.
+            if (nakamaName && !asyncChallengeIsLoginIdName(nakamaName)) {
+                return nakamaName;
+            }
+            // Nakama name is also generic — fall back to whatever the caller gave us.
+            if (fallback && fallback.length > 0) return fallback;
+            if (nakamaName && nakamaName.length > 0) return nakamaName;
         }
     } catch (err) {
         // Return fallback on error
@@ -19640,6 +19694,10 @@ function asyncChallengeSessionToUnityFormat(session, nk) {
     // QVBF_154: re-resolve player names at read time so a renamed player is
     // never shown with the name snapshotted into the session at create/join.
     // Lookup failure (deleted account, transient error) keeps stored names.
+    // QVBF_304: re-resolve player names at read time, but only override the
+    // stored name if the Nakama account name looks like a real human name.
+    // Machine-generated names (UUIDs, emails, autogenerated usernames) must not
+    // clobber the correct client-supplied name that was stored at create/join.
     if (nk) {
         try {
             var freshIds = [];
@@ -19650,8 +19708,21 @@ function asyncChallengeSessionToUnityFormat(session, nk) {
                 for (var fu = 0; fu < freshUsers.length; fu++) {
                     var freshName = freshUsers[fu].displayName || freshUsers[fu].username || '';
                     if (!freshName) continue;
-                    if (freshUsers[fu].userId === session.creatorId) session.creatorName = freshName;
-                    if (freshUsers[fu].userId === session.opponentId) session.opponentName = freshName;
+                    // Only apply if it's a human-readable name (not a login ID).
+                    var freshIsReal = !asyncChallengeIsLoginIdName(freshName);
+                    if (freshUsers[fu].userId === session.creatorId) {
+                        if (freshIsReal) session.creatorName = freshName;
+                        // If stored name is also bad, use whatever we have.
+                        else if (!session.creatorName || asyncChallengeIsLoginIdName(session.creatorName)) {
+                            session.creatorName = freshName;
+                        }
+                    }
+                    if (freshUsers[fu].userId === session.opponentId) {
+                        if (freshIsReal) session.opponentName = freshName;
+                        else if (!session.opponentName || asyncChallengeIsLoginIdName(session.opponentName)) {
+                            session.opponentName = freshName;
+                        }
+                    }
                 }
             }
         } catch (freshErr) {
@@ -19758,23 +19829,416 @@ function asyncChallengeSessionToUnityFormat(session, nk) {
  * @param {string} userId - User ID
  * @returns {number} Count of active challenges
  */
-function asyncChallengeCountActive(nk, userId) {
-    try {
-        var result = nk.storageList(userId, COLLECTION_ASYNC_CHALLENGES, 100, '');
-        var count = 0;
-        var now = Date.now();
-        var objects = result.objects || [];
+// ============================================================================
+// ASYNC CHALLENGE STATE MACHINE
+// ============================================================================
+// Single source of truth for all session state transitions.
+//
+// RULE: No RPC may mutate session.status or session.*Completed directly.
+//       All transitions MUST go through asyncChallengeTransitionState().
+//       Adding new behavior? Add a new case here — nowhere else.
+//
+// Return shape: { ok, session, errorCode, error, shouldProcessRewards }
+// The function is PURE — no storage I/O. RPCs own the read and OCC write.
+// ============================================================================
 
-        for (var i = 0; i < objects.length; i++) {
-            var session = objects[i].value;
-            if (session.status < ASYNC_STATUS_BOTH_COMPLETED && now < session.expiresAt) {
-                count++;
-            }
-        }
-        return count;
-    } catch (err) {
-        return 0;
+var AC_EVT_JOIN            = 'JOIN';
+var AC_EVT_CREATOR_SUBMIT  = 'CREATOR_SUBMIT';
+var AC_EVT_OPPONENT_SUBMIT = 'OPPONENT_SUBMIT';
+var AC_EVT_CANCEL          = 'CANCEL';
+var AC_EVT_OPPONENT_LEAVE  = 'OPPONENT_LEAVE';
+
+function asyncChallengeTransitionState(session, event, data) {
+    var now = Date.now();
+    var status = typeof session.status === 'number' ? session.status : 0;
+    var userId = data.userId;
+
+    // ── Guard: terminal states ──────────────────────────────────────────────
+    if (status === ASYNC_STATUS_CANCELLED)
+        return { ok: false, errorCode: 'TERMINAL', error: 'This challenge has been cancelled.' };
+    if (status === ASYNC_STATUS_EXPIRED)
+        return { ok: false, errorCode: 'TERMINAL', error: 'This challenge has expired.' };
+    if (status === ASYNC_STATUS_BOTH_COMPLETED) {
+        // Submit is idempotent even on completed sessions (offline-queue retry path).
+        if (event !== AC_EVT_CREATOR_SUBMIT && event !== AC_EVT_OPPONENT_SUBMIT)
+            return { ok: false, errorCode: 'TERMINAL', error: 'Challenge is already completed.' };
     }
+
+    // ── Guard: auto-expire non-terminal sessions ────────────────────────────
+    if (status !== ASYNC_STATUS_BOTH_COMPLETED && now > session.expiresAt) {
+        session.status = ASYNC_STATUS_EXPIRED;
+        return { ok: false, errorCode: 'EXPIRED', error: 'This challenge has expired.' };
+    }
+
+    switch (event) {
+        // ── JOIN ─────────────────────────────────────────────────────────────
+        case AC_EVT_JOIN: {
+            if (session.creatorId === userId)
+                return { ok: false, errorCode: 'SELF_JOIN', error: 'You cannot join your own challenge.' };
+
+            // Idempotent: this user is already the opponent.
+            if (session.opponentId === userId)
+                return { ok: true, session: session, errorCode: 'ALREADY_JOINED', error: null, shouldProcessRewards: false };
+
+            if (session.opponentId !== null)
+                return { ok: false, errorCode: 'ALREADY_FULL', error: 'This challenge already has an opponent.' };
+
+            // Targeted invite: only specific user may join.
+            if (session.challengedUserId && session.challengedUserId !== userId)
+                return { ok: false, errorCode: 'WRONG_PLAYER', error: 'This challenge is meant for a specific player.' };
+
+            // Only joinable from WAITING or CREATOR_PLAYED.
+            if (status !== ASYNC_STATUS_WAITING && status !== ASYNC_STATUS_CREATOR_PLAYED)
+                return { ok: false, errorCode: 'INVALID_STATE', error: 'Cannot join challenge in its current state.' };
+
+            session.opponentId   = userId;
+            session.opponentName = data.displayName || 'Player B';
+            session.opponentJoinedAt = now;
+            session.opponentLobbySeenAt = now;
+            session.opponentLobbyHeartbeatCount = 0;
+            // Keep CREATOR_PLAYED so clients know the creator already has a score waiting.
+            if (status !== ASYNC_STATUS_CREATOR_PLAYED)
+                session.status = ASYNC_STATUS_OPPONENT_JOINED;
+
+            return { ok: true, session: session, errorCode: null, error: null, shouldProcessRewards: false };
+        }
+
+        // ── CREATOR_SUBMIT ────────────────────────────────────────────────────
+        case AC_EVT_CREATOR_SUBMIT: {
+            if (session.creatorId !== userId)
+                return { ok: false, errorCode: 'NOT_PARTICIPANT', error: 'Not authorized for this challenge.' };
+
+            // Idempotent: creator already submitted — return existing state unchanged.
+            if (session.creatorCompleted)
+                return { ok: true, session: session, errorCode: 'ALREADY_SUBMITTED', error: null, shouldProcessRewards: false };
+
+            session.creatorCompleted      = true;
+            session.creatorScore          = data.score;
+            session.creatorCorrectAnswers = data.correctAnswers;
+            session.creatorTotalQuestions = data.totalQuestions;
+            session.creatorTimeTaken      = data.timeTaken;
+            session.creatorCompletedAt    = now;
+
+            var cRewards = false;
+            if (session.opponentCompleted) {
+                session.status = ASYNC_STATUS_BOTH_COMPLETED;
+                if (!session.rewardsProcessed) { session.rewardsProcessed = true; cRewards = true; }
+            } else if (!session.opponentId) {
+                // Creator played solo (nobody joined yet) — surface this state to clients.
+                session.status = ASYNC_STATUS_CREATOR_PLAYED;
+            }
+            // If opponentId exists but opponent hasn't completed, status stays OPPONENT_JOINED.
+            return { ok: true, session: session, errorCode: null, error: null, shouldProcessRewards: cRewards };
+        }
+
+        // ── OPPONENT_SUBMIT ──────────────────────────────────────────────────
+        case AC_EVT_OPPONENT_SUBMIT: {
+            if (session.opponentId !== userId)
+                return { ok: false, errorCode: 'NOT_PARTICIPANT', error: 'Not authorized for this challenge.' };
+
+            // Idempotent: opponent already submitted.
+            if (session.opponentCompleted)
+                return { ok: true, session: session, errorCode: 'ALREADY_SUBMITTED', error: null, shouldProcessRewards: false };
+
+            session.opponentCompleted      = true;
+            session.opponentScore          = data.score;
+            session.opponentCorrectAnswers = data.correctAnswers;
+            session.opponentTotalQuestions = data.totalQuestions;
+            session.opponentTimeTaken      = data.timeTaken;
+            session.opponentCompletedAt    = now;
+
+            var oRewards = false;
+            if (session.creatorCompleted) {
+                session.status = ASYNC_STATUS_BOTH_COMPLETED;
+                if (!session.rewardsProcessed) { session.rewardsProcessed = true; oRewards = true; }
+            }
+            // If creator hasn't submitted yet, status stays OPPONENT_JOINED.
+            return { ok: true, session: session, errorCode: null, error: null, shouldProcessRewards: oRewards };
+        }
+
+        // ── CANCEL ──────────────────────────────────────────────────────────
+        case AC_EVT_CANCEL: {
+            if (session.creatorId !== userId)
+                return { ok: false, errorCode: 'NOT_CREATOR', error: 'Only the challenge creator can cancel.' };
+            if (status === ASYNC_STATUS_BOTH_COMPLETED)
+                return { ok: false, errorCode: 'ALREADY_COMPLETED', error: 'Cannot cancel a completed challenge.' };
+
+            session.status = ASYNC_STATUS_CANCELLED;
+            return { ok: true, session: session, errorCode: null, error: null, shouldProcessRewards: false };
+        }
+
+        // ── OPPONENT_LEAVE ────────────────────────────────────────────────────
+        // Opponent voluntarily leaves the lobby before any quiz is played.
+        // Resets the session back to WaitingForOpponent so the room becomes
+        // joinable again. Only allowed while no quiz results have been submitted.
+        case AC_EVT_OPPONENT_LEAVE: {
+            if (session.opponentId !== userId)
+                return { ok: false, errorCode: 'NOT_PARTICIPANT', error: 'Only the joined opponent can leave.' };
+
+            // Cannot leave if the opponent has already submitted results.
+            if (session.opponentCompleted)
+                return { ok: false, errorCode: 'ALREADY_SUBMITTED', error: 'Cannot leave after submitting results.' };
+
+            // Revert status: if creator has played solo, keep CreatorPlayed; otherwise back to Waiting.
+            session.status       = (status === ASYNC_STATUS_CREATOR_PLAYED)
+                                   ? ASYNC_STATUS_CREATOR_PLAYED
+                                   : ASYNC_STATUS_WAITING;
+            session.opponentId   = null;
+            session.opponentName = null;
+
+            return { ok: true, session: session, errorCode: null, error: null, shouldProcessRewards: false };
+        }
+
+        default:
+            return { ok: false, errorCode: 'UNKNOWN_EVENT', error: 'Unknown event: ' + event };
+    }
+}
+
+// ============================================================================
+// IDEMPOTENCY HELPERS
+// ============================================================================
+// Prevents double processing of the same user action (double-tap, network retry,
+// offline queue replay). Key format: `idem_{rpcId}_{userId}_{scopeId}`.
+// TTL = 30 minutes (enough for any retry window; stale entries auto-ignored).
+// Storage writes are non-blocking — a miss is safe (just re-processes idempotently
+// via the state machine's own ALREADY_SUBMITTED/ALREADY_JOINED guards).
+// ============================================================================
+
+var COLLECTION_ASYNC_IDEMPOTENCY = 'async_idempotency';
+var ASYNC_IDEMPOTENCY_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function asyncChallengeReadIdempotency(nk, key) {
+    try {
+        var r = nk.storageRead([{ collection: COLLECTION_ASYNC_IDEMPOTENCY, key: key, userId: ASYNC_CHALLENGE_SYSTEM_USER }]);
+        if (r.length > 0 && r[0].value && (Date.now() - (r[0].value.at || 0)) < ASYNC_IDEMPOTENCY_TTL_MS)
+            return r[0].value.resp; // cached JSON response string
+    } catch (_) {}
+    return null;
+}
+
+function asyncChallengeWriteIdempotency(nk, key, responseJson) {
+    try {
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_IDEMPOTENCY,
+            key: key,
+            userId: ASYNC_CHALLENGE_SYSTEM_USER,
+            value: { resp: responseJson, at: Date.now() },
+            permissionRead: 0,
+            permissionWrite: 0
+        }]);
+    } catch (_) {}
+}
+
+/**
+ * Resolve session id from RPC payload (Unity docs use challengeId alias).
+ * @param {object} request - Parsed JSON payload
+ * @returns {string|null}
+ */
+function asyncChallengeResolveSessionId(request) {
+    if (!request) return null;
+    return request.sessionId || request.SessionId || request.challengeId || request.ChallengeId || null;
+}
+
+/**
+ * Purge cached join idempotency so a user can rejoin after leaving.
+ */
+function asyncChallengePurgeJoinIdempotency(nk, logger, opponentId, sessionId) {
+    var idemKey = 'join_' + opponentId + '_' + sessionId;
+    try {
+        nk.storageDelete([{
+            collection: COLLECTION_ASYNC_IDEMPOTENCY,
+            key: idemKey,
+            userId: ASYNC_CHALLENGE_SYSTEM_USER
+        }]);
+        if (logger) logger.debug('[AsyncChallenge] idempotency purge key=' + idemKey);
+    } catch (err) {
+        if (logger) logger.warn('[AsyncChallenge] idempotency purge failed key=' + idemKey + ' err=' + err.message);
+    }
+}
+
+/**
+ * Read canonical player presence record (player_presence/status).
+ */
+function asyncChallengeReadOpponentPresence(nk, opponentId) {
+    try {
+        var results = nk.storageRead([{
+            collection: 'player_presence',
+            key: 'status',
+            userId: opponentId
+        }]);
+        if (results.length > 0 && results[0].value) return results[0].value;
+    } catch (_) {}
+    return null;
+}
+
+/**
+ * True when a lobby opponent should be evicted (conservative rules — no time-only eviction).
+ */
+function asyncChallengeIsLobbyOpponentStale(nk, logger, session) {
+    if (!session || !session.opponentId || session.opponentCompleted) return false;
+
+    var status = typeof session.status === 'number' ? session.status : 0;
+    var inLobby = status === ASYNC_STATUS_OPPONENT_JOINED ||
+        (status === ASYNC_STATUS_CREATOR_PLAYED && session.opponentId);
+    if (!inLobby) return false;
+
+    var now = Date.now();
+    var joinedAt = session.opponentJoinedAt || 0;
+    if (joinedAt > 0 && (now - joinedAt) < 10000) return false;
+
+    var presence = asyncChallengeReadOpponentPresence(nk, session.opponentId);
+    var lobbySeenAt = session.opponentLobbySeenAt || 0;
+    var heartbeatCount = session.opponentLobbyHeartbeatCount || 0;
+    var hasHeartbeated = heartbeatCount > 0 || (joinedAt > 0 && lobbySeenAt > joinedAt + 5000);
+    var stale = false;
+
+    if (presence && presence.online === false) {
+        stale = true;
+    } else if (presence && typeof presence.lastSeenMs === 'number' && presence.lastSeenMs > 0 &&
+        (now - presence.lastSeenMs) > 90000 && hasHeartbeated) {
+        stale = true;
+    } else if (hasHeartbeated && lobbySeenAt > 0 && (now - lobbySeenAt) > 45000) {
+        stale = true;
+    }
+
+    if (logger) {
+        logger.debug('[AsyncChallenge] stale_check session=' + (session.sessionId || '?') +
+            ' opponent=' + session.opponentId +
+            ' online=' + (presence ? String(presence.online) : 'unknown') +
+            ' lastSeenMs=' + (presence && presence.lastSeenMs ? presence.lastSeenMs : 0) +
+            ' lobbySeenAgeMs=' + (lobbySeenAt > 0 ? (now - lobbySeenAt) : -1) +
+            ' heartbeatCount=' + heartbeatCount +
+            ' stale=' + stale);
+    }
+
+    return stale;
+}
+
+/**
+ * Single write path for opponent leave (explicit or stale eviction).
+ */
+function asyncChallengeCommitOpponentLeave(nk, logger, sessionId, creatorId, session, version, leavingOpponentId, leavingOpponentName, reason) {
+    var leaveTransition = asyncChallengeTransitionState(session, AC_EVT_OPPONENT_LEAVE, { userId: leavingOpponentId });
+    if (!leaveTransition.ok) {
+        return {
+            ok: false,
+            errorCode: leaveTransition.errorCode,
+            error: leaveTransition.error,
+            session: session,
+            version: version
+        };
+    }
+
+    var updatedSession = leaveTransition.session;
+
+    try {
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: creatorId,
+            value: updatedSession,
+            version: version,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+    } catch (versionErr) {
+        return {
+            ok: false,
+            errorCode: 'VERSION_CONFLICT',
+            error: 'Conflict leaving — please try again.',
+            session: session,
+            version: version
+        };
+    }
+
+    try {
+        var idxRead = nk.storageRead([{
+            collection: COLLECTION_ASYNC_INDEX,
+            key: 'opponent_' + leavingOpponentId,
+            userId: leavingOpponentId
+        }]);
+        if (idxRead.length > 0) {
+            var idxVal = idxRead[0].value;
+            idxVal.sessions = (idxVal.sessions || []).filter(function(s) { return s.sessionId !== sessionId; });
+            nk.storageWrite([{
+                collection: COLLECTION_ASYNC_INDEX,
+                key: 'opponent_' + leavingOpponentId,
+                userId: leavingOpponentId,
+                value: idxVal,
+                version: idxRead[0].version,
+                permissionRead: 1,
+                permissionWrite: 1
+            }]);
+        }
+    } catch (idxCleanErr) {
+        logger.warn('[AsyncChallenge] Leave: could not clean opponent index: ' + idxCleanErr.message);
+    }
+
+    asyncChallengePurgeJoinIdempotency(nk, logger, leavingOpponentId, sessionId);
+
+    var formattedSession = asyncChallengeSessionToUnityFormat(updatedSession, nk);
+    asyncChallengeSendNotification(nk, updatedSession.creatorId,
+        'Opponent Left',
+        (leavingOpponentName || 'Player B') + ' has left your ' + updatedSession.quizModeName + ' challenge room. Waiting for a new opponent.',
+        {
+            type: 'opponent_left',
+            sessionId: sessionId,
+            opponentId: leavingOpponentId,
+            opponentName: leavingOpponentName || 'Player B',
+            session: formattedSession
+        },
+        logger
+    );
+
+    logger.info('[AsyncChallenge] leave ok reason=' + reason + ' session=' + sessionId +
+        ' creator=' + creatorId + ' opponent=' + leavingOpponentId);
+
+    return { ok: true, session: updatedSession, version: null, errorCode: null, error: null };
+}
+
+function asyncChallengeCountActive(nk, userId) {
+    // Active = not yet terminal (BothCompleted=2, Expired=3, Cancelled=4) AND not past expiresAt.
+    // CreatorPlayed (5) IS an active room (creator has played, waiting for opponent) and must
+    // be counted. Using IN list instead of < avoids accidentally counting future status codes.
+    var ACTIVE_STATUSES = [
+        ASYNC_STATUS_WAITING,          // 0
+        ASYNC_STATUS_OPPONENT_JOINED,  // 1
+        ASYNC_STATUS_CREATOR_PLAYED    // 5
+    ];
+    var nowMs = Date.now();
+
+    try {
+        var rows = nk.sqlQuery(
+            "SELECT COUNT(*) AS cnt FROM storage " +
+            "WHERE collection = $1 AND user_id = $2 " +
+            "AND (value->>'status')::int = ANY($3::int[]) " +
+            "AND (value->>'expiresAt')::bigint > $4 " +
+            "AND key NOT LIKE 'code_%'",
+            [COLLECTION_ASYNC_CHALLENGES, userId, '{' + ACTIVE_STATUSES.join(',') + '}', nowMs]
+        );
+        if (rows && rows.length > 0) {
+            return parseInt(rows[0].cnt, 10) || 0;
+        }
+    } catch (sqlErr) {
+        // SQL failed — fall back to in-memory scan.
+        try {
+            var result = nk.storageList(userId, COLLECTION_ASYNC_CHALLENGES, 200, '');
+            var count = 0;
+            var objects = result.objects || [];
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                if (obj.key.indexOf('code_') === 0) continue;
+                var s = obj.value;
+                if (typeof s.status === 'number'
+                    && ACTIVE_STATUSES.indexOf(s.status) >= 0
+                    && nowMs < s.expiresAt) {
+                    count++;
+                }
+            }
+            return count;
+        } catch (_) { return 0; }
+    }
+    return 0;
 }
 
 // ============================================================================
@@ -19820,6 +20284,30 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
                 data: null,
                 errorCode: 'MAX_CHALLENGES'
             });
+        }
+
+        // Rate-limit: enforce minimum gap between consecutive challenge creations.
+        // Guards against spamming without blocking normal cancel-and-retry flows.
+        if (ASYNC_CHALLENGE_RATE_LIMIT_MINUTES > 0) {
+            try {
+                var rlStats = asyncChallengeGetStats(nk, userId);
+                var minGapMs = ASYNC_CHALLENGE_RATE_LIMIT_MINUTES * 60 * 1000;
+                var msSinceLast = Date.now() - (rlStats.lastChallengeAt || 0);
+                // Guard: if msSinceLast is negative the stored timestamp is in the future
+                // (server clock drift / data anomaly). Reset silently — don't block the user.
+                if (msSinceLast < 0) msSinceLast = minGapMs + 1;
+                if (msSinceLast < minGapMs) {
+                    var secsLeft = Math.ceil((minGapMs - msSinceLast) / 1000);
+                    return JSON.stringify({
+                        success: false,
+                        message: 'Please wait ' + secsLeft + ' second(s) before creating another challenge.',
+                        data: null,
+                        errorCode: 'RATE_LIMITED'
+                    });
+                }
+            } catch (rlErr) {
+                // Stats read failure — allow the create to proceed (non-critical gate).
+            }
         }
 
         // Extract challenge parameters
@@ -19907,6 +20395,15 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
                     quizModeName: quizModeName
                 }
             );
+        }
+
+        // Stamp lastChallengeAt for rate-limiting on the next create attempt.
+        try {
+            var createStats = asyncChallengeGetStats(nk, userId);
+            createStats.lastChallengeAt = now;
+            asyncChallengeSaveStats(nk, userId, createStats);
+        } catch (stampErr) {
+            // Non-critical — rate limit just won't fire on the very next attempt.
         }
 
         logger.info('[AsyncChallenge] Session created: ' + sessionId + ' code: ' + shareCode + ' by user: ' + userId);
@@ -20002,67 +20499,94 @@ function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
         }
 
         var session = sessionResults[0].value;
+        var sessionVersion = sessionResults[0].version; // for OCC write
 
-        // Validate session state
-        if (session.status === ASYNC_STATUS_EXPIRED || Date.now() > session.expiresAt) {
-            return JSON.stringify({
-                success: false,
-                message: 'This challenge has expired.',
-                data: null
-            });
-        }
+        // ── Idempotency check ─────────────────────────────────────────────────
+        // Key: join attempts are scoped to userId+sessionId so a double-tap by the
+        // same user on the same session returns the cached success immediately.
+        var idemKey = 'join_' + userId + '_' + sessionId;
+        var cached = asyncChallengeReadIdempotency(nk, idemKey);
+        if (cached) return cached;
 
-        if (session.status === ASYNC_STATUS_CANCELLED) {
-            return JSON.stringify({
-                success: false,
-                message: 'This challenge has been cancelled.',
-                data: null
-            });
-        }
-
-        if (session.creatorId === userId) {
-            return JSON.stringify({
-                success: false,
-                message: 'You cannot join your own challenge.',
-                data: null
-            });
-        }
-
-        if (session.opponentId !== null && session.opponentId !== userId) {
-            return JSON.stringify({
-                success: false,
-                message: 'This challenge already has an opponent.',
-                data: null
-            });
-        }
-
-        // Check if this is a targeted challenge
-        if (session.challengedUserId && session.challengedUserId !== userId) {
-            return JSON.stringify({
-                success: false,
-                message: 'This challenge is meant for a specific player.',
-                data: null
-            });
-        }
-
-        // Get opponent display name
+        // ── Resolve display name ──────────────────────────────────────────────
         var playerDisplayName = request.playerDisplayName || request.PlayerDisplayName || 'Unknown';
         var opponentName = asyncChallengeGetDisplayName(nk, userId, playerDisplayName);
 
-        // Update session with opponent
-        session.opponentId = userId;
-        session.opponentName = opponentName;
-        session.status = ASYNC_STATUS_OPPONENT_JOINED;
+        // ── State machine transition ──────────────────────────────────────────
+        var transition = asyncChallengeTransitionState(session, AC_EVT_JOIN, { userId: userId, displayName: opponentName });
+        var staleEvictJoinAttempt = 0;
 
-        // Save updated session
-        nk.storageWrite([{
-            collection: COLLECTION_ASYNC_CHALLENGES,
-            key: sessionId,
-            userId: creatorId,
-            value: session,
-            permissionRead: 2,
-            permissionWrite: 1
-        }]);
+        while (!transition.ok && transition.errorCode === 'ALREADY_FULL' &&
+               session.opponentId && session.opponentId !== userId && staleEvictJoinAttempt < 1) {
+            if (!asyncChallengeIsLobbyOpponentStale(nk, logger, session)) break;
+
+            var staleJoinOppId = session.opponentId;
+            var staleJoinOppName = session.opponentName || 'Player B';
+            logger.info('[AsyncChallenge] stale_evict reason=stale_evict_join session=' + sessionId +
+                ' opponent=' + staleJoinOppId + ' triggerUser=' + userId);
+            var evictJoinResult = asyncChallengeCommitOpponentLeave(
+                nk, logger, sessionId, creatorId, session, sessionVersion,
+                staleJoinOppId, staleJoinOppName, 'stale_evict_join'
+            );
+            if (!evictJoinResult.ok) break;
+
+            staleEvictJoinAttempt++;
+            logger.info('[AsyncChallenge] join retry after stale_evict session=' + sessionId + ' newJoiner=' + userId);
+            var retryJoinRead = nk.storageRead([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: sessionId,
+                userId: creatorId
+            }]);
+            if (retryJoinRead.length === 0) break;
+            session = retryJoinRead[0].value;
+            sessionVersion = retryJoinRead[0].version;
+            transition = asyncChallengeTransitionState(session, AC_EVT_JOIN, { userId: userId, displayName: opponentName });
+        }
+
+        if (!transition.ok) {
+            if (transition.errorCode === 'ALREADY_FULL') {
+                logger.warn('[AsyncChallenge] join ALREADY_FULL session=' + sessionId +
+                    ' opponent=' + (session.opponentId || '?') + ' joiner=' + userId);
+            }
+            return JSON.stringify({
+                success: false,
+                message: transition.error,
+                data: null,
+                errorCode: transition.errorCode
+            });
+        }
+
+        // ALREADY_JOINED = idempotent success (no write needed)
+        if (transition.errorCode === 'ALREADY_JOINED') {
+            var alreadyResp = JSON.stringify({ success: true, message: 'Already joined this challenge', data: asyncChallengeSessionToUnityFormat(session, nk) });
+            asyncChallengeWriteIdempotency(nk, idemKey, alreadyResp);
+            return alreadyResp;
+        }
+
+        // ── OCC write ─────────────────────────────────────────────────────────
+        try {
+            nk.storageWrite([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: sessionId,
+                userId: creatorId,
+                value: transition.session,
+                version: sessionVersion,
+                permissionRead: 2,
+                permissionWrite: 1
+            }]);
+        } catch (versionErr) {
+            // Concurrent join — re-read and check if WE are now the recorded opponent.
+            var freshRead = nk.storageRead([{ collection: COLLECTION_ASYNC_CHALLENGES, key: sessionId, userId: creatorId }]);
+            var freshSess = freshRead.length > 0 ? freshRead[0].value : null;
+            if (freshSess && freshSess.opponentId === userId) {
+                var concurrentOkResp = JSON.stringify({ success: true, message: 'Joined this challenge', data: asyncChallengeSessionToUnityFormat(freshSess, nk) });
+                asyncChallengeWriteIdempotency(nk, idemKey, concurrentOkResp);
+                return concurrentOkResp;
+            }
+            return JSON.stringify({ success: false, message: 'Someone else joined at the same time. Please try again.', data: null, errorCode: 'CONCURRENT_JOIN' });
+        }
+
+        session = transition.session;
 
         // Index opponent so they can be found via O(1) lookup instead of full scan
         try {
@@ -20086,11 +20610,13 @@ function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
 
         logger.info('[AsyncChallenge] User ' + userId + ' joined session: ' + sessionId);
 
-        return JSON.stringify({
+        var joinResp = JSON.stringify({
             success: true,
             message: 'Successfully joined challenge',
             data: asyncChallengeSessionToUnityFormat(session, nk)
         });
+        asyncChallengeWriteIdempotency(nk, idemKey, joinResp);
+        return joinResp;
     } catch (err) {
         logger.error('[AsyncChallenge] Join error: ' + err.message);
         logRpcError(nk, logger, 'async_challenge_join', err.message, ctx.userId, null);
@@ -20130,7 +20656,7 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
         }
         var userId = userValidation.userId;
 
-        var sessionId = request.sessionId || request.SessionId;
+        var sessionId = asyncChallengeResolveSessionId(request);
         var creatorId = null;
 
         // If no sessionId, try to find by share code
@@ -20221,6 +20747,7 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
         }
 
         var session = sessionResults[0].value;
+        var sessionVersion = sessionResults[0].version;
 
         // Authorization check - user must be creator or opponent
         if (session.creatorId !== userId && session.opponentId !== userId) {
@@ -20229,6 +20756,55 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
                 message: 'Not authorized to view this challenge.',
                 data: null
             });
+        }
+
+        // Stale opponent eviction (creator poll path).
+        if (session.creatorId === userId && asyncChallengeIsLobbyOpponentStale(nk, logger, session)) {
+            var staleGetOppId = session.opponentId;
+            var staleGetOppName = session.opponentName || 'Player B';
+            logger.info('[AsyncChallenge] stale_evict reason=stale_evict_get session=' + sessionId +
+                ' opponent=' + staleGetOppId + ' triggerUser=' + userId);
+            var evictGetResult = asyncChallengeCommitOpponentLeave(
+                nk, logger, sessionId, session.creatorId, session, sessionVersion,
+                staleGetOppId, staleGetOppName, 'stale_evict_get'
+            );
+            if (evictGetResult.ok) {
+                var refreshedGetRead = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_CHALLENGES,
+                    key: sessionId,
+                    userId: session.creatorId
+                }]);
+                if (refreshedGetRead.length > 0) {
+                    session = refreshedGetRead[0].value;
+                    sessionVersion = refreshedGetRead[0].version;
+                } else {
+                    session = evictGetResult.session;
+                }
+            }
+        }
+
+        // Opponent lobby heartbeat — bump seen-at on get polls (pre-play only).
+        if (session.opponentId === userId && !session.opponentCompleted) {
+            var getStatus = typeof session.status === 'number' ? session.status : 0;
+            var inPrePlayLobby = getStatus === ASYNC_STATUS_OPPONENT_JOINED ||
+                getStatus === ASYNC_STATUS_CREATOR_PLAYED;
+            if (inPrePlayLobby) {
+                session.opponentLobbySeenAt = Date.now();
+                session.opponentLobbyHeartbeatCount = (session.opponentLobbyHeartbeatCount || 0) + 1;
+                try {
+                    nk.storageWrite([{
+                        collection: COLLECTION_ASYNC_CHALLENGES,
+                        key: sessionId,
+                        userId: session.creatorId,
+                        value: session,
+                        version: sessionVersion,
+                        permissionRead: 2,
+                        permissionWrite: 1
+                    }]);
+                } catch (hbErr) {
+                    // Non-fatal on version conflict — serve the read snapshot.
+                }
+            }
         }
 
         return JSON.stringify({
@@ -20366,109 +20942,109 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
         }
 
         var session = sessionResults[0].value;
+        var submitVersion = sessionResults[0].version; // for OCC write
 
-        // Determine if user is creator or opponent
-        isCreator = session.creatorId === userId;
+        // ── Participant check (fast-fail before idempotency store) ────────────
+        var isCreator  = session.creatorId  === userId;
         var isOpponent = session.opponentId === userId;
-
         if (!isCreator && !isOpponent) {
-            return JSON.stringify({
-                success: false,
-                message: 'Not authorized for this challenge.',
-                data: null
-            });
+            return JSON.stringify({ success: false, message: 'Not authorized for this challenge.', data: null });
         }
 
-        // Check if already submitted
-        if (isCreator && session.creatorCompleted) {
-            return JSON.stringify({
-                success: false,
-                message: 'You have already submitted your results.',
-                data: null,
-                errorCode: 'ALREADY_SUBMITTED'
-            });
-        }
+        // ── Idempotency check ─────────────────────────────────────────────────
+        // Key scoped to userId+sessionId: a retry of the exact same submit returns
+        // the cached response instead of hitting the OCC write again.
+        var submitIdemKey = 'submit_' + userId + '_' + sessionId;
+        var submitCached = asyncChallengeReadIdempotency(nk, submitIdemKey);
+        if (submitCached) return submitCached;
 
-        if (isOpponent && session.opponentCompleted) {
-            return JSON.stringify({
-                success: false,
-                message: 'You have already submitted your results.',
-                data: null,
-                errorCode: 'ALREADY_SUBMITTED'
-            });
-        }
-
-        // Check expiry
-        if (Date.now() > session.expiresAt) {
-            return JSON.stringify({
-                success: false,
-                message: 'This challenge has expired.',
-                data: null
-            });
-        }
-
-        // Update results based on role
-        var now = Date.now();
-        if (isCreator) {
-            session.creatorCompleted = true;
-            session.creatorScore = score;
-            session.creatorCorrectAnswers = correctAnswers;
-            session.creatorTotalQuestions = totalQuestions;
-            session.creatorTimeTaken = timeTaken;
-            session.creatorCompletedAt = now;
-        } else {
-            session.opponentCompleted = true;
-            session.opponentScore = score;
-            session.opponentCorrectAnswers = correctAnswers;
-            session.opponentTotalQuestions = totalQuestions;
-            session.opponentTimeTaken = timeTaken;
-            session.opponentCompletedAt = now;
-        }
-
-        // Update status and handle rewards atomically
-        var shouldProcessRewards = false;
-        if (session.creatorCompleted && session.opponentCompleted) {
-            session.status = ASYNC_STATUS_BOTH_COMPLETED;
-
-            // Atomic guard: only the call that FIRST sets rewardsProcessed=true gets to process
-            if (!session.rewardsProcessed) {
-                session.rewardsProcessed = true;
-                shouldProcessRewards = true;
+        // ── Score bounds validation ───────────────────────────────────────────
+        // When the host stored questions server-side, we can verify the submission
+        // doesn't claim more questions than were served, which catches stale retries
+        // and obviously spoofed payloads.
+        if (session.questions && session.questions.length > 0) {
+            var storedQCount = session.questions.length;
+            if (totalQuestions > storedQCount) {
+                logger.warn('[AsyncChallenge] Submit totalQuestions ' + totalQuestions + ' > stored ' + storedQCount + ' for session ' + sessionId);
+                return JSON.stringify({ success: false, message: 'Question count exceeds the stored question set.', data: null, errorCode: 'SCORE_TAMPERED' });
+            }
+            // Maximum achievable score heuristic: no quiz awards more than 1000 pts/question.
+            var maxScore = storedQCount * 1000;
+            if (score > maxScore) {
+                logger.warn('[AsyncChallenge] Submit score ' + score + ' > maxPossible ' + maxScore + ' for session ' + sessionId);
+                return JSON.stringify({ success: false, message: 'Score exceeds maximum possible for this quiz.', data: null, errorCode: 'SCORE_TAMPERED' });
             }
         }
 
-        // Save updated session (the write acts as the atomic boundary —
-        // if two submits race, the second write will have stale version and Nakama
-        // will resolve it, but rewardsProcessed=true is already set by the first writer)
-        nk.storageWrite([{
-            collection: COLLECTION_ASYNC_CHALLENGES,
-            key: sessionId,
-            userId: session.creatorId,
-            value: session,
-            permissionRead: 2,
-            permissionWrite: 1
-        }]);
+        // ── State machine transition ──────────────────────────────────────────
+        var submitData = { userId: userId, score: score, correctAnswers: correctAnswers, totalQuestions: totalQuestions, timeTaken: timeTaken };
+        var submitEvent = isCreator ? AC_EVT_CREATOR_SUBMIT : AC_EVT_OPPONENT_SUBMIT;
+        var submitTransition = asyncChallengeTransitionState(session, submitEvent, submitData);
 
-        // Process completion rewards only if we're the first to complete
+        if (!submitTransition.ok) {
+            return JSON.stringify({ success: false, message: submitTransition.error, data: null, errorCode: submitTransition.errorCode });
+        }
+
+        // ALREADY_SUBMITTED = idempotent success (score already in, no write needed)
+        if (submitTransition.errorCode === 'ALREADY_SUBMITTED') {
+            var alreadyResp = JSON.stringify({ success: true, message: 'Results already submitted', data: asyncChallengeSessionToUnityFormat(session, nk), errorCode: 'ALREADY_SUBMITTED' });
+            asyncChallengeWriteIdempotency(nk, submitIdemKey, alreadyResp);
+            return alreadyResp;
+        }
+
+        // ── OCC write ─────────────────────────────────────────────────────────
+        try {
+            nk.storageWrite([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: sessionId,
+                userId: submitTransition.session.creatorId,
+                value: submitTransition.session,
+                version: submitVersion,
+                permissionRead: 2,
+                permissionWrite: 1
+            }]);
+        } catch (vErr) {
+            // Version conflict — another write landed first (network retry or concurrent).
+            var reRead = nk.storageRead([{ collection: COLLECTION_ASYNC_CHALLENGES, key: sessionId, userId: session.creatorId }]);
+            var reSession = reRead.length > 0 ? reRead[0].value : null;
+            var alreadyIn = reSession && ((isCreator && reSession.creatorCompleted) || (isOpponent && reSession.opponentCompleted));
+            if (alreadyIn) {
+                var alreadyInResp = JSON.stringify({ success: true, message: 'Results already submitted', data: asyncChallengeSessionToUnityFormat(reSession, nk), errorCode: 'ALREADY_SUBMITTED' });
+                asyncChallengeWriteIdempotency(nk, submitIdemKey, alreadyInResp);
+                return alreadyInResp;
+            }
+            logger.warn('[AsyncChallenge] Submit version conflict session=' + sessionId);
+            return JSON.stringify({ success: false, message: 'Submission conflict — please try again.', data: null, errorCode: 'VERSION_CONFLICT' });
+        }
+
+        session = submitTransition.session;
+        var shouldProcessRewards = submitTransition.shouldProcessRewards;
+
+        // Process completion rewards only once (guarded by rewardsProcessed flag in state machine).
         if (shouldProcessRewards) {
             asyncChallengeProcessCompletion(nk, logger, session);
         }
 
-        // Send notifications
+        // Send notifications — subjects fixed so they make sense from the recipient's POV.
         if (isCreator && session.opponentId) {
+            // Creator finished; notify the opponent who hasn't played yet.
             asyncChallengeSendNotification(nk, session.opponentId,
-                'Opponent Finished!',
-                session.creatorName + ' completed the quiz with ' + score + ' points!',
+                'Your Opponent Has Played!',
+                session.creatorName + ' scored ' + score + ' points — your turn!',
                 {
                     type: 'opponent_completed',
                     sessionId: sessionId,
                     score: score
                 }
             );
+        } else if (isCreator && !session.opponentId) {
+            // Creator played but nobody has joined yet — no notification to send.
+            // The CREATOR_PLAYED status update above is the signal for anyone who polls.
         } else if (isOpponent) {
+            // Both have now played — notify creator that final results are ready.
             asyncChallengeSendNotification(nk, session.creatorId,
-                'Challenge Complete!',
-                session.opponentName + ' scored ' + score + ' points! Check your results!',
+                'Challenge Results Ready!',
+                session.opponentName + ' scored ' + score + ' points — see who won!',
                 {
                     type: 'results_ready',
                     sessionId: sessionId,
@@ -20521,11 +21097,13 @@ function rpcAsyncChallengeSubmit(ctx, logger, nk, payload) {
             }
         }
 
-        return JSON.stringify({
+        var submitResp = JSON.stringify({
             success: true,
             message: 'Results submitted successfully',
             data: asyncChallengeSessionToUnityFormat(session, nk)
         });
+        asyncChallengeWriteIdempotency(nk, submitIdemKey, submitResp);
+        return submitResp;
     } catch (err) {
         logger.error('[AsyncChallenge] Submit error: ' + err.message);
         logRpcError(nk, logger, 'async_challenge_submit', err.message, ctx.userId, null);
@@ -20571,133 +21149,124 @@ function rpcAsyncChallengeList(ctx, logger, nk, payload) {
         var includeExpired = request.includeExpired || request.IncludeExpired || false;
         var statusFilter = request.status !== undefined ? request.status : null;
 
-        var sessions = [];
+        var rawSessions = []; // raw session storage objects (not yet formatted)
+        var seenIds = {};
         var now = Date.now();
 
-        // Get sessions where user is creator
-        var creatorSessions = nk.storageList(userId, COLLECTION_ASYNC_CHALLENGES, limit, '');
-        var objects = creatorSessions.objects || [];
+        // ── Step 1: Collect raw session objects ─────────────────────────────────
 
+        // Creator sessions (storageList only returns items owned by this user, no code_ entries)
+        var creatorSessions = nk.storageList(userId, COLLECTION_ASYNC_CHALLENGES, 200, '');
+        var objects = creatorSessions.objects || [];
         for (var i = 0; i < objects.length; i++) {
             var obj = objects[i];
-            var session = obj.value;
-
-            // Skip code mappings
-            if (obj.key.indexOf('code_') === 0) continue;
-
-            // Apply status filter
-            var sessionStatus = typeof session.status === 'number' ? session.status : 0;
-            var isExpired = sessionStatus === ASYNC_STATUS_EXPIRED || now > session.expiresAt;
-
-            if (!includeExpired && isExpired && sessionStatus < ASYNC_STATUS_BOTH_COMPLETED) {
-                continue;
+            if (obj.key.indexOf('code_') === 0) continue; // skip code mappings
+            var s = obj.value;
+            var st = typeof s.status === 'number' ? s.status : 0;
+            var exp = st === ASYNC_STATUS_EXPIRED || now > s.expiresAt;
+            if (!includeExpired && exp && st < ASYNC_STATUS_BOTH_COMPLETED) continue;
+            if (statusFilter !== null && st !== statusFilter) continue;
+            if (!seenIds[s.sessionId]) {
+                seenIds[s.sessionId] = true;
+                rawSessions.push(s);
             }
-
-            if (statusFilter !== null && sessionStatus !== statusFilter) {
-                continue;
-            }
-
-            sessions.push(asyncChallengeSessionToUnityFormat(session, nk));
         }
 
-        // Also get sessions where user is opponent (via opponent index — O(1) lookups)
+        // Opponent sessions via index (O(1) per entry, single index read)
         try {
             var opponentIndexResults = nk.storageRead([{
                 collection: COLLECTION_ASYNC_INDEX,
                 key: 'opponent_' + userId,
                 userId: userId
             }]);
-            if (opponentIndexResults.length > 0) {
-                var opponentIndex = opponentIndexResults[0].value;
-                var indexedSessions = opponentIndex.sessions || [];
+            var hasIndex = opponentIndexResults.length > 0 && (opponentIndexResults[0].value.sessions || []).length > 0;
 
+            if (hasIndex) {
+                var indexedSessions = opponentIndexResults[0].value.sessions;
+                // Batch-read all indexed sessions in one call (max 100 keys per batch).
+                var batchKeys = [];
                 for (var j = 0; j < indexedSessions.length; j++) {
-                    var entry = indexedSessions[j];
-                    try {
-                        var opSessionResults = nk.storageRead([{
-                            collection: COLLECTION_ASYNC_CHALLENGES,
-                            key: entry.sessionId,
-                            userId: entry.creatorId
-                        }]);
-                        if (opSessionResults.length > 0) {
-                            var allSession = opSessionResults[0].value;
-                            if (allSession.opponentId === userId) {
-                                var allStatus = typeof allSession.status === 'number' ? allSession.status : 0;
-                                var allExpired = allStatus === ASYNC_STATUS_EXPIRED || now > allSession.expiresAt;
-
-                                if (!includeExpired && allExpired && allStatus < ASYNC_STATUS_BOTH_COMPLETED) {
-                                    continue;
-                                }
-
-                                if (statusFilter !== null && allStatus !== statusFilter) {
-                                    continue;
-                                }
-
-                                sessions.push(asyncChallengeSessionToUnityFormat(allSession, nk));
-                            }
+                    var e = indexedSessions[j];
+                    if (!seenIds[e.sessionId]) {
+                        batchKeys.push({ collection: COLLECTION_ASYNC_CHALLENGES, key: e.sessionId, userId: e.creatorId });
+                    }
+                }
+                if (batchKeys.length > 0) {
+                    var batchResults = nk.storageRead(batchKeys);
+                    for (var br = 0; br < batchResults.length; br++) {
+                        var bs = batchResults[br].value;
+                        if (!bs || bs.opponentId !== userId) continue;
+                        var bst = typeof bs.status === 'number' ? bs.status : 0;
+                        var bexp = bst === ASYNC_STATUS_EXPIRED || now > bs.expiresAt;
+                        if (!includeExpired && bexp && bst < ASYNC_STATUS_BOTH_COMPLETED) continue;
+                        if (statusFilter !== null && bst !== statusFilter) continue;
+                        if (!seenIds[bs.sessionId]) {
+                            seenIds[bs.sessionId] = true;
+                            rawSessions.push(bs);
                         }
-                    } catch (opReadErr) {
-                        // Skip entries that can't be read (might be cleaned up)
+                    }
+                }
+            } else {
+                // SQL fallback for users who joined before the index was deployed.
+                var sqlRows = nk.sqlQuery(
+                    "SELECT value FROM storage WHERE collection = $1 AND value->>'opponentId' = $2 LIMIT $3",
+                    [COLLECTION_ASYNC_CHALLENGES, userId, limit]
+                );
+                if (sqlRows && sqlRows.length > 0) {
+                    for (var sq = 0; sq < sqlRows.length; sq++) {
+                        var sqVal = typeof sqlRows[sq].value === 'string' ? JSON.parse(sqlRows[sq].value) : sqlRows[sq].value;
+                        if (!sqVal || sqVal.opponentId !== userId) continue;
+                        var sqSt = typeof sqVal.status === 'number' ? sqVal.status : 0;
+                        var sqExp = sqSt === ASYNC_STATUS_EXPIRED || now > sqVal.expiresAt;
+                        if (!includeExpired && sqExp && sqSt < ASYNC_STATUS_BOTH_COMPLETED) continue;
+                        if (statusFilter !== null && sqSt !== statusFilter) continue;
+                        if (!seenIds[sqVal.sessionId]) {
+                            seenIds[sqVal.sessionId] = true;
+                            rawSessions.push(sqVal);
+                            // Backfill index so future calls are O(1).
+                            try { asyncChallengeIndexOpponent(nk, userId, sqVal.sessionId, sqVal.creatorId); } catch (_) {}
+                        }
                     }
                 }
             }
         } catch (searchErr) {
-            logger.warn('[AsyncChallenge] Could not search opponent sessions: ' + searchErr.message);
+            logger.warn('[AsyncChallenge] List opponent sessions error: ' + searchErr.message);
         }
 
-        // SQL fallback for old sessions where user is opponent but has no index entry
-        // Only run if the index returned no results (avoids double-counting)
-        try {
-            var opponentIndexExists = false;
+        // ── Step 2: Sort + trim before expensive formatting ──────────────────────
+        rawSessions.sort(function(a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+        if (rawSessions.length > limit) rawSessions = rawSessions.slice(0, limit);
+
+        // ── Step 3: ONE batched user lookup for all unique player IDs ─────────────
+        // Previously asyncChallengeSessionToUnityFormat did nk.usersGetId() per session,
+        // meaning 20 sessions × 2 players = 40 serial Nakama user lookups.
+        // We do it once here and inject names before calling the formatter (with nk=null
+        // to skip the per-session lookup inside the formatter).
+        var playerIdSet = {};
+        for (var pi = 0; pi < rawSessions.length; pi++) {
+            if (rawSessions[pi].creatorId)  playerIdSet[rawSessions[pi].creatorId]  = true;
+            if (rawSessions[pi].opponentId) playerIdSet[rawSessions[pi].opponentId] = true;
+        }
+        var uniquePlayerIds = Object.keys(playerIdSet);
+        var nameMap = {};
+        if (uniquePlayerIds.length > 0) {
             try {
-                var checkIndex = nk.storageRead([{
-                    collection: COLLECTION_ASYNC_INDEX,
-                    key: 'opponent_' + userId,
-                    userId: userId
-                }]);
-                opponentIndexExists = checkIndex.length > 0 && checkIndex[0].value.sessions && checkIndex[0].value.sessions.length > 0;
-            } catch (chkErr) { /* ignore */ }
-
-            if (!opponentIndexExists) {
-                var sqlFallbackRows = nk.sqlQuery(
-                    "SELECT key, value FROM storage WHERE collection = $1 AND value->>'opponentId' = $2 LIMIT $3",
-                    [COLLECTION_ASYNC_CHALLENGES, userId, limit]
-                );
-                if (sqlFallbackRows && sqlFallbackRows.length > 0) {
-                    for (var sq = 0; sq < sqlFallbackRows.length; sq++) {
-                        var sqVal = typeof sqlFallbackRows[sq].value === 'string' ? JSON.parse(sqlFallbackRows[sq].value) : sqlFallbackRows[sq].value;
-                        if (sqVal.opponentId === userId) {
-                            var sqStatus = typeof sqVal.status === 'number' ? sqVal.status : 0;
-                            var sqExpired = sqStatus === ASYNC_STATUS_EXPIRED || now > sqVal.expiresAt;
-                            if (!includeExpired && sqExpired && sqStatus < ASYNC_STATUS_BOTH_COMPLETED) continue;
-                            if (statusFilter !== null && sqStatus !== statusFilter) continue;
-
-                            // Dedupe against already-added sessions
-                            var alreadyAdded = false;
-                            for (var dd = 0; dd < sessions.length; dd++) {
-                                if (sessions[dd].sessionId === sqVal.sessionId) { alreadyAdded = true; break; }
-                            }
-                            if (!alreadyAdded) {
-                                sessions.push(asyncChallengeSessionToUnityFormat(sqVal, nk));
-                                // Backfill index
-                                try { asyncChallengeIndexOpponent(nk, userId, sqVal.sessionId, sqVal.creatorId); } catch (bf) { /* non-critical */ }
-                            }
-                        }
-                    }
+                var freshUsers = nk.usersGetId(uniquePlayerIds) || [];
+                for (var fu = 0; fu < freshUsers.length; fu++) {
+                    var fn = freshUsers[fu].displayName || freshUsers[fu].username || '';
+                    if (fn) nameMap[freshUsers[fu].userId] = fn;
                 }
-            }
-        } catch (sqlFallbackErr) {
-            logger.warn('[AsyncChallenge] SQL fallback for opponent list failed: ' + sqlFallbackErr.message);
+            } catch (_) { /* non-fatal: fall back to snapshotted names */ }
         }
 
-        // Sort by created date descending
-        sessions.sort(function(a, b) {
-            return b.createdAt - a.createdAt;
-        });
-
-        // Apply limit
-        if (sessions.length > limit) {
-            sessions = sessions.slice(0, limit);
+        // ── Step 4: Inject fresh names and format ────────────────────────────────
+        var sessions = [];
+        for (var fi = 0; fi < rawSessions.length; fi++) {
+            var rs = rawSessions[fi];
+            if (nameMap[rs.creatorId])  rs.creatorName  = nameMap[rs.creatorId];
+            if (nameMap[rs.opponentId]) rs.opponentName = nameMap[rs.opponentId];
+            // Pass nk=null to suppress the per-session usersGetId inside the formatter.
+            sessions.push(asyncChallengeSessionToUnityFormat(rs, null));
         }
 
         return JSON.stringify({
@@ -20810,37 +21379,44 @@ function rpcAsyncChallengeCancel(ctx, logger, nk, payload) {
         }
 
         var session = sessionResults[0].value;
+        var cancelVersion = sessionResults[0].version;
 
-        // Only creator can cancel
-        if (session.creatorId !== userId) {
-            return JSON.stringify({
-                success: false,
-                message: 'Only the challenge creator can cancel it.',
-                data: null
-            });
+        // ── State machine transition ──────────────────────────────────────────
+        var cancelTransition = asyncChallengeTransitionState(session, AC_EVT_CANCEL, { userId: userId });
+        if (!cancelTransition.ok) {
+            return JSON.stringify({ success: false, message: cancelTransition.error, data: null, errorCode: cancelTransition.errorCode });
+        }
+        session = cancelTransition.session;
+
+        // ── OCC write ─────────────────────────────────────────────────────────
+        try {
+            nk.storageWrite([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: sessionId,
+                userId: session.creatorId,
+                value: session,
+                version: cancelVersion,
+                permissionRead: 2,
+                permissionWrite: 1
+            }]);
+        } catch (cancelVErr) {
+            logger.warn('[AsyncChallenge] Cancel version conflict session=' + sessionId);
+            return JSON.stringify({ success: false, message: 'Conflict cancelling — please try again.', data: null, errorCode: 'VERSION_CONFLICT' });
         }
 
-        // Cannot cancel completed challenges
-        if (session.status === ASYNC_STATUS_BOTH_COMPLETED) {
-            return JSON.stringify({
-                success: false,
-                message: 'Cannot cancel a completed challenge.',
-                data: null
-            });
+        // Delete the share code mapping so the 6-digit code space is freed and
+        // re-joiners get a clear "not found" instead of a "challenge has been cancelled" surprise.
+        if (session.shareCode) {
+            try {
+                nk.storageDelete([{
+                    collection: COLLECTION_ASYNC_CHALLENGES,
+                    key: 'code_' + session.shareCode,
+                    userId: ASYNC_CHALLENGE_SYSTEM_USER
+                }]);
+            } catch (delErr) {
+                logger.warn('[AsyncChallenge] Could not delete share code mapping: ' + delErr.message);
+            }
         }
-
-        // Update status to cancelled
-        session.status = ASYNC_STATUS_CANCELLED;
-
-        // Save updated session
-        nk.storageWrite([{
-            collection: COLLECTION_ASYNC_CHALLENGES,
-            key: sessionId,
-            userId: session.creatorId,
-            value: session,
-            permissionRead: 2,
-            permissionWrite: 1
-        }]);
 
         // Notify opponent if any
         if (session.opponentId) {
@@ -20864,6 +21440,168 @@ function rpcAsyncChallengeCancel(ctx, logger, nk, payload) {
     } catch (err) {
         logger.error('[AsyncChallenge] Cancel error: ' + err.message);
         logRpcError(nk, logger, 'async_challenge_cancel', err.message, ctx.userId, null);
+        return JSON.stringify({ success: false, message: err.message, data: null });
+    }
+}
+
+// ============================================================================
+// RPC: async_challenge_leave - Opponent leaves the lobby before playing
+// ============================================================================
+/**
+ * Opponent (joiner) voluntarily leaves a Phantom Arena room before any quiz
+ * results have been submitted. Resets the session back to WaitingForOpponent
+ * so the room becomes joinable again by a different player.
+ *
+ * Only the current opponent may call this. The creator uses cancel instead.
+ *
+ * @param {object} ctx - Request context
+ * @param {object} logger - Logger instance
+ * @param {object} nk - Nakama runtime context
+ * @param {string} payload - JSON payload: { sessionId, userId? }
+ * @returns {string} JSON response with updated session data
+ */
+function rpcAsyncChallengeLeave(ctx, logger, nk, payload) {
+    var request;
+    try {
+        request = JSON.parse(payload || '{}');
+    } catch (e) {
+        return JSON.stringify({ success: false, message: 'Invalid JSON payload', data: null });
+    }
+
+    try {
+        var userValidation = asyncChallengeValidateUser(ctx, request);
+        if (!userValidation.valid) {
+            return JSON.stringify({ success: false, message: userValidation.error, data: null, errorCode: 'AUTH_REQUIRED' });
+        }
+        var userId = userValidation.userId;
+
+        var sessionId = asyncChallengeResolveSessionId(request);
+        var payloadKeys = Object.keys(request).join(',');
+        logger.debug('[AsyncChallenge] leave attempt user=' + userId + ' payloadKeys=' + payloadKeys +
+            ' resolvedSessionId=' + (sessionId || 'MISSING'));
+
+        if (!sessionId && (request.shareCode || request.ShareCode)) {
+            var shareCode = (request.shareCode || request.ShareCode).toUpperCase().trim();
+            var codeResults = nk.storageRead([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: 'code_' + shareCode,
+                userId: ASYNC_CHALLENGE_SYSTEM_USER
+            }]);
+            if (codeResults.length > 0) {
+                sessionId = codeResults[0].value.sessionId;
+            }
+        }
+
+        if (!sessionId) {
+            return JSON.stringify({ success: false, message: 'Session ID or share code required.', data: null });
+        }
+
+        // ── Locate session via opponent index (O(1)) ─────────────────────────
+        var leaveCreatorId = null;
+        var leaveResults   = [];
+
+        try {
+            var leaveIndexResults = nk.storageRead([{
+                collection: COLLECTION_ASYNC_INDEX,
+                key: 'opponent_' + userId,
+                userId: userId
+            }]);
+            if (leaveIndexResults.length > 0) {
+                var leaveOppIndex = leaveIndexResults[0].value;
+                for (var li = 0; li < leaveOppIndex.sessions.length; li++) {
+                    if (leaveOppIndex.sessions[li].sessionId === sessionId) {
+                        leaveCreatorId = leaveOppIndex.sessions[li].creatorId;
+                        leaveResults = nk.storageRead([{
+                            collection: COLLECTION_ASYNC_CHALLENGES,
+                            key: sessionId,
+                            userId: leaveCreatorId
+                        }]);
+                        break;
+                    }
+                }
+            }
+        } catch (leaveIdxErr) {
+            logger.warn('[AsyncChallenge] Leave index lookup failed: ' + leaveIdxErr.message);
+        }
+
+        // SQL fallback
+        if (leaveResults.length === 0) {
+            var leaveFallback = asyncChallengeFindSessionByKey(nk, logger, sessionId);
+            if (leaveFallback) {
+                leaveCreatorId = leaveFallback.creatorId;
+                leaveResults = [{ value: leaveFallback }];
+            }
+        }
+
+        if (leaveResults.length === 0) {
+            logger.warn('[AsyncChallenge] leave noop reason=session_not_found session=' + sessionId + ' caller=' + userId);
+            return JSON.stringify({ success: true, message: 'Session not found; nothing to leave.', data: null });
+        }
+
+        var leaveSession = leaveResults[0].value;
+        var leaveVersion = leaveResults[0].version;
+
+        if (leaveSession.opponentId !== userId) {
+            if (leaveSession.opponentId) {
+                logger.warn('[AsyncChallenge] leave noop reason=not_opponent session=' + sessionId +
+                    ' caller=' + userId + ' currentOpponent=' + leaveSession.opponentId);
+                return JSON.stringify({
+                    success: false,
+                    message: 'Not the current opponent.',
+                    data: null,
+                    errorCode: 'NOT_OPPONENT'
+                });
+            }
+            logger.warn('[AsyncChallenge] leave noop reason=already_left session=' + sessionId + ' caller=' + userId);
+            return JSON.stringify({
+                success: true,
+                message: 'Already left the challenge.',
+                data: asyncChallengeSessionToUnityFormat(leaveSession, nk)
+            });
+        }
+
+        var leavingOpponentName = leaveSession.opponentName || 'Player B';
+        var commitResult = asyncChallengeCommitOpponentLeave(
+            nk, logger, sessionId, leaveSession.creatorId, leaveSession, leaveVersion,
+            userId, leavingOpponentName, 'explicit_leave'
+        );
+
+        if (!commitResult.ok) {
+            if (commitResult.errorCode === 'VERSION_CONFLICT') {
+                logger.warn('[AsyncChallenge] leave version_conflict session=' + sessionId + ' user=' + userId);
+                var freshLeave = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_CHALLENGES,
+                    key: sessionId,
+                    userId: leaveSession.creatorId
+                }]);
+                if (freshLeave.length > 0 && freshLeave[0].value.opponentId !== userId) {
+                    return JSON.stringify({ success: true, message: 'Already left the challenge.', data: null });
+                }
+                return JSON.stringify({
+                    success: false,
+                    message: commitResult.error,
+                    data: null,
+                    errorCode: 'VERSION_CONFLICT'
+                });
+            }
+            logger.warn('[AsyncChallenge] leave transition fail session=' + sessionId +
+                ' errorCode=' + commitResult.errorCode + ' msg=' + commitResult.error);
+            return JSON.stringify({
+                success: false,
+                message: commitResult.error,
+                data: null,
+                errorCode: commitResult.errorCode
+            });
+        }
+
+        return JSON.stringify({
+            success: true,
+            message: 'Left challenge lobby successfully',
+            data: asyncChallengeSessionToUnityFormat(commitResult.session, nk)
+        });
+    } catch (err) {
+        logger.error('[AsyncChallenge] Leave error: ' + err.message);
+        logRpcError(nk, logger, 'async_challenge_leave', err.message, ctx.userId, null);
         return JSON.stringify({ success: false, message: err.message, data: null });
     }
 }
@@ -24963,6 +25701,7 @@ function LegacyInitModule(ctx, logger, nk, initializer) {
         initializer.registerRpc('async_challenge_list', rpcAsyncChallengeList);
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_list');
         initializer.registerRpc('async_challenge_cancel', rpcAsyncChallengeCancel);
+        initializer.registerRpc('async_challenge_leave',  rpcAsyncChallengeLeave);
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_cancel');
         initializer.registerRpc('async_challenge_stats', rpcAsyncChallengeStats);
         logger.info('[AsyncChallenge] Registered RPC: async_challenge_stats');

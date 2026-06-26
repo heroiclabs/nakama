@@ -944,6 +944,11 @@ declare namespace QvEntitlements {
     function grantOneTime(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string): void;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvExplainerVideos {
+    /** Called from entitlements rc_sync / grantConsumable. */
+    function grantExplainerCredits(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string, quantity: number): number;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace AccountMerge {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3049,6 +3054,9 @@ declare namespace MpVoiceLiveKit {
     function urlFor(cfg: IConfig, region: string): string;
     function makeMinter(cfg: IConfig, b64url: (s: string) => string, hmacSha256: (key: string, msg: string) => string): MpKernelVoice.ITokenMinter;
 }
+declare namespace OnboardingAnalytics {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace BrainCoins {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -3316,6 +3324,10 @@ declare namespace QuestEngine {
     export {};
 }
 declare namespace QvAgent {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace Research {
+    var MODULE_VERSION: string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace AnalyticsAlerts {
@@ -3630,6 +3642,9 @@ declare namespace Constants {
     const ADMIN_AUDIT_COLLECTION = "admin_audit_events";
     const PLAYER_METADATA_COLLECTION = "player_metadata";
     const PUSH_TOKENS_COLLECTION = "push_tokens";
+    const QV_ONBOARDING_EVENTS_COLLECTION = "qv_onboarding_events";
+    const QV_ONBOARDING_IDENTITY_COLLECTION = "qv_onboarding_identity";
+    const QV_ONBOARDING_PROFILES_COLLECTION = "qv_onboarding_profiles";
 }
 declare namespace EventBus {
     type EventHandler = (nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, data: any) => void;
