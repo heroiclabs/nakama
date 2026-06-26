@@ -1676,6 +1676,7 @@ select { color-scheme: dark; }
 }
 .ob-status-done { background: rgba(16,185,129,0.15); color: var(--success); }
 .ob-status-drop { background: rgba(239,68,68,0.12); color: var(--danger); }
+.ob-status-handoff { background: rgba(6,182,212,0.15); color: #22d3ee; }
 .ob-status-paywall { background: rgba(245,158,11,0.15); color: #f59e0b; }
 .ob-status-subscribed { background: rgba(99,102,241,0.15); color: var(--accent-light); }
 .ob-status-preregister { background: rgba(148,163,184,0.15); color: var(--text-muted); }
@@ -1724,6 +1725,7 @@ select { color-scheme: dark; }
 .ob-event-cat-screen .ob-journey-dot { background: var(--text-muted); box-shadow: 0 0 0 2px var(--text-muted); }
 .ob-event-cat-quality .ob-journey-dot { background: #8b5cf6; box-shadow: 0 0 0 2px #8b5cf6; }
 .ob-event-cat-retention .ob-journey-dot { background: #06b6d4; box-shadow: 0 0 0 2px #06b6d4; }
+.ob-event-cat-handoff .ob-journey-dot { background: #0ea5e9; box-shadow: 0 0 0 2px #0ea5e9; }
 .ob-signals-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -2836,10 +2838,16 @@ select { color-scheme: dark; }
                     <select id="funnelStatusSelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:150px;">
                         <option value="">All statuses</option>
                         <option value="completed">Completed</option>
+                        <option value="returned_to_app">Returned to app</option>
                         <option value="dropped">Dropped</option>
                         <option value="at_paywall">At paywall</option>
                         <option value="subscribed">Subscribed</option>
                         <option value="pre_register">Pre-register only</option>
+                    </select>
+                    <select id="funnelWelcomeThemeSelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:160px;">
+                        <option value="">All themes (A/B)</option>
+                        <option value="v1">🌑 v1 (dark indigo)</option>
+                        <option value="lavender">💜 Lavender</option>
                     </select>
                     <select id="funnelTypeSelect" onchange="onFunnelTypeChange()" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:180px;">
                         <option value="onboarding">Web Onboarding (Live)</option>
@@ -2894,6 +2902,22 @@ select { color-scheme: dark; }
                         <div class="card-body" id="obPathwayBreakdown">
                             <div class="loading">Loading…</div>
                         </div>
+                    </div>
+                </div>
+                <div class="chart-card" style="margin-bottom:1.5rem;">
+                    <h3>Paywall A/B — hard vs. soft conversion
+                        <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                    </h3>
+                    <div class="card-body" id="obPaywallAB">
+                        <div class="loading">Loading…</div>
+                    </div>
+                </div>
+                <div class="chart-card" style="margin-bottom:1.5rem;">
+                    <h3>Welcome theme A/B — 🌑 v1 (dark) vs. 💜 lavender
+                        <div class="card-actions"><button class="card-btn collapse-btn" onclick="toggleCard(this)">Collapse</button></div>
+                    </h3>
+                    <div class="card-body" id="obWelcomeThemeAB">
+                        <div class="loading">Loading…</div>
                     </div>
                 </div>
                 <div class="chart-card" style="margin-bottom:1.5rem;">
@@ -5500,13 +5524,14 @@ select { color-scheme: dark; }
             const pathwaySel = document.getElementById('funnelPathwaySelect');
             const platformSel = document.getElementById('funnelPlatformSelect');
             const statusSel = document.getElementById('funnelStatusSelect');
+            const themeSel = document.getElementById('funnelWelcomeThemeSelect');
             if (title) title.textContent = isWebOb ? 'Onboarding Analytics' : 'Conversion Funnel Analysis';
             if (subtitle) {
                 subtitle.textContent = isWebOb
                     ? 'Web funnel · per-user journeys · last ' + (selectedDays || 30) + ' days'
                     : 'Track user journey from first touch to conversion';
             }
-            [pathwaySel, platformSel, statusSel].forEach(function(el) {
+            [pathwaySel, platformSel, statusSel, themeSel].forEach(function(el) {
                 if (el) el.style.display = isWebOb ? '' : 'none';
             });
         }
@@ -5556,6 +5581,7 @@ select { color-scheme: dark; }
             const status = u.status || (u.completed ? 'completed' : 'dropped');
             const map = {
                 completed: { text: 'Completed', cls: 'ob-status-done' },
+                returned_to_app: { text: 'Returned to app', cls: 'ob-status-handoff' },
                 dropped: { text: 'Dropped', cls: 'ob-status-drop' },
                 at_paywall: { text: 'At paywall', cls: 'ob-status-paywall' },
                 subscribed: { text: 'Subscribed', cls: 'ob-status-subscribed' },
@@ -5592,9 +5618,81 @@ select { color-scheme: dark; }
             if (u.pathwayConfirmed) parts.push('🛤');
             if (u.d1Return) parts.push('D1');
             if (u.d7Return) parts.push('D7');
+            if (u.unityHandoff || u.welcomeReturnToApp) parts.push('↩');
             if (u.welcomeBonusClaimed) parts.push('🎉');
             if (u.streakShieldActivated) parts.push('🛡');
-            return parts.length ? '<span class="ob-paywall-icons" title="Complete / App launch / Register / Pathway / D1 / D7 / Bonus / Shield">' + parts.join(' ') + '</span>' : '—';
+            if (u.returnSeenEvent) parts.push('🏁');
+            const theme = u.welcomeTheme || 'v1';
+            parts.push(theme === 'lavender' ? '💜' : '🌑');
+            return parts.length ? '<span class="ob-paywall-icons" title="Complete / App launch / Register / Pathway / D1 / D7 / Returned to app / Bonus / Shield / Return page / Theme (🌑=v1 💜=lavender)">' + parts.join(' ') + '</span>' : '—';
+        }
+
+        function renderObPaywallAB(pw) {
+            const el = document.getElementById('obPaywallAB');
+            if (!el) return;
+            const ab = pw && pw.abBreakdown;
+            if (!ab || (ab.hard.seen === 0 && ab.soft.seen === 0)) {
+                el.innerHTML = '<div class="empty-state">No paywall A/B data yet — data populates once users hit the paywall and their <code>paywallVariant</code> snapshot field is set.</div>';
+                return;
+            }
+            function abRow(label, variant, cls) {
+                return '<tr>' +
+                    '<td><strong>' + label + '</strong></td>' +
+                    '<td>' + formatNumber(variant.seen) + '</td>' +
+                    '<td class="' + cls + '">' + formatNumber(variant.converted) + '</td>' +
+                    '<td class="' + cls + '">' + variant.conversionRatePct + '%</td>' +
+                    '</tr>';
+            }
+            el.innerHTML =
+                '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1rem 0">Conversion = subscribe + trial_start. Variant is read from <code>userSnapshot.paywallVariant</code> set by the web onboarding A/B bucketing logic.</p>' +
+                '<table class="data-table"><thead><tr><th>Variant</th><th>Paywall seen</th><th>Converted</th><th>Conv. %</th></tr></thead><tbody>' +
+                abRow('Hard paywall (no close)', ab.hard, 'positive') +
+                abRow('Soft paywall (dismissible)', ab.soft, '') +
+                '</tbody></table>' +
+                (pw.seen > 0
+                  ? '<p style="font-size:0.78rem;color:var(--text-muted);margin:0.75rem 0 0">Total paywall seen: ' + formatNumber(pw.seen) + ' · ' + (ab.hard.seen + ab.soft.seen) + ' bucketed (remainder have no snapshot yet)</p>'
+                  : '');
+        }
+
+        function renderObWelcomeThemeAB(ab) {
+            const el = document.getElementById('obWelcomeThemeAB');
+            if (!el) return;
+            if (!ab || (ab.v1.users === 0 && ab.lavender.users === 0)) {
+                el.innerHTML = '<div class="empty-state">No welcome theme A/B data yet — fires once users pass the Welcome screen and <code>ob_welcome_seen</code> is logged with <code>welcome_theme</code>.</div>';
+                return;
+            }
+            function themeBar(pct, color) {
+                return '<div style="height:8px;border-radius:4px;background:var(--border);overflow:hidden;margin-top:0.35rem">' +
+                    '<div style="height:100%;width:' + Math.min(pct, 100) + '%;background:' + color + ';border-radius:4px;transition:width 0.4s ease"></div>' +
+                    '</div>';
+            }
+            function themeCard(label, emoji, v, color) {
+                const compPct = v.completionRatePct || 0;
+                const pwPct = v.paywallReachPct || 0;
+                const subPct = v.subscribeRatePct || 0;
+                return '<div style="flex:1;min-width:200px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;padding:1.25rem">' +
+                    '<div style="font-size:1.2rem;margin-bottom:0.3rem">' + emoji + ' ' + label + '</div>' +
+                    '<div style="font-size:2rem;font-weight:700;color:' + color + '">' + formatNumber(v.users) + '</div>' +
+                    '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.9rem">users seen this theme</div>' +
+                    '<div style="font-size:0.82rem;display:grid;gap:0.5rem">' +
+                    '<div><span style="color:var(--text-muted)">Completed:</span> <strong>' + formatNumber(v.completed) + '</strong> <span style="color:' + color + '">' + compPct + '%</span>' + themeBar(compPct, color) + '</div>' +
+                    '<div><span style="color:var(--text-muted)">Paywall reached:</span> <strong>' + formatNumber(v.paywallSeen) + '</strong> <span style="color:' + color + '">' + pwPct + '%</span>' + themeBar(pwPct, color) + '</div>' +
+                    '<div><span style="color:var(--text-muted)">Subscribed:</span> <strong>' + formatNumber(v.subscribed) + '</strong> <span style="color:' + color + '">' + subPct + '% of paywall</span>' + themeBar(subPct, color) + '</div>' +
+                    '</div></div>';
+            }
+            const totalBucketed = (ab.v1.users || 0) + (ab.lavender.users || 0);
+            const v1Pct = totalBucketed > 0 ? Math.round((ab.v1.users / totalBucketed) * 1000) / 10 : 50;
+            const lavPct = totalBucketed > 0 ? Math.round((ab.lavender.users / totalBucketed) * 1000) / 10 : 50;
+            el.innerHTML =
+                '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1.25rem">Bucketing is deterministic via <code>anonId</code> hash — users see the same theme on repeat visits. Theme is captured from <code>ob_welcome_seen { welcome_theme }</code>.</p>' +
+                '<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">' +
+                themeCard('v1 — dark indigo', '🌑', ab.v1, '#818cf8') +
+                themeCard('Lavender — light purple', '💜', ab.lavender, '#a78bfa') +
+                '</div>' +
+                '<p style="font-size:0.78rem;color:var(--text-muted);margin:0">' +
+                'Traffic split — 🌑 v1: ' + v1Pct + '% (' + formatNumber(ab.v1.users) + ' users) · 💜 lavender: ' + lavPct + '% (' + formatNumber(ab.lavender.users) + ' users)' +
+                (ab.unknown > 0 ? ' · ⚠ ' + formatNumber(ab.unknown) + ' users with unknown theme (no ob_welcome_seen logged)' : '') +
+                '</p>';
         }
 
         function renderObEventSignals(signals) {
@@ -5605,6 +5703,7 @@ select { color-scheme: dark; }
                 return;
             }
             const f = signals.funnel || {};
+            const h = signals.handoff || {};
             const q = signals.quality || {};
             const r = signals.retention || {};
             function sigCard(label, val, pct, sub) {
@@ -5622,6 +5721,11 @@ select { color-scheme: dark; }
                 sigCard('Register started', f.registerStart, f.registerStartPct, 'ob_register_start') +
                 sigCard('Funnel complete', f.obComplete, f.obCompletePct, 'ob_complete') +
                 sigCard('App launch OK', f.appLaunchSuccess, f.appLaunchSuccessPct, 'ob_app_launch_success · % of completed') +
+                '</div></div>' +
+                '<div class="ob-signals-col"><h4>Unity handoff (existing users)</h4><div class="ob-paywall-grid">' +
+                sigCard('Welcome → app', h.welcomeReturnToApp, h.welcomeReturnPct, 'ob_welcome_return_to_app · Already signed in') +
+                sigCard('Sign-in handoff', h.signinHandoffNative, h.signinHandoffPct, 'ob_signin_handoff_native · Native login') +
+                sigCard('Total returned', h.returnedToAppTotal, h.returnedToAppPct, 'Excluded from drop-off hotspots') +
                 '</div></div>' +
                 '<div class="ob-signals-col"><h4>Quality signals</h4><div class="ob-paywall-grid">' +
                 sigCard('Pathway confirmed', q.pathwayConfirmed, q.pathwayConfirmedPct, 'ob_pathway_confirmed') +
@@ -5676,14 +5780,18 @@ select { color-scheme: dark; }
             el.innerHTML = html;
         }
 
-        function renderObDropoffHotspots(hotspots) {
+        function renderObDropoffHotspots(hotspots, meta) {
             const el = document.getElementById('obDropoffHotspots');
             if (!el) return;
             if (!hotspots || !hotspots.length) {
                 el.innerHTML = '<div class="empty-state">No drop-off data yet.</div>';
                 return;
             }
-            let html = '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 0.75rem 0;">Ranked screens where incomplete users stopped.</p>';
+            var note = '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 0.75rem 0;line-height:1.45;">Ranked screens where users <strong>abandoned</strong> onboarding. Users who tapped <strong>Already signed in → Return to app</strong> are counted separately as <span class="ob-status-pill ob-status-handoff" style="font-size:0.72rem">Returned to app</span>, not here.</p>';
+            if (meta && meta.returnedToApp > 0) {
+                note += '<p style="font-size:0.78rem;color:#22d3ee;margin:0 0 0.75rem 0;">↩ ' + formatNumber(meta.returnedToApp) + ' users (' + (meta.returnedToAppPct || 0) + '%) returned to Unity — excluded from this list.</p>';
+            }
+            let html = note;
             hotspots.slice(0, 10).forEach(function(h, idx) {
                 html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:0.65rem 0.75rem;margin-bottom:0.5rem;background:var(--bg-tertiary);border-radius:8px;border-left:3px solid var(--danger);">' +
                     '<div><div style="font-weight:600;font-size:0.9rem;">' + (idx + 1) + '. ' + escapeHtml(h.label || h.screen) + '</div>' +
@@ -5917,7 +6025,7 @@ select { color-scheme: dark; }
                         '<span id="obJourneyPagerText">Showing 0 of ' + formatNumber(totalEvents) + ' events</span>' +
                         (pag.hasMore ? '<button type="button" class="ob-journey-load-more" onclick="loadObJourneyPage(true)">Load more</button>' : '<span></span>') +
                         '</div>';
-                    var legend = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;">Event timeline · green=completion · blue=identity · gold=paywall · purple=quality · cyan=retention · gray=screen</div>';
+                    var legend = '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem;">Event timeline · green=completion · cyan=return to app · blue=identity · gold=paywall · purple=quality · gray=screen</div>';
                     if (!totalEvents) {
                         body.innerHTML = head + '<div class="empty-state">No events found for this user.</div>';
                         return;
@@ -5992,13 +6100,15 @@ select { color-scheme: dark; }
             const pathway = (document.getElementById('funnelPathwaySelect') || {}).value || '';
             const platform = (document.getElementById('funnelPlatformSelect') || {}).value || '';
             const status = (document.getElementById('funnelStatusSelect') || {}).value || '';
+            const welcomeTheme = (document.getElementById('funnelWelcomeThemeSelect') || {}).value || '';
             const payload = { days: selectedDays, user_limit: 500, ...getGamePayload() };
             if (pathway) payload.pathway = pathway;
             if (platform) payload.platform = platform;
             if (status) payload.status = status;
+            if (welcomeTheme) payload.welcome_theme = welcomeTheme;
 
             document.getElementById('funnelKpis').innerHTML = skKpi(6);
-            ['obScreenFunnel', 'obDropoffHotspots', 'obPathwayBreakdown', 'obEventSignals'].forEach(function(id) {
+            ['obScreenFunnel', 'obDropoffHotspots', 'obPathwayBreakdown', 'obPaywallAB', 'obWelcomeThemeAB', 'obEventSignals'].forEach(function(id) {
                 const el = document.getElementById(id);
                 if (el) el.innerHTML = '<div class="loading">Loading…</div>';
             });
@@ -6014,16 +6124,24 @@ select { color-scheme: dark; }
             document.getElementById('funnelKpis').innerHTML =
                 '<div class="kpi-card"><div class="icon">▶</div><div class="label">Started</div><div class="value plain">' + formatNumber(summary.started || summary.totalUsers || 0) + '</div><div class="trend">users in range</div></div>' +
                 '<div class="kpi-card"><div class="icon">✓</div><div class="label">Completed</div><div class="value positive">' + formatNumber(summary.completed || 0) + '</div><div class="trend">users finished</div></div>' +
+                '<div class="kpi-card"><div class="icon">↩</div><div class="label">Returned to app</div><div class="value" style="color:#22d3ee">' + formatNumber(summary.returnedToApp || 0) + '</div><div class="trend">' + (summary.returnedToAppPct || 0) + '% · existing users</div></div>' +
                 '<div class="kpi-card"><div class="icon">%</div><div class="label">Completion rate</div><div class="value">' + (summary.completionRatePct || 0) + '%</div><div class="trend">started → finished</div></div>' +
                 '<div class="kpi-card"><div class="icon">⏱</div><div class="label">Median time</div><div class="value plain">' + (summary.medianDurationMin || 0) + ' min</div><div class="trend">in funnel</div></div>' +
                 '<div class="kpi-card"><div class="icon">💳</div><div class="label">Paywall seen</div><div class="value">' + formatNumber(pw.seen || 0) + '</div><div class="trend">' + (pw.seenPctOfStart || 0) + '% of started</div></div>' +
                 '<div class="kpi-card"><div class="icon">★</div><div class="label">Paid</div><div class="value positive">' + formatNumber(pw.subscribed || 0) + '</div><div class="trend">' + (pw.subscribeRatePct || 0) + '% of paywall</div></div>' +
                 '<div class="kpi-card"><div class="icon">🎁</div><div class="label">Trial starts</div><div class="value positive">' + formatNumber(pw.trialStarts || 0) + '</div><div class="trend">' + (pw.trialRatePct || 0) + '% of paywall</div></div>' +
-                '<div class="kpi-card"><div class="icon">✕</div><div class="label">Dismissed</div><div class="value">' + formatNumber(pw.dismissed || 0) + '</div><div class="trend">' + (pw.dismissRatePct || 0) + '% of paywall</div></div>';
+                '<div class="kpi-card"><div class="icon">✕</div><div class="label">Dismissed</div><div class="value">' + formatNumber(pw.dismissed || 0) + '</div><div class="trend">' + (pw.dismissRatePct || 0) + '% of paywall</div></div>' +
+                '<div class="kpi-card"><div class="icon">⏭</div><div class="label">Skipped</div><div class="value">' + formatNumber(pw.skipped || 0) + '</div><div class="trend">' + (pw.skipRatePct || 0) + '% · "Maybe later"</div></div>' +
+                '<div class="kpi-card"><div class="icon">🔴</div><div class="label">Drop-off</div><div class="value">' + formatNumber(pw.dropOff || 0) + '</div><div class="trend">saw paywall, went silent</div></div>' +
+                (pw.closingOfferSeen != null
+                  ? '<div class="kpi-card"><div class="icon">🎯</div><div class="label">Closing offer seen</div><div class="value">' + formatNumber(pw.closingOfferSeen || 0) + '</div><div class="trend">' + formatNumber(pw.closingOfferClaimed || 0) + ' claimed (' + (pw.closingOfferClaimRatePct || 0) + '%)</div></div>'
+                  : '');
 
             renderObScreenFunnel(data.screenFunnel || []);
-            renderObDropoffHotspots(data.dropoffHotspots || []);
+            renderObDropoffHotspots(data.dropoffHotspots || [], summary);
             renderObPathways(data.pathways || [], data.prePathway || null);
+            renderObPaywallAB(data.paywall || null);
+            renderObWelcomeThemeAB(data.welcomeThemeAB || null);
             renderObEventSignals(data.eventSignals || null);
             renderObUsersTable(data.users || []);
 
