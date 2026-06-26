@@ -19579,7 +19579,7 @@ function asyncChallengeGenerateShareCode(nk) {
  * @param {string} content - Notification message
  * @param {object} data - Additional notification data
  */
-function asyncChallengeSendNotification(nk, userId, subject, content, data) {
+function asyncChallengeSendNotification(nk, userId, subject, content, data, logger) {
     try {
         var notifications = [{
             userId: userId,
@@ -19592,8 +19592,14 @@ function asyncChallengeSendNotification(nk, userId, subject, content, data) {
             persistent: true
         }];
         nk.notificationsSend(notifications);
+        if (logger) {
+            logger.debug('[AsyncChallenge] notify code=101 type=' + (data && data.type ? data.type : 'unknown') +
+                ' target=' + userId + ' session=' + (data && data.sessionId ? data.sessionId : '?'));
+        }
     } catch (e) {
-        // Silently fail if notification fails - non-critical
+        if (logger) {
+            logger.warn('[AsyncChallenge] notify failed type=' + (data && data.type ? data.type : 'unknown') + ' target=' + userId + ' err=' + (e.message || String(e)));
+        }
     }
 }
 
@@ -19887,6 +19893,9 @@ function asyncChallengeTransitionState(session, event, data) {
 
             session.opponentId   = userId;
             session.opponentName = data.displayName || 'Player B';
+            session.opponentJoinedAt = now;
+            session.opponentLobbySeenAt = now;
+            session.opponentLobbyHeartbeatCount = 0;
             // Keep CREATOR_PLAYED so clients know the creator already has a score waiting.
             if (status !== ASYNC_STATUS_CREATOR_PLAYED)
                 session.status = ASYNC_STATUS_OPPONENT_JOINED;
@@ -20018,6 +20027,173 @@ function asyncChallengeWriteIdempotency(nk, key, responseJson) {
             permissionWrite: 0
         }]);
     } catch (_) {}
+}
+
+/**
+ * Resolve session id from RPC payload (Unity docs use challengeId alias).
+ * @param {object} request - Parsed JSON payload
+ * @returns {string|null}
+ */
+function asyncChallengeResolveSessionId(request) {
+    if (!request) return null;
+    return request.sessionId || request.SessionId || request.challengeId || request.ChallengeId || null;
+}
+
+/**
+ * Purge cached join idempotency so a user can rejoin after leaving.
+ */
+function asyncChallengePurgeJoinIdempotency(nk, logger, opponentId, sessionId) {
+    var idemKey = 'join_' + opponentId + '_' + sessionId;
+    try {
+        nk.storageDelete([{
+            collection: COLLECTION_ASYNC_IDEMPOTENCY,
+            key: idemKey,
+            userId: ASYNC_CHALLENGE_SYSTEM_USER
+        }]);
+        if (logger) logger.debug('[AsyncChallenge] idempotency purge key=' + idemKey);
+    } catch (err) {
+        if (logger) logger.warn('[AsyncChallenge] idempotency purge failed key=' + idemKey + ' err=' + err.message);
+    }
+}
+
+/**
+ * Read canonical player presence record (player_presence/status).
+ */
+function asyncChallengeReadOpponentPresence(nk, opponentId) {
+    try {
+        var results = nk.storageRead([{
+            collection: 'player_presence',
+            key: 'status',
+            userId: opponentId
+        }]);
+        if (results.length > 0 && results[0].value) return results[0].value;
+    } catch (_) {}
+    return null;
+}
+
+/**
+ * True when a lobby opponent should be evicted (conservative rules — no time-only eviction).
+ */
+function asyncChallengeIsLobbyOpponentStale(nk, logger, session) {
+    if (!session || !session.opponentId || session.opponentCompleted) return false;
+
+    var status = typeof session.status === 'number' ? session.status : 0;
+    var inLobby = status === ASYNC_STATUS_OPPONENT_JOINED ||
+        (status === ASYNC_STATUS_CREATOR_PLAYED && session.opponentId);
+    if (!inLobby) return false;
+
+    var now = Date.now();
+    var joinedAt = session.opponentJoinedAt || 0;
+    if (joinedAt > 0 && (now - joinedAt) < 10000) return false;
+
+    var presence = asyncChallengeReadOpponentPresence(nk, session.opponentId);
+    var lobbySeenAt = session.opponentLobbySeenAt || 0;
+    var heartbeatCount = session.opponentLobbyHeartbeatCount || 0;
+    var hasHeartbeated = heartbeatCount > 0 || (joinedAt > 0 && lobbySeenAt > joinedAt + 5000);
+    var stale = false;
+
+    if (presence && presence.online === false) {
+        stale = true;
+    } else if (presence && typeof presence.lastSeenMs === 'number' && presence.lastSeenMs > 0 &&
+        (now - presence.lastSeenMs) > 90000 && hasHeartbeated) {
+        stale = true;
+    } else if (hasHeartbeated && lobbySeenAt > 0 && (now - lobbySeenAt) > 45000) {
+        stale = true;
+    }
+
+    if (logger) {
+        logger.debug('[AsyncChallenge] stale_check session=' + (session.sessionId || '?') +
+            ' opponent=' + session.opponentId +
+            ' online=' + (presence ? String(presence.online) : 'unknown') +
+            ' lastSeenMs=' + (presence && presence.lastSeenMs ? presence.lastSeenMs : 0) +
+            ' lobbySeenAgeMs=' + (lobbySeenAt > 0 ? (now - lobbySeenAt) : -1) +
+            ' heartbeatCount=' + heartbeatCount +
+            ' stale=' + stale);
+    }
+
+    return stale;
+}
+
+/**
+ * Single write path for opponent leave (explicit or stale eviction).
+ */
+function asyncChallengeCommitOpponentLeave(nk, logger, sessionId, creatorId, session, version, leavingOpponentId, leavingOpponentName, reason) {
+    var leaveTransition = asyncChallengeTransitionState(session, AC_EVT_OPPONENT_LEAVE, { userId: leavingOpponentId });
+    if (!leaveTransition.ok) {
+        return {
+            ok: false,
+            errorCode: leaveTransition.errorCode,
+            error: leaveTransition.error,
+            session: session,
+            version: version
+        };
+    }
+
+    var updatedSession = leaveTransition.session;
+
+    try {
+        nk.storageWrite([{
+            collection: COLLECTION_ASYNC_CHALLENGES,
+            key: sessionId,
+            userId: creatorId,
+            value: updatedSession,
+            version: version,
+            permissionRead: 2,
+            permissionWrite: 1
+        }]);
+    } catch (versionErr) {
+        return {
+            ok: false,
+            errorCode: 'VERSION_CONFLICT',
+            error: 'Conflict leaving — please try again.',
+            session: session,
+            version: version
+        };
+    }
+
+    try {
+        var idxRead = nk.storageRead([{
+            collection: COLLECTION_ASYNC_INDEX,
+            key: 'opponent_' + leavingOpponentId,
+            userId: leavingOpponentId
+        }]);
+        if (idxRead.length > 0) {
+            var idxVal = idxRead[0].value;
+            idxVal.sessions = (idxVal.sessions || []).filter(function(s) { return s.sessionId !== sessionId; });
+            nk.storageWrite([{
+                collection: COLLECTION_ASYNC_INDEX,
+                key: 'opponent_' + leavingOpponentId,
+                userId: leavingOpponentId,
+                value: idxVal,
+                version: idxRead[0].version,
+                permissionRead: 1,
+                permissionWrite: 1
+            }]);
+        }
+    } catch (idxCleanErr) {
+        logger.warn('[AsyncChallenge] Leave: could not clean opponent index: ' + idxCleanErr.message);
+    }
+
+    asyncChallengePurgeJoinIdempotency(nk, logger, leavingOpponentId, sessionId);
+
+    var formattedSession = asyncChallengeSessionToUnityFormat(updatedSession, nk);
+    asyncChallengeSendNotification(nk, updatedSession.creatorId,
+        'Opponent Left',
+        (leavingOpponentName || 'Player B') + ' has left your ' + updatedSession.quizModeName + ' challenge room. Waiting for a new opponent.',
+        {
+            type: 'opponent_left',
+            sessionId: sessionId,
+            opponentId: leavingOpponentId,
+            opponentName: leavingOpponentName || 'Player B',
+            session: formattedSession
+        },
+        logger
+    );
+
+    logger.info('[AsyncChallenge] leave ok reason=' + reason + ' session=' + sessionId +
+        ' creator=' + creatorId + ' opponent=' + leavingOpponentId);
+
+    return { ok: true, session: updatedSession, version: null, errorCode: null, error: null };
 }
 
 function asyncChallengeCountActive(nk, userId) {
@@ -20338,8 +20514,40 @@ function rpcAsyncChallengeJoin(ctx, logger, nk, payload) {
 
         // ── State machine transition ──────────────────────────────────────────
         var transition = asyncChallengeTransitionState(session, AC_EVT_JOIN, { userId: userId, displayName: opponentName });
+        var staleEvictJoinAttempt = 0;
+
+        while (!transition.ok && transition.errorCode === 'ALREADY_FULL' &&
+               session.opponentId && session.opponentId !== userId && staleEvictJoinAttempt < 1) {
+            if (!asyncChallengeIsLobbyOpponentStale(nk, logger, session)) break;
+
+            var staleJoinOppId = session.opponentId;
+            var staleJoinOppName = session.opponentName || 'Player B';
+            logger.info('[AsyncChallenge] stale_evict reason=stale_evict_join session=' + sessionId +
+                ' opponent=' + staleJoinOppId + ' triggerUser=' + userId);
+            var evictJoinResult = asyncChallengeCommitOpponentLeave(
+                nk, logger, sessionId, creatorId, session, sessionVersion,
+                staleJoinOppId, staleJoinOppName, 'stale_evict_join'
+            );
+            if (!evictJoinResult.ok) break;
+
+            staleEvictJoinAttempt++;
+            logger.info('[AsyncChallenge] join retry after stale_evict session=' + sessionId + ' newJoiner=' + userId);
+            var retryJoinRead = nk.storageRead([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: sessionId,
+                userId: creatorId
+            }]);
+            if (retryJoinRead.length === 0) break;
+            session = retryJoinRead[0].value;
+            sessionVersion = retryJoinRead[0].version;
+            transition = asyncChallengeTransitionState(session, AC_EVT_JOIN, { userId: userId, displayName: opponentName });
+        }
 
         if (!transition.ok) {
+            if (transition.errorCode === 'ALREADY_FULL') {
+                logger.warn('[AsyncChallenge] join ALREADY_FULL session=' + sessionId +
+                    ' opponent=' + (session.opponentId || '?') + ' joiner=' + userId);
+            }
             return JSON.stringify({
                 success: false,
                 message: transition.error,
@@ -20448,7 +20656,7 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
         }
         var userId = userValidation.userId;
 
-        var sessionId = request.sessionId || request.SessionId;
+        var sessionId = asyncChallengeResolveSessionId(request);
         var creatorId = null;
 
         // If no sessionId, try to find by share code
@@ -20539,6 +20747,7 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
         }
 
         var session = sessionResults[0].value;
+        var sessionVersion = sessionResults[0].version;
 
         // Authorization check - user must be creator or opponent
         if (session.creatorId !== userId && session.opponentId !== userId) {
@@ -20547,6 +20756,55 @@ function rpcAsyncChallengeGet(ctx, logger, nk, payload) {
                 message: 'Not authorized to view this challenge.',
                 data: null
             });
+        }
+
+        // Stale opponent eviction (creator poll path).
+        if (session.creatorId === userId && asyncChallengeIsLobbyOpponentStale(nk, logger, session)) {
+            var staleGetOppId = session.opponentId;
+            var staleGetOppName = session.opponentName || 'Player B';
+            logger.info('[AsyncChallenge] stale_evict reason=stale_evict_get session=' + sessionId +
+                ' opponent=' + staleGetOppId + ' triggerUser=' + userId);
+            var evictGetResult = asyncChallengeCommitOpponentLeave(
+                nk, logger, sessionId, session.creatorId, session, sessionVersion,
+                staleGetOppId, staleGetOppName, 'stale_evict_get'
+            );
+            if (evictGetResult.ok) {
+                var refreshedGetRead = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_CHALLENGES,
+                    key: sessionId,
+                    userId: session.creatorId
+                }]);
+                if (refreshedGetRead.length > 0) {
+                    session = refreshedGetRead[0].value;
+                    sessionVersion = refreshedGetRead[0].version;
+                } else {
+                    session = evictGetResult.session;
+                }
+            }
+        }
+
+        // Opponent lobby heartbeat — bump seen-at on get polls (pre-play only).
+        if (session.opponentId === userId && !session.opponentCompleted) {
+            var getStatus = typeof session.status === 'number' ? session.status : 0;
+            var inPrePlayLobby = getStatus === ASYNC_STATUS_OPPONENT_JOINED ||
+                getStatus === ASYNC_STATUS_CREATOR_PLAYED;
+            if (inPrePlayLobby) {
+                session.opponentLobbySeenAt = Date.now();
+                session.opponentLobbyHeartbeatCount = (session.opponentLobbyHeartbeatCount || 0) + 1;
+                try {
+                    nk.storageWrite([{
+                        collection: COLLECTION_ASYNC_CHALLENGES,
+                        key: sessionId,
+                        userId: session.creatorId,
+                        value: session,
+                        version: sessionVersion,
+                        permissionRead: 2,
+                        permissionWrite: 1
+                    }]);
+                } catch (hbErr) {
+                    // Non-fatal on version conflict — serve the read snapshot.
+                }
+            }
         }
 
         return JSON.stringify({
@@ -21203,8 +21461,6 @@ function rpcAsyncChallengeCancel(ctx, logger, nk, payload) {
  * @returns {string} JSON response with updated session data
  */
 function rpcAsyncChallengeLeave(ctx, logger, nk, payload) {
-    logger.debug('[AsyncChallenge] User ' + ctx.userId + ' leaving challenge lobby');
-
     var request;
     try {
         request = JSON.parse(payload || '{}');
@@ -21219,9 +21475,25 @@ function rpcAsyncChallengeLeave(ctx, logger, nk, payload) {
         }
         var userId = userValidation.userId;
 
-        var sessionId = request.sessionId || request.SessionId;
+        var sessionId = asyncChallengeResolveSessionId(request);
+        var payloadKeys = Object.keys(request).join(',');
+        logger.debug('[AsyncChallenge] leave attempt user=' + userId + ' payloadKeys=' + payloadKeys +
+            ' resolvedSessionId=' + (sessionId || 'MISSING'));
+
+        if (!sessionId && (request.shareCode || request.ShareCode)) {
+            var shareCode = (request.shareCode || request.ShareCode).toUpperCase().trim();
+            var codeResults = nk.storageRead([{
+                collection: COLLECTION_ASYNC_CHALLENGES,
+                key: 'code_' + shareCode,
+                userId: ASYNC_CHALLENGE_SYSTEM_USER
+            }]);
+            if (codeResults.length > 0) {
+                sessionId = codeResults[0].value.sessionId;
+            }
+        }
+
         if (!sessionId) {
-            return JSON.stringify({ success: false, message: 'Session ID required.', data: null });
+            return JSON.stringify({ success: false, message: 'Session ID or share code required.', data: null });
         }
 
         // ── Locate session via opponent index (O(1)) ─────────────────────────
@@ -21262,86 +21534,70 @@ function rpcAsyncChallengeLeave(ctx, logger, nk, payload) {
         }
 
         if (leaveResults.length === 0) {
-            // Session not found — treat as a success (already gone / cleaned up).
+            logger.warn('[AsyncChallenge] leave noop reason=session_not_found session=' + sessionId + ' caller=' + userId);
             return JSON.stringify({ success: true, message: 'Session not found; nothing to leave.', data: null });
         }
 
         var leaveSession = leaveResults[0].value;
         var leaveVersion = leaveResults[0].version;
 
-        // Verify this user is actually the current opponent before touching anything.
         if (leaveSession.opponentId !== userId) {
-            // Not the opponent (maybe already left, or joined as wrong user) — no-op success.
-            return JSON.stringify({ success: true, message: 'Not the current opponent; nothing to leave.', data: null });
+            if (leaveSession.opponentId) {
+                logger.warn('[AsyncChallenge] leave noop reason=not_opponent session=' + sessionId +
+                    ' caller=' + userId + ' currentOpponent=' + leaveSession.opponentId);
+                return JSON.stringify({
+                    success: false,
+                    message: 'Not the current opponent.',
+                    data: null,
+                    errorCode: 'NOT_OPPONENT'
+                });
+            }
+            logger.warn('[AsyncChallenge] leave noop reason=already_left session=' + sessionId + ' caller=' + userId);
+            return JSON.stringify({
+                success: true,
+                message: 'Already left the challenge.',
+                data: asyncChallengeSessionToUnityFormat(leaveSession, nk)
+            });
         }
 
         var leavingOpponentName = leaveSession.opponentName || 'Player B';
-
-        // ── State machine transition ─────────────────────────────────────────
-        var leaveTransition = asyncChallengeTransitionState(leaveSession, AC_EVT_OPPONENT_LEAVE, { userId: userId });
-        if (!leaveTransition.ok) {
-            return JSON.stringify({ success: false, message: leaveTransition.error, data: null, errorCode: leaveTransition.errorCode });
-        }
-        leaveSession = leaveTransition.session;
-
-        // ── OCC write ────────────────────────────────────────────────────────
-        try {
-            nk.storageWrite([{
-                collection: COLLECTION_ASYNC_CHALLENGES,
-                key: sessionId,
-                userId: leaveSession.creatorId,
-                value: leaveSession,
-                version: leaveVersion,
-                permissionRead: 2,
-                permissionWrite: 1
-            }]);
-        } catch (leaveVErr) {
-            logger.warn('[AsyncChallenge] Leave version conflict session=' + sessionId);
-            // Version conflict means the session changed concurrently — read it fresh.
-            // If we're no longer the opponent in the fresh read, the leave already happened.
-            var freshLeave = nk.storageRead([{ collection: COLLECTION_ASYNC_CHALLENGES, key: sessionId, userId: leaveSession.creatorId }]);
-            if (freshLeave.length > 0 && freshLeave[0].value.opponentId !== userId) {
-                return JSON.stringify({ success: true, message: 'Already left the challenge.', data: null });
-            }
-            return JSON.stringify({ success: false, message: 'Conflict leaving — please try again.', data: null, errorCode: 'VERSION_CONFLICT' });
-        }
-
-        // ── Remove from opponent index so creator can join as opponent again ─
-        try {
-            var idxRead = nk.storageRead([{ collection: COLLECTION_ASYNC_INDEX, key: 'opponent_' + userId, userId: userId }]);
-            if (idxRead.length > 0) {
-                var idxVal = idxRead[0].value;
-                idxVal.sessions = (idxVal.sessions || []).filter(function(s) { return s.sessionId !== sessionId; });
-                nk.storageWrite([{
-                    collection: COLLECTION_ASYNC_INDEX,
-                    key: 'opponent_' + userId,
-                    userId: userId,
-                    value: idxVal,
-                    version: idxRead[0].version,
-                    permissionRead: 1,
-                    permissionWrite: 1
-                }]);
-            }
-        } catch (idxCleanErr) {
-            logger.warn('[AsyncChallenge] Leave: could not clean opponent index: ' + idxCleanErr.message);
-        }
-
-        // ── Push notification to creator ──────────────────────────────────────
-        asyncChallengeSendNotification(nk, leaveSession.creatorId,
-            'Opponent Left',
-            leavingOpponentName + ' has left your ' + leaveSession.quizModeName + ' challenge room. Waiting for a new opponent.',
-            {
-                type: 'opponent_left',
-                sessionId: sessionId
-            }
+        var commitResult = asyncChallengeCommitOpponentLeave(
+            nk, logger, sessionId, leaveSession.creatorId, leaveSession, leaveVersion,
+            userId, leavingOpponentName, 'explicit_leave'
         );
 
-        logger.info('[AsyncChallenge] User ' + userId + ' left session lobby: ' + sessionId);
+        if (!commitResult.ok) {
+            if (commitResult.errorCode === 'VERSION_CONFLICT') {
+                logger.warn('[AsyncChallenge] leave version_conflict session=' + sessionId + ' user=' + userId);
+                var freshLeave = nk.storageRead([{
+                    collection: COLLECTION_ASYNC_CHALLENGES,
+                    key: sessionId,
+                    userId: leaveSession.creatorId
+                }]);
+                if (freshLeave.length > 0 && freshLeave[0].value.opponentId !== userId) {
+                    return JSON.stringify({ success: true, message: 'Already left the challenge.', data: null });
+                }
+                return JSON.stringify({
+                    success: false,
+                    message: commitResult.error,
+                    data: null,
+                    errorCode: 'VERSION_CONFLICT'
+                });
+            }
+            logger.warn('[AsyncChallenge] leave transition fail session=' + sessionId +
+                ' errorCode=' + commitResult.errorCode + ' msg=' + commitResult.error);
+            return JSON.stringify({
+                success: false,
+                message: commitResult.error,
+                data: null,
+                errorCode: commitResult.errorCode
+            });
+        }
 
         return JSON.stringify({
             success: true,
             message: 'Left challenge lobby successfully',
-            data: asyncChallengeSessionToUnityFormat(leaveSession, nk)
+            data: asyncChallengeSessionToUnityFormat(commitResult.session, nk)
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Leave error: ' + err.message);
