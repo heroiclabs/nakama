@@ -392,6 +392,148 @@ namespace OnboardingAnalytics {
     return (rec.nakamaUserId || rec.identityId || rec.userId || "").toString();
   }
 
+  function loadIdentityLinks(nk: nkruntime.Nakama): { links: any[]; truncated: boolean } {
+    var links: any[] = [];
+    var cursor = "";
+    var truncated = false;
+    for (var p = 0; p < MAX_SCAN_PAGES; p++) {
+      var page = nk.storageList(Constants.SYSTEM_USER_ID, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+      var objects = (page && page.objects) || [];
+      for (var i = 0; i < objects.length; i++) {
+        if (objects[i].value) links.push(objects[i].value);
+      }
+      cursor = (page && page.cursor) || "";
+      if (!cursor) break;
+    }
+    if (cursor) truncated = true;
+    return { links: links, truncated: truncated };
+  }
+
+  function readIdentityLink(nk: nkruntime.Nakama, anonId: string): any | null {
+    if (!anonId) return null;
+    return Storage.readSystemJson<any>(nk, Constants.QV_ONBOARDING_IDENTITY_COLLECTION, "link_" + sanitizeId(anonId, 80));
+  }
+
+  function mergeUserBuckets(target: any, source: any): void {
+    target.eventCount = (target.eventCount || 0) + (source.eventCount || 0);
+    var srcNames = source.eventNames || {};
+    for (var en in srcNames) {
+      if (!Object.prototype.hasOwnProperty.call(srcNames, en)) continue;
+      target.eventNames[en] = (target.eventNames[en] || 0) + srcNames[en];
+    }
+    var srcScreens = source.screens || {};
+    for (var sc in srcScreens) {
+      if (!Object.prototype.hasOwnProperty.call(srcScreens, sc)) continue;
+      if (!target.screens[sc]) {
+        target.screens[sc] = {
+          seen: srcScreens[sc].seen || 0,
+          dwellMs: srcScreens[sc].dwellMs || 0,
+          firstTs: srcScreens[sc].firstTs || 0
+        };
+      } else {
+        target.screens[sc].seen += srcScreens[sc].seen || 0;
+        target.screens[sc].dwellMs += srcScreens[sc].dwellMs || 0;
+        if (srcScreens[sc].firstTs && srcScreens[sc].firstTs < target.screens[sc].firstTs) {
+          target.screens[sc].firstTs = srcScreens[sc].firstTs;
+        }
+      }
+    }
+    if (source.completed) target.completed = true;
+    if (source.paywallSeen) target.paywallSeen = true;
+    if (source.paywallSubscribe) target.paywallSubscribe = true;
+    if (source.paywallTrialStart) target.paywallTrialStart = true;
+    if (source.paywallDismiss) target.paywallDismiss = true;
+    if (source.paywallSkip) target.paywallSkip = true;
+    if (source.closingOfferSeen) target.closingOfferSeen = true;
+    if (source.closingOfferClaimed) target.closingOfferClaimed = true;
+    if (source.registerStart) target.registerStart = true;
+    if (source.appLaunchSuccess) target.appLaunchSuccess = true;
+    if (source.obComplete) target.obComplete = true;
+    if (source.pathwayConfirmed) target.pathwayConfirmed = true;
+    if (source.nameSetEvent) target.nameSetEvent = true;
+    if (source.quizFirstAnswer) target.quizFirstAnswer = true;
+    if (source.reviewPromptShown) target.reviewPromptShown = true;
+    if (source.newsletterSkip) target.newsletterSkip = true;
+    if (source.planViewed) target.planViewed = true;
+    if (source.d1Return) target.d1Return = true;
+    if (source.d7Return) target.d7Return = true;
+    if (source.welcomeBonusClaimed) target.welcomeBonusClaimed = true;
+    if (source.streakShieldActivated) target.streakShieldActivated = true;
+    if (source.subscribed) target.subscribed = true;
+    if (source.identityLinked) target.identityLinked = true;
+    if (source.started) target.started = true;
+    if (source.quizFirstAnswerMs > 0 && (!target.quizFirstAnswerMs || source.quizFirstAnswerMs < target.quizFirstAnswerMs)) {
+      target.quizFirstAnswerMs = source.quizFirstAnswerMs;
+    }
+    if (!isValidPathway(target.pathway) && isValidPathway(source.pathway)) target.pathway = source.pathway;
+    if (!target.country && source.country) target.country = source.country;
+    if (!target.platform && source.platform) target.platform = source.platform;
+    if (source.nakamaUserId && !target.nakamaUserId) target.nakamaUserId = source.nakamaUserId;
+    if (source.identityId && !target.identityId) target.identityId = source.identityId;
+    if (source.cognitoSub && !target.cognitoSub) target.cognitoSub = source.cognitoSub;
+    if (source.firstTs && source.firstTs < target.firstTs) target.firstTs = source.firstTs;
+    if (source.lastTs >= target.lastTs) {
+      target.lastTs = source.lastTs;
+      if (source.lastScreen) target.lastScreen = source.lastScreen;
+      if (source.lastEvent) target.lastEvent = source.lastEvent;
+      if (source.snapshot) target.snapshot = source.snapshot;
+    } else if (!target.snapshot && source.snapshot) {
+      target.snapshot = source.snapshot;
+    }
+  }
+
+  /**
+   * Merge guest / cognito buckets into canonical Nakama user using qv_onboarding_identity.
+   */
+  function mergeUsersByIdentityLinks(
+    usersMap: { [uid: string]: any },
+    links: any[]
+  ): { users: { [uid: string]: any }; merges: number } {
+    var merges = 0;
+    for (var i = 0; i < links.length; i++) {
+      var link = links[i];
+      var anonId = (link.anonId || "").toString();
+      var nakamaId = (link.nakamaUserId || "").toString();
+      var cognitoSub = (link.cognitoSub || link.userId || "").toString();
+      if (!anonId || !nakamaId || !isNakamaUuid(nakamaId)) continue;
+
+      var guestBucket = usersMap[anonId];
+      var nakamaBucket = usersMap[nakamaId];
+      var cognitoBucket = cognitoSub && cognitoSub !== nakamaId && cognitoSub !== anonId ? usersMap[cognitoSub] : null;
+
+      if (!guestBucket && !nakamaBucket && !cognitoBucket) continue;
+
+      if (!nakamaBucket) {
+        nakamaBucket = guestBucket || cognitoBucket;
+        usersMap[nakamaId] = nakamaBucket;
+        nakamaBucket.userId = nakamaId;
+        if (guestBucket && usersMap[anonId]) delete usersMap[anonId];
+        if (cognitoBucket && cognitoSub && usersMap[cognitoSub]) delete usersMap[cognitoSub];
+        merges++;
+      } else {
+        if (guestBucket && anonId !== nakamaId) {
+          mergeUserBuckets(nakamaBucket, guestBucket);
+          delete usersMap[anonId];
+          merges++;
+        }
+        if (cognitoBucket && cognitoSub && usersMap[cognitoSub]) {
+          mergeUserBuckets(nakamaBucket, cognitoBucket);
+          delete usersMap[cognitoSub];
+          merges++;
+        }
+      }
+
+      nakamaBucket = usersMap[nakamaId];
+      if (nakamaBucket) {
+        nakamaBucket.nakamaUserId = nakamaId;
+        nakamaBucket.identityLinked = true;
+        if (!nakamaBucket.identityId) nakamaBucket.identityId = anonId;
+        if (cognitoSub && !nakamaBucket.cognitoSub) nakamaBucket.cognitoSub = cognitoSub;
+      }
+    }
+    return { users: usersMap, merges: merges };
+  }
+
   var VALID_PATHWAYS: { [pathway: string]: boolean } = {
     scholar: true,
     warrior: true,
@@ -643,7 +785,11 @@ namespace OnboardingAnalytics {
     if (userLimit > 1000) userLimit = 1000;
 
     var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
-    var usersMap = scan.users;
+    var identityLoad = loadIdentityLinks(nk);
+    var mergeResult = mergeUsersByIdentityLinks(scan.users, identityLoad.links);
+    var usersMap = mergeResult.users;
+    var identityMerges = mergeResult.merges;
+    var identityLinksTotal = identityLoad.links.length;
 
     if (pathwayFilter) {
       var filteredUsers: { [uid: string]: any } = {};
@@ -885,7 +1031,17 @@ namespace OnboardingAnalytics {
         completionRatePct: totalUsers > 0 ? Math.round((completedCount / totalUsers) * 1000) / 10 : 0,
         medianDurationMin: durationSamples.length > 0
           ? Math.round((median(durationSamples) / 60000) * 10) / 10
-          : 0
+          : 0,
+        identityLinksTotal: identityLinksTotal,
+        identityMergesApplied: identityMerges,
+        linkedUsersInFunnel: (function () {
+          var n = 0;
+          for (var lid in usersMap) {
+            if (!Object.prototype.hasOwnProperty.call(usersMap, lid)) continue;
+            if (usersMap[lid].identityLinked || usersMap[lid].nakamaUserId) n++;
+          }
+          return n;
+        })()
       },
       paywall: {
         seen: paywallSeen,
@@ -975,6 +1131,34 @@ namespace OnboardingAnalytics {
       return RpcHelpers.errorResponse("nakama_user_id or guest_id required");
     }
 
+    var eventLimit = data.event_limit || data.limit || 40;
+    eventLimit = parseInt("" + eventLimit, 10);
+    if (isNaN(eventLimit) || eventLimit < 1) eventLimit = 40;
+    if (eventLimit > 200) eventLimit = 200;
+    var eventOffset = 0;
+    var eventCursor = data.event_cursor || data.cursor || "";
+    if (eventCursor) {
+      var parsedOffset = parseInt("" + eventCursor, 10);
+      if (!isNaN(parsedOffset) && parsedOffset >= 0) eventOffset = parsedOffset;
+    }
+
+    if (!nakamaUserId && guestId) {
+      var guestLink = readIdentityLink(nk, guestId);
+      if (guestLink && guestLink.nakamaUserId && isNakamaUuid(guestLink.nakamaUserId)) {
+        nakamaUserId = guestLink.nakamaUserId;
+      }
+    }
+    if (nakamaUserId && !guestId) {
+      var identityLoad = loadIdentityLinks(nk);
+      for (var li = 0; li < identityLoad.links.length; li++) {
+        var lk = identityLoad.links[li];
+        if (lk.nakamaUserId === nakamaUserId && lk.anonId) {
+          guestId = lk.anonId;
+          break;
+        }
+      }
+    }
+
     var profile: any = null;
     if (nakamaUserId) {
       try {
@@ -1020,15 +1204,30 @@ namespace OnboardingAnalytics {
       if (en === "ob_paywall_skip") journeyUser.paywallSkip = true;
       if (en === "ob_identity_linked") journeyUser.identityLinked = true;
     }
-    if (!journeyUser.identityLinked && guestId && !nakamaUserId) journeyUser.identityLinked = false;
+    var guestLinkMeta = guestId ? readIdentityLink(nk, guestId) : null;
+    if (guestLinkMeta && guestLinkMeta.nakamaUserId) journeyUser.identityLinked = true;
+    if (!journeyUser.identityLinked && nakamaUserId) journeyUser.identityLinked = true;
+
+    var totalEvents = events.length;
+    var pageEvents = events.slice(eventOffset, eventOffset + eventLimit);
+    var nextOffset = eventOffset + pageEvents.length;
+    var hasMoreEvents = nextOffset < totalEvents;
 
     return RpcHelpers.successResponse({
       nakamaUserId: nakamaUserId || null,
       guestId: guestId || (profile && profile.identityId) || null,
       cognitoSub: (profile && profile.cognitoSub) || null,
       status: deriveUserStatus(journeyUser),
-      eventCount: events.length,
-      events: events,
+      eventCount: totalEvents,
+      events: pageEvents,
+      eventPagination: {
+        total: totalEvents,
+        offset: eventOffset,
+        limit: eventLimit,
+        returned: pageEvents.length,
+        nextCursor: hasMoreEvents ? ("" + nextOffset) : null,
+        hasMore: hasMoreEvents
+      },
       profile: profile ? {
         lastScreen: profile.lastScreen || "",
         lastEvent: profile.lastEvent || "",
