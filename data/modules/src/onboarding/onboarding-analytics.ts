@@ -392,6 +392,62 @@ namespace OnboardingAnalytics {
     return (rec.nakamaUserId || rec.identityId || rec.userId || "").toString();
   }
 
+  var VALID_PATHWAYS: { [pathway: string]: boolean } = {
+    scholar: true,
+    warrior: true,
+    explorer: true,
+    creator: true
+  };
+
+  var PATHWAY_ORDER: string[] = ["scholar", "warrior", "explorer", "creator"];
+
+  function isValidPathway(pathway: string): boolean {
+    return !!pathway && !!VALID_PATHWAYS[pathway];
+  }
+
+  /** Resolve pathway from screen URL (/onboarding/scholar/...) or currentStep (scholar/details). */
+  function pathwayFromScreenOrStep(screenOrStep: string): string {
+    if (!screenOrStep) return "";
+    var s = screenOrStep;
+    var m = s.match(/\/onboarding\/(scholar|warrior|explorer|creator)(?:\/|$|\?)/);
+    if (m) return m[1];
+    var step = s.replace(/^\/onboarding\/?/, "").split("/")[0];
+    if (step && VALID_PATHWAYS[step]) return step;
+    return "";
+  }
+
+  /**
+   * Production pathway resolution — snapshot, event data, screen, and currentStep.
+   * Replaces bare userSnapshot.pathway so pathway breakdown is not polluted with "unknown".
+   */
+  function applyPathwayHints(u: any, rec: any): void {
+    if (isValidPathway(u.pathway)) return;
+    var snap = rec.userSnapshot || {};
+    if (isValidPathway(snap.pathway)) {
+      u.pathway = snap.pathway;
+      return;
+    }
+    var data = rec.data || {};
+    if (isValidPathway(data.pathway)) {
+      u.pathway = data.pathway;
+      return;
+    }
+    var fromScreen = pathwayFromScreenOrStep(rec.screen || "");
+    if (fromScreen) {
+      u.pathway = fromScreen;
+      return;
+    }
+    if (snap.currentStep) {
+      fromScreen = pathwayFromScreenOrStep(snap.currentStep);
+      if (fromScreen) u.pathway = fromScreen;
+    }
+  }
+
+  function pathwayDisplayLabel(pathway: string): string {
+    if (!pathway) return "";
+    return pathway.charAt(0).toUpperCase() + pathway.slice(1);
+  }
+
   function scanOnboardingEvents(
     nk: nkruntime.Nakama,
     sinceMs: number,
@@ -414,7 +470,6 @@ namespace OnboardingAnalytics {
         if (ts < sinceMs || ts > untilMs) continue;
 
         var snap = rec.userSnapshot || {};
-        if (pathwayFilter && snap.pathway && snap.pathway !== pathwayFilter) continue;
         var plat = snap.platform || rec.platform || "";
         if (platformFilter && !matchesPlatformFilter(plat, platformFilter)) continue;
 
@@ -469,7 +524,7 @@ namespace OnboardingAnalytics {
         var u = users[uid];
         u.eventCount++;
         u.eventNames[rec.name] = (u.eventNames[rec.name] || 0) + 1;
-        if (snap.pathway && !u.pathway) u.pathway = snap.pathway;
+        applyPathwayHints(u, rec);
         if (snap.country && !u.country) u.country = snap.country;
         if (snap.platform && !u.platform) u.platform = snap.platform;
         if (rec.userSnapshot) u.snapshot = rec.userSnapshot;
@@ -491,7 +546,13 @@ namespace OnboardingAnalytics {
         if (rec.name === "ob_register_start") u.registerStart = true;
         if (rec.name === "ob_app_launch_success") u.appLaunchSuccess = true;
         if (rec.name === "ob_complete") u.obComplete = true;
-        if (rec.name === "ob_pathway_confirmed") u.pathwayConfirmed = true;
+        if (rec.name === "ob_pathway_confirmed") {
+          u.pathwayConfirmed = true;
+          if (rec.data && isValidPathway(rec.data.pathway)) u.pathway = rec.data.pathway;
+        }
+        if (rec.name === "ob_world_picked" && rec.data && isValidPathway(rec.data.pathway)) {
+          u.pathway = rec.data.pathway;
+        }
         if (rec.name === "ob_name_set") u.nameSetEvent = true;
         if (rec.name === "ob_quiz_first_answer_time") {
           u.quizFirstAnswer = true;
@@ -583,6 +644,16 @@ namespace OnboardingAnalytics {
 
     var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
     var usersMap = scan.users;
+
+    if (pathwayFilter) {
+      var filteredUsers: { [uid: string]: any } = {};
+      for (var fuid in usersMap) {
+        if (!Object.prototype.hasOwnProperty.call(usersMap, fuid)) continue;
+        if (usersMap[fuid].pathway === pathwayFilter) filteredUsers[fuid] = usersMap[fuid];
+      }
+      usersMap = filteredUsers;
+    }
+
     var screenOrder = buildScreenOrder(usersMap);
 
     var totalUsers = countKeys(usersMap);
@@ -609,6 +680,8 @@ namespace OnboardingAnalytics {
     var sigWelcomeBonus = 0;
     var sigStreakShield = 0;
     var pathwayCounts: { [pathway: string]: { users: number; completed: number } } = {};
+    var prePathwayUsers = 0;
+    var prePathwayCompleted = 0;
 
     var screenAgg: { [screen: string]: { users: { [uid: string]: boolean }; dwellMs: number; dwellCount: number; exits: number } } = {};
     var dropMap: { [screen: string]: number } = {};
@@ -644,10 +717,15 @@ namespace OnboardingAnalytics {
       var elapsed = (u.snapshot && u.snapshot.elapsedMs) ? u.snapshot.elapsedMs : (u.lastTs - u.firstTs);
       if (elapsed > 0) durationSamples.push(elapsed);
 
-      var pw = u.pathway || "unknown";
-      if (!pathwayCounts[pw]) pathwayCounts[pw] = { users: 0, completed: 0 };
-      pathwayCounts[pw].users++;
-      if (u.completed) pathwayCounts[pw].completed++;
+      if (!isValidPathway(u.pathway)) {
+        prePathwayUsers++;
+        if (u.completed) prePathwayCompleted++;
+      } else {
+        var pw = u.pathway;
+        if (!pathwayCounts[pw]) pathwayCounts[pw] = { users: 0, completed: 0 };
+        pathwayCounts[pw].users++;
+        if (u.completed) pathwayCounts[pw].completed++;
+      }
 
       for (var sc2 in u.screens) {
         if (!Object.prototype.hasOwnProperty.call(u.screens, sc2)) continue;
@@ -713,17 +791,37 @@ namespace OnboardingAnalytics {
     }
 
     var pathways: any[] = [];
-    for (var pk in pathwayCounts) {
-      if (!Object.prototype.hasOwnProperty.call(pathwayCounts, pk)) continue;
-      var pc = pathwayCounts[pk];
+    for (var oi2 = 0; oi2 < PATHWAY_ORDER.length; oi2++) {
+      var pkOrdered = PATHWAY_ORDER[oi2];
+      if (!pathwayCounts[pkOrdered]) continue;
+      var pcOrdered = pathwayCounts[pkOrdered];
       pathways.push({
-        pathway: pk,
-        users: pc.users,
-        completed: pc.completed,
-        completionRatePct: pc.users > 0 ? Math.round((pc.completed / pc.users) * 1000) / 10 : 0
+        pathway: pkOrdered,
+        label: pathwayDisplayLabel(pkOrdered),
+        users: pcOrdered.users,
+        completed: pcOrdered.completed,
+        completionRatePct: pcOrdered.users > 0 ? Math.round((pcOrdered.completed / pcOrdered.users) * 1000) / 10 : 0
       });
     }
-    pathways.sort(function (a, b) { return b.users - a.users; });
+    for (var pk in pathwayCounts) {
+      if (!Object.prototype.hasOwnProperty.call(pathwayCounts, pk)) continue;
+      if (PATHWAY_ORDER.indexOf(pk) >= 0) continue;
+      var pcExtra = pathwayCounts[pk];
+      pathways.push({
+        pathway: pk,
+        label: pathwayDisplayLabel(pk),
+        users: pcExtra.users,
+        completed: pcExtra.completed,
+        completionRatePct: pcExtra.users > 0 ? Math.round((pcExtra.completed / pcExtra.users) * 1000) / 10 : 0
+      });
+    }
+
+    var prePathway = {
+      users: prePathwayUsers,
+      completed: prePathwayCompleted,
+      completionRatePct: prePathwayUsers > 0 ? Math.round((prePathwayCompleted / prePathwayUsers) * 1000) / 10 : 0,
+      pctOfStart: totalUsers > 0 ? Math.round((prePathwayUsers / totalUsers) * 1000) / 10 : 0
+    };
 
     var userRows: any[] = [];
     for (var uid3 in usersMap) {
@@ -842,6 +940,7 @@ namespace OnboardingAnalytics {
       screenFunnel: screenFunnel,
       dropoffHotspots: dropoffHotspots.slice(0, 15),
       pathways: pathways,
+      prePathway: prePathway,
       users: userRows,
       usersTotal: totalUsersFiltered
     });
