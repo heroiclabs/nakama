@@ -1429,12 +1429,24 @@ namespace SatoriCreatorEvents {
       idempotencyKey: "event_ended_" + def.id,
     });
 
+    var prizeQueueResult: { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } | null = null;
+    try {
+      prizeQueueResult = computeAndQueueWinners(nk, logger, def, def.id);
+      if (prizeQueueResult.queued > 0) {
+        logger.info("[CreatorEvent] Auto-queued %d prize fulfillments for event %s (ranked=%d xut=%d skipped=%d)",
+          prizeQueueResult.queued, def.id, prizeQueueResult.ranked, prizeQueueResult.xutWinners, prizeQueueResult.skippedExisting);
+      }
+    } catch (pqErr: any) {
+      logger.warn("[CreatorEvent] Prize auto-queue failed for event %s (non-fatal): %s", def.id, pqErr.message || String(pqErr));
+    }
+
     return RpcHelpers.successResponse({
       success: true,
       eventId: def.id,
       totalParticipants: allRecords.length,
       tierAssignments: tierAssignments,
       winnersPerTier: winnersPerTier,
+      prizeQueue: prizeQueueResult || undefined,
     });
   }
 
