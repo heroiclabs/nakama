@@ -2842,7 +2842,7 @@ select { color-scheme: dark; }
                         <option value="dropped">Dropped</option>
                         <option value="at_paywall">At paywall</option>
                         <option value="subscribed">Subscribed</option>
-                        <option value="pre_register">Pre-register only</option>
+                        <option value="pre_register">Guest (no account)</option>
                     </select>
                     <select id="funnelWelcomeThemeSelect" onchange="loadFunnel()" style="display:none;background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-primary);padding:10px 16px;border-radius:8px;font-size:0.9rem;cursor:pointer;min-width:160px;">
                         <option value="">All themes (A/B)</option>
@@ -5585,7 +5585,7 @@ select { color-scheme: dark; }
                 dropped: { text: 'Dropped', cls: 'ob-status-drop' },
                 at_paywall: { text: 'At paywall', cls: 'ob-status-paywall' },
                 subscribed: { text: 'Subscribed', cls: 'ob-status-subscribed' },
-                pre_register: { text: 'Pre-register', cls: 'ob-status-preregister' }
+                pre_register: { text: 'Guest (no account)', cls: 'ob-status-preregister' }
             };
             return map[status] || map.dropped;
         }
@@ -5868,7 +5868,7 @@ select { color-scheme: dark; }
                     '<td>' + formatRelativeTime(u.lastTs) + '</td>' +
                     '<td><code style="font-size:0.72rem">' + escapeHtml(uidShort) + '</code>' +
                     (uid ? ' <button class="ob-copy-btn" data-copy="' + uid + '" onclick="event.stopPropagation();copyObText(this.getAttribute(\'data-copy\'),this)" title="Copy">⎘</button>' : '') +
-                    (!uid && guest ? ' <span class="ob-status-pill ob-status-preregister">Not linked</span>' : '') + '</td>' +
+                    (!uid && guest ? ' <span class="ob-status-pill ob-status-preregister">No account</span>' : '') + '</td>' +
                     '<td><code style="font-size:0.72rem">' + escapeHtml(guestShort) + '</code>' +
                     (guest ? ' <button class="ob-copy-btn" data-copy="' + guest + '" onclick="event.stopPropagation();copyObText(this.getAttribute(\'data-copy\'),this)" title="Copy">⎘</button>' : '') + '</td>' +
                     '<td>' + escapeHtml(u.pathway || '—') + '</td>' +
