@@ -2735,7 +2735,7 @@ namespace AdminConsole {
         var accounts = nk.accountsGetId(uids);
         for (var ai = 0; ai < accounts.length; ai++) {
           var acct = accounts[ai];
-          var uid = acct && acct.user && acct.user.id;
+          var uid = acct && acct.user && (acct.user as any).id;
           var email = (acct && acct.email) || "";
           if (uid && email) emailMap[uid] = email;
         }
