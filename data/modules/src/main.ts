@@ -49,6 +49,19 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[AnalyticsAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Push delivery alerts ----
+  // Watches real device-push delivery outcomes (which never throw, so they're
+  // invisible to AnalyticsAlerts) and pages Discord when the failure rate or
+  // dead-token pruning spikes. init here seeds the primary VM; pooled VMs
+  // self-configure on their first push via PushAlerts.ensureConfigured(ctx).
+  try {
+    PushAlerts.init(ctx, logger);
+    PushAlerts.register(originalInitializer);
+    logger.info("[PushAlerts] installed; push delivery failures will page Discord");
+  } catch (err: any) {
+    logger.error("[PushAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- IVX Multiplayer Kernel ----
   // Registers all in-tree match templates (sync-turn-v1 today; more added
   // in P5+) and the cross-template RPCs (mp_create_match,

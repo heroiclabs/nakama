@@ -1254,6 +1254,14 @@ declare namespace LegacyNotifScheduler {
 declare namespace LegacyPlayer {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace PushAlerts {
+    function init(ctx: nkruntime.Context, logger: nkruntime.Logger): void;
+    function ensureConfigured(ctx: nkruntime.Context, logger: nkruntime.Logger): void;
+    function recordOutcome(nk: nkruntime.Nakama, logger: nkruntime.Logger, source: string, attempted: number, delivered: number, dead: number, codeTally?: {
+        [code: string]: number;
+    }): void;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace LegacyPush {
     export function userHasPushTokens(nk: nkruntime.Nakama, userId: string): boolean;
     export function sendLocalizedPushToUser(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, titleKey: string, bodyKey: string, vars: any, opts?: {

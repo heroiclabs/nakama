@@ -48,6 +48,131 @@ async function deleteDeadEndpoint(endpointArn, reason) {
 
 const DEFAULT_FCM_PROJECT_ID = process.env.DEFAULT_FCM_PROJECT_ID || "";
 
+// ─── Discord delivery-failure alerting ──────────────────────────────────────
+// This Lambda is invoked once per endpoint, so a single invocation can't see a
+// "failure rate". Instead we keep a rolling tally in the warm-container module
+// scope and post ONE Discord alert when, over a window, the failure rate or
+// dead-endpoint deletions spike. Rate-limited per container; best-effort and
+// fully wrapped so alerting can never affect a send.
+const ALERT_WEBHOOK = process.env.DISCORD_PUSH_WEBHOOK_URL || process.env.DISCORD_NAKAMA_WEBHOOK_URL || "";
+const ALERT_WINDOW_MS = intEnv("PUSH_ALERTS_WINDOW_MS", 15 * 60 * 1000, 60 * 1000);
+const ALERT_MIN = intEnv("PUSH_ALERTS_MIN_ATTEMPTS", 50, 1);
+const ALERT_DEAD_SPIKE = intEnv("PUSH_ALERTS_DEAD_SPIKE", 200, 1);
+const ALERT_COOLDOWN_MS = intEnv("PUSH_ALERTS_COOLDOWN_MS", 30 * 60 * 1000, 60 * 1000);
+const ALERT_FAIL_RATE = floatEnv("PUSH_ALERTS_FAIL_RATE", 0.5);
+const ALERT_LABEL = process.env.AWS_LAMBDA_FUNCTION_NAME || "send-push";
+
+let aWinStart = Date.now();
+let aSent = 0;
+let aFailed = 0;
+let aDead = 0;
+let aCodes = {};
+let aLastAlertMs = 0;
+
+function intEnv(key, fallback, min) {
+    const v = process.env[key];
+    if (v === undefined || v === "") return fallback;
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) || n < min ? fallback : n;
+}
+function floatEnv(key, fallback) {
+    const v = process.env[key];
+    if (v === undefined || v === "") return fallback;
+    const n = parseFloat(v);
+    return Number.isNaN(n) || n <= 0 || n > 1 ? fallback : n;
+}
+
+// Inspect the handler's response, update the rolling window, and emit a Discord
+// alert if the window is unhealthy. Awaited before the Lambda returns so the
+// post completes before the execution environment is frozen.
+async function recordAndMaybeAlert(res) {
+    try {
+        let parsed = {};
+        try { parsed = typeof res?.body === "string" ? JSON.parse(res.body) : (res?.body || {}); } catch (_) {}
+        const ok = res && res.statusCode >= 200 && res.statusCode < 300 && parsed.success !== false;
+        if (ok) {
+            aSent++;
+        } else {
+            aFailed++;
+            const code = parsed.code || `HTTP_${res ? res.statusCode : "?"}`;
+            aCodes[code] = (aCodes[code] || 0) + 1;
+            if (parsed.endpointDeleted || parsed.shouldRemoveToken) aDead++;
+        }
+
+        const now = Date.now();
+        if ((now - aWinStart) < ALERT_WINDOW_MS) return;
+
+        const attempts = aSent + aFailed;
+        const failRate = attempts > 0 ? aFailed / attempts : 0;
+        const bad = attempts >= ALERT_MIN && (failRate >= ALERT_FAIL_RATE || aDead >= ALERT_DEAD_SPIKE);
+        if (bad && ALERT_WEBHOOK && (now - aLastAlertMs) >= ALERT_COOLDOWN_MS) {
+            const snapshot = { attempts, sent: aSent, failed: aFailed, dead: aDead, failRate, codes: aCodes };
+            await postDiscordAlert(snapshot);
+            aLastAlertMs = now;
+        }
+        // Reset the window whether or not we alerted, to keep counters bounded.
+        aWinStart = now; aSent = 0; aFailed = 0; aDead = 0; aCodes = {};
+    } catch (e) {
+        console.warn(`[send-push] alert bookkeeping failed: ${e?.name}: ${e?.message}`);
+    }
+}
+
+async function postDiscordAlert(s) {
+    const pct = (n, d) => (d ? `${Math.round((n / d) * 1000) / 10}%` : "0%");
+    const codeLines = Object.keys(s.codes)
+        .sort((a, b) => s.codes[b] - s.codes[a])
+        .slice(0, 6)
+        .map((c) => `\`${c}\` ×${s.codes[c]}`)
+        .join("\n") || "—";
+    const embed = {
+        title: "🔴 send-push: high push delivery failure rate",
+        description:
+            `Device-push failure rate **${pct(s.failed, s.attempts)}** over the last window ` +
+            `(threshold ${Math.round(ALERT_FAIL_RATE * 100)}%). Source: \`${ALERT_LABEL}\` Lambda (FCM/APNs sender).`,
+        color: 0xe74c3c,
+        timestamp: new Date().toISOString(),
+        fields: [
+            {
+                name: "📉 Window",
+                value:
+                    `Attempts: **${s.attempts}**\n` +
+                    `Delivered: **${s.sent}** (${pct(s.sent, s.attempts)})\n` +
+                    `Failed: **${s.failed}** (${pct(s.failed, s.attempts)})\n` +
+                    `Dead endpoints deleted: **${s.dead}**`,
+                inline: false,
+            },
+            { name: "🧨 Top failure reasons", value: codeLines, inline: false },
+            {
+                name: "🛠️ Likely action",
+                value:
+                    "• UNREGISTERED/NOT_FOUND → dead tokens (auto-deleted; should fall)\n" +
+                    "• Sustained high rate → verify Firebase project match " +
+                    "(`DEFAULT_FCM_PROJECT_ID` vs token-minting project) + Secrets Manager service-account",
+                inline: false,
+            },
+        ],
+        footer: { text: `nakama-push-alerts • ${ALERT_LABEL}` },
+    };
+    try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 5000);
+        const r = await fetch(ALERT_WEBHOOK, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: "Nakama Push Watchdog", embeds: [embed] }),
+            signal: ctrl.signal,
+        });
+        clearTimeout(timer);
+        if (!r.ok) {
+            console.warn(`[send-push] discord alert non-2xx: ${r.status}`);
+        } else {
+            console.log(`[send-push] 🚨 posted push-failure Discord alert | failRate=${pct(s.failed, s.attempts)} dead=${s.dead}`);
+        }
+    } catch (e) {
+        console.warn(`[send-push] discord alert post failed: ${e?.name}: ${e?.message}`);
+    }
+}
+
 // Derive the real platform from the SNS endpoint ARN. The ARN is the only
 // source of truth for which Platform Application a device actually lives in.
 function platformFromArn(arn) {
@@ -78,7 +203,7 @@ async function readEndpointAttrs(endpointArn) {
     };
 }
 
-export const handler = async (event) => {
+const handlerImpl = async (event) => {
     console.log("Send push request:", JSON.stringify(event, null, 2));
 
     let body;
@@ -278,6 +403,15 @@ export const handler = async (event) => {
         }
         return response(500, { success: false, error: error.message || "Failed to send push notification" });
     }
+};
+
+// Public entrypoint: run the real handler, then feed the outcome into the
+// rolling delivery-failure alerter before returning. Alerting is best-effort
+// and must never change the response the caller receives.
+export const handler = async (event) => {
+    const res = await handlerImpl(event);
+    try { await recordAndMaybeAlert(res); } catch (_) {}
+    return res;
 };
 
 function response(statusCode, body) {
