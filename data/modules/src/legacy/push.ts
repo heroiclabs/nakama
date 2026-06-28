@@ -68,6 +68,20 @@ namespace LegacyPush {
     Storage.writeJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId, data);
   }
 
+  // True only when `userId` maps to a real account. Used to avoid
+  // storage_user_id_fkey violations when retrying pending push registrations
+  // for accounts that have since been deleted. Fails safe to `false` (skip the
+  // write) on any lookup error.
+  function userExists(nk: nkruntime.Nakama, userId: string): boolean {
+    if (!userId) return false;
+    try {
+      var users: any = nk.usersGetId([userId]);
+      return !!(users && users.length > 0 && users[0] && users[0].userId);
+    } catch (_) {
+      return false;
+    }
+  }
+
   function env(ctx: nkruntime.Context, key: string): string {
     return (ctx.env && ctx.env[key]) || "";
   }
@@ -308,17 +322,27 @@ namespace LegacyPush {
         return { configured: true, success: true, messageId: responseBody.messageId, raw: responseBody };
       }
       var errMsg = (responseBody && (responseBody.error || responseBody.message)) || ("HTTP " + code);
-      logger.warn("[Push] Push to %s failed: %s | HTTP %s | arn=%s",
-        normalizedPlatform, errMsg, code, endpoint.endpointArn);
+      // The send Lambda flags permanently-dead endpoints (FCM UNREGISTERED /
+      // NOT_FOUND / INVALID_ARGUMENT, SNS endpoint disabled) with
+      // shouldRemoveToken. When set, the caller MUST drop the stored token row
+      // — otherwise every future send re-hits the dead endpoint forever (the
+      // root cause of the ~96% FCM 404 rate). The Lambda also deletes the SNS
+      // endpoint itself; this prunes our mirror of it.
+      var removeToken = !!(responseBody && (responseBody.shouldRemoveToken === true || responseBody.shouldRemoveToken === "true"));
+      var providerCode = (responseBody && (responseBody.code || responseBody.errorCode)) || "";
+      logger.warn("[Push] Push to %s failed: %s | HTTP %s | code=%s | removeToken=%s | arn=%s",
+        normalizedPlatform, errMsg, code, providerCode, String(removeToken), endpoint.endpointArn);
       return {
         configured: true,
         success: false,
-        error: errMsg
+        error: errMsg,
+        code: providerCode,
+        removeToken: removeToken
       };
     } catch (e: any) {
       logger.error("[Push] sendProviderPush exception: platform=%s arn=%s error=%s",
         normalizedPlatform, endpoint.endpointArn || "none", e.message || String(e));
-      return { configured: true, success: false, error: e.message || String(e) };
+      return { configured: true, success: false, error: e.message || String(e), removeToken: false };
     }
   }
 
@@ -551,6 +575,8 @@ namespace LegacyPush {
       // root-cause fix as the daily-quiz cron path. See dedupeTokensByPlatform.
       var deliverableTokens = dedupeTokensByPlatform(tokensData.tokens);
       var providerResults: any[] = [];
+      var deadTokenStrings: { [token: string]: boolean } = {};
+      var hasDeadToken = false;
       for (var i = 0; i < deliverableTokens.length; i++) {
         var t: any = deliverableTokens[i];
         var providerResult = sendProviderPush(ctx, logger, nk, t, {
@@ -560,6 +586,9 @@ namespace LegacyPush {
           gameId: data.gameId || data.game_id || "quizverse",
           eventType: data.eventType || subject
         });
+        // Mark dead endpoints for removal — the provider says this token will
+        // never deliver again (app uninstalled / token rotated).
+        if (providerResult.removeToken && t.token) { deadTokenStrings[t.token] = true; hasDeadToken = true; }
         // Report ARN-derived platform in the response so callers don't see
         // the legacy mislabel ("ios" for a /GCM/ endpoint). This is the
         // platform the Lambda was actually told to build the envelope for.
@@ -569,8 +598,25 @@ namespace LegacyPush {
           endpointArn: t.endpointArn,
           success: providerResult.success === true,
           messageId: providerResult.messageId,
-          error: providerResult.error
+          error: providerResult.error,
+          removed: !!providerResult.removeToken
         });
+      }
+      // Persist removal of dead token rows so we stop re-sending to them.
+      if (hasDeadToken) {
+        var keptAfterDead: any[] = [];
+        for (var di = 0; di < tokensData.tokens.length; di++) {
+          var dt = tokensData.tokens[di];
+          if (dt && dt.token && deadTokenStrings[dt.token]) continue;
+          keptAfterDead.push(dt);
+        }
+        var removedCount = tokensData.tokens.length - keptAfterDead.length;
+        tokensData.tokens = keptAfterDead;
+        try {
+          savePushTokens(nk, targetUserId, tokensData);
+          logger.info("[Push] push_send_event: pruned %s dead token row(s) (provider reported UNREGISTERED/disabled) for targetUserId=%s",
+            removedCount, targetUserId);
+        } catch (_) {}
       }
       nk.notificationsSend([{
         userId: targetUserId,
@@ -1051,6 +1097,8 @@ namespace LegacyPush {
     if (deliverable.length === 0) return false;
 
     var sent = 0;
+    var localDead: { [token: string]: boolean } = {};
+    var localHasDead = false;
     for (var i = 0; i < deliverable.length; i++) {
       var t: any = deliverable[i];
       var providerResult = sendProviderPush(ctx, logger, nk, t, {
@@ -1058,6 +1106,21 @@ namespace LegacyPush {
         gameId: opts.gameId || "quizverse", eventType: eventType
       });
       if (providerResult.success === true) sent++;
+      if (providerResult.removeToken && t.token) { localDead[t.token] = true; localHasDead = true; }
+    }
+
+    // Prune dead endpoints reported by the provider so the next cron run stops
+    // re-sending to uninstalled devices (kept the scheduled-push fan-out from
+    // wasting calls on tokens that will only ever return UNREGISTERED).
+    if (localHasDead) {
+      var keptTokens: any[] = [];
+      for (var ki = 0; ki < tokensData.tokens.length; ki++) {
+        var kt = tokensData.tokens[ki];
+        if (kt && kt.token && localDead[kt.token]) continue;
+        keptTokens.push(kt);
+      }
+      tokensData.tokens = keptTokens;
+      try { savePushTokens(nk, userId, tokensData); } catch (_) {}
     }
 
     if (!opts.skipInAppNotification) {
@@ -1766,6 +1829,16 @@ namespace LegacyPush {
       for (var u = 0; u < pendingUserIds.length; u++) {
         var uid = pendingUserIds[u];
         try {
+          // Guard against storage_user_id_fkey violations: a pending userId can
+          // reference an account that no longer exists (ghost/guest cleaned up,
+          // never-persisted client id). Any storageWrite for it fails the
+          // foreign key and — because the catch below re-queued the user — it
+          // retried every 30 min forever, self-amplifying the FK error volume.
+          // Drop such users from the pending index up front.
+          if (!userExists(nk, uid)) {
+            logger.warn("[Push] flushPending: dropping pending userId=%s — no such account (avoids storage_user_id_fkey).", uid);
+            continue; // not re-added to remainingUserIds → removed from index
+          }
           var td = getPushTokens(nk, uid);
           var hasPending = false;
           for (var k = 0; k < td.tokens.length; k++) {
@@ -1823,9 +1896,16 @@ namespace LegacyPush {
         } catch (ue: any) {
           // Storage read error or unexpected failure for this specific user —
           // demoted to warn since it's per-user, not a system-level failure.
-          // The userId stays in remainingUserIds so the next scheduler tick retries.
-          logger.warn("[Push] flushPending: error processing userId=%s (will retry): %s", uid, ue.message || String(ue));
-          remainingUserIds.push(uid); // keep in index so next tick retries
+          var ueMsg = ue && ue.message ? ue.message : String(ue);
+          // A foreign-key violation means the account is gone — do NOT re-queue
+          // it (that's what created the self-amplifying retry storm). Any other
+          // transient error stays in the index for the next tick.
+          if (ueMsg.indexOf("storage_user_id_fkey") !== -1 || ueMsg.toLowerCase().indexOf("foreign key") !== -1) {
+            logger.warn("[Push] flushPending: dropping userId=%s — storage FK violation (account gone): %s", uid, ueMsg);
+          } else {
+            logger.warn("[Push] flushPending: error processing userId=%s (will retry): %s", uid, ueMsg);
+            remainingUserIds.push(uid); // keep in index so next tick retries
+          }
         }
       }
 

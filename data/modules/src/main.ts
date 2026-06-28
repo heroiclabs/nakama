@@ -684,7 +684,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   // ---- Ad Revenue Recording (PLAN-ADS-OPTIMIZATION-v2 §11) ----
   try {
     logger.info("[AdRevenueEvent] Registering ad_revenue_record RPC...");
-    AdRevenueEvent.register(initializer, logger);
+    AdRevenueEvent.register(initializer);
     logger.info("[AdRevenueEvent] Ad revenue recording registered successfully");
   } catch (err: any) {
     logger.error("[AdRevenueEvent] Failed to register: " + (err.message || String(err)));
@@ -703,7 +703,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
 
   try {
     logger.info("[WebAdReward] Registering quizverse_web_ad_reward RPC...");
-    WebAdReward.register(initializer, logger);
+    WebAdReward.register(initializer);
   } catch (err: any) {
     logger.error("[WebAdReward] Failed to register: " + (err.message || String(err)));
   }

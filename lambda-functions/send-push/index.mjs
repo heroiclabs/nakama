@@ -24,10 +24,27 @@
 //  the migration.
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { SNSClient, PublishCommand, GetEndpointAttributesCommand } from "@aws-sdk/client-sns";
+import { SNSClient, PublishCommand, GetEndpointAttributesCommand, DeleteEndpointCommand } from "@aws-sdk/client-sns";
 import { sendFcmDirect } from "./fcm-direct.mjs";
 
 const sns = new SNSClient({});
+
+// Permanently remove a dead SNS endpoint. Called whenever the downstream
+// provider (FCM/APNs) reports the token is gone (UNREGISTERED / NOT_FOUND /
+// endpoint disabled). This is the single most important cleanup in the push
+// pipeline: without it, every caller that iterates SNS endpoints keeps
+// re-publishing to dead ARNs forever (observed: ~177k FCM 404s / 72h, ~96%
+// of all sends, growing daily). DeleteEndpoint is idempotent — deleting an
+// already-deleted ARN is a no-op success — so this is safe to call blindly.
+async function deleteDeadEndpoint(endpointArn, reason) {
+    if (!endpointArn) return;
+    try {
+        await sns.send(new DeleteEndpointCommand({ EndpointArn: endpointArn }));
+        console.log(`[send-push] 🧹 Deleted dead SNS endpoint (${reason}) | arn=${endpointArn}`);
+    } catch (e) {
+        console.warn(`[send-push] ⚠ Failed to delete dead SNS endpoint | arn=${endpointArn} | ${e?.name}: ${e?.message}`);
+    }
+}
 
 const DEFAULT_FCM_PROJECT_ID = process.env.DEFAULT_FCM_PROJECT_ID || "";
 
@@ -191,6 +208,11 @@ export const handler = async (event) => {
                 console.error(`[send-push] ✗ FCM delivery FAILED | error=${fcmResult.error} | errorCode=${fcmResult.errorCode}` +
                     ` | shouldRemoveToken=${fcmResult.shouldRemoveToken}` +
                     ` | Possible causes: (1) UNREGISTERED=app uninstalled (2) SENDER_ID_MISMATCH=wrong Firebase project (3) INVALID_ARGUMENT=malformed token`);
+                // Token is gone for good — delete the SNS endpoint at the source
+                // so no caller resends to it. Stops the dead-token retry storm.
+                if (fcmResult.shouldRemoveToken) {
+                    await deleteDeadEndpoint(endpointArn, `fcm:${fcmResult.errorCode}`);
+                }
                 return response(fcmResult.httpStatus >= 500 ? 502 : 400, {
                     success: false,
                     provider: "fcm-v1",
@@ -198,6 +220,7 @@ export const handler = async (event) => {
                     error: fcmResult.error,
                     code: fcmResult.errorCode,
                     shouldRemoveToken: !!fcmResult.shouldRemoveToken,
+                    endpointDeleted: !!fcmResult.shouldRemoveToken,
                 });
             }
             console.log(`[send-push] ✓ FCM delivered | messageName=${fcmResult.messageName}`);
@@ -244,12 +267,14 @@ export const handler = async (event) => {
             console.error(`[send-push] EndpointDisabledException — SNS permanently disabled this endpoint after repeated delivery failures.` +
                 ` | arn=${endpointArn} | shouldRemoveToken=true will be returned to Nakama for cleanup.` +
                 ` | Root cause: (1) APNs invalidated device token (app uninstall/reinstall) (2) APNS cert/key expired in SNS Platform App`);
-            return response(400, { success: false, error: "Endpoint is disabled", code: "ENDPOINT_DISABLED", shouldRemoveToken: true });
+            await deleteDeadEndpoint(endpointArn, "EndpointDisabledException");
+            return response(400, { success: false, error: "Endpoint is disabled", code: "ENDPOINT_DISABLED", shouldRemoveToken: true, endpointDeleted: true });
         }
         if (error.name === "InvalidParameterException") {
             console.error(`[send-push] InvalidParameterException — bad ARN or token format.` +
                 ` | arn=${endpointArn} | Cause: ARN deleted from SNS console, or account mismatch.`);
-            return response(400, { success: false, error: "Invalid endpoint ARN or parameters", code: "INVALID_PARAMETER", shouldRemoveToken: true });
+            await deleteDeadEndpoint(endpointArn, "InvalidParameterException");
+            return response(400, { success: false, error: "Invalid endpoint ARN or parameters", code: "INVALID_PARAMETER", shouldRemoveToken: true, endpointDeleted: true });
         }
         return response(500, { success: false, error: error.message || "Failed to send push notification" });
     }
