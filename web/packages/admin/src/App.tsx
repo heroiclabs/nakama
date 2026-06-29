@@ -1,6 +1,7 @@
 import { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AdminAuthProvider, useAdminAuth } from "./auth/admin-auth";
+import { AuthBootstrapSplash } from "./components/AuthBootstrapSplash";
 import { AdminLayout } from "./layouts/AdminLayout";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -47,7 +48,11 @@ function Loading() {
 }
 
 function ProtectedRoutes() {
-  const { isAuthenticated } = useAdminAuth();
+  const { isAuthenticated, authPhase } = useAdminAuth();
+
+  if (authPhase === "bootstrapping") {
+    return <AuthBootstrapSplash />;
+  }
 
   if (!isAuthenticated) {
     return <LoginPage />;

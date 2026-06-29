@@ -54,6 +54,20 @@ spec:
                   name: nakama-secret
                   key: http_key
                   optional: false
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: nakama-secrets
+                  key: ADMIN_USERNAME
+                  optional: true
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nakama-secrets
+                  key: ADMIN_PASSWORD
+                  optional: true
+            - name: ADMIN_DASHBOARD_AUTO_LOGIN
+              value: "true"
             - name: NAKAMA_CONSOLE_USERNAME
               valueFrom:
                 secretKeyRef:
