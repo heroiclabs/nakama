@@ -184,8 +184,7 @@ namespace LegacyNotifScheduler {
   // scheduler match. The handlers return JSON strings on success; we ignore
   // them. Non-fatal logging only. `periodMin` MUST match the shouldDispatch
   // cadence so the cluster lock buckets line up across pods.
-  export function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama, periodMin: number): void {
-    if (!tryAcquireDispatchLock(nk, taskName, periodMin)) return;
+  export function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama): void {
     try {
       var ret = fn(ctx, logger, nk, "");
       logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
