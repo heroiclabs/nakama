@@ -145,6 +145,9 @@ namespace QuestEventBusBridge {
     if (data.appId) meta.appId = String(data.appId);
     if (data.category) meta.category = String(data.category);
     if (data.type) meta.type = String(data.type);
+    // topic is extracted globally so DNA-tagged quest steps (filterField="topic")
+    // auto-progress from any event that carries a topic field.
+    if (data.topic) meta.topic = String(data.topic);
     
     // Event-specific fields
     switch (eventName) {
@@ -152,6 +155,8 @@ namespace QuestEventBusBridge {
         if (data.quizId) meta.quizId = String(data.quizId);
         if (data.mode) meta.mode = String(data.mode);
         if (data.difficulty) meta.difficulty = String(data.difficulty);
+        // topic also captured here for explicit quiz events that set it locally
+        if (data.topic && !meta.topic) meta.topic = String(data.topic);
         break;
       case EventBus.Events.ACHIEVEMENT_COMPLETED:
         if (data.achievementId) meta.achievementId = String(data.achievementId);

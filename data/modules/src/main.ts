@@ -365,6 +365,11 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
     QuestEventBusBridge.register(initializer, logger);
     logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
+
+    // Register DNA-driven personalized quest RPC
+    logger.info("[PersonalizedQuests] Registering quizverse_get_personalized_quests...");
+    PersonalizedQuests.register(initializer);
+    logger.info("[PersonalizedQuests] DNA-personalized quest selection active");
   } catch (err: any) {
     logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
   }

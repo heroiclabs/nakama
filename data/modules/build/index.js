@@ -327,6 +327,10 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
         QuestEventBusBridge.register(initializer, logger);
         logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
+        // Register DNA-driven personalized quest RPC
+        logger.info("[PersonalizedQuests] Registering quizverse_get_personalized_quests...");
+        PersonalizedQuests.register(initializer);
+        logger.info("[PersonalizedQuests] DNA-personalized quest selection active");
     }
     catch (err) {
         logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
@@ -11576,6 +11580,520 @@ var QuizVersePackStore;
     }
     QuizVersePackStore.writePack = writePack;
 })(QuizVersePackStore || (QuizVersePackStore = {}));
+// Personalized Quest Engine — wires Player DNA to the Quest config pool.
+//
+// Single RPC:  quizverse_get_personalized_quests
+//
+// HOW IT WORKS
+// ─────────────
+// The quest admin still manages the pool via quest_engine_admin_save_config.
+// Each quest config may carry DNA filter/routing tags in additionalProperties:
+//
+//   dna_topic         — topic slug this quest targets ("anime", "pokemon", …)
+//   dna_slot          — "confidence"|"growth"|"discovery"|"review"|"any"
+//                       Maps to the Mix Algorithm slot this quest fills.
+//   dna_min_affinity  — float (0–1): minimum affinity to show this quest.
+//                       e.g. "0.5" = only show to players who actively like this topic.
+//   dna_max_mastery   — float (0–1): hide once player exceeds this mastery level.
+//                       e.g. "0.85" = don't assign a "beginner" quest to experts.
+//   dna_min_elo       — int: minimum Elo required (challenge quests).
+//   dna_max_elo       — int: maximum Elo allowed (novice-friendly quests).
+//   dna_template      — "true": quest name/steps use __topic__ placeholder.
+//   dna_template_slot — "top1"|"top2"|"weak1": which DNA slot resolves __topic__.
+//
+// TEMPLATE QUESTS
+// ───────────────
+// With dna_template="true", a single quest config becomes many personalised
+// quests — one per player, resolved from their DNA at request time.
+//
+// Example quest config stored in qv_quest_config:
+//   {
+//     "id":   "confidence_topic_daily",
+//     "name": "Play 3 rounds of __topic__",
+//     "category": "daily",
+//     "repeatable": true,
+//     "steps": [{
+//       "id": "s1", "eventType": "quiz_completed", "requiredCount": 3,
+//       "filterField": "topic", "filterValue": "__dna_topic__"
+//     }],
+//     "additionalProperties": {
+//       "dna_slot":          "confidence",
+//       "dna_template":      "true",
+//       "dna_template_slot": "top1",
+//       "dna_min_affinity":  "0.4"
+//     }
+//   }
+//
+// For a player whose top topic is "anime", this resolves to:
+//   id:   "confidence_topic_daily_anime"
+//   name: "Play 3 rounds of Anime"
+//   step filterValue: "anime"
+//
+// SLOT PRIORITY (return order)
+// ────────────────────────────
+//  review      → 100  (SRQ due — highest obligation)
+//  confidence  → 80   (top affinity topic — builds momentum)
+//  growth      → 60   (weak area — real skill development)
+//  discovery   → 40   (undiscovered topic — prevents fatigue)
+//  any         → 20   (untagged — generic fallback)
+var PersonalizedQuests;
+(function (PersonalizedQuests) {
+    var QUEST_CONFIG_COLLECTION = "qv_quest_config";
+    var SLOT_PRIORITY = {
+        "review": 100,
+        "confidence": 80,
+        "growth": 60,
+        "discovery": 40,
+        "any": 20
+    };
+    // ── Filter logic ──────────────────────────────────────────────────────────────
+    function evaluateDna(quest, dna) {
+        var props = quest.additionalProperties || {};
+        var slot = props["dna_slot"] || "any";
+        var topic = props["dna_topic"] || "";
+        var minAff = props["dna_min_affinity"] ? parseFloat(props["dna_min_affinity"]) : -1;
+        var maxMas = props["dna_max_mastery"] ? parseFloat(props["dna_max_mastery"]) : 2;
+        var minElo = props["dna_min_elo"] ? parseInt(props["dna_min_elo"], 10) : -1;
+        var maxElo = props["dna_max_elo"] ? parseInt(props["dna_max_elo"], 10) : 99999;
+        var isTemplate = props["dna_template"] === "true";
+        var tplSlot = props["dna_template_slot"] || "top1";
+        var resolvedTopic = topic;
+        // Resolve template placeholder to actual player topic
+        if (isTemplate) {
+            var tops = PlayerDNA.topTopics(dna, 2);
+            var weaks = PlayerDNA.weakestTopics(dna, 1);
+            if (tplSlot === "top1" && tops.length > 0)
+                resolvedTopic = tops[0];
+            else if (tplSlot === "top2" && tops.length > 1)
+                resolvedTopic = tops[1];
+            else if (tplSlot === "weak1" && weaks.length > 0)
+                resolvedTopic = weaks[0];
+            else {
+                // Template but no DNA signal yet — skip during cold start
+                return { passes: false, slot: slot, resolvedTopic: "", score: 0, reason: "" };
+            }
+        }
+        // Affinity gate
+        if (resolvedTopic && minAff >= 0) {
+            var aff = dna.affinities[resolvedTopic] || 0;
+            if (aff < minAff) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Mastery ceiling — don't give an intro quest to an expert
+        if (resolvedTopic && maxMas < 2) {
+            var mas = dna.masteries[resolvedTopic] || 0;
+            if (mas > maxMas) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Elo window
+        if (resolvedTopic && (minElo > 0 || maxElo < 99999)) {
+            var elo = dna.elos[resolvedTopic] || 1200;
+            if (elo < minElo || elo > maxElo) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Relevance score for ranking within same slot
+        var score = 50;
+        if (resolvedTopic) {
+            var a = dna.affinities[resolvedTopic] || 0;
+            var m = dna.masteries[resolvedTopic] || 0;
+            if (slot === "confidence") {
+                // High affinity + room to grow = best confidence quest
+                score = Math.round(a * 70 + (1 - m) * 30);
+            }
+            else if (slot === "growth") {
+                // Weak mastery but player has at least some interest (not totally foreign)
+                score = Math.round((1 - m) * 60 + a * 40);
+            }
+            else if (slot === "discovery") {
+                // Inverse of affinity — most unknown topic gets highest score
+                score = Math.round((1 - a) * 80 + 20);
+            }
+            else if (slot === "review") {
+                score = 95;
+            }
+        }
+        return {
+            passes: true,
+            slot: slot,
+            resolvedTopic: resolvedTopic,
+            score: score,
+            reason: buildReason(slot, resolvedTopic, dna)
+        };
+    }
+    function buildReason(slot, topic, dna) {
+        if (!topic) {
+            if (slot === "review")
+                return "Reviews due — don't let them expire!";
+            if (slot === "confidence")
+                return "Keep your momentum going.";
+            if (slot === "growth")
+                return "Push your limits today.";
+            if (slot === "discovery")
+                return "Try something new!";
+            return "Quest matched to your profile.";
+        }
+        var label = topic.charAt(0).toUpperCase() + topic.slice(1);
+        var aff = dna.affinities[topic] || 0;
+        var mastery = dna.masteries[topic] || 0;
+        if (slot === "confidence") {
+            if (aff > 0.75)
+                return "You love " + label + " — build on your streak!";
+            return "You're good at " + label + " (" + Math.round(mastery * 100) + "% mastery). Keep going.";
+        }
+        if (slot === "growth") {
+            return "Level up your " + label + " knowledge. You're at " + Math.round(mastery * 100) + "% mastery.";
+        }
+        if (slot === "discovery") {
+            return "Explore " + label + " — a new topic for you!";
+        }
+        if (slot === "review") {
+            return "Review your " + label + " mistakes from previous sessions.";
+        }
+        return "Matched to your " + label + " profile (" + Math.round(aff * 100) + "% affinity).";
+    }
+    // ── Template instantiation ────────────────────────────────────────────────────
+    // Replace __topic__ and __dna_topic__ placeholders in text.
+    function resolveText(text, topic) {
+        if (!topic)
+            return text;
+        var label = topic.charAt(0).toUpperCase() + topic.slice(1);
+        return text
+            .replace(/__topic__/g, label)
+            .replace(/__dna_topic__/g, topic);
+    }
+    // Clone a quest and substitute all template placeholders.
+    function instantiate(quest, resolvedTopic) {
+        var id = resolvedTopic ? quest.id + "_" + resolvedTopic : quest.id;
+        var steps = [];
+        for (var i = 0; i < quest.steps.length; i++) {
+            var s = quest.steps[i];
+            var filterValue = s.filterValue;
+            if (filterValue === "__dna_topic__" && resolvedTopic) {
+                filterValue = resolvedTopic;
+            }
+            steps.push({
+                id: s.id,
+                description: resolveText(s.description, resolvedTopic),
+                eventType: s.eventType,
+                requiredCount: s.requiredCount,
+                requiredValue: s.requiredValue,
+                filterField: s.filterField,
+                filterValue: filterValue
+            });
+        }
+        return {
+            id: id,
+            name: resolveText(quest.name, resolvedTopic),
+            description: quest.description ? resolveText(quest.description, resolvedTopic) : undefined,
+            category: quest.category,
+            expiresAt: quest.expiresAt,
+            prerequisiteIds: quest.prerequisiteIds,
+            repeatable: quest.repeatable,
+            resetIntervalSec: quest.resetIntervalSec,
+            reward: quest.reward,
+            additionalProperties: quest.additionalProperties,
+            steps: steps
+        };
+    }
+    // ── RPC ───────────────────────────────────────────────────────────────────────
+    // quizverse_get_personalized_quests
+    //
+    // Request:  { gameId?: string, limit?: number (1–20, default 10) }
+    // Response: {
+    //   quests: [{
+    //     id, name, description, category, steps, expiresAt, repeatable,
+    //     personalization: { slot, resolved_topic, reason, relevance_score }
+    //   }],
+    //   dna_summary: { top_topics, cold_start, total_sessions }
+    // }
+    function rpcGetPersonalizedQuests(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = data.gameId || Constants.DEFAULT_GAME_ID;
+        var limit = (typeof data.limit === "number") ? Math.min(Math.max(data.limit, 1), 20) : 10;
+        // Load Player DNA (returns empty default for new players — cold start path)
+        var dna = PlayerDNA.load(nk, userId);
+        // Load quest config pool
+        var rows = [];
+        try {
+            rows = nk.storageRead([{
+                    collection: QUEST_CONFIG_COLLECTION,
+                    key: gameId,
+                    userId: Constants.SYSTEM_USER_ID
+                }]);
+        }
+        catch (_) { }
+        var config = { quests: {} };
+        if (rows && rows.length > 0 && rows[0].value) {
+            config = rows[0].value;
+        }
+        var questIds = Object.keys(config.quests);
+        var now = Math.floor(Date.now() / 1000);
+        // ── Phase 1: filter ──────────────────────────────────────────────────────
+        var candidates = [];
+        for (var i = 0; i < questIds.length; i++) {
+            var quest = config.quests[questIds[i]];
+            if (quest.expiresAt && now > quest.expiresAt)
+                continue;
+            var hasDnaProps = quest.additionalProperties && (quest.additionalProperties["dna_topic"] ||
+                quest.additionalProperties["dna_slot"] ||
+                quest.additionalProperties["dna_template"]);
+            if (!hasDnaProps) {
+                // Untagged quests always pass through with baseline priority
+                candidates.push({
+                    quest: quest,
+                    filter: { passes: true, slot: "any", resolvedTopic: "", score: 40, reason: "" }
+                });
+                continue;
+            }
+            var fr = evaluateDna(quest, dna);
+            if (!fr.passes)
+                continue;
+            candidates.push({ quest: quest, filter: fr });
+        }
+        // ── Phase 2: sort — slot priority first, then relevance score ────────────
+        candidates.sort(function (a, b) {
+            var pa = SLOT_PRIORITY[a.filter.slot] || 20;
+            var pb = SLOT_PRIORITY[b.filter.slot] || 20;
+            if (pb !== pa)
+                return pb - pa;
+            return b.filter.score - a.filter.score;
+        });
+        // ── Phase 3: instantiate templates + build response ──────────────────────
+        var out = [];
+        for (var j = 0; j < Math.min(candidates.length, limit); j++) {
+            var c = candidates[j];
+            var inst = instantiate(c.quest, c.filter.resolvedTopic);
+            var stepsOut = [];
+            for (var s = 0; s < inst.steps.length; s++) {
+                var step = inst.steps[s];
+                stepsOut.push({
+                    id: step.id,
+                    description: step.description,
+                    requiredCount: step.requiredCount,
+                    filterField: step.filterField || null,
+                    filterValue: step.filterValue || null
+                });
+            }
+            out.push({
+                id: inst.id,
+                name: inst.name,
+                description: inst.description || null,
+                category: inst.category || null,
+                expiresAt: inst.expiresAt || null,
+                repeatable: !!inst.repeatable,
+                steps: stepsOut,
+                personalization: {
+                    slot: c.filter.slot,
+                    resolved_topic: c.filter.resolvedTopic || null,
+                    reason: c.filter.reason || null,
+                    relevance_score: c.filter.score
+                }
+            });
+        }
+        logger.info("[PersonalizedQuests] user=%s game=%s pool=%d returned=%d cold_start=%s top=%s", userId, gameId, candidates.length, out.length, dna.behavioral.cold_start_done ? "false" : "true", PlayerDNA.topTopics(dna, 1).join(",") || "none");
+        return RpcHelpers.successResponse({
+            quests: out,
+            dna_summary: {
+                top_topics: PlayerDNA.topTopics(dna, 3),
+                cold_start: !dna.behavioral.cold_start_done,
+                total_sessions: dna.behavioral.total_sessions
+            }
+        });
+    }
+    // postbuild.js autoInvokeRegister requires single-arg register() for pooled VM replay.
+    function register(initializer) {
+        initializer.registerRpc("quizverse_get_personalized_quests", rpcGetPersonalizedQuests);
+    }
+    PersonalizedQuests.register = register;
+})(PersonalizedQuests || (PersonalizedQuests = {}));
+// PlayerDNA — per-player behavioural intelligence profile.
+//
+// Storage: collection="qv_player_dna", key="dna", owner=userId
+//          permissionRead=1 (owner), permissionWrite=0 (server-only)
+//
+// Updated by:  quizverse_submit_result  (Phase 2 of the Intelligence Platform)
+// Read by:     quizverse_get_personalized_quests
+//              quizverse_get_questions  (mix algorithm, Elo matching)
+//
+// Design notes:
+//   - No external ML service needed — all computation is pure math inside Goja.
+//   - EMA alpha=0.3 → recent 3 sessions weight ~3× more than older history.
+//   - Elo per topic mirrors chess rating (K=20/15/10 by tier).
+//   - Storage is ~2 KB per player at full maturity — negligible at any scale.
+var PlayerDNA;
+(function (PlayerDNA) {
+    PlayerDNA.COLLECTION = "qv_player_dna";
+    PlayerDNA.KEY = "dna";
+    function defaultDNA() {
+        return {
+            affinities: {},
+            masteries: {},
+            elos: {},
+            behavioral: {
+                peak_hour_utc: 19,
+                avg_session_questions: 10,
+                sessions_per_week: 0,
+                last_played_at: 0,
+                total_sessions: 0,
+                cold_start_done: false,
+                comeback_eligible: false
+            },
+            updated_at: 0
+        };
+    }
+    // ── Storage ──────────────────────────────────────────────────────────────────
+    function load(nk, userId) {
+        var rows = [];
+        try {
+            rows = nk.storageRead([{ collection: PlayerDNA.COLLECTION, key: PlayerDNA.KEY, userId: userId }]);
+        }
+        catch (_) { }
+        if (rows && rows.length > 0 && rows[0].value) {
+            var stored = rows[0].value;
+            // Back-fill any missing behavioral fields added after initial writes
+            if (!stored.behavioral)
+                stored.behavioral = defaultDNA().behavioral;
+            if (stored.behavioral.comeback_eligible === undefined)
+                stored.behavioral.comeback_eligible = false;
+            return stored;
+        }
+        return defaultDNA();
+    }
+    PlayerDNA.load = load;
+    function save(nk, userId, dna) {
+        dna.updated_at = Math.floor(Date.now() / 1000);
+        nk.storageWrite([{
+                collection: PlayerDNA.COLLECTION,
+                key: PlayerDNA.KEY,
+                userId: userId,
+                value: dna,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    PlayerDNA.save = save;
+    // ── Topic ranking helpers ────────────────────────────────────────────────────
+    // Returns topic slugs sorted descending by affinity (most loved first).
+    function topTopics(dna, limit) {
+        var topics = Object.keys(dna.affinities);
+        topics.sort(function (a, b) {
+            return (dna.affinities[b] || 0) - (dna.affinities[a] || 0);
+        });
+        return topics.slice(0, limit);
+    }
+    PlayerDNA.topTopics = topTopics;
+    // Returns topic slugs sorted ascending by mastery (weakest first).
+    // Only returns topics the player has actually attempted (mastery > 0).
+    function weakestTopics(dna, limit) {
+        var topics = Object.keys(dna.masteries).filter(function (t) {
+            return (dna.masteries[t] || 0) > 0;
+        });
+        topics.sort(function (a, b) {
+            return (dna.masteries[a] || 0) - (dna.masteries[b] || 0);
+        });
+        return topics.slice(0, limit);
+    }
+    PlayerDNA.weakestTopics = weakestTopics;
+    // Returns topics the player hasn't played yet (for discovery slot).
+    function undiscoveredTopics(dna, allTopics, limit) {
+        var out = [];
+        for (var i = 0; i < allTopics.length; i++) {
+            if (!dna.affinities[allTopics[i]]) {
+                out.push(allTopics[i]);
+                if (out.length >= limit)
+                    break;
+            }
+        }
+        return out;
+    }
+    PlayerDNA.undiscoveredTopics = undiscoveredTopics;
+    // ── EMA update (call after each session) ────────────────────────────────────
+    // alpha = 0.3 → recent sessions have ~3× more influence than older ones.
+    // played=true when the player voluntarily chose or completed this topic.
+    var EMA_ALPHA = 0.3;
+    function updateAffinity(dna, topic, played) {
+        var signal = played ? 1.0 : 0.0;
+        var prev = dna.affinities[topic] !== undefined ? dna.affinities[topic] : 0.5;
+        dna.affinities[topic] = round3(EMA_ALPHA * signal + (1 - EMA_ALPHA) * prev);
+    }
+    PlayerDNA.updateAffinity = updateAffinity;
+    // accuracy: 0.0–1.0 (correct / total for this topic in the session).
+    // Mastery grows +0.02 when accuracy ≥ 0.7, shrinks -0.01 otherwise.
+    function updateMastery(dna, topic, accuracy) {
+        var prev = dna.masteries[topic] !== undefined ? dna.masteries[topic] : 0.0;
+        var delta = accuracy >= 0.7 ? 0.02 : -0.01;
+        dna.masteries[topic] = clamp(round3(prev + delta), 0, 1);
+    }
+    PlayerDNA.updateMastery = updateMastery;
+    // ── Elo update (per topic, per session) ─────────────────────────────────────
+    // Standard Elo formula.  avgDifficulty acts as the "opponent" Elo.
+    // K-factor tiers: novice < 1000 → K=20, intermediate → K=15, advanced > 1600 → K=10.
+    function updateElo(dna, topic, accuracy, avgDifficulty) {
+        var playerElo = dna.elos[topic] !== undefined ? dna.elos[topic] : 1200;
+        var K = playerElo < 1000 ? 20 : (playerElo < 1600 ? 15 : 10);
+        var oppElo = avgDifficulty > 0 ? avgDifficulty : 1200;
+        var expected = 1 / (1 + Math.pow(10, (oppElo - playerElo) / 400));
+        dna.elos[topic] = Math.round(playerElo + K * (accuracy - expected));
+    }
+    PlayerDNA.updateElo = updateElo;
+    // ── Behavioral update ───────────────────────────────────────────────────────
+    function updateBehavioral(dna, questionCount, sessionHourUtc // 0-23
+    ) {
+        var b = dna.behavioral;
+        var now = Math.floor(Date.now() / 1000);
+        // Detect comeback (gap > 3× avg play frequency, min 3 days)
+        if (b.last_played_at > 0 && b.sessions_per_week > 0) {
+            var avgIntervalSec = (7 * 86400) / b.sessions_per_week;
+            var gapSec = now - b.last_played_at;
+            b.comeback_eligible = gapSec > Math.max(avgIntervalSec * 3, 3 * 86400);
+        }
+        // Rolling average question count per session (alpha=0.3)
+        b.avg_session_questions = round3(EMA_ALPHA * questionCount + (1 - EMA_ALPHA) * b.avg_session_questions);
+        // Rolling sessions_per_week: increment then EMA towards 7-day rhythm
+        b.sessions_per_week = round3(EMA_ALPHA * 7 + (1 - EMA_ALPHA) * b.sessions_per_week);
+        // Peak hour: simple mode approximation via EMA on hour buckets (not stored
+        // separately — just keep last peak_hour_utc with slow drift)
+        if (b.peak_hour_utc === undefined) {
+            b.peak_hour_utc = sessionHourUtc;
+        }
+        else {
+            // Drift by 1 hour per 10 sessions toward actual session hour
+            var diff = sessionHourUtc - b.peak_hour_utc;
+            // Wrap-around for hours (e.g. 23 vs 1)
+            if (diff > 12)
+                diff -= 24;
+            if (diff < -12)
+                diff += 24;
+            b.peak_hour_utc = Math.round((b.peak_hour_utc + diff * 0.1 + 24) % 24);
+        }
+        b.total_sessions++;
+        b.last_played_at = now;
+        // Mark cold start done after 3 sessions
+        if (!b.cold_start_done && b.total_sessions >= 3) {
+            b.cold_start_done = true;
+        }
+    }
+    PlayerDNA.updateBehavioral = updateBehavioral;
+    // ── Cold-start topic sequence ────────────────────────────────────────────────
+    // Returns the pre-defined topic for a player's nth session (0-indexed)
+    // during cold start.  After 3 sessions, personalization takes over.
+    var COLD_START_TOPICS = ["anime", "pokemon", "movies"];
+    function coldStartTopic(sessionIndex) {
+        return COLD_START_TOPICS[sessionIndex % COLD_START_TOPICS.length];
+    }
+    PlayerDNA.coldStartTopic = coldStartTopic;
+    // ── Math helpers ─────────────────────────────────────────────────────────────
+    function clamp(val, min, max) {
+        return val < min ? min : val > max ? max : val;
+    }
+    function round3(val) {
+        return Math.round(val * 1000) / 1000;
+    }
+})(PlayerDNA || (PlayerDNA = {}));
 // =============================================================================
 // src/games/quizverse/product-metrics.ts
 // =============================================================================
@@ -39115,6 +39633,56 @@ var OnboardingAnalytics;
             return p === "web" || p.indexOf("desktop") >= 0;
         return p.indexOf(filter) >= 0;
     }
+    function parseTimeMs(value) {
+        if (!value)
+            return 0;
+        if (typeof value === "number")
+            return toMs(value);
+        var parsed = Date.parse("" + value);
+        return isNaN(parsed) ? 0 : parsed;
+    }
+    function snapshotHasProfile(snap) {
+        if (!snap || typeof snap !== "object")
+            return false;
+        if (snap.elapsedMs > 0)
+            return true;
+        if (snap.startedAt)
+            return true;
+        if (snap.pathway)
+            return true;
+        if (snap.currentStep)
+            return true;
+        if (snap.country)
+            return true;
+        return Object.keys(snap).length > 0;
+    }
+    /** Best-effort funnel duration — prefers snapshot elapsedMs over event span. */
+    function resolveUserDurationMs(u) {
+        if (u.maxElapsedMs > 0)
+            return u.maxElapsedMs;
+        var snap = u.snapshot || {};
+        if (snap.elapsedMs > 0)
+            return toMs(snap.elapsedMs);
+        var started = parseTimeMs(snap.startedAt);
+        var completed = parseTimeMs(snap.completedAt);
+        if (started > 0 && completed > started)
+            return completed - started;
+        if (u.lastTs > 0 && u.firstTs > 0 && u.lastTs > u.firstTs)
+            return u.lastTs - u.firstTs;
+        return 0;
+    }
+    function absorbSnapshotMetrics(u, snap, ts) {
+        if (!snap || typeof snap !== "object")
+            return;
+        if (snap.elapsedMs > 0) {
+            var elapsed = toMs(snap.elapsedMs);
+            if (!u.maxElapsedMs || elapsed > u.maxElapsedMs)
+                u.maxElapsedMs = elapsed;
+        }
+        if (ts >= u.lastTs && snapshotHasProfile(snap)) {
+            u.snapshot = snap;
+        }
+    }
     function sanitizeSnapshot(snap) {
         if (!snap || typeof snap !== "object")
             return {};
@@ -39341,16 +39909,18 @@ var OnboardingAnalytics;
             target.cognitoSub = source.cognitoSub;
         if (source.firstTs && source.firstTs < target.firstTs)
             target.firstTs = source.firstTs;
+        if (source.maxElapsedMs > (target.maxElapsedMs || 0))
+            target.maxElapsedMs = source.maxElapsedMs;
         if (source.lastTs >= target.lastTs) {
             target.lastTs = source.lastTs;
             if (source.lastScreen)
                 target.lastScreen = source.lastScreen;
             if (source.lastEvent)
                 target.lastEvent = source.lastEvent;
-            if (source.snapshot)
+            if (source.snapshot && snapshotHasProfile(source.snapshot))
                 target.snapshot = source.snapshot;
         }
-        else if (!target.snapshot && source.snapshot) {
+        else if ((!target.snapshot || !snapshotHasProfile(target.snapshot)) && source.snapshot && snapshotHasProfile(source.snapshot)) {
             target.snapshot = source.snapshot;
         }
     }
@@ -39524,6 +40094,7 @@ var OnboardingAnalytics;
                         lastEvent: "",
                         firstTs: ts,
                         eventCount: 0,
+                        maxElapsedMs: 0,
                         snapshot: snap
                     };
                 }
@@ -39535,8 +40106,9 @@ var OnboardingAnalytics;
                     u.country = snap.country;
                 if (snap.platform && !u.platform)
                     u.platform = snap.platform;
-                if (rec.userSnapshot)
-                    u.snapshot = rec.userSnapshot;
+                if (ts < u.firstTs)
+                    u.firstTs = ts;
+                absorbSnapshotMetrics(u, rec.userSnapshot, ts);
                 if (rec.nakamaUserId && !u.nakamaUserId)
                     u.nakamaUserId = rec.nakamaUserId;
                 if (rec.identityId && !u.identityId)
@@ -39777,7 +40349,7 @@ var OnboardingAnalytics;
                 sigWelcomeBonus++;
             if (u.streakShieldActivated)
                 sigStreakShield++;
-            var elapsed = (u.snapshot && u.snapshot.elapsedMs) ? u.snapshot.elapsedMs : (u.lastTs - u.firstTs);
+            var elapsed = resolveUserDurationMs(u);
             if (elapsed > 0)
                 durationSamples.push(elapsed);
             if (!isValidPathway(u.pathway)) {
@@ -39936,7 +40508,7 @@ var OnboardingAnalytics;
                 firstTs: ur.firstTs,
                 lastTs: ur.lastTs,
                 startedAt: startedAt,
-                durationMs: (ur.snapshot && ur.snapshot.elapsedMs) ? ur.snapshot.elapsedMs : Math.max(0, ur.lastTs - ur.firstTs)
+                durationMs: resolveUserDurationMs(ur)
             });
         }
         userRows.sort(function (a, b) { return (b.lastTs || 0) - (a.lastTs || 0); });
@@ -41796,6 +42368,10 @@ var QuestEventBusBridge;
             meta.category = String(data.category);
         if (data.type)
             meta.type = String(data.type);
+        // topic is extracted globally so DNA-tagged quest steps (filterField="topic")
+        // auto-progress from any event that carries a topic field.
+        if (data.topic)
+            meta.topic = String(data.topic);
         // Event-specific fields
         switch (eventName) {
             case EventBus.Events.QUIZ_COMPLETED:
@@ -41805,6 +42381,9 @@ var QuestEventBusBridge;
                     meta.mode = String(data.mode);
                 if (data.difficulty)
                     meta.difficulty = String(data.difficulty);
+                // topic also captured here for explicit quiz events that set it locally
+                if (data.topic && !meta.topic)
+                    meta.topic = String(data.topic);
                 break;
             case EventBus.Events.ACHIEVEMENT_COMPLETED:
                 if (data.achievementId)

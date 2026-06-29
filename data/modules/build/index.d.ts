@@ -704,6 +704,45 @@ declare namespace QuizVersePackStore {
     function readPack(nk: nkruntime.Nakama, packId: string): QuizVerseGame.IPack;
     function writePack(nk: nkruntime.Nakama, pack: QuizVerseGame.IPack): void;
 }
+declare namespace PersonalizedQuests {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace PlayerDNA {
+    var COLLECTION: string;
+    var KEY: string;
+    interface Behavioral {
+        peak_hour_utc: number;
+        avg_session_questions: number;
+        sessions_per_week: number;
+        last_played_at: number;
+        total_sessions: number;
+        cold_start_done: boolean;
+        comeback_eligible: boolean;
+    }
+    interface DNA {
+        affinities: {
+            [topic: string]: number;
+        };
+        masteries: {
+            [topic: string]: number;
+        };
+        elos: {
+            [topic: string]: number;
+        };
+        behavioral: Behavioral;
+        updated_at: number;
+    }
+    function load(nk: nkruntime.Nakama, userId: string): DNA;
+    function save(nk: nkruntime.Nakama, userId: string, dna: DNA): void;
+    function topTopics(dna: DNA, limit: number): string[];
+    function weakestTopics(dna: DNA, limit: number): string[];
+    function undiscoveredTopics(dna: DNA, allTopics: string[], limit: number): string[];
+    function updateAffinity(dna: DNA, topic: string, played: boolean): void;
+    function updateMastery(dna: DNA, topic: string, accuracy: number): void;
+    function updateElo(dna: DNA, topic: string, accuracy: number, avgDifficulty: number): void;
+    function updateBehavioral(dna: DNA, questionCount: number, sessionHourUtc: number): void;
+    function coldStartTopic(sessionIndex: number): string;
+}
 declare namespace QuizVerseProductMetrics {
     function register(initializer: nkruntime.Initializer): void;
 }
