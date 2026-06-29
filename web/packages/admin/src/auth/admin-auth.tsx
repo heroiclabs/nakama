@@ -10,6 +10,7 @@ import {
 
 export const ADMIN_SESSION_STORAGE_KEY = "nakama-admin-session";
 const LEGACY_ANALYTICS_SESSION_STORAGE_KEY = "ivx_admin_token_v2";
+const LEGACY_LOCAL_STORAGE_KEY = "nakama-admin-session";
 
 export interface AdminSession {
   token: string;
@@ -19,34 +20,49 @@ export interface AdminSession {
   expiresAt: number;
 }
 
+export type AdminAuthPhase = "bootstrapping" | "ready";
+
 interface AdminAuthContextValue {
   session: AdminSession | null;
   isAuthenticated: boolean;
+  authPhase: AdminAuthPhase;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextValue | null>(null);
 
+function clearStoredSession() {
+  window.sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+  window.sessionStorage.removeItem(LEGACY_ANALYTICS_SESSION_STORAGE_KEY);
+  window.localStorage.removeItem(LEGACY_LOCAL_STORAGE_KEY);
+}
+
 function readStoredSession(): AdminSession | null {
   try {
-    const raw = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+    const raw =
+      window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_LOCAL_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as AdminSession;
     if (!parsed.token || !parsed.expiresAt) return null;
     if (parsed.expiresAt <= Math.floor(Date.now() / 1000)) {
-      window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+      clearStoredSession();
       return null;
+    }
+    if (!window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY)) {
+      persistSession(parsed);
+      window.localStorage.removeItem(LEGACY_LOCAL_STORAGE_KEY);
     }
     return parsed;
   } catch {
-    window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
+    clearStoredSession();
     return null;
   }
 }
 
 function persistSession(nextSession: AdminSession) {
-  window.localStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+  window.sessionStorage.setItem(ADMIN_SESSION_STORAGE_KEY, JSON.stringify(nextSession));
   window.sessionStorage.setItem(
     LEGACY_ANALYTICS_SESSION_STORAGE_KEY,
     JSON.stringify({
@@ -55,6 +71,16 @@ function persistSession(nextSession: AdminSession) {
       expiresAt: nextSession.expiresAt,
     }),
   );
+}
+
+function sessionFromLoginBody(body: Record<string, unknown>, username: string): AdminSession {
+  return {
+    token: String(body.token),
+    username: typeof body.username === "string" ? body.username : username,
+    userId: typeof body.userId === "string" ? body.userId : "",
+    role: typeof body.role === "string" ? body.role : "admin",
+    expiresAt: typeof body.expiresAt === "number" ? body.expiresAt : Math.floor(Date.now() / 1000) + 86400,
+  };
 }
 
 /** Accept session injected by Intelliverse admin portal iframe launch (/api/launch/nakama-analytics). */
@@ -81,8 +107,31 @@ function sessionFromIframeMessage(data: Record<string, unknown>): AdminSession |
   };
 }
 
+async function fetchAutoLogin(): Promise<AdminSession | null> {
+  const response = await fetch("/admin-dashboard/api/auto-login", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+  });
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    console.warn("[admin-auth] auto-login did not return JSON (status %s)", response.status);
+    return null;
+  }
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !body?.token) {
+    console.warn("[admin-auth] auto-login failed:", body?.error ?? response.status);
+    return null;
+  }
+  return sessionFromLoginBody(body as Record<string, unknown>, "ivx-admin");
+}
+
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AdminSession | null>(() => readStoredSession());
+  const initialSession = readStoredSession();
+  const [session, setSession] = useState<AdminSession | null>(initialSession);
+  const [authPhase, setAuthPhase] = useState<AdminAuthPhase>(
+    initialSession ? "ready" : "bootstrapping",
+  );
 
   // Embedded in admin.intelli-verse-x.ai — accept token from parent launch shell.
   useEffect(() => {
@@ -97,13 +146,48 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
       persistSession(nextSession);
       setSession(nextSession);
+      setAuthPhase("ready");
     };
 
     window.addEventListener("message", onMessage);
     window.parent.postMessage({ type: "IFRAME_READY" }, "*");
 
-    return () => window.removeEventListener("message", onMessage);
+    const timer = window.setTimeout(() => {
+      setAuthPhase((phase) => (phase === "bootstrapping" ? "ready" : phase));
+    }, 2500);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("message", onMessage);
+    };
   }, []);
+
+  // Server-side auto-login (credentials never touch the browser bundle).
+  useEffect(() => {
+    if (initialSession || window.self !== window.top) return;
+
+    let cancelled = false;
+
+    async function bootstrap() {
+      try {
+        const nextSession = await fetchAutoLogin();
+        if (cancelled) return;
+        if (nextSession) {
+          persistSession(nextSession);
+          setSession(nextSession);
+        }
+      } catch {
+        // Fall through to manual login.
+      } finally {
+        if (!cancelled) setAuthPhase("ready");
+      }
+    }
+
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialSession]);
 
   useEffect(() => {
     if (!session?.expiresAt) return;
@@ -117,8 +201,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     );
     const delayMs = Math.max(0, session.expiresAt * 1000 - Date.now());
     const timer = window.setTimeout(() => {
-      window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
-      window.sessionStorage.removeItem(LEGACY_ANALYTICS_SESSION_STORAGE_KEY);
+      clearStoredSession();
       setSession(null);
     }, delayMs);
     return () => window.clearTimeout(timer);
@@ -134,20 +217,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     if (!response.ok || !body?.token) {
       throw new Error(body?.error ?? "Login failed");
     }
-    const nextSession: AdminSession = {
-      token: body.token,
-      username: body.username ?? username,
-      userId: body.userId,
-      role: body.role ?? "admin",
-      expiresAt: body.expiresAt,
-    };
+    const nextSession = sessionFromLoginBody(body as Record<string, unknown>, username);
     persistSession(nextSession);
     setSession(nextSession);
   }, []);
 
   const logout = useCallback(() => {
-    window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
-    window.sessionStorage.removeItem(LEGACY_ANALYTICS_SESSION_STORAGE_KEY);
+    clearStoredSession();
     setSession(null);
   }, []);
 
@@ -155,10 +231,11 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       isAuthenticated: !!session,
+      authPhase,
       login,
       logout,
     }),
-    [login, logout, session],
+    [authPhase, login, logout, session],
   );
 
   return <AdminAuthContext.Provider value={value}>{children}</AdminAuthContext.Provider>;

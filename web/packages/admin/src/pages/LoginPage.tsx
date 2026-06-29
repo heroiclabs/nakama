@@ -32,7 +32,7 @@ export function LoginPage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Nakama Admin</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sign in to access QuizVerse LiveOps, analytics, and admin tooling.
+              Automatic sign-in failed. Enter your admin credentials to continue.
             </p>
           </div>
         </div>
