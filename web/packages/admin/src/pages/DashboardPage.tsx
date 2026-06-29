@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Activity,
   RefreshCw,
@@ -69,8 +69,19 @@ import {
   SortableVerticalList,
   useStatusLayoutEditMode,
 } from "@/components/dashboard/SortableDashboard";
+import { ProductTelemetryPanel } from "@/components/product-telemetry/ProductTelemetryPanel";
 
 const REFETCH_MS = 15_000;
+
+type DashboardTab = "status" | "metrics" | "telemetry";
+
+function parseDashboardTab(value: string | null): DashboardTab {
+  if (value === "metrics") return "metrics";
+  if (value === "telemetry") return "telemetry";
+  return "status";
+}
+
+const TELEMETRY_TAB_LINK = "/dashboard?tab=telemetry";
 
 function isHealthyStatus(status?: string) {
   const normalized = String(status ?? "").toLowerCase();
@@ -449,7 +460,7 @@ function StatusTab({
         value={productLoading ? "—" : quizverse.formatCompactNumber(productOverview?.dau ?? 0)}
         accent="bg-violet-500/10 text-violet-500"
         icon={Users}
-        to="/product-telemetry"
+        to={TELEMETRY_TAB_LINK}
         loading={productLoading}
       />
     ),
@@ -459,7 +470,7 @@ function StatusTab({
         value={productLoading ? "—" : quizverse.formatCompactNumber(productOverview?.wau ?? 0)}
         accent="bg-sky-500/10 text-sky-500"
         icon={TrendingUp}
-        to="/product-telemetry"
+        to={TELEMETRY_TAB_LINK}
         loading={productLoading}
       />
     ),
@@ -469,7 +480,7 @@ function StatusTab({
         value={productLoading ? "—" : quizverse.formatCompactNumber(productOverview?.mau ?? 0)}
         accent="bg-emerald-500/10 text-emerald-500"
         icon={Activity}
-        to="/product-telemetry"
+        to={TELEMETRY_TAB_LINK}
         loading={productLoading}
       />
     ),
@@ -479,7 +490,7 @@ function StatusTab({
         value={productLoading ? "—" : quizverse.formatCompactNumber(productOverview?.events_24h ?? 0)}
         accent="bg-amber-500/10 text-amber-500"
         icon={Activity}
-        to="/product-telemetry"
+        to={TELEMETRY_TAB_LINK}
         loading={productLoading}
       />
     ),
@@ -489,7 +500,7 @@ function StatusTab({
         value={productLoading ? "—" : quizverse.formatCompactNumber(productOverview?.players_24h ?? 0)}
         accent="bg-cyan-500/10 text-cyan-500"
         icon={Users}
-        to="/product-telemetry"
+        to={TELEMETRY_TAB_LINK}
         loading={productLoading}
       />
     ),
@@ -499,7 +510,7 @@ function StatusTab({
         value={productLoading ? "—" : quizverse.formatCompactNumber(productOverview?.sponsor_imp_30d ?? 0)}
         accent="bg-fuchsia-500/10 text-fuchsia-500"
         icon={Megaphone}
-        to="/product-telemetry"
+        to={TELEMETRY_TAB_LINK}
         loading={productLoading}
       />
     ),
@@ -1402,9 +1413,11 @@ function StatGroupCard({
 // ─── Page ────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const [tab, setTab] = useState<"status" | "metrics">("status");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseDashboardTab(searchParams.get("tab"));
   const [metricsDays, setMetricsDays] = useState(14);
   const [eventFilter, setEventFilter] = useState("");
+  const queryClient = useQueryClient();
   const selectedAppId = useAdminStore((s) => s.selectedAppId);
   const { data: appList } = useQuery({
     queryKey: ["admin", "apps", "selector"],
@@ -1428,6 +1441,21 @@ export function DashboardPage() {
   const isOnline =
     health.isSuccess && (isHealthyStatus(health.data?.status) || health.data?.status === undefined);
 
+  function setTab(next: DashboardTab) {
+    if (next === "status") {
+      setSearchParams({}, { replace: true });
+      return;
+    }
+    setSearchParams({ tab: next }, { replace: true });
+  }
+
+  const tabSubtitle =
+    tab === "status"
+      ? "Live audience, geography, and LiveOps overview."
+      : tab === "metrics"
+        ? "Installs, sessions, revenue, and segment breakdowns."
+        : "CRM game metrics, funnels, retention, and growth snapshots.";
+
   return (
     <div className="space-y-6">
       {/* Header + tabs */}
@@ -1440,9 +1468,7 @@ export function DashboardPage() {
               {activeAppName}
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Live audience, geography, and LiveOps overview.
-          </p>
+          <p className="text-sm text-muted-foreground">{tabSubtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {tab === "status" && <DashboardLayoutToolbar />}
@@ -1455,6 +1481,10 @@ export function DashboardPage() {
               eventErrors.refetch();
               hiroStatus.refetch();
               satoriStatus.refetch();
+              if (tab === "telemetry") {
+                queryClient.invalidateQueries({ queryKey: ["admin", "product-metrics"] });
+                queryClient.invalidateQueries({ queryKey: ["admin", "growth-snapshot"] });
+              }
             }}
             disabled={summary.isFetching}
             className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
@@ -1516,6 +1546,7 @@ export function DashboardPage() {
         {([
           ["status", "Status"],
           ["metrics", "Game Metrics"],
+          ["telemetry", "Product Telemetry"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -1545,7 +1576,7 @@ export function DashboardPage() {
               : null
           }
         />
-      ) : (
+      ) : tab === "metrics" ? (
         <GameMetricsTab
           summary={summary.data}
           summaryLoading={summary.isLoading}
@@ -1562,6 +1593,8 @@ export function DashboardPage() {
           eventFilter={eventFilter}
           onEventFilterChange={setEventFilter}
         />
+      ) : (
+        <ProductTelemetryPanel embedded />
       )}
     </div>
   );
