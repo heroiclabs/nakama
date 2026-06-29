@@ -55,6 +55,63 @@ namespace LegacyNotifScheduler {
     return Math.floor(Date.now() / 60000);
   }
 
+  // ── Shared, restart-proof dispatch cadence ─────────────────────────────
+  //
+  // The original scheduler kept each task's last-dispatch minute in VOLATILE
+  // match state. In production the scheduler match respawns frequently (pod
+  // churn, match restarts, the historical duplicate-match accumulation), and
+  // every respawn reset the per-task timer via the first-call deferral. The
+  // 5-minute `reminders` task survived often enough to fire ~305x/72h, but the
+  // 30-minute tasks almost never lived a full period between resets — observed
+  // daily_quiz fired only 8x/72h, in two short bursts, both landing OUTSIDE the
+  // India-majority 09:00-13:00 local window → ~0 scheduled pushes delivered.
+  //
+  // Fix: coordinate the cadence through a single shared storage row instead of
+  // match state. Any live match (on any pod) advances it; a fresh match reads
+  // the REAL last-dispatch minute rather than resetting it, so the 30-minute
+  // crons reliably fire every 30 minutes and therefore land inside every
+  // timezone's local window across the day. Cross-pod double-dispatch is
+  // possible but harmless — every cron enforces a per-user once-a-day marker.
+  export var DISPATCH_COLLECTION = "notif_scheduler";
+  export var DISPATCH_KEY = "dispatch_state_v1";
+  var DISPATCH_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+  // The match ticks at 1 Hz; re-evaluate the schedule (and touch storage) only
+  // every ~20 ticks (~20s) so coordination cost stays negligible.
+  var CHECK_INTERVAL_TICKS = 20;
+
+  export function readSharedDispatch(nk: nkruntime.Nakama): { [task: string]: number } {
+    try {
+      var recs = nk.storageRead([{ collection: DISPATCH_COLLECTION, key: DISPATCH_KEY, userId: DISPATCH_SYSTEM_USER_ID }]);
+      if (recs && recs.length > 0 && recs[0].value && recs[0].value.tasks) {
+        return recs[0].value.tasks as { [task: string]: number };
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  export function writeSharedDispatch(nk: nkruntime.Nakama, tasks: { [task: string]: number }): void {
+    try {
+      nk.storageWrite([{
+        collection: DISPATCH_COLLECTION, key: DISPATCH_KEY, userId: DISPATCH_SYSTEM_USER_ID,
+        value: { tasks: tasks, updatedAt: Date.now() },
+        permissionRead: 0, permissionWrite: 0
+      }]);
+    } catch (_) {}
+  }
+
+  // Returns true when `task` is due per the SHARED last-dispatch minute, and
+  // mutates `tasks` to claim the slot. First observation of a task seeds its
+  // timestamp (so the very first cluster boot defers one period instead of a
+  // thundering herd) — the caller persists that seed so it is never re-deferred.
+  export function sharedDue(tasks: { [task: string]: number }, task: string, periodMin: number): boolean {
+    var m = nowMinute();
+    var last = tasks[task];
+    if (last === undefined || last === 0) { tasks[task] = m; return false; }
+    if (m - last < periodMin) return false;
+    tasks[task] = m;
+    return true;
+  }
+
   // Returns true when at least `periodMin` minutes have elapsed since this
   // task last fired. Elapsed-time semantics (vs "fire on minute boundary
   // m % periodMin === 0") so a delayed matchLoop tick — GC pause, pod
@@ -127,8 +184,7 @@ namespace LegacyNotifScheduler {
   // scheduler match. The handlers return JSON strings on success; we ignore
   // them. Non-fatal logging only. `periodMin` MUST match the shouldDispatch
   // cadence so the cluster lock buckets line up across pods.
-  export function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama, periodMin: number): void {
-    if (!tryAcquireDispatchLock(nk, taskName, periodMin)) return;
+  export function dispatchSafely(taskName: string, fn: Function, ctx: any, logger: nkruntime.Logger, nk: nkruntime.Nakama): void {
     try {
       var ret = fn(ctx, logger, nk, "");
       logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
@@ -169,19 +225,32 @@ namespace LegacyNotifScheduler {
   }
 
   export function matchLoopImpl(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _dispatcher: nkruntime.MatchDispatcher, _tick: number, state: SchedulerState, _messages: nkruntime.MatchMessage[]) {
-    if (shouldDispatch(state, "daily_quiz",      30)) dispatchSafely("daily_quiz",     LegacyPush.runDailyQuizCron,     ctx, logger, nk, 30);
-    if (shouldDispatch(state, "weekly_quiz",     60)) dispatchSafely("weekly_quiz",    LegacyPush.runWeeklyQuizCron,    ctx, logger, nk, 60);
-    if (shouldDispatch(state, "idle_winback",    30)) dispatchSafely("idle_winback",   LegacyPush.runIdleWinbackCron,   ctx, logger, nk, 30);
-    if (shouldDispatch(state, "streak_warning",  30)) dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk, 30);
-    if (shouldDispatch(state, "motivation",      60)) dispatchSafely("motivation",     LegacyPush.runMotivationCron,    ctx, logger, nk, 60);
-    if (shouldDispatch(state, "reminders",        5)) dispatchSafely("reminders",      LegacyPush.runRemindersCron,     ctx, logger, nk, 5);
-    if (shouldDispatch(state, "review_due",       30)) dispatchSafely("review_due",     LegacyPush.runReviewCron,        ctx, logger, nk, 30);
-    if (shouldDispatch(state, "flush_pending_push", 30) && tryAcquireDispatchLock(nk, "flush_pending_push", 30)) {
-      try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
+    // Coordinate dispatch through shared storage (restart-proof, cross-pod).
+    // Throttled to once every CHECK_INTERVAL_TICKS so we don't read/write
+    // storage at the full 1 Hz tick rate.
+    if ((_tick % CHECK_INTERVAL_TICKS) === 0) {
+      var tasks = readSharedDispatch(nk);
+      var before = JSON.stringify(tasks);
+
+      if (sharedDue(tasks, "daily_quiz",            30)) dispatchSafely("daily_quiz",          LegacyPush.runDailyQuizCron,     ctx, logger, nk);
+      if (sharedDue(tasks, "weekly_quiz",           60)) dispatchSafely("weekly_quiz",         LegacyPush.runWeeklyQuizCron,    ctx, logger, nk);
+      if (sharedDue(tasks, "idle_winback",          30)) dispatchSafely("idle_winback",        LegacyPush.runIdleWinbackCron,   ctx, logger, nk);
+      if (sharedDue(tasks, "streak_warning",        30)) dispatchSafely("streak_warning",      LegacyPush.runStreakWarningCron, ctx, logger, nk);
+      if (sharedDue(tasks, "motivation",            60)) dispatchSafely("motivation",          LegacyPush.runMotivationCron,    ctx, logger, nk);
+      if (sharedDue(tasks, "reminders",              5)) dispatchSafely("reminders",           LegacyPush.runRemindersCron,     ctx, logger, nk);
+      if (sharedDue(tasks, "review_due",            30)) dispatchSafely("review_due",          LegacyPush.runReviewCron,        ctx, logger, nk);
+      if (sharedDue(tasks, "flush_pending_push",    30)) {
+        try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
+      }
+      if (sharedDue(tasks, "flush_failed_chat_push", 3)) {
+        try { LegacyChat.flushFailedChatPushes(ctx, logger, nk); } catch (_) {}
+      }
+
+      // Persist if anything advanced OR a task was seeded for the first time,
+      // so first-boot deferral isn't re-applied forever on an empty row.
+      if (JSON.stringify(tasks) !== before) writeSharedDispatch(nk, tasks);
     }
-    if (shouldDispatch(state, "flush_failed_chat_push", 3) && tryAcquireDispatchLock(nk, "flush_failed_chat_push", 3)) {
-      try { LegacyChat.flushFailedChatPushes(ctx, logger, nk); } catch (_) {}
-    }
+
     var m = nowMinute();
     if ((m % 60) === 0 && state.lastLog !== m) {
       state.lastLog = m;

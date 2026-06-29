@@ -1,0 +1,34 @@
+{
+  "Version": "2012-10-17",
+  "Comment": "Execution-role policy for the send-push Lambda (index.mjs + fcm-direct.mjs). The sns:DeleteEndpoint statement is REQUIRED for dead-endpoint pruning added in this PR — without it the prune call fails safe and no-ops, and dead FCM/APNs endpoints are resent forever (~96% UNREGISTERED 404s). Tighten Resource ARNs to your account/region before applying; account is 970547373533, region us-east-1 per the registration Lambda's hardcoded Platform App ARNs.",
+  "Statement": [
+    {
+      "Sid": "PushDeliverAndPrune",
+      "Effect": "Allow",
+      "Action": [
+        "sns:Publish",
+        "sns:GetEndpointAttributes",
+        "sns:DeleteEndpoint"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:970547373533:*"
+    },
+    {
+      "Sid": "FcmServiceAccountSecrets",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:970547373533:secret:firebase/service-account/*"
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:us-east-1:970547373533:log-group:/aws/lambda/send*"
+    }
+  ]
+}
