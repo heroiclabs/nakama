@@ -49,6 +49,11 @@
   * {
     @apply border-border;
   }
+  html,
+  body,
+  #root {
+    @apply h-screen overflow-hidden;
+  }
   body {
     @apply bg-background text-foreground;
   }
