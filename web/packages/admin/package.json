@@ -11,6 +11,9 @@
     "serve": "node server/admin-dashboard-server.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@monaco-editor/react": "^4.7.0",
     "@nakama/shared": "workspace:*",
     "@tanstack/react-query": "^5.65.1",
