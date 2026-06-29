@@ -229,7 +229,14 @@ namespace OnboardingAnalytics {
     "ob_congrats_seen": true,
     "ob_deeplink_fire": true,
     "ob_unity_return": true,
-    "ob_app_launch_success": true
+    "ob_app_launch_success": true,
+    "ob_return_seen": true
+  };
+
+  /** Intentional exit to native Unity — success for existing users, not funnel drop-off. */
+  var UNITY_HANDOFF_EVENTS: { [name: string]: boolean } = {
+    "ob_welcome_return_to_app": true,
+    "ob_signin_handoff_native": true
   };
 
   function screenLabel(screen: string): string {
@@ -246,8 +253,23 @@ namespace OnboardingAnalytics {
     return !!COMPLETION_EVENTS[name];
   }
 
+  function isUnityHandoffEvent(name: string): boolean {
+    return !!UNITY_HANDOFF_EVENTS[name];
+  }
+
+  function applyUnityHandoffFromEvent(u: any, rec: any): void {
+    if (!isUnityHandoffEvent(rec.name)) return;
+    u.unityHandoff = true;
+    if (rec.name === "ob_welcome_return_to_app") u.welcomeReturnToApp = true;
+    if (rec.name === "ob_signin_handoff_native") u.signinHandoffNative = true;
+    var data = rec.data || {};
+    if (data.surface) u.handoffSurface = data.surface;
+    if (data.provider) u.handoffProvider = data.provider;
+  }
+
   function eventCategory(name: string): string {
     if (isCompletionEvent(name)) return "completion";
+    if (isUnityHandoffEvent(name)) return "handoff";
     if (name === "ob_identity_linked" || name === "ob_register_complete" || name === "ob_verify_complete" || name === "ob_register_start") return "identity";
     if (name.indexOf("paywall") >= 0 || name.indexOf("closing_offer") >= 0) return "paywall";
     if (name === "ob_d1_return" || name === "ob_d7_return" || name === "ob_welcome_bonus_claimed" || name === "ob_streak_shield_activated") return "retention";
@@ -258,6 +280,7 @@ namespace OnboardingAnalytics {
 
   function deriveUserStatus(u: any): string {
     if (u.completed) return "completed";
+    if (u.unityHandoff) return "returned_to_app";
     if (u.paywallSubscribe || u.paywallTrialStart || u.subscribed) return "subscribed";
     if (u.paywallSeen && !u.completed && !u.paywallSubscribe && !u.paywallTrialStart) return "at_paywall";
     if (!u.identityLinked && !u.nakamaUserId) return "pre_register";
@@ -291,11 +314,12 @@ namespace OnboardingAnalytics {
     return Object.keys(snap).length > 0;
   }
 
-  /** Best-effort funnel duration — prefers snapshot elapsedMs over event span. */
+  /** Best-effort funnel duration — prefers snapshot elapsedMs over event span.
+   * NOTE: snap.elapsedMs is already in milliseconds — do NOT pass through toMs(). */
   function resolveUserDurationMs(u: any): number {
     if (u.maxElapsedMs > 0) return u.maxElapsedMs;
     var snap = u.snapshot || {};
-    if (snap.elapsedMs > 0) return toMs(snap.elapsedMs);
+    if (snap.elapsedMs > 0) return snap.elapsedMs;
     var started = parseTimeMs(snap.startedAt);
     var completed = parseTimeMs(snap.completedAt);
     if (started > 0 && completed > started) return completed - started;
@@ -306,7 +330,7 @@ namespace OnboardingAnalytics {
   function absorbSnapshotMetrics(u: any, snap: any, ts: number): void {
     if (!snap || typeof snap !== "object") return;
     if (snap.elapsedMs > 0) {
-      var elapsed = toMs(snap.elapsedMs);
+      var elapsed = snap.elapsedMs;
       if (!u.maxElapsedMs || elapsed > u.maxElapsedMs) u.maxElapsedMs = elapsed;
     }
     if (ts >= u.lastTs && snapshotHasProfile(snap)) {
@@ -502,6 +526,13 @@ namespace OnboardingAnalytics {
     if (source.subscribed) target.subscribed = true;
     if (source.identityLinked) target.identityLinked = true;
     if (source.started) target.started = true;
+    if (source.unityHandoff) target.unityHandoff = true;
+    if (source.welcomeReturnToApp) target.welcomeReturnToApp = true;
+    if (source.signinHandoffNative) target.signinHandoffNative = true;
+    if (source.handoffSurface && !target.handoffSurface) target.handoffSurface = source.handoffSurface;
+    if (source.handoffProvider && !target.handoffProvider) target.handoffProvider = source.handoffProvider;
+    if (source.welcomeTheme && !target.welcomeTheme) target.welcomeTheme = source.welcomeTheme;
+    if (source.returnSeenEvent) target.returnSeenEvent = true;
     if (source.quizFirstAnswerMs > 0 && (!target.quizFirstAnswerMs || source.quizFirstAnswerMs < target.quizFirstAnswerMs)) {
       target.quizFirstAnswerMs = source.quizFirstAnswerMs;
     }
@@ -694,6 +725,13 @@ namespace OnboardingAnalytics {
             d7Return: false,
             welcomeBonusClaimed: false,
             streakShieldActivated: false,
+            unityHandoff: false,
+            welcomeReturnToApp: false,
+            signinHandoffNative: false,
+            handoffSurface: "",
+            handoffProvider: "",
+            welcomeTheme: "",
+            returnSeenEvent: false,
             subscribed: !!snap.subscribed,
             lastScreen: "",
             lastTs: 0,
@@ -750,6 +788,13 @@ namespace OnboardingAnalytics {
         if (rec.name === "ob_d7_return") u.d7Return = true;
         if (rec.name === "ob_welcome_bonus_claimed") u.welcomeBonusClaimed = true;
         if (rec.name === "ob_streak_shield_activated") u.streakShieldActivated = true;
+        applyUnityHandoffFromEvent(u, rec);
+
+        if (!u.welcomeTheme && rec.data && rec.data.welcome_theme) {
+          var wt = ("" + rec.data.welcome_theme).toLowerCase();
+          u.welcomeTheme = (wt === "lavender") ? "lavender" : "v1";
+        }
+        if (rec.name === "ob_return_seen") u.returnSeenEvent = true;
 
         if (rec.name === "ob_screen_seen" && rec.screen) {
           if (!u.screens[rec.screen]) {
@@ -824,6 +869,8 @@ namespace OnboardingAnalytics {
     var pathwayFilter = data.pathway ? ("" + data.pathway) : null;
     var platformFilter = data.platform ? ("" + data.platform) : null;
     var statusFilter = data.status ? ("" + data.status) : null;
+    var welcomeThemeFilter = data.welcome_theme ? ("" + data.welcome_theme).toLowerCase() : null;
+    if (welcomeThemeFilter && welcomeThemeFilter !== "lavender" && welcomeThemeFilter !== "v1") welcomeThemeFilter = null;
     var userLimit = data.user_limit || data.userLimit || 500;
     if (userLimit > 1000) userLimit = 1000;
 
@@ -843,16 +890,37 @@ namespace OnboardingAnalytics {
       usersMap = filteredUsers;
     }
 
+    if (welcomeThemeFilter) {
+      var themeFiltered: { [uid: string]: any } = {};
+      for (var tfuid in usersMap) {
+        if (!Object.prototype.hasOwnProperty.call(usersMap, tfuid)) continue;
+        var tfu = usersMap[tfuid];
+        var uTheme = tfu.welcomeTheme || "v1";
+        if (uTheme === welcomeThemeFilter) themeFiltered[tfuid] = tfu;
+      }
+      usersMap = themeFiltered;
+    }
+
     var screenOrder = buildScreenOrder(usersMap);
 
     var totalUsers = countKeys(usersMap);
     var completedCount = 0;
+    var returnedToAppCount = 0;
     var paywallSeen = 0;
     var paywallSubscribe = 0;
     var paywallTrialStart = 0;
     var paywallDismiss = 0;
     var paywallSkip = 0;
     var paywallDrop = 0;
+    var closingOfferSeenCount = 0;
+    var closingOfferClaimedCount = 0;
+    var abHardSeen = 0;
+    var abHardSubscribed = 0;
+    var abSoftSeen = 0;
+    var abSoftSubscribed = 0;
+    var abV1Users = 0; var abV1Completed = 0; var abV1PaywallSeen = 0; var abV1Subscribed = 0;
+    var abLavenderUsers = 0; var abLavenderCompleted = 0; var abLavenderPaywallSeen = 0; var abLavenderSubscribed = 0;
+    var abThemeUnknown = 0;
     var durationSamples: number[] = [];
     var quizFirstAnswerSamples: number[] = [];
     var sigRegisterStart = 0;
@@ -868,6 +936,8 @@ namespace OnboardingAnalytics {
     var sigD7Return = 0;
     var sigWelcomeBonus = 0;
     var sigStreakShield = 0;
+    var sigWelcomeReturn = 0;
+    var sigSigninHandoff = 0;
     var pathwayCounts: { [pathway: string]: { users: number; completed: number } } = {};
     var prePathwayUsers = 0;
     var prePathwayCompleted = 0;
@@ -879,12 +949,41 @@ namespace OnboardingAnalytics {
       if (!Object.prototype.hasOwnProperty.call(usersMap, uid2)) continue;
       var u = usersMap[uid2];
       if (u.completed) completedCount++;
+      if (u.unityHandoff) returnedToAppCount++;
       if (u.paywallSeen) paywallSeen++;
       if (u.paywallSubscribe) paywallSubscribe++;
       if (u.paywallTrialStart) paywallTrialStart++;
       if (u.paywallDismiss) paywallDismiss++;
       if (u.paywallSkip) paywallSkip++;
       if (u.paywallSeen && !u.paywallSubscribe && !u.paywallTrialStart && !u.completed && !u.paywallSkip && !u.paywallDismiss) paywallDrop++;
+      if (u.closingOfferSeen) closingOfferSeenCount++;
+      if (u.closingOfferClaimed) closingOfferClaimedCount++;
+
+      var variant = (u.snapshot && u.snapshot.paywallVariant) ? ("" + u.snapshot.paywallVariant).toLowerCase() : "";
+      if (u.paywallSeen) {
+        if (variant === "hard") {
+          abHardSeen++;
+          if (u.paywallSubscribe || u.paywallTrialStart) abHardSubscribed++;
+        } else {
+          abSoftSeen++;
+          if (u.paywallSubscribe || u.paywallTrialStart) abSoftSubscribed++;
+        }
+      }
+
+      var uWelcomeTheme = u.welcomeTheme || "v1";
+      if (uWelcomeTheme === "lavender") {
+        abLavenderUsers++;
+        if (u.completed) abLavenderCompleted++;
+        if (u.paywallSeen) abLavenderPaywallSeen++;
+        if (u.paywallSubscribe || u.paywallTrialStart) abLavenderSubscribed++;
+      } else if (uWelcomeTheme === "v1") {
+        abV1Users++;
+        if (u.completed) abV1Completed++;
+        if (u.paywallSeen) abV1PaywallSeen++;
+        if (u.paywallSubscribe || u.paywallTrialStart) abV1Subscribed++;
+      } else {
+        abThemeUnknown++;
+      }
 
       if (u.registerStart) sigRegisterStart++;
       if (u.appLaunchSuccess) sigAppLaunch++;
@@ -902,13 +1001,17 @@ namespace OnboardingAnalytics {
       if (u.d7Return) sigD7Return++;
       if (u.welcomeBonusClaimed) sigWelcomeBonus++;
       if (u.streakShieldActivated) sigStreakShield++;
+      if (u.welcomeReturnToApp) sigWelcomeReturn++;
+      if (u.signinHandoffNative) sigSigninHandoff++;
 
       var elapsed = resolveUserDurationMs(u);
       if (elapsed > 0) durationSamples.push(elapsed);
 
       if (!isValidPathway(u.pathway)) {
-        prePathwayUsers++;
-        if (u.completed) prePathwayCompleted++;
+        if (!u.unityHandoff) {
+          prePathwayUsers++;
+          if (u.completed) prePathwayCompleted++;
+        }
       } else {
         var pw = u.pathway;
         if (!pathwayCounts[pw]) pathwayCounts[pw] = { users: 0, completed: 0 };
@@ -927,11 +1030,14 @@ namespace OnboardingAnalytics {
         }
       }
 
-      if (!u.completed && u.lastScreen) {
+      if (!u.completed && !u.unityHandoff && u.lastScreen) {
         dropMap[u.lastScreen] = (dropMap[u.lastScreen] || 0) + 1;
         if (screenAgg[u.lastScreen]) screenAgg[u.lastScreen].exits++;
       }
     }
+
+    var incompletePool = totalUsers - completedCount - returnedToAppCount;
+    if (incompletePool < 0) incompletePool = 0;
 
     var screenFunnel: any[] = [];
     var seenInOrder: { [screen: string]: boolean } = {};
@@ -964,8 +1070,8 @@ namespace OnboardingAnalytics {
         screen: ds,
         label: screenLabel(ds),
         users: dropMap[ds],
-        pctOfIncomplete: (totalUsers - completedCount) > 0
-          ? Math.round((dropMap[ds] / (totalUsers - completedCount)) * 1000) / 10
+        pctOfIncomplete: incompletePool > 0
+          ? Math.round((dropMap[ds] / incompletePool) * 1000) / 10
           : 0
       });
     }
@@ -1048,6 +1154,13 @@ namespace OnboardingAnalytics {
         welcomeBonusClaimed: ur.welcomeBonusClaimed,
         streakShieldActivated: ur.streakShieldActivated,
         identityLinked: ur.identityLinked,
+        unityHandoff: ur.unityHandoff,
+        welcomeReturnToApp: ur.welcomeReturnToApp,
+        signinHandoffNative: ur.signinHandoffNative,
+        handoffSurface: ur.handoffSurface || "",
+        handoffProvider: ur.handoffProvider || "",
+        welcomeTheme: ur.welcomeTheme || "v1",
+        returnSeenEvent: ur.returnSeenEvent || false,
         eventCount: ur.eventCount,
         firstTs: ur.firstTs,
         lastTs: ur.lastTs,
@@ -1066,12 +1179,16 @@ namespace OnboardingAnalytics {
       pathway: pathwayFilter,
       platform: platformFilter,
       status: statusFilter,
+      welcomeTheme: welcomeThemeFilter,
       truncated: scan.truncated,
       summary: {
         totalUsers: totalUsers,
         started: totalUsers,
         completed: completedCount,
         completionRatePct: totalUsers > 0 ? Math.round((completedCount / totalUsers) * 1000) / 10 : 0,
+        returnedToApp: returnedToAppCount,
+        returnedToAppPct: totalUsers > 0 ? Math.round((returnedToAppCount / totalUsers) * 1000) / 10 : 0,
+        trueDropCount: incompletePool,
         medianDurationMin: durationSamples.length > 0
           ? Math.round((median(durationSamples) / 60000) * 10) / 10
           : 0,
@@ -1094,10 +1211,46 @@ namespace OnboardingAnalytics {
         dismissed: paywallDismiss,
         skipped: paywallSkip,
         dropOff: paywallDrop,
+        closingOfferSeen: closingOfferSeenCount,
+        closingOfferClaimed: closingOfferClaimedCount,
+        closingOfferClaimRatePct: closingOfferSeenCount > 0 ? Math.round((closingOfferClaimedCount / closingOfferSeenCount) * 1000) / 10 : 0,
         subscribeRatePct: paywallSeen > 0 ? Math.round((paywallSubscribe / paywallSeen) * 1000) / 10 : 0,
         trialRatePct: paywallSeen > 0 ? Math.round((paywallTrialStart / paywallSeen) * 1000) / 10 : 0,
         skipRatePct: paywallSeen > 0 ? Math.round((paywallSkip / paywallSeen) * 1000) / 10 : 0,
-        dismissRatePct: paywallSeen > 0 ? Math.round((paywallDismiss / paywallSeen) * 1000) / 10 : 0
+        dismissRatePct: paywallSeen > 0 ? Math.round((paywallDismiss / paywallSeen) * 1000) / 10 : 0,
+        abBreakdown: {
+          hard: {
+            seen: abHardSeen,
+            converted: abHardSubscribed,
+            conversionRatePct: abHardSeen > 0 ? Math.round((abHardSubscribed / abHardSeen) * 1000) / 10 : 0
+          },
+          soft: {
+            seen: abSoftSeen,
+            converted: abSoftSubscribed,
+            conversionRatePct: abSoftSeen > 0 ? Math.round((abSoftSubscribed / abSoftSeen) * 1000) / 10 : 0
+          }
+        }
+      },
+      welcomeThemeAB: {
+        v1: {
+          users: abV1Users,
+          completed: abV1Completed,
+          completionRatePct: abV1Users > 0 ? Math.round((abV1Completed / abV1Users) * 1000) / 10 : 0,
+          paywallSeen: abV1PaywallSeen,
+          paywallReachPct: abV1Users > 0 ? Math.round((abV1PaywallSeen / abV1Users) * 1000) / 10 : 0,
+          subscribed: abV1Subscribed,
+          subscribeRatePct: abV1PaywallSeen > 0 ? Math.round((abV1Subscribed / abV1PaywallSeen) * 1000) / 10 : 0
+        },
+        lavender: {
+          users: abLavenderUsers,
+          completed: abLavenderCompleted,
+          completionRatePct: abLavenderUsers > 0 ? Math.round((abLavenderCompleted / abLavenderUsers) * 1000) / 10 : 0,
+          paywallSeen: abLavenderPaywallSeen,
+          paywallReachPct: abLavenderUsers > 0 ? Math.round((abLavenderPaywallSeen / abLavenderUsers) * 1000) / 10 : 0,
+          subscribed: abLavenderSubscribed,
+          subscribeRatePct: abLavenderPaywallSeen > 0 ? Math.round((abLavenderSubscribed / abLavenderPaywallSeen) * 1000) / 10 : 0
+        },
+        unknown: abThemeUnknown
       },
       eventSignals: {
         funnel: {
@@ -1134,6 +1287,14 @@ namespace OnboardingAnalytics {
           welcomeBonusClaimedPct: completedCount > 0 ? Math.round((sigWelcomeBonus / completedCount) * 1000) / 10 : 0,
           streakShieldActivated: sigStreakShield,
           streakShieldActivatedPct: completedCount > 0 ? Math.round((sigStreakShield / completedCount) * 1000) / 10 : 0
+        },
+        handoff: {
+          welcomeReturnToApp: sigWelcomeReturn,
+          welcomeReturnPct: totalUsers > 0 ? Math.round((sigWelcomeReturn / totalUsers) * 1000) / 10 : 0,
+          signinHandoffNative: sigSigninHandoff,
+          signinHandoffPct: totalUsers > 0 ? Math.round((sigSigninHandoff / totalUsers) * 1000) / 10 : 0,
+          returnedToAppTotal: returnedToAppCount,
+          returnedToAppPct: totalUsers > 0 ? Math.round((returnedToAppCount / totalUsers) * 1000) / 10 : 0
         }
       },
       screenFunnel: screenFunnel,
@@ -1246,6 +1407,7 @@ namespace OnboardingAnalytics {
       if (en === "ob_paywall_dismiss") journeyUser.paywallDismiss = true;
       if (en === "ob_paywall_skip") journeyUser.paywallSkip = true;
       if (en === "ob_identity_linked") journeyUser.identityLinked = true;
+      applyUnityHandoffFromEvent(journeyUser, { name: en, data: events[ei].data || {} });
     }
     var guestLinkMeta = guestId ? readIdentityLink(nk, guestId) : null;
     if (guestLinkMeta && guestLinkMeta.nakamaUserId) journeyUser.identityLinked = true;

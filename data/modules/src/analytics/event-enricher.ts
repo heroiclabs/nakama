@@ -326,6 +326,14 @@ namespace EventEnricher {
       var hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
       var gapKey = gaps.slice().sort().join(",");
       var key = "gap_" + gameId + "_" + hourBucket + "_" + eventName + "_" + safeKey(gapKey);
+      // Nakama's storage.key column is varchar(128). A long gameId/eventName
+      // (some clients send fully-qualified package-style names) overflowed it,
+      // failing every write with SQLSTATE 22001 and silently dropping coverage
+      // telemetry. Collapse anything past the safe limit to a stable hashed key
+      // so the row still lands (counter semantics are preserved per gap-set).
+      if (key.length > 120) {
+        key = "gap_" + hourBucket + "_" + hashKey(gameId + "|" + eventName + "|" + gapKey);
+      }
       // Read-modify-write to bump the counter.
       var existing: any = null;
       try {
@@ -364,6 +372,17 @@ namespace EventEnricher {
 
   function safeKey(s: string): string {
     return s.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 64);
+  }
+
+  // Deterministic djb2 hash → unsigned 32-bit hex (≤8 chars). Goja has no
+  // crypto module, so this keeps oversized coverage-gap keys short, stable
+  // and collision-resistant enough for diagnostic bucketing.
+  function hashKey(s: string): string {
+    var h = 5381;
+    for (var i = 0; i < s.length; i++) {
+      h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+    }
+    return (h >>> 0).toString(16);
   }
 
   // ────────────────────────────────────────────────────────────────────

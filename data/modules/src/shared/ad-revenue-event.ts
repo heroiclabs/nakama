@@ -232,12 +232,22 @@ namespace AdRevenueEvent {
 
     /**
      * Register all RPCs in this module.
+     *
+     * MUST be a single-parameter (`initializer`-only) function whose body
+     * contains ONLY `initializer.registerRpc(...)` calls. postbuild rewrites
+     * those into `__rpc_ad_revenue_record = rpcRecordAdRevenue` and then
+     * AUTO-INVOKES this register() inside the namespace IIFE on EVERY pooled
+     * Goja VM (see postbuild.js §3b). A second `logger` parameter (or any
+     * non-registerRpc body statement) makes postbuild treat auto-invoke as
+     * unsafe and SKIP it — which is exactly what left `__rpc_ad_revenue_record`
+     * undefined on every VM except the one that ran InitModule, producing
+     * "JavaScript runtime function invalid." for ad_revenue_record on ~96% of
+     * calls (the ones that landed on a pooled VM). Do NOT add params or logging
+     * here. Init-time logging lives in main.ts instead.
      */
     export function register(
-        initializer: nkruntime.Initializer,
-        logger: nkruntime.Logger
+        initializer: nkruntime.Initializer
     ): void {
         initializer.registerRpc("ad_revenue_record", rpcRecordAdRevenue);
-        logger.info("[AdRevenueEvent] ✓ Registered RPC: ad_revenue_record");
     }
 }

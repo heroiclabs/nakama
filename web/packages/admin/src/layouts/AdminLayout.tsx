@@ -32,7 +32,6 @@ import {
   BarChart3,
   Boxes,
   Settings,
-  TrendingUp,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -82,7 +81,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Insights",
     items: [
       { label: "Metrics", to: "/metrics", icon: Gauge },
-      { label: "Product Telemetry", to: "/product-telemetry", icon: TrendingUp },
       { label: "Reports", to: "/reports", icon: FileBarChart },
       { label: "Analytics", to: "/analytics", icon: BarChart3 },
     ],
@@ -166,6 +164,9 @@ function AppSelector() {
   );
 }
 
+const SCROLL_AREA =
+  "overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden";
+
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
@@ -181,10 +182,10 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
       <aside
         className={cn(
-          "flex flex-col border-r border-border bg-card transition-all duration-200",
+          "flex min-h-0 flex-col border-r border-border bg-card transition-all duration-200",
           collapsed ? "w-16" : "w-60",
         )}
       >
@@ -206,7 +207,7 @@ export function AdminLayout() {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+        <nav className={cn("min-h-0 flex-1 space-y-1 p-2", SCROLL_AREA)}>
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="py-1">
               {!collapsed && (
@@ -243,8 +244,8 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
-        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-card/80 px-6 backdrop-blur">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/80 px-6 backdrop-blur">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold">{pageTitle}</h1>
             <span
@@ -291,8 +292,10 @@ export function AdminLayout() {
             </button>
           </div>
         </header>
-        <div className="p-6">
-          <Outlet />
+        <div className={cn("min-h-0 flex-1", SCROLL_AREA)}>
+          <div className="p-6">
+            <Outlet />
+          </div>
         </div>
       </main>
     </div>

@@ -1429,12 +1429,24 @@ namespace SatoriCreatorEvents {
       idempotencyKey: "event_ended_" + def.id,
     });
 
+    var prizeQueueResult: { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } | null = null;
+    try {
+      prizeQueueResult = computeAndQueueWinners(nk, logger, def, def.id);
+      if (prizeQueueResult.queued > 0) {
+        logger.info("[CreatorEvent] Auto-queued %d prize fulfillments for event %s (ranked=%d xut=%d skipped=%d)",
+          prizeQueueResult.queued, def.id, prizeQueueResult.ranked, prizeQueueResult.xutWinners, prizeQueueResult.skippedExisting);
+      }
+    } catch (pqErr: any) {
+      logger.warn("[CreatorEvent] Prize auto-queue failed for event %s (non-fatal): %s", def.id, pqErr.message || String(pqErr));
+    }
+
     return RpcHelpers.successResponse({
       success: true,
       eventId: def.id,
       totalParticipants: allRecords.length,
       tierAssignments: tierAssignments,
       winnersPerTier: winnersPerTier,
+      prizeQueue: prizeQueueResult || undefined,
     });
   }
 
@@ -1746,6 +1758,27 @@ namespace SatoriCreatorEvents {
     var skipped = 0;
     var xutWinners = 0;
 
+    // Pre-fetch emails for all ranked players in one batch call.
+    var emailByUserId: { [uid: string]: string } = {};
+    var allWinnerIds: string[] = [];
+    for (var wi = 0; wi < allAnswers.length; wi++) {
+      var wuid = allAnswers[wi].userId;
+      if (wuid) allWinnerIds.push(wuid);
+    }
+    if (allWinnerIds.length > 0) {
+      try {
+        var accounts = nk.accountsGetId(allWinnerIds);
+        for (var ai = 0; ai < accounts.length; ai++) {
+          var acct = accounts[ai];
+          var uid = acct && acct.user && (acct.user as any).id;
+          var email = (acct && acct.email) || "";
+          if (uid) emailByUserId[uid] = email || "";
+        }
+      } catch (emailErr: any) {
+        logger.warn("[computeAndQueueWinners] Failed to batch-fetch account emails: %s", emailErr.message || String(emailErr));
+      }
+    }
+
     for (var r = 0; r < allAnswers.length; r++) {
       var rank = r + 1;
       var tier = findTierForRank(tiers, rank);
@@ -1773,7 +1806,7 @@ namespace SatoriCreatorEvents {
         eventTitle: (def && def.title) || "",
         region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
         source: "auto_winner",
-        email: "",
+        email: emailByUserId[winnerId] || "",
       });
       queued++;
     }

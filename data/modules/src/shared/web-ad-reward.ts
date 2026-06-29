@@ -156,11 +156,14 @@ namespace WebAdReward {
     });
   }
 
+  // Single-parameter, registerRpc-only so postbuild auto-invokes this on EVERY
+  // pooled Goja VM (see ad-revenue-event.ts for the full rationale). A second
+  // `logger` param made postbuild skip auto-invoke, leaving
+  // __rpc_quizverse_web_ad_reward undefined on non-init VMs → intermittent
+  // "JavaScript runtime function invalid." Init logging lives in main.ts.
   export function register(
-    initializer: nkruntime.Initializer,
-    logger: nkruntime.Logger
+    initializer: nkruntime.Initializer
   ): void {
     initializer.registerRpc("quizverse_web_ad_reward", rpcWebAdReward);
-    logger.info("[WebAdReward] ✓ Registered RPC: quizverse_web_ad_reward");
   }
 }

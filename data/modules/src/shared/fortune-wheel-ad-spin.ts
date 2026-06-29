@@ -469,6 +469,11 @@ namespace FortuneWheelAdSpin {
      * fortune_wheel_skip_cooldown / fortune_wheel_ad_spin time out with retries.
      * Do NOT add a second parameter here.
      */
+    // Single-parameter, registerRpc-only so postbuild auto-invokes this on
+    // EVERY pooled Goja VM (see ad-revenue-event.ts for the full rationale).
+    // A second `logger` param made postbuild skip auto-invoke, leaving
+    // __rpc_fortune_wheel_ad_spin undefined on non-init VMs → intermittent
+    // "JavaScript runtime function invalid." Init logging lives in main.ts.
     export function register(
         initializer: nkruntime.Initializer
     ): void {
