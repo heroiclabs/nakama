@@ -4,6 +4,12 @@ export * as nakama from "./nakama";
 export * as hiro from "./hiro";
 export * as satori from "./satori";
 export * as quizverse from "./quizverse";
+export * as analytics from "./analytics";
+export type {
+  AnalyticsDashboardResult,
+  AnalyticsDashboardParams,
+  AnalyticsLiveToday,
+} from "./analytics";
 export type {
   FeatureFlag,
   LiveEvent,
