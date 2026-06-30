@@ -41,6 +41,19 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[AnalyticsAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Push delivery alerts ----
+    // Watches real device-push delivery outcomes (which never throw, so they're
+    // invisible to AnalyticsAlerts) and pages Discord when the failure rate or
+    // dead-token pruning spikes. init here seeds the primary VM; pooled VMs
+    // self-configure on their first push via PushAlerts.ensureConfigured(ctx).
+    try {
+        PushAlerts.init(ctx, logger);
+        PushAlerts.register(originalInitializer);
+        logger.info("[PushAlerts] installed; push delivery failures will page Discord");
+    }
+    catch (err) {
+        logger.error("[PushAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- IVX Multiplayer Kernel ----
     // Registers all in-tree match templates (sync-turn-v1 today; more added
     // in P5+) and the cross-template RPCs (mp_create_match,
@@ -327,6 +340,10 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
         QuestEventBusBridge.register(initializer, logger);
         logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
+        // Register DNA-driven personalized quest RPC
+        logger.info("[PersonalizedQuests] Registering quizverse_get_personalized_quests...");
+        PersonalizedQuests.register(initializer);
+        logger.info("[PersonalizedQuests] DNA-personalized quest selection active");
     }
     catch (err) {
         logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
@@ -601,7 +618,7 @@ function InitModule(ctx, logger, nk, initializer) {
     // ---- Ad Revenue Recording (PLAN-ADS-OPTIMIZATION-v2 §11) ----
     try {
         logger.info("[AdRevenueEvent] Registering ad_revenue_record RPC...");
-        AdRevenueEvent.register(initializer, logger);
+        AdRevenueEvent.register(initializer);
         logger.info("[AdRevenueEvent] Ad revenue recording registered successfully");
     }
     catch (err) {
@@ -620,7 +637,7 @@ function InitModule(ctx, logger, nk, initializer) {
     }
     try {
         logger.info("[WebAdReward] Registering quizverse_web_ad_reward RPC...");
-        WebAdReward.register(initializer, logger);
+        WebAdReward.register(initializer);
     }
     catch (err) {
         logger.error("[WebAdReward] Failed to register: " + (err.message || String(err)));
@@ -2220,6 +2237,14 @@ var EventEnricher;
             var hourBucket = Math.floor(Date.now() / (60 * 60 * 1000));
             var gapKey = gaps.slice().sort().join(",");
             var key = "gap_" + gameId + "_" + hourBucket + "_" + eventName + "_" + safeKey(gapKey);
+            // Nakama's storage.key column is varchar(128). A long gameId/eventName
+            // (some clients send fully-qualified package-style names) overflowed it,
+            // failing every write with SQLSTATE 22001 and silently dropping coverage
+            // telemetry. Collapse anything past the safe limit to a stable hashed key
+            // so the row still lands (counter semantics are preserved per gap-set).
+            if (key.length > 120) {
+                key = "gap_" + hourBucket + "_" + hashKey(gameId + "|" + eventName + "|" + gapKey);
+            }
             // Read-modify-write to bump the counter.
             var existing = null;
             try {
@@ -2262,6 +2287,16 @@ var EventEnricher;
     EventEnricher.recordCoverageGap = recordCoverageGap;
     function safeKey(s) {
         return s.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 64);
+    }
+    // Deterministic djb2 hash → unsigned 32-bit hex (≤8 chars). Goja has no
+    // crypto module, so this keeps oversized coverage-gap keys short, stable
+    // and collision-resistant enough for diagnostic bucketing.
+    function hashKey(s) {
+        var h = 5381;
+        for (var i = 0; i < s.length; i++) {
+            h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+        }
+        return (h >>> 0).toString(16);
     }
     // ────────────────────────────────────────────────────────────────────
     // Daily coverage health summary
@@ -11576,6 +11611,520 @@ var QuizVersePackStore;
     }
     QuizVersePackStore.writePack = writePack;
 })(QuizVersePackStore || (QuizVersePackStore = {}));
+// Personalized Quest Engine — wires Player DNA to the Quest config pool.
+//
+// Single RPC:  quizverse_get_personalized_quests
+//
+// HOW IT WORKS
+// ─────────────
+// The quest admin still manages the pool via quest_engine_admin_save_config.
+// Each quest config may carry DNA filter/routing tags in additionalProperties:
+//
+//   dna_topic         — topic slug this quest targets ("anime", "pokemon", …)
+//   dna_slot          — "confidence"|"growth"|"discovery"|"review"|"any"
+//                       Maps to the Mix Algorithm slot this quest fills.
+//   dna_min_affinity  — float (0–1): minimum affinity to show this quest.
+//                       e.g. "0.5" = only show to players who actively like this topic.
+//   dna_max_mastery   — float (0–1): hide once player exceeds this mastery level.
+//                       e.g. "0.85" = don't assign a "beginner" quest to experts.
+//   dna_min_elo       — int: minimum Elo required (challenge quests).
+//   dna_max_elo       — int: maximum Elo allowed (novice-friendly quests).
+//   dna_template      — "true": quest name/steps use __topic__ placeholder.
+//   dna_template_slot — "top1"|"top2"|"weak1": which DNA slot resolves __topic__.
+//
+// TEMPLATE QUESTS
+// ───────────────
+// With dna_template="true", a single quest config becomes many personalised
+// quests — one per player, resolved from their DNA at request time.
+//
+// Example quest config stored in qv_quest_config:
+//   {
+//     "id":   "confidence_topic_daily",
+//     "name": "Play 3 rounds of __topic__",
+//     "category": "daily",
+//     "repeatable": true,
+//     "steps": [{
+//       "id": "s1", "eventType": "quiz_completed", "requiredCount": 3,
+//       "filterField": "topic", "filterValue": "__dna_topic__"
+//     }],
+//     "additionalProperties": {
+//       "dna_slot":          "confidence",
+//       "dna_template":      "true",
+//       "dna_template_slot": "top1",
+//       "dna_min_affinity":  "0.4"
+//     }
+//   }
+//
+// For a player whose top topic is "anime", this resolves to:
+//   id:   "confidence_topic_daily_anime"
+//   name: "Play 3 rounds of Anime"
+//   step filterValue: "anime"
+//
+// SLOT PRIORITY (return order)
+// ────────────────────────────
+//  review      → 100  (SRQ due — highest obligation)
+//  confidence  → 80   (top affinity topic — builds momentum)
+//  growth      → 60   (weak area — real skill development)
+//  discovery   → 40   (undiscovered topic — prevents fatigue)
+//  any         → 20   (untagged — generic fallback)
+var PersonalizedQuests;
+(function (PersonalizedQuests) {
+    var QUEST_CONFIG_COLLECTION = "qv_quest_config";
+    var SLOT_PRIORITY = {
+        "review": 100,
+        "confidence": 80,
+        "growth": 60,
+        "discovery": 40,
+        "any": 20
+    };
+    // ── Filter logic ──────────────────────────────────────────────────────────────
+    function evaluateDna(quest, dna) {
+        var props = quest.additionalProperties || {};
+        var slot = props["dna_slot"] || "any";
+        var topic = props["dna_topic"] || "";
+        var minAff = props["dna_min_affinity"] ? parseFloat(props["dna_min_affinity"]) : -1;
+        var maxMas = props["dna_max_mastery"] ? parseFloat(props["dna_max_mastery"]) : 2;
+        var minElo = props["dna_min_elo"] ? parseInt(props["dna_min_elo"], 10) : -1;
+        var maxElo = props["dna_max_elo"] ? parseInt(props["dna_max_elo"], 10) : 99999;
+        var isTemplate = props["dna_template"] === "true";
+        var tplSlot = props["dna_template_slot"] || "top1";
+        var resolvedTopic = topic;
+        // Resolve template placeholder to actual player topic
+        if (isTemplate) {
+            var tops = PlayerDNA.topTopics(dna, 2);
+            var weaks = PlayerDNA.weakestTopics(dna, 1);
+            if (tplSlot === "top1" && tops.length > 0)
+                resolvedTopic = tops[0];
+            else if (tplSlot === "top2" && tops.length > 1)
+                resolvedTopic = tops[1];
+            else if (tplSlot === "weak1" && weaks.length > 0)
+                resolvedTopic = weaks[0];
+            else {
+                // Template but no DNA signal yet — skip during cold start
+                return { passes: false, slot: slot, resolvedTopic: "", score: 0, reason: "" };
+            }
+        }
+        // Affinity gate
+        if (resolvedTopic && minAff >= 0) {
+            var aff = dna.affinities[resolvedTopic] || 0;
+            if (aff < minAff) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Mastery ceiling — don't give an intro quest to an expert
+        if (resolvedTopic && maxMas < 2) {
+            var mas = dna.masteries[resolvedTopic] || 0;
+            if (mas > maxMas) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Elo window
+        if (resolvedTopic && (minElo > 0 || maxElo < 99999)) {
+            var elo = dna.elos[resolvedTopic] || 1200;
+            if (elo < minElo || elo > maxElo) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Relevance score for ranking within same slot
+        var score = 50;
+        if (resolvedTopic) {
+            var a = dna.affinities[resolvedTopic] || 0;
+            var m = dna.masteries[resolvedTopic] || 0;
+            if (slot === "confidence") {
+                // High affinity + room to grow = best confidence quest
+                score = Math.round(a * 70 + (1 - m) * 30);
+            }
+            else if (slot === "growth") {
+                // Weak mastery but player has at least some interest (not totally foreign)
+                score = Math.round((1 - m) * 60 + a * 40);
+            }
+            else if (slot === "discovery") {
+                // Inverse of affinity — most unknown topic gets highest score
+                score = Math.round((1 - a) * 80 + 20);
+            }
+            else if (slot === "review") {
+                score = 95;
+            }
+        }
+        return {
+            passes: true,
+            slot: slot,
+            resolvedTopic: resolvedTopic,
+            score: score,
+            reason: buildReason(slot, resolvedTopic, dna)
+        };
+    }
+    function buildReason(slot, topic, dna) {
+        if (!topic) {
+            if (slot === "review")
+                return "Reviews due — don't let them expire!";
+            if (slot === "confidence")
+                return "Keep your momentum going.";
+            if (slot === "growth")
+                return "Push your limits today.";
+            if (slot === "discovery")
+                return "Try something new!";
+            return "Quest matched to your profile.";
+        }
+        var label = topic.charAt(0).toUpperCase() + topic.slice(1);
+        var aff = dna.affinities[topic] || 0;
+        var mastery = dna.masteries[topic] || 0;
+        if (slot === "confidence") {
+            if (aff > 0.75)
+                return "You love " + label + " — build on your streak!";
+            return "You're good at " + label + " (" + Math.round(mastery * 100) + "% mastery). Keep going.";
+        }
+        if (slot === "growth") {
+            return "Level up your " + label + " knowledge. You're at " + Math.round(mastery * 100) + "% mastery.";
+        }
+        if (slot === "discovery") {
+            return "Explore " + label + " — a new topic for you!";
+        }
+        if (slot === "review") {
+            return "Review your " + label + " mistakes from previous sessions.";
+        }
+        return "Matched to your " + label + " profile (" + Math.round(aff * 100) + "% affinity).";
+    }
+    // ── Template instantiation ────────────────────────────────────────────────────
+    // Replace __topic__ and __dna_topic__ placeholders in text.
+    function resolveText(text, topic) {
+        if (!topic)
+            return text;
+        var label = topic.charAt(0).toUpperCase() + topic.slice(1);
+        return text
+            .replace(/__topic__/g, label)
+            .replace(/__dna_topic__/g, topic);
+    }
+    // Clone a quest and substitute all template placeholders.
+    function instantiate(quest, resolvedTopic) {
+        var id = resolvedTopic ? quest.id + "_" + resolvedTopic : quest.id;
+        var steps = [];
+        for (var i = 0; i < quest.steps.length; i++) {
+            var s = quest.steps[i];
+            var filterValue = s.filterValue;
+            if (filterValue === "__dna_topic__" && resolvedTopic) {
+                filterValue = resolvedTopic;
+            }
+            steps.push({
+                id: s.id,
+                description: resolveText(s.description, resolvedTopic),
+                eventType: s.eventType,
+                requiredCount: s.requiredCount,
+                requiredValue: s.requiredValue,
+                filterField: s.filterField,
+                filterValue: filterValue
+            });
+        }
+        return {
+            id: id,
+            name: resolveText(quest.name, resolvedTopic),
+            description: quest.description ? resolveText(quest.description, resolvedTopic) : undefined,
+            category: quest.category,
+            expiresAt: quest.expiresAt,
+            prerequisiteIds: quest.prerequisiteIds,
+            repeatable: quest.repeatable,
+            resetIntervalSec: quest.resetIntervalSec,
+            reward: quest.reward,
+            additionalProperties: quest.additionalProperties,
+            steps: steps
+        };
+    }
+    // ── RPC ───────────────────────────────────────────────────────────────────────
+    // quizverse_get_personalized_quests
+    //
+    // Request:  { gameId?: string, limit?: number (1–20, default 10) }
+    // Response: {
+    //   quests: [{
+    //     id, name, description, category, steps, expiresAt, repeatable,
+    //     personalization: { slot, resolved_topic, reason, relevance_score }
+    //   }],
+    //   dna_summary: { top_topics, cold_start, total_sessions }
+    // }
+    function rpcGetPersonalizedQuests(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = data.gameId || Constants.DEFAULT_GAME_ID;
+        var limit = (typeof data.limit === "number") ? Math.min(Math.max(data.limit, 1), 20) : 10;
+        // Load Player DNA (returns empty default for new players — cold start path)
+        var dna = PlayerDNA.load(nk, userId);
+        // Load quest config pool
+        var rows = [];
+        try {
+            rows = nk.storageRead([{
+                    collection: QUEST_CONFIG_COLLECTION,
+                    key: gameId,
+                    userId: Constants.SYSTEM_USER_ID
+                }]);
+        }
+        catch (_) { }
+        var config = { quests: {} };
+        if (rows && rows.length > 0 && rows[0].value) {
+            config = rows[0].value;
+        }
+        var questIds = Object.keys(config.quests);
+        var now = Math.floor(Date.now() / 1000);
+        // ── Phase 1: filter ──────────────────────────────────────────────────────
+        var candidates = [];
+        for (var i = 0; i < questIds.length; i++) {
+            var quest = config.quests[questIds[i]];
+            if (quest.expiresAt && now > quest.expiresAt)
+                continue;
+            var hasDnaProps = quest.additionalProperties && (quest.additionalProperties["dna_topic"] ||
+                quest.additionalProperties["dna_slot"] ||
+                quest.additionalProperties["dna_template"]);
+            if (!hasDnaProps) {
+                // Untagged quests always pass through with baseline priority
+                candidates.push({
+                    quest: quest,
+                    filter: { passes: true, slot: "any", resolvedTopic: "", score: 40, reason: "" }
+                });
+                continue;
+            }
+            var fr = evaluateDna(quest, dna);
+            if (!fr.passes)
+                continue;
+            candidates.push({ quest: quest, filter: fr });
+        }
+        // ── Phase 2: sort — slot priority first, then relevance score ────────────
+        candidates.sort(function (a, b) {
+            var pa = SLOT_PRIORITY[a.filter.slot] || 20;
+            var pb = SLOT_PRIORITY[b.filter.slot] || 20;
+            if (pb !== pa)
+                return pb - pa;
+            return b.filter.score - a.filter.score;
+        });
+        // ── Phase 3: instantiate templates + build response ──────────────────────
+        var out = [];
+        for (var j = 0; j < Math.min(candidates.length, limit); j++) {
+            var c = candidates[j];
+            var inst = instantiate(c.quest, c.filter.resolvedTopic);
+            var stepsOut = [];
+            for (var s = 0; s < inst.steps.length; s++) {
+                var step = inst.steps[s];
+                stepsOut.push({
+                    id: step.id,
+                    description: step.description,
+                    requiredCount: step.requiredCount,
+                    filterField: step.filterField || null,
+                    filterValue: step.filterValue || null
+                });
+            }
+            out.push({
+                id: inst.id,
+                name: inst.name,
+                description: inst.description || null,
+                category: inst.category || null,
+                expiresAt: inst.expiresAt || null,
+                repeatable: !!inst.repeatable,
+                steps: stepsOut,
+                personalization: {
+                    slot: c.filter.slot,
+                    resolved_topic: c.filter.resolvedTopic || null,
+                    reason: c.filter.reason || null,
+                    relevance_score: c.filter.score
+                }
+            });
+        }
+        logger.info("[PersonalizedQuests] user=%s game=%s pool=%d returned=%d cold_start=%s top=%s", userId, gameId, candidates.length, out.length, dna.behavioral.cold_start_done ? "false" : "true", PlayerDNA.topTopics(dna, 1).join(",") || "none");
+        return RpcHelpers.successResponse({
+            quests: out,
+            dna_summary: {
+                top_topics: PlayerDNA.topTopics(dna, 3),
+                cold_start: !dna.behavioral.cold_start_done,
+                total_sessions: dna.behavioral.total_sessions
+            }
+        });
+    }
+    // postbuild.js autoInvokeRegister requires single-arg register() for pooled VM replay.
+    function register(initializer) {
+        initializer.registerRpc("quizverse_get_personalized_quests", rpcGetPersonalizedQuests);
+    }
+    PersonalizedQuests.register = register;
+})(PersonalizedQuests || (PersonalizedQuests = {}));
+// PlayerDNA — per-player behavioural intelligence profile.
+//
+// Storage: collection="qv_player_dna", key="dna", owner=userId
+//          permissionRead=1 (owner), permissionWrite=0 (server-only)
+//
+// Updated by:  quizverse_submit_result  (Phase 2 of the Intelligence Platform)
+// Read by:     quizverse_get_personalized_quests
+//              quizverse_get_questions  (mix algorithm, Elo matching)
+//
+// Design notes:
+//   - No external ML service needed — all computation is pure math inside Goja.
+//   - EMA alpha=0.3 → recent 3 sessions weight ~3× more than older history.
+//   - Elo per topic mirrors chess rating (K=20/15/10 by tier).
+//   - Storage is ~2 KB per player at full maturity — negligible at any scale.
+var PlayerDNA;
+(function (PlayerDNA) {
+    PlayerDNA.COLLECTION = "qv_player_dna";
+    PlayerDNA.KEY = "dna";
+    function defaultDNA() {
+        return {
+            affinities: {},
+            masteries: {},
+            elos: {},
+            behavioral: {
+                peak_hour_utc: 19,
+                avg_session_questions: 10,
+                sessions_per_week: 0,
+                last_played_at: 0,
+                total_sessions: 0,
+                cold_start_done: false,
+                comeback_eligible: false
+            },
+            updated_at: 0
+        };
+    }
+    // ── Storage ──────────────────────────────────────────────────────────────────
+    function load(nk, userId) {
+        var rows = [];
+        try {
+            rows = nk.storageRead([{ collection: PlayerDNA.COLLECTION, key: PlayerDNA.KEY, userId: userId }]);
+        }
+        catch (_) { }
+        if (rows && rows.length > 0 && rows[0].value) {
+            var stored = rows[0].value;
+            // Back-fill any missing behavioral fields added after initial writes
+            if (!stored.behavioral)
+                stored.behavioral = defaultDNA().behavioral;
+            if (stored.behavioral.comeback_eligible === undefined)
+                stored.behavioral.comeback_eligible = false;
+            return stored;
+        }
+        return defaultDNA();
+    }
+    PlayerDNA.load = load;
+    function save(nk, userId, dna) {
+        dna.updated_at = Math.floor(Date.now() / 1000);
+        nk.storageWrite([{
+                collection: PlayerDNA.COLLECTION,
+                key: PlayerDNA.KEY,
+                userId: userId,
+                value: dna,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    PlayerDNA.save = save;
+    // ── Topic ranking helpers ────────────────────────────────────────────────────
+    // Returns topic slugs sorted descending by affinity (most loved first).
+    function topTopics(dna, limit) {
+        var topics = Object.keys(dna.affinities);
+        topics.sort(function (a, b) {
+            return (dna.affinities[b] || 0) - (dna.affinities[a] || 0);
+        });
+        return topics.slice(0, limit);
+    }
+    PlayerDNA.topTopics = topTopics;
+    // Returns topic slugs sorted ascending by mastery (weakest first).
+    // Only returns topics the player has actually attempted (mastery > 0).
+    function weakestTopics(dna, limit) {
+        var topics = Object.keys(dna.masteries).filter(function (t) {
+            return (dna.masteries[t] || 0) > 0;
+        });
+        topics.sort(function (a, b) {
+            return (dna.masteries[a] || 0) - (dna.masteries[b] || 0);
+        });
+        return topics.slice(0, limit);
+    }
+    PlayerDNA.weakestTopics = weakestTopics;
+    // Returns topics the player hasn't played yet (for discovery slot).
+    function undiscoveredTopics(dna, allTopics, limit) {
+        var out = [];
+        for (var i = 0; i < allTopics.length; i++) {
+            if (!dna.affinities[allTopics[i]]) {
+                out.push(allTopics[i]);
+                if (out.length >= limit)
+                    break;
+            }
+        }
+        return out;
+    }
+    PlayerDNA.undiscoveredTopics = undiscoveredTopics;
+    // ── EMA update (call after each session) ────────────────────────────────────
+    // alpha = 0.3 → recent sessions have ~3× more influence than older ones.
+    // played=true when the player voluntarily chose or completed this topic.
+    var EMA_ALPHA = 0.3;
+    function updateAffinity(dna, topic, played) {
+        var signal = played ? 1.0 : 0.0;
+        var prev = dna.affinities[topic] !== undefined ? dna.affinities[topic] : 0.5;
+        dna.affinities[topic] = round3(EMA_ALPHA * signal + (1 - EMA_ALPHA) * prev);
+    }
+    PlayerDNA.updateAffinity = updateAffinity;
+    // accuracy: 0.0–1.0 (correct / total for this topic in the session).
+    // Mastery grows +0.02 when accuracy ≥ 0.7, shrinks -0.01 otherwise.
+    function updateMastery(dna, topic, accuracy) {
+        var prev = dna.masteries[topic] !== undefined ? dna.masteries[topic] : 0.0;
+        var delta = accuracy >= 0.7 ? 0.02 : -0.01;
+        dna.masteries[topic] = clamp(round3(prev + delta), 0, 1);
+    }
+    PlayerDNA.updateMastery = updateMastery;
+    // ── Elo update (per topic, per session) ─────────────────────────────────────
+    // Standard Elo formula.  avgDifficulty acts as the "opponent" Elo.
+    // K-factor tiers: novice < 1000 → K=20, intermediate → K=15, advanced > 1600 → K=10.
+    function updateElo(dna, topic, accuracy, avgDifficulty) {
+        var playerElo = dna.elos[topic] !== undefined ? dna.elos[topic] : 1200;
+        var K = playerElo < 1000 ? 20 : (playerElo < 1600 ? 15 : 10);
+        var oppElo = avgDifficulty > 0 ? avgDifficulty : 1200;
+        var expected = 1 / (1 + Math.pow(10, (oppElo - playerElo) / 400));
+        dna.elos[topic] = Math.round(playerElo + K * (accuracy - expected));
+    }
+    PlayerDNA.updateElo = updateElo;
+    // ── Behavioral update ───────────────────────────────────────────────────────
+    function updateBehavioral(dna, questionCount, sessionHourUtc // 0-23
+    ) {
+        var b = dna.behavioral;
+        var now = Math.floor(Date.now() / 1000);
+        // Detect comeback (gap > 3× avg play frequency, min 3 days)
+        if (b.last_played_at > 0 && b.sessions_per_week > 0) {
+            var avgIntervalSec = (7 * 86400) / b.sessions_per_week;
+            var gapSec = now - b.last_played_at;
+            b.comeback_eligible = gapSec > Math.max(avgIntervalSec * 3, 3 * 86400);
+        }
+        // Rolling average question count per session (alpha=0.3)
+        b.avg_session_questions = round3(EMA_ALPHA * questionCount + (1 - EMA_ALPHA) * b.avg_session_questions);
+        // Rolling sessions_per_week: increment then EMA towards 7-day rhythm
+        b.sessions_per_week = round3(EMA_ALPHA * 7 + (1 - EMA_ALPHA) * b.sessions_per_week);
+        // Peak hour: simple mode approximation via EMA on hour buckets (not stored
+        // separately — just keep last peak_hour_utc with slow drift)
+        if (b.peak_hour_utc === undefined) {
+            b.peak_hour_utc = sessionHourUtc;
+        }
+        else {
+            // Drift by 1 hour per 10 sessions toward actual session hour
+            var diff = sessionHourUtc - b.peak_hour_utc;
+            // Wrap-around for hours (e.g. 23 vs 1)
+            if (diff > 12)
+                diff -= 24;
+            if (diff < -12)
+                diff += 24;
+            b.peak_hour_utc = Math.round((b.peak_hour_utc + diff * 0.1 + 24) % 24);
+        }
+        b.total_sessions++;
+        b.last_played_at = now;
+        // Mark cold start done after 3 sessions
+        if (!b.cold_start_done && b.total_sessions >= 3) {
+            b.cold_start_done = true;
+        }
+    }
+    PlayerDNA.updateBehavioral = updateBehavioral;
+    // ── Cold-start topic sequence ────────────────────────────────────────────────
+    // Returns the pre-defined topic for a player's nth session (0-indexed)
+    // during cold start.  After 3 sessions, personalization takes over.
+    var COLD_START_TOPICS = ["anime", "pokemon", "movies"];
+    function coldStartTopic(sessionIndex) {
+        return COLD_START_TOPICS[sessionIndex % COLD_START_TOPICS.length];
+    }
+    PlayerDNA.coldStartTopic = coldStartTopic;
+    // ── Math helpers ─────────────────────────────────────────────────────────────
+    function clamp(val, min, max) {
+        return val < min ? min : val > max ? max : val;
+    }
+    function round3(val) {
+        return Math.round(val * 1000) / 1000;
+    }
+})(PlayerDNA || (PlayerDNA = {}));
 // =============================================================================
 // src/games/quizverse/product-metrics.ts
 // =============================================================================
@@ -26888,6 +27437,68 @@ var LegacyNotifScheduler;
         return Math.floor(Date.now() / 60000);
     }
     LegacyNotifScheduler.nowMinute = nowMinute;
+    // ── Shared, restart-proof dispatch cadence ─────────────────────────────
+    //
+    // The original scheduler kept each task's last-dispatch minute in VOLATILE
+    // match state. In production the scheduler match respawns frequently (pod
+    // churn, match restarts, the historical duplicate-match accumulation), and
+    // every respawn reset the per-task timer via the first-call deferral. The
+    // 5-minute `reminders` task survived often enough to fire ~305x/72h, but the
+    // 30-minute tasks almost never lived a full period between resets — observed
+    // daily_quiz fired only 8x/72h, in two short bursts, both landing OUTSIDE the
+    // India-majority 09:00-13:00 local window → ~0 scheduled pushes delivered.
+    //
+    // Fix: coordinate the cadence through a single shared storage row instead of
+    // match state. Any live match (on any pod) advances it; a fresh match reads
+    // the REAL last-dispatch minute rather than resetting it, so the 30-minute
+    // crons reliably fire every 30 minutes and therefore land inside every
+    // timezone's local window across the day. Cross-pod double-dispatch is
+    // possible but harmless — every cron enforces a per-user once-a-day marker.
+    LegacyNotifScheduler.DISPATCH_COLLECTION = "notif_scheduler";
+    LegacyNotifScheduler.DISPATCH_KEY = "dispatch_state_v1";
+    var DISPATCH_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    // The match ticks at 1 Hz; re-evaluate the schedule (and touch storage) only
+    // every ~20 ticks (~20s) so coordination cost stays negligible.
+    var CHECK_INTERVAL_TICKS = 20;
+    function readSharedDispatch(nk) {
+        try {
+            var recs = nk.storageRead([{ collection: LegacyNotifScheduler.DISPATCH_COLLECTION, key: LegacyNotifScheduler.DISPATCH_KEY, userId: DISPATCH_SYSTEM_USER_ID }]);
+            if (recs && recs.length > 0 && recs[0].value && recs[0].value.tasks) {
+                return { tasks: recs[0].value.tasks, version: recs[0].version || "" };
+            }
+        }
+        catch (_) { }
+        return { tasks: {}, version: "" };
+    }
+    LegacyNotifScheduler.readSharedDispatch = readSharedDispatch;
+    // CAS write — throws on version conflict (another pod already advanced the
+    // row). Callers must catch and skip dispatch if this throws.
+    function writeSharedDispatch(nk, tasks, version) {
+        nk.storageWrite([{
+                collection: LegacyNotifScheduler.DISPATCH_COLLECTION, key: LegacyNotifScheduler.DISPATCH_KEY, userId: DISPATCH_SYSTEM_USER_ID,
+                value: { tasks: tasks, updatedAt: Date.now() },
+                version: version === "" ? "*" : version,
+                permissionRead: 0, permissionWrite: 0
+            }]);
+    }
+    LegacyNotifScheduler.writeSharedDispatch = writeSharedDispatch;
+    // Returns true when `task` is due per the SHARED last-dispatch minute, and
+    // mutates `tasks` to claim the slot. First observation of a task seeds its
+    // timestamp (so the very first cluster boot defers one period instead of a
+    // thundering herd) — the caller persists that seed so it is never re-deferred.
+    function sharedDue(tasks, task, periodMin) {
+        var m = nowMinute();
+        var last = tasks[task];
+        if (last === undefined || last === 0) {
+            tasks[task] = m;
+            return false;
+        }
+        if (m - last < periodMin)
+            return false;
+        tasks[task] = m;
+        return true;
+    }
+    LegacyNotifScheduler.sharedDue = sharedDue;
     // Returns true when at least `periodMin` minutes have elapsed since this
     // task last fired. Elapsed-time semantics (vs "fire on minute boundary
     // m % periodMin === 0") so a delayed matchLoop tick — GC pause, pod
@@ -26961,9 +27572,7 @@ var LegacyNotifScheduler;
     // scheduler match. The handlers return JSON strings on success; we ignore
     // them. Non-fatal logging only. `periodMin` MUST match the shouldDispatch
     // cadence so the cluster lock buckets line up across pods.
-    function dispatchSafely(taskName, fn, ctx, logger, nk, periodMin) {
-        if (!tryAcquireDispatchLock(nk, taskName, periodMin))
-            return;
+    function dispatchSafely(taskName, fn, ctx, logger, nk) {
         try {
             var ret = fn(ctx, logger, nk, "");
             logger.info("[NotifScheduler] Dispatched %s: %s", taskName, String(ret).slice(0, 200));
@@ -27005,31 +27614,63 @@ var LegacyNotifScheduler;
     }
     LegacyNotifScheduler.matchLeaveImpl = matchLeaveImpl;
     function matchLoopImpl(ctx, logger, nk, _dispatcher, _tick, state, _messages) {
-        if (shouldDispatch(state, "daily_quiz", 30))
-            dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk, 30);
-        if (shouldDispatch(state, "weekly_quiz", 60))
-            dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk, 60);
-        if (shouldDispatch(state, "idle_winback", 30))
-            dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk, 30);
-        if (shouldDispatch(state, "streak_warning", 30))
-            dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk, 30);
-        if (shouldDispatch(state, "motivation", 60))
-            dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk, 60);
-        if (shouldDispatch(state, "reminders", 5))
-            dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk, 5);
-        if (shouldDispatch(state, "review_due", 30))
-            dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk, 30);
-        if (shouldDispatch(state, "flush_pending_push", 30) && tryAcquireDispatchLock(nk, "flush_pending_push", 30)) {
-            try {
-                LegacyPush.flushPendingRegistrations(ctx, logger, nk);
+        // Coordinate dispatch through shared storage (restart-proof, cross-pod).
+        // Throttled to once every CHECK_INTERVAL_TICKS so we don't read/write
+        // storage at the full 1 Hz tick rate.
+        if ((_tick % CHECK_INTERVAL_TICKS) === 0) {
+            var row = readSharedDispatch(nk);
+            var tasks = row.tasks;
+            var ver = row.version;
+            var before = JSON.stringify(tasks);
+            // Collect which tasks are due (mutates tasks in-place to claim the slot)
+            var dueDaily = sharedDue(tasks, "daily_quiz", 30);
+            var dueWeekly = sharedDue(tasks, "weekly_quiz", 60);
+            var dueWinback = sharedDue(tasks, "idle_winback", 30);
+            var dueStreak = sharedDue(tasks, "streak_warning", 30);
+            var dueMotiv = sharedDue(tasks, "motivation", 60);
+            var dueRemind = sharedDue(tasks, "reminders", 5);
+            var dueReview = sharedDue(tasks, "review_due", 30);
+            var dueFlushPush = sharedDue(tasks, "flush_pending_push", 30);
+            var dueFlushChat = sharedDue(tasks, "flush_failed_chat_push", 3);
+            // CAS write first — only ONE pod wins the version conflict check.
+            // Losers catch the version mismatch and skip all dispatches for this tick,
+            // so a task fires on exactly ONE pod per window (not N).
+            if (JSON.stringify(tasks) !== before) {
+                try {
+                    writeSharedDispatch(nk, tasks, ver);
+                }
+                catch (_) {
+                    // Lost the race — another pod already advanced the row. Skip all dispatches.
+                    return { state: state };
+                }
             }
-            catch (_) { }
-        }
-        if (shouldDispatch(state, "flush_failed_chat_push", 3) && tryAcquireDispatchLock(nk, "flush_failed_chat_push", 3)) {
-            try {
-                LegacyChat.flushFailedChatPushes(ctx, logger, nk);
+            // Only the pod that won the CAS write reaches here.
+            if (dueDaily)
+                dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk);
+            if (dueWeekly)
+                dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk);
+            if (dueWinback)
+                dispatchSafely("idle_winback", LegacyPush.runIdleWinbackCron, ctx, logger, nk);
+            if (dueStreak)
+                dispatchSafely("streak_warning", LegacyPush.runStreakWarningCron, ctx, logger, nk);
+            if (dueMotiv)
+                dispatchSafely("motivation", LegacyPush.runMotivationCron, ctx, logger, nk);
+            if (dueRemind)
+                dispatchSafely("reminders", LegacyPush.runRemindersCron, ctx, logger, nk);
+            if (dueReview)
+                dispatchSafely("review_due", LegacyPush.runReviewCron, ctx, logger, nk);
+            if (dueFlushPush) {
+                try {
+                    LegacyPush.flushPendingRegistrations(ctx, logger, nk);
+                }
+                catch (_) { }
             }
-            catch (_) { }
+            if (dueFlushChat) {
+                try {
+                    LegacyChat.flushFailedChatPushes(ctx, logger, nk);
+                }
+                catch (_) { }
+            }
         }
         var m = nowMinute();
         if ((m % 60) === 0 && state.lastLog !== m) {
@@ -27296,6 +27937,354 @@ var LegacyPlayer;
     }
     LegacyPlayer.register = register;
 })(LegacyPlayer || (LegacyPlayer = {}));
+// =============================================================================
+// PushAlerts — real-time Discord alerting for push *delivery* failures
+// =============================================================================
+// Why this exists:
+//   The existing observability (AnalyticsAlerts 3h RPC summary, the Go
+//   discord_alerts.go 6h Prometheus summary) only sees RPCs that THROW.
+//   Push delivery failures don't throw — `push_send_event` returns
+//   `success:true` with `recipientCount:0`, and the scheduled-push cron
+//   silently drops to 0 sent. That blind spot is exactly how ~96% of FCM
+//   sends could fail (UNREGISTERED) for days without a single alert firing.
+//
+//   PushAlerts watches the ACTUAL delivery outcome at the two places push
+//   leaves Nakama (the on-demand `push_send_event` RPC and the scheduled
+//   `sendLocalizedPushToUser` cron path) and posts a Discord alert when, over
+//   a rolling window, the device-delivery failure rate crosses a threshold or
+//   dead-token pruning spikes.
+//
+// Design (mirrors AnalyticsAlerts so it behaves predictably in prod):
+//   • Per-pod in-memory tumbling window (no per-send storage writes — push is
+//     hot path). The failure RATE is ~uniform across pods, so a per-pod window
+//     is a faithful sample of the systemic rate.
+//   • Cross-pod de-dupe: before posting, the pod claims a per-cooldown-bucket
+//     storage lock (create-only `version:"*"`), so a 5-replica cluster emits
+//     ONE alert per cooldown window, not five.
+//   • Fail-safe: every path is wrapped — alerting must NEVER throw into or slow
+//     down the push hot path. Missing webhook = silently disabled.
+//   • Env: DISCORD_PUSH_WEBHOOK_URL (preferred), falls back to the existing
+//     DISCORD_NAKAMA_WEBHOOK_URL so it works with zero new config.
+// =============================================================================
+var PushAlerts;
+(function (PushAlerts) {
+    // ── Tuning (all overridable via env, read in init) ────────────────────────
+    var WINDOW_MS = 15 * 60 * 1000; // rolling evaluation window
+    var EVAL_MAX_ATTEMPTS = 2000; // also evaluate early on a fast spike
+    var MIN_ATTEMPTS = 50; // don't alert on tiny samples
+    var FAIL_RATE_THRESHOLD = 0.5; // ≥50% device sends failing → alert
+    var DEAD_SPIKE_MIN = 200; // ≥200 dead tokens pruned in window → alert
+    var POST_COOLDOWN_MS = 30 * 60 * 1000; // min spacing between alerts (per pod)
+    var WEBHOOK_ENV = "DISCORD_PUSH_WEBHOOK_URL";
+    var WEBHOOK_FALLBACK_ENV = "DISCORD_NAKAMA_WEBHOOK_URL";
+    var LOCK_COLLECTION = "push_alerts_locks";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    // ── Per-pod state ─────────────────────────────────────────────────────────
+    var podId = "pod_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now();
+    var webhookUrl = "";
+    var instanceLabel = "nakama";
+    function newSource() {
+        return { attempted: 0, delivered: 0, failed: 0, dead: 0 };
+    }
+    var winStart = Date.now();
+    var total = newSource();
+    var bySource = {};
+    var codeCounts = {};
+    var lastPostMs = 0;
+    // Goja runs InitModule on one VM but serves push traffic from a pool of
+    // VMs that never ran it — so module state set only in init() would be empty
+    // on the VMs that matter. `configured` lets every VM self-configure from
+    // ctx.env on its first push outcome (see ensureConfigured).
+    var configured = false;
+    function resetWindow() {
+        winStart = Date.now();
+        total = newSource();
+        bySource = {};
+        codeCounts = {};
+    }
+    // ── Public init — called from InitModule with ctx so we can read env ───────
+    function init(ctx, logger) {
+        try {
+            var env = (ctx && ctx.env) ? ctx.env : {};
+            webhookUrl = (env[WEBHOOK_ENV] || env[WEBHOOK_FALLBACK_ENV] || "");
+            if (env["IVX_NAKAMA_INSTANCE_LABEL"])
+                instanceLabel = env["IVX_NAKAMA_INSTANCE_LABEL"];
+            else if (env["HOSTNAME"])
+                instanceLabel = env["HOSTNAME"];
+            // Optional numeric overrides — keep ops able to retune without a deploy.
+            WINDOW_MS = intEnv(env, "PUSH_ALERTS_WINDOW_MS", WINDOW_MS, 60 * 1000);
+            MIN_ATTEMPTS = intEnv(env, "PUSH_ALERTS_MIN_ATTEMPTS", MIN_ATTEMPTS, 1);
+            POST_COOLDOWN_MS = intEnv(env, "PUSH_ALERTS_COOLDOWN_MS", POST_COOLDOWN_MS, 60 * 1000);
+            DEAD_SPIKE_MIN = intEnv(env, "PUSH_ALERTS_DEAD_SPIKE", DEAD_SPIKE_MIN, 1);
+            var rate = floatEnv(env, "PUSH_ALERTS_FAIL_RATE", FAIL_RATE_THRESHOLD);
+            if (rate > 0 && rate <= 1)
+                FAIL_RATE_THRESHOLD = rate;
+            resetWindow();
+            configured = true;
+            logger.info("[PushAlerts] init pod=%s webhook=%s window=%sms failRate=%s deadSpike=%s", podId, webhookUrl ? "configured" : "MISSING (" + WEBHOOK_ENV + "/" + WEBHOOK_FALLBACK_ENV + ")", String(WINDOW_MS), String(FAIL_RATE_THRESHOLD), String(DEAD_SPIKE_MIN));
+        }
+        catch (e) {
+            try {
+                logger.warn("[PushAlerts] init failed: " + (e && e.message ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+    }
+    PushAlerts.init = init;
+    // Idempotent per-VM config. Called from the push hot path (which always has
+    // ctx) so pooled VMs that never ran InitModule still pick up the webhook.
+    function ensureConfigured(ctx, logger) {
+        if (configured)
+            return;
+        init(ctx, logger);
+    }
+    PushAlerts.ensureConfigured = ensureConfigured;
+    function intEnv(env, key, fallback, min) {
+        try {
+            var v = env[key];
+            if (v === undefined || v === null || v === "")
+                return fallback;
+            var n = parseInt(String(v), 10);
+            if (isNaN(n) || n < min)
+                return fallback;
+            return n;
+        }
+        catch (_) {
+            return fallback;
+        }
+    }
+    function floatEnv(env, key, fallback) {
+        try {
+            var v = env[key];
+            if (v === undefined || v === null || v === "")
+                return fallback;
+            var n = parseFloat(String(v));
+            if (isNaN(n))
+                return fallback;
+            return n;
+        }
+        catch (_) {
+            return fallback;
+        }
+    }
+    // ── recordOutcome — called from the push send paths (hot path; never throws)
+    //   source: "send_event" | "cron"
+    //   attempted: device endpoints we tried this batch
+    //   delivered: endpoints the provider accepted
+    //   dead: token rows pruned this batch (provider said UNREGISTERED/disabled)
+    //   codeTally: optional {failureCode: count} for the embed's "top reasons"
+    // ──────────────────────────────────────────────────────────────────────────
+    function recordOutcome(nk, logger, source, attempted, delivered, dead, codeTally) {
+        try {
+            if (!attempted || attempted <= 0)
+                return;
+            var failed = attempted - delivered;
+            if (failed < 0)
+                failed = 0;
+            total.attempted += attempted;
+            total.delivered += delivered;
+            total.failed += failed;
+            total.dead += (dead > 0 ? dead : 0);
+            var src = source || "other";
+            if (!bySource[src])
+                bySource[src] = newSource();
+            bySource[src].attempted += attempted;
+            bySource[src].delivered += delivered;
+            bySource[src].failed += failed;
+            bySource[src].dead += (dead > 0 ? dead : 0);
+            if (codeTally) {
+                for (var c in codeTally) {
+                    if (codeTally.hasOwnProperty(c)) {
+                        codeCounts[c] = (codeCounts[c] || 0) + codeTally[c];
+                    }
+                }
+            }
+            var now = Date.now();
+            if ((now - winStart) >= WINDOW_MS || total.attempted >= EVAL_MAX_ATTEMPTS) {
+                evaluate(nk, logger);
+            }
+        }
+        catch (e) {
+            try {
+                logger.warn("[PushAlerts] recordOutcome swallowed: " + (e && e.message ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+    }
+    PushAlerts.recordOutcome = recordOutcome;
+    function evaluate(nk, logger) {
+        try {
+            var snapshot = total;
+            var attempts = snapshot.attempted;
+            var failRate = attempts > 0 ? snapshot.failed / attempts : 0;
+            var bad = attempts >= MIN_ATTEMPTS &&
+                (failRate >= FAIL_RATE_THRESHOLD || snapshot.dead >= DEAD_SPIKE_MIN);
+            if (bad && webhookUrl) {
+                var now = Date.now();
+                if ((now - lastPostMs) >= POST_COOLDOWN_MS && claimCooldownLock(nk, now)) {
+                    var embed = buildEmbed(snapshot, failRate);
+                    if (postDiscord(nk, logger, embed)) {
+                        lastPostMs = now;
+                        logger.warn("[PushAlerts] ALERT posted — attempts=%s failed=%s (%s%%) dead=%s", attempts, snapshot.failed, (failRate * 100).toFixed(1), snapshot.dead);
+                    }
+                }
+                else {
+                    logger.info("[PushAlerts] degraded window detected but suppressed (cooldown/leader) — attempts=%s failRate=%s%%", attempts, (failRate * 100).toFixed(1));
+                }
+            }
+        }
+        catch (e) {
+            try {
+                logger.warn("[PushAlerts] evaluate swallowed: " + (e && e.message ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+        finally {
+            // Always reset so the window stays bounded whether or not we alerted.
+            resetWindow();
+        }
+    }
+    // Cross-pod de-dupe: create-only write on a per-cooldown-bucket key. Only the
+    // first replica in the bucket succeeds; the rest get a version conflict and
+    // skip posting. Fail-CLOSED here (return false on any error) so a storage
+    // blip can't fan out N duplicate alerts.
+    function claimCooldownLock(nk, now) {
+        try {
+            var bucket = Math.floor(now / POST_COOLDOWN_MS);
+            nk.storageWrite([{
+                    collection: LOCK_COLLECTION,
+                    key: "alert_" + bucket,
+                    userId: SYSTEM_USER,
+                    value: { holder: podId, at: now },
+                    permissionRead: 0,
+                    permissionWrite: 0,
+                    version: "*",
+                }]);
+            return true;
+        }
+        catch (_) {
+            return false;
+        }
+    }
+    function pct(n, d) {
+        if (!d)
+            return "0%";
+        return (Math.round((n / d) * 1000) / 10) + "%";
+    }
+    function buildEmbed(s, failRate) {
+        var fields = [];
+        fields.push({
+            name: "📉 Device delivery (last window)",
+            value: "Attempted: **" + s.attempted + "**\n" +
+                "Delivered: **" + s.delivered + "** (" + pct(s.delivered, s.attempted) + ")\n" +
+                "Failed: **" + s.failed + "** (" + pct(s.failed, s.attempted) + ")\n" +
+                "Dead tokens pruned: **" + s.dead + "**",
+            inline: false,
+        });
+        // Per-source split so on-call knows if it's on-demand pushes, the cron, or both.
+        var srcLines = [];
+        for (var src in bySource) {
+            if (!bySource.hasOwnProperty(src))
+                continue;
+            var c = bySource[src];
+            srcLines.push("`" + src + "` " + c.delivered + "/" + c.attempted + " ok (" +
+                pct(c.failed, c.attempted) + " fail · " + c.dead + " pruned)");
+        }
+        if (srcLines.length > 0) {
+            fields.push({ name: "🧩 By source", value: srcLines.join("\n").slice(0, 1024), inline: false });
+        }
+        // Top failure reasons (FCM/APNs/SNS codes) — points straight at root cause.
+        var codeRows = [];
+        for (var code in codeCounts) {
+            if (codeCounts.hasOwnProperty(code) && code)
+                codeRows.push({ code: code, n: codeCounts[code] });
+        }
+        codeRows.sort(function (a, b) { return b.n - a.n; });
+        if (codeRows.length > 0) {
+            var codeLines = [];
+            for (var i = 0; i < codeRows.length && i < 6; i++) {
+                codeLines.push("`" + String(codeRows[i].code).slice(0, 48) + "` ×" + codeRows[i].n);
+            }
+            fields.push({ name: "🧨 Top failure reasons", value: codeLines.join("\n").slice(0, 1024), inline: false });
+        }
+        fields.push({
+            name: "🛠️ Likely action",
+            value: "• UNREGISTERED/NOT_FOUND → dead tokens (auto-pruned now; expected to fall)\n" +
+                "• If failRate stays high after pruning → check Firebase project match " +
+                "(`DEFAULT_FCM_PROJECT_ID` vs token-minting project) + send Lambda IAM/secrets",
+            inline: false,
+        });
+        return {
+            title: "🔴 Nakama push delivery degraded",
+            description: "Device-push failure rate **" + pct(s.failed, s.attempted) +
+                "** over the last window (threshold " + Math.round(FAIL_RATE_THRESHOLD * 100) + "%). " +
+                "In-app inbox notifications are unaffected; this is device push (FCM/APNs) only.",
+            color: 0xe74c3c,
+            timestamp: new Date().toISOString(),
+            footer: { text: "nakama-push-alerts • " + instanceLabel + " • pod " + podId },
+            fields: fields,
+        };
+    }
+    function postDiscord(nk, logger, embed) {
+        if (!webhookUrl)
+            return false;
+        try {
+            var body = JSON.stringify({ username: "Nakama Push Watchdog", embeds: [embed] });
+            var resp = nk.httpRequest(webhookUrl, "post", { "Content-Type": "application/json" }, body, 5000);
+            var code = resp && resp.code ? resp.code : 0;
+            if (code >= 200 && code < 300)
+                return true;
+            logger.warn("[PushAlerts] discord post non-2xx: code=" + String(code) +
+                " body=" + (resp && resp.body ? String(resp.body).slice(0, 200) : ""));
+            return false;
+        }
+        catch (e) {
+            logger.warn("[PushAlerts] discord post failed: " + (e && e.message ? e.message : String(e)));
+            return false;
+        }
+    }
+    // ── Ops RPCs ──────────────────────────────────────────────────────────────
+    function rpcStatus(_ctx, _logger, _nk, _payload) {
+        return JSON.stringify({
+            success: true,
+            data: {
+                podId: podId,
+                webhookConfigured: !!webhookUrl,
+                windowMs: WINDOW_MS,
+                minAttempts: MIN_ATTEMPTS,
+                failRateThreshold: FAIL_RATE_THRESHOLD,
+                deadSpikeMin: DEAD_SPIKE_MIN,
+                cooldownMs: POST_COOLDOWN_MS,
+                currentWindow: total,
+                lastPostMs: lastPostMs,
+            },
+        });
+    }
+    // Fires a synthetic alert so ops can verify the webhook end-to-end without
+    // waiting for a real outage. Does not touch the live counters.
+    function rpcTest(_ctx, logger, nk, _payload) {
+        if (!webhookUrl) {
+            return JSON.stringify({ success: false, error: WEBHOOK_ENV + "/" + WEBHOOK_FALLBACK_ENV + " not set" });
+        }
+        var sample = { attempted: 100, delivered: 4, failed: 96, dead: 90 };
+        bySource["send_event"] = { attempted: 70, delivered: 3, failed: 67, dead: 63 };
+        bySource["cron"] = { attempted: 30, delivered: 1, failed: 29, dead: 27 };
+        codeCounts["UNREGISTERED"] = 88;
+        codeCounts["ENDPOINT_DISABLED"] = 8;
+        var ok = postDiscord(nk, logger, buildEmbed(sample, 0.96));
+        bySource = {};
+        codeCounts = {};
+        return JSON.stringify({ success: ok, data: { posted: ok } });
+    }
+    // register is single-arg (registerRpc-only) so postbuild's autoInvokeRegister
+    // re-runs it on every pooled Goja VM — otherwise the RPC stubs are undefined
+    // on the VMs that actually serve traffic.
+    function register(initializer) {
+        initializer.registerRpc("push_alerts_status", rpcStatus);
+        initializer.registerRpc("push_alerts_test", rpcTest);
+    }
+    PushAlerts.register = register;
+})(PushAlerts || (PushAlerts = {}));
 var LegacyPush;
 (function (LegacyPush) {
     var DEFAULT_PUSH_NOTIFICATION_CODE = 7001;
@@ -27340,6 +28329,21 @@ var LegacyPush;
     function savePushTokens(nk, userId, data) {
         var key = "token_" + userId;
         Storage.writeJson(nk, Constants.PUSH_TOKENS_COLLECTION, key, userId, data);
+    }
+    // True only when `userId` maps to a real account. Used to avoid
+    // storage_user_id_fkey violations when retrying pending push registrations
+    // for accounts that have since been deleted. Fails safe to `false` (skip the
+    // write) on any lookup error.
+    function userExists(nk, userId) {
+        if (!userId)
+            return false;
+        try {
+            var users = nk.usersGetId([userId]);
+            return !!(users && users.length > 0 && users[0] && users[0].userId);
+        }
+        catch (_) {
+            return false;
+        }
     }
     function env(ctx, key) {
         return (ctx.env && ctx.env[key]) || "";
@@ -27588,16 +28592,26 @@ var LegacyPush;
                 return { configured: true, success: true, messageId: responseBody.messageId, raw: responseBody };
             }
             var errMsg = (responseBody && (responseBody.error || responseBody.message)) || ("HTTP " + code);
-            logger.warn("[Push] Push to %s failed: %s | HTTP %s | arn=%s", normalizedPlatform, errMsg, code, endpoint.endpointArn);
+            // The send Lambda flags permanently-dead endpoints (FCM UNREGISTERED /
+            // NOT_FOUND / INVALID_ARGUMENT, SNS endpoint disabled) with
+            // shouldRemoveToken. When set, the caller MUST drop the stored token row
+            // — otherwise every future send re-hits the dead endpoint forever (the
+            // root cause of the ~96% FCM 404 rate). The Lambda also deletes the SNS
+            // endpoint itself; this prunes our mirror of it.
+            var removeToken = !!(responseBody && (responseBody.shouldRemoveToken === true || responseBody.shouldRemoveToken === "true"));
+            var providerCode = (responseBody && (responseBody.code || responseBody.errorCode)) || "";
+            logger.warn("[Push] Push to %s failed: %s | HTTP %s | code=%s | removeToken=%s | arn=%s", normalizedPlatform, errMsg, code, providerCode, String(removeToken), endpoint.endpointArn);
             return {
                 configured: true,
                 success: false,
-                error: errMsg
+                error: errMsg,
+                code: providerCode,
+                removeToken: removeToken
             };
         }
         catch (e) {
             logger.error("[Push] sendProviderPush exception: platform=%s arn=%s error=%s", normalizedPlatform, endpoint.endpointArn || "none", e.message || String(e));
-            return { configured: true, success: false, error: e.message || String(e) };
+            return { configured: true, success: false, error: e.message || String(e), removeToken: false };
         }
     }
     function rpcPushRegisterToken(ctx, logger, nk, payload) {
@@ -27825,6 +28839,8 @@ var LegacyPush;
             // root-cause fix as the daily-quiz cron path. See dedupeTokensByPlatform.
             var deliverableTokens = dedupeTokensByPlatform(tokensData.tokens);
             var providerResults = [];
+            var deadTokenStrings = {};
+            var hasDeadToken = false;
             for (var i = 0; i < deliverableTokens.length; i++) {
                 var t = deliverableTokens[i];
                 var providerResult = sendProviderPush(ctx, logger, nk, t, {
@@ -27834,6 +28850,12 @@ var LegacyPush;
                     gameId: data.gameId || data.game_id || "quizverse",
                     eventType: data.eventType || subject
                 });
+                // Mark dead endpoints for removal — the provider says this token will
+                // never deliver again (app uninstalled / token rotated).
+                if (providerResult.removeToken && t.token) {
+                    deadTokenStrings[t.token] = true;
+                    hasDeadToken = true;
+                }
                 // Report ARN-derived platform in the response so callers don't see
                 // the legacy mislabel ("ios" for a /GCM/ endpoint). This is the
                 // platform the Lambda was actually told to build the envelope for.
@@ -27844,8 +28866,27 @@ var LegacyPush;
                         endpointArn: t.endpointArn,
                         success: providerResult.success === true,
                         messageId: providerResult.messageId,
-                        error: providerResult.error
+                        error: providerResult.error,
+                        code: providerResult.code,
+                        removed: !!providerResult.removeToken
                     });
+            }
+            // Persist removal of dead token rows so we stop re-sending to them.
+            if (hasDeadToken) {
+                var keptAfterDead = [];
+                for (var di = 0; di < tokensData.tokens.length; di++) {
+                    var dt = tokensData.tokens[di];
+                    if (dt && dt.token && deadTokenStrings[dt.token])
+                        continue;
+                    keptAfterDead.push(dt);
+                }
+                var removedCount = tokensData.tokens.length - keptAfterDead.length;
+                tokensData.tokens = keptAfterDead;
+                try {
+                    savePushTokens(nk, targetUserId, tokensData);
+                    logger.info("[Push] push_send_event: pruned %s dead token row(s) (provider reported UNREGISTERED/disabled) for targetUserId=%s", removedCount, targetUserId);
+                }
+                catch (_) { }
             }
             nk.notificationsSend([{
                     userId: targetUserId,
@@ -27871,6 +28912,27 @@ var LegacyPush;
                 logger.warn("[Push] push_send_event FAILED to reach any device: eventType=%s targetUserId=%s — " +
                     "check providerResults in the response body for per-platform errors.", subject, targetUserId);
             }
+            // Push delivery observability — feed the real device-delivery outcome to
+            // PushAlerts so a high device-failure rate or dead-token spike pages
+            // Discord (these never throw, so they're invisible to RPC analytics).
+            try {
+                var paDead = 0;
+                for (var dk in deadTokenStrings) {
+                    if (deadTokenStrings.hasOwnProperty(dk) && deadTokenStrings[dk])
+                        paDead++;
+                }
+                var paCodes = {};
+                for (var pc = 0; pc < providerResults.length; pc++) {
+                    var prr = providerResults[pc];
+                    if (prr && prr.success !== true) {
+                        var ck = prr.removed ? "UNREGISTERED" : (prr.code || "send_failed");
+                        paCodes[ck] = (paCodes[ck] || 0) + 1;
+                    }
+                }
+                PushAlerts.ensureConfigured(ctx, logger);
+                PushAlerts.recordOutcome(nk, logger, "send_event", providerResults.length, successCount, paDead, paCodes);
+            }
+            catch (_) { }
             return JSON.stringify({
                 success: true,
                 messageId: "nakama_notification_" + Date.now(),
@@ -28326,14 +29388,43 @@ var LegacyPush;
         if (deliverable.length === 0)
             return false;
         var sent = 0;
+        var localDead = {};
+        var localHasDead = false;
+        var localCodes = {};
         for (var i = 0; i < deliverable.length; i++) {
             var t = deliverable[i];
             var providerResult = sendProviderPush(ctx, logger, nk, t, {
                 title: title, body: body, data: mergedData,
                 gameId: opts.gameId || "quizverse", eventType: eventType
             });
-            if (providerResult.success === true)
+            if (providerResult.success === true) {
                 sent++;
+            }
+            else {
+                var lck = providerResult.removeToken ? "UNREGISTERED" : (providerResult.code || "send_failed");
+                localCodes[lck] = (localCodes[lck] || 0) + 1;
+            }
+            if (providerResult.removeToken && t.token) {
+                localDead[t.token] = true;
+                localHasDead = true;
+            }
+        }
+        // Prune dead endpoints reported by the provider so the next cron run stops
+        // re-sending to uninstalled devices (kept the scheduled-push fan-out from
+        // wasting calls on tokens that will only ever return UNREGISTERED).
+        if (localHasDead) {
+            var keptTokens = [];
+            for (var ki = 0; ki < tokensData.tokens.length; ki++) {
+                var kt = tokensData.tokens[ki];
+                if (kt && kt.token && localDead[kt.token])
+                    continue;
+                keptTokens.push(kt);
+            }
+            tokensData.tokens = keptTokens;
+            try {
+                savePushTokens(nk, userId, tokensData);
+            }
+            catch (_) { }
         }
         if (!opts.skipInAppNotification) {
             try {
@@ -28345,6 +29436,18 @@ var LegacyPush;
             }
             catch (_) { }
         }
+        // Scheduled-push delivery observability — same signal as the on-demand path
+        // so the cron silently dropping to 0 device-sends raises a Discord alert.
+        try {
+            var locDead = 0;
+            for (var ldk in localDead) {
+                if (localDead.hasOwnProperty(ldk) && localDead[ldk])
+                    locDead++;
+            }
+            PushAlerts.ensureConfigured(ctx, logger);
+            PushAlerts.recordOutcome(nk, logger, "cron", tokensData.tokens.length, sent, locDead, localCodes);
+        }
+        catch (_) { }
         return sent > 0;
     }
     LegacyPush.sendLocalizedPushToUser = sendLocalizedPushToUser;
@@ -29199,6 +30302,16 @@ var LegacyPush;
             for (var u = 0; u < pendingUserIds.length; u++) {
                 var uid = pendingUserIds[u];
                 try {
+                    // Guard against storage_user_id_fkey violations: a pending userId can
+                    // reference an account that no longer exists (ghost/guest cleaned up,
+                    // never-persisted client id). Any storageWrite for it fails the
+                    // foreign key and — because the catch below re-queued the user — it
+                    // retried every 30 min forever, self-amplifying the FK error volume.
+                    // Drop such users from the pending index up front.
+                    if (!userExists(nk, uid)) {
+                        logger.warn("[Push] flushPending: dropping pending userId=%s — no such account (avoids storage_user_id_fkey).", uid);
+                        continue; // not re-added to remainingUserIds → removed from index
+                    }
                     var td = getPushTokens(nk, uid);
                     var hasPending = false;
                     for (var k = 0; k < td.tokens.length; k++) {
@@ -29250,9 +30363,17 @@ var LegacyPush;
                 catch (ue) {
                     // Storage read error or unexpected failure for this specific user —
                     // demoted to warn since it's per-user, not a system-level failure.
-                    // The userId stays in remainingUserIds so the next scheduler tick retries.
-                    logger.warn("[Push] flushPending: error processing userId=%s (will retry): %s", uid, ue.message || String(ue));
-                    remainingUserIds.push(uid); // keep in index so next tick retries
+                    var ueMsg = ue && ue.message ? ue.message : String(ue);
+                    // A foreign-key violation means the account is gone — do NOT re-queue
+                    // it (that's what created the self-amplifying retry storm). Any other
+                    // transient error stays in the index for the next tick.
+                    if (ueMsg.indexOf("storage_user_id_fkey") !== -1 || ueMsg.toLowerCase().indexOf("foreign key") !== -1) {
+                        logger.warn("[Push] flushPending: dropping userId=%s — storage FK violation (account gone): %s", uid, ueMsg);
+                    }
+                    else {
+                        logger.warn("[Push] flushPending: error processing userId=%s (will retry): %s", uid, ueMsg);
+                        remainingUserIds.push(uid); // keep in index so next tick retries
+                    }
                 }
             }
             // Update the pending index with only the users that still have pending tokens.
@@ -39125,7 +40246,13 @@ var OnboardingAnalytics;
         "ob_congrats_seen": true,
         "ob_deeplink_fire": true,
         "ob_unity_return": true,
-        "ob_app_launch_success": true
+        "ob_app_launch_success": true,
+        "ob_return_seen": true
+    };
+    /** Intentional exit to native Unity — success for existing users, not funnel drop-off. */
+    var UNITY_HANDOFF_EVENTS = {
+        "ob_welcome_return_to_app": true,
+        "ob_signin_handoff_native": true
     };
     function screenLabel(screen) {
         if (!screen)
@@ -39142,9 +40269,28 @@ var OnboardingAnalytics;
     function isCompletionEvent(name) {
         return !!COMPLETION_EVENTS[name];
     }
+    function isUnityHandoffEvent(name) {
+        return !!UNITY_HANDOFF_EVENTS[name];
+    }
+    function applyUnityHandoffFromEvent(u, rec) {
+        if (!isUnityHandoffEvent(rec.name))
+            return;
+        u.unityHandoff = true;
+        if (rec.name === "ob_welcome_return_to_app")
+            u.welcomeReturnToApp = true;
+        if (rec.name === "ob_signin_handoff_native")
+            u.signinHandoffNative = true;
+        var data = rec.data || {};
+        if (data.surface)
+            u.handoffSurface = data.surface;
+        if (data.provider)
+            u.handoffProvider = data.provider;
+    }
     function eventCategory(name) {
         if (isCompletionEvent(name))
             return "completion";
+        if (isUnityHandoffEvent(name))
+            return "handoff";
         if (name === "ob_identity_linked" || name === "ob_register_complete" || name === "ob_verify_complete" || name === "ob_register_start")
             return "identity";
         if (name.indexOf("paywall") >= 0 || name.indexOf("closing_offer") >= 0)
@@ -39160,6 +40306,8 @@ var OnboardingAnalytics;
     function deriveUserStatus(u) {
         if (u.completed)
             return "completed";
+        if (u.unityHandoff)
+            return "returned_to_app";
         if (u.paywallSubscribe || u.paywallTrialStart || u.subscribed)
             return "subscribed";
         if (u.paywallSeen && !u.completed && !u.paywallSubscribe && !u.paywallTrialStart)
@@ -39205,13 +40353,14 @@ var OnboardingAnalytics;
             return true;
         return Object.keys(snap).length > 0;
     }
-    /** Best-effort funnel duration — prefers snapshot elapsedMs over event span. */
+    /** Best-effort funnel duration — prefers snapshot elapsedMs over event span.
+     * NOTE: snap.elapsedMs is already in milliseconds — do NOT pass through toMs(). */
     function resolveUserDurationMs(u) {
         if (u.maxElapsedMs > 0)
             return u.maxElapsedMs;
         var snap = u.snapshot || {};
         if (snap.elapsedMs > 0)
-            return toMs(snap.elapsedMs);
+            return snap.elapsedMs;
         var started = parseTimeMs(snap.startedAt);
         var completed = parseTimeMs(snap.completedAt);
         if (started > 0 && completed > started)
@@ -39224,7 +40373,7 @@ var OnboardingAnalytics;
         if (!snap || typeof snap !== "object")
             return;
         if (snap.elapsedMs > 0) {
-            var elapsed = toMs(snap.elapsedMs);
+            var elapsed = snap.elapsedMs;
             if (!u.maxElapsedMs || elapsed > u.maxElapsedMs)
                 u.maxElapsedMs = elapsed;
         }
@@ -39441,6 +40590,20 @@ var OnboardingAnalytics;
             target.identityLinked = true;
         if (source.started)
             target.started = true;
+        if (source.unityHandoff)
+            target.unityHandoff = true;
+        if (source.welcomeReturnToApp)
+            target.welcomeReturnToApp = true;
+        if (source.signinHandoffNative)
+            target.signinHandoffNative = true;
+        if (source.handoffSurface && !target.handoffSurface)
+            target.handoffSurface = source.handoffSurface;
+        if (source.handoffProvider && !target.handoffProvider)
+            target.handoffProvider = source.handoffProvider;
+        if (source.welcomeTheme && !target.welcomeTheme)
+            target.welcomeTheme = source.welcomeTheme;
+        if (source.returnSeenEvent)
+            target.returnSeenEvent = true;
         if (source.quizFirstAnswerMs > 0 && (!target.quizFirstAnswerMs || source.quizFirstAnswerMs < target.quizFirstAnswerMs)) {
             target.quizFirstAnswerMs = source.quizFirstAnswerMs;
         }
@@ -39637,6 +40800,13 @@ var OnboardingAnalytics;
                         d7Return: false,
                         welcomeBonusClaimed: false,
                         streakShieldActivated: false,
+                        unityHandoff: false,
+                        welcomeReturnToApp: false,
+                        signinHandoffNative: false,
+                        handoffSurface: "",
+                        handoffProvider: "",
+                        welcomeTheme: "",
+                        returnSeenEvent: false,
                         subscribed: !!snap.subscribed,
                         lastScreen: "",
                         lastTs: 0,
@@ -39723,6 +40893,13 @@ var OnboardingAnalytics;
                     u.welcomeBonusClaimed = true;
                 if (rec.name === "ob_streak_shield_activated")
                     u.streakShieldActivated = true;
+                applyUnityHandoffFromEvent(u, rec);
+                if (!u.welcomeTheme && rec.data && rec.data.welcome_theme) {
+                    var wt = ("" + rec.data.welcome_theme).toLowerCase();
+                    u.welcomeTheme = (wt === "lavender") ? "lavender" : "v1";
+                }
+                if (rec.name === "ob_return_seen")
+                    u.returnSeenEvent = true;
                 if (rec.name === "ob_screen_seen" && rec.screen) {
                     if (!u.screens[rec.screen]) {
                         u.screens[rec.screen] = { seen: 0, dwellMs: 0, firstTs: ts };
@@ -39803,6 +40980,9 @@ var OnboardingAnalytics;
         var pathwayFilter = data.pathway ? ("" + data.pathway) : null;
         var platformFilter = data.platform ? ("" + data.platform) : null;
         var statusFilter = data.status ? ("" + data.status) : null;
+        var welcomeThemeFilter = data.welcome_theme ? ("" + data.welcome_theme).toLowerCase() : null;
+        if (welcomeThemeFilter && welcomeThemeFilter !== "lavender" && welcomeThemeFilter !== "v1")
+            welcomeThemeFilter = null;
         var userLimit = data.user_limit || data.userLimit || 500;
         if (userLimit > 1000)
             userLimit = 1000;
@@ -39822,15 +41002,43 @@ var OnboardingAnalytics;
             }
             usersMap = filteredUsers;
         }
+        if (welcomeThemeFilter) {
+            var themeFiltered = {};
+            for (var tfuid in usersMap) {
+                if (!Object.prototype.hasOwnProperty.call(usersMap, tfuid))
+                    continue;
+                var tfu = usersMap[tfuid];
+                var uTheme = tfu.welcomeTheme || "v1";
+                if (uTheme === welcomeThemeFilter)
+                    themeFiltered[tfuid] = tfu;
+            }
+            usersMap = themeFiltered;
+        }
         var screenOrder = buildScreenOrder(usersMap);
         var totalUsers = countKeys(usersMap);
         var completedCount = 0;
+        var returnedToAppCount = 0;
         var paywallSeen = 0;
         var paywallSubscribe = 0;
         var paywallTrialStart = 0;
         var paywallDismiss = 0;
         var paywallSkip = 0;
         var paywallDrop = 0;
+        var closingOfferSeenCount = 0;
+        var closingOfferClaimedCount = 0;
+        var abHardSeen = 0;
+        var abHardSubscribed = 0;
+        var abSoftSeen = 0;
+        var abSoftSubscribed = 0;
+        var abV1Users = 0;
+        var abV1Completed = 0;
+        var abV1PaywallSeen = 0;
+        var abV1Subscribed = 0;
+        var abLavenderUsers = 0;
+        var abLavenderCompleted = 0;
+        var abLavenderPaywallSeen = 0;
+        var abLavenderSubscribed = 0;
+        var abThemeUnknown = 0;
         var durationSamples = [];
         var quizFirstAnswerSamples = [];
         var sigRegisterStart = 0;
@@ -39846,6 +41054,8 @@ var OnboardingAnalytics;
         var sigD7Return = 0;
         var sigWelcomeBonus = 0;
         var sigStreakShield = 0;
+        var sigWelcomeReturn = 0;
+        var sigSigninHandoff = 0;
         var pathwayCounts = {};
         var prePathwayUsers = 0;
         var prePathwayCompleted = 0;
@@ -39857,6 +41067,8 @@ var OnboardingAnalytics;
             var u = usersMap[uid2];
             if (u.completed)
                 completedCount++;
+            if (u.unityHandoff)
+                returnedToAppCount++;
             if (u.paywallSeen)
                 paywallSeen++;
             if (u.paywallSubscribe)
@@ -39869,6 +41081,45 @@ var OnboardingAnalytics;
                 paywallSkip++;
             if (u.paywallSeen && !u.paywallSubscribe && !u.paywallTrialStart && !u.completed && !u.paywallSkip && !u.paywallDismiss)
                 paywallDrop++;
+            if (u.closingOfferSeen)
+                closingOfferSeenCount++;
+            if (u.closingOfferClaimed)
+                closingOfferClaimedCount++;
+            var variant = (u.snapshot && u.snapshot.paywallVariant) ? ("" + u.snapshot.paywallVariant).toLowerCase() : "";
+            if (u.paywallSeen) {
+                if (variant === "hard") {
+                    abHardSeen++;
+                    if (u.paywallSubscribe || u.paywallTrialStart)
+                        abHardSubscribed++;
+                }
+                else {
+                    abSoftSeen++;
+                    if (u.paywallSubscribe || u.paywallTrialStart)
+                        abSoftSubscribed++;
+                }
+            }
+            var uWelcomeTheme = u.welcomeTheme || "v1";
+            if (uWelcomeTheme === "lavender") {
+                abLavenderUsers++;
+                if (u.completed)
+                    abLavenderCompleted++;
+                if (u.paywallSeen)
+                    abLavenderPaywallSeen++;
+                if (u.paywallSubscribe || u.paywallTrialStart)
+                    abLavenderSubscribed++;
+            }
+            else if (uWelcomeTheme === "v1") {
+                abV1Users++;
+                if (u.completed)
+                    abV1Completed++;
+                if (u.paywallSeen)
+                    abV1PaywallSeen++;
+                if (u.paywallSubscribe || u.paywallTrialStart)
+                    abV1Subscribed++;
+            }
+            else {
+                abThemeUnknown++;
+            }
             if (u.registerStart)
                 sigRegisterStart++;
             if (u.appLaunchSuccess)
@@ -39898,13 +41149,19 @@ var OnboardingAnalytics;
                 sigWelcomeBonus++;
             if (u.streakShieldActivated)
                 sigStreakShield++;
+            if (u.welcomeReturnToApp)
+                sigWelcomeReturn++;
+            if (u.signinHandoffNative)
+                sigSigninHandoff++;
             var elapsed = resolveUserDurationMs(u);
             if (elapsed > 0)
                 durationSamples.push(elapsed);
             if (!isValidPathway(u.pathway)) {
-                prePathwayUsers++;
-                if (u.completed)
-                    prePathwayCompleted++;
+                if (!u.unityHandoff) {
+                    prePathwayUsers++;
+                    if (u.completed)
+                        prePathwayCompleted++;
+                }
             }
             else {
                 var pw = u.pathway;
@@ -39926,12 +41183,15 @@ var OnboardingAnalytics;
                     screenAgg[sc2].dwellCount++;
                 }
             }
-            if (!u.completed && u.lastScreen) {
+            if (!u.completed && !u.unityHandoff && u.lastScreen) {
                 dropMap[u.lastScreen] = (dropMap[u.lastScreen] || 0) + 1;
                 if (screenAgg[u.lastScreen])
                     screenAgg[u.lastScreen].exits++;
             }
         }
+        var incompletePool = totalUsers - completedCount - returnedToAppCount;
+        if (incompletePool < 0)
+            incompletePool = 0;
         var screenFunnel = [];
         var seenInOrder = {};
         var orderList = screenOrder.slice();
@@ -39966,8 +41226,8 @@ var OnboardingAnalytics;
                 screen: ds,
                 label: screenLabel(ds),
                 users: dropMap[ds],
-                pctOfIncomplete: (totalUsers - completedCount) > 0
-                    ? Math.round((dropMap[ds] / (totalUsers - completedCount)) * 1000) / 10
+                pctOfIncomplete: incompletePool > 0
+                    ? Math.round((dropMap[ds] / incompletePool) * 1000) / 10
                     : 0
             });
         }
@@ -40053,6 +41313,13 @@ var OnboardingAnalytics;
                 welcomeBonusClaimed: ur.welcomeBonusClaimed,
                 streakShieldActivated: ur.streakShieldActivated,
                 identityLinked: ur.identityLinked,
+                unityHandoff: ur.unityHandoff,
+                welcomeReturnToApp: ur.welcomeReturnToApp,
+                signinHandoffNative: ur.signinHandoffNative,
+                handoffSurface: ur.handoffSurface || "",
+                handoffProvider: ur.handoffProvider || "",
+                welcomeTheme: ur.welcomeTheme || "v1",
+                returnSeenEvent: ur.returnSeenEvent || false,
                 eventCount: ur.eventCount,
                 firstTs: ur.firstTs,
                 lastTs: ur.lastTs,
@@ -40070,12 +41337,16 @@ var OnboardingAnalytics;
             pathway: pathwayFilter,
             platform: platformFilter,
             status: statusFilter,
+            welcomeTheme: welcomeThemeFilter,
             truncated: scan.truncated,
             summary: {
                 totalUsers: totalUsers,
                 started: totalUsers,
                 completed: completedCount,
                 completionRatePct: totalUsers > 0 ? Math.round((completedCount / totalUsers) * 1000) / 10 : 0,
+                returnedToApp: returnedToAppCount,
+                returnedToAppPct: totalUsers > 0 ? Math.round((returnedToAppCount / totalUsers) * 1000) / 10 : 0,
+                trueDropCount: incompletePool,
                 medianDurationMin: durationSamples.length > 0
                     ? Math.round((median(durationSamples) / 60000) * 10) / 10
                     : 0,
@@ -40100,10 +41371,46 @@ var OnboardingAnalytics;
                 dismissed: paywallDismiss,
                 skipped: paywallSkip,
                 dropOff: paywallDrop,
+                closingOfferSeen: closingOfferSeenCount,
+                closingOfferClaimed: closingOfferClaimedCount,
+                closingOfferClaimRatePct: closingOfferSeenCount > 0 ? Math.round((closingOfferClaimedCount / closingOfferSeenCount) * 1000) / 10 : 0,
                 subscribeRatePct: paywallSeen > 0 ? Math.round((paywallSubscribe / paywallSeen) * 1000) / 10 : 0,
                 trialRatePct: paywallSeen > 0 ? Math.round((paywallTrialStart / paywallSeen) * 1000) / 10 : 0,
                 skipRatePct: paywallSeen > 0 ? Math.round((paywallSkip / paywallSeen) * 1000) / 10 : 0,
-                dismissRatePct: paywallSeen > 0 ? Math.round((paywallDismiss / paywallSeen) * 1000) / 10 : 0
+                dismissRatePct: paywallSeen > 0 ? Math.round((paywallDismiss / paywallSeen) * 1000) / 10 : 0,
+                abBreakdown: {
+                    hard: {
+                        seen: abHardSeen,
+                        converted: abHardSubscribed,
+                        conversionRatePct: abHardSeen > 0 ? Math.round((abHardSubscribed / abHardSeen) * 1000) / 10 : 0
+                    },
+                    soft: {
+                        seen: abSoftSeen,
+                        converted: abSoftSubscribed,
+                        conversionRatePct: abSoftSeen > 0 ? Math.round((abSoftSubscribed / abSoftSeen) * 1000) / 10 : 0
+                    }
+                }
+            },
+            welcomeThemeAB: {
+                v1: {
+                    users: abV1Users,
+                    completed: abV1Completed,
+                    completionRatePct: abV1Users > 0 ? Math.round((abV1Completed / abV1Users) * 1000) / 10 : 0,
+                    paywallSeen: abV1PaywallSeen,
+                    paywallReachPct: abV1Users > 0 ? Math.round((abV1PaywallSeen / abV1Users) * 1000) / 10 : 0,
+                    subscribed: abV1Subscribed,
+                    subscribeRatePct: abV1PaywallSeen > 0 ? Math.round((abV1Subscribed / abV1PaywallSeen) * 1000) / 10 : 0
+                },
+                lavender: {
+                    users: abLavenderUsers,
+                    completed: abLavenderCompleted,
+                    completionRatePct: abLavenderUsers > 0 ? Math.round((abLavenderCompleted / abLavenderUsers) * 1000) / 10 : 0,
+                    paywallSeen: abLavenderPaywallSeen,
+                    paywallReachPct: abLavenderUsers > 0 ? Math.round((abLavenderPaywallSeen / abLavenderUsers) * 1000) / 10 : 0,
+                    subscribed: abLavenderSubscribed,
+                    subscribeRatePct: abLavenderPaywallSeen > 0 ? Math.round((abLavenderSubscribed / abLavenderPaywallSeen) * 1000) / 10 : 0
+                },
+                unknown: abThemeUnknown
             },
             eventSignals: {
                 funnel: {
@@ -40140,6 +41447,14 @@ var OnboardingAnalytics;
                     welcomeBonusClaimedPct: completedCount > 0 ? Math.round((sigWelcomeBonus / completedCount) * 1000) / 10 : 0,
                     streakShieldActivated: sigStreakShield,
                     streakShieldActivatedPct: completedCount > 0 ? Math.round((sigStreakShield / completedCount) * 1000) / 10 : 0
+                },
+                handoff: {
+                    welcomeReturnToApp: sigWelcomeReturn,
+                    welcomeReturnPct: totalUsers > 0 ? Math.round((sigWelcomeReturn / totalUsers) * 1000) / 10 : 0,
+                    signinHandoffNative: sigSigninHandoff,
+                    signinHandoffPct: totalUsers > 0 ? Math.round((sigSigninHandoff / totalUsers) * 1000) / 10 : 0,
+                    returnedToAppTotal: returnedToAppCount,
+                    returnedToAppPct: totalUsers > 0 ? Math.round((returnedToAppCount / totalUsers) * 1000) / 10 : 0
                 }
             },
             screenFunnel: screenFunnel,
@@ -40261,6 +41576,7 @@ var OnboardingAnalytics;
                 journeyUser.paywallSkip = true;
             if (en === "ob_identity_linked")
                 journeyUser.identityLinked = true;
+            applyUnityHandoffFromEvent(journeyUser, { name: en, data: events[ei].data || {} });
         }
         var guestLinkMeta = guestId ? readIdentityLink(nk, guestId) : null;
         if (guestLinkMeta && guestLinkMeta.nakamaUserId)
@@ -41917,6 +43233,10 @@ var QuestEventBusBridge;
             meta.category = String(data.category);
         if (data.type)
             meta.type = String(data.type);
+        // topic is extracted globally so DNA-tagged quest steps (filterField="topic")
+        // auto-progress from any event that carries a topic field.
+        if (data.topic)
+            meta.topic = String(data.topic);
         // Event-specific fields
         switch (eventName) {
             case EventBus.Events.QUIZ_COMPLETED:
@@ -41926,6 +43246,9 @@ var QuestEventBusBridge;
                     meta.mode = String(data.mode);
                 if (data.difficulty)
                     meta.difficulty = String(data.difficulty);
+                // topic also captured here for explicit quiz events that set it locally
+                if (data.topic && !meta.topic)
+                    meta.topic = String(data.topic);
                 break;
             case EventBus.Events.ACHIEVEMENT_COMPLETED:
                 if (data.achievementId)
@@ -47212,13 +48535,17 @@ var SatoriExperiments;
     function saveUserExperiments(nk, userId, data, gameId) {
         Storage.writeJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, Constants.gameKey(gameId, "assignments"), userId, data);
     }
+    // Returns the canonical identifier for a variant — prefer id, fall back to name.
+    function variantKey(v) {
+        return v.id || v.name || "0";
+    }
     function deterministicAssign(userId, experimentId, variants, splitKey) {
         var totalWeight = 0;
         for (var i = 0; i < variants.length; i++) {
             totalWeight += variants[i].weight;
         }
         if (totalWeight <= 0)
-            return variants[0].id;
+            return variantKey(variants[0]);
         var seed = userId + ":" + experimentId;
         if (splitKey === "random") {
             seed = userId + ":" + experimentId + ":" + Date.now();
@@ -47233,9 +48560,9 @@ var SatoriExperiments;
         for (var j = 0; j < variants.length; j++) {
             cumulative += variants[j].weight;
             if (bucket < cumulative)
-                return variants[j].id;
+                return variantKey(variants[j]);
         }
-        return variants[variants.length - 1].id;
+        return variantKey(variants[variants.length - 1]);
     }
     function isExperimentActive(def) {
         if (def.status !== "running")
@@ -47264,7 +48591,8 @@ var SatoriExperiments;
         }
         var userExp = getUserExperiments(nk, userId, gameId);
         var assignment = userExp.assignments[experimentId];
-        if (!assignment) {
+        // Treat missing or legacy-broken assignments (variantId undefined/null) as unassigned.
+        if (!assignment || !assignment.variantId) {
             if (!isWithinAdmissionDeadline(def))
                 return null;
             var variantId = deterministicAssign(userId, experimentId, def.variants, def.splitKey);
@@ -47281,7 +48609,7 @@ var SatoriExperiments;
         }
         var found = null;
         for (var i = 0; i < def.variants.length; i++) {
-            if (def.variants[i].id === assignment.variantId) {
+            if (variantKey(def.variants[i]) === assignment.variantId) {
                 found = def.variants[i];
                 break;
             }
@@ -47324,7 +48652,7 @@ var SatoriExperiments;
                 name: def.name,
                 description: def.description,
                 type: def.experimentType || "custom",
-                variant: variant ? { id: variant.id, name: variant.name, config: variant.config } : null,
+                variant: variant ? { id: variantKey(variant), name: variant.name, config: variant.config || variant.data || {} } : null,
                 startAt: def.startAt,
                 endAt: def.endAt,
                 goalMetric: def.goalMetric
@@ -47338,7 +48666,8 @@ var SatoriExperiments;
         if (!data.experimentId)
             return RpcHelpers.errorResponse("experimentId required");
         var variant = getVariant(nk, userId, data.experimentId, RpcHelpers.gameId(data));
-        return RpcHelpers.successResponse({ variant: variant });
+        var resp = variant ? { id: variantKey(variant), name: variant.name, config: variant.config || variant.data || {} } : null;
+        return RpcHelpers.successResponse({ variant: resp });
     }
     function register(initializer) {
         initializer.registerRpc("satori_experiments_get", rpcGet);
@@ -48044,28 +49373,24 @@ var LegacyAnalytics;
             reads.push({ collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, undefined), userId: sys });
         }
         try {
-            var recs = nk.storageRead(reads);
+            var rawRecs = nk.storageRead(reads);
             // Index records by key so we can resolve scoped-vs-platform preference.
             var byKey = {};
-            for (var ri = 0; ri < recs.length; ri++) {
-                if (recs[ri] && recs[ri].value)
-                    byKey[recs[ri].key] = recs[ri];
+            for (var ri = 0; ri < rawRecs.length; ri++) {
+                if (rawRecs[ri] && rawRecs[ri].value)
+                    byKey[rawRecs[ri].key] = rawRecs[ri];
             }
-            // Prefer scoped key, fall back to platform-wide.
-            function pickRec(scopedKey, platformKey) {
-                return byKey[scopedKey] || (useGameScope ? byKey[platformKey] : null);
-            }
-            var dauRec = pickRec(dauKeyOf(dateStr, gameId), dauKeyOf(dateStr, undefined));
-            var liveRec = pickRec(liveKeyOf(dateStr, gameId), liveKeyOf(dateStr, undefined));
-            var rollupRec = pickRec(rollupKeyOf(dateStr, gameId), rollupKeyOf(dateStr, undefined));
-            var fakeRecs = [];
+            // Prefer scoped key, fall back to platform-wide (inline to avoid ES5 block-function error).
+            var dauRec = byKey[dauKeyOf(dateStr, gameId)] || (useGameScope ? byKey[dauKeyOf(dateStr, undefined)] : null);
+            var liveRec = byKey[liveKeyOf(dateStr, gameId)] || (useGameScope ? byKey[liveKeyOf(dateStr, undefined)] : null);
+            var rollupRec = byKey[rollupKeyOf(dateStr, gameId)] || (useGameScope ? byKey[rollupKeyOf(dateStr, undefined)] : null);
+            var recs = [];
             if (dauRec)
-                fakeRecs.push(dauRec);
+                recs.push(dauRec);
             if (liveRec)
-                fakeRecs.push(liveRec);
+                recs.push(liveRec);
             if (rollupRec)
-                fakeRecs.push(rollupRec);
-            var recs = fakeRecs;
+                recs.push(rollupRec);
             for (var i = 0; i < recs.length; i++) {
                 var r = recs[i];
                 if (!r || !r.value)
@@ -51840,10 +53165,21 @@ var AdRevenueEvent;
     AdRevenueEvent.rpcRecordAdRevenue = rpcRecordAdRevenue;
     /**
      * Register all RPCs in this module.
+     *
+     * MUST be a single-parameter (`initializer`-only) function whose body
+     * contains ONLY `initializer.registerRpc(...)` calls. postbuild rewrites
+     * those into `__rpc_ad_revenue_record = rpcRecordAdRevenue` and then
+     * AUTO-INVOKES this register() inside the namespace IIFE on EVERY pooled
+     * Goja VM (see postbuild.js §3b). A second `logger` parameter (or any
+     * non-registerRpc body statement) makes postbuild treat auto-invoke as
+     * unsafe and SKIP it — which is exactly what left `__rpc_ad_revenue_record`
+     * undefined on every VM except the one that ran InitModule, producing
+     * "JavaScript runtime function invalid." for ad_revenue_record on ~96% of
+     * calls (the ones that landed on a pooled VM). Do NOT add params or logging
+     * here. Init-time logging lives in main.ts instead.
      */
-    function register(initializer, logger) {
+    function register(initializer) {
         initializer.registerRpc("ad_revenue_record", rpcRecordAdRevenue);
-        logger.info("[AdRevenueEvent] ✓ Registered RPC: ad_revenue_record");
     }
     AdRevenueEvent.register = register;
 })(AdRevenueEvent || (AdRevenueEvent = {}));
@@ -52477,6 +53813,11 @@ var FortuneWheelAdSpin;
      * fortune_wheel_skip_cooldown / fortune_wheel_ad_spin time out with retries.
      * Do NOT add a second parameter here.
      */
+    // Single-parameter, registerRpc-only so postbuild auto-invokes this on
+    // EVERY pooled Goja VM (see ad-revenue-event.ts for the full rationale).
+    // A second `logger` param made postbuild skip auto-invoke, leaving
+    // __rpc_fortune_wheel_ad_spin undefined on non-init VMs → intermittent
+    // "JavaScript runtime function invalid." Init logging lives in main.ts.
     function register(initializer) {
         initializer.registerRpc("fortune_wheel_ad_spin", rpcFortuneWheelAdSpin);
         initializer.registerRpc("fortune_wheel_skip_cooldown", rpcFortuneWheelSkipCooldown);
@@ -53630,9 +54971,13 @@ var WebAdReward;
         });
     }
     WebAdReward.rpcWebAdReward = rpcWebAdReward;
-    function register(initializer, logger) {
+    // Single-parameter, registerRpc-only so postbuild auto-invokes this on EVERY
+    // pooled Goja VM (see ad-revenue-event.ts for the full rationale). A second
+    // `logger` param made postbuild skip auto-invoke, leaving
+    // __rpc_quizverse_web_ad_reward undefined on non-init VMs → intermittent
+    // "JavaScript runtime function invalid." Init logging lives in main.ts.
+    function register(initializer) {
         initializer.registerRpc("quizverse_web_ad_reward", rpcWebAdReward);
-        logger.info("[WebAdReward] ✓ Registered RPC: quizverse_web_ad_reward");
     }
     WebAdReward.register = register;
 })(WebAdReward || (WebAdReward = {}));
