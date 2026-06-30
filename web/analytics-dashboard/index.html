@@ -5684,7 +5684,7 @@ select { color-scheme: dark; }
             const v1Pct = totalBucketed > 0 ? Math.round((ab.v1.users / totalBucketed) * 1000) / 10 : 50;
             const lavPct = totalBucketed > 0 ? Math.round((ab.lavender.users / totalBucketed) * 1000) / 10 : 50;
             el.innerHTML =
-                '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1.25rem">Bucketing is deterministic via <code>anonId</code> hash — users see the same theme on repeat visits. Theme is captured from <code>ob_welcome_seen { welcome_theme }</code>.</p>' +
+                '<p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1.25rem">Bucketing is deterministic via <code>anonId</code> hash. Theme is read from <code>ob_welcome_seen</code>, paywall events, or <code>userSnapshot.welcome_theme</code>. Users without a logged theme are excluded from v1/lavender cards (see unknown count).</p>' +
                 '<div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">' +
                 themeCard('v1 — dark indigo', '🌑', ab.v1, '#818cf8') +
                 themeCard('Lavender — light purple', '💜', ab.lavender, '#a78bfa') +
