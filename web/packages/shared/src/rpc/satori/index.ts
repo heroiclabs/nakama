@@ -493,6 +493,7 @@ export function setMetricAlert(
     name: string;
     threshold: number;
     operator: "gt" | "lt" | "gte" | "lte";
+    game_id?: string;
   },
   opts: RpcOptions,
 ) {
@@ -879,9 +880,18 @@ export function defineMetric(
   return callRpc("satori_metrics_define", metric, opts);
 }
 
-export function listMetricAlerts(opts: RpcOptions): Promise<{ alerts: MetricAlert[] }> {
-  return callRpc("satori_metrics_alerts", {}, opts).then((value) =>
+export function listMetricAlerts(opts: RpcOptions, gameId?: string): Promise<{ alerts: MetricAlert[] }> {
+  return callRpc("satori_metrics_alerts", { game_id: gameId }, opts).then((value) =>
     unwrapData<{ alerts: MetricAlert[] }>(value),
+  );
+}
+
+export function deleteMetric(
+  params: { id: string; game_id?: string },
+  opts: RpcOptions,
+): Promise<{ deleted: string }> {
+  return callRpc("satori_metrics_delete", params, opts).then((value) =>
+    unwrapData<{ deleted: string }>(value),
   );
 }
 

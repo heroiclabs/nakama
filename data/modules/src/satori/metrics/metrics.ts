@@ -98,7 +98,7 @@ namespace SatoriMetrics {
       bucket.count++;
 
       saveMetricState(nk, id, state, gameId);
-      checkAlerts(nk, logger, id, bucket.value);
+      checkAlerts(nk, logger, id, bucket.value, gameId);
     }
   }
 
@@ -110,13 +110,14 @@ namespace SatoriMetrics {
     enabled: boolean;
   }
 
-  function getAlerts(nk: nkruntime.Nakama): MetricAlert[] {
-    var data = Storage.readSystemJson<{ alerts: MetricAlert[] }>(nk, Constants.SATORI_METRICS_COLLECTION, "alerts");
+  function getAlerts(nk: nkruntime.Nakama, gameId?: string): MetricAlert[] {
+    var key = Constants.gameKey(gameId, "alerts");
+    var data = Storage.readSystemJson<{ alerts: MetricAlert[] }>(nk, Constants.SATORI_METRICS_COLLECTION, key);
     return (data && data.alerts) || [];
   }
 
-  function checkAlerts(nk: nkruntime.Nakama, logger: nkruntime.Logger, metricId: string, value: number): void {
-    var alerts = getAlerts(nk);
+  function checkAlerts(nk: nkruntime.Nakama, logger: nkruntime.Logger, metricId: string, value: number, gameId?: string): void {
+    var alerts = getAlerts(nk, gameId);
     for (var i = 0; i < alerts.length; i++) {
       var alert = alerts[i];
       if (!alert.enabled || alert.metricId !== metricId) continue;
@@ -213,7 +214,8 @@ namespace SatoriMetrics {
     if (!metricId || !data.name || data.threshold === undefined || !data.operator) {
       return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
     }
-    var alerts = getAlerts(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var alerts = getAlerts(nk, gameId);
     var existing = false;
     for (var i = 0; i < alerts.length; i++) {
       if (alerts[i].name === data.name) {
@@ -225,7 +227,8 @@ namespace SatoriMetrics {
     if (!existing) {
       alerts.push({ metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
     }
-    Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts", { alerts: alerts });
+    var alertKey = Constants.gameKey(gameId, "alerts");
+    Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, alertKey, { alerts: alerts });
     return RpcHelpers.successResponse({ alerts: alerts });
   }
 
@@ -288,7 +291,24 @@ namespace SatoriMetrics {
   // satori_metrics_alerts — list configured alerts + last-triggered state.
   function rpcAlertsList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
-    return RpcHelpers.successResponse({ alerts: getAlerts(nk) });
+    var data = RpcHelpers.parseRpcPayload(payload);
+    return RpcHelpers.successResponse({ alerts: getAlerts(nk, RpcHelpers.gameId(data)) });
+  }
+
+  function rpcDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.id) return RpcHelpers.errorResponse("id required");
+    var gameId = RpcHelpers.gameId(data);
+    var definitions = getMetricDefinitions(nk, gameId);
+    if (!definitions[data.id]) return RpcHelpers.errorResponse("Metric not found: " + data.id);
+    delete definitions[data.id];
+    ConfigLoader.saveSatoriConfigForGame(nk, "metrics", gameId, definitions);
+    // Also clear state bucket to free storage
+    try {
+      Storage.deleteRecord(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, data.id), Constants.SYSTEM_USER_ID);
+    } catch (_) { /* ok if not present */ }
+    return RpcHelpers.successResponse({ deleted: data.id });
   }
 
   function rpcPrometheus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -319,6 +339,7 @@ namespace SatoriMetrics {
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("satori_metrics_query", rpcQuery);
     initializer.registerRpc("satori_metrics_define", rpcDefine);
+    initializer.registerRpc("satori_metrics_delete", rpcDelete);
     initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
     initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
     initializer.registerRpc("satori_metrics_get", rpcQuery);

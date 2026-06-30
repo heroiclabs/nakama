@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Gauge,
@@ -9,6 +9,8 @@ import {
   Check,
   BellRing,
   Activity,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -20,29 +22,99 @@ import {
   CartesianGrid,
 } from "recharts";
 import { serverKeyAuth, satori } from "@nakama/shared";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 import { cn } from "@/lib/utils";
 
 const AGGREGATIONS = ["count", "sum", "avg", "min", "max", "unique"] as const;
+const GLOBAL_CONFIG_SCOPE = "global";
 
-function useMetricsList() {
+function rpcGameId(scope: string) {
+  const t = scope.trim();
+  return t && t !== GLOBAL_CONFIG_SCOPE ? t : undefined;
+}
+
+/* ── Toast ───────────────────────────────────────────────────── */
+
+type ToastVariant = "success" | "error" | "info";
+interface ToastState { id: number; message: string; variant: ToastVariant }
+
+function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void }) {
+  useEffect(() => { const t = setTimeout(onDone, 3500); return () => clearTimeout(t); }, [onDone]);
+  const cls = toast.variant === "success"
+    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+    : toast.variant === "error"
+    ? "border-destructive/40 bg-destructive/10 text-destructive"
+    : "border-primary/40 bg-primary/10 text-primary";
+  return (
+    <div className={cn("fixed bottom-6 right-6 z-[9999] flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-lg", cls)}>
+      <span>{toast.message}</span>
+      <button onClick={onDone} className="ml-1 opacity-60 hover:opacity-100"><X className="h-4 w-4" /></button>
+    </div>
+  );
+}
+
+/* ── Confirm Dialog ──────────────────────────────────────────── */
+
+interface ConfirmDialogState {
+  title: string; description: string; confirmLabel?: string;
+  variant?: "default" | "danger"; onConfirm: () => void; onCancel: () => void;
+}
+
+function ConfirmDialog({ cfg }: { cfg: ConfirmDialogState }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { btnRef.current?.focus(); }, []);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") cfg.onCancel(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [cfg]);
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-2xl">
+        <h4 className="text-base font-semibold">{cfg.title}</h4>
+        <p className="mt-1 text-sm text-muted-foreground">{cfg.description}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={cfg.onCancel} className="h-9 rounded-md border border-border px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent">Cancel</button>
+          <button ref={btnRef} onClick={cfg.onConfirm}
+            className={cn("h-9 rounded-md px-4 text-sm font-medium transition-colors",
+              cfg.variant === "danger" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}>
+            {cfg.confirmLabel ?? "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function useMetricsList(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "metrics", "list"],
-    queryFn: () => satori.queryMetrics(serverKeyAuth()),
+    queryKey: ["admin", "metrics", "list", gameScope],
+    queryFn: () => satori.queryMetrics(serverKeyAuth(), rpcGameId(gameScope)),
     select: (d) => d.metrics ?? [],
     retry: 1,
   });
 }
 
-function useAlerts() {
+function useAlerts(gameScope: string) {
   return useQuery({
-    queryKey: ["admin", "metrics", "alerts"],
-    queryFn: () => satori.listMetricAlerts(serverKeyAuth()),
+    queryKey: ["admin", "metrics", "alerts", gameScope],
+    queryFn: () => satori.listMetricAlerts(serverKeyAuth(), rpcGameId(gameScope)),
     select: (d) => d.alerts ?? [],
     retry: 1,
   });
 }
 
-function DefineMetricForm({ onClose }: { onClose: () => void }) {
+function useDeleteMetric(gameScope: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (metricId: string) =>
+      satori.deleteMetric({ id: metricId, game_id: rpcGameId(gameScope) }, serverKeyAuth()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "metrics", "list", gameScope] }),
+  });
+}
+
+function DefineMetricForm({ onClose, gameScope, onToast }: { onClose: () => void; gameScope: string; onToast: (msg: string, v: ToastVariant) => void }) {
   const qc = useQueryClient();
   const [id, setId] = useState("");
   const [name, setName] = useState("");
@@ -61,13 +133,16 @@ function DefineMetricForm({ onClose }: { onClose: () => void }) {
           aggregation,
           metadataField: metadataField.trim() || undefined,
           windowSec: windowSec ? parseInt(windowSec, 10) : undefined,
+          game_id: rpcGameId(gameScope),
         },
         serverKeyAuth(),
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "metrics"] });
+      qc.invalidateQueries({ queryKey: ["admin", "metrics", "list", gameScope] });
+      onToast(`Metric "${name.trim()}" defined!`, "success");
       onClose();
     },
+    onError: () => onToast("Failed to define metric", "error"),
   });
 
   const needsField = aggregation === "sum" || aggregation === "avg" || aggregation === "min" || aggregation === "max";
@@ -128,7 +203,7 @@ function DefineMetricForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-function AlertForm({ metricId, onClose }: { metricId: string; onClose: () => void }) {
+function AlertForm({ metricId, onClose, gameScope, onToast }: { metricId: string; onClose: () => void; gameScope: string; onToast: (msg: string, v: ToastVariant) => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [threshold, setThreshold] = useState("");
@@ -137,13 +212,15 @@ function AlertForm({ metricId, onClose }: { metricId: string; onClose: () => voi
   const setAlert = useMutation({
     mutationFn: () =>
       satori.setMetricAlert(
-        { metric_id: metricId, name: name.trim(), threshold: parseFloat(threshold) || 0, operator },
+        { metric_id: metricId, name: name.trim(), threshold: parseFloat(threshold) || 0, operator, game_id: rpcGameId(gameScope) },
         serverKeyAuth(),
       ),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "metrics", "alerts"] });
+      qc.invalidateQueries({ queryKey: ["admin", "metrics", "alerts", gameScope] });
+      onToast("Alert saved!", "success");
       onClose();
     },
+    onError: () => onToast("Failed to save alert", "error"),
   });
 
   return (
@@ -186,10 +263,10 @@ function AlertForm({ metricId, onClose }: { metricId: string; onClose: () => voi
   );
 }
 
-function MetricSeriesChart({ metricId }: { metricId: string }) {
+function MetricSeriesChart({ metricId, gameScope }: { metricId: string; gameScope: string }) {
   const series = useQuery({
-    queryKey: ["admin", "metrics", "series", metricId],
-    queryFn: () => satori.getMetricSeries({ metricId }, serverKeyAuth()),
+    queryKey: ["admin", "metrics", "series", metricId, gameScope],
+    queryFn: () => satori.getMetricSeries({ metricId, game_id: rpcGameId(gameScope) }, serverKeyAuth()),
     retry: 1,
   });
 
@@ -235,14 +312,39 @@ function MetricSeriesChart({ metricId }: { metricId: string }) {
 }
 
 export function MetricsPage() {
-  const metrics = useMetricsList();
-  const alerts = useAlerts();
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
+  const metrics = useMetricsList(gameScope);
+  const alerts = useAlerts(gameScope);
+  const delMetric = useDeleteMetric(gameScope);
+  const qc = useQueryClient();
+
   const [selected, setSelected] = useState<string | null>(null);
   const [showDefine, setShowDefine] = useState(false);
   const [alertFor, setAlertFor] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const toastId = useRef(0);
+
+  function showToast(message: string, variant: ToastVariant = "info") {
+    setToast({ id: ++toastId.current, message, variant });
+  }
+
+  function openConfirm(cfg: ConfirmDialogState) {
+    setConfirmDialog({
+      ...cfg,
+      onConfirm: () => { setConfirmDialog(null); cfg.onConfirm(); },
+      onCancel: () => { setConfirmDialog(null); cfg.onCancel(); },
+    });
+  }
 
   const list = metrics.data ?? [];
   const active = selected ?? list[0]?.metricId ?? null;
+
+  function formatValue(v: number) {
+    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+    if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+    return v % 1 === 0 ? v.toLocaleString() : v.toFixed(2);
+  }
 
   return (
     <div className="space-y-6">
@@ -276,23 +378,48 @@ export function MetricsPage() {
           {/* Metric list */}
           <div className="space-y-2">
             {list.map((m) => (
-              <button
-                key={m.metricId}
-                onClick={() => setSelected(m.metricId)}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-lg border p-3 text-left transition-colors",
-                  active === m.metricId ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-accent",
+              <div key={m.metricId} className="group relative">
+                <button
+                  onClick={() => setSelected(m.metricId)}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg border p-3 pr-9 text-left transition-colors",
+                    active === m.metricId ? "border-primary bg-primary/5" : "border-border bg-card hover:bg-accent",
+                  )}
+                >
+                  <span className="font-mono text-sm font-medium">{m.metricId}</span>
+                  <span className={cn("text-lg font-bold tabular-nums", m.value === 0 ? "text-muted-foreground" : "text-foreground")}>
+                    {formatValue(m.value)}
+                  </span>
+                </button>
+                {/* Delete button (only non-legacy metrics) */}
+                {!m.metricId.startsWith("legacy_") && (
+                  <button
+                    onClick={() => openConfirm({
+                      title: "Delete Metric?",
+                      description: `"${m.metricId}" and all its history will be removed.`,
+                      confirmLabel: "Delete",
+                      variant: "danger",
+                      onConfirm: () => {
+                        delMetric.mutate(m.metricId, {
+                          onSuccess: () => { showToast(`Metric "${m.metricId}" deleted`, "info"); if (active === m.metricId) setSelected(null); },
+                          onError: () => showToast("Failed to delete metric", "error"),
+                        });
+                      },
+                      onCancel: () => {},
+                    })}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
+                    title="Delete metric"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 )}
-              >
-                <span className="font-mono text-sm font-medium">{m.metricId}</span>
-                <span className="text-lg font-bold tabular-nums">{m.value}</span>
-              </button>
+              </div>
             ))}
           </div>
 
           {/* Detail */}
           <div className="space-y-4">
-            {active && <MetricSeriesChart metricId={active} />}
+            {active && <MetricSeriesChart metricId={active} gameScope={gameScope} />}
             {active && (
               <div className="rounded-xl border border-border bg-card p-5">
                 <div className="mb-3 flex items-center justify-between">
@@ -312,7 +439,7 @@ export function MetricsPage() {
                       <div key={a.name} className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-sm">
                         <span className="font-medium">{a.name}</span>
                         <span className="text-xs text-muted-foreground">
-                          {a.operator === "gt" ? ">" : a.operator === "gte" ? "≥" : a.operator === "lt" ? "<" : "≤"} {a.threshold}
+                          {a.operator === "gt" ? ">" : a.operator === "gte" ? "≥" : a.operator === "lt" ? "<" : "≤"} {a.threshold.toLocaleString()}
                           <span className={cn("ml-2 rounded-full px-2 py-0.5 text-[10px] uppercase", a.enabled ? "bg-emerald-500/10 text-emerald-500" : "bg-muted text-muted-foreground")}>
                             {a.enabled ? "on" : "off"}
                           </span>
@@ -327,8 +454,11 @@ export function MetricsPage() {
         </div>
       )}
 
-      {showDefine && <DefineMetricForm onClose={() => setShowDefine(false)} />}
-      {alertFor && <AlertForm metricId={alertFor} onClose={() => setAlertFor(null)} />}
+      {showDefine && <DefineMetricForm onClose={() => setShowDefine(false)} gameScope={gameScope} onToast={showToast} />}
+      {alertFor && <AlertForm metricId={alertFor} onClose={() => setAlertFor(null)} gameScope={gameScope} onToast={showToast} />}
+
+      {confirmDialog && <ConfirmDialog cfg={confirmDialog} />}
+      {toast && <Toast key={toast.id} toast={toast} onDone={() => setToast(null)} />}
     </div>
   );
 }
