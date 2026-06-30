@@ -17,7 +17,8 @@ namespace SatoriTimeline {
   function rpcTimeline(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
-    var days = Math.min(Math.max(parseInt(data.days, 10) || 14, 3), MAX_DAYS);
+    var parsedDays = parseInt(data.days, 10);
+    var days = Math.min(Math.max(isNaN(parsedDays) ? 14 : parsedDays, 3), MAX_DAYS);
     var gameId = RpcHelpers.gameId(data);
 
     var nowMs = Date.now();

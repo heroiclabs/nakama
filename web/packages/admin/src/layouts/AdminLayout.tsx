@@ -167,6 +167,18 @@ function AppSelector() {
 const SCROLL_AREA =
   "overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden";
 
+// Pages that are platform-wide admin tools — the app selector is irrelevant
+// on these routes and hiding it avoids misleading "QuizVerse scoped" appearance.
+const PLATFORM_ONLY_ROUTES = new Set([
+  "/apps",
+  "/players",
+  "/accounts",
+  "/storage",
+  "/matches",
+  "/logs",
+  "/settings",
+]);
+
 export function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
@@ -175,6 +187,7 @@ export function AdminLayout() {
 
   const pageTitle = getPageTitle(location.pathname);
   const activeApp = useActiveApp();
+  const showAppSelector = !PLATFORM_ONLY_ROUTES.has(location.pathname);
 
   function toggleTheme() {
     const next = theme === "light" ? "dark" : theme === "dark" ? "system" : "light";
@@ -248,25 +261,27 @@ export function AdminLayout() {
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card/80 px-6 backdrop-blur">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold">{pageTitle}</h1>
-            <span
-              title={
-                activeApp.isAllApps
-                  ? "Showing combined data across all apps"
-                  : `Scoped to ${activeApp.label}`
-              }
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-                activeApp.isAllApps
-                  ? "border-border bg-muted text-muted-foreground"
-                  : "border-primary/30 bg-primary/10 text-primary",
-              )}
-            >
-              <Boxes size={12} />
-              {activeApp.label}
-            </span>
+            {showAppSelector && (
+              <span
+                title={
+                  activeApp.isAllApps
+                    ? "Showing combined data across all apps"
+                    : `Scoped to ${activeApp.label}`
+                }
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                  activeApp.isAllApps
+                    ? "border-border bg-muted text-muted-foreground"
+                    : "border-primary/30 bg-primary/10 text-primary",
+                )}
+              >
+                <Boxes size={12} />
+                {activeApp.label}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3">
-            <AppSelector />
+            {showAppSelector && <AppSelector />}
             <button
               onClick={toggleTheme}
               title={`Theme: ${theme}`}

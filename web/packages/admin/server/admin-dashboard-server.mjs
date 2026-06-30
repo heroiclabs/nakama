@@ -1,9 +1,34 @@
 import { createServer } from "node:http";
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { extname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
+
+/** Load repo-root `.env` for local dev only (never in production Docker). */
+function loadRepoEnv() {
+  if (process.env.NODE_ENV === "production") return;
+  const envPath = resolve(__dirname, "../../../..", ".env");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadRepoEnv();
+
 const distDir = resolve(process.env.ADMIN_DASHBOARD_DIST_DIR ?? join(__dirname, "..", "dist"));
 const basePath = normalizePrefix(process.env.ADMIN_DASHBOARD_BASE_PATH ?? "/admin-dashboard");
 const apiPrefix = `${basePath}/api`;
@@ -202,6 +227,36 @@ async function handleLogin(req, res) {
   );
   if (!result.ok || !result.body || result.body.success === false) {
     sendJson(res, result.status || 401, result.body ?? { success: false, error: "Login failed" });
+    return;
+  }
+  sendJson(res, 200, result.body);
+}
+
+const autoLoginPassword = process.env.ADMIN_PASSWORD ?? "";
+const autoLoginEnabled =
+  autoLoginPassword.length > 0 &&
+  String(process.env.ADMIN_DASHBOARD_AUTO_LOGIN ?? "true").toLowerCase() !== "false";
+const autoLoginUsername = process.env.ADMIN_USERNAME ?? "ivx-admin";
+
+async function handleAutoLogin(_req, res) {
+  if (!autoLoginEnabled) {
+    sendJson(res, 404, { success: false, error: "Auto-login is disabled" });
+    return;
+  }
+  if (!autoLoginPassword) {
+    sendJson(res, 503, {
+      success: false,
+      error: "ADMIN_PASSWORD is not configured on the dashboard proxy",
+    });
+    return;
+  }
+  const result = await fetchNakamaRpc(
+    "admin_login",
+    { username: autoLoginUsername, password: autoLoginPassword },
+    { type: "http-key" },
+  );
+  if (!result.ok || !result.body || result.body.success === false) {
+    sendJson(res, result.status || 401, result.body ?? { success: false, error: "Auto-login failed" });
     return;
   }
   sendJson(res, 200, result.body);
@@ -530,6 +585,10 @@ const server = createServer(async (req, res) => {
 
     if (url.pathname === `${apiPrefix}/login` && req.method === "POST") {
       await handleLogin(req, res);
+      return;
+    }
+    if (url.pathname === `${apiPrefix}/auto-login` && req.method === "POST") {
+      await handleAutoLogin(req, res);
       return;
     }
     if (url.pathname === `${apiPrefix}/prize-fulfill` && req.method === "POST") {

@@ -34,11 +34,14 @@ function buildAuthHeader(auth: AuthMode): string {
 function getStoredAdminToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+    const raw =
+      window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY) ??
+      window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
     if (!raw) return null;
     const session = JSON.parse(raw) as { token?: string; expiresAt?: number };
     if (!session.token) return null;
     if (session.expiresAt && session.expiresAt <= Math.floor(Date.now() / 1000)) {
+      window.sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
       window.localStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
       return null;
     }

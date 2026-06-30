@@ -79,24 +79,25 @@ namespace LegacyNotifScheduler {
   // every ~20 ticks (~20s) so coordination cost stays negligible.
   var CHECK_INTERVAL_TICKS = 20;
 
-  export function readSharedDispatch(nk: nkruntime.Nakama): { [task: string]: number } {
+  export function readSharedDispatch(nk: nkruntime.Nakama): { tasks: { [task: string]: number }; version: string } {
     try {
       var recs = nk.storageRead([{ collection: DISPATCH_COLLECTION, key: DISPATCH_KEY, userId: DISPATCH_SYSTEM_USER_ID }]);
       if (recs && recs.length > 0 && recs[0].value && recs[0].value.tasks) {
-        return recs[0].value.tasks as { [task: string]: number };
+        return { tasks: recs[0].value.tasks as { [task: string]: number }, version: recs[0].version || "" };
       }
     } catch (_) {}
-    return {};
+    return { tasks: {}, version: "" };
   }
 
-  export function writeSharedDispatch(nk: nkruntime.Nakama, tasks: { [task: string]: number }): void {
-    try {
-      nk.storageWrite([{
-        collection: DISPATCH_COLLECTION, key: DISPATCH_KEY, userId: DISPATCH_SYSTEM_USER_ID,
-        value: { tasks: tasks, updatedAt: Date.now() },
-        permissionRead: 0, permissionWrite: 0
-      }]);
-    } catch (_) {}
+  // CAS write — throws on version conflict (another pod already advanced the
+  // row). Callers must catch and skip dispatch if this throws.
+  export function writeSharedDispatch(nk: nkruntime.Nakama, tasks: { [task: string]: number }, version: string): void {
+    nk.storageWrite([{
+      collection: DISPATCH_COLLECTION, key: DISPATCH_KEY, userId: DISPATCH_SYSTEM_USER_ID,
+      value: { tasks: tasks, updatedAt: Date.now() },
+      version: version === "" ? "*" : version,
+      permissionRead: 0, permissionWrite: 0
+    }]);
   }
 
   // Returns true when `task` is due per the SHARED last-dispatch minute, and
@@ -229,26 +230,44 @@ namespace LegacyNotifScheduler {
     // Throttled to once every CHECK_INTERVAL_TICKS so we don't read/write
     // storage at the full 1 Hz tick rate.
     if ((_tick % CHECK_INTERVAL_TICKS) === 0) {
-      var tasks = readSharedDispatch(nk);
+      var row = readSharedDispatch(nk);
+      var tasks = row.tasks;
+      var ver = row.version;
       var before = JSON.stringify(tasks);
 
-      if (sharedDue(tasks, "daily_quiz",            30)) dispatchSafely("daily_quiz",          LegacyPush.runDailyQuizCron,     ctx, logger, nk);
-      if (sharedDue(tasks, "weekly_quiz",           60)) dispatchSafely("weekly_quiz",         LegacyPush.runWeeklyQuizCron,    ctx, logger, nk);
-      if (sharedDue(tasks, "idle_winback",          30)) dispatchSafely("idle_winback",        LegacyPush.runIdleWinbackCron,   ctx, logger, nk);
-      if (sharedDue(tasks, "streak_warning",        30)) dispatchSafely("streak_warning",      LegacyPush.runStreakWarningCron, ctx, logger, nk);
-      if (sharedDue(tasks, "motivation",            60)) dispatchSafely("motivation",          LegacyPush.runMotivationCron,    ctx, logger, nk);
-      if (sharedDue(tasks, "reminders",              5)) dispatchSafely("reminders",           LegacyPush.runRemindersCron,     ctx, logger, nk);
-      if (sharedDue(tasks, "review_due",            30)) dispatchSafely("review_due",          LegacyPush.runReviewCron,        ctx, logger, nk);
-      if (sharedDue(tasks, "flush_pending_push",    30)) {
-        try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {}
-      }
-      if (sharedDue(tasks, "flush_failed_chat_push", 3)) {
-        try { LegacyChat.flushFailedChatPushes(ctx, logger, nk); } catch (_) {}
+      // Collect which tasks are due (mutates tasks in-place to claim the slot)
+      var dueDaily    = sharedDue(tasks, "daily_quiz",            30);
+      var dueWeekly   = sharedDue(tasks, "weekly_quiz",           60);
+      var dueWinback  = sharedDue(tasks, "idle_winback",          30);
+      var dueStreak   = sharedDue(tasks, "streak_warning",        30);
+      var dueMotiv    = sharedDue(tasks, "motivation",            60);
+      var dueRemind   = sharedDue(tasks, "reminders",              5);
+      var dueReview   = sharedDue(tasks, "review_due",            30);
+      var dueFlushPush = sharedDue(tasks, "flush_pending_push",   30);
+      var dueFlushChat = sharedDue(tasks, "flush_failed_chat_push", 3);
+
+      // CAS write first — only ONE pod wins the version conflict check.
+      // Losers catch the version mismatch and skip all dispatches for this tick,
+      // so a task fires on exactly ONE pod per window (not N).
+      if (JSON.stringify(tasks) !== before) {
+        try {
+          writeSharedDispatch(nk, tasks, ver);
+        } catch (_) {
+          // Lost the race — another pod already advanced the row. Skip all dispatches.
+          return { state: state };
+        }
       }
 
-      // Persist if anything advanced OR a task was seeded for the first time,
-      // so first-boot deferral isn't re-applied forever on an empty row.
-      if (JSON.stringify(tasks) !== before) writeSharedDispatch(nk, tasks);
+      // Only the pod that won the CAS write reaches here.
+      if (dueDaily)    dispatchSafely("daily_quiz",          LegacyPush.runDailyQuizCron,     ctx, logger, nk);
+      if (dueWeekly)   dispatchSafely("weekly_quiz",         LegacyPush.runWeeklyQuizCron,    ctx, logger, nk);
+      if (dueWinback)  dispatchSafely("idle_winback",        LegacyPush.runIdleWinbackCron,   ctx, logger, nk);
+      if (dueStreak)   dispatchSafely("streak_warning",      LegacyPush.runStreakWarningCron, ctx, logger, nk);
+      if (dueMotiv)    dispatchSafely("motivation",          LegacyPush.runMotivationCron,    ctx, logger, nk);
+      if (dueRemind)   dispatchSafely("reminders",           LegacyPush.runRemindersCron,     ctx, logger, nk);
+      if (dueReview)   dispatchSafely("review_due",          LegacyPush.runReviewCron,        ctx, logger, nk);
+      if (dueFlushPush) { try { LegacyPush.flushPendingRegistrations(ctx, logger, nk); } catch (_) {} }
+      if (dueFlushChat) { try { LegacyChat.flushFailedChatPushes(ctx, logger, nk); } catch (_) {} }
     }
 
     var m = nowMinute();
