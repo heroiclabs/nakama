@@ -241,6 +241,8 @@ namespace SatoriDashboard {
     var onboardingActive = ActiveRolling.countWindows(nk, "onboarding", undefined, now);
     var totalActive = ActiveRolling.mergeCounts(inAppActive, onboardingActive);
     var inApp24h = Math.max(inAppActive.active24h, dauToday);
+    // 24h total = sum of the two displayed rows (onboarding + in-app w/ DAU floor).
+    var total24h = onboardingActive.active24h + inApp24h;
 
     return RpcHelpers.successResponse({
       generatedAt: now,
@@ -254,13 +256,13 @@ namespace SatoriDashboard {
         total: {
           active5m: totalActive.active5m,
           active1h: totalActive.active1h,
-          active24h: Math.max(totalActive.active24h, dauToday)
+          active24h: total24h
         }
       },
       // Flat fields kept for older clients — totals (onboarding + in-app).
       activeUsers5m: totalActive.active5m,
       activeUsers1h: totalActive.active1h,
-      activeUsers24h: Math.max(totalActive.active24h, dauToday),
+      activeUsers24h: total24h,
       eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
       // Real daily truth from the analytics pipeline (matches analytics.htm).
       dauToday: dauToday,
