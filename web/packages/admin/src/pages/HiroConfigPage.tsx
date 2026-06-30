@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Editor, { loader, type OnMount, type Monaco } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
+import Editor, { type OnMount, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import {
   serverKeyAuth,
@@ -25,8 +24,6 @@ import {
   Search,
   X,
 } from "lucide-react";
-
-loader.config({ monaco });
 
 const SYSTEM_LABELS: Record<HiroSystem, string> = {
   economy: "Economy",
@@ -178,6 +175,7 @@ export function HiroConfigPage() {
     variant: "success" | "error";
   } | null>(null);
   const [sidebarFilter, setSidebarFilter] = useState("");
+  const [confirmSave, setConfirmSave] = useState(false);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -217,6 +215,10 @@ export function HiroConfigPage() {
         document.getElementById("save-config-btn")?.click();
       },
     });
+    // Disable Ctrl+S browser default (file save dialog)
+    editor.getDomNode()?.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") e.preventDefault();
+    });
   }, []);
 
   const handleEditorChange = useCallback(
@@ -239,9 +241,11 @@ export function HiroConfigPage() {
 
   const handleSave = useCallback(() => {
     if (parseError || schemaError) return;
-    if (!window.confirm(`Save ${SYSTEM_LABELS[activeSystem]} config to production?`)) {
-      return;
-    }
+    setConfirmSave(true);
+  }, [parseError, schemaError]);
+
+  const doSave = useCallback(() => {
+    setConfirmSave(false);
     try {
       const parsed = JSON.parse(editorValue);
       saveMutation.mutate(parsed, {
@@ -259,7 +263,7 @@ export function HiroConfigPage() {
     } catch {
       setToast({ message: "Cannot save — invalid JSON", variant: "error" });
     }
-  }, [editorValue, parseError, schemaError, saveMutation, activeSystem]);
+  }, [editorValue, saveMutation, activeSystem]);
 
   const handleReset = useCallback(() => {
     setEditorValue(serverConfig);
@@ -341,6 +345,29 @@ export function HiroConfigPage() {
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
+      {/* Save confirm dialog */}
+      {confirmSave && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="mb-4 flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-semibold">Save to production?</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This will overwrite the <strong>{SYSTEM_LABELS[activeSystem]}</strong> config
+                  {rpcGameId(gameScope) ? ` for game "${gameScope}"` : " (global defaults)"}.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmSave(false)} className="inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-medium text-muted-foreground hover:bg-accent">Cancel</button>
+              <button onClick={doSave} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <Save className="h-4 w-4" /> Save config
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
