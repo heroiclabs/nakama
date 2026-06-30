@@ -9208,6 +9208,24 @@ var QvGetQuestions;
      *   { ok: false, error: string, topic: string, message: string }
      */
     function rpcGetQuestions(ctx, logger, nk, payload) {
+        var _traceId = (ctx.userId || "anon") + "_" + Date.now();
+        logger.info("[QvGetQ][ENTER] traceId=" + _traceId + " rawPayload=" + (payload || ""));
+        try {
+            return _rpcGetQuestionsImpl(ctx, logger, nk, payload, _traceId);
+        }
+        catch (e) {
+            var errMsg = (e && e.message) ? e.message : String(e);
+            var errCode = (e && typeof e.code === "number") ? e.code : -1;
+            // Full structured error — visible in Grafana / CloudWatch under /aws/ecs/nakama
+            logger.error("[QvGetQ][ERROR] traceId=" + _traceId +
+                " userId=" + (ctx.userId || "anon") +
+                " payload=" + (payload || "") +
+                " errCode=" + errCode +
+                " errMsg=" + errMsg);
+            throw e; // re-throw so Nakama returns proper gRPC status to Unity
+        }
+    }
+    function _rpcGetQuestionsImpl(ctx, logger, nk, payload, traceId) {
         // ── Auth ───────────────────────────────────────────────────────────────
         var userId = ctx.userId;
         if (!userId)
@@ -9254,7 +9272,8 @@ var QvGetQuestions;
         }
         // ── mode: "standard" | "personalized" (org3) ──────────────────────────
         var mode = (typeof req.mode === "string" && req.mode) ? req.mode : "standard";
-        logger.info("[QvGetQ] user=" + userId + " topic=" + topic +
+        logger.info("[QvGetQ][REQ] traceId=" + traceId +
+            " user=" + userId + " topic=" + topic +
             " count=" + count + " lang=" + lang + " gameId=" + gameId +
             " mode=" + mode + " country=" + countryCode);
         // ── 0a. Cold start protocol ─────────────────────────────────────────────
@@ -9288,6 +9307,7 @@ var QvGetQuestions;
         // ── 0. Opportunistic expired-pack cleanup (org5) ────────────────────────
         cleanExpiredPacksOpportunistic(nk, logger, userId);
         // ── 1. Rate limit (Task 1b.1) ──────────────────────────────────────────
+        logger.info("[QvGetQ][GATE:rate_check] traceId=" + traceId + " user=" + userId);
         enforceRateLimit(nk, userId);
         // ── 2. Pack limit — evict oldest if at cap (Task 1b.1) ─────────────────
         var inflightPacks = listInflight(nk, userId);
@@ -9348,7 +9368,8 @@ var QvGetQuestions;
         var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
         var pool = cacheResult.questions;
         if (pool.length === 0) {
-            logger.warn("[QvGetQ] cache empty topic=" + topic);
+            logger.warn("[QvGetQ][GATE:cache_empty] traceId=" + traceId + " topic=" + topic +
+                " cacheExpired=" + cacheResult.expired + " — pipeline may still be building");
             return JSON.stringify({
                 ok: false,
                 error: "cache_empty",
@@ -9356,6 +9377,8 @@ var QvGetQuestions;
                 message: "No questions cached for this topic yet. The pipeline is building — retry in ~60s."
             });
         }
+        logger.info("[QvGetQ][GATE:cache_ok] traceId=" + traceId + " topic=" + topic +
+            " poolSize=" + pool.length + " cacheExpired=" + cacheResult.expired);
         // ── 4. Lang validation + fallback (Task 1b.1 / 1b.4) ──────────────────
         var langActual = lang;
         var langPool = [];
@@ -9417,7 +9440,8 @@ var QvGetQuestions;
         var seenIds = readSeenIds(nk, userId, topic);
         var picked = filterAndPick(langPool, seenIds, inflightIds, count);
         if (picked.length === 0) {
-            logger.info("[QvGetQ] pool exhausted topic=" + topic + " seen=" + seenIds.length);
+            logger.warn("[QvGetQ][GATE:pool_exhausted] traceId=" + traceId + " topic=" + topic +
+                " seen=" + seenIds.length + " langPool=" + langPool.length + " inflight=" + inflightIds.length);
             return JSON.stringify({
                 ok: false,
                 error: "pool_exhausted",
@@ -9425,6 +9449,9 @@ var QvGetQuestions;
                 message: "All available questions for this topic have been seen. New questions are being fetched."
             });
         }
+        logger.info("[QvGetQ][GATE:picked] traceId=" + traceId + " topic=" + topic +
+            " picked=" + picked.length + " from langPool=" + langPool.length +
+            " seen=" + seenIds.length + " inflightExcluded=" + inflightIds.length);
         // ── 5b. Personalized mix algorithm (org3) ──────────────────────────────
         //
         // When mode="personalized":
@@ -9511,10 +9538,12 @@ var QvGetQuestions;
         // ── 6. Write inflight + pack document (Task 1b.3) ──────────────────────
         var packId = makePackId(nk, gameId, topic);
         writePackStorage(nk, userId, packId, topic, lang, langActual, gameId, picked);
-        logger.info("[QvGetQ] pack=" + packId + " topic=" + topic +
+        logger.info("[QvGetQ][DONE] traceId=" + traceId +
+            " pack=" + packId + " topic=" + topic +
             " delivered=" + picked.length + "/" + count +
             " pool=" + pool.length + " seen=" + seenIds.length +
-            " inflight=" + inflightIds.length + " cache_expired=" + cacheResult.expired);
+            " inflight=" + inflightIds.length + " cache_expired=" + cacheResult.expired +
+            " coldStart=" + coldStartApplied + " mode=" + mode);
         // ── 7. Build client-safe response ──────────────────────────────────────
         // Strip internal `provider` field — Unity doesn't need to know the source.
         var clientQs = [];
@@ -52305,6 +52334,8 @@ var SatoriDashboard;
         var onboardingActive = ActiveRolling.countWindows(nk, "onboarding", undefined, now);
         var totalActive = ActiveRolling.mergeCounts(inAppActive, onboardingActive);
         var inApp24h = Math.max(inAppActive.active24h, dauToday);
+        // 24h total = sum of the two displayed rows (onboarding + in-app w/ DAU floor).
+        var total24h = onboardingActive.active24h + inApp24h;
         return RpcHelpers.successResponse({
             generatedAt: now,
             activeUsers: {
@@ -52317,13 +52348,13 @@ var SatoriDashboard;
                 total: {
                     active5m: totalActive.active5m,
                     active1h: totalActive.active1h,
-                    active24h: Math.max(totalActive.active24h, dauToday)
+                    active24h: total24h
                 }
             },
             // Flat fields kept for older clients — totals (onboarding + in-app).
             activeUsers5m: totalActive.active5m,
             activeUsers1h: totalActive.active1h,
-            activeUsers24h: Math.max(totalActive.active24h, dauToday),
+            activeUsers24h: total24h,
             eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
             // Real daily truth from the analytics pipeline (matches analytics.htm).
             dauToday: dauToday,
