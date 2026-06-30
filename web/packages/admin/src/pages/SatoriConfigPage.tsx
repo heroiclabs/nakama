@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import Editor, { loader, type OnMount, type Monaco } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
+import Editor, { type OnMount, type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import {
   serverKeyAuth,
@@ -26,8 +25,6 @@ import {
   X,
   Radio,
 } from "lucide-react";
-
-loader.config({ monaco });
 
 const SYSTEM_LABELS: Record<SatoriSystem, string> = {
   audiences: "Audiences",
@@ -229,6 +226,8 @@ export function SatoriConfigPage() {
     variant: "success" | "error";
   } | null>(null);
   const [sidebarFilter, setSidebarFilter] = useState("");
+  const [confirmSave, setConfirmSave] = useState(false);
+  const [pendingSystem, setPendingSystem] = useState<SatoriSystem | null>(null);
 
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -290,9 +289,11 @@ export function SatoriConfigPage() {
 
   const handleSave = useCallback(() => {
     if (parseError || schemaError) return;
-    if (!window.confirm(`Save ${SYSTEM_LABELS[activeSystem]} config to production?`)) {
-      return;
-    }
+    setConfirmSave(true);
+  }, [parseError, schemaError]);
+
+  const doSave = useCallback(() => {
+    setConfirmSave(false);
     try {
       const parsed = JSON.parse(editorValue);
       saveMutation.mutate(parsed, {
@@ -313,7 +314,7 @@ export function SatoriConfigPage() {
     } catch {
       setToast({ message: "Cannot save — invalid JSON", variant: "error" });
     }
-  }, [editorValue, parseError, schemaError, saveMutation, activeSystem]);
+  }, [editorValue, saveMutation, activeSystem]);
 
   const handleReset = useCallback(() => {
     setEditorValue(serverConfig);
@@ -375,12 +376,21 @@ export function SatoriConfigPage() {
     editorRef.current?.getAction("editor.action.formatDocument")?.run();
   }, []);
 
-  const handleSystemChange = useCallback((sys: SatoriSystem) => {
+  const commitSystemChange = useCallback((sys: SatoriSystem) => {
     setActiveSystem(sys);
     setIsDirty(false);
     setParseError(null);
     setSchemaError(null);
+    setPendingSystem(null);
   }, []);
+
+  const handleSystemChange = useCallback((sys: SatoriSystem) => {
+    if (isDirty && sys !== activeSystem) {
+      setPendingSystem(sys);
+    } else {
+      commitSystemChange(sys);
+    }
+  }, [isDirty, activeSystem, commitSystemChange]);
 
   const filteredSystems = SATORI_SYSTEMS.filter((sys) =>
     SYSTEM_LABELS[sys].toLowerCase().includes(sidebarFilter.toLowerCase()),
@@ -398,6 +408,52 @@ export function SatoriConfigPage() {
 
   return (
     <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
+      {/* Save confirm dialog */}
+      {confirmSave && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="mb-4 flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-semibold">Save to production?</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  This will overwrite the <strong>{SYSTEM_LABELS[activeSystem]}</strong> config
+                  {rpcGameId(gameScope) ? ` for game "${gameScope}"` : " (global defaults)"}.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmSave(false)} className="inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-medium text-muted-foreground hover:bg-accent">Cancel</button>
+              <button onClick={doSave} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <Save className="h-4 w-4" /> Save config
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Dirty-guard: warn before switching systems with unsaved edits */}
+      {pendingSystem && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="mb-4 flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-semibold">Discard unsaved changes?</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  You have unsaved edits in <strong>{SYSTEM_LABELS[activeSystem]}</strong>.
+                  Switching to <strong>{SYSTEM_LABELS[pendingSystem]}</strong> will discard them.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setPendingSystem(null)} className="inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-medium text-muted-foreground hover:bg-accent">Keep editing</button>
+              <button onClick={() => commitSystemChange(pendingSystem)} className="inline-flex h-9 items-center gap-2 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground hover:bg-destructive/90">
+                Discard &amp; switch
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
