@@ -1217,11 +1217,14 @@ declare namespace LegacyNotifScheduler {
     var DISPATCH_COLLECTION: string;
     var DISPATCH_KEY: string;
     function readSharedDispatch(nk: nkruntime.Nakama): {
-        [task: string]: number;
+        tasks: {
+            [task: string]: number;
+        };
+        version: string;
     };
     function writeSharedDispatch(nk: nkruntime.Nakama, tasks: {
         [task: string]: number;
-    }): void;
+    }, version: string): void;
     function sharedDue(tasks: {
         [task: string]: number;
     }, task: string, periodMin: number): boolean;
