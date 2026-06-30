@@ -373,6 +373,13 @@ namespace PushAlerts {
     "zu": "🇿🇦 Zulu",    "pt-BR": "🇧🇷 Portuguese"
   };
 
+  export interface GateReasons {
+    quietHours: number;    // local time outside 07:00–22:00
+    alreadySent: number;   // day-marker already set (already got push today)
+    noToken: number;       // send returned false — no registered token / token deleted
+    sendFailed: number;    // Lambda/FCM returned an error
+  }
+
   export interface CronStats {
     cronName: string;          // "daily_quiz" | "premium_daily_quiz" | etc.
     dateKey: string;           // "2026-07-01"
@@ -382,6 +389,7 @@ namespace PushAlerts {
     gated: number;
     noQuiz?: boolean;          // true if S3 file was missing
     byLocale: { [locale: string]: { sent: number; gated: number } };
+    gateReasons?: GateReasons; // breakdown of WHY users were gated
   }
 
   export function postCronReport(nk: nkruntime.Nakama, logger: nkruntime.Logger, stats: CronStats): void {
@@ -493,16 +501,37 @@ namespace PushAlerts {
       });
     }
 
+    // ── Gate reasons breakdown ────────────────────────────────────────────
+    if (s.gateReasons && s.gated > 0) {
+      var gr = s.gateReasons;
+      var grLines: string[] = [];
+      if (gr.quietHours > 0)  grLines.push("🌙 Quiet hours (local time outside 07–22): **" + gr.quietHours + "**");
+      if (gr.alreadySent > 0) grLines.push("✅ Already received today (marker set): **" + gr.alreadySent + "**");
+      if (gr.noToken > 0)     grLines.push("📵 No push token / token deleted: **" + gr.noToken + "**");
+      if (gr.sendFailed > 0)  grLines.push("❌ Send failed (Lambda/FCM error): **" + gr.sendFailed + "**");
+      if (grLines.length > 0) {
+        fields.push({
+          name: "⏭ Why users were gated (" + s.gated + " total)",
+          value: grLines.join("\n").slice(0, 512),
+          inline: false,
+        });
+      }
+    }
+
     // ── Health signal ──────────────────────────────────────────────────────
     var healthLines: string[] = [];
     if (s.noQuiz)             healthLines.push("❌ S3 quiz file not found — AI service may not have generated today's content yet");
     if (s.sent === 0 && !s.noQuiz) healthLines.push("⚠️ Zero sends despite quiz being present — check timezone gate & opted-in user count");
     if (sentRate > 0 && sentRate < 0.05) healthLines.push("⚠️ Very low send rate (<5%) — investigate timezone/token coverage");
     if (sentRate >= 0.3)      healthLines.push("✅ Send rate healthy");
+    // Surface token/send failures prominently
+    if (s.gateReasons && s.gateReasons.sendFailed > 0)
+      healthLines.push("🚨 " + s.gateReasons.sendFailed + " send failures — check Lambda logs & FCM credentials");
+    if (s.gateReasons && s.gateReasons.noToken > 0)
+      healthLines.push("📵 " + s.gateReasons.noToken + " users have no push token — they need to re-open the app");
     if (healthLines.length > 0) {
       fields.push({ name: "🩺 Health", value: healthLines.join("\n").slice(0, 512), inline: false });
     }
-
     return {
       title: name + " Cron Report — " + s.dateKey,
       description: "Scheduled push cron completed. " +

@@ -1510,6 +1510,12 @@ declare namespace PushAlerts {
         [code: string]: number;
     }): void;
     function register(initializer: nkruntime.Initializer): void;
+    interface GateReasons {
+        quietHours: number;
+        alreadySent: number;
+        noToken: number;
+        sendFailed: number;
+    }
     interface CronStats {
         cronName: string;
         dateKey: string;
@@ -1524,6 +1530,7 @@ declare namespace PushAlerts {
                 gated: number;
             };
         };
+        gateReasons?: GateReasons;
     }
     function postCronReport(nk: nkruntime.Nakama, logger: nkruntime.Logger, stats: CronStats): void;
     function cacheWebhookUrl(nk: nkruntime.Nakama): void;

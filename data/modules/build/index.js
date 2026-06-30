@@ -33777,6 +33777,26 @@ var PushAlerts;
                 inline: false,
             });
         }
+        // ── Gate reasons breakdown ────────────────────────────────────────────
+        if (s.gateReasons && s.gated > 0) {
+            var gr = s.gateReasons;
+            var grLines = [];
+            if (gr.quietHours > 0)
+                grLines.push("🌙 Quiet hours (local time outside 07–22): **" + gr.quietHours + "**");
+            if (gr.alreadySent > 0)
+                grLines.push("✅ Already received today (marker set): **" + gr.alreadySent + "**");
+            if (gr.noToken > 0)
+                grLines.push("📵 No push token / token deleted: **" + gr.noToken + "**");
+            if (gr.sendFailed > 0)
+                grLines.push("❌ Send failed (Lambda/FCM error): **" + gr.sendFailed + "**");
+            if (grLines.length > 0) {
+                fields.push({
+                    name: "⏭ Why users were gated (" + s.gated + " total)",
+                    value: grLines.join("\n").slice(0, 512),
+                    inline: false,
+                });
+            }
+        }
         // ── Health signal ──────────────────────────────────────────────────────
         var healthLines = [];
         if (s.noQuiz)
@@ -33787,6 +33807,11 @@ var PushAlerts;
             healthLines.push("⚠️ Very low send rate (<5%) — investigate timezone/token coverage");
         if (sentRate >= 0.3)
             healthLines.push("✅ Send rate healthy");
+        // Surface token/send failures prominently
+        if (s.gateReasons && s.gateReasons.sendFailed > 0)
+            healthLines.push("🚨 " + s.gateReasons.sendFailed + " send failures — check Lambda logs & FCM credentials");
+        if (s.gateReasons && s.gateReasons.noToken > 0)
+            healthLines.push("📵 " + s.gateReasons.noToken + " users have no push token — they need to re-open the app");
         if (healthLines.length > 0) {
             fields.push({ name: "🩺 Health", value: healthLines.join("\n").slice(0, 512), inline: false });
         }
@@ -35146,6 +35171,7 @@ var LegacyPush;
         }
         var sent = 0, gated = 0, scanned = 0;
         var byLocale = {};
+        var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var batch = 100, offset = 0;
         while (true) {
             var users = listOptedInUsers(nk, batch, offset);
@@ -35160,11 +35186,13 @@ var LegacyPush;
                 var h = getUserLocalHour(nk, u);
                 if (h < 7 || h >= 22) {
                     gated++;
+                    gateReasons.quietHours++;
                     byLocale[locale].gated++;
                     continue;
                 }
                 if (hasMarker(nk, u, "daily_quiz", todayKey)) {
                     gated++;
+                    gateReasons.alreadySent++;
                     byLocale[locale].gated++;
                     continue;
                 }
@@ -35178,6 +35206,14 @@ var LegacyPush;
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    // Distinguish no-token from send-failure cheaply using the exported helper
+                    // (reads the same storage key sendLocalizedPushToUser already read).
+                    if (!LegacyPush.userHasPushTokens(nk, u)) {
+                        gateReasons.noToken++;
+                    }
+                    else {
+                        gateReasons.sendFailed++;
+                    }
                 }
             }
             offset += batch;
@@ -35187,7 +35223,7 @@ var LegacyPush;
         var reportTopic = pickQuizTopic(quiz, "en");
         PushAlerts.postCronReport(nk, logger, {
             cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
-            scanned: scanned, sent: sent, gated: gated, byLocale: byLocale
+            scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons
         });
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: reportTopic });
     }
@@ -35237,6 +35273,7 @@ var LegacyPush;
         var todayKey = todayDateKey();
         var sent = 0, gated = 0, scanned = 0;
         var byLocale = {};
+        var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var quizMissedAll = false;
         var batch = 100, offset = 0;
         while (true) {
@@ -35252,11 +35289,13 @@ var LegacyPush;
                 var h = getUserLocalHour(nk, u);
                 if (h < 9 || h >= 22) {
                     gated++;
+                    gateReasons.quietHours++;
                     byLocale[locale].gated++;
                     continue;
                 }
                 if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) {
                     gated++;
+                    gateReasons.alreadySent++;
                     byLocale[locale].gated++;
                     continue;
                 }
@@ -35277,6 +35316,12 @@ var LegacyPush;
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    if (!LegacyPush.userHasPushTokens(nk, u)) {
+                        gateReasons.noToken++;
+                    }
+                    else {
+                        gateReasons.sendFailed++;
+                    }
                 }
             }
             offset += batch;
@@ -35290,7 +35335,7 @@ var LegacyPush;
             cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
             scanned: scanned, sent: sent, gated: gated,
             noQuiz: quizMissedAll && sent === 0,
-            byLocale: byLocale
+            byLocale: byLocale, gateReasons: gateReasons
         });
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
     }

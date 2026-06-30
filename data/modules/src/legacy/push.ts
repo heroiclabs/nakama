@@ -1324,6 +1324,7 @@ namespace LegacyPush {
     }
     var sent = 0, gated = 0, scanned = 0;
     var byLocale: { [l: string]: { sent: number; gated: number } } = {};
+    var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1334,14 +1335,23 @@ namespace LegacyPush {
         var locale = getUserLocale(nk, u);
         if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
         var h = getUserLocalHour(nk, u);
-        if (h < 7 || h >= 22) { gated++; byLocale[locale].gated++; continue; }
-        if (hasMarker(nk, u, "daily_quiz", todayKey)) { gated++; byLocale[locale].gated++; continue; }
+        if (h < 7 || h >= 22) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
+        if (hasMarker(nk, u, "daily_quiz", todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
         var topic = pickQuizTopic(quiz, locale);
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz",
           "daily_quiz_title", "daily_quiz_body", { topic: topic },
           { data: { screen: "daily_quiz" } });
         if (ok) { recordMarker(nk, u, "daily_quiz", todayKey); sent++; byLocale[locale].sent++; }
-        else { gated++; byLocale[locale].gated++; }
+        else {
+          gated++; byLocale[locale].gated++;
+          // Distinguish no-token from send-failure cheaply using the exported helper
+          // (reads the same storage key sendLocalizedPushToUser already read).
+          if (!LegacyPush.userHasPushTokens(nk, u)) {
+            gateReasons.noToken++;
+          } else {
+            gateReasons.sendFailed++;
+          }
+        }
       }
       offset += batch;
       if (users.length < batch) break;
@@ -1349,7 +1359,7 @@ namespace LegacyPush {
     var reportTopic = pickQuizTopic(quiz, "en");
     PushAlerts.postCronReport(nk, logger, {
       cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
-      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale
+      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons
     });
     return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: reportTopic });
   }
@@ -1394,6 +1404,7 @@ namespace LegacyPush {
     var todayKey = todayDateKey();
     var sent = 0, gated = 0, scanned = 0;
     var byLocale: { [l: string]: { sent: number; gated: number } } = {};
+    var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     var quizMissedAll = false;
     var batch = 100, offset = 0;
     while (true) {
@@ -1405,8 +1416,8 @@ namespace LegacyPush {
         var locale = getUserLocale(nk, u);
         if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
         var h = getUserLocalHour(nk, u);
-        if (h < 9 || h >= 22) { gated++; byLocale[locale].gated++; continue; }
-        if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) { gated++; byLocale[locale].gated++; continue; }
+        if (h < 9 || h >= 22) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
+        if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
         var quiz = fetchPremiumDailyQuizForToday(nk, logger, locale);
         if (!quiz) { gated++; byLocale[locale].gated++; quizMissedAll = true; continue; }
         var topic = pickQuizTopic(quiz, locale);
@@ -1414,7 +1425,14 @@ namespace LegacyPush {
           "daily_premium_quiz_title", "daily_premium_quiz_body", { topic: topic },
           { data: { screen: "daily_premium_quiz" } });
         if (ok) { recordMarker(nk, u, "daily_premium_quiz", todayKey); sent++; byLocale[locale].sent++; }
-        else { gated++; byLocale[locale].gated++; }
+        else {
+          gated++; byLocale[locale].gated++;
+          if (!LegacyPush.userHasPushTokens(nk, u)) {
+            gateReasons.noToken++;
+          } else {
+            gateReasons.sendFailed++;
+          }
+        }
       }
       offset += batch;
       if (users.length < batch) break;
@@ -1426,7 +1444,7 @@ namespace LegacyPush {
       cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
       scanned: scanned, sent: sent, gated: gated,
       noQuiz: quizMissedAll && sent === 0,
-      byLocale: byLocale
+      byLocale: byLocale, gateReasons: gateReasons
     });
     return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
   }
