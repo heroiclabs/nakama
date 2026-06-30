@@ -51,8 +51,10 @@ namespace QvQuestionCache {
   var FAIL_THRESHOLD   = 3;    // consecutive failures → open circuit
   var CIRCUIT_COOLDOWN = 5 * 60 * 1000;  // 5 min open cooldown (ms)
 
-  var COL_CACHE   = "qv_cache_";        // full key: qv_cache_{topic}
-  var COL_CIRCUIT = "qv_circuit_breakers";
+  var COL_CACHE        = "qv_cache_";        // full key: qv_cache_{topic}
+  var COL_CIRCUIT      = "qv_circuit_breakers";
+  var COL_REFRESH_GATE = "qv_cache_refresh_gate";
+  var REFRESH_GATE_MS  = 30 * 1000;          // dedupe concurrent / back-to-back refreshes
 
   // Per-topic cache TTL (ms)
   var TOPIC_TTL: { [t: string]: number } = {
@@ -1348,7 +1350,7 @@ namespace QvQuestionCache {
       nk.storageWrite([{
         collection:      COL_CACHE + topic,
         key:             "pool_" + p,
-        userId:          "",
+        userId:          Constants.SYSTEM_USER_ID,
         value: {
           topic:          topic,
           page:           p,
@@ -1431,6 +1433,27 @@ namespace QvQuestionCache {
     }
   }
 
+  // ── Per-topic refresh gate ─────────────────────────────────────────────────
+  //
+  // Prevents duplicate provider fetches when multiple get_questions calls hit
+  // a cold cache simultaneously. Gate failure is non-fatal — caller proceeds.
+
+  function tryAcquireRefreshGate(nk: nkruntime.Nakama, topic: string): boolean {
+    try {
+      var rows = nk.storageRead([{ collection: COL_REFRESH_GATE, key: topic, userId: Constants.SYSTEM_USER_ID }]);
+      var lastMs: number = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_refresh_ms)
+        ? rows[0].value.last_refresh_ms : 0;
+      if (nowMs() - lastMs < REFRESH_GATE_MS) return false;
+
+      nk.storageWrite([{
+        collection: COL_REFRESH_GATE, key: topic, userId: Constants.SYSTEM_USER_ID,
+        value: { last_refresh_ms: nowMs() },
+        permissionRead: 0, permissionWrite: 0
+      }]);
+      return true;
+    } catch (_e) { return true; }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // PUBLIC API
   // ══════════════════════════════════════════════════════════════════════════
@@ -1456,6 +1479,11 @@ namespace QvQuestionCache {
       var cbMsg = "circuit open for provider=" + provider + " — skipping refresh";
       logger.warn("[QvQCache/" + topic + "] " + cbMsg);
       return { ok: false, topic: topic, count: 0, error: cbMsg };
+    }
+
+    if (!tryAcquireRefreshGate(nk, topic)) {
+      logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed");
+      return { ok: true, topic: topic, count: 0 };
     }
 
     try {

@@ -19,7 +19,7 @@
 namespace QvGetQuestions {
 
   // ── Storage collection names ───────────────────────────────────────────────
-  var COL_RATE  = "qv_rate";           // system-owned (userId = "")
+  var COL_RATE  = "qv_rate";           // system-owned (Constants.SYSTEM_USER_ID)
   var COL_INFLT = "qv_inflight";       // user-owned
   var COL_PACKS = "qv_question_packs"; // user-owned
   // qv_seen: user-owned, key = "global_{topic}" (compatible with quizverse_seen.js)
@@ -37,6 +37,18 @@ namespace QvGetQuestions {
   var SEEN_MAX          = 500;      // cap the seen-IDs array to keep storage lean
   var COL_READYQUEUE    = "qv_readyqueue"; // pre-warmed per-user question pool
   var READYQUEUE_TTL_MS = 2 * 3600000;    // 2 h — discard stale readyqueue entries
+
+  // Client topic aliases — applied after trim/toLowerCase, before cache lookup
+  var TOPIC_ALIASES: { [alias: string]: string } = {
+    "dish":           "food",
+    "foodish":        "food",
+    "guessanime":     "anime",
+    "guess_anime":    "anime",
+    "guesspokemon":   "pokemon",
+    "guess_pokemon":  "pokemon",
+    "guessdog":       "dog",
+    "guess_dog":      "dog"
+  };
 
   // ── Allowed game IDs (org2) ────────────────────────────────────────────────
   var ALLOWED_GAME_IDS: { [id: string]: boolean } = {
@@ -208,6 +220,23 @@ namespace QvGetQuestions {
   // 2. Shuffle the remaining "fresh" questions.
   // 3. If fresh count < requested count: backfill from oldest-seen questions
   //    (seenIds is ordered oldest-first — index 0 was seen the longest ago).
+
+  function mediaEligible(q: any, mediaType: string): boolean {
+    if (!q || !q.has_media || !q.media || !q.media.url) return false;
+    if (mediaType) {
+      var qType = (typeof q.media.type === "string") ? q.media.type.toLowerCase() : "";
+      if (qType !== mediaType) return false;
+    }
+    return true;
+  }
+
+  function filterToMediaPool(pool: any[], mediaType: string): any[] {
+    var out: any[] = [];
+    for (var mi = 0; mi < pool.length; mi++) {
+      if (mediaEligible(pool[mi], mediaType)) out.push(pool[mi]);
+    }
+    return out;
+  }
 
   function filterAndPick(
     pool:        any[],
@@ -468,6 +497,7 @@ namespace QvGetQuestions {
     var req   = parseJson(payload);
     var topic = (typeof req.topic === "string" && req.topic) ? req.topic.toLowerCase().trim() : "";
     if (!topic) throw nakamaError("topic is required", nkruntime.Codes.INVALID_ARGUMENT);
+    if (TOPIC_ALIASES[topic]) topic = TOPIC_ALIASES[topic];
 
     var count = DEFAULT_COUNT;
     if (typeof req.count === "number" && req.count >= MIN_COUNT) {
@@ -475,6 +505,11 @@ namespace QvGetQuestions {
     }
 
     var lang = (typeof req.lang === "string" && req.lang) ? req.lang.toLowerCase().trim() : "en";
+
+    var requireMedia = req.has_media === true;
+    var reqMediaType = (typeof req.media_type === "string" && req.media_type)
+      ? req.media_type.toLowerCase().trim() : "";
+    if (!requireMedia && reqMediaType) requireMedia = true;
 
     // ── game_id: validate against allowlist (org2) ─────────────────────────
     var rawGameId = (typeof req.game_id === "string" && req.game_id) ? req.game_id : "";
@@ -568,6 +603,14 @@ namespace QvGetQuestions {
 
     if (mode !== "personalized") { // personalized mode always uses live cache+SRQ
       var rqServed = serveFromReadyQueue(nk, logger, userId, topic, count);
+      if (rqServed !== null && requireMedia) {
+        var rqMedia = filterToMediaPool(rqServed, reqMediaType);
+        if (rqMedia.length < count) {
+          rqServed = null;
+        } else {
+          rqServed = rqMedia.slice(0, count);
+        }
+      }
       if (rqServed !== null) {
         var rqPackId = makePackId(nk, gameId, topic);
         writePackStorage(nk, userId, rqPackId, topic, lang, lang, gameId, rqServed);
@@ -645,6 +688,22 @@ namespace QvGetQuestions {
 
     // Last resort: language field absent on all cached questions
     if (langPool.length === 0) langPool = pool;
+
+    // ── 4a. Media filter (ImageGuess / audio quiz modes) ────────────────────
+    if (requireMedia) {
+      var mediaPool = filterToMediaPool(langPool, reqMediaType);
+      if (mediaPool.length === 0) {
+        logger.warn("[QvGetQ] no media questions topic=" + topic +
+          " media_type=" + (reqMediaType || "any"));
+        return JSON.stringify({
+          ok:      false,
+          error:   "no_media_questions",
+          topic:   topic,
+          message: "No questions with media available for this topic."
+        });
+      }
+      langPool = mediaPool;
+    }
 
     // ── 4b. Elo-range filter ────────────────────────────────────────────────
     //
@@ -831,6 +890,10 @@ namespace QvGetQuestions {
     if (coldStartApplied) {
       resp.cold_start = true;
     }
+
+    try {
+      QvPrewarmCron.opportunisticTick(ctx, logger, nk);
+    } catch (_pt) { /* non-fatal */ }
 
     return JSON.stringify(resp);
   }

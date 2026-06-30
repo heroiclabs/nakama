@@ -305,7 +305,7 @@ namespace QvSubmitResult {
       var ga = gradedAnswers[gi];
       if (!ga || !ga.question_id) continue;
       try {
-        var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: "00000000-0000-0000-0000-000000000000" }]);
+        var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: Constants.SYSTEM_USER_ID }]);
         var doc: any = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
         var ver: string = (rows && rows.length > 0 && rows[0].version) ? rows[0].version : "";
 

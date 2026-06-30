@@ -678,7 +678,7 @@ namespace QuizVerseMigration {
         nk.storageWrite([{
           collection: COL_EXTERNAL_CACHE,
           key:        cacheKey,
-          userId:     "",
+          userId:     Constants.SYSTEM_USER_ID,
           value: {
             payload:      parsed,
             cached_at_ms: nowMs(),

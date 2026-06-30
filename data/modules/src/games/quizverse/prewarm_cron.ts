@@ -134,7 +134,7 @@ namespace QvPrewarmCron {
     // Read question cache for this topic
     var pool: any[] = [];
     try {
-      var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
+      var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: Constants.SYSTEM_USER_ID }]);
       if (!cacheRows || cacheRows.length === 0 || !cacheRows[0].value) return 0;
       var page0: any = cacheRows[0].value;
       if (Array.isArray(page0.questions)) pool = page0.questions.slice();
@@ -143,7 +143,7 @@ namespace QvPrewarmCron {
       if (pageCount > 1) {
         var reqs: nkruntime.StorageReadRequest[] = [];
         for (var p = 1; p < pageCount; p++) {
-          reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: "00000000-0000-0000-0000-000000000000" });
+          reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: Constants.SYSTEM_USER_ID });
         }
         var extra = nk.storageRead(reqs);
         if (extra) {

@@ -48,7 +48,7 @@ namespace QuizVersePackStore {
       {
         collection: COLLECTION,
         key:        pack.pack_id,
-        userId:     "",
+        userId:     Constants.SYSTEM_USER_ID,
         value:      pack as any,
         permissionRead:  2, // public read
         permissionWrite: 0  // admin only
