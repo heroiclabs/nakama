@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -44,29 +45,36 @@ func ParseSamsungPurchaseDate(date string) time.Time {
 }
 
 const (
-	samsungIapApiBase = "https://devapi.samsungapps.com"
+	samsungDevApiBase     = "https://devapi.samsungapps.com"
+	samsungReceiptApiBase = "https://iap.samsungapps.com"
 )
 
 const (
 	SamsungPurchaseStatusSuccess = "success"
-	SamsungPassFlagSandbox       = "Y"
+	SamsungModeTest              = "TEST"
 )
 
-// SamsungPurchaseResponse is the response from the Samsung IAP Orders API.
-// https://developer.samsung.com/iap/api/iap-orders-get-purchase.html
+// SamsungPurchaseResponse is the response from the Samsung IAP receipt API.
+// https://developer.samsung.com/iap/programming-guide/samsung-iap-server-api.html
 type SamsungPurchaseResponse struct {
 	Status        string `json:"status"`
-	PassFlag      string `json:"passFlag"`
+	Mode          string `json:"mode"`
 	OrderId       string `json:"orderId"`
 	PaymentId     string `json:"paymentId"`
-	PurchaseId    string `json:"purchaseId"`
+	PackageName   string `json:"packageName"`
 	ItemId        string `json:"itemId"`
-	ItemTitle     string `json:"itemTitle"`
+	ItemName      string `json:"itemName"`
 	ItemDesc      string `json:"itemDesc"`
+	ItemType      string `json:"itemType"`
 	PaymentAmount string `json:"paymentAmount"`
 	PaymentMethod string `json:"paymentMethod"`
 	PurchaseDate  string `json:"purchaseDate"`
-	PaymentDate   string `json:"paymentDate"`
+	ErrorCode     int    `json:"errorCode"`
+	ErrorMessage  string `json:"errorMessage"`
+}
+
+func (r *SamsungPurchaseResponse) IsSandbox() bool {
+	return r.Mode == SamsungModeTest
 }
 
 type samsungAccessToken struct {
@@ -127,7 +135,6 @@ func createSamsungJWT(serviceAccountID string, privateKey *rsa.PrivateKey) (stri
 		"iat":    now.Unix(),
 		"exp":    now.Add(19 * time.Minute).Unix(),
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	return token.SignedString(privateKey)
 }
@@ -156,7 +163,7 @@ func getSamsungAccessToken(ctx context.Context, httpc *http.Client, serviceAccou
 		return "", &ValidationError{Err: fmt.Errorf("failed to create Samsung IAP JWT: %w", err)}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, samsungIapApiBase+"/auth/accessToken", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, samsungDevApiBase+"/auth/accessToken", nil)
 	if err != nil {
 		return "", &ValidationError{Err: fmt.Errorf("failed to build Samsung IAP auth request: %w", err)}
 	}
@@ -219,28 +226,31 @@ func getSamsungAccessToken(ctx context.Context, httpc *http.Client, serviceAccou
 }
 
 // ValidateReceiptSamsung validates a Samsung Galaxy Store IAP purchase against the
-// Samsung IAP Orders API.
+// Samsung IAP receipt API.
 //
-// serviceAccountID and privateKeyPEM are from Seller Portal > Assistance > API Service.
+// serviceAccountID and privateKeyPEM are retained for configuration parity with other
+// Galaxy Store Developer APIs; receipt verification does not use them.
 // packageName is the application package name registered in Galaxy Store.
 // purchaseId comes from the Samsung IAP SDK PurchaseVo.
 //
-// Returns the parsed order response, the raw response body, and any error.
-func ValidateReceiptSamsung(ctx context.Context, httpc *http.Client, serviceAccountID, privateKeyPEM, packageName, purchaseId string) (*SamsungPurchaseResponse, []byte, error) {
-	token, err := getSamsungAccessToken(ctx, httpc, serviceAccountID, privateKeyPEM)
-	if err != nil {
-		return nil, nil, err
+// Returns the parsed receipt response, the raw response body, and any error.
+func ValidateReceiptSamsung(ctx context.Context, httpc *http.Client, _, _, packageName, purchaseId string) (*SamsungPurchaseResponse, []byte, error) {
+	if purchaseId == "" {
+		return nil, nil, &ValidationError{Err: fmt.Errorf("Samsung IAP: purchaseId is required")}
 	}
 
-	url := fmt.Sprintf("%s/iap/v6/applications/%s/purchases/%s", samsungIapApiBase, packageName, purchaseId)
+	receiptURL, err := url.Parse(samsungReceiptApiBase + "/iap/v6/receipt")
+	if err != nil {
+		return nil, nil, &ValidationError{Err: fmt.Errorf("failed to build Samsung IAP receipt URL: %w", err)}
+	}
+	query := receiptURL.Query()
+	query.Set("purchaseID", purchaseId)
+	receiptURL.RawQuery = query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, receiptURL.String(), nil)
 	if err != nil {
 		return nil, nil, &ValidationError{Err: fmt.Errorf("failed to build Samsung IAP request: %w", err)}
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("service-account-id", serviceAccountID)
 
 	resp, err := httpc.Do(req)
 	if err != nil {
@@ -253,21 +263,7 @@ func ValidateReceiptSamsung(ctx context.Context, httpc *http.Client, serviceAcco
 		return nil, nil, &ValidationError{Err: err, StatusCode: resp.StatusCode}
 	}
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusBadRequest:
-		return nil, raw, &ValidationError{
-			Err:        fmt.Errorf("Samsung IAP: invalid parameter"),
-			StatusCode: resp.StatusCode,
-			Payload:    string(raw),
-		}
-	case http.StatusUnauthorized:
-		return nil, raw, &ValidationError{
-			Err:        fmt.Errorf("Samsung IAP: failed to verify gateway server authorization"),
-			StatusCode: resp.StatusCode,
-			Payload:    string(raw),
-		}
-	default:
+	if resp.StatusCode != http.StatusOK {
 		return nil, raw, &ValidationError{
 			Err:        fmt.Errorf("Samsung IAP returned HTTP %d", resp.StatusCode),
 			StatusCode: resp.StatusCode,
@@ -275,8 +271,8 @@ func ValidateReceiptSamsung(ctx context.Context, httpc *http.Client, serviceAcco
 		}
 	}
 
-	var orderResp SamsungPurchaseResponse
-	if err := json.Unmarshal(raw, &orderResp); err != nil {
+	var receiptResp SamsungPurchaseResponse
+	if err := json.Unmarshal(raw, &receiptResp); err != nil {
 		return nil, raw, &ValidationError{
 			Err:        fmt.Errorf("failed to parse Samsung IAP response: %w", err),
 			StatusCode: resp.StatusCode,
@@ -284,23 +280,33 @@ func ValidateReceiptSamsung(ctx context.Context, httpc *http.Client, serviceAcco
 		}
 	}
 
-	if orderResp.Status != SamsungPurchaseStatusSuccess {
+	if receiptResp.Status != SamsungPurchaseStatusSuccess {
+		errMsg := receiptResp.ErrorMessage
+		if errMsg == "" {
+			errMsg = receiptResp.Status
+		}
 		return nil, raw, &ValidationError{
-			Err:        fmt.Errorf("Samsung IAP: purchase status is not success"),
+			Err:        fmt.Errorf("Samsung IAP: purchase validation failed: %s", errMsg),
 			StatusCode: resp.StatusCode,
 			Payload:    string(raw),
 		}
 	}
 
-	if orderResp.PurchaseId == "" {
+	if packageName != "" && receiptResp.PackageName != "" && receiptResp.PackageName != packageName {
 		return nil, raw, &ValidationError{
-			Err:        fmt.Errorf("Samsung IAP response missing purchaseId"),
+			Err: fmt.Errorf("Samsung IAP: package name mismatch (expected %s, got %s)", packageName, receiptResp.PackageName),
+		}
+	}
+
+	if receiptResp.ItemId == "" {
+		return nil, raw, &ValidationError{
+			Err:        fmt.Errorf("Samsung IAP response missing itemId"),
 			StatusCode: resp.StatusCode,
 			Payload:    string(raw),
 		}
 	}
 
-	return &orderResp, raw, nil
+	return &receiptResp, raw, nil
 }
 
 func normalizeSamsungPrivateKey(privateKey string) string {

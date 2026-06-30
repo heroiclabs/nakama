@@ -70,7 +70,7 @@ func local_request_Nakama_AddFriends_0(ctx context.Context, marshaler runtime.Ma
 }
 
 var (
-	filter_Nakama_AddGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0, "groupId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_AddGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AddGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -192,7 +192,7 @@ func local_request_Nakama_SessionLogout_0(ctx context.Context, marshaler runtime
 }
 
 var (
-	filter_Nakama_AuthenticateApple_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateApple_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateApple_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -236,7 +236,7 @@ func local_request_Nakama_AuthenticateApple_0(ctx context.Context, marshaler run
 }
 
 var (
-	filter_Nakama_AuthenticateCustom_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateCustom_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateCustom_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -280,7 +280,7 @@ func local_request_Nakama_AuthenticateCustom_0(ctx context.Context, marshaler ru
 }
 
 var (
-	filter_Nakama_AuthenticateDevice_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateDevice_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateDevice_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -324,7 +324,7 @@ func local_request_Nakama_AuthenticateDevice_0(ctx context.Context, marshaler ru
 }
 
 var (
-	filter_Nakama_AuthenticateEmail_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateEmail_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateEmail_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -368,7 +368,7 @@ func local_request_Nakama_AuthenticateEmail_0(ctx context.Context, marshaler run
 }
 
 var (
-	filter_Nakama_AuthenticateFacebook_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateFacebook_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateFacebook_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -412,7 +412,7 @@ func local_request_Nakama_AuthenticateFacebook_0(ctx context.Context, marshaler 
 }
 
 var (
-	filter_Nakama_AuthenticateFacebookInstantGame_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateFacebookInstantGame_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateFacebookInstantGame_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -456,7 +456,7 @@ func local_request_Nakama_AuthenticateFacebookInstantGame_0(ctx context.Context,
 }
 
 var (
-	filter_Nakama_AuthenticateGameCenter_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateGameCenter_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateGameCenter_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -500,7 +500,7 @@ func local_request_Nakama_AuthenticateGameCenter_0(ctx context.Context, marshale
 }
 
 var (
-	filter_Nakama_AuthenticateGoogle_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateGoogle_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateGoogle_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -544,7 +544,7 @@ func local_request_Nakama_AuthenticateGoogle_0(ctx context.Context, marshaler ru
 }
 
 var (
-	filter_Nakama_AuthenticateSteam_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_AuthenticateSteam_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_AuthenticateSteam_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -588,7 +588,7 @@ func local_request_Nakama_AuthenticateSteam_0(ctx context.Context, marshaler run
 }
 
 var (
-	filter_Nakama_BanGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0, "groupId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_BanGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_BanGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -1160,7 +1160,7 @@ func local_request_Nakama_Healthcheck_0(ctx context.Context, marshaler runtime.M
 }
 
 var (
-	filter_Nakama_ImportFacebookFriends_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_ImportFacebookFriends_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ImportFacebookFriends_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -1204,7 +1204,7 @@ func local_request_Nakama_ImportFacebookFriends_0(ctx context.Context, marshaler
 }
 
 var (
-	filter_Nakama_ImportSteamFriends_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_ImportSteamFriends_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ImportSteamFriends_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -1352,7 +1352,7 @@ func local_request_Nakama_JoinTournament_0(ctx context.Context, marshaler runtim
 }
 
 var (
-	filter_Nakama_KickGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0, "groupId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_KickGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_KickGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -1578,7 +1578,7 @@ func local_request_Nakama_LinkEmail_0(ctx context.Context, marshaler runtime.Mar
 }
 
 var (
-	filter_Nakama_LinkFacebook_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_LinkFacebook_0 = &utilities.DoubleArray{Encoding: map[string]int{"account": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_LinkFacebook_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -1726,7 +1726,7 @@ func local_request_Nakama_LinkSteam_0(ctx context.Context, marshaler runtime.Mar
 }
 
 var (
-	filter_Nakama_ListChannelMessages_0 = &utilities.DoubleArray{Encoding: map[string]int{"channel_id": 0, "channelId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_ListChannelMessages_0 = &utilities.DoubleArray{Encoding: map[string]int{"channel_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ListChannelMessages_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -1904,7 +1904,7 @@ func local_request_Nakama_ListGroups_0(ctx context.Context, marshaler runtime.Ma
 }
 
 var (
-	filter_Nakama_ListGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0, "groupId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_ListGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ListGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -1974,7 +1974,7 @@ func local_request_Nakama_ListGroupUsers_0(ctx context.Context, marshaler runtim
 }
 
 var (
-	filter_Nakama_ListLeaderboardRecords_0 = &utilities.DoubleArray{Encoding: map[string]int{"leaderboard_id": 0, "leaderboardId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_ListLeaderboardRecords_0 = &utilities.DoubleArray{Encoding: map[string]int{"leaderboard_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ListLeaderboardRecords_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2044,7 +2044,7 @@ func local_request_Nakama_ListLeaderboardRecords_0(ctx context.Context, marshale
 }
 
 var (
-	filter_Nakama_ListLeaderboardRecordsAroundOwner_0 = &utilities.DoubleArray{Encoding: map[string]int{"leaderboard_id": 0, "leaderboardId": 1, "owner_id": 2, "ownerId": 3}, Base: []int{1, 1, 2, 3, 4, 0, 0, 0, 0}, Check: []int{0, 1, 1, 1, 1, 2, 3, 4, 5}}
+	filter_Nakama_ListLeaderboardRecordsAroundOwner_0 = &utilities.DoubleArray{Encoding: map[string]int{"leaderboard_id": 0, "owner_id": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
 )
 
 func request_Nakama_ListLeaderboardRecordsAroundOwner_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2242,7 +2242,7 @@ func local_request_Nakama_ListNotifications_0(ctx context.Context, marshaler run
 }
 
 var (
-	filter_Nakama_ListStorageObjects_0 = &utilities.DoubleArray{Encoding: map[string]int{"collection": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_ListStorageObjects_0 = &utilities.DoubleArray{Encoding: map[string]int{"collection": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ListStorageObjects_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2312,7 +2312,7 @@ func local_request_Nakama_ListStorageObjects_0(ctx context.Context, marshaler ru
 }
 
 var (
-	filter_Nakama_ListStorageObjects_1 = &utilities.DoubleArray{Encoding: map[string]int{"collection": 0, "user_id": 1, "userId": 2}, Base: []int{1, 2, 3, 4, 0, 0, 0, 0}, Check: []int{0, 1, 1, 1, 2, 2, 3, 4}}
+	filter_Nakama_ListStorageObjects_1 = &utilities.DoubleArray{Encoding: map[string]int{"collection": 0, "user_id": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
 )
 
 func request_Nakama_ListStorageObjects_1(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2464,7 +2464,7 @@ func local_request_Nakama_ListTournaments_0(ctx context.Context, marshaler runti
 }
 
 var (
-	filter_Nakama_ListTournamentRecords_0 = &utilities.DoubleArray{Encoding: map[string]int{"tournament_id": 0, "tournamentId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_ListTournamentRecords_0 = &utilities.DoubleArray{Encoding: map[string]int{"tournament_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ListTournamentRecords_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2534,7 +2534,7 @@ func local_request_Nakama_ListTournamentRecords_0(ctx context.Context, marshaler
 }
 
 var (
-	filter_Nakama_ListTournamentRecordsAroundOwner_0 = &utilities.DoubleArray{Encoding: map[string]int{"tournament_id": 0, "tournamentId": 1, "owner_id": 2, "ownerId": 3}, Base: []int{1, 1, 2, 3, 4, 0, 0, 0, 0}, Check: []int{0, 1, 1, 1, 1, 2, 3, 4, 5}}
+	filter_Nakama_ListTournamentRecordsAroundOwner_0 = &utilities.DoubleArray{Encoding: map[string]int{"tournament_id": 0, "owner_id": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
 )
 
 func request_Nakama_ListTournamentRecordsAroundOwner_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2624,7 +2624,7 @@ func local_request_Nakama_ListTournamentRecordsAroundOwner_0(ctx context.Context
 }
 
 var (
-	filter_Nakama_ListUserGroups_0 = &utilities.DoubleArray{Encoding: map[string]int{"user_id": 0, "userId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_ListUserGroups_0 = &utilities.DoubleArray{Encoding: map[string]int{"user_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_ListUserGroups_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2694,7 +2694,7 @@ func local_request_Nakama_ListUserGroups_0(ctx context.Context, marshaler runtim
 }
 
 var (
-	filter_Nakama_PromoteGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0, "groupId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_PromoteGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_PromoteGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2764,7 +2764,7 @@ func local_request_Nakama_PromoteGroupUsers_0(ctx context.Context, marshaler run
 }
 
 var (
-	filter_Nakama_DemoteGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0, "groupId": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
+	filter_Nakama_DemoteGroupUsers_0 = &utilities.DoubleArray{Encoding: map[string]int{"group_id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_DemoteGroupUsers_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2860,7 +2860,7 @@ func local_request_Nakama_ReadStorageObjects_0(ctx context.Context, marshaler ru
 }
 
 var (
-	filter_Nakama_RpcFunc_0 = &utilities.DoubleArray{Encoding: map[string]int{"payload": 0, "id": 1}, Base: []int{1, 2, 4, 0, 0, 0, 0}, Check: []int{0, 1, 1, 2, 2, 3, 3}}
+	filter_Nakama_RpcFunc_0 = &utilities.DoubleArray{Encoding: map[string]int{"payload": 0, "id": 1}, Base: []int{1, 1, 2, 0, 0}, Check: []int{0, 1, 1, 2, 3}}
 )
 
 func request_Nakama_RpcFunc_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -2938,7 +2938,7 @@ func local_request_Nakama_RpcFunc_0(ctx context.Context, marshaler runtime.Marsh
 }
 
 var (
-	filter_Nakama_RpcFunc_1 = &utilities.DoubleArray{Encoding: map[string]int{"id": 0}, Base: []int{1, 2, 0, 0}, Check: []int{0, 1, 2, 2}}
+	filter_Nakama_RpcFunc_1 = &utilities.DoubleArray{Encoding: map[string]int{"id": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
 )
 
 func request_Nakama_RpcFunc_1(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -3483,6 +3483,32 @@ func local_request_Nakama_ValidatePurchaseFacebookInstant_0(ctx context.Context,
 
 }
 
+func request_Nakama_ValidatePurchaseSamsung_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.ValidatePurchaseSamsungRequest
+	var metadata runtime.ServerMetadata
+
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := client.ValidatePurchaseSamsung(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Nakama_ValidatePurchaseSamsung_0(ctx context.Context, marshaler runtime.Marshaler, server NakamaServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq api.ValidatePurchaseSamsungRequest
+	var metadata runtime.ServerMetadata
+
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	msg, err := server.ValidatePurchaseSamsung(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
 func request_Nakama_WriteLeaderboardRecord_0(ctx context.Context, marshaler runtime.Marshaler, client NakamaClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq api.WriteLeaderboardRecordRequest
 	var metadata runtime.ServerMetadata
@@ -3693,6 +3719,7 @@ func local_request_Nakama_WriteTournamentRecord_1(ctx context.Context, marshaler
 // UnaryRPC     :call NakamaServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
 // Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterNakamaHandlerFromEndpoint instead.
+// GRPC interceptors will not work for this type of registration. To use interceptors, you must use the "runtime.WithMiddlewares" option in the "runtime.NewServeMux" call.
 func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, server NakamaServer) error {
 
 	mux.Handle("POST", pattern_Nakama_AddFriends_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -5770,6 +5797,31 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 
 	})
 
+	mux.Handle("POST", pattern_Nakama_ValidatePurchaseSamsung_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		var err error
+		var annotatedContext context.Context
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/nakama.api.Nakama/ValidatePurchaseSamsung", runtime.WithHTTPPathPattern("/v2/iap/purchase/samsung"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Nakama_ValidatePurchaseSamsung_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_ValidatePurchaseSamsung_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_Nakama_WriteLeaderboardRecord_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -5876,21 +5928,21 @@ func RegisterNakamaHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 // RegisterNakamaHandlerFromEndpoint is same as RegisterNakamaHandler but
 // automatically dials to "endpoint" and closes the connection when "ctx" gets done.
 func RegisterNakamaHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
-	conn, err := grpc.DialContext(ctx, endpoint, opts...)
+	conn, err := grpc.NewClient(endpoint, opts...)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
 			if cerr := conn.Close(); cerr != nil {
-				grpclog.Infof("Failed to close conn to %s: %v", endpoint, cerr)
+				grpclog.Errorf("Failed to close conn to %s: %v", endpoint, cerr)
 			}
 			return
 		}
 		go func() {
 			<-ctx.Done()
 			if cerr := conn.Close(); cerr != nil {
-				grpclog.Infof("Failed to close conn to %s: %v", endpoint, cerr)
+				grpclog.Errorf("Failed to close conn to %s: %v", endpoint, cerr)
 			}
 		}()
 	}()
@@ -5908,7 +5960,7 @@ func RegisterNakamaHandler(ctx context.Context, mux *runtime.ServeMux, conn *grp
 // to "mux". The handlers forward requests to the grpc endpoint over the given implementation of "NakamaClient".
 // Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "NakamaClient"
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
-// "NakamaClient" to call the correct interceptors.
+// "NakamaClient" to call the correct interceptors. This client ignores the HTTP middlewares.
 func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, client NakamaClient) error {
 
 	mux.Handle("POST", pattern_Nakama_AddFriends_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
@@ -7737,6 +7789,28 @@ func RegisterNakamaHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 
 	})
 
+	mux.Handle("POST", pattern_Nakama_ValidatePurchaseSamsung_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		var err error
+		var annotatedContext context.Context
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/nakama.api.Nakama/ValidatePurchaseSamsung", runtime.WithHTTPPathPattern("/v2/iap/purchase/samsung"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Nakama_ValidatePurchaseSamsung_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Nakama_ValidatePurchaseSamsung_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("POST", pattern_Nakama_WriteLeaderboardRecord_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -7995,6 +8069,8 @@ var (
 
 	pattern_Nakama_ValidatePurchaseFacebookInstant_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "iap", "purchase", "facebookinstant"}, ""))
 
+	pattern_Nakama_ValidatePurchaseSamsung_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"v2", "iap", "purchase", "samsung"}, ""))
+
 	pattern_Nakama_WriteLeaderboardRecord_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v2", "leaderboard", "leaderboard_id"}, ""))
 
 	pattern_Nakama_WriteStorageObjects_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"v2", "storage"}, ""))
@@ -8170,6 +8246,8 @@ var (
 	forward_Nakama_ValidatePurchaseHuawei_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_ValidatePurchaseFacebookInstant_0 = runtime.ForwardResponseMessage
+
+	forward_Nakama_ValidatePurchaseSamsung_0 = runtime.ForwardResponseMessage
 
 	forward_Nakama_WriteLeaderboardRecord_0 = runtime.ForwardResponseMessage
 

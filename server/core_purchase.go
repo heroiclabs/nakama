@@ -515,7 +515,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 	}
 
 	env := api.StoreEnvironment_PRODUCTION
-	if orderResp.PassFlag == iap.SamsungPassFlagSandbox {
+	if orderResp.IsSandbox() {
 		env = api.StoreEnvironment_SANDBOX
 	}
 
@@ -523,7 +523,7 @@ func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB
 		userID:        userID,
 		store:         api.StoreProvider_SAMSUNG_GALAXY_STORE,
 		productId:     orderResp.ItemId,
-		transactionId: orderResp.PurchaseId,
+		transactionId: purchaseId,
 		rawResponse:   string(raw),
 		purchaseTime:  iap.ParseSamsungPurchaseDate(orderResp.PurchaseDate),
 		environment:   env,
