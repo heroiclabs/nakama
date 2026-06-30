@@ -18,7 +18,7 @@ namespace QuizVersePackStore {
 
     var rows: nkruntime.StorageObject[] = [];
     try {
-      rows = nk.storageRead([{ collection: COLLECTION, key: packId, userId: "" }]);
+      rows = nk.storageRead([{ collection: COLLECTION, key: packId, userId: Constants.SYSTEM_USER_ID }]);
     } catch (_e) {
       rows = [];
     }
@@ -48,7 +48,7 @@ namespace QuizVersePackStore {
       {
         collection: COLLECTION,
         key:        pack.pack_id,
-        userId:     "",
+        userId:     Constants.SYSTEM_USER_ID,
         value:      pack as any,
         permissionRead:  2, // public read
         permissionWrite: 0  // admin only

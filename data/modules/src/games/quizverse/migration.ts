@@ -646,7 +646,7 @@ namespace QuizVerseMigration {
     // Cache read.
     try {
       var cached = nk.storageRead([{
-        collection: COL_EXTERNAL_CACHE, key: cacheKey, userId: ""
+        collection: COL_EXTERNAL_CACHE, key: cacheKey, userId: Constants.SYSTEM_USER_ID
       }]);
       if (cached && cached.length > 0 && cached[0].value) {
         var v: any = cached[0].value;
@@ -678,7 +678,7 @@ namespace QuizVerseMigration {
         nk.storageWrite([{
           collection: COL_EXTERNAL_CACHE,
           key:        cacheKey,
-          userId:     "",
+          userId:     Constants.SYSTEM_USER_ID,
           value: {
             payload:      parsed,
             cached_at_ms: nowMs(),

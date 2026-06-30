@@ -51,8 +51,10 @@ namespace QvQuestionCache {
   var FAIL_THRESHOLD   = 3;    // consecutive failures → open circuit
   var CIRCUIT_COOLDOWN = 5 * 60 * 1000;  // 5 min open cooldown (ms)
 
-  var COL_CACHE   = "qv_cache_";        // full key: qv_cache_{topic}
-  var COL_CIRCUIT = "qv_circuit_breakers";
+  var COL_CACHE        = "qv_cache_";        // full key: qv_cache_{topic}
+  var COL_CIRCUIT      = "qv_circuit_breakers";
+  var COL_REFRESH_GATE = "qv_cache_refresh_gate";
+  var REFRESH_GATE_MS  = 30 * 1000;          // dedupe concurrent / back-to-back refreshes
 
   // Per-topic cache TTL (ms)
   var TOPIC_TTL: { [t: string]: number } = {
@@ -292,7 +294,7 @@ namespace QvQuestionCache {
 
   function readCircuit(nk: nkruntime.Nakama, provider: string): any {
     try {
-      var rows = nk.storageRead([{ collection: COL_CIRCUIT, key: provider, userId: "" }]);
+      var rows = nk.storageRead([{ collection: COL_CIRCUIT, key: provider, userId: Constants.SYSTEM_USER_ID }]);
       if (rows && rows.length > 0 && rows[0].value) return rows[0].value;
     } catch (_e) {}
     return { state: "closed", fail_count: 0, success_count: 0, trip_count: 0, open_until_ms: 0 };
@@ -301,7 +303,7 @@ namespace QvQuestionCache {
   function writeCircuit(nk: nkruntime.Nakama, provider: string, doc: any): void {
     try {
       nk.storageWrite([{
-        collection: COL_CIRCUIT, key: provider, userId: "",
+        collection: COL_CIRCUIT, key: provider, userId: Constants.SYSTEM_USER_ID,
         value: doc, permissionRead: 1, permissionWrite: 0
       }]);
     } catch (_e) {}
@@ -1348,7 +1350,7 @@ namespace QvQuestionCache {
       nk.storageWrite([{
         collection:      COL_CACHE + topic,
         key:             "pool_" + p,
-        userId:          "",
+        userId:          Constants.SYSTEM_USER_ID,
         value: {
           topic:          topic,
           page:           p,
@@ -1431,6 +1433,27 @@ namespace QvQuestionCache {
     }
   }
 
+  // ── Per-topic refresh gate ─────────────────────────────────────────────────
+  //
+  // Prevents duplicate provider fetches when multiple get_questions calls hit
+  // a cold cache simultaneously. Gate failure is non-fatal — caller proceeds.
+
+  function tryAcquireRefreshGate(nk: nkruntime.Nakama, topic: string): boolean {
+    try {
+      var rows = nk.storageRead([{ collection: COL_REFRESH_GATE, key: topic, userId: Constants.SYSTEM_USER_ID }]);
+      var lastMs: number = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_refresh_ms)
+        ? rows[0].value.last_refresh_ms : 0;
+      if (nowMs() - lastMs < REFRESH_GATE_MS) return false;
+
+      nk.storageWrite([{
+        collection: COL_REFRESH_GATE, key: topic, userId: Constants.SYSTEM_USER_ID,
+        value: { last_refresh_ms: nowMs() },
+        permissionRead: 0, permissionWrite: 0
+      }]);
+      return true;
+    } catch (_e) { return true; }
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // PUBLIC API
   // ══════════════════════════════════════════════════════════════════════════
@@ -1456,6 +1479,11 @@ namespace QvQuestionCache {
       var cbMsg = "circuit open for provider=" + provider + " — skipping refresh";
       logger.warn("[QvQCache/" + topic + "] " + cbMsg);
       return { ok: false, topic: topic, count: 0, error: cbMsg };
+    }
+
+    if (!tryAcquireRefreshGate(nk, topic)) {
+      logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed");
+      return { ok: true, topic: topic, count: 0 };
     }
 
     try {
@@ -1539,7 +1567,7 @@ namespace QvQuestionCache {
   ): { questions: NormalizedQuestion[]; expired: boolean; cached_at_ms: number } {
     var questions: NormalizedQuestion[] = [];
     try {
-      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: Constants.SYSTEM_USER_ID }]);
       if (!rows || rows.length === 0 || !rows[0].value) {
         logger.info("[QvQCache/" + topic + "] cache miss");
         return { questions: [], expired: true, cached_at_ms: 0 };
@@ -1554,7 +1582,7 @@ namespace QvQuestionCache {
 
       if (pageCount > 1) {
         var reqs: nkruntime.StorageReadRequest[] = [];
-        for (var p = 1; p < pageCount; p++) reqs.push({ collection: COL_CACHE + topic, key: "pool_" + p, userId: "" });
+        for (var p = 1; p < pageCount; p++) reqs.push({ collection: COL_CACHE + topic, key: "pool_" + p, userId: Constants.SYSTEM_USER_ID });
         var extra = nk.storageRead(reqs);
         if (extra) {
           for (var ei = 0; ei < extra.length; ei++) {
@@ -1578,7 +1606,7 @@ namespace QvQuestionCache {
    */
   export function isCacheValid(nk: nkruntime.Nakama, topic: string): boolean {
     try {
-      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: Constants.SYSTEM_USER_ID }]);
       if (!rows || rows.length === 0 || !rows[0].value) return false;
       var doc: any = rows[0].value;
       return doc.expires_at_ms ? doc.expires_at_ms > nowMs() : false;
