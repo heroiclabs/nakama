@@ -14384,7 +14384,7 @@ var QvQuestionCache;
     //   NEWSAPI     → https://newsapi.org/register  (100/day)
     //   NASA        → https://api.nasa.gov  (already defaults to DEMO_KEY)
     var FALLBACK_KEYS = {
-        TMDB_API_KEY: "", // ← paste your TMDB key here
+        TMDB_API_KEY: "93ca6d6373e2584a56bfe144bee48280",
         LASTFM_API_KEY: "", // ← paste your Last.fm key here
         GNEWS_API_KEY: "996c2e560c01a91df9d4a9ddbef0e38e",
         CURRENTS_API_KEY: "vJ7f8IPcf_vrhpwk2_-wqzVOpFCxHV26zMhKv4NPV_KiXb-r",
