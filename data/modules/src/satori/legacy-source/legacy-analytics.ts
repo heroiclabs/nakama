@@ -115,24 +115,20 @@ namespace LegacyAnalytics {
       reads.push({ collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, undefined), userId: sys });
     }
     try {
-      var recs = nk.storageRead(reads);
+      var rawRecs = nk.storageRead(reads);
       // Index records by key so we can resolve scoped-vs-platform preference.
       var byKey: { [k: string]: any } = {};
-      for (var ri = 0; ri < recs.length; ri++) {
-        if (recs[ri] && recs[ri].value) byKey[recs[ri].key] = recs[ri];
+      for (var ri = 0; ri < rawRecs.length; ri++) {
+        if (rawRecs[ri] && rawRecs[ri].value) byKey[rawRecs[ri].key] = rawRecs[ri];
       }
-      // Prefer scoped key, fall back to platform-wide.
-      function pickRec(scopedKey: string, platformKey: string): any {
-        return byKey[scopedKey] || (useGameScope ? byKey[platformKey] : null);
-      }
-      var dauRec    = pickRec(dauKeyOf(dateStr, gameId),    dauKeyOf(dateStr, undefined));
-      var liveRec   = pickRec(liveKeyOf(dateStr, gameId),   liveKeyOf(dateStr, undefined));
-      var rollupRec = pickRec(rollupKeyOf(dateStr, gameId), rollupKeyOf(dateStr, undefined));
-      var fakeRecs = [];
-      if (dauRec)    fakeRecs.push(dauRec);
-      if (liveRec)   fakeRecs.push(liveRec);
-      if (rollupRec) fakeRecs.push(rollupRec);
-      var recs = fakeRecs;
+      // Prefer scoped key, fall back to platform-wide (inline to avoid ES5 block-function error).
+      var dauRec    = byKey[dauKeyOf(dateStr, gameId)]    || (useGameScope ? byKey[dauKeyOf(dateStr, undefined)]    : null);
+      var liveRec   = byKey[liveKeyOf(dateStr, gameId)]   || (useGameScope ? byKey[liveKeyOf(dateStr, undefined)]   : null);
+      var rollupRec = byKey[rollupKeyOf(dateStr, gameId)] || (useGameScope ? byKey[rollupKeyOf(dateStr, undefined)] : null);
+      var recs: any[] = [];
+      if (dauRec)    recs.push(dauRec);
+      if (liveRec)   recs.push(liveRec);
+      if (rollupRec) recs.push(rollupRec);
       for (var i = 0; i < recs.length; i++) {
         var r = recs[i];
         if (!r || !r.value) continue;
