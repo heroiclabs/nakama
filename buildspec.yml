@@ -40,7 +40,16 @@ env:
     ECR_REPOSITORY: intelliverse-nakama
     LLM_PROVIDER: openai
   parameter-store:
-    OPENAI_API_KEY: /nakama/OPENAI_API_KEY
+    OPENAI_API_KEY:      /nakama/OPENAI_API_KEY
+    ANTHROPIC_API_KEY:   /nakama/ANTHROPIC_API_KEY
+    # Question-cache provider keys (all free-tier — get at the links in .env.example)
+    TMDB_API_KEY:        /nakama/TMDB_API_KEY
+    LASTFM_API_KEY:      /nakama/LASTFM_API_KEY
+    GNEWS_API_KEY:       /nakama/GNEWS_API_KEY
+    CURRENTS_API_KEY:    /nakama/CURRENTS_API_KEY
+    MEDIASTACK_API_KEY:  /nakama/MEDIASTACK_API_KEY
+    NEWSAPI_API_KEY:     /nakama/NEWSAPI_API_KEY
+    NASA_API_KEY:        /nakama/NASA_API_KEY
 
 phases:
   install:
@@ -216,10 +225,18 @@ phases:
       - echo "=== Injecting runtime secrets into deployment env (before image update) ==="
       - |
         INJECT_ARGS=""
-        if [ -n "$OPENAI_API_KEY" ];    then INJECT_ARGS="$INJECT_ARGS OPENAI_API_KEY=$OPENAI_API_KEY";    echo "  ✓ OPENAI_API_KEY injected";    else echo "  ⚠ OPENAI_API_KEY not set — skipping"; fi
-        if [ -n "$ANTHROPIC_API_KEY" ]; then INJECT_ARGS="$INJECT_ARGS ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"; echo "  ✓ ANTHROPIC_API_KEY injected"; else echo "  ⚠ ANTHROPIC_API_KEY not set — skipping"; fi
-        if [ -n "$XAI_API_KEY" ];       then INJECT_ARGS="$INJECT_ARGS XAI_API_KEY=$XAI_API_KEY";           echo "  ✓ XAI_API_KEY injected";       else echo "  ⚠ XAI_API_KEY not set — skipping"; fi
-        if [ -n "$LLM_PROVIDER" ];      then INJECT_ARGS="$INJECT_ARGS LLM_PROVIDER=$LLM_PROVIDER";         echo "  ✓ LLM_PROVIDER injected";      else echo "  ⚠ LLM_PROVIDER not set — skipping"; fi
+        if [ -n "$OPENAI_API_KEY" ];     then INJECT_ARGS="$INJECT_ARGS OPENAI_API_KEY=$OPENAI_API_KEY";         echo "  ✓ OPENAI_API_KEY injected";     else echo "  ⚠ OPENAI_API_KEY not set"; fi
+        if [ -n "$ANTHROPIC_API_KEY" ];  then INJECT_ARGS="$INJECT_ARGS ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"; echo "  ✓ ANTHROPIC_API_KEY injected";  else echo "  ⚠ ANTHROPIC_API_KEY not set"; fi
+        if [ -n "$XAI_API_KEY" ];        then INJECT_ARGS="$INJECT_ARGS XAI_API_KEY=$XAI_API_KEY";             echo "  ✓ XAI_API_KEY injected";        else echo "  ⚠ XAI_API_KEY not set"; fi
+        if [ -n "$LLM_PROVIDER" ];       then INJECT_ARGS="$INJECT_ARGS LLM_PROVIDER=$LLM_PROVIDER";           echo "  ✓ LLM_PROVIDER injected";       else echo "  ⚠ LLM_PROVIDER not set"; fi
+        # Question-cache provider keys
+        if [ -n "$TMDB_API_KEY" ];       then INJECT_ARGS="$INJECT_ARGS TMDB_API_KEY=$TMDB_API_KEY";           echo "  ✓ TMDB_API_KEY injected";       else echo "  ⚠ TMDB_API_KEY not set (movies topic disabled)"; fi
+        if [ -n "$LASTFM_API_KEY" ];     then INJECT_ARGS="$INJECT_ARGS LASTFM_API_KEY=$LASTFM_API_KEY";       echo "  ✓ LASTFM_API_KEY injected";     else echo "  ⚠ LASTFM_API_KEY not set (music topic disabled)"; fi
+        if [ -n "$GNEWS_API_KEY" ];      then INJECT_ARGS="$INJECT_ARGS GNEWS_API_KEY=$GNEWS_API_KEY";         echo "  ✓ GNEWS_API_KEY injected";      else echo "  ⚠ GNEWS_API_KEY not set"; fi
+        if [ -n "$CURRENTS_API_KEY" ];   then INJECT_ARGS="$INJECT_ARGS CURRENTS_API_KEY=$CURRENTS_API_KEY";   echo "  ✓ CURRENTS_API_KEY injected";   else echo "  ⚠ CURRENTS_API_KEY not set"; fi
+        if [ -n "$MEDIASTACK_API_KEY" ]; then INJECT_ARGS="$INJECT_ARGS MEDIASTACK_API_KEY=$MEDIASTACK_API_KEY"; echo "  ✓ MEDIASTACK_API_KEY injected"; else echo "  ⚠ MEDIASTACK_API_KEY not set"; fi
+        if [ -n "$NEWSAPI_API_KEY" ];    then INJECT_ARGS="$INJECT_ARGS NEWSAPI_API_KEY=$NEWSAPI_API_KEY";     echo "  ✓ NEWSAPI_API_KEY injected";    else echo "  ⚠ NEWSAPI_API_KEY not set"; fi
+        if [ -n "$NASA_API_KEY" ];       then INJECT_ARGS="$INJECT_ARGS NASA_API_KEY=$NASA_API_KEY";           echo "  ✓ NASA_API_KEY injected";       else echo "  ⚠ NASA_API_KEY not set (using DEMO_KEY)"; fi
         # Analytics env vars — always injected so the JS runtime sees them
         # regardless of what the base Deployment YAML contains. These drive
         # the dashboard auth (DASHBOARD_SECRET), rollup pipeline

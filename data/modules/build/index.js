@@ -85,18 +85,53 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.error("[QuizVerse] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
     }
     // ---- QuizVerse Nakama-Only Migration plugin ----
-    // Registers the 22 v2 / Nakama-only RPCs (P0/P1/P2 live, P3-P8
-    // scaffolded) that the Unity client adopts as each network surface
-    // moves behind Nakama. See games/quiz-verse/Docs/plans/PLAN-NAKAMA_ONLY_MIGRATION.md
-    // in the Unity repo for the rollout plan. Mounted after QuizVersePlugin
-    // so P1's request_questions router can delegate to quizverse_quiz_generate
-    // (registered as a top-level legacy module) and P2's submit_result_v2
-    // can delegate to quiz_submit_result.
+    // Registers the migration bridge RPCs (P0 live, P1/P2 deprecated-stub,
+    // P3-P8 scaffolded) that bridge old Unity client calls to the new server
+    // pipeline (quizverse_get_questions / quizverse_submit_result).
+    // P1 (quizverse_request_questions) now returns rpc_retired — all active
+    // Unity modes call quizverse_get_questions directly.
+    // P2 (quiz_submit_result_v2) is superseded by quizverse_submit_result.
     try {
         QuizVerseMigration.register(initializer, nk, logger);
     }
     catch (err) {
         logger.error("[QuizVerseMigration] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- QuizVerse Remote Config (quizverse_get_config + quizverse_admin_stats) ----
+    // quizverse_get_config  — server-driven topic catalogue, feature flags, language
+    //   support matrix, client_min_version. Called once on startup; zero auth required;
+    //   falls back to built-in defaults when qv_config/global is missing.
+    // quizverse_admin_stats — admin-only pipeline health dashboard (circuit breakers,
+    //   cache staleness, pack counters). Gated behind IVX_SYSTEM_USER_ID.
+    //   Phase-aware: returns "not_yet_deployed" for sections not yet live.
+    try {
+        QvRemoteConfig.register(initializer);
+        logger.info("[QvRemoteConfig] quizverse_get_config + quizverse_admin_stats registered");
+    }
+    catch (err) {
+        logger.error("[QvRemoteConfig] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- QuizVerse Pre-warm Tick (qv_readyqueue hourly refresh) ----
+    // quizverse_prewarm_tick: admin/scheduler RPC that pre-filters per-user question
+    // pools and stores them in qv_readyqueue so get_questions can serve <30ms
+    // responses. Invoke via n8n/Kubernetes CronJob every hour, or let get_questions
+    // opportunistically self-schedule it (once per hour globally, rate-gated).
+    try {
+        QvPrewarmCron.register(initializer);
+        logger.info("[QvPrewarm] quizverse_prewarm_tick RPC registered");
+    }
+    catch (err) {
+        logger.error("[QvPrewarm] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
+    // quizverse_pack_cleanup_tick: daily job that sweeps expired/abandoned
+    // qv_question_packs across all recently active users (30-day window).
+    // Gate-limited to once per 24 h. Call from external scheduler (n8n / k8s).
+    try {
+        QvAnalyticsCron.register(initializer);
+        logger.info("[QvCleanup] quizverse_pack_cleanup_tick RPC registered");
+    }
+    catch (err) {
+        logger.error("[QvCleanup] failed to register: " + (err && err.message ? err.message : String(err)));
     }
     // ---- QuizVerse Live Banner (quizverse_live_banner_check) ----
     // Unified RPC that aggregates tournament / creator / satori events into
@@ -340,6 +375,10 @@ function InitModule(ctx, logger, nk, initializer) {
         logger.info("[QuestEventBusBridge] Registering EventBus subscriptions...");
         QuestEventBusBridge.register(initializer, logger);
         logger.info("[QuestEventBusBridge] Apps can now auto-progress quests via existing analytics events");
+        // Register DNA-driven personalized quest RPC
+        logger.info("[PersonalizedQuests] Registering quizverse_get_personalized_quests...");
+        PersonalizedQuests.register(initializer);
+        logger.info("[PersonalizedQuests] DNA-personalized quest selection active");
     }
     catch (err) {
         logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
@@ -7758,6 +7797,206 @@ var IvxPresence;
     }
     IvxPresence.register = register;
 })(IvxPresence || (IvxPresence = {}));
+// analytics_cron.ts — Daily expired qv_question_packs cleanup job.
+//
+// ── Purpose ───────────────────────────────────────────────────────────────────
+//
+// qv_question_packs are user-owned documents written by quizverse_get_questions.
+// Each pack has an expires_at_ms field (30-min TTL from creation).  Over time
+// orphaned packs accumulate for every player — either because a quiz session was
+// abandoned (submitted=false) or because submit_result's opportunistic cleanup in
+// get_questions only runs for the calling user.
+//
+// This job does a cross-user sweep: it iterates all recently active users (from
+// qv_active_users), scans each user's qv_question_packs, and deletes every pack
+// whose TTL has elapsed — whether or not it was ever submitted.
+//
+// ── Scheduling ────────────────────────────────────────────────────────────────
+//
+// Expose as quizverse_pack_cleanup_tick (RPC).
+// Call from an external scheduler (n8n / k8s CronJob / http_key) once per day.
+// A 24-hour gate stored in qv_cleanup_state/last_run deduplicates concurrent calls.
+//
+// ── Storage ───────────────────────────────────────────────────────────────────
+//
+//   qv_active_users   system-owned  key=userId  { last_played_ms }
+//   qv_question_packs user-owned    key=packId  { submitted, expires_at_ms, … }
+//   qv_cleanup_state  system-owned  key="last_run"  { last_run_ms }
+var QvAnalyticsCron;
+(function (QvAnalyticsCron) {
+    var COL_ACTIVE = "qv_active_users";
+    var COL_PACKS = "qv_question_packs";
+    var COL_INFLT = "qv_inflight";
+    var GATE_COL = "qv_cleanup_state";
+    var GATE_KEY = "last_run";
+    var GATE_INTERVAL_MS = 86400000; // 24 h — once per day
+    var ACTIVE_WINDOW_MS = 30 * 24 * 3600000; // scan users active in the last 30 days
+    var MAX_USERS_PER_RUN = 500; // safety cap per run
+    var PACKS_PER_USER = 20; // max packs to list per user scan
+    var ABANDON_TTL_MS = 3600000; // 1 h — also purge unsubmitted packs older than this
+    function nowMs() { return Date.now(); }
+    // ── Daily gate ─────────────────────────────────────────────────────────────
+    //
+    // Atomically tries to become the "owner" of this run window.
+    // Returns true if we acquired the gate (first call in 24 h), false otherwise.
+    function acquireGate(nk) {
+        try {
+            var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "" }]);
+            var lastRun = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_run_ms)
+                ? rows[0].value.last_run_ms : 0;
+            if (nowMs() - lastRun < GATE_INTERVAL_MS)
+                return false;
+            nk.storageWrite([{
+                    collection: GATE_COL, key: GATE_KEY, userId: "",
+                    value: { last_run_ms: nowMs() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (_e) {
+            return false;
+        }
+    }
+    // ── Active user list ────────────────────────────────────────────────────────
+    //
+    // Reads qv_active_users (system-owned, key=userId) up to MAX_USERS_PER_RUN.
+    // Users inactive for more than 30 days are skipped.
+    function listActiveUsers(nk, logger) {
+        var userIds = [];
+        var cutoff = nowMs() - ACTIVE_WINDOW_MS;
+        try {
+            var cursor = "";
+            for (var page = 0; page < 5; page++) {
+                var result;
+                try {
+                    result = nk.storageList("", COL_ACTIVE, 100, cursor);
+                }
+                catch (_le) {
+                    break;
+                }
+                if (!result || !Array.isArray(result.objects) || result.objects.length === 0)
+                    break;
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    if (!obj || !obj.key || !obj.value)
+                        continue;
+                    var lastMs = typeof obj.value.last_played_ms === "number"
+                        ? obj.value.last_played_ms : 0;
+                    if (lastMs >= cutoff) {
+                        userIds.push(obj.key);
+                    }
+                    if (userIds.length >= MAX_USERS_PER_RUN)
+                        break;
+                }
+                if (userIds.length >= MAX_USERS_PER_RUN)
+                    break;
+                cursor = result.cursor || "";
+                if (!cursor)
+                    break;
+            }
+        }
+        catch (e) {
+            logger.warn("[QvCleanup] listActiveUsers error: " + (e && e.message));
+        }
+        return userIds;
+    }
+    // ── Per-user pack cleanup ───────────────────────────────────────────────────
+    //
+    // Lists up to PACKS_PER_USER packs for this user, deletes any that satisfy:
+    //   • submitted=true  AND expires_at_ms < now  (normal submitted expiry)
+    //   • submitted=false AND created_at_ms < now - ABANDON_TTL_MS  (abandoned sessions)
+    //
+    // Also deletes the matching qv_inflight entry for consistency.
+    // Returns the number of packs deleted.
+    function cleanUserPacks(nk, logger, userId) {
+        var deleted = 0;
+        try {
+            var result = nk.storageList(userId, COL_PACKS, PACKS_PER_USER, "");
+            if (!result || !Array.isArray(result.objects) || result.objects.length === 0)
+                return 0;
+            var now = nowMs();
+            var toDelete = [];
+            for (var i = 0; i < result.objects.length; i++) {
+                var obj = result.objects[i];
+                if (!obj || !obj.value || !obj.key)
+                    continue;
+                var v = obj.value;
+                var packKey = obj.key;
+                var isSubmittedExpired = v.submitted === true &&
+                    typeof v.expires_at_ms === "number" &&
+                    v.expires_at_ms < now;
+                var isAbandoned = v.submitted !== true &&
+                    typeof v.created_at_ms === "number" &&
+                    v.created_at_ms < now - ABANDON_TTL_MS;
+                if (isSubmittedExpired || isAbandoned) {
+                    toDelete.push({ collection: COL_PACKS, key: packKey, userId: userId });
+                    // Best-effort: also remove the inflight sentinel (same key)
+                    toDelete.push({ collection: COL_INFLT, key: packKey, userId: userId });
+                    deleted++;
+                }
+            }
+            if (toDelete.length > 0) {
+                try {
+                    nk.storageDelete(toDelete);
+                }
+                catch (de) {
+                    logger.warn("[QvCleanup] storageDelete partial failure userId=" + userId +
+                        ": " + (de && de.message));
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[QvCleanup] cleanUserPacks error userId=" + userId +
+                ": " + (e && e.message));
+        }
+        return deleted;
+    }
+    // ── RPC tick handler ────────────────────────────────────────────────────────
+    //
+    // quizverse_pack_cleanup_tick
+    //
+    // Input:  {} (empty, admin-only call)
+    // Output: { ok, skipped, users_scanned, packs_deleted, elapsed_ms }
+    //
+    // Call once per day from an external scheduler.
+    // The 24-h gate deduplicates concurrent invocations across server instances.
+    function rpcPackCleanupTick(_ctx, logger, nk, _payload) {
+        if (!acquireGate(nk)) {
+            return JSON.stringify({ ok: true, skipped: true, reason: "within_gate_window" });
+        }
+        var started = nowMs();
+        logger.info("[QvCleanup] pack cleanup tick start");
+        var userIds = listActiveUsers(nk, logger);
+        logger.info("[QvCleanup] users to scan=" + userIds.length);
+        var totalDeleted = 0;
+        var usersScanned = 0;
+        for (var i = 0; i < userIds.length; i++) {
+            try {
+                var n = cleanUserPacks(nk, logger, userIds[i]);
+                totalDeleted += n;
+                usersScanned++;
+            }
+            catch (_ue) { /* continue */ }
+        }
+        var elapsed = nowMs() - started;
+        logger.info("[QvCleanup] tick done — users=" + usersScanned +
+            " packs_deleted=" + totalDeleted + " elapsed_ms=" + elapsed);
+        return JSON.stringify({
+            ok: true,
+            skipped: false,
+            users_scanned: usersScanned,
+            packs_deleted: totalDeleted,
+            elapsed_ms: elapsed
+        });
+    }
+    // ── Registration ─────────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("quizverse_pack_cleanup_tick", rpcPackCleanupTick);
+    }
+    QvAnalyticsCron.register = register;
+    var _NOOP = { registerRpc: function () { } };
+    register(_NOOP);
+})(QvAnalyticsCron || (QvAnalyticsCron = {}));
 // ---------------------------------------------------------------------------
 //  blog_embed.ts — QuizVerse "Blog Quiz" embeddable widget backend
 //
@@ -8299,6 +8538,95 @@ var BlogEmbed;
     }
     BlogEmbed.register = register;
 })(BlogEmbed || (BlogEmbed = {}));
+// QuizVerse — Context Resolver
+//
+// Provides a single resolveContext() helper that every QuizVerse RPC
+// calls at entry to get a consistent, validated request context.
+//
+// Resolves:
+//   userId     — from ctx (authentication required)
+//   username   — from ctx
+//   gameId     — req.game_id → DEFAULT_GAME_ID env → ""
+//   lang       — req.lang → "en"
+//   countryCode — req.country_code → Nakama profile location → "US"
+//
+// ALLOWED_GAME_IDS gate prevents unknown game IDs from polluting
+// leaderboards or bypassing per-game question routing.
+var QvContextResolver;
+(function (QvContextResolver) {
+    // ── Allowlist ──────────────────────────────────────────────────────────────
+    // Add new game UUIDs here as new games join the IntelliVerseX platform.
+    var ALLOWED_GAME_IDS = {
+        "126bf539-dae2-4bcf-964d-316c0fa1f92b": "quizverse", // QuizVerse production
+        "quizverse": "quizverse", // slug alias
+        "": "default" // empty = use DEFAULT_GAME_ID
+    };
+    // ── Low-level helpers ──────────────────────────────────────────────────────
+    function nakamaError(msg, code) {
+        return { message: msg, code: code };
+    }
+    // ── Main resolver ──────────────────────────────────────────────────────────
+    /**
+     * resolve() validates authentication and normalises all context fields.
+     * Throws UNAUTHENTICATED if ctx.userId is missing.
+     *
+     * @param nk   — Nakama runtime (used for profile lookup)
+     * @param ctx  — RPC context
+     * @param req  — parsed JSON request payload (plain object)
+     */
+    function resolve(nk, ctx, req) {
+        var userId = ctx.userId;
+        if (!userId)
+            throw nakamaError("not authenticated", 16 /* nkruntime.Codes.UNAUTHENTICATED */);
+        var username = ctx.username || "";
+        // ── game_id ─────────────────────────────────────────────────────────────
+        var rawGameId = (typeof req.game_id === "string" && req.game_id) ? req.game_id : "";
+        var defaultGameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) ? ctx.env["DEFAULT_GAME_ID"] : "";
+        var gameId;
+        if (!rawGameId) {
+            gameId = defaultGameId;
+        }
+        else if (ALLOWED_GAME_IDS[rawGameId]) {
+            gameId = rawGameId;
+        }
+        else {
+            // Unknown game_id — fall back to default (soft fail, no error thrown)
+            gameId = defaultGameId;
+        }
+        // ── lang ─────────────────────────────────────────────────────────────────
+        var lang = (typeof req.lang === "string" && req.lang)
+            ? req.lang.toLowerCase().trim()
+            : "en";
+        // ── countryCode: req → Nakama profile → "US" ────────────────────────────
+        var countryCode = "US";
+        var reqCountry = (typeof req.country_code === "string") ? req.country_code.trim().toUpperCase() : "";
+        if (reqCountry.length === 2 && /^[A-Z]{2}$/.test(reqCountry)) {
+            countryCode = reqCountry;
+        }
+        else {
+            try {
+                var acc = nk.accountGetId(userId);
+                if (acc && acc.user && acc.user.location) {
+                    var loc = acc.user.location.trim().toUpperCase();
+                    if (loc.length === 2 && /^[A-Z]{2}$/.test(loc))
+                        countryCode = loc;
+                }
+            }
+            catch (_e) { }
+        }
+        // ── mode ──────────────────────────────────────────────────────────────────
+        var mode = (typeof req.mode === "string" && req.mode) ? req.mode : "standard";
+        return {
+            userId: userId,
+            username: username,
+            gameId: gameId,
+            lang: lang,
+            countryCode: countryCode,
+            mode: mode
+        };
+    }
+    QvContextResolver.resolve = resolve;
+})(QvContextResolver || (QvContextResolver = {}));
 // QuizVerse turn generator — implements the SyncTurnMatch IGenerator
 // contract. Produces one quiz question per turn, scores submissions,
 // and builds the QV_REVEAL payload that goes back to clients.
@@ -8496,6 +8824,1001 @@ var QuizVerseGenerator;
     }
     QuizVerseGenerator.buildAll = buildAll;
 })(QuizVerseGenerator || (QuizVerseGenerator = {}));
+// QuizVerse — quizverse_get_questions RPC  (Phase 1b)
+//
+// Serve layer: reads the server-side question cache, filters out questions
+// the user has already seen (qv_seen) or that are in another active session
+// (qv_inflight), picks N questions, and returns a pre-rendered pack to Unity.
+//
+// Unity is a PURE RENDERER — no shuffling, normalising, or parsing happens
+// on the client. The server does all heavy lifting at cache-time (Phase 1a).
+//
+// Storage layout (Phase 1b):
+//   qv_rate            system-owned  key={userId}  — sliding-window rate-limit
+//   qv_seen            user-owned    key={topic}   — historical seen question IDs
+//   qv_inflight        user-owned    key={packId}  — active pack trackers (30-min TTL)
+//   qv_question_packs  user-owned    key={packId}  — full pack doc for scoring / review
+//
+// Request  → { topic, count?, lang?, game_id? }
+// Response → { ok, pack_id, topic, lang, lang_actual?, question_count, questions[], cache_expired }
+var QvGetQuestions;
+(function (QvGetQuestions) {
+    // ── Storage collection names ───────────────────────────────────────────────
+    var COL_RATE = "qv_rate"; // system-owned (userId = "")
+    var COL_INFLT = "qv_inflight"; // user-owned
+    var COL_PACKS = "qv_question_packs"; // user-owned
+    // qv_seen: user-owned, key = "global_{topic}" (compatible with quizverse_seen.js)
+    // Value format: { ids: { questionId: isoTimestamp } }
+    var COL_SEEN = "qv_seen";
+    // ── Limits ─────────────────────────────────────────────────────────────────
+    var RATE_WINDOW_MS = 60000; // 1-minute sliding window
+    var RATE_MAX = 5; // max requests per user per minute
+    var PACK_MAX = 3; // max concurrent active packs per user
+    var INFLIGHT_TTL_MS = 1800000; // 30 minutes
+    var DEFAULT_COUNT = 10;
+    var MAX_COUNT = 20;
+    var MIN_COUNT = 1;
+    var SEEN_MAX = 500; // cap the seen-IDs array to keep storage lean
+    var COL_READYQUEUE = "qv_readyqueue"; // pre-warmed per-user question pool
+    var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — discard stale readyqueue entries
+    // ── Allowed game IDs (org2) ────────────────────────────────────────────────
+    var ALLOWED_GAME_IDS = {
+        "126bf539-dae2-4bcf-964d-316c0fa1f92b": true, // QuizVerse production
+        "quizverse": true,
+        "": true // empty = use DEFAULT_GAME_ID
+    };
+    // ── Low-level helpers ──────────────────────────────────────────────────────
+    function nakamaError(msg, code) {
+        return { message: msg, code: code };
+    }
+    function parseJson(payload) {
+        try {
+            return JSON.parse(payload || "{}");
+        }
+        catch (_e) {
+            throw nakamaError("invalid JSON payload", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+    }
+    function nowMs() { return Date.now(); }
+    function djb2(s) {
+        var h = 5381;
+        for (var i = 0; i < s.length; i++) {
+            h = ((h << 5) + h) + s.charCodeAt(i);
+            h = h & h;
+        }
+        return Math.abs(h).toString(36);
+    }
+    // Namespaced pack ID: {gameId}_{base}
+    // The storage key for both qv_inflight and qv_question_packs is this full string,
+    // so submit_result can look up packs using the pack_id returned by get_questions.
+    function makePackId(nk, gameId, topic) {
+        var base = "pk_" + slugify(topic) + "_" + nk.uuidv4().replace(/-/g, "");
+        return gameId ? gameId + "_" + base : base;
+    }
+    // Convert topic to storage-key slug — must match quizverse_seen.js qvsSlugify()
+    function slugify(s) {
+        return s.trim().toLowerCase()
+            .replace(/[^a-z0-9]+/g, "_")
+            .replace(/^_|_$/g, "")
+            .substring(0, 64);
+    }
+    // Key format used by quizverse_seen.js: "global_{topic_slug}"
+    function seenStorageKey(topic) {
+        return slugify("global") + "_" + slugify(topic);
+    }
+    // ── Rate limiter (Task 1b.1) ───────────────────────────────────────────────
+    //
+    // Sliding-window counter stored in qv_rate/{userId} (system-owned, no-read,
+    // no-write from client).  Prunes timestamps older than RATE_WINDOW_MS,
+    // checks count ≤ RATE_MAX, then appends current timestamp and writes back.
+    function enforceRateLimit(nk, userId) {
+        var rows = nk.storageRead([{ collection: COL_RATE, key: userId, userId: "" }]);
+        var doc = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
+        var timestamps = Array.isArray(doc.timestamps) ? doc.timestamps : [];
+        var windowStart = nowMs() - RATE_WINDOW_MS;
+        var fresh = [];
+        for (var i = 0; i < timestamps.length; i++) {
+            if (timestamps[i] > windowStart)
+                fresh.push(timestamps[i]);
+        }
+        if (fresh.length >= RATE_MAX) {
+            var retryInSec = Math.ceil((fresh[0] + RATE_WINDOW_MS - nowMs()) / 1000);
+            throw nakamaError("Rate limit exceeded: max " + RATE_MAX + " requests/min. Retry in " + retryInSec + "s.", 8 /* nkruntime.Codes.RESOURCE_EXHAUSTED */);
+        }
+        fresh.push(nowMs());
+        nk.storageWrite([{
+                collection: COL_RATE, key: userId, userId: "",
+                value: { timestamps: fresh, updated_ms: nowMs() },
+                permissionRead: 0, permissionWrite: 0
+            }]);
+    }
+    // ── Inflight pack management (Task 1b.1 / 1b.3) ───────────────────────────
+    // List all non-expired inflight packs for a user, sorted oldest-first.
+    function listInflight(nk, userId) {
+        try {
+            var result = nk.storageList(userId, COL_INFLT, 20, "");
+            if (!result || !Array.isArray(result.objects))
+                return [];
+            var packs = [];
+            var now = nowMs();
+            for (var i = 0; i < result.objects.length; i++) {
+                var obj = result.objects[i];
+                if (obj && obj.value && obj.value.expires_at_ms > now) {
+                    packs.push(obj.value);
+                }
+            }
+            packs.sort(function (a, b) { return a.created_at_ms - b.created_at_ms; });
+            return packs;
+        }
+        catch (_e) {
+            return [];
+        }
+    }
+    // Enforce max 3 active packs.  Deletes oldest (inflight + full pack) until
+    // count < PACK_MAX.  Mutates and returns the updated list.
+    function enforcePacks(nk, logger, userId, packs) {
+        while (packs.length >= PACK_MAX) {
+            var oldest = packs.shift(); // sorted oldest-first
+            if (!oldest)
+                break;
+            try {
+                nk.storageDelete([
+                    { collection: COL_INFLT, key: oldest.pack_id, userId: userId },
+                    { collection: COL_PACKS, key: oldest.pack_id, userId: userId }
+                ]);
+                logger.info("[QvGetQ] evicted pack=" + oldest.pack_id + " (PACK_MAX=" + PACK_MAX + ")");
+            }
+            catch (e) {
+                logger.warn("[QvGetQ] evict failed pack=" + oldest.pack_id + ": " + (e && e.message));
+            }
+        }
+        return packs;
+    }
+    // ── Seen questions (Task 1b.2) ─────────────────────────────────────────────
+    //
+    // qv_seen/{topic} stores an ordered string[] where index 0 = oldest seen.
+    // This ordering enables oldest-first backfill when the fresh pool is short.
+    // Reads seen IDs from quizverse_seen.js-compatible format:
+    //   collection = qv_seen, key = "global_{topic}", value = { ids: { qid: isoTimestamp } }
+    // Returns IDs sorted oldest-first so filterAndPick can backfill in correct order.
+    function readSeenIds(nk, userId, topic) {
+        try {
+            var key = seenStorageKey(topic);
+            var rows = nk.storageRead([{ collection: COL_SEEN, key: key, userId: userId }]);
+            if (!rows || rows.length === 0 || !rows[0].value || !rows[0].value.ids)
+                return [];
+            var idsDict = rows[0].value.ids;
+            // Convert dict { qid: iso|unixTs } → array sorted by timestamp asc (oldest first)
+            var entries = [];
+            for (var qid in idsDict) {
+                if (!idsDict.hasOwnProperty(qid))
+                    continue;
+                var raw = idsDict[qid];
+                var ts = 0;
+                if (typeof raw === "number") {
+                    ts = raw;
+                }
+                else if (typeof raw === "string") {
+                    var ms = Date.parse(raw);
+                    if (!isNaN(ms))
+                        ts = Math.floor(ms / 1000);
+                }
+                entries.push({ id: qid, ts: ts });
+            }
+            entries.sort(function (a, b) { return a.ts - b.ts; });
+            var result = [];
+            for (var i = 0; i < entries.length; i++)
+                result.push(entries[i].id);
+            return result;
+        }
+        catch (_e) {
+            return [];
+        }
+    }
+    // ── Filter + pick (Task 1b.2) ──────────────────────────────────────────────
+    //
+    // 1. Exclude seen ∪ inflight IDs from the pool.
+    // 2. Shuffle the remaining "fresh" questions.
+    // 3. If fresh count < requested count: backfill from oldest-seen questions
+    //    (seenIds is ordered oldest-first — index 0 was seen the longest ago).
+    function filterAndPick(pool, seenIds, inflightIds, count) {
+        // Build exclusion set
+        var excluded = {};
+        for (var si = 0; si < seenIds.length; si++)
+            excluded[seenIds[si]] = true;
+        for (var ii = 0; ii < inflightIds.length; ii++)
+            excluded[inflightIds[ii]] = true;
+        var fresh = [];
+        for (var pi = 0; pi < pool.length; pi++) {
+            if (!excluded[pool[pi].id])
+                fresh.push(pool[pi]);
+        }
+        // Fisher-Yates shuffle on the fresh pool
+        for (var fi = fresh.length - 1; fi > 0; fi--) {
+            var ri = Math.floor(Math.random() * (fi + 1));
+            var tmp = fresh[fi];
+            fresh[fi] = fresh[ri];
+            fresh[ri] = tmp;
+        }
+        if (fresh.length >= count)
+            return fresh.slice(0, count);
+        // --- Backfill from oldest-seen -------------------------------------------
+        // Build a lookup of questions that ARE in the pool (some seen IDs may
+        // have been evicted from the cache since they were first delivered).
+        var poolById = {};
+        for (var pb = 0; pb < pool.length; pb++)
+            poolById[pool[pb].id] = pool[pb];
+        // Walk seenIds oldest-first; collect those still in pool
+        var backfill = [];
+        var needed = count - fresh.length;
+        for (var oi = 0; oi < seenIds.length && backfill.length < needed; oi++) {
+            var q = poolById[seenIds[oi]];
+            if (q)
+                backfill.push(q);
+        }
+        return fresh.concat(backfill);
+    }
+    // ── Opportunistic expired-pack cleanup (org5) ─────────────────────────────
+    //
+    // Deletes already-submitted packs whose TTL has elapsed.  Runs at most once
+    // per GetQuestions call; lightweight — only lists submitted packs (≤10) and
+    // skips storage-write if nothing to delete.
+    function cleanExpiredPacksOpportunistic(nk, logger, userId) {
+        try {
+            var result = nk.storageList(userId, COL_PACKS, 10, "");
+            if (!result || !Array.isArray(result.objects) || result.objects.length === 0)
+                return;
+            var now = nowMs();
+            var toDelete = [];
+            for (var i = 0; i < result.objects.length; i++) {
+                var obj = result.objects[i];
+                if (obj && obj.value &&
+                    obj.value.submitted === true &&
+                    obj.value.expires_at_ms && obj.value.expires_at_ms < now) {
+                    toDelete.push({ collection: COL_PACKS, key: obj.key, userId: userId });
+                }
+            }
+            if (toDelete.length > 0) {
+                nk.storageDelete(toDelete);
+                logger.info("[QvGetQ] cleaned " + toDelete.length + " expired packs for user=" + userId);
+            }
+        }
+        catch (_e) { /* non-fatal */ }
+    }
+    // ── Ready-queue helpers (prewarm fast path) ───────────────────────────────
+    //
+    // qv_readyqueue/{topicSlug} (user-owned) is populated by prewarm_cron.ts
+    // every hour and self-refreshed here after each cache-path delivery.
+    //
+    // serveFromReadyQueue(): returns pre-filtered questions from the queue,
+    //   removes consumed entries, and returns the list (empty = cache miss).
+    // writeReadyQueue():     writes remaining fresh questions for next call.
+    function serveFromReadyQueue(nk, logger, userId, topic, count) {
+        try {
+            var topicSlug = topic.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
+                .replace(/^_|_$/g, "").substring(0, 64);
+            var rows = nk.storageRead([{ collection: COL_READYQUEUE, key: topicSlug, userId: userId }]);
+            if (!rows || rows.length === 0 || !rows[0].value)
+                return null;
+            var rq = rows[0].value;
+            if (!rq.created_at_ms || (nowMs() - rq.created_at_ms) > READYQUEUE_TTL_MS)
+                return null;
+            if (!Array.isArray(rq.questions) || rq.questions.length < count)
+                return null;
+            var served = rq.questions.slice(0, count);
+            var remaining = rq.questions.slice(count);
+            // Write back remaining (or delete if empty)
+            if (remaining.length > 0) {
+                nk.storageWrite([{
+                        collection: COL_READYQUEUE, key: topicSlug, userId: userId,
+                        value: { topic: rq.topic, questions: remaining, created_at_ms: rq.created_at_ms },
+                        permissionRead: 0, permissionWrite: 0
+                    }]);
+            }
+            else {
+                nk.storageDelete([{ collection: COL_READYQUEUE, key: topicSlug, userId: userId }]);
+            }
+            logger.info("[QvGetQ] readyqueue HIT user=" + userId + " topic=" + topicSlug +
+                " served=" + served.length + " remaining=" + remaining.length);
+            return served;
+        }
+        catch (e) {
+            logger.warn("[QvGetQ] readyqueue read failed (non-fatal): " + (e && e.message));
+            return null;
+        }
+    }
+    function writeReadyQueue(nk, logger, userId, topic, freshPool) {
+        if (freshPool.length === 0)
+            return;
+        try {
+            var topicSlug = topic.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
+                .replace(/^_|_$/g, "").substring(0, 64);
+            var toStore = freshPool.slice(0, 30); // cap at 30 pre-warmed questions
+            nk.storageWrite([{
+                    collection: COL_READYQUEUE, key: topicSlug, userId: userId,
+                    value: { topic: topic, questions: toStore, created_at_ms: nowMs() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+            logger.info("[QvGetQ] readyqueue refreshed user=" + userId + " topic=" + topicSlug +
+                " n=" + toStore.length);
+        }
+        catch (e) {
+            logger.warn("[QvGetQ] readyqueue write failed (non-fatal): " + (e && e.message));
+        }
+    }
+    // ── Write inflight + pack (Task 1b.3) ─────────────────────────────────────
+    function writePackStorage(nk, userId, packId, topic, lang, langActual, gameId, questions) {
+        var now = nowMs();
+        var expiry = now + INFLIGHT_TTL_MS;
+        var questionIds = [];
+        for (var i = 0; i < questions.length; i++)
+            questionIds.push(questions[i].id);
+        nk.storageWrite([
+            // Lightweight inflight tracker — only IDs + metadata (no full question text)
+            {
+                collection: COL_INFLT, key: packId, userId: userId,
+                value: {
+                    pack_id: packId,
+                    topic: topic,
+                    question_ids: questionIds,
+                    created_at_ms: now,
+                    expires_at_ms: expiry
+                },
+                permissionRead: 0, permissionWrite: 0 // server-only
+            },
+            // Full pack — contains pre-rendered questions, used by scoring + review
+            {
+                collection: COL_PACKS, key: packId, userId: userId,
+                value: {
+                    pack_id: packId,
+                    topic: topic,
+                    lang: lang,
+                    lang_actual: langActual,
+                    game_id: gameId,
+                    question_ids: questionIds,
+                    question_count: questions.length,
+                    questions: questions,
+                    created_at_ms: now,
+                    expires_at_ms: expiry
+                },
+                permissionRead: 1, permissionWrite: 0 // owner-read, server-write
+            }
+        ]);
+    }
+    // ── Main RPC handler ───────────────────────────────────────────────────────
+    /**
+     * quizverse_get_questions
+     *
+     * Input:
+     *   { topic: string, count?: number, lang?: string, game_id?: string }
+     *
+     * Output (success):
+     *   {
+     *     ok:             true,
+     *     pack_id:        string,      // reference for scoring / review RPCs
+     *     topic:          string,
+     *     lang:           string,      // requested lang
+     *     lang_actual?:   string,      // only present when lang fell back to "en"
+     *     question_count: number,
+     *     questions:      Question[],  // pre-shuffled, A/B/C/D already assigned
+     *     cache_expired:  boolean      // hint: cache refresh may be due
+     *   }
+     *
+     * Output (soft error):
+     *   { ok: false, error: string, topic: string, message: string }
+     */
+    function rpcGetQuestions(ctx, logger, nk, payload) {
+        // ── Auth ───────────────────────────────────────────────────────────────
+        var userId = ctx.userId;
+        if (!userId)
+            throw nakamaError("not authenticated", 16 /* nkruntime.Codes.UNAUTHENTICATED */);
+        // ── Parse + validate request ───────────────────────────────────────────
+        var req = parseJson(payload);
+        var topic = (typeof req.topic === "string" && req.topic) ? req.topic.toLowerCase().trim() : "";
+        if (!topic)
+            throw nakamaError("topic is required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        var count = DEFAULT_COUNT;
+        if (typeof req.count === "number" && req.count >= MIN_COUNT) {
+            count = Math.min(MAX_COUNT, Math.max(MIN_COUNT, Math.floor(req.count)));
+        }
+        var lang = (typeof req.lang === "string" && req.lang) ? req.lang.toLowerCase().trim() : "en";
+        // ── game_id: validate against allowlist (org2) ─────────────────────────
+        var rawGameId = (typeof req.game_id === "string" && req.game_id) ? req.game_id : "";
+        var defaultGameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) ? ctx.env["DEFAULT_GAME_ID"] : "";
+        var gameId;
+        if (!rawGameId) {
+            gameId = defaultGameId;
+        }
+        else if (ALLOWED_GAME_IDS[rawGameId]) {
+            gameId = rawGameId;
+        }
+        else {
+            // Unknown game_id — soft-fail to default (log warning, no hard error)
+            logger.warn("[QvGetQ] unknown game_id=" + rawGameId + " for user=" + userId + " — using default");
+            gameId = defaultGameId;
+        }
+        // ── country_code: req → Nakama profile location → "US" (yel2) ──────────
+        var countryCode = "US";
+        var reqCC = (typeof req.country_code === "string") ? req.country_code.trim().toUpperCase() : "";
+        if (reqCC.length === 2) {
+            countryCode = reqCC;
+        }
+        else {
+            try {
+                var acc = nk.accountGetId(userId);
+                if (acc && acc.user && acc.user.location && acc.user.location.length === 2) {
+                    countryCode = acc.user.location.toUpperCase();
+                }
+            }
+            catch (_e2) { }
+        }
+        // ── mode: "standard" | "personalized" (org3) ──────────────────────────
+        var mode = (typeof req.mode === "string" && req.mode) ? req.mode : "standard";
+        logger.info("[QvGetQ] user=" + userId + " topic=" + topic +
+            " count=" + count + " lang=" + lang + " gameId=" + gameId +
+            " mode=" + mode + " country=" + countryCode);
+        // ── 0a. Cold start protocol ─────────────────────────────────────────────
+        //
+        // New players (total_sessions < 3) get a guided onboarding experience:
+        //   - Force topic to one of the universally-familiar starter topics
+        //     (anime → pokemon → movies, cycling by session number)
+        //   - Cap the pack at 5 easy questions so first sessions feel achievable
+        //
+        // cold_start_done is set to true by submit_result after the 3rd session;
+        // afterwards this block is a no-op (PlayerDNA.load returns cold_start_done=true).
+        var coldStartApplied = false;
+        try {
+            var coldDna = PlayerDNA.load(nk, userId);
+            var beh = coldDna.behavioral;
+            if (!beh.cold_start_done && beh.total_sessions < 3) {
+                var COLD_TOPICS = ["anime", "pokemon", "movies"];
+                var forcedTopic = COLD_TOPICS[beh.total_sessions % COLD_TOPICS.length];
+                logger.info("[QvGetQ] cold-start user=" + userId +
+                    " sessions=" + beh.total_sessions +
+                    " overriding topic=" + topic + " → " + forcedTopic + " count=" + count + " → 5");
+                topic = forcedTopic;
+                count = 5;
+                coldStartApplied = true;
+                // Force standard mode so ready-queue / cache path is used (personalized path
+                // skips topic override and would call PlayerDNA again unnecessarily)
+                mode = "standard";
+            }
+        }
+        catch (_cse) { /* non-fatal: proceed with original topic */ }
+        // ── 0. Opportunistic expired-pack cleanup (org5) ────────────────────────
+        cleanExpiredPacksOpportunistic(nk, logger, userId);
+        // ── 1. Rate limit (Task 1b.1) ──────────────────────────────────────────
+        enforceRateLimit(nk, userId);
+        // ── 2. Pack limit — evict oldest if at cap (Task 1b.1) ─────────────────
+        var inflightPacks = listInflight(nk, userId);
+        inflightPacks = enforcePacks(nk, logger, userId, inflightPacks);
+        // Collect all question IDs currently in any active session for this user
+        var inflightIds = [];
+        for (var ip = 0; ip < inflightPacks.length; ip++) {
+            var ids = inflightPacks[ip].question_ids;
+            if (Array.isArray(ids)) {
+                for (var qi = 0; qi < ids.length; qi++)
+                    inflightIds.push(ids[qi]);
+            }
+        }
+        // ── 3. Ready-queue fast path (prewarm hit) ─────────────────────────────
+        //
+        // Checks qv_readyqueue first — pre-filtered, per-user question pool
+        // written by prewarm_cron or by this RPC after a previous cache-path call.
+        // Skips seen-filtering, cache reading, and lang-filtering when available.
+        if (mode !== "personalized") { // personalized mode always uses live cache+SRQ
+            var rqServed = serveFromReadyQueue(nk, logger, userId, topic, count);
+            if (rqServed !== null) {
+                var rqPackId = makePackId(nk, gameId, topic);
+                writePackStorage(nk, userId, rqPackId, topic, lang, lang, gameId, rqServed);
+                logger.info("[QvGetQ] ⚡ readyqueue fast-path pack=" + rqPackId +
+                    " topic=" + topic + " n=" + rqServed.length);
+                var rqClientQs = [];
+                for (var rqi = 0; rqi < rqServed.length; rqi++) {
+                    var rqq = rqServed[rqi];
+                    rqClientQs.push({
+                        id: rqq.id,
+                        topic: rqq.topic,
+                        question_text: rqq.question_text,
+                        question_type: rqq.question_type,
+                        options: rqq.options,
+                        correct_option_ids: rqq.correct_option_ids,
+                        has_media: rqq.has_media,
+                        media: rqq.media,
+                        explanation: rqq.explanation,
+                        difficulty: rqq.difficulty
+                    });
+                }
+                var rqResp = {
+                    ok: true,
+                    pack_id: rqPackId,
+                    topic: topic,
+                    lang: lang,
+                    mode: mode,
+                    country_code: countryCode,
+                    question_count: rqClientQs.length,
+                    questions: rqClientQs,
+                    cache_expired: false,
+                    served_from: "readyqueue"
+                };
+                return JSON.stringify(rqResp);
+            }
+        }
+        // ── 3. Read cache (normal path) ────────────────────────────────────────
+        var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
+        var pool = cacheResult.questions;
+        if (pool.length === 0) {
+            logger.warn("[QvGetQ] cache empty topic=" + topic);
+            return JSON.stringify({
+                ok: false,
+                error: "cache_empty",
+                topic: topic,
+                message: "No questions cached for this topic yet. The pipeline is building — retry in ~60s."
+            });
+        }
+        // ── 4. Lang validation + fallback (Task 1b.1 / 1b.4) ──────────────────
+        var langActual = lang;
+        var langPool = [];
+        if (lang !== "en") {
+            for (var lp = 0; lp < pool.length; lp++) {
+                if (pool[lp].lang === lang)
+                    langPool.push(pool[lp]);
+            }
+        }
+        // Fallback: requested lang has no questions → use English
+        if (langPool.length === 0) {
+            if (lang !== "en") {
+                langActual = "en";
+                logger.info("[QvGetQ] lang=" + lang + " not available for topic=" + topic + " — falling back to en");
+            }
+            for (var ep = 0; ep < pool.length; ep++) {
+                if (!pool[ep].lang || pool[ep].lang === "en")
+                    langPool.push(pool[ep]);
+            }
+        }
+        // Last resort: language field absent on all cached questions
+        if (langPool.length === 0)
+            langPool = pool;
+        // ── 4b. Elo-range filter ────────────────────────────────────────────────
+        //
+        // Keep only questions whose difficulty maps within the player's Elo ± 200.
+        // Difficulty→Elo midpoints: easy=800, medium=1200, hard=1600.
+        // Fall back to the full langPool when the filtered set is empty (prevents
+        // "pool exhausted" for new topics where most questions are out of range).
+        try {
+            var eloDna = PlayerDNA.load(nk, userId);
+            var eloTopicSlug = slugify(topic);
+            var playerEloForFilter = (typeof eloDna.elos[eloTopicSlug] === "number")
+                ? eloDna.elos[eloTopicSlug] : 1200;
+            var ELO_RADIUS = 200;
+            var diffToElo = { easy: 800, medium: 1200, hard: 1600 };
+            var eloFiltered = [];
+            for (var ef = 0; ef < langPool.length; ef++) {
+                var qDiff = (langPool[ef].difficulty || "medium").toLowerCase();
+                var qElo = (typeof langPool[ef].elo === "number") ? langPool[ef].elo
+                    : (diffToElo[qDiff] || 1200);
+                if (Math.abs(qElo - playerEloForFilter) <= ELO_RADIUS) {
+                    eloFiltered.push(langPool[ef]);
+                }
+            }
+            if (eloFiltered.length >= Math.min(count, 3)) {
+                // Only apply the filter when enough questions pass the range check
+                langPool = eloFiltered;
+                logger.info("[QvGetQ] elo-filter: playerElo=" + playerEloForFilter +
+                    " ±" + ELO_RADIUS + " → pool " + pool.length + " → " + langPool.length);
+            }
+            else {
+                logger.info("[QvGetQ] elo-filter: too few matching questions (" + eloFiltered.length +
+                    "), using full pool (" + langPool.length + ")");
+            }
+        }
+        catch (_efe) { /* non-fatal */ }
+        // ── 5. Read seen IDs + filter pool (Task 1b.2) ─────────────────────────
+        var seenIds = readSeenIds(nk, userId, topic);
+        var picked = filterAndPick(langPool, seenIds, inflightIds, count);
+        if (picked.length === 0) {
+            logger.info("[QvGetQ] pool exhausted topic=" + topic + " seen=" + seenIds.length);
+            return JSON.stringify({
+                ok: false,
+                error: "pool_exhausted",
+                topic: topic,
+                message: "All available questions for this topic have been seen. New questions are being fetched."
+            });
+        }
+        // ── 5b. Personalized mix algorithm (org3) ──────────────────────────────
+        //
+        // When mode="personalized":
+        //   1. Inject SRQ due-questions at the front of the pack so the player
+        //      reviews weak spots before fresh questions.
+        //   2. Bias difficulty selection toward the player's Elo for this topic:
+        //      players rated < 1000 prefer easy questions; > 1600 prefer hard.
+        //
+        // The pool is already shuffled by filterAndPick; we only re-sort / inject
+        // the front slice — the rest stays random.
+        if (mode === "personalized") {
+            try {
+                var dna = PlayerDNA.load(nk, userId);
+                var topicSlug = slugify(topic);
+                var playerElo = dna.elos[topicSlug] !== undefined ? dna.elos[topicSlug] : 1200;
+                // SRQ injection: prepend due questions (max 3) to pack front
+                var srqDue = QvSRQ.getDueInPool(nk, userId, topicSlug, langPool);
+                var srqDueLimit = Math.min(3, Math.floor(count / 3));
+                var srqInserted = [];
+                if (srqDue.length > 0) {
+                    // Build exclusion set from picked
+                    var pickedIds = {};
+                    for (var pki = 0; pki < picked.length; pki++)
+                        pickedIds[picked[pki].id] = true;
+                    for (var sri = 0; sri < srqDue.length && srqInserted.length < srqDueLimit; sri++) {
+                        var sqId = srqDue[sri].id;
+                        if (!pickedIds[sqId]) {
+                            // Remove from end of picked to stay at `count` total
+                            if (picked.length >= count)
+                                picked.pop();
+                            srqInserted.push(srqDue[sri]);
+                            pickedIds[sqId] = true;
+                        }
+                    }
+                    // Prepend SRQ questions so player sees them first
+                    picked = srqInserted.concat(picked);
+                }
+                // Elo-biased difficulty sort of the non-SRQ portion
+                // Preferred difficulty band: easy(800) ±200, medium(1200) ±200, hard(1600) ±200
+                var preferDiff = playerElo < 1000 ? "easy" : (playerElo < 1600 ? "medium" : "hard");
+                var biasStart = srqInserted.length; // don't re-sort the SRQ prefix
+                var sliceToBias = picked.slice(biasStart);
+                // Stable partial sort: preferred-difficulty questions float to front
+                var preferred = [];
+                var others = [];
+                for (var bsi = 0; bsi < sliceToBias.length; bsi++) {
+                    var bq = sliceToBias[bsi];
+                    var bqDiff = bq.difficulty || "medium";
+                    if (bqDiff === preferDiff)
+                        preferred.push(bq);
+                    else
+                        others.push(bq);
+                }
+                // Keep 60% preferred + 40% other for variety
+                var preferCount = Math.ceil(sliceToBias.length * 0.6);
+                var biasedSlice = preferred.slice(0, preferCount).concat(others).slice(0, sliceToBias.length);
+                picked = picked.slice(0, biasStart).concat(biasedSlice);
+                logger.info("[QvGetQ] personalized: elo=" + playerElo + " preferDiff=" + preferDiff +
+                    " srqInjected=" + srqInserted.length + " topic=" + topicSlug);
+            }
+            catch (e) {
+                logger.warn("[QvGetQ] personalized mix failed (non-fatal): " + (e && e.message));
+            }
+        }
+        // ── 5c. Refresh readyqueue for next call (cache-path only) ────────────
+        // After filtering + picking, the remaining fresh pool is stored as the
+        // ready-queue for the NEXT request — so cold-cache users converge to
+        // sub-30ms latency after just one standard-path call.
+        if (mode !== "personalized") {
+            try {
+                // Build fresh remainder: questions in langPool that were NOT picked
+                var pickedIdSet = {};
+                for (var prwi = 0; prwi < picked.length; prwi++)
+                    pickedIdSet[picked[prwi].id] = true;
+                var freshRemainder = [];
+                for (var fri = 0; fri < langPool.length; fri++) {
+                    if (!pickedIdSet[langPool[fri].id])
+                        freshRemainder.push(langPool[fri]);
+                }
+                writeReadyQueue(nk, logger, userId, topic, freshRemainder);
+            }
+            catch (_rwq) { /* non-critical */ }
+        }
+        // ── 6. Write inflight + pack document (Task 1b.3) ──────────────────────
+        var packId = makePackId(nk, gameId, topic);
+        writePackStorage(nk, userId, packId, topic, lang, langActual, gameId, picked);
+        logger.info("[QvGetQ] pack=" + packId + " topic=" + topic +
+            " delivered=" + picked.length + "/" + count +
+            " pool=" + pool.length + " seen=" + seenIds.length +
+            " inflight=" + inflightIds.length + " cache_expired=" + cacheResult.expired);
+        // ── 7. Build client-safe response ──────────────────────────────────────
+        // Strip internal `provider` field — Unity doesn't need to know the source.
+        var clientQs = [];
+        for (var ci = 0; ci < picked.length; ci++) {
+            var q = picked[ci];
+            clientQs.push({
+                id: q.id,
+                topic: q.topic,
+                question_text: q.question_text,
+                question_type: q.question_type,
+                options: q.options,
+                correct_option_ids: q.correct_option_ids,
+                has_media: q.has_media,
+                media: q.media,
+                explanation: q.explanation,
+                difficulty: q.difficulty
+            });
+        }
+        var resp = {
+            ok: true,
+            pack_id: packId,
+            topic: topic,
+            lang: lang,
+            mode: mode,
+            country_code: countryCode,
+            question_count: clientQs.length,
+            questions: clientQs,
+            cache_expired: cacheResult.expired // hint: client may show "refreshing…"
+        };
+        // Task 1b.4 — lang_actual only present when fallback occurred
+        if (langActual !== lang) {
+            resp.lang_actual = langActual;
+        }
+        // Cold start hint: Unity can suppress topic picker and show a guided message
+        if (coldStartApplied) {
+            resp.cold_start = true;
+        }
+        return JSON.stringify(resp);
+    }
+    // ── Registration ───────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("quizverse_get_questions", rpcGetQuestions);
+    }
+    QvGetQuestions.register = register;
+    // IIFE NOOP — required by postbuild.js to hoist __rpc_ assignments at
+    // module-load time before InitModule fires. See migration.ts for rationale.
+    var _NOOP = { registerRpc: function () { } };
+    register(_NOOP);
+})(QvGetQuestions || (QvGetQuestions = {}));
+// QuizVerse — quizverse_get_review RPC  (Phase 2.5)
+//
+// "Review & Learn" layer.  After a player submits answers via
+// quizverse_submit_result, they can tap "Review & Learn" in Unity's
+// LearningGamesPopup to replay each wrong (or all) question in a
+// mini-game format selected from the list of eligible game modes.
+//
+// This RPC is READ-ONLY — it never writes storage.  All data it
+// returns lives inside the qv_question_packs document that
+// quizverse_submit_result already wrote and decorated with
+// graded_answers[] + submitted:true.
+//
+// Security:
+//   - Ownership is enforced by the Nakama storage read itself:
+//     the pack is stored under userId=ctx.userId, so a different
+//     user's userId will result in a NOT_FOUND (Nakama returns
+//     nothing for cross-user reads without PUBLIC_READ permission).
+//   - Submitted guard prevents review of in-progress packs.
+//
+// Request:
+//   { pack_id: string, wrong_only?: boolean }
+//   wrong_only defaults to true — only return wrongly answered cards.
+//
+// Response:
+//   {
+//     ok, pack_id, topic, lang,
+//     total, correct, wrong_count, wrong_only,
+//     review_cards: ReviewCard[]
+//   }
+//
+// ReviewCard shape:
+//   {
+//     question_id, question_text, question_type, difficulty,
+//     image_url,                    // "" when no media
+//     player_answer_texts: string[],// text the player chose
+//     correct_answer_texts: string[],// text of correct option(s)
+//     all_options: OptionReview[],   // full option list with flags
+//     explanation,
+//     eligible_game_modes: string[]  // see eligibleModes() below
+//   }
+//
+// OptionReview shape:
+//   { id, text, is_correct: bool, was_selected: bool }
+//
+// eligible_game_modes values:
+//   "mcq"            — standard multiple-choice replay (always eligible)
+//   "fill_in_blank"  — blank a word in the question; player types the answer
+//   "letter_scramble"— scramble letters of the correct answer to rearrange
+//   (letter_scramble + fill_in_blank are excluded for multiple_select
+//    questions because both assume a single text answer — task 2.5.3)
+var QvGetReview;
+(function (QvGetReview) {
+    // ── Storage ──────────────────────────────────────────────────────────────────
+    var COL_PACKS = "qv_question_packs";
+    // ── Game mode constants (must match LearningGamesPopup mode strings) ─────────
+    var MODE_MCQ = "mcq";
+    var MODE_FILL_IN_BLANK = "fill_in_blank";
+    var MODE_LETTER_SCRAMBLE = "letter_scramble";
+    // ── Low-level helpers ─────────────────────────────────────────────────────────
+    function nakamaError(msg, code) {
+        return { message: msg, code: code };
+    }
+    function parseJson(payload) {
+        try {
+            return JSON.parse(payload || "{}");
+        }
+        catch (_e) {
+            throw nakamaError("invalid JSON payload", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+    }
+    // ── Task 2.5.3 — eligible game modes ─────────────────────────────────────────
+    //
+    // Rules:
+    //   multiple_select → "mcq" only
+    //     (fill_in_blank / letter_scramble assume one answer text; multiple
+    //      correct options break the UI assumptions of those modes)
+    //   true_false      → "mcq" + "fill_in_blank"
+    //     (letter_scramble on "True"/"False" has zero learning value)
+    //   single_select   → all three modes
+    function eligibleModes(questionType) {
+        if (questionType === "multiple_select") {
+            return [MODE_MCQ];
+        }
+        if (questionType === "true_false") {
+            return [MODE_MCQ, MODE_FILL_IN_BLANK];
+        }
+        // single_select (default) — all modes
+        return [MODE_MCQ, MODE_FILL_IN_BLANK, MODE_LETTER_SCRAMBLE];
+    }
+    // ── Task 2.5.2 — build one review card ───────────────────────────────────────
+    //
+    // Resolves human-readable answer texts from the option list stored in the
+    // pack document.  `graded` is one entry from graded_answers[].
+    //
+    // Pack question shape  (as stored by get_questions.ts / submit_result.ts):
+    //   {
+    //     id, question_text, question_type, difficulty,
+    //     options:            [{ id: "A"|"B"|"C"|"D", text: string }],
+    //     correct_option_ids: string[],
+    //     has_media, media:   { type, url, thumbnail_url, … } | null,
+    //     explanation
+    //   }
+    //
+    // graded entry shape (from submit_result.ts):
+    //   { question_id, selected_option_id, correct_option_ids, is_correct, time_ms }
+    function buildReviewCard(question, graded) {
+        var qType = question.question_type || "single_select";
+        // Build option text lookup and enriched option list in one pass
+        var optTextById = {};
+        var allOptions = [];
+        var opts = Array.isArray(question.options) ? question.options : [];
+        // The correct / selected ID sets (from graded — server-authoritative)
+        var correctIds = Array.isArray(graded.correct_option_ids)
+            ? graded.correct_option_ids : [];
+        var selectedId = (typeof graded.selected_option_id === "string")
+            ? graded.selected_option_id : "";
+        var correctIdSet = {};
+        for (var ci = 0; ci < correctIds.length; ci++)
+            correctIdSet[correctIds[ci]] = true;
+        for (var oi = 0; oi < opts.length; oi++) {
+            var opt = opts[oi];
+            var optId = opt.id || "";
+            var optText = opt.text || "";
+            optTextById[optId] = optText;
+            allOptions.push({
+                id: optId,
+                text: optText,
+                is_correct: !!correctIdSet[optId],
+                was_selected: (optId === selectedId)
+            });
+        }
+        // correct_answer_texts — texts of all correct options (server-authoritative list)
+        var correctAnswerTexts = [];
+        for (var cj = 0; cj < correctIds.length; cj++) {
+            var t = optTextById[correctIds[cj]];
+            if (t)
+                correctAnswerTexts.push(t);
+        }
+        // player_answer_texts — text of the option the player actually chose
+        var playerAnswerTexts = [];
+        if (selectedId && optTextById[selectedId]) {
+            playerAnswerTexts.push(optTextById[selectedId]);
+        }
+        // image_url — best available URL from media block
+        var imageUrl = "";
+        if (question.has_media && question.media) {
+            imageUrl = question.media.url || question.media.thumbnail_url || "";
+        }
+        return {
+            question_id: question.id || "",
+            question_text: question.question_text || "",
+            question_type: qType,
+            difficulty: question.difficulty || "medium",
+            image_url: imageUrl,
+            player_answer_texts: playerAnswerTexts,
+            correct_answer_texts: correctAnswerTexts,
+            all_options: allOptions,
+            explanation: question.explanation || "",
+            eligible_game_modes: eligibleModes(qType)
+        };
+    }
+    // ── Main RPC handler ──────────────────────────────────────────────────────────
+    /**
+     * quizverse_get_review
+     *
+     * Input:
+     *   {
+     *     pack_id:    string,   // from quizverse_get_questions response
+     *     wrong_only?: boolean  // default true — only return wrong-answer cards
+     *   }
+     *
+     * Output (success):
+     *   {
+     *     ok:           true,
+     *     pack_id:      string,
+     *     topic:        string,
+     *     lang:         string,
+     *     total:        number,           // total questions in pack
+     *     correct:      number,           // how many the player got right
+     *     wrong_count:  number,           // review_cards.length
+     *     wrong_only:   boolean,
+     *     review_cards: ReviewCard[]
+     *   }
+     *
+     * Output (guard hit — pack not found / not submitted):
+     *   throws with appropriate Nakama error code
+     */
+    function rpcGetReview(ctx, logger, nk, payload) {
+        // ── Auth + context (yel1/yel2) ────────────────────────────────────────────
+        var req = parseJson(payload);
+        var rctx = QvContextResolver.resolve(nk, ctx, req);
+        var userId = rctx.userId;
+        // ── Parse request ─────────────────────────────────────────────────────────
+        var packId = (typeof req.pack_id === "string" && req.pack_id) ? req.pack_id : "";
+        // wrong_only defaults to true; pass wrong_only:false to review all questions
+        var wrongOnly = (req.wrong_only !== false);
+        if (!packId)
+            throw nakamaError("pack_id is required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        // ── Task 2.5.1 — load pack (ownership enforced by Nakama storage ACL) ────
+        var rows = nk.storageRead([{ collection: COL_PACKS, key: packId, userId: userId }]);
+        if (!rows || rows.length === 0 || !rows[0].value) {
+            throw nakamaError("pack not found: " + packId, 5 /* nkruntime.Codes.NOT_FOUND */);
+        }
+        var pack = rows[0].value;
+        var topic = pack.topic || "unknown";
+        var lang = pack.lang_actual || pack.lang || "en";
+        // ── Task 2.5.1 — submitted guard ─────────────────────────────────────────
+        if (pack.submitted !== true) {
+            throw nakamaError("pack has not been submitted yet — call quizverse_submit_result first", 9 /* nkruntime.Codes.FAILED_PRECONDITION */);
+        }
+        // ── Build graded-answer index: question_id → graded entry ────────────────
+        var gradedAnswers = Array.isArray(pack.graded_answers) ? pack.graded_answers : [];
+        var gradedIndex = {};
+        for (var gi = 0; gi < gradedAnswers.length; gi++) {
+            var ga = gradedAnswers[gi];
+            if (ga && ga.question_id)
+                gradedIndex[ga.question_id] = ga;
+        }
+        // ── Task 2.5.2 — build review cards ──────────────────────────────────────
+        var questions = Array.isArray(pack.questions) ? pack.questions : [];
+        var reviewCards = [];
+        for (var qi = 0; qi < questions.length; qi++) {
+            var q = questions[qi];
+            var graded = gradedIndex[q.id] || null;
+            // If we have no graded record for this question, skip it
+            if (!graded)
+                continue;
+            // wrong_only: skip correctly answered questions
+            if (wrongOnly && graded.is_correct === true)
+                continue;
+            reviewCards.push(buildReviewCard(q, graded));
+        }
+        logger.info("[QvReview] pack=" + packId + " topic=" + topic +
+            " wrong_only=" + wrongOnly + " cards=" + reviewCards.length +
+            "/" + questions.length);
+        return JSON.stringify({
+            ok: true,
+            pack_id: packId,
+            topic: topic,
+            lang: lang,
+            total: questions.length,
+            correct: typeof pack.correct === "number" ? pack.correct : 0,
+            wrong_count: reviewCards.length,
+            wrong_only: wrongOnly,
+            review_cards: reviewCards
+        });
+    }
+    // ── Registration ─────────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("quizverse_get_review", rpcGetReview);
+    }
+    QvGetReview.register = register;
+    var _NOOP = { registerRpc: function () { } };
+    register(_NOOP);
+})(QvGetReview || (QvGetReview = {}));
 // =============================================================================
 // RPC: quizverse_growth_snapshot
 //
@@ -9605,10 +10928,10 @@ var QuizVerseLiveBanner;
 //
 // Phase scope per RPC:
 //   P0 (live):       quizverse_get_player_context
-//   P1 (live):       quizverse_request_questions (router over quizverse_quiz_generate)
-//   P2 (live):       quiz_submit_result_v2 (alongside v1; v1 untouched)
+//   P1 (DEPRECATED): quizverse_request_questions — superseded by quizverse_get_questions
+//   P2 (DEPRECATED): quiz_submit_result_v2       — superseded by quizverse_submit_result
 //   P3 (scaffold):   quizverse_ai_*           — delegate to external AI if env vars set
-//   P4 (scaffold):   quizverse_fetch_external_quiz
+//   P4 (DEPRECATED): quizverse_fetch_external_quiz — superseded by question_cache.ts
 //   P5 (scaffold):   quizverse_mp_request_pack — delegates to existing QuizVersePlugin
 //   P6 (scaffold):   auth_*                   — userinfo serves real data; others stub
 //   P7 (scaffold):   geo/tts/lichess/xpromo/webview/asset_catalog
@@ -9766,8 +11089,15 @@ var QuizVerseMigration;
         }
     }
     // ─────────────────────────────────────────────────────────────────────
-    // PHASE 1 — Question delivery
+    // PHASE 1 — Question delivery  [DEPRECATED]
     // ─────────────────────────────────────────────────────────────────────
+    // @deprecated  quizverse_request_questions is superseded by the
+    //              quizverse_get_questions RPC in get_questions.ts which
+    //              uses the full server-authoritative cache+quality-gate
+    //              pipeline (question_cache.ts / quality_gate.ts).
+    //              Do NOT route new Unity quiz modes here.
+    //              Kept alive only for legacy clients during the rollout window.
+    //
     // quizverse_request_questions = the single Unity-facing question-delivery
     // RPC. Routes by `kind` over existing infrastructure and stamps a
     // `question_pack_id` that Phase-2 scoring reads back to recompute
@@ -9800,92 +11130,37 @@ var QuizVerseMigration;
             // Non-fatal; v2 scoring will fall back to client-supplied answers.
         }
     }
-    function callExistingRpc(rpcVarName, ctx, logger, nk, payloadObj) {
-        var fn = globalThis[rpcVarName];
-        if (typeof fn !== "function") {
-            throw nakamaError(rpcVarName + " not loaded", 14 /* nkruntime.Codes.UNAVAILABLE */);
-        }
-        return JSON.parse(fn(ctx, logger, nk, JSON.stringify(payloadObj)));
-    }
     function rpcRequestQuestions(ctx, logger, nk, payload) {
         var userId = requireAuth(ctx);
         var req = parseJson(payload);
         var kind = req.kind || "deduped_s3";
         var sourceTrace = { kind: kind, mode: req.mode || "unknown", attempted: [] };
-        var generated;
-        try {
-            if (kind === "deduped_s3" || kind === "daily" || kind === "weekly" || kind === "question_bank") {
-                sourceTrace.attempted.push("quizverse_quiz_generate");
-                generated = callExistingRpc("__rpc_quizverse_quiz_generate", ctx, logger, nk, {
-                    mode: req.mode || "request_questions",
-                    scope: req.scope || "global",
-                    topic: req.topic || "general",
-                    count: req.count || 10,
-                    question_bank_url: req.question_bank_url || "",
-                    id_prefix: req.id_prefix || "s3",
-                    questions: req.inline_questions || undefined,
-                    repeat_after_days: req.repeat_after_days || 7
-                });
-                sourceTrace.served_by = "quizverse_quiz_generate";
-            }
-            else if (kind === "news") {
-                sourceTrace.attempted.push("quizverse_fetch_news_quiz");
-                generated = callExistingRpc("__rpc_quizverse_fetch_news_quiz", ctx, logger, nk, req);
-                sourceTrace.served_by = "quizverse_fetch_news_quiz";
-            }
-            else if (kind === "external") {
-                return JSON.stringify({
-                    ok: false, error: "external_provider_not_yet_enabled",
-                    source_trace: sourceTrace, fallback_to_client: true
-                });
-            }
-            else if (kind === "ai") {
-                return JSON.stringify({
-                    ok: false, error: "ai_path_not_yet_enabled",
-                    source_trace: sourceTrace, fallback_to_client: true
-                });
-            }
-            else {
-                throw nakamaError("unknown kind: " + kind, 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
-            }
-        }
-        catch (err) {
-            logger.error("[Migration] request_questions(" + kind + "): " + (err && err.message ? err.message : String(err)));
-            return JSON.stringify({
-                ok: false, error: "delivery_failed",
-                source_trace: sourceTrace, fallback_to_client: true
-            });
-        }
-        if (!generated || generated.success === false) {
-            return JSON.stringify({
-                ok: false,
-                error: (generated && generated.error) || "empty_response",
-                source_trace: sourceTrace,
-                fallback_to_client: true
-            });
-        }
-        var questions = generated.questions || [];
-        var packId = newPackId(userId);
-        persistQuestionPack(nk, userId, packId, questions, sourceTrace);
-        var contextPackVersion = "v1";
-        try {
-            var pack = readPlayerContext(nk, userId);
-            contextPackVersion = (pack && pack.version) || "v1";
-        }
-        catch (_e) { }
+        // P1 is fully superseded by quizverse_get_questions (get_questions.ts).
+        // All Unity quiz modes now call quizverse_get_questions directly.
+        // quizverse_request_questions is kept registered for backward compatibility
+        // with very old client builds, but it always tells the client to fall back
+        // to the new pipeline.
+        logger.warn("[Migration] quizverse_request_questions called with kind=" + kind +
+            " — this RPC is retired. Client should call quizverse_get_questions instead.");
         return JSON.stringify({
-            ok: true,
-            questions: questions,
-            question_pack_id: packId,
-            seen_snapshot: generated.question_ids || [],
-            context_pack_version: contextPackVersion,
-            source_trace: sourceTrace,
-            meta: generated.meta || {}
+            ok: false,
+            error: "rpc_retired",
+            message: "quizverse_request_questions is retired. Use quizverse_get_questions.",
+            fallback_to_client: true,
+            source_trace: { kind: kind, mode: req.mode || "unknown", attempted: [] }
         });
     }
     // ─────────────────────────────────────────────────────────────────────
-    // PHASE 2 — Score reconciliation v2
+    // PHASE 2 — Score reconciliation v2  [DEPRECATED]
     // ─────────────────────────────────────────────────────────────────────
+    // @deprecated  quiz_submit_result_v2 is superseded by
+    //              quizverse_submit_result in submit_result.ts which pairs
+    //              with quizverse_get_questions packs (qv_question_packs
+    //              collection), supports Player DNA updates, and returns a
+    //              personalization block.
+    //              Do NOT route new Unity quiz modes here.
+    //              Kept alive only for legacy clients during rollout.
+    //
     // v2 contract: client sends { question_pack_id, answers[] } only —
     // server recomputes correctness from the persisted pack so a tampered
     // client cannot lie about which option was correct.
@@ -10132,8 +11407,16 @@ var QuizVerseMigration;
         return JSON.stringify({ ok: true, transcript: up.payload });
     }
     // ─────────────────────────────────────────────────────────────────────
-    // PHASE 4 — External APIs (dispatcher with cache)
+    // PHASE 4 — External APIs (dispatcher with cache)  [DEPRECATED]
     // ─────────────────────────────────────────────────────────────────────
+    // @deprecated  quizverse_fetch_external_quiz is superseded by the
+    //              server-side provider caching layer in question_cache.ts.
+    //              All external providers (OpenTDB, Jikan, TMDB, NASA, etc.)
+    //              are now fetched, normalised, and quality-gated inside
+    //              quizverse_get_questions at cache-miss time.
+    //              Clients must never call external APIs directly.
+    //              Kept alive only for legacy clients during rollout.
+    //
     // Single Unity-facing RPC routes per-provider 3rd-party fetches through
     // Nakama so:
     //   (a) we own a single egress IP (rate-limit + secret rotation),
@@ -11483,12 +12766,18 @@ var QuizVerseMigration;
         // Nakama JS runtime resolve the function key. Keep these as literals or
         // the plugin will silently fail-to-mount in prod (see PR #69 follow-up).
         initializer.registerRpc("quizverse_get_player_context", rpcGetPlayerContext);
+        // DEPRECATED — superseded by quizverse_get_questions (get_questions.ts).
+        // Kept for legacy clients; remove after all modes adopt the new pipeline.
         initializer.registerRpc("quizverse_request_questions", rpcRequestQuestions);
+        // DEPRECATED — superseded by quizverse_submit_result (submit_result.ts).
+        // Kept for legacy clients; remove after all modes adopt the new pipeline.
         initializer.registerRpc("quiz_submit_result_v2", rpcSubmitResultV2);
         initializer.registerRpc("quizverse_ai_generate_questions", rpcAiGenerate);
         initializer.registerRpc("quizverse_ai_grade_subjective", rpcAiGradeSubjective);
         initializer.registerRpc("quizverse_ai_notes_create", rpcAiNotesCreate);
         initializer.registerRpc("quizverse_ai_stt_transcribe", rpcAiStt);
+        // DEPRECATED — external providers now cached server-side in question_cache.ts.
+        // Kept for legacy clients; remove after all modes adopt the new pipeline.
         initializer.registerRpc("quizverse_fetch_external_quiz", rpcFetchExternalQuiz);
         initializer.registerRpc("quizverse_mp_request_pack", rpcMpRequestPack);
         initializer.registerRpc("auth_signup", rpcAuthSignup);
@@ -11520,8 +12809,14 @@ var QuizVerseMigration;
         initializer.registerRpc("quizverse_words_duel_get", rpcWordsDuelGetPuzzle);
         initializer.registerRpc("quizverse_words_duel_submit", rpcWordsDuelSubmit);
         initializer.registerRpc("quizverse_words_duel_leaderboard", rpcWordsDuelLeaderboard);
+        // Phase 1b — question serve layer (cache-read, filter seen+inflight, pick N)
+        QvGetQuestions.register(initializer);
+        // Phase 2 — server-authority grading, wallet, leaderboard, seen, KB
+        QvSubmitResult.register(initializer);
+        // Phase 2.5 — review & learn (read-only; exposes graded pack as review cards)
+        QvGetReview.register(initializer);
         if (logger && logger.info) {
-            logger.info("[QuizVerseMigration] registered 27 RPCs (P0-P8 live + PWords daily seed + Vocab Duel + weekly polymorphic)");
+            logger.info("[QuizVerseMigration] registered 30 RPCs (P0-P8 live + PWords + Vocab Duel + weekly polymorphic + get_questions + submit_result + get_review)");
         }
     }
     QuizVerseMigration.register = register;
@@ -11607,6 +12902,859 @@ var QuizVersePackStore;
     }
     QuizVersePackStore.writePack = writePack;
 })(QuizVersePackStore || (QuizVersePackStore = {}));
+// Personalized Quest Engine — wires Player DNA to the Quest config pool.
+//
+// Single RPC:  quizverse_get_personalized_quests
+//
+// HOW IT WORKS
+// ─────────────
+// The quest admin still manages the pool via quest_engine_admin_save_config.
+// Each quest config may carry DNA filter/routing tags in additionalProperties:
+//
+//   dna_topic         — topic slug this quest targets ("anime", "pokemon", …)
+//   dna_slot          — "confidence"|"growth"|"discovery"|"review"|"any"
+//                       Maps to the Mix Algorithm slot this quest fills.
+//   dna_min_affinity  — float (0–1): minimum affinity to show this quest.
+//                       e.g. "0.5" = only show to players who actively like this topic.
+//   dna_max_mastery   — float (0–1): hide once player exceeds this mastery level.
+//                       e.g. "0.85" = don't assign a "beginner" quest to experts.
+//   dna_min_elo       — int: minimum Elo required (challenge quests).
+//   dna_max_elo       — int: maximum Elo allowed (novice-friendly quests).
+//   dna_template      — "true": quest name/steps use __topic__ placeholder.
+//   dna_template_slot — "top1"|"top2"|"weak1": which DNA slot resolves __topic__.
+//
+// TEMPLATE QUESTS
+// ───────────────
+// With dna_template="true", a single quest config becomes many personalised
+// quests — one per player, resolved from their DNA at request time.
+//
+// Example quest config stored in qv_quest_config:
+//   {
+//     "id":   "confidence_topic_daily",
+//     "name": "Play 3 rounds of __topic__",
+//     "category": "daily",
+//     "repeatable": true,
+//     "steps": [{
+//       "id": "s1", "eventType": "quiz_completed", "requiredCount": 3,
+//       "filterField": "topic", "filterValue": "__dna_topic__"
+//     }],
+//     "additionalProperties": {
+//       "dna_slot":          "confidence",
+//       "dna_template":      "true",
+//       "dna_template_slot": "top1",
+//       "dna_min_affinity":  "0.4"
+//     }
+//   }
+//
+// For a player whose top topic is "anime", this resolves to:
+//   id:   "confidence_topic_daily_anime"
+//   name: "Play 3 rounds of Anime"
+//   step filterValue: "anime"
+//
+// SLOT PRIORITY (return order)
+// ────────────────────────────
+//  review      → 100  (SRQ due — highest obligation)
+//  confidence  → 80   (top affinity topic — builds momentum)
+//  growth      → 60   (weak area — real skill development)
+//  discovery   → 40   (undiscovered topic — prevents fatigue)
+//  any         → 20   (untagged — generic fallback)
+var PersonalizedQuests;
+(function (PersonalizedQuests) {
+    var QUEST_CONFIG_COLLECTION = "qv_quest_config";
+    var SLOT_PRIORITY = {
+        "review": 100,
+        "confidence": 80,
+        "growth": 60,
+        "discovery": 40,
+        "any": 20
+    };
+    // ── Filter logic ──────────────────────────────────────────────────────────────
+    function evaluateDna(quest, dna) {
+        var props = quest.additionalProperties || {};
+        var slot = props["dna_slot"] || "any";
+        var topic = props["dna_topic"] || "";
+        var minAff = props["dna_min_affinity"] ? parseFloat(props["dna_min_affinity"]) : -1;
+        var maxMas = props["dna_max_mastery"] ? parseFloat(props["dna_max_mastery"]) : 2;
+        var minElo = props["dna_min_elo"] ? parseInt(props["dna_min_elo"], 10) : -1;
+        var maxElo = props["dna_max_elo"] ? parseInt(props["dna_max_elo"], 10) : 99999;
+        var isTemplate = props["dna_template"] === "true";
+        var tplSlot = props["dna_template_slot"] || "top1";
+        var resolvedTopic = topic;
+        // Resolve template placeholder to actual player topic
+        if (isTemplate) {
+            var tops = PlayerDNA.topTopics(dna, 2);
+            var weaks = PlayerDNA.weakestTopics(dna, 1);
+            if (tplSlot === "top1" && tops.length > 0)
+                resolvedTopic = tops[0];
+            else if (tplSlot === "top2" && tops.length > 1)
+                resolvedTopic = tops[1];
+            else if (tplSlot === "weak1" && weaks.length > 0)
+                resolvedTopic = weaks[0];
+            else {
+                // Template but no DNA signal yet — skip during cold start
+                return { passes: false, slot: slot, resolvedTopic: "", score: 0, reason: "" };
+            }
+        }
+        // Affinity gate
+        if (resolvedTopic && minAff >= 0) {
+            var aff = dna.affinities[resolvedTopic] || 0;
+            if (aff < minAff) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Mastery ceiling — don't give an intro quest to an expert
+        if (resolvedTopic && maxMas < 2) {
+            var mas = dna.masteries[resolvedTopic] || 0;
+            if (mas > maxMas) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Elo window
+        if (resolvedTopic && (minElo > 0 || maxElo < 99999)) {
+            var elo = dna.elos[resolvedTopic] || 1200;
+            if (elo < minElo || elo > maxElo) {
+                return { passes: false, slot: slot, resolvedTopic: resolvedTopic, score: 0, reason: "" };
+            }
+        }
+        // Relevance score for ranking within same slot
+        var score = 50;
+        if (resolvedTopic) {
+            var a = dna.affinities[resolvedTopic] || 0;
+            var m = dna.masteries[resolvedTopic] || 0;
+            if (slot === "confidence") {
+                // High affinity + room to grow = best confidence quest
+                score = Math.round(a * 70 + (1 - m) * 30);
+            }
+            else if (slot === "growth") {
+                // Weak mastery but player has at least some interest (not totally foreign)
+                score = Math.round((1 - m) * 60 + a * 40);
+            }
+            else if (slot === "discovery") {
+                // Inverse of affinity — most unknown topic gets highest score
+                score = Math.round((1 - a) * 80 + 20);
+            }
+            else if (slot === "review") {
+                score = 95;
+            }
+        }
+        return {
+            passes: true,
+            slot: slot,
+            resolvedTopic: resolvedTopic,
+            score: score,
+            reason: buildReason(slot, resolvedTopic, dna)
+        };
+    }
+    function buildReason(slot, topic, dna) {
+        if (!topic) {
+            if (slot === "review")
+                return "Reviews due — don't let them expire!";
+            if (slot === "confidence")
+                return "Keep your momentum going.";
+            if (slot === "growth")
+                return "Push your limits today.";
+            if (slot === "discovery")
+                return "Try something new!";
+            return "Quest matched to your profile.";
+        }
+        var label = topic.charAt(0).toUpperCase() + topic.slice(1);
+        var aff = dna.affinities[topic] || 0;
+        var mastery = dna.masteries[topic] || 0;
+        if (slot === "confidence") {
+            if (aff > 0.75)
+                return "You love " + label + " — build on your streak!";
+            return "You're good at " + label + " (" + Math.round(mastery * 100) + "% mastery). Keep going.";
+        }
+        if (slot === "growth") {
+            return "Level up your " + label + " knowledge. You're at " + Math.round(mastery * 100) + "% mastery.";
+        }
+        if (slot === "discovery") {
+            return "Explore " + label + " — a new topic for you!";
+        }
+        if (slot === "review") {
+            return "Review your " + label + " mistakes from previous sessions.";
+        }
+        return "Matched to your " + label + " profile (" + Math.round(aff * 100) + "% affinity).";
+    }
+    // ── Template instantiation ────────────────────────────────────────────────────
+    // Replace __topic__ and __dna_topic__ placeholders in text.
+    function resolveText(text, topic) {
+        if (!topic)
+            return text;
+        var label = topic.charAt(0).toUpperCase() + topic.slice(1);
+        return text
+            .replace(/__topic__/g, label)
+            .replace(/__dna_topic__/g, topic);
+    }
+    // Clone a quest and substitute all template placeholders.
+    function instantiate(quest, resolvedTopic) {
+        var id = resolvedTopic ? quest.id + "_" + resolvedTopic : quest.id;
+        var steps = [];
+        for (var i = 0; i < quest.steps.length; i++) {
+            var s = quest.steps[i];
+            var filterValue = s.filterValue;
+            if (filterValue === "__dna_topic__" && resolvedTopic) {
+                filterValue = resolvedTopic;
+            }
+            steps.push({
+                id: s.id,
+                description: resolveText(s.description, resolvedTopic),
+                eventType: s.eventType,
+                requiredCount: s.requiredCount,
+                requiredValue: s.requiredValue,
+                filterField: s.filterField,
+                filterValue: filterValue
+            });
+        }
+        return {
+            id: id,
+            name: resolveText(quest.name, resolvedTopic),
+            description: quest.description ? resolveText(quest.description, resolvedTopic) : undefined,
+            category: quest.category,
+            expiresAt: quest.expiresAt,
+            prerequisiteIds: quest.prerequisiteIds,
+            repeatable: quest.repeatable,
+            resetIntervalSec: quest.resetIntervalSec,
+            reward: quest.reward,
+            additionalProperties: quest.additionalProperties,
+            steps: steps
+        };
+    }
+    // ── RPC ───────────────────────────────────────────────────────────────────────
+    // quizverse_get_personalized_quests
+    //
+    // Request:  { gameId?: string, limit?: number (1–20, default 10) }
+    // Response: {
+    //   quests: [{
+    //     id, name, description, category, steps, expiresAt, repeatable,
+    //     personalization: { slot, resolved_topic, reason, relevance_score }
+    //   }],
+    //   dna_summary: { top_topics, cold_start, total_sessions }
+    // }
+    function rpcGetPersonalizedQuests(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = data.gameId || Constants.DEFAULT_GAME_ID;
+        var limit = (typeof data.limit === "number") ? Math.min(Math.max(data.limit, 1), 20) : 10;
+        // Load Player DNA (returns empty default for new players — cold start path)
+        var dna = PlayerDNA.load(nk, userId);
+        // Load quest config pool
+        var rows = [];
+        try {
+            rows = nk.storageRead([{
+                    collection: QUEST_CONFIG_COLLECTION,
+                    key: gameId,
+                    userId: Constants.SYSTEM_USER_ID
+                }]);
+        }
+        catch (_) { }
+        var config = { quests: {} };
+        if (rows && rows.length > 0 && rows[0].value) {
+            config = rows[0].value;
+        }
+        var questIds = Object.keys(config.quests);
+        var now = Math.floor(Date.now() / 1000);
+        // ── Phase 1: filter ──────────────────────────────────────────────────────
+        var candidates = [];
+        for (var i = 0; i < questIds.length; i++) {
+            var quest = config.quests[questIds[i]];
+            if (quest.expiresAt && now > quest.expiresAt)
+                continue;
+            var hasDnaProps = quest.additionalProperties && (quest.additionalProperties["dna_topic"] ||
+                quest.additionalProperties["dna_slot"] ||
+                quest.additionalProperties["dna_template"]);
+            if (!hasDnaProps) {
+                // Untagged quests always pass through with baseline priority
+                candidates.push({
+                    quest: quest,
+                    filter: { passes: true, slot: "any", resolvedTopic: "", score: 40, reason: "" }
+                });
+                continue;
+            }
+            var fr = evaluateDna(quest, dna);
+            if (!fr.passes)
+                continue;
+            candidates.push({ quest: quest, filter: fr });
+        }
+        // ── Phase 2: sort — slot priority first, then relevance score ────────────
+        candidates.sort(function (a, b) {
+            var pa = SLOT_PRIORITY[a.filter.slot] || 20;
+            var pb = SLOT_PRIORITY[b.filter.slot] || 20;
+            if (pb !== pa)
+                return pb - pa;
+            return b.filter.score - a.filter.score;
+        });
+        // ── Phase 3: instantiate templates + build response ──────────────────────
+        var out = [];
+        for (var j = 0; j < Math.min(candidates.length, limit); j++) {
+            var c = candidates[j];
+            var inst = instantiate(c.quest, c.filter.resolvedTopic);
+            var stepsOut = [];
+            for (var s = 0; s < inst.steps.length; s++) {
+                var step = inst.steps[s];
+                stepsOut.push({
+                    id: step.id,
+                    description: step.description,
+                    requiredCount: step.requiredCount,
+                    filterField: step.filterField || null,
+                    filterValue: step.filterValue || null
+                });
+            }
+            out.push({
+                id: inst.id,
+                name: inst.name,
+                description: inst.description || null,
+                category: inst.category || null,
+                expiresAt: inst.expiresAt || null,
+                repeatable: !!inst.repeatable,
+                steps: stepsOut,
+                personalization: {
+                    slot: c.filter.slot,
+                    resolved_topic: c.filter.resolvedTopic || null,
+                    reason: c.filter.reason || null,
+                    relevance_score: c.filter.score
+                }
+            });
+        }
+        logger.info("[PersonalizedQuests] user=%s game=%s pool=%d returned=%d cold_start=%s top=%s", userId, gameId, candidates.length, out.length, dna.behavioral.cold_start_done ? "false" : "true", PlayerDNA.topTopics(dna, 1).join(",") || "none");
+        return RpcHelpers.successResponse({
+            quests: out,
+            dna_summary: {
+                top_topics: PlayerDNA.topTopics(dna, 3),
+                cold_start: !dna.behavioral.cold_start_done,
+                total_sessions: dna.behavioral.total_sessions
+            }
+        });
+    }
+    // postbuild.js autoInvokeRegister requires single-arg register() for pooled VM replay.
+    function register(initializer) {
+        initializer.registerRpc("quizverse_get_personalized_quests", rpcGetPersonalizedQuests);
+    }
+    PersonalizedQuests.register = register;
+})(PersonalizedQuests || (PersonalizedQuests = {}));
+// PlayerDNA — per-player behavioural intelligence profile.
+//
+// Storage: collection="qv_player_dna", key="dna", owner=userId
+//          permissionRead=1 (owner), permissionWrite=0 (server-only)
+//
+// Updated by:  quizverse_submit_result  (Phase 2 of the Intelligence Platform)
+// Read by:     quizverse_get_personalized_quests
+//              quizverse_get_questions  (mix algorithm, Elo matching)
+//
+// Design notes:
+//   - No external ML service needed — all computation is pure math inside Goja.
+//   - EMA alpha=0.3 → recent 3 sessions weight ~3× more than older history.
+//   - Elo per topic mirrors chess rating (K=20/15/10 by tier).
+//   - Storage is ~2 KB per player at full maturity — negligible at any scale.
+var PlayerDNA;
+(function (PlayerDNA) {
+    PlayerDNA.COLLECTION = "qv_player_dna";
+    PlayerDNA.KEY = "dna";
+    function defaultDNA() {
+        return {
+            affinities: {},
+            masteries: {},
+            elos: {},
+            behavioral: {
+                peak_hour_utc: 19,
+                avg_session_questions: 10,
+                sessions_per_week: 0,
+                last_played_at: 0,
+                total_sessions: 0,
+                cold_start_done: false,
+                comeback_eligible: false
+            },
+            updated_at: 0
+        };
+    }
+    // ── Storage ──────────────────────────────────────────────────────────────────
+    function load(nk, userId) {
+        var rows = [];
+        try {
+            rows = nk.storageRead([{ collection: PlayerDNA.COLLECTION, key: PlayerDNA.KEY, userId: userId }]);
+        }
+        catch (_) { }
+        if (rows && rows.length > 0 && rows[0].value) {
+            var stored = rows[0].value;
+            // Back-fill any missing behavioral fields added after initial writes
+            if (!stored.behavioral)
+                stored.behavioral = defaultDNA().behavioral;
+            if (stored.behavioral.comeback_eligible === undefined)
+                stored.behavioral.comeback_eligible = false;
+            return stored;
+        }
+        return defaultDNA();
+    }
+    PlayerDNA.load = load;
+    function save(nk, userId, dna) {
+        dna.updated_at = Math.floor(Date.now() / 1000);
+        nk.storageWrite([{
+                collection: PlayerDNA.COLLECTION,
+                key: PlayerDNA.KEY,
+                userId: userId,
+                value: dna,
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    PlayerDNA.save = save;
+    // ── Topic ranking helpers ────────────────────────────────────────────────────
+    // Returns topic slugs sorted descending by affinity (most loved first).
+    function topTopics(dna, limit) {
+        var topics = Object.keys(dna.affinities);
+        topics.sort(function (a, b) {
+            return (dna.affinities[b] || 0) - (dna.affinities[a] || 0);
+        });
+        return topics.slice(0, limit);
+    }
+    PlayerDNA.topTopics = topTopics;
+    // Returns topic slugs sorted ascending by mastery (weakest first).
+    // Only returns topics the player has actually attempted (mastery > 0).
+    function weakestTopics(dna, limit) {
+        var topics = Object.keys(dna.masteries).filter(function (t) {
+            return (dna.masteries[t] || 0) > 0;
+        });
+        topics.sort(function (a, b) {
+            return (dna.masteries[a] || 0) - (dna.masteries[b] || 0);
+        });
+        return topics.slice(0, limit);
+    }
+    PlayerDNA.weakestTopics = weakestTopics;
+    // Returns topics the player hasn't played yet (for discovery slot).
+    function undiscoveredTopics(dna, allTopics, limit) {
+        var out = [];
+        for (var i = 0; i < allTopics.length; i++) {
+            if (!dna.affinities[allTopics[i]]) {
+                out.push(allTopics[i]);
+                if (out.length >= limit)
+                    break;
+            }
+        }
+        return out;
+    }
+    PlayerDNA.undiscoveredTopics = undiscoveredTopics;
+    // ── EMA update (call after each session) ────────────────────────────────────
+    // alpha = 0.3 → recent sessions have ~3× more influence than older ones.
+    // played=true when the player voluntarily chose or completed this topic.
+    var EMA_ALPHA = 0.3;
+    function updateAffinity(dna, topic, played) {
+        var signal = played ? 1.0 : 0.0;
+        var prev = dna.affinities[topic] !== undefined ? dna.affinities[topic] : 0.5;
+        dna.affinities[topic] = round3(EMA_ALPHA * signal + (1 - EMA_ALPHA) * prev);
+    }
+    PlayerDNA.updateAffinity = updateAffinity;
+    // accuracy: 0.0–1.0 (correct / total for this topic in the session).
+    // Mastery grows +0.02 when accuracy ≥ 0.7, shrinks -0.01 otherwise.
+    function updateMastery(dna, topic, accuracy) {
+        var prev = dna.masteries[topic] !== undefined ? dna.masteries[topic] : 0.0;
+        var delta = accuracy >= 0.7 ? 0.02 : -0.01;
+        dna.masteries[topic] = clamp(round3(prev + delta), 0, 1);
+    }
+    PlayerDNA.updateMastery = updateMastery;
+    // ── Elo update (per topic, per session) ─────────────────────────────────────
+    // Standard Elo formula.  avgDifficulty acts as the "opponent" Elo.
+    // K-factor tiers: novice < 1000 → K=20, intermediate → K=15, advanced > 1600 → K=10.
+    function updateElo(dna, topic, accuracy, avgDifficulty) {
+        var playerElo = dna.elos[topic] !== undefined ? dna.elos[topic] : 1200;
+        var K = playerElo < 1000 ? 20 : (playerElo < 1600 ? 15 : 10);
+        var oppElo = avgDifficulty > 0 ? avgDifficulty : 1200;
+        var expected = 1 / (1 + Math.pow(10, (oppElo - playerElo) / 400));
+        dna.elos[topic] = Math.round(playerElo + K * (accuracy - expected));
+    }
+    PlayerDNA.updateElo = updateElo;
+    // ── Behavioral update ───────────────────────────────────────────────────────
+    function updateBehavioral(dna, questionCount, sessionHourUtc // 0-23
+    ) {
+        var b = dna.behavioral;
+        var now = Math.floor(Date.now() / 1000);
+        // Detect comeback (gap > 3× avg play frequency, min 3 days)
+        if (b.last_played_at > 0 && b.sessions_per_week > 0) {
+            var avgIntervalSec = (7 * 86400) / b.sessions_per_week;
+            var gapSec = now - b.last_played_at;
+            b.comeback_eligible = gapSec > Math.max(avgIntervalSec * 3, 3 * 86400);
+        }
+        // Rolling average question count per session (alpha=0.3)
+        b.avg_session_questions = round3(EMA_ALPHA * questionCount + (1 - EMA_ALPHA) * b.avg_session_questions);
+        // Rolling sessions_per_week: increment then EMA towards 7-day rhythm
+        b.sessions_per_week = round3(EMA_ALPHA * 7 + (1 - EMA_ALPHA) * b.sessions_per_week);
+        // Peak hour: simple mode approximation via EMA on hour buckets (not stored
+        // separately — just keep last peak_hour_utc with slow drift)
+        if (b.peak_hour_utc === undefined) {
+            b.peak_hour_utc = sessionHourUtc;
+        }
+        else {
+            // Drift by 1 hour per 10 sessions toward actual session hour
+            var diff = sessionHourUtc - b.peak_hour_utc;
+            // Wrap-around for hours (e.g. 23 vs 1)
+            if (diff > 12)
+                diff -= 24;
+            if (diff < -12)
+                diff += 24;
+            b.peak_hour_utc = Math.round((b.peak_hour_utc + diff * 0.1 + 24) % 24);
+        }
+        b.total_sessions++;
+        b.last_played_at = now;
+        // Mark cold start done after 3 sessions
+        if (!b.cold_start_done && b.total_sessions >= 3) {
+            b.cold_start_done = true;
+        }
+    }
+    PlayerDNA.updateBehavioral = updateBehavioral;
+    // ── Cold-start topic sequence ────────────────────────────────────────────────
+    // Returns the pre-defined topic for a player's nth session (0-indexed)
+    // during cold start.  After 3 sessions, personalization takes over.
+    var COLD_START_TOPICS = ["anime", "pokemon", "movies"];
+    function coldStartTopic(sessionIndex) {
+        return COLD_START_TOPICS[sessionIndex % COLD_START_TOPICS.length];
+    }
+    PlayerDNA.coldStartTopic = coldStartTopic;
+    // ── Math helpers ─────────────────────────────────────────────────────────────
+    function clamp(val, min, max) {
+        return val < min ? min : val > max ? max : val;
+    }
+    function round3(val) {
+        return Math.round(val * 1000) / 1000;
+    }
+})(PlayerDNA || (PlayerDNA = {}));
+// prewarm_cron.ts — Hourly pre-warm cron for QuizVerse question delivery.
+//
+// ── Purpose ───────────────────────────────────────────────────────────────────
+//
+// Cold `get_questions` calls hit the topic cache (~50ms), filter the user's
+// seen ledger, and pick questions — all fast.  But when the cache is empty or
+// expired, the whole pipeline stalls waiting for an external provider (~800–
+// 2000ms).  The ready-queue eliminates this: questions are pre-filtered per
+// user and stored in `qv_readyqueue` so `get_questions` can answer in <30ms on
+// hot paths.
+//
+// ── Flow ──────────────────────────────────────────────────────────────────────
+//
+//   Every hour (Nakama cron "0 * * * *"):
+//     1. Read qv_active_users (system-owned, written by submit_result)
+//     2. Keep users active in the last 7 days (max 200 per run)
+//     3. For each user:
+//        a. Load Player DNA → derive top-3 affinity topics
+//        b. For each topic: read QvQuestionCache, filter out seen IDs
+//        c. Write up to READYQUEUE_SIZE pre-filtered questions to
+//           qv_readyqueue/{topicSlug} (user-owned)
+//     4. Log per-run summary
+//
+// ── get_questions integration ─────────────────────────────────────────────────
+//
+//   get_questions checks qv_readyqueue first (before readCache):
+//     • If found and fresh (<2 h) and has ≥ count questions → serve instantly,
+//       remove consumed questions from the readyqueue doc
+//     • Otherwise fall through to normal cache path; after selecting questions
+//       write remaining fresh pool back to readyqueue for next call
+//
+// ── Storage collections ───────────────────────────────────────────────────────
+//
+//   qv_active_users   key=userId, owner=""  { last_played_ms }
+//   qv_readyqueue     key=topicSlug, owner=userId  { questions, created_at_ms }
+//
+// ── postbuild note ────────────────────────────────────────────────────────────
+//   registerCron is called directly inside InitModule (detected by postbuild).
+var QvPrewarmCron;
+(function (QvPrewarmCron) {
+    var COL_ACTIVE = "qv_active_users";
+    var COL_READYQUEUE = "qv_readyqueue";
+    var COL_SEEN = "qv_seen";
+    var ACTIVE_WINDOW_MS = 7 * 24 * 3600000; // 7 days
+    var READYQUEUE_SIZE = 30; // questions to pre-compute per topic
+    var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — re-warm if stale
+    var MAX_USERS_PER_RUN = 200;
+    var TOP_TOPICS_N = 3; // pre-warm top-3 affinity topics
+    var MAX_SEEN_IDS = 500; // seen IDs to load per user
+    function nowMs() { return Date.now(); }
+    function slugify(s) {
+        return s.trim().toLowerCase()
+            .replace(/[^a-z0-9]+/g, "_")
+            .replace(/^_|_$/g, "")
+            .substring(0, 64);
+    }
+    // ── Active user list ────────────────────────────────────────────────────────
+    function listActiveUsers(nk, logger) {
+        var userIds = [];
+        var cutoff = nowMs() - ACTIVE_WINDOW_MS;
+        try {
+            var cursor = "";
+            for (var page = 0; page < 5; page++) { // up to 5 pages × 100 = 500 users max
+                var result;
+                try {
+                    result = nk.storageList("", COL_ACTIVE, 100, cursor);
+                }
+                catch (_le) {
+                    break;
+                }
+                if (!result || !Array.isArray(result.objects) || result.objects.length === 0)
+                    break;
+                for (var i = 0; i < result.objects.length; i++) {
+                    var obj = result.objects[i];
+                    if (!obj || !obj.key || !obj.value)
+                        continue;
+                    var lastMs = typeof obj.value.last_played_ms === "number"
+                        ? obj.value.last_played_ms : 0;
+                    if (lastMs >= cutoff) {
+                        userIds.push(obj.key); // key IS the userId (see updateActiveUser in submit_result)
+                    }
+                    if (userIds.length >= MAX_USERS_PER_RUN)
+                        break;
+                }
+                if (userIds.length >= MAX_USERS_PER_RUN)
+                    break;
+                cursor = result.cursor || "";
+                if (!cursor)
+                    break;
+            }
+        }
+        catch (e) {
+            logger.warn("[QvPrewarm] listActiveUsers error: " + (e && e.message));
+        }
+        return userIds;
+    }
+    // ── Seen IDs for one user + topic ───────────────────────────────────────────
+    function loadSeenIds(nk, userId, topicSlug) {
+        try {
+            var seenKey = slugify("global") + "_" + topicSlug;
+            var rows = nk.storageRead([{ collection: COL_SEEN, key: seenKey, userId: userId }]);
+            if (!rows || rows.length === 0 || !rows[0].value)
+                return [];
+            var ids = rows[0].value.ids;
+            if (!Array.isArray(ids))
+                return [];
+            // Return most-recently-seen IDs first (tail); keep within MAX_SEEN_IDS
+            return ids.slice(-MAX_SEEN_IDS);
+        }
+        catch (_e) {
+            return [];
+        }
+    }
+    // ── Pre-warm one user → one topic ──────────────────────────────────────────
+    function prewarmTopic(nk, logger, userId, topic) {
+        var topicSlug = slugify(topic);
+        // Skip if readyqueue is still fresh
+        try {
+            var existing = nk.storageRead([{ collection: COL_READYQUEUE, key: topicSlug, userId: userId }]);
+            if (existing && existing.length > 0 && existing[0].value) {
+                var rq = existing[0].value;
+                if (rq.created_at_ms && (nowMs() - rq.created_at_ms) < READYQUEUE_TTL_MS &&
+                    Array.isArray(rq.questions) && rq.questions.length >= READYQUEUE_SIZE / 2) {
+                    return 0; // still fresh — skip
+                }
+            }
+        }
+        catch (_e) { }
+        // Read question cache for this topic
+        var pool = [];
+        try {
+            var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: "" }]);
+            if (!cacheRows || cacheRows.length === 0 || !cacheRows[0].value)
+                return 0;
+            var page0 = cacheRows[0].value;
+            if (Array.isArray(page0.questions))
+                pool = page0.questions.slice();
+            // Load additional pages
+            var pageCount = page0.page_count || 1;
+            if (pageCount > 1) {
+                var reqs = [];
+                for (var p = 1; p < pageCount; p++) {
+                    reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: "" });
+                }
+                var extra = nk.storageRead(reqs);
+                if (extra) {
+                    for (var ei = 0; ei < extra.length; ei++) {
+                        if (extra[ei] && extra[ei].value && Array.isArray(extra[ei].value.questions)) {
+                            pool = pool.concat(extra[ei].value.questions);
+                        }
+                    }
+                }
+            }
+        }
+        catch (_ce) {
+            return 0;
+        }
+        if (pool.length === 0)
+            return 0;
+        // Filter seen IDs
+        var seenIds = loadSeenIds(nk, userId, topicSlug);
+        var seenSet = {};
+        for (var si = 0; si < seenIds.length; si++)
+            seenSet[seenIds[si]] = true;
+        var fresh = [];
+        for (var pi = 0; pi < pool.length; pi++) {
+            if (!seenSet[pool[pi].id])
+                fresh.push(pool[pi]);
+        }
+        // Fisher-Yates shuffle
+        for (var fi = fresh.length - 1; fi > 0; fi--) {
+            var ri = Math.floor(Math.random() * (fi + 1));
+            var tmp = fresh[fi];
+            fresh[fi] = fresh[ri];
+            fresh[ri] = tmp;
+        }
+        var toStore = fresh.slice(0, READYQUEUE_SIZE);
+        if (toStore.length === 0)
+            return 0;
+        try {
+            nk.storageWrite([{
+                    collection: COL_READYQUEUE,
+                    key: topicSlug,
+                    userId: userId,
+                    value: {
+                        topic: topic,
+                        questions: toStore,
+                        created_at_ms: nowMs()
+                    },
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (we) {
+            logger.warn("[QvPrewarm] write readyqueue failed user=" + userId + " topic=" + topicSlug +
+                ": " + (we && we.message));
+            return 0;
+        }
+        return toStore.length;
+    }
+    // ── Pre-warm one user (all top topics) ─────────────────────────────────────
+    function prewarmUser(nk, logger, userId) {
+        var stats = { topics: 0, questions: 0 };
+        try {
+            // Load DNA to find top affinity topics
+            var dnaRows = nk.storageRead([{ collection: "player_dna", key: "dna", userId: userId }]);
+            if (!dnaRows || dnaRows.length === 0 || !dnaRows[0].value) {
+                // Fall back to default cold-start topics
+                var coldTopics = ["anime", "pokemon", "movies"];
+                for (var ci = 0; ci < coldTopics.length; ci++) {
+                    var n = prewarmTopic(nk, logger, userId, coldTopics[ci]);
+                    if (n > 0) {
+                        stats.topics++;
+                        stats.questions += n;
+                    }
+                }
+                return stats;
+            }
+            var dna = dnaRows[0].value;
+            var affinities = (dna && typeof dna.affinities === "object") ? dna.affinities : {};
+            var topicKeys = Object.keys(affinities);
+            topicKeys.sort(function (a, b) {
+                return (affinities[b] || 0) - (affinities[a] || 0);
+            });
+            var top = topicKeys.slice(0, TOP_TOPICS_N);
+            if (top.length === 0)
+                top = ["anime", "pokemon", "movies"];
+            for (var ti = 0; ti < top.length; ti++) {
+                var n2 = prewarmTopic(nk, logger, userId, top[ti]);
+                if (n2 > 0) {
+                    stats.topics++;
+                    stats.questions += n2;
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[QvPrewarm] prewarmUser error userId=" + userId + ": " + (e && e.message));
+        }
+        return stats;
+    }
+    // ── Opportunistic rate gate ─────────────────────────────────────────────────
+    //
+    // The full prewarm run (all active users) is expensive and must run at most
+    // once per hour globally. We gate it with a system-owned storage row so
+    // concurrent calls across nodes deduplicate cleanly.
+    var GATE_COL = "qv_prewarm_state";
+    var GATE_KEY = "last_run";
+    var GATE_INTERVAL_MS = 3600000; // 1 hour
+    function acquireGate(nk) {
+        try {
+            var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "" }]);
+            var lastRun = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_run_ms)
+                ? rows[0].value.last_run_ms : 0;
+            if (nowMs() - lastRun < GATE_INTERVAL_MS)
+                return false; // still within gate window
+            nk.storageWrite([{
+                    collection: GATE_COL, key: GATE_KEY, userId: "",
+                    value: { last_run_ms: nowMs() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (_e) {
+            return false;
+        }
+    }
+    // ── RPC tick handler ────────────────────────────────────────────────────────
+    //
+    // Exposed as quizverse_prewarm_tick — invoke from an external scheduler
+    // (n8n, Kubernetes CronJob, or http_key) every hour.
+    // Also callable directly via opportunisticTick() from get_questions.
+    function rpcPrewarmTick(ctx, logger, nk, _payload) {
+        // Gate: only one full run per hour across all instances
+        if (!acquireGate(nk)) {
+            return JSON.stringify({ ok: true, skipped: true, reason: "within_gate_window" });
+        }
+        logger.info("[QvPrewarm] tick start");
+        var started = nowMs();
+        var userIds = listActiveUsers(nk, logger);
+        logger.info("[QvPrewarm] active users=" + userIds.length);
+        var totalTopics = 0;
+        var totalQuestions = 0;
+        var usersWarmed = 0;
+        for (var i = 0; i < userIds.length; i++) {
+            try {
+                var result = prewarmUser(nk, logger, userIds[i]);
+                if (result.topics > 0) {
+                    usersWarmed++;
+                    totalTopics += result.topics;
+                    totalQuestions += result.questions;
+                }
+            }
+            catch (_ue) { /* continue to next user */ }
+        }
+        var elapsedMs = nowMs() - started;
+        logger.info("[QvPrewarm] tick done — users=" + usersWarmed + "/" + userIds.length +
+            " topics=" + totalTopics + " questions=" + totalQuestions +
+            " elapsed_ms=" + elapsedMs);
+        return JSON.stringify({
+            ok: true,
+            skipped: false,
+            users_processed: userIds.length,
+            users_warmed: usersWarmed,
+            topics_warmed: totalTopics,
+            questions_stored: totalQuestions,
+            elapsed_ms: elapsedMs
+        });
+    }
+    // ── Opportunistic tick (called from get_questions to self-schedule) ─────────
+    //
+    // Called by get_questions.ts on every cache-path request. Rate-gated
+    // internally so the full prewarm only runs once per GATE_INTERVAL_MS
+    // regardless of how frequently get_questions fires.
+    function opportunisticTick(_ctx, logger, nk) {
+        if (!acquireGate(nk))
+            return; // gate not acquired → skip (most calls)
+        try {
+            var userIds = listActiveUsers(nk, logger);
+            for (var oi = 0; oi < userIds.length; oi++) {
+                try {
+                    prewarmUser(nk, logger, userIds[oi]);
+                }
+                catch (_e) { }
+            }
+            logger.info("[QvPrewarm] opportunistic tick complete — users=" + userIds.length);
+        }
+        catch (e) {
+            logger.warn("[QvPrewarm] opportunistic tick failed: " + (e && e.message));
+        }
+    }
+    QvPrewarmCron.opportunisticTick = opportunisticTick;
+    // ── Registration ─────────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("quizverse_prewarm_tick", rpcPrewarmTick);
+    }
+    QvPrewarmCron.register = register;
+    var _NOOP = { registerRpc: function () { } };
+    register(_NOOP);
+})(QvPrewarmCron || (QvPrewarmCron = {}));
 // =============================================================================
 // src/games/quizverse/product-metrics.ts
 // =============================================================================
@@ -11709,6 +13857,3600 @@ var QuizVerseProductMetrics;
     }
     QuizVerseProductMetrics.register = register;
 })(QuizVerseProductMetrics || (QuizVerseProductMetrics = {}));
+// quality_gate.ts — pure-utility validation layer for the QuizVerse question pipeline.
+//
+// NO RPCs IN THIS FILE — utility namespace only.
+// Called by question_cache.ts during the cache-refresh cycle, before any question
+// is written to qv_cache_{topic}. Never called inline on a player request.
+//
+// ── API surface ───────────────────────────────────────────────────────────────
+//
+//   QvQualityGate.htmlDecode(text)
+//     Decodes HTML entities (named, decimal, hex) from a raw provider string.
+//     Safe to call on already-decoded text — idempotent.
+//     No DOM, no XHR — pure string replacement, Goja-safe.
+//
+//   QvQualityGate.validateQuestion(q, seenTextSet)
+//     Applies the 6 quality gates in order (see below).
+//     ✦ Mutates q in-place: question_text and all option texts are HTML-decoded
+//       before any gate runs. The stored question is always clean.
+//     Returns: { valid, reject_reason }
+//
+//   QvQualityGate.buildSeenTextSet(questions)
+//     Builds a plain-object lookup map (normalized_text → true) from an array
+//     of already-validated questions. Pass this into validateQuestion() to detect
+//     within-batch duplicates without O(n²) linear scans.
+//
+// ── The 6 quality gates ───────────────────────────────────────────────────────
+//
+//   GATE 0 — Preprocess (not a rejection gate, but precondition for all others)
+//             Call htmlDecode() on question_text and every option text.
+//             Also strip residual HTML tags (<br>, <b>, etc.) from the decoded
+//             text; reject if any field still carries raw markup after stripping.
+//
+//   GATE 1 — question_text length
+//             Reject if question_text is empty or has < MIN_Q_LEN visible chars
+//             after trim+decode. Catches "?" or " " placeholder questions.
+//
+//   GATE 2 — minimum options
+//             Reject if options[] has fewer than MIN_OPTIONS entries.
+//             Single-option questions cannot be fair trivia.
+//
+//   GATE 3 — correct answer integrity
+//             Reject if correct_option_ids is empty or contains any ID that is
+//             not present in options[].id. Catches bad provider normalizations
+//             where the answer key went missing or was mis-labelled.
+//
+//   GATE 4 — duplicate option texts
+//             Reject if any two options share identical text after trim+lowercase.
+//             Duplicate answer choices make the question trivially solvable.
+//
+//   GATE 5 — residual HTML / raw markup
+//             Reject if question_text or any option text still contains a raw
+//             HTML tag pattern (<tag> or </tag>) after entity decoding.
+//             Catches providers that embed <br/>, <sup>, <em> etc. in content.
+//
+//   GATE 6 — duplicate question in pool
+//             Reject if normalized(question_text) already exists in seenTextSet.
+//             Prevents the same question from appearing twice in a topic's pool,
+//             e.g. when two providers both return "Who created Pikachu?".
+//
+// ── Usage pattern in question_cache.ts ───────────────────────────────────────
+//
+//   var seenTexts = QvQualityGate.buildSeenTextSet([]);
+//   var passed = 0, rejected = 0;
+//   var topRejectReason: string | null = null;
+//
+//   for (var i = 0; i < rawQuestions.length; i++) {
+//     var r = QvQualityGate.validateQuestion(rawQuestions[i], seenTexts);
+//     if (!r.valid) {
+//       rejected++;
+//       if (!topRejectReason) topRejectReason = r.reject_reason;
+//       continue;
+//     }
+//     // q is now decoded in-place — safe to add to pool
+//     seenTexts[QvQualityGate.normalizeForDedup(rawQuestions[i].question_text)] = true;
+//     pool.push(rawQuestions[i]);
+//     passed++;
+//   }
+var QvQualityGate;
+(function (QvQualityGate) {
+    // ── Constants ────────────────────────────────────────────────────────────
+    var MIN_Q_LEN = 10; // minimum visible chars in question_text after decode+trim
+    var MIN_OPTIONS = 2; // minimum answer options required
+    // Raw-HTML-tag pattern: catches <br>, </p>, <strong class="x">, etc.
+    // A simple check — not a full HTML parser, but sufficient for trivia content.
+    var HTML_TAG_RE = /<\/?[a-zA-Z][^>]{0,100}>/;
+    // ── Named HTML entity map ─────────────────────────────────────────────────
+    // Covers entities commonly emitted by quiz providers (OpenTDB, TMDB, GNews…).
+    // Ordered alphabetically by entity name for easy extension.
+    var NAMED_ENTITIES = {
+        "AElig": "Æ", "Aacute": "Á", "Acirc": "Â", "Agrave": "À",
+        "Aring": "Å", "Atilde": "Ã", "Auml": "Ä",
+        "Ccedil": "Ç",
+        "ETH": "Ð", "Eacute": "É", "Ecirc": "Ê", "Egrave": "È",
+        "Euml": "Ë",
+        "Iacute": "Í", "Icirc": "Î", "Igrave": "Ì", "Iuml": "Ï",
+        "Ntilde": "Ñ",
+        "Oacute": "Ó", "Ocirc": "Ô", "Ograve": "Ò", "Oslash": "Ø",
+        "Otilde": "Õ", "Ouml": "Ö",
+        "THORN": "Þ",
+        "Uacute": "Ú", "Ucirc": "Û", "Ugrave": "Ù", "Uuml": "Ü",
+        "Yacute": "Ý",
+        "aacute": "á", "acirc": "â", "aelig": "æ", "agrave": "à",
+        "amp": "&", "apos": "'", "aring": "å", "atilde": "ã",
+        "auml": "ä",
+        "bdquo": "„", "bull": "•",
+        "ccedil": "ç", "cedil": "¸", "cent": "¢", "copy": "©",
+        "curren": "¤",
+        "deg": "°", "divide": "÷",
+        "eacute": "é", "ecirc": "ê", "egrave": "è", "eth": "ð",
+        "euml": "ë",
+        "frac12": "½", "frac14": "¼", "frac34": "¾",
+        "gt": ">",
+        "hellip": "…",
+        "iacute": "í", "icirc": "î", "iexcl": "¡", "igrave": "ì",
+        "iquest": "¿", "iuml": "ï",
+        "laquo": "«", "ldquo": "\u201C", "lsquo": "\u2018", "lt": "<",
+        "macr": "¯", "mdash": "—", "micro": "µ", "middot": "·",
+        "nbsp": " ", "ndash": "–", "not": "¬", "ntilde": "ñ",
+        "oacute": "ó", "ocirc": "ô", "ograve": "ò", "ordf": "ª",
+        "ordm": "º", "oslash": "ø", "otilde": "õ", "ouml": "ö",
+        "para": "¶", "plusmn": "±", "pound": "£",
+        "quot": "\"", "raquo": "»", "rdquo": "\u201D", "reg": "®",
+        "rsquo": "\u2019",
+        "sect": "§", "shy": "", "sup1": "¹", "sup2": "²",
+        "sup3": "³", "szlig": "ß",
+        "thorn": "þ", "times": "×", "trade": "™",
+        "uacute": "ú", "ucirc": "û", "ugrave": "ù", "uuml": "ü",
+        "uml": "¨",
+        "yacute": "ý", "yuml": "ÿ",
+        "yen": "¥",
+        // Pokémon-specific frequent entity
+        "#039": "'"
+    };
+    // ── Public: htmlDecode ────────────────────────────────────────────────────
+    /**
+     * Decode HTML entities in a raw provider string.
+     * Handles: named entities (&amp; &eacute; …), decimal (&#160;), hex (&#xA0;).
+     * Safe to call on already-clean strings — idempotent, no DOM required.
+     */
+    function htmlDecode(text) {
+        if (!text || typeof text !== "string")
+            return text || "";
+        return text.replace(/&([^;\s]{1,12});/g, function (_full, entity) {
+            // ── Numeric entity ─────────────────────────────────────────────
+            if (entity.charAt(0) === "#") {
+                var inner = entity.substring(1);
+                var code;
+                if (inner.charAt(0) === "x" || inner.charAt(0) === "X") {
+                    code = parseInt(inner.substring(1), 16);
+                }
+                else {
+                    code = parseInt(inner, 10);
+                }
+                if (!isNaN(code) && code > 0 && code < 0x110000) {
+                    // ES5 fromCharCode is safe for BMP; surrogate pair for SMP
+                    if (code < 0x10000)
+                        return String.fromCharCode(code);
+                    // Surrogate pair for code points > U+FFFF
+                    var offset = code - 0x10000;
+                    return String.fromCharCode(0xD800 + (offset >> 10), 0xDC00 + (offset & 0x3FF));
+                }
+                return _full;
+            }
+            // ── Named entity ──────────────────────────────────────────────
+            var replacement = NAMED_ENTITIES[entity];
+            return replacement !== undefined ? replacement : _full;
+        });
+    }
+    QvQualityGate.htmlDecode = htmlDecode;
+    // ── Internal helpers ──────────────────────────────────────────────────────
+    /**
+     * Strip residual raw HTML tags after entity decoding.
+     * Returns the stripped text so callers can detect if anything was removed.
+     */
+    function stripHtmlTags(text) {
+        // Two-pass: remove self-closing, then open/close tags.
+        return text
+            .replace(/<[a-zA-Z][^>]{0,200}\/>/g, "") // <br/> <img ... />
+            .replace(/<\/[a-zA-Z][^>]{0,100}>/g, "") // </p> </strong>
+            .replace(/<[a-zA-Z][^>]{0,200}>/g, ""); // <p> <strong class="x">
+    }
+    /**
+     * Normalize text for deduplication comparison:
+     * lowercase → collapse whitespace → trim.
+     * Not used for display — only for equality checks.
+     */
+    function normalizeForDedup(text) {
+        if (!text)
+            return "";
+        return text.toLowerCase().replace(/\s+/g, " ").trim();
+    }
+    QvQualityGate.normalizeForDedup = normalizeForDedup;
+    /**
+     * Decode HTML entities in question_text and every option text, in-place.
+     * Also strips residual raw HTML tags and returns whether any stripping occurred.
+     */
+    function decodeQuestion(q) {
+        var hadEntities = false;
+        var hadTags = false;
+        // question_text
+        if (q.question_text && typeof q.question_text === "string") {
+            var decoded = htmlDecode(q.question_text);
+            if (decoded !== q.question_text)
+                hadEntities = true;
+            var stripped = stripHtmlTags(decoded);
+            if (stripped !== decoded)
+                hadTags = true;
+            q.question_text = stripped.trim();
+        }
+        // explanation (best-effort clean — not a gate, but keep storage tidy)
+        if (q.explanation && typeof q.explanation === "string") {
+            var decEx = htmlDecode(q.explanation);
+            q.explanation = stripHtmlTags(decEx).trim();
+        }
+        // options[].text
+        if (q.options && Array.isArray(q.options)) {
+            for (var i = 0; i < q.options.length; i++) {
+                var opt = q.options[i];
+                if (opt && typeof opt.text === "string") {
+                    var decOpt = htmlDecode(opt.text);
+                    if (decOpt !== opt.text)
+                        hadEntities = true;
+                    var stripOpt = stripHtmlTags(decOpt);
+                    if (stripOpt !== decOpt)
+                        hadTags = true;
+                    opt.text = stripOpt.trim();
+                }
+            }
+        }
+        return { hadEntities: hadEntities, hadTags: hadTags };
+    }
+    // ── Public: buildSeenTextSet ──────────────────────────────────────────────
+    /**
+     * Build a plain-object lookup set from an existing pool of validated questions.
+     * Use this for O(1) duplicate detection inside validateQuestion().
+     *
+     * Start with an empty set for a fresh batch, or seed it with an existing pool
+     * when appending to an already-populated cache doc:
+     *
+     *   var seen = QvQualityGate.buildSeenTextSet(existingPoolQuestions);
+     *   // then call validateQuestion(q, seen) for each new candidate
+     */
+    function buildSeenTextSet(questions) {
+        var set = {};
+        if (!questions || !Array.isArray(questions))
+            return set;
+        for (var i = 0; i < questions.length; i++) {
+            var q = questions[i];
+            if (q && q.question_text) {
+                set[normalizeForDedup(q.question_text)] = true;
+            }
+        }
+        return set;
+    }
+    QvQualityGate.buildSeenTextSet = buildSeenTextSet;
+    // ── Public: validateQuestion ──────────────────────────────────────────────
+    /**
+     * Run all 6 quality gates against a single candidate question.
+     *
+     * ✦ SIDE EFFECT: q.question_text and q.options[].text are HTML-decoded
+     *   in-place before any gate runs. This is intentional — the caller receives
+     *   a cleaned question ready for storage without needing a second decode pass.
+     *
+     * @param q           Raw (provider-normalised) question object.
+     * @param seenTextSet Plain-object set returned by buildSeenTextSet().
+     *                    Caller is responsible for adding accepted questions to
+     *                    the set AFTER this function returns valid=true.
+     * @returns           { valid, reject_reason }
+     *                    reject_reason is null when valid=true.
+     */
+    function validateQuestion(q, seenTextSet) {
+        // ── Guard: malformed input ────────────────────────────────────────────
+        if (!q || typeof q !== "object") {
+            return { valid: false, reject_reason: "null_or_non_object_question" };
+        }
+        // ══════════════════════════════════════════════════════════════════════
+        // GATE 0 — Preprocess: HTML decode + strip raw tags (in-place mutation)
+        // Must run before all other gates so every comparison sees clean text.
+        // ══════════════════════════════════════════════════════════════════════
+        var decodeResult = decodeQuestion(q);
+        void decodeResult; // result available for logging if caller wants it
+        // ══════════════════════════════════════════════════════════════════════
+        // GATE 1 — question_text length
+        // ══════════════════════════════════════════════════════════════════════
+        var qText = (q.question_text && typeof q.question_text === "string")
+            ? q.question_text.trim() : "";
+        if (qText.length === 0) {
+            return { valid: false, reject_reason: "empty_question_text" };
+        }
+        if (qText.length < MIN_Q_LEN) {
+            return { valid: false, reject_reason: "question_text_too_short:" + qText.length + "ch" };
+        }
+        // ══════════════════════════════════════════════════════════════════════
+        // GATE 2 — minimum options count
+        // ══════════════════════════════════════════════════════════════════════
+        var options = (q.options && Array.isArray(q.options)) ? q.options : [];
+        if (options.length < MIN_OPTIONS) {
+            return { valid: false, reject_reason: "too_few_options:" + options.length };
+        }
+        // ══════════════════════════════════════════════════════════════════════
+        // GATE 3 — correct answer integrity
+        // correct_option_ids must be non-empty and every ID must exist in options
+        // ══════════════════════════════════════════════════════════════════════
+        var correctIds = (q.correct_option_ids && Array.isArray(q.correct_option_ids))
+            ? q.correct_option_ids : [];
+        if (correctIds.length === 0) {
+            return { valid: false, reject_reason: "no_correct_option_ids" };
+        }
+        // Build an O(1) lookup of valid option IDs
+        var optionIdSet = {};
+        for (var i = 0; i < options.length; i++) {
+            var opt = options[i];
+            if (opt && opt.id != null) {
+                optionIdSet[String(opt.id)] = true;
+            }
+        }
+        for (var ci = 0; ci < correctIds.length; ci++) {
+            var cid = String(correctIds[ci]);
+            if (!optionIdSet[cid]) {
+                return { valid: false, reject_reason: "correct_id_not_in_options:" + cid };
+            }
+        }
+        // ══════════════════════════════════════════════════════════════════════
+        // GATE 4 — duplicate option texts
+        // Reject if any two options share the same text (trim + lowercase)
+        // ══════════════════════════════════════════════════════════════════════
+        var seenOptionTexts = {};
+        for (var oi = 0; oi < options.length; oi++) {
+            var optText = options[oi] && typeof options[oi].text === "string"
+                ? options[oi].text.trim().toLowerCase()
+                : "";
+            if (!optText) {
+                return { valid: false, reject_reason: "empty_option_text:index_" + oi };
+            }
+            if (seenOptionTexts[optText]) {
+                return { valid: false, reject_reason: "duplicate_option_text:" + optText.substring(0, 40) };
+            }
+            seenOptionTexts[optText] = true;
+        }
+        // ══════════════════════════════════════════════════════════════════════
+        // GATE 5 — residual raw HTML tags
+        // Reject if question_text or any option text still contains HTML markup
+        // after entity decoding (e.g. <br>, <strong>, <sup> from providers).
+        // ══════════════════════════════════════════════════════════════════════
+        if (HTML_TAG_RE.test(q.question_text)) {
+            return {
+                valid: false,
+                reject_reason: "raw_html_in_question:" + q.question_text.substring(0, 60)
+            };
+        }
+        for (var ti = 0; ti < options.length; ti++) {
+            var tOpt = options[ti];
+            if (tOpt && typeof tOpt.text === "string" && HTML_TAG_RE.test(tOpt.text)) {
+                return {
+                    valid: false,
+                    reject_reason: "raw_html_in_option_" + ti + ":" + tOpt.text.substring(0, 40)
+                };
+            }
+        }
+        // ══════════════════════════════════════════════════════════════════════
+        // GATE 6 — duplicate question in pool
+        // Compare normalized question_text against the caller-supplied seen set.
+        // Catches cross-provider duplicates ("Who created Pikachu?" from two APIs).
+        // ══════════════════════════════════════════════════════════════════════
+        var normalizedQ = normalizeForDedup(qText);
+        if (seenTextSet[normalizedQ]) {
+            return { valid: false, reject_reason: "duplicate_question_text" };
+        }
+        // ── All gates passed ──────────────────────────────────────────────────
+        return { valid: true, reject_reason: null };
+    }
+    QvQualityGate.validateQuestion = validateQuestion;
+    // ── Public: batchValidate ─────────────────────────────────────────────────
+    /**
+     * Validate an entire array of raw questions in one call.
+     * Builds the seen-text set internally (starting empty) so callers don't have
+     * to manage it when processing a fresh provider response from scratch.
+     *
+     * Returns only the questions that passed all 6 gates, plus quality stats
+     * suitable for writing into the qv_cache_{topic} quality_gate object.
+     *
+     * If you are appending to an existing pool, use buildSeenTextSet() +
+     * validateQuestion() in a manual loop instead (to seed with existing texts).
+     *
+     * @param questions   Array of raw normalized question objects.
+     * @param logger      Optional Nakama logger for reject-reason debug lines.
+     * @param topicTag    Short label used in log lines (e.g. "anime").
+     */
+    function batchValidate(questions, logger, topicTag) {
+        var passed = [];
+        var rejected = 0;
+        var topReason = null;
+        var seen = buildSeenTextSet([]);
+        var tag = topicTag || "unknown";
+        if (!questions || !Array.isArray(questions)) {
+            return {
+                passed: [],
+                rejected_count: 0,
+                total_processed: 0,
+                top_reject_reason: null
+            };
+        }
+        for (var i = 0; i < questions.length; i++) {
+            var q = questions[i];
+            var result = validateQuestion(q, seen);
+            if (!result.valid) {
+                rejected++;
+                if (!topReason)
+                    topReason = result.reject_reason;
+                if (logger) {
+                    logger.debug("[QvQualityGate/" + tag + "] reject[" + i + "]: " +
+                        (result.reject_reason || "unknown"));
+                }
+                continue;
+            }
+            // Gate passed: add to seen set to catch within-batch duplicates
+            seen[normalizeForDedup(q.question_text)] = true;
+            passed.push(q);
+        }
+        return {
+            passed: passed,
+            rejected_count: rejected,
+            total_processed: questions.length,
+            top_reject_reason: topReason
+        };
+    }
+    QvQualityGate.batchValidate = batchValidate;
+})(QvQualityGate || (QvQualityGate = {}));
+// question_cache.ts — QuizVerse question-delivery cache layer.
+//
+// NO RPCS IN THIS FILE — utility namespace only.
+// Called by get_questions.ts (Phase 1b) and by a background cron refresh.
+// NEVER called inline on a live player request.
+//
+// ── Pipeline (runs once per topic per TTL, NOT per player request) ────────────
+//
+//   fetchForTopic()   fetch raw data from external provider API
+//       ↓
+//   validateAndDecodeRaw()   HTML-decode + 6 QvQualityGate checks in-place
+//       ↓
+//   shuffleAndAssign()   Fisher-Yates shuffle → assign A/B/C/D letter IDs
+//       ↓
+//   enrichExplanation()   fill empty explanations from structured metadata
+//       ↓
+//   writeCache()   write qv_cache_{topic}/pool_0 … pool_N (max 100 q/doc)
+//
+// ── Public API ────────────────────────────────────────────────────────────────
+//
+//   QvQuestionCache.refreshCache(nk, logger, env, topic)
+//     Full pipeline — fetch → validate → enrich → shuffle → store.
+//     Returns { ok, topic, count, error? }.
+//
+//   QvQuestionCache.readCache(nk, logger, topic)
+//     Read all pages from storage, return merged pool + metadata.
+//
+//   QvQuestionCache.isCacheValid(nk, topic)
+//     Lightweight check of pool_0 expiry — does NOT load questions.
+//
+// ── Circuit breaker ───────────────────────────────────────────────────────────
+//   Opens after FAIL_THRESHOLD consecutive failures. Cooldown = CIRCUIT_COOLDOWN.
+//   State stored in qv_circuit_breakers/{provider} (system-owned, no-write).
+//   readCache falls back to stale pool when the circuit is open.
+//
+// ── Providers ─────────────────────────────────────────────────────────────────
+//   No-auth (always available): OpenTDB, Jikan, PokeAPI, CocktailDB, MealDB,
+//     Dog CEO, Disney, Ghibli, SWAPI, RestCountries
+//   Key-gated (env var required): NASA, TMDB, TheSportsDB, Last.fm,
+//     GNews/Currents/MediaStack/NewsAPI
+//   S3-based (env S3_BASE_URL): daily, weekly
+//
+// ── postbuild note ────────────────────────────────────────────────────────────
+//   No registerRpc() calls in this file — postbuild will not extract any RPC
+//   stubs. This is correct and expected for a utility-only namespace.
+var QvQuestionCache;
+(function (QvQuestionCache) {
+    // ── Constants ──────────────────────────────────────────────────────────────
+    var MAX_PER_DOC = 100; // questions per storage page
+    var FAIL_THRESHOLD = 3; // consecutive failures → open circuit
+    var CIRCUIT_COOLDOWN = 5 * 60 * 1000; // 5 min open cooldown (ms)
+    var COL_CACHE = "qv_cache_"; // full key: qv_cache_{topic}
+    var COL_CIRCUIT = "qv_circuit_breakers";
+    // Per-topic cache TTL (ms)
+    var TOPIC_TTL = {
+        opentdb: 1 * 3600000,
+        movies: 2 * 3600000,
+        music: 2 * 3600000,
+        sports: 2 * 3600000,
+        news: 6 * 3600000,
+        space: 6 * 3600000,
+        food: 12 * 3600000,
+        cocktail: 12 * 3600000,
+        anime: 24 * 3600000,
+        dog: 24 * 3600000,
+        disney: 24 * 3600000,
+        pokemon: 72 * 3600000,
+        ghibli: 72 * 3600000,
+        starwars: 72 * 3600000,
+        countries: 7 * 24 * 3600000,
+        flags: 7 * 24 * 3600000,
+        daily: 24 * 3600000,
+        weekly: 7 * 24 * 3600000,
+        ai: 0 // never cached
+    };
+    // ── Hardcoded fallback API keys ───────────────────────────────────────────
+    //
+    // These are the LAST-RESORT fallbacks used when a key is not present in
+    // ctx.env (i.e. not injected via Kubernetes / SSM Parameter Store).
+    //
+    // Priority:  ctx.env['KEY']  →  FALLBACK_KEYS.KEY  →  disabled
+    //
+    // HOW TO SET PERMANENTLY (preferred):
+    //   1. Go to AWS Console → Systems Manager → Parameter Store
+    //   2. Create /nakama/TMDB_API_KEY  (SecureString, your actual key)
+    //   3. Push code → CodeBuild injects it automatically via buildspec.yml
+    //
+    // HOW TO USE THESE FALLBACKS (quick fix):
+    //   Fill in your key below, push code, done.
+    //   The fallback is only reached when the SSM/env key is absent.
+    //
+    // Get free keys:
+    //   TMDB        → https://www.themoviedb.org/settings/api
+    //   LASTFM      → https://www.last.fm/api/account/create
+    //   GNEWS       → https://gnews.io  (100 req/day free)
+    //   CURRENTS    → https://currentsapi.services/en/register  (1000/day)
+    //   MEDIASTACK  → https://mediastack.com/signup/free  (500/month)
+    //   NEWSAPI     → https://newsapi.org/register  (100/day)
+    //   NASA        → https://api.nasa.gov  (already defaults to DEMO_KEY)
+    var FALLBACK_KEYS = {
+        TMDB_API_KEY: "", // ← paste your TMDB key here
+        LASTFM_API_KEY: "", // ← paste your Last.fm key here
+        GNEWS_API_KEY: "996c2e560c01a91df9d4a9ddbef0e38e",
+        CURRENTS_API_KEY: "vJ7f8IPcf_vrhpwk2_-wqzVOpFCxHV26zMhKv4NPV_KiXb-r",
+        MEDIASTACK_API_KEY: "ec6ef35b59624891e5604efb140adefb",
+        NEWSAPI_API_KEY: "5cbc52d4e9e14df683ed965b04cbf6fb",
+        NASA_API_KEY: "DEMO_KEY" // safe public fallback (50 req/day)
+    };
+    function envKey(env, key) {
+        if (env && env[key] && String(env[key]).trim())
+            return String(env[key]).trim();
+        if (FALLBACK_KEYS[key] && String(FALLBACK_KEYS[key]).trim())
+            return String(FALLBACK_KEYS[key]).trim();
+        return "";
+    }
+    // Option letter IDs
+    var LETTERS = ["A", "B", "C", "D", "E", "F"];
+    // ── Static wrong-answer pools (shared across providers) ────────────────────
+    var ANIME_GENRES = [
+        "Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror",
+        "Mystery", "Romance", "Sci-Fi", "Slice of Life", "Sports",
+        "Thriller", "Mecha", "Isekai", "Shounen", "Shoujo", "Seinen", "Josei"
+    ];
+    var POKEMON_TYPES = [
+        "Normal", "Fire", "Water", "Electric", "Grass", "Ice",
+        "Fighting", "Poison", "Ground", "Flying", "Psychic", "Bug",
+        "Rock", "Ghost", "Dragon", "Dark", "Steel", "Fairy"
+    ];
+    var SPACE_OBJECTS = [
+        "Black Hole", "Neutron Star", "Pulsar", "Nebula", "Galaxy",
+        "Star Cluster", "Supernova Remnant", "Quasar", "White Dwarf",
+        "Red Giant", "Brown Dwarf", "Asteroid Belt", "Comet", "Exoplanet"
+    ];
+    var COCKTAIL_CATS = [
+        "Ordinary Drink", "Cocktail", "Shot", "Punch / Party Drink",
+        "Homemade Liqueur", "Beer", "Soft Drink / Soda", "Other / Unknown"
+    ];
+    var MEAL_AREAS = [
+        "British", "American", "Italian", "Mexican", "Japanese", "Chinese",
+        "French", "Indian", "Moroccan", "Turkish", "Greek", "Thai", "Spanish",
+        "Portuguese", "Canadian", "Jamaican", "Croatian", "Egyptian",
+        "Filipino", "Malaysian", "Polish", "Russian", "Vietnamese"
+    ];
+    var SW_DIRECTORS = [
+        "George Lucas", "Irvin Kershner", "Richard Marquand",
+        "J.J. Abrams", "Rian Johnson", "Gareth Edwards", "Ron Howard"
+    ];
+    // ── Low-level helpers ──────────────────────────────────────────────────────
+    function nowMs() { return Date.now(); }
+    function padTwo(n) { return n < 10 ? "0" + String(n) : String(n); }
+    // Busy-wait sleep — only safe in background cache-refresh jobs, never in player RPC paths.
+    function sleep(ms) {
+        var end = nowMs() + ms;
+        while (nowMs() < end) { /* spin */ }
+    }
+    // djb2 hash → base36 string — stable, collision-resistant for trivia text
+    function djb2(s) {
+        var h = 5381;
+        for (var i = 0; i < s.length; i++) {
+            h = ((h << 5) + h) + s.charCodeAt(i);
+            h = h & h; // 32-bit truncation
+        }
+        return Math.abs(h).toString(36);
+    }
+    function stableId(topic, provider, key) {
+        return "ext_" + topic + "_" + djb2(provider + "|" + key);
+    }
+    function capitalize(s) {
+        return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    }
+    // Fisher-Yates shuffle (returns a new array)
+    function shuffle(arr) {
+        var a = arr.slice();
+        for (var i = a.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = a[i];
+            a[i] = a[j];
+            a[j] = t;
+        }
+        return a;
+    }
+    // Pick up to n random items from arr
+    function pick(arr, n) {
+        return shuffle(arr).slice(0, Math.min(n, arr.length));
+    }
+    // Pick up to n items from arr whose string value is NOT in the exclude set
+    function pickExcluding(arr, exclude, n) {
+        var pool = [];
+        for (var i = 0; i < arr.length; i++) {
+            if (!exclude[arr[i]])
+                pool.push(arr[i]);
+        }
+        return pick(pool, n);
+    }
+    function topicProvider(topic) {
+        var map = {
+            opentdb: "opentdb", anime: "jikan", pokemon: "pokeapi",
+            cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
+            ghibli: "ghibli", disney: "disney", starwars: "swapi",
+            countries: "restcountries", flags: "restcountries",
+            space: "nasa", movies: "tmdb", sports: "sportsdb",
+            music: "lastfm", news: "gnews", daily: "s3", weekly: "s3", ai: "claude"
+        };
+        return map[topic] || topic;
+    }
+    // ── HTTP helper ────────────────────────────────────────────────────────────
+    // Max retries on HTTP 429; backoff doubles each attempt (1 s → 2 s → 4 s).
+    var HTTP_MAX_RETRIES = 3;
+    function httpGet(nk, url, extraHeaders) {
+        var headers = { "Accept": "application/json", "User-Agent": "QuizVerse/1.0" };
+        if (extraHeaders) {
+            for (var k in extraHeaders) {
+                if (extraHeaders.hasOwnProperty(k))
+                    headers[k] = extraHeaders[k];
+            }
+        }
+        var backoffMs = 1000;
+        for (var attempt = 0; attempt <= HTTP_MAX_RETRIES; attempt++) {
+            if (attempt > 0)
+                sleep(backoffMs);
+            var resp = nk.httpRequest(url, "get", headers, null);
+            if (!resp)
+                throw new Error("no_response from " + url.substring(0, 80));
+            if (resp.code === 429) {
+                if (attempt === HTTP_MAX_RETRIES) {
+                    throw new Error("HTTP 429 rate-limited after " + HTTP_MAX_RETRIES + " retries: " + url.substring(0, 80));
+                }
+                backoffMs = backoffMs * 2;
+                continue;
+            }
+            if (resp.code < 200 || resp.code >= 300) {
+                throw new Error("HTTP " + resp.code + " from " + url.substring(0, 80));
+            }
+            return JSON.parse(resp.body);
+        }
+        throw new Error("httpGet exhausted retries for " + url.substring(0, 80));
+    }
+    // ── Circuit breaker ────────────────────────────────────────────────────────
+    function readCircuit(nk, provider) {
+        try {
+            var rows = nk.storageRead([{ collection: COL_CIRCUIT, key: provider, userId: "" }]);
+            if (rows && rows.length > 0 && rows[0].value)
+                return rows[0].value;
+        }
+        catch (_e) { }
+        return { state: "closed", fail_count: 0, success_count: 0, trip_count: 0, open_until_ms: 0 };
+    }
+    function writeCircuit(nk, provider, doc) {
+        try {
+            nk.storageWrite([{
+                    collection: COL_CIRCUIT, key: provider, userId: "",
+                    value: doc, permissionRead: 1, permissionWrite: 0
+                }]);
+        }
+        catch (_e) { }
+    }
+    function circuitIsOpen(nk, provider) {
+        var c = readCircuit(nk, provider);
+        if (c.state !== "open")
+            return false;
+        // Cooldown elapsed → treat as half_open (allow one probe)
+        return !(c.open_until_ms && c.open_until_ms < nowMs());
+    }
+    function recordSuccess(nk, provider) {
+        var c = readCircuit(nk, provider);
+        writeCircuit(nk, provider, {
+            state: "closed", fail_count: 0,
+            success_count: (c.success_count || 0) + 1,
+            trip_count: c.trip_count || 0, open_until_ms: 0,
+            last_succeeded_at_ms: nowMs()
+        });
+    }
+    function recordFailure(nk, provider, errMsg) {
+        var c = readCircuit(nk, provider);
+        var fails = (c.fail_count || 0) + 1;
+        var open = fails >= FAIL_THRESHOLD;
+        var now = nowMs();
+        writeCircuit(nk, provider, {
+            state: open ? "open" : (c.state || "closed"),
+            fail_count: fails,
+            success_count: c.success_count || 0,
+            trip_count: open ? (c.trip_count || 0) + 1 : (c.trip_count || 0),
+            open_until_ms: open ? now + CIRCUIT_COOLDOWN : (c.open_until_ms || 0),
+            last_failed_at_ms: now,
+            last_opened_at_ms: open ? now : (c.last_opened_at_ms || 0),
+            last_error: errMsg.substring(0, 200)
+        });
+    }
+    // ── Quality gate bridge ────────────────────────────────────────────────────
+    // RawQuestion.raw_options uses {text, is_correct} shape.
+    // QvQualityGate.validateQuestion() expects {options:[{id,text}], correct_option_ids}.
+    // We convert to a bridge object, validate (which HTML-decodes in-place on the bridge),
+    // then write the decoded text back to the original raw question.
+    // This avoids a double-decode pass and keeps the gate's mutation semantics intact.
+    function validateAndDecodeRaw(raw, seenSet) {
+        // Build bridge
+        var bridgeOpts = [];
+        var correctIds = [];
+        for (var i = 0; i < raw.raw_options.length; i++) {
+            var oid = "o" + i;
+            bridgeOpts.push({ id: oid, text: raw.raw_options[i].text });
+            if (raw.raw_options[i].is_correct)
+                correctIds.push(oid);
+        }
+        var bridge = {
+            question_text: raw.question_text,
+            options: bridgeOpts,
+            correct_option_ids: correctIds
+        };
+        // Run gate (mutates bridge.question_text and bridge.options[].text)
+        var result = QvQualityGate.validateQuestion(bridge, seenSet);
+        if (result.valid) {
+            // Write HTML-decoded text back to the raw question in-place
+            raw.question_text = bridge.question_text;
+            for (var oi = 0; oi < raw.raw_options.length && oi < bridgeOpts.length; oi++) {
+                raw.raw_options[oi].text = bridgeOpts[oi].text;
+            }
+            if (raw.explanation) {
+                raw.explanation = QvQualityGate.htmlDecode(raw.explanation);
+            }
+        }
+        return result;
+    }
+    // ── Shuffle + A/B/C/D assignment ───────────────────────────────────────────
+    function shuffleAndAssign(raw) {
+        var shuffled = shuffle(raw.raw_options);
+        var options = [];
+        var correctIds = [];
+        for (var i = 0; i < shuffled.length && i < LETTERS.length; i++) {
+            options.push({ id: LETTERS[i], text: shuffled[i].text });
+            if (shuffled[i].is_correct)
+                correctIds.push(LETTERS[i]);
+        }
+        return {
+            id: stableId(raw.topic, raw.provider, raw.provider_key),
+            topic: raw.topic,
+            lang: raw.lang,
+            question_text: raw.question_text,
+            question_type: raw.question_type,
+            options: options,
+            correct_option_ids: correctIds,
+            has_media: raw.has_media,
+            media: raw.media,
+            explanation: raw.explanation,
+            difficulty: raw.difficulty,
+            provider: raw.provider
+        };
+    }
+    // ── Explanation enrichment ─────────────────────────────────────────────────
+    // Fills empty explanations from structured metadata. Called AFTER shuffleAndAssign
+    // because meta is carried on the RawQuestion and passed in separately.
+    function enrichExplanation(q, meta) {
+        if (q.explanation && q.explanation.trim().length > 8)
+            return q.explanation;
+        var m = meta || {};
+        switch (q.topic) {
+            case "anime":
+                if (m.title && m.year)
+                    return "\"" + m.title + "\" first aired in " + m.year + ".";
+                if (m.title)
+                    return "From the anime series \"" + m.title + "\".";
+                break;
+            case "pokemon":
+                if (m.types && m.name)
+                    return capitalize(m.name) + " is a " + m.types.join("/") + "-type Pokémon.";
+                break;
+            case "countries":
+            case "flags":
+                if (m.capital && m.region)
+                    return (m.name || "") + " is in " + m.region + "; capital: " + m.capital + ".";
+                break;
+            case "movies":
+                if (m.title && m.year)
+                    return "\"" + m.title + "\" was released in " + m.year + ".";
+                break;
+            case "ghibli":
+                if (m.title && m.director)
+                    return "\"" + m.title + "\" was directed by " + m.director + " (Studio Ghibli).";
+                break;
+            case "starwars":
+                if (m.title && m.year)
+                    return "\"" + m.title + "\" was released in " + m.year + ".";
+                break;
+            case "cocktail":
+                if (m.name)
+                    return "The " + m.name + " is a classic cocktail.";
+                break;
+            case "food":
+                if (m.name && m.area)
+                    return "\"" + m.name + "\" is a traditional " + m.area + " dish.";
+                break;
+            case "dog":
+                if (m.breed)
+                    return "This is a " + m.breed + ".";
+                break;
+            case "disney":
+                if (m.name && m.source)
+                    return m.name + " is a Disney character from \"" + m.source + "\".";
+                break;
+            case "space":
+                if (m.title)
+                    return "NASA APOD: " + m.title + ".";
+                break;
+        }
+        return "";
+    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // PROVIDERS
+    // Each fetch function returns RawQuestion[] — pre-shuffle, unvalidated.
+    // Quality gate + shuffle happen in refreshCache().
+    // ══════════════════════════════════════════════════════════════════════════
+    // ── 1. OpenTDB ────────────────────────────────────────────────────────────
+    function fetchOpentdb(nk, logger) {
+        var results = [];
+        // url3986 encoding — decode with decodeURIComponent
+        var data = httpGet(nk, "https://opentdb.com/api.php?amount=50&encode=url3986&type=multiple");
+        if (!data || !Array.isArray(data.results) || data.response_code !== 0) {
+            throw new Error("OpenTDB response_code=" + (data && data.response_code));
+        }
+        for (var i = 0; i < data.results.length; i++) {
+            var item = data.results[i];
+            try {
+                var qText = decodeURIComponent(item.question || "");
+                var correct = decodeURIComponent(item.correct_answer || "");
+                var wrongs = [];
+                if (Array.isArray(item.incorrect_answers)) {
+                    for (var w = 0; w < item.incorrect_answers.length; w++) {
+                        var wt = decodeURIComponent(item.incorrect_answers[w] || "");
+                        if (wt)
+                            wrongs.push(wt);
+                    }
+                }
+                if (!qText || !correct)
+                    continue;
+                var opts = [{ text: correct, is_correct: true }];
+                for (var wi = 0; wi < wrongs.length; wi++)
+                    opts.push({ text: wrongs[wi], is_correct: false });
+                var diff = item.difficulty === "hard" ? "hard" : item.difficulty === "easy" ? "easy" : "medium";
+                results.push({
+                    provider_key: djb2(qText),
+                    topic: "opentdb",
+                    lang: "en",
+                    question_text: qText,
+                    question_type: item.type === "boolean" ? "true_false" : "single_select",
+                    raw_options: opts,
+                    has_media: false,
+                    media: null,
+                    explanation: decodeURIComponent(item.category || ""),
+                    difficulty: diff,
+                    provider: "opentdb",
+                    meta: {}
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/opentdb] skip[" + i + "]: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 2. Jikan (Anime) ──────────────────────────────────────────────────────
+    function fetchJikan(nk, logger) {
+        var results = [];
+        var data = httpGet(nk, "https://api.jikan.moe/v4/top/anime?page=1&limit=25&filter=bypopularity");
+        if (!data || !Array.isArray(data.data))
+            throw new Error("Jikan: no data array");
+        var animeList = data.data;
+        // Collect all genres from results for wrong-answer pool
+        var genreSet = {};
+        for (var ag = 0; ag < animeList.length; ag++) {
+            var gens = animeList[ag].genres || [];
+            for (var gi2 = 0; gi2 < gens.length; gi2++)
+                genreSet[gens[gi2].name] = true;
+        }
+        var allGenres = Object.keys(genreSet).length >= 6 ? Object.keys(genreSet) : ANIME_GENRES;
+        for (var ai = 0; ai < animeList.length; ai++) {
+            var a = animeList[ai];
+            try {
+                var title = a.title_english || a.title || "Unknown";
+                var year = a.year
+                    || (a.aired && a.aired.prop && a.aired.prop.from && a.aired.prop.from.year)
+                    || null;
+                var episodes = a.episodes || null;
+                var genres = [];
+                var agenres = a.genres || [];
+                for (var gi3 = 0; gi3 < agenres.length; gi3++)
+                    genres.push(agenres[gi3].name);
+                var imageUrl = (a.images && a.images.jpg && a.images.jpg.image_url)
+                    ? a.images.jpg.image_url : null;
+                var media = imageUrl ? { type: "image", url: imageUrl, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null;
+                var tpl = Math.floor(Math.random() * 3);
+                var q = null;
+                if (tpl === 0 && genres.length > 0) {
+                    // Genre template
+                    var correctGenre = genres[0];
+                    var exSet = {};
+                    for (var gx = 0; gx < genres.length; gx++)
+                        exSet[genres[gx]] = true;
+                    var wg = pickExcluding(allGenres, exSet, 3);
+                    if (wg.length < 3)
+                        tpl = 2; // fall through to year
+                    else {
+                        var gOpts = [{ text: correctGenre, is_correct: true }];
+                        for (var wgi = 0; wgi < wg.length; wgi++)
+                            gOpts.push({ text: wg[wgi], is_correct: false });
+                        q = {
+                            provider_key: "jikan_genre_" + (a.mal_id || ai),
+                            topic: "anime", lang: "en",
+                            question_text: "What genre best describes the anime \"" + title + "\"?",
+                            question_type: "single_select",
+                            raw_options: gOpts, has_media: !!imageUrl, media: media,
+                            explanation: "\"" + title + "\" belongs to the " + genres.join(", ") + " genre(s).",
+                            difficulty: "medium", provider: "jikan",
+                            meta: { title: title, year: year, genres: genres }
+                        };
+                    }
+                }
+                if (tpl === 1 && episodes) {
+                    // Episode count template
+                    var ep = episodes;
+                    var eOpts = [
+                        { text: String(ep), is_correct: true },
+                        { text: String(Math.max(1, ep - Math.floor(Math.random() * 8) - 3)), is_correct: false },
+                        { text: String(ep + Math.floor(Math.random() * 10) + 2), is_correct: false },
+                        { text: String(ep + Math.floor(Math.random() * 20) + 14), is_correct: false }
+                    ];
+                    q = {
+                        provider_key: "jikan_ep_" + (a.mal_id || ai),
+                        topic: "anime", lang: "en",
+                        question_text: "How many episodes does \"" + title + "\" have?",
+                        question_type: "single_select",
+                        raw_options: eOpts, has_media: !!imageUrl, media: media,
+                        explanation: "\"" + title + "\" has " + ep + " episodes.",
+                        difficulty: "hard", provider: "jikan",
+                        meta: { title: title, year: year }
+                    };
+                }
+                if ((tpl === 2 || !q) && year) {
+                    // Release year template
+                    var yr = Number(year);
+                    if (isNaN(yr)) {
+                        q = null;
+                    }
+                    else {
+                        var yOpts = [
+                            { text: String(yr), is_correct: true },
+                            { text: String(yr - 2), is_correct: false },
+                            { text: String(yr + 1), is_correct: false },
+                            { text: String(yr - 5), is_correct: false }
+                        ];
+                        q = {
+                            provider_key: "jikan_year_" + (a.mal_id || ai),
+                            topic: "anime", lang: "en",
+                            question_text: "In what year did \"" + title + "\" first air?",
+                            question_type: "single_select",
+                            raw_options: yOpts, has_media: !!imageUrl, media: media,
+                            explanation: "\"" + title + "\" first aired in " + yr + ".",
+                            difficulty: "medium", provider: "jikan",
+                            meta: { title: title, year: year }
+                        };
+                    }
+                }
+                if (q)
+                    results.push(q);
+            }
+            catch (e) {
+                logger.debug("[QvQCache/jikan] skip[" + ai + "]: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 3. PokeAPI ────────────────────────────────────────────────────────────
+    function fetchPokeapi(nk, logger) {
+        var results = [];
+        var listData = httpGet(nk, "https://pokeapi.co/api/v2/pokemon?limit=151&offset=0");
+        if (!listData || !Array.isArray(listData.results))
+            throw new Error("PokeAPI: no list");
+        var sample = pick(listData.results, 12); // 12 fetches to stay fast
+        for (var pi = 0; pi < sample.length; pi++) {
+            try {
+                var detail = httpGet(nk, sample[pi].url);
+                if (!detail)
+                    continue;
+                var pokeName = capitalize(detail.name || "Unknown");
+                var types = [];
+                var ptypes = detail.types || [];
+                for (var ti = 0; ti < ptypes.length; ti++)
+                    types.push(capitalize(ptypes[ti].type.name));
+                if (types.length === 0)
+                    continue;
+                var sprite = (detail.sprites && detail.sprites.front_default) ? detail.sprites.front_default : null;
+                var correctType = types[0];
+                var exSet2 = {};
+                for (var tx = 0; tx < types.length; tx++)
+                    exSet2[types[tx]] = true;
+                var wt = pickExcluding(POKEMON_TYPES, exSet2, 3);
+                if (wt.length < 3)
+                    continue;
+                var pOpts = [{ text: correctType, is_correct: true }];
+                for (var wi2 = 0; wi2 < wt.length; wi2++)
+                    pOpts.push({ text: wt[wi2], is_correct: false });
+                results.push({
+                    provider_key: "pokeapi_type_" + detail.id,
+                    topic: "pokemon", lang: "en",
+                    question_text: "What primary type is the Pokémon " + pokeName + "?",
+                    question_type: "single_select",
+                    raw_options: pOpts,
+                    has_media: !!sprite,
+                    media: sprite ? { type: "image", url: sprite, thumbnail_url: null, duration_seconds: null, mime_type: "image/png" } : null,
+                    explanation: pokeName + " is a " + types.join("/") + "-type Pokémon.",
+                    difficulty: "easy", provider: "pokeapi",
+                    meta: { name: detail.name, types: types }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/pokeapi] skip[" + pi + "]: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 4. TheCocktailDB ──────────────────────────────────────────────────────
+    function fetchCocktaildb(nk, logger) {
+        var results = [];
+        var seen = {};
+        for (var ci = 0; ci < 20; ci++) {
+            try {
+                var data = httpGet(nk, "https://www.thecocktaildb.com/api/json/v1/1/random.php");
+                if (!data || !data.drinks || !data.drinks[0])
+                    continue;
+                var d = data.drinks[0];
+                var name = d.strDrink || "Unknown";
+                if (seen[name])
+                    continue;
+                seen[name] = true;
+                var category = d.strCategory || "Cocktail";
+                var glass = d.strGlass || "Glass";
+                var alcoholic = d.strAlcoholic || "";
+                var img = d.strDrinkThumb || null;
+                var wc = COCKTAIL_CATS.filter(function (c) { return c !== category; });
+                var wca = pick(wc, 3);
+                if (wca.length < 3)
+                    continue;
+                var cOpts = [{ text: category, is_correct: true }];
+                for (var wci = 0; wci < wca.length; wci++)
+                    cOpts.push({ text: wca[wci], is_correct: false });
+                results.push({
+                    provider_key: "cocktaildb_" + (d.idDrink || djb2(name)),
+                    topic: "cocktail", lang: "en",
+                    question_text: "What category of drink is a \"" + name + "\"?",
+                    question_type: "single_select",
+                    raw_options: cOpts,
+                    has_media: !!img,
+                    media: img ? { type: "image", url: img, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null,
+                    explanation: "The " + name + " is a " + category + (alcoholic ? " (" + alcoholic + ")" : "") + ", typically served in a " + glass + ".",
+                    difficulty: "medium", provider: "cocktaildb",
+                    meta: { name: name }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/cocktaildb] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 5. TheMealDB (Food) ───────────────────────────────────────────────────
+    function fetchMealdb(nk, logger) {
+        var results = [];
+        var seen2 = {};
+        for (var mi = 0; mi < 20; mi++) {
+            try {
+                var data2 = httpGet(nk, "https://www.themealdb.com/api/json/v1/1/random.php");
+                if (!data2 || !data2.meals || !data2.meals[0])
+                    continue;
+                var m = data2.meals[0];
+                var mname = m.strMeal || "Unknown";
+                var area = m.strArea || "";
+                if (!area || area === "Unknown" || seen2[mname])
+                    continue;
+                seen2[mname] = true;
+                var category2 = m.strCategory || "Main";
+                var img2 = m.strMealThumb || null;
+                var wa = MEAL_AREAS.filter(function (a) { return a !== area; });
+                var waa = pick(wa, 3);
+                if (waa.length < 3)
+                    continue;
+                var mOpts = [{ text: area, is_correct: true }];
+                for (var wai = 0; wai < waa.length; wai++)
+                    mOpts.push({ text: waa[wai], is_correct: false });
+                results.push({
+                    provider_key: "mealdb_" + (m.idMeal || djb2(mname)),
+                    topic: "food", lang: "en",
+                    question_text: "\"" + mname + "\" is a traditional dish from which country or region?",
+                    question_type: "single_select",
+                    raw_options: mOpts,
+                    has_media: !!img2,
+                    media: img2 ? { type: "image", url: img2, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null,
+                    explanation: "\"" + mname + "\" is a traditional " + area + " dish in the " + category2 + " category.",
+                    difficulty: "medium", provider: "themealdb",
+                    meta: { name: mname, area: area }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/mealdb] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 6. Dog CEO ────────────────────────────────────────────────────────────
+    function fetchDogceo(nk, logger) {
+        var results = [];
+        var breedsData = httpGet(nk, "https://dog.ceo/api/breeds/list/all");
+        if (!breedsData || !breedsData.message)
+            throw new Error("Dog CEO: no breeds");
+        var allBreeds = [];
+        var bm = breedsData.message;
+        for (var breed in bm) {
+            if (!bm.hasOwnProperty(breed))
+                continue;
+            var subs = bm[breed];
+            if (subs.length > 0) {
+                for (var si = 0; si < subs.length; si++)
+                    allBreeds.push(subs[si] + " " + breed);
+            }
+            else {
+                allBreeds.push(breed);
+            }
+        }
+        var selected = pick(allBreeds, 10);
+        for (var bi = 0; bi < selected.length; bi++) {
+            var breedName = selected[bi];
+            try {
+                var parts = breedName.indexOf(" ") !== -1 ? breedName.split(" ") : [breedName];
+                var breedKey = parts.length >= 2 ? parts[1] + "/" + parts[0] : parts[0];
+                var imgData = httpGet(nk, "https://dog.ceo/api/breed/" + breedKey + "/images/random");
+                if (!imgData || !imgData.message)
+                    continue;
+                var exSet3 = {};
+                exSet3[breedName] = true;
+                var wb = pickExcluding(allBreeds, exSet3, 3);
+                if (wb.length < 3)
+                    continue;
+                var dOpts = [{ text: capitalize(breedName), is_correct: true }];
+                for (var wbi = 0; wbi < wb.length; wbi++)
+                    dOpts.push({ text: capitalize(wb[wbi]), is_correct: false });
+                results.push({
+                    provider_key: "dogceo_" + djb2(breedName),
+                    topic: "dog", lang: "en",
+                    question_text: "What breed of dog is shown in the image?",
+                    question_type: "single_select",
+                    raw_options: dOpts,
+                    has_media: true,
+                    media: { type: "image", url: imgData.message, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" },
+                    explanation: "This is a " + breedName + " — a well-known dog breed.",
+                    difficulty: "hard", provider: "dogceo",
+                    meta: { breed: breedName }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/dogceo] skip " + breedName + ": " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 7. Studio Ghibli ──────────────────────────────────────────────────────
+    function fetchGhibli(nk, logger) {
+        var results = [];
+        var data3 = httpGet(nk, "https://ghibliapi.vercel.app/films");
+        if (!Array.isArray(data3))
+            throw new Error("Ghibli API: no array");
+        var directorPool = [];
+        for (var gx2 = 0; gx2 < data3.length; gx2++) {
+            if (data3[gx2].director)
+                directorPool.push(data3[gx2].director);
+        }
+        var extraDirs = ["Akira Kurosawa", "Satoshi Kon", "Mamoru Hosoda", "Makoto Shinkai",
+            "Hideaki Anno", "Katsuhiro Otomo", "Yoshiyuki Tomino"];
+        var fullDirPool = directorPool.concat(extraDirs);
+        for (var gi4 = 0; gi4 < data3.length; gi4++) {
+            var film = data3[gi4];
+            try {
+                var ftitle = film.title || "Unknown";
+                var fdirector = film.director || null;
+                var fyear = film.release_date || null;
+                if (!fdirector)
+                    continue;
+                var exDir = {};
+                exDir[fdirector] = true;
+                var wd = pickExcluding(fullDirPool, exDir, 3);
+                if (wd.length < 3)
+                    continue;
+                var gOpts2 = [{ text: fdirector, is_correct: true }];
+                for (var wdi = 0; wdi < wd.length; wdi++)
+                    gOpts2.push({ text: wd[wdi], is_correct: false });
+                results.push({
+                    provider_key: "ghibli_dir_" + djb2(ftitle),
+                    topic: "ghibli", lang: "en",
+                    question_text: "Who directed the Studio Ghibli film \"" + ftitle + "\"?",
+                    question_type: "single_select",
+                    raw_options: gOpts2,
+                    has_media: false, media: null,
+                    explanation: "\"" + ftitle + "\" (" + (fyear || "?") + ") was directed by " + fdirector + " and produced by Studio Ghibli.",
+                    difficulty: "medium", provider: "ghibli",
+                    meta: { title: ftitle, director: fdirector, year: fyear }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/ghibli] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 8. Disney API ─────────────────────────────────────────────────────────
+    function fetchDisney(nk, logger) {
+        var results = [];
+        var data4 = httpGet(nk, "https://api.disneyapi.dev/character?pageSize=50&page=1");
+        if (!data4 || !Array.isArray(data4.data))
+            throw new Error("Disney API: no data");
+        var chars = data4.data;
+        // Build pool of all source titles
+        var sourcePool = [];
+        for (var dx = 0; dx < chars.length; dx++) {
+            var df = chars[dx].films || [];
+            var ds = chars[dx].tvShows || [];
+            for (var dfi = 0; dfi < df.length; dfi++)
+                sourcePool.push(df[dfi]);
+            for (var dsi = 0; dsi < ds.length; dsi++)
+                sourcePool.push(ds[dsi]);
+        }
+        for (var di = 0; di < chars.length; di++) {
+            var char = chars[di];
+            try {
+                var cname = char.name || "Unknown";
+                var films2 = char.films || [];
+                var shows = char.tvShows || [];
+                var img3 = char.imageUrl || null;
+                var allSrc = films2.concat(shows);
+                if (allSrc.length === 0)
+                    continue;
+                var src = allSrc[0];
+                var exSrc = {};
+                exSrc[src] = true;
+                var wss = pickExcluding(sourcePool, exSrc, 3);
+                if (wss.length < 3)
+                    continue;
+                var dsOpts = [{ text: src, is_correct: true }];
+                for (var wsi = 0; wsi < wss.length; wsi++)
+                    dsOpts.push({ text: wss[wsi], is_correct: false });
+                results.push({
+                    provider_key: "disney_" + (char._id || djb2(cname)),
+                    topic: "disney", lang: "en",
+                    question_text: "Which Disney title features the character \"" + cname + "\"?",
+                    question_type: "single_select",
+                    raw_options: dsOpts,
+                    has_media: !!img3,
+                    media: img3 ? { type: "image", url: img3, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null,
+                    explanation: cname + " is a Disney character from \"" + src + "\".",
+                    difficulty: "medium", provider: "disney",
+                    meta: { name: cname, source: src }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/disney] skip " + (char && char.name) + ": " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 9. SWAPI (Star Wars) ──────────────────────────────────────────────────
+    function fetchSwapi(nk, logger) {
+        var results = [];
+        var data5 = httpGet(nk, "https://swapi.dev/api/films/");
+        if (!data5 || !Array.isArray(data5.results))
+            throw new Error("SWAPI: no films");
+        var films3 = data5.results;
+        for (var si2 = 0; si2 < films3.length; si2++) {
+            var f = films3[si2];
+            try {
+                var stitle = f.title || "Unknown";
+                var sdir = f.director || null;
+                var syear = f.release_date ? f.release_date.split("-")[0] : null;
+                var sep = f.episode_id || "?";
+                if (!sdir)
+                    continue;
+                var exSW = {};
+                exSW[sdir] = true;
+                var wsd = pickExcluding(SW_DIRECTORS, exSW, 3);
+                if (wsd.length < 3)
+                    continue;
+                var swOpts = [{ text: sdir, is_correct: true }];
+                for (var wsdi = 0; wsdi < wsd.length; wsdi++)
+                    swOpts.push({ text: wsd[wsdi], is_correct: false });
+                results.push({
+                    provider_key: "swapi_dir_" + si2,
+                    topic: "starwars", lang: "en",
+                    question_text: "Who directed Star Wars Episode " + sep + ": \"" + stitle + "\"?",
+                    question_type: "single_select",
+                    raw_options: swOpts,
+                    has_media: false, media: null,
+                    explanation: "\"" + stitle + "\" (Episode " + sep + (syear ? ", " + syear : "") + ") was directed by " + sdir + ".",
+                    difficulty: "medium", provider: "swapi",
+                    meta: { title: stitle, director: sdir, year: syear }
+                });
+                // Bonus year question
+                if (syear) {
+                    var yr2 = Number(syear);
+                    if (!isNaN(yr2)) {
+                        var yrSwOpts = [
+                            { text: String(yr2), is_correct: true },
+                            { text: String(yr2 - 3), is_correct: false },
+                            { text: String(yr2 + 2), is_correct: false },
+                            { text: String(yr2 - 7), is_correct: false }
+                        ];
+                        results.push({
+                            provider_key: "swapi_year_" + si2,
+                            topic: "starwars", lang: "en",
+                            question_text: "In which year was \"" + stitle + "\" released?",
+                            question_type: "single_select",
+                            raw_options: yrSwOpts,
+                            has_media: false, media: null,
+                            explanation: "\"" + stitle + "\" was released in " + yr2 + ".",
+                            difficulty: "easy", provider: "swapi",
+                            meta: { title: stitle, year: syear }
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                logger.debug("[QvQCache/swapi] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 10. RestCountries (Countries + Flags) ─────────────────────────────────
+    function fetchRestcountries(nk, logger) {
+        var results = [];
+        var data6 = httpGet(nk, "https://restcountries.com/v3.1/all?fields=name,capital,region,flags,population");
+        if (!Array.isArray(data6))
+            throw new Error("RestCountries: no array");
+        var withCap = [];
+        for (var rc = 0; rc < data6.length; rc++) {
+            if (data6[rc].capital && data6[rc].capital.length > 0 && data6[rc].name && data6[rc].name.common) {
+                withCap.push(data6[rc]);
+            }
+        }
+        var allCaps = [];
+        var allCNames = [];
+        for (var rc2 = 0; rc2 < withCap.length; rc2++) {
+            if (withCap[rc2].capital[0])
+                allCaps.push(withCap[rc2].capital[0]);
+            allCNames.push(withCap[rc2].name.common);
+        }
+        var sample2 = pick(withCap, 40);
+        for (var ci3 = 0; ci3 < sample2.length; ci3++) {
+            var country = sample2[ci3];
+            try {
+                var cname2 = country.name.common;
+                var capital = country.capital[0];
+                var region = country.region || "Unknown";
+                var flagPng = (country.flags && country.flags.png) ? country.flags.png : null;
+                // Capital question
+                var exCap = {};
+                exCap[capital] = true;
+                var wc2 = pickExcluding(allCaps, exCap, 3);
+                if (wc2.length >= 3) {
+                    var capOpts = [{ text: capital, is_correct: true }];
+                    for (var wci2 = 0; wci2 < wc2.length; wci2++)
+                        capOpts.push({ text: wc2[wci2], is_correct: false });
+                    results.push({
+                        provider_key: "rc_cap_" + djb2(cname2),
+                        topic: "countries", lang: "en",
+                        question_text: "What is the capital city of " + cname2 + "?",
+                        question_type: "single_select",
+                        raw_options: capOpts,
+                        has_media: !!flagPng,
+                        media: flagPng ? { type: "image", url: flagPng, thumbnail_url: null, duration_seconds: null, mime_type: "image/png" } : null,
+                        explanation: cname2 + " is located in " + region + ". Its capital city is " + capital + ".",
+                        difficulty: "medium", provider: "restcountries",
+                        meta: { name: cname2, capital: capital, region: region }
+                    });
+                }
+                // Flag question (topic = "flags")
+                if (flagPng) {
+                    var exCN = {};
+                    exCN[cname2] = true;
+                    var wcn = pickExcluding(allCNames, exCN, 3);
+                    if (wcn.length >= 3) {
+                        var flagOpts = [{ text: cname2, is_correct: true }];
+                        for (var wfci = 0; wfci < wcn.length; wfci++)
+                            flagOpts.push({ text: wcn[wfci], is_correct: false });
+                        results.push({
+                            provider_key: "rc_flag_" + djb2(cname2),
+                            topic: "flags", lang: "en",
+                            question_text: "Which country does this flag belong to?",
+                            question_type: "single_select",
+                            raw_options: flagOpts,
+                            has_media: true,
+                            media: { type: "image", url: flagPng, thumbnail_url: null, duration_seconds: null, mime_type: "image/png" },
+                            explanation: "This is the flag of " + cname2 + " (" + region + "). Capital: " + capital + ".",
+                            difficulty: "medium", provider: "restcountries",
+                            meta: { name: cname2, capital: capital, region: region }
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                logger.debug("[QvQCache/restcountries] skip " + (country && country.name && country.name.common) + ": " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 11. NASA APOD (Space) — key-gated; falls back to DEMO_KEY ─────────────
+    function fetchNasa(nk, env, logger) {
+        var results = [];
+        var apiKey = envKey(env, "NASA_API_KEY") || "DEMO_KEY";
+        var data7 = httpGet(nk, "https://api.nasa.gov/planetary/apod?api_key=" + apiKey + "&count=20&thumbs=true");
+        if (!Array.isArray(data7))
+            throw new Error("NASA APOD: expected array");
+        for (var ni = 0; ni < data7.length; ni++) {
+            var apod = data7[ni];
+            try {
+                var atitle = (apod.title || "").trim();
+                var adate = apod.date || "";
+                var aurl = apod.hdurl || apod.url || null;
+                var athumb = apod.thumbnail_url || aurl;
+                if (!atitle || atitle.length < 5 || !aurl)
+                    continue;
+                var exSp = {};
+                exSp[atitle] = true;
+                var wspc = pickExcluding(SPACE_OBJECTS, exSp, 3);
+                if (wspc.length < 3) {
+                    wspc = pick(SPACE_OBJECTS.filter(function (s) { return s !== atitle; }), 3);
+                }
+                if (wspc.length < 3)
+                    continue;
+                var sOpts = [{ text: atitle, is_correct: true }];
+                for (var wspi = 0; wspi < wspc.length; wspi++)
+                    sOpts.push({ text: wspc[wspi], is_correct: false });
+                var aexpl = (apod.explanation || "").substring(0, 200);
+                results.push({
+                    provider_key: "nasa_" + djb2(atitle + adate),
+                    topic: "space", lang: "en",
+                    question_text: "What is featured in this NASA Astronomy Picture of the Day?",
+                    question_type: "single_select",
+                    raw_options: sOpts,
+                    has_media: true,
+                    media: { type: "image", url: athumb, thumbnail_url: athumb, duration_seconds: null, mime_type: "image/jpeg" },
+                    explanation: "NASA APOD " + adate + ": " + atitle + ". " + aexpl,
+                    difficulty: "hard", provider: "nasa",
+                    meta: { title: atitle }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/nasa] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 12. TMDB (Movies) — requires TMDB_API_KEY ─────────────────────────────
+    function fetchTmdb(nk, env, logger) {
+        var results = [];
+        var apiKey2 = envKey(env, "TMDB_API_KEY");
+        if (!apiKey2)
+            throw new Error("TMDB_API_KEY not set — add to SSM /nakama/TMDB_API_KEY or FALLBACK_KEYS in question_cache.ts");
+        var data8 = httpGet(nk, "https://api.themoviedb.org/3/movie/popular?api_key=" + apiKey2 + "&language=en-US&page=1");
+        if (!data8 || !Array.isArray(data8.results))
+            throw new Error("TMDB: no results array");
+        var movies = data8.results;
+        for (var mi2 = 0; mi2 < movies.length; mi2++) {
+            var mov = movies[mi2];
+            try {
+                var mtitle = mov.title || "Unknown";
+                var myear = mov.release_date ? mov.release_date.split("-")[0] : null;
+                if (!myear)
+                    continue;
+                var yr3 = Number(myear);
+                if (isNaN(yr3))
+                    continue;
+                var poster = mov.poster_path ? "https://image.tmdb.org/t/p/w500" + mov.poster_path : null;
+                var tOpts = [
+                    { text: String(yr3), is_correct: true },
+                    { text: String(yr3 - 1), is_correct: false },
+                    { text: String(yr3 + 1), is_correct: false },
+                    { text: String(yr3 - 2), is_correct: false }
+                ];
+                results.push({
+                    provider_key: "tmdb_" + (mov.id || djb2(mtitle)),
+                    topic: "movies", lang: "en",
+                    question_text: "In which year was the film \"" + mtitle + "\" released?",
+                    question_type: "single_select",
+                    raw_options: tOpts,
+                    has_media: !!poster,
+                    media: poster ? { type: "image", url: poster, thumbnail_url: poster, duration_seconds: null, mime_type: "image/jpeg" } : null,
+                    explanation: "\"" + mtitle + "\" was released in " + yr3 + ".",
+                    difficulty: "medium", provider: "tmdb",
+                    meta: { title: mtitle, year: myear }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/tmdb] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 13. TheSportsDB (Sports) — free tier (key=3) ──────────────────────────
+    function fetchSportsdb(nk, logger) {
+        var results = [];
+        var leagues = [
+            { id: "4328", name: "English Premier League" },
+            { id: "4335", name: "NBA" },
+            { id: "4424", name: "NFL" },
+            { id: "4346", name: "NHL" }
+        ];
+        for (var li = 0; li < leagues.length; li++) {
+            var league = leagues[li];
+            try {
+                var sdata = httpGet(nk, "https://www.thesportsdb.com/api/v1/json/3/lookup_all_teams.php?id=" + league.id);
+                if (!sdata || !Array.isArray(sdata.teams))
+                    continue;
+                var teams = sdata.teams.slice(0, 20);
+                var stadiums = [];
+                for (var sx = 0; sx < teams.length; sx++) {
+                    if (teams[sx].strStadium)
+                        stadiums.push(teams[sx].strStadium);
+                }
+                for (var ti2 = 0; ti2 < teams.length; ti2++) {
+                    var team = teams[ti2];
+                    try {
+                        var tname = team.strTeam || "Unknown";
+                        var stadium = team.strStadium || null;
+                        var tbadge = team.strTeamBadge || null;
+                        var tfounded = team.intFormedYear || null;
+                        if (!stadium)
+                            continue;
+                        var exStad = {};
+                        exStad[stadium] = true;
+                        var ws2 = pickExcluding(stadiums, exStad, 3);
+                        if (ws2.length < 3)
+                            continue;
+                        var stOpts = [{ text: stadium, is_correct: true }];
+                        for (var wsi2 = 0; wsi2 < ws2.length; wsi2++)
+                            stOpts.push({ text: ws2[wsi2], is_correct: false });
+                        results.push({
+                            provider_key: "sdb_stad_" + (team.idTeam || djb2(tname)),
+                            topic: "sports", lang: "en",
+                            question_text: "What is the home stadium of " + tname + "?",
+                            question_type: "single_select",
+                            raw_options: stOpts,
+                            has_media: !!tbadge,
+                            media: tbadge ? { type: "image", url: tbadge, thumbnail_url: null, duration_seconds: null, mime_type: "image/png" } : null,
+                            explanation: tname + " (" + league.name + ") plays at " + stadium + (tfounded ? ", founded in " + tfounded : "") + ".",
+                            difficulty: "medium", provider: "sportsdb",
+                            meta: {}
+                        });
+                    }
+                    catch (e) {
+                        logger.debug("[QvQCache/sdb] skip team: " + (e && e.message));
+                    }
+                }
+            }
+            catch (e) {
+                logger.debug("[QvQCache/sdb] skip league " + league.name + ": " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 14. Last.fm (Music) — requires LASTFM_API_KEY ─────────────────────────
+    function fetchLastfm(nk, env, logger) {
+        var results = [];
+        var fmKey = envKey(env, "LASTFM_API_KEY");
+        if (!fmKey)
+            throw new Error("LASTFM_API_KEY not set — add to SSM /nakama/LASTFM_API_KEY or FALLBACK_KEYS in question_cache.ts");
+        var artists = httpGet(nk, "https://ws.audioscrobbler.com/2.0/?method=chart.getTopArtists&api_key=" + fmKey + "&format=json&limit=50");
+        var tracks = httpGet(nk, "https://ws.audioscrobbler.com/2.0/?method=chart.getTopTracks&api_key=" + fmKey + "&format=json&limit=30");
+        if (!artists || !artists.artists || !artists.artists.artist)
+            throw new Error("Last.fm: no artists");
+        if (!tracks || !tracks.tracks || !tracks.tracks.track)
+            throw new Error("Last.fm: no tracks");
+        var artistNames = [];
+        var aa = artists.artists.artist;
+        for (var ai2 = 0; ai2 < aa.length; ai2++) {
+            if (aa[ai2].name)
+                artistNames.push(aa[ai2].name);
+        }
+        var trackList = tracks.tracks.track;
+        for (var ti3 = 0; ti3 < trackList.length; ti3++) {
+            var track = trackList[ti3];
+            try {
+                var tname2 = track.name || "Unknown";
+                var aname = track.artist && track.artist.name ? track.artist.name : null;
+                if (!aname)
+                    continue;
+                var exFM = {};
+                exFM[aname] = true;
+                var wfm = pickExcluding(artistNames, exFM, 3);
+                if (wfm.length < 3)
+                    continue;
+                var fmOpts = [{ text: aname, is_correct: true }];
+                for (var wfmi = 0; wfmi < wfm.length; wfmi++)
+                    fmOpts.push({ text: wfm[wfmi], is_correct: false });
+                results.push({
+                    provider_key: "lfm_" + djb2(tname2 + aname),
+                    topic: "music", lang: "en",
+                    question_text: "Which artist performed the song \"" + tname2 + "\"?",
+                    question_type: "single_select",
+                    raw_options: fmOpts,
+                    has_media: false, media: null,
+                    explanation: "\"" + tname2 + "\" is performed by " + aname + ".",
+                    difficulty: "medium", provider: "lastfm",
+                    meta: {}
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/lastfm] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 15. News — GNews → Currents → MediaStack → NewsAPI failover chain ──────
+    function fetchNews(nk, env, logger) {
+        var results = [];
+        var articles = [];
+        var gnKey = envKey(env, "GNEWS_API_KEY");
+        var curKey = envKey(env, "CURRENTS_API_KEY");
+        var msKey = envKey(env, "MEDIASTACK_API_KEY");
+        var naKey = envKey(env, "NEWSAPI_API_KEY");
+        if (gnKey) {
+            try {
+                var gd = httpGet(nk, "https://gnews.io/api/v4/top-headlines?token=" + gnKey + "&lang=en&max=10");
+                if (gd && gd.articles)
+                    articles = articles.concat(gd.articles);
+            }
+            catch (e) {
+                logger.warn("[QvQCache/news] GNews: " + (e && e.message));
+            }
+        }
+        if (curKey && articles.length < 10) {
+            try {
+                var cd = httpGet(nk, "https://api.currentsapi.services/v1/latest-news?apiKey=" + curKey + "&language=en");
+                if (cd && Array.isArray(cd.news)) {
+                    for (var cni = 0; cni < cd.news.length; cni++) {
+                        var cn = cd.news[cni];
+                        articles.push({ title: cn.title, description: cn.description, source: { name: cn.author || "Currents" } });
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("[QvQCache/news] Currents: " + (e && e.message));
+            }
+        }
+        if (msKey && articles.length < 10) {
+            try {
+                var md = httpGet(nk, "http://api.mediastack.com/v1/news?access_key=" + msKey + "&languages=en&limit=10");
+                if (md && Array.isArray(md.data)) {
+                    for (var mni = 0; mni < md.data.length; mni++) {
+                        var mn = md.data[mni];
+                        articles.push({ title: mn.title, description: mn.description, source: { name: mn.source || "MediaStack" } });
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("[QvQCache/news] MediaStack: " + (e && e.message));
+            }
+        }
+        if (naKey && articles.length < 10) {
+            try {
+                var nd = httpGet(nk, "https://newsapi.org/v2/top-headlines?apiKey=" + naKey + "&language=en&pageSize=10");
+                if (nd && Array.isArray(nd.articles))
+                    articles = articles.concat(nd.articles);
+            }
+            catch (e) {
+                logger.warn("[QvQCache/news] NewsAPI: " + (e && e.message));
+            }
+        }
+        if (articles.length === 0)
+            throw new Error("All news providers failed or not configured (set at least one of GNEWS_API_KEY, CURRENTS_API_KEY, MEDIASTACK_API_KEY, NEWSAPI_API_KEY)");
+        for (var ni2 = 0; ni2 < articles.length; ni2++) {
+            var art = articles[ni2];
+            try {
+                var headline = (art.title || "").trim();
+                var desc = art.description || "";
+                var srcName = art.source && art.source.name ? art.source.name : "News";
+                if (!headline || headline.length < 20)
+                    continue;
+                results.push({
+                    provider_key: "news_" + djb2(headline),
+                    topic: "news", lang: "en",
+                    question_text: "Is this a real news headline: \"" + headline.substring(0, 120) + "\"?",
+                    question_type: "true_false",
+                    raw_options: [
+                        { text: "True — this is a real headline", is_correct: true },
+                        { text: "False — this is a fake headline", is_correct: false }
+                    ],
+                    has_media: false, media: null,
+                    explanation: "This headline is from " + srcName + ". " + desc.substring(0, 150),
+                    difficulty: "easy", provider: "gnews",
+                    meta: {}
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/news] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // ── 16. S3 (daily / weekly) ───────────────────────────────────────────────
+    function fetchS3(nk, env, logger, topic) {
+        var results = [];
+        var base = (env && env.S3_BASE_URL) ? env.S3_BASE_URL : "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
+        var url = "";
+        if (topic === "daily") {
+            var d = new Date();
+            url = base + "/daily-quiz/dailyquiz-" + d.getFullYear() + "-" + padTwo(d.getMonth() + 1) + "-" + padTwo(d.getDate()) + ".json";
+        }
+        else if (topic === "weekly") {
+            var d2 = new Date();
+            var dow = d2.getDay() || 7;
+            d2.setDate(d2.getDate() + 4 - dow);
+            var yearStart = new Date(d2.getFullYear(), 0, 1);
+            var wk = Math.ceil((((d2.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+            url = base + "/quiz-verse/weekly/" + d2.getFullYear() + "-" + wk + "-1-en.json";
+        }
+        if (!url)
+            return results;
+        try {
+            var data9 = httpGet(nk, url);
+            var qs = Array.isArray(data9) ? data9 : (data9.questions || []);
+            for (var qi2 = 0; qi2 < qs.length; qi2++) {
+                var sq = qs[qi2];
+                try {
+                    if (!sq.question_text || !sq.options)
+                        continue;
+                    var rOpts = [];
+                    for (var soi = 0; soi < sq.options.length; soi++) {
+                        var sopt = sq.options[soi];
+                        var isC = sq.correct_option_ids
+                            ? sq.correct_option_ids.indexOf(sopt.id) !== -1
+                            : !!sopt.is_correct;
+                        rOpts.push({ text: sopt.text || String(sopt), is_correct: isC });
+                    }
+                    results.push({
+                        provider_key: sq.id || djb2(sq.question_text),
+                        topic: topic, lang: sq.lang || "en",
+                        question_text: sq.question_text,
+                        question_type: sq.question_type || "single_select",
+                        raw_options: rOpts,
+                        has_media: !!sq.has_media,
+                        media: sq.media || null,
+                        explanation: sq.explanation || "",
+                        difficulty: sq.difficulty || "medium",
+                        provider: "s3", meta: {}
+                    });
+                }
+                catch (e) {
+                    logger.debug("[QvQCache/s3/" + topic + "] skip q: " + (e && e.message));
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[QvQCache/s3/" + topic + "] " + url + " → " + (e && e.message));
+        }
+        return results;
+    }
+    // ── Provider router ────────────────────────────────────────────────────────
+    function fetchForTopic(nk, env, logger, topic) {
+        switch (topic) {
+            case "opentdb": return fetchOpentdb(nk, logger);
+            case "anime": return fetchJikan(nk, logger);
+            case "pokemon": return fetchPokeapi(nk, logger);
+            case "cocktail": return fetchCocktaildb(nk, logger);
+            case "food": return fetchMealdb(nk, logger);
+            case "dog": return fetchDogceo(nk, logger);
+            case "ghibli": return fetchGhibli(nk, logger);
+            case "disney": return fetchDisney(nk, logger);
+            case "starwars": return fetchSwapi(nk, logger);
+            case "countries": {
+                var all = fetchRestcountries(nk, logger);
+                return all.filter(function (q) { return q.topic === "countries"; });
+            }
+            case "flags": {
+                var all2 = fetchRestcountries(nk, logger);
+                return all2.filter(function (q) { return q.topic === "flags"; });
+            }
+            case "space": return fetchNasa(nk, env, logger);
+            case "movies": return fetchTmdb(nk, env, logger);
+            case "sports": return fetchSportsdb(nk, logger);
+            case "music": return fetchLastfm(nk, env, logger);
+            case "news": return fetchNews(nk, env, logger);
+            case "daily":
+            case "weekly": return fetchS3(nk, env, logger, topic);
+            case "ai": throw new Error("ai topic is generated on-demand — never cached");
+            default: throw new Error("Unknown topic: " + topic);
+        }
+    }
+    // ── Write cache pages ──────────────────────────────────────────────────────
+    function writeCache(nk, logger, topic, questions, provider, qStats, ttlMs) {
+        var now = nowMs();
+        var pages = Math.ceil(questions.length / MAX_PER_DOC);
+        for (var p = 0; p < pages; p++) {
+            var slice = questions.slice(p * MAX_PER_DOC, (p + 1) * MAX_PER_DOC);
+            var langs = {};
+            for (var qi = 0; qi < slice.length; qi++) {
+                var l = slice[qi].lang || "en";
+                langs[l] = (langs[l] || 0) + 1;
+            }
+            nk.storageWrite([{
+                    collection: COL_CACHE + topic,
+                    key: "pool_" + p,
+                    userId: "",
+                    value: {
+                        topic: topic,
+                        page: p,
+                        page_count: pages,
+                        cached_at_ms: now,
+                        expires_at_ms: ttlMs > 0 ? now + ttlMs : 0,
+                        ttl_ms: ttlMs,
+                        provider: provider,
+                        question_count: slice.length,
+                        providers_used: [provider],
+                        lang_breakdown: langs,
+                        quality_gate: qStats,
+                        questions: slice
+                    },
+                    permissionRead: 1,
+                    permissionWrite: 0
+                }]);
+            logger.info("[QvQCache/" + topic + "] wrote pool_" + p + " (" + slice.length + " questions)");
+        }
+    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // CLAUDE ENRICHMENT (Task 1.5)
+    // For questions still missing an explanation after template pass, call
+    // claude-haiku-20240307 for a single factual sentence.  Capped at
+    // CLAUDE_ENRICH_MAX per refresh cycle to control cost.
+    // ══════════════════════════════════════════════════════════════════════════
+    var CLAUDE_ENRICH_MAX = 10;
+    function claudeEnrichBatch(nk, env, logger, questions) {
+        var apiKey = envKey(env, "ANTHROPIC_API_KEY");
+        if (!apiKey)
+            return;
+        var enriched = 0;
+        for (var i = 0; i < questions.length; i++) {
+            if (enriched >= CLAUDE_ENRICH_MAX)
+                break;
+            var q = questions[i];
+            if (q.explanation && q.explanation.trim().length > 8)
+                continue;
+            try {
+                var prompt = "Provide exactly one short educational sentence (25 words or fewer) that explains " +
+                    "the correct answer to this quiz question: \"" + q.question_text + "\"";
+                var body = JSON.stringify({
+                    model: "claude-3-5-haiku-20241022",
+                    max_tokens: 100,
+                    messages: [{ role: "user", content: prompt }]
+                });
+                var cresp = nk.httpRequest("https://api.anthropic.com/v1/messages", "post", {
+                    "Content-Type": "application/json",
+                    "x-api-key": apiKey,
+                    "anthropic-version": "2023-06-01"
+                }, body);
+                if (cresp && cresp.code === 200) {
+                    var cdata = JSON.parse(cresp.body);
+                    if (cdata.content && cdata.content.length > 0 && cdata.content[0].text) {
+                        q.explanation = cdata.content[0].text.trim();
+                        enriched++;
+                    }
+                }
+                else {
+                    logger.warn("[QvQCache/claude] status " + (cresp ? cresp.code : "null") + " for q=" + q.id);
+                }
+            }
+            catch (ce) {
+                logger.warn("[QvQCache/claude] enrich failed q=" + q.id + ": " + (ce && ce.message ? ce.message : String(ce)));
+            }
+        }
+        if (enriched > 0) {
+            logger.info("[QvQCache/claude] enriched " + enriched + " explanations via Claude Haiku");
+        }
+    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // PUBLIC API
+    // ══════════════════════════════════════════════════════════════════════════
+    /**
+     * Full cache refresh pipeline for one topic.
+     * Steps: circuit-check → fetch → validate+decode → shuffle+assign → enrich → store.
+     * Falls back silently (keeps stale cache) on any error; records failure in circuit breaker.
+     */
+    function refreshCache(nk, logger, env, topic) {
+        if (topic === "ai")
+            return { ok: false, topic: topic, count: 0, error: "ai topic is never cached" };
+        var ttlMs = TOPIC_TTL[topic] !== undefined ? TOPIC_TTL[topic] : 24 * 3600000;
+        var provider = topicProvider(topic);
+        if (circuitIsOpen(nk, provider)) {
+            var cbMsg = "circuit open for provider=" + provider + " — skipping refresh";
+            logger.warn("[QvQCache/" + topic + "] " + cbMsg);
+            return { ok: false, topic: topic, count: 0, error: cbMsg };
+        }
+        try {
+            // ── Fetch ─────────────────────────────────────────────────────────────
+            logger.info("[QvQCache/" + topic + "] fetching from " + provider + "…");
+            var rawList = fetchForTopic(nk, env, logger, topic);
+            logger.info("[QvQCache/" + topic + "] fetched " + rawList.length + " raw questions");
+            if (rawList.length === 0)
+                throw new Error("Provider returned 0 questions");
+            // ── Validate + HTML-decode (bridge approach) ──────────────────────────
+            var seenSet = {};
+            var passed = [];
+            var rejected = 0;
+            var topRejectReason = null;
+            for (var qi = 0; qi < rawList.length; qi++) {
+                var vr = validateAndDecodeRaw(rawList[qi], seenSet);
+                if (!vr.valid) {
+                    rejected++;
+                    if (!topRejectReason)
+                        topRejectReason = vr.reject_reason;
+                    continue;
+                }
+                // Gate passed — add to seen set to catch within-batch duplicates
+                seenSet[QvQualityGate.normalizeForDedup(rawList[qi].question_text)] = true;
+                passed.push(rawList[qi]);
+            }
+            logger.info("[QvQCache/" + topic + "] gate: " + passed.length + "/" + rawList.length +
+                " passed (rejected=" + rejected + ", top_reason=" + topRejectReason + ")");
+            if (passed.length === 0)
+                throw new Error("All questions rejected by quality gate. top_reason=" + topRejectReason);
+            // ── Shuffle + A/B/C/D + Template Enrich ──────────────────────────────
+            var normalized = [];
+            for (var ni3 = 0; ni3 < passed.length; ni3++) {
+                var raw = passed[ni3];
+                var meta = raw.meta;
+                var norm = shuffleAndAssign(raw);
+                norm.explanation = enrichExplanation(norm, meta);
+                normalized.push(norm);
+            }
+            // ── Claude 1-sentence enrichment for still-blank explanations ─────────
+            claudeEnrichBatch(nk, env, logger, normalized);
+            // Cap: max 500 questions total (5 pages × 100) — keeps storage sane
+            var capped = normalized.slice(0, MAX_PER_DOC * 5);
+            // ── Write cache ───────────────────────────────────────────────────────
+            var qStats = {
+                total_processed: rawList.length,
+                passed: passed.length,
+                rejected: rejected,
+                top_reject_reason: topRejectReason
+            };
+            writeCache(nk, logger, topic, capped, provider, qStats, ttlMs);
+            recordSuccess(nk, provider);
+            logger.info("[QvQCache/" + topic + "] refresh complete — " + capped.length + " stored, TTL=" + (ttlMs / 3600000).toFixed(1) + "h");
+            return { ok: true, topic: topic, count: capped.length };
+        }
+        catch (err) {
+            var errMsg = err && err.message ? err.message : String(err);
+            // Existing cached data (stale or not) is intentionally NOT overwritten —
+            // Unity clients keep serving from the last good cache until next refresh.
+            logger.error("[QvQCache/" + topic + "] refresh FAILED — keeping stale cache: " + errMsg);
+            recordFailure(nk, provider, errMsg);
+            return { ok: false, topic: topic, count: 0, error: errMsg };
+        }
+    }
+    QvQuestionCache.refreshCache = refreshCache;
+    /**
+     * Read the full validated pool for a topic (all pages merged).
+     * Returns empty array + expired=true on cache miss.
+     * Caller decides whether to trigger refreshCache().
+     */
+    function readCache(nk, logger, topic) {
+        var questions = [];
+        try {
+            var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+            if (!rows || rows.length === 0 || !rows[0].value) {
+                logger.info("[QvQCache/" + topic + "] cache miss");
+                return { questions: [], expired: true, cached_at_ms: 0 };
+            }
+            var page0 = rows[0].value;
+            var pageCount = page0.page_count || 1;
+            var expiresMs = page0.expires_at_ms || 0;
+            var cachedMs = page0.cached_at_ms || 0;
+            var expired = expiresMs > 0 ? expiresMs < nowMs() : true;
+            if (Array.isArray(page0.questions))
+                questions = questions.concat(page0.questions);
+            if (pageCount > 1) {
+                var reqs = [];
+                for (var p = 1; p < pageCount; p++)
+                    reqs.push({ collection: COL_CACHE + topic, key: "pool_" + p, userId: "" });
+                var extra = nk.storageRead(reqs);
+                if (extra) {
+                    for (var ei = 0; ei < extra.length; ei++) {
+                        if (extra[ei] && extra[ei].value && Array.isArray(extra[ei].value.questions)) {
+                            questions = questions.concat(extra[ei].value.questions);
+                        }
+                    }
+                }
+            }
+            logger.info("[QvQCache/" + topic + "] read " + questions.length + " questions, expired=" + expired);
+            return { questions: questions, expired: expired, cached_at_ms: cachedMs };
+        }
+        catch (err) {
+            logger.error("[QvQCache/" + topic + "] readCache error: " + (err && err.message ? err.message : String(err)));
+            return { questions: [], expired: true, cached_at_ms: 0 };
+        }
+    }
+    QvQuestionCache.readCache = readCache;
+    /**
+     * Lightweight freshness check — reads only pool_0 metadata (no questions loaded).
+     * Use before readCache to decide whether to trigger a background refresh.
+     */
+    function isCacheValid(nk, topic) {
+        try {
+            var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+            if (!rows || rows.length === 0 || !rows[0].value)
+                return false;
+            var doc = rows[0].value;
+            return doc.expires_at_ms ? doc.expires_at_ms > nowMs() : false;
+        }
+        catch (_e) {
+            return false;
+        }
+    }
+    QvQuestionCache.isCacheValid = isCacheValid;
+    /**
+     * Refresh ALL cacheable topics one-by-one with a 2 s stagger between each.
+     * The stagger prevents simultaneous bursts against external providers.
+     * Intended for a Nakama scheduled / cron job — NEVER call from a player RPC.
+     * Returns an array of per-topic results (same shape as refreshCache).
+     */
+    function refreshAllTopics(nk, logger, env) {
+        var topics = Object.keys(TOPIC_TTL).filter(function (t) { return t !== "ai"; });
+        var results = [];
+        logger.info("[QvQCache/stagger] starting full refresh — " + topics.length + " topics, 2 s stagger");
+        for (var i = 0; i < topics.length; i++) {
+            if (i > 0)
+                sleep(2000); // 2 s between topics — keeps provider rate limits healthy
+            var r = refreshCache(nk, logger, env, topics[i]);
+            results.push(r);
+            logger.info("[QvQCache/stagger] " + (i + 1) + "/" + topics.length +
+                " — " + topics[i] + " ok=" + r.ok + (r.error ? " err=" + r.error : " count=" + r.count));
+        }
+        var okCount = results.filter(function (r) { return r.ok; }).length;
+        logger.info("[QvQCache/stagger] done — " + okCount + "/" + topics.length + " succeeded");
+        return results;
+    }
+    QvQuestionCache.refreshAllTopics = refreshAllTopics;
+})(QvQuestionCache || (QvQuestionCache = {}));
+// remote_config.ts — server-driven configuration for the QuizVerse question pipeline.
+//
+// RPCS IN THIS FILE
+//   quizverse_get_config   — public, no auth required
+//   quizverse_admin_stats  — admin-only (IVX_SYSTEM_USER_ID gate)
+//
+// WHY ONE FILE
+//   Both RPCs share the same domain (server-owned configuration + health observability)
+//   and the same storage namespace (qv_config, qv_cache_*, qv_circuit_breakers,
+//   qv_stats). Co-locating them here makes the entire remote-config surface area
+//   trivially grep-able by filename and prevents drift between the topic/provider
+//   constant lists used by both handlers.
+//
+// ─── quizverse_get_config ────────────────────────────────────────────────────
+//   Unity calls this once on startup (no auth) to receive the full topic catalogue,
+//   feature flags, language support matrix, and client_min_version. Zero lists are
+//   hardcoded in the APK — everything is server-owned. Adding a topic or toggling a
+//   feature is a one-doc Console write; no client release required.
+//
+//   Storage:  qv_config / "global"  (userId: "", permRead: 2, permWrite: 0)
+//   Fallback: built-in defaults — the RPC never errors on a missing doc.
+//   Merge:    shallow per-field; stored values win, defaults fill the rest.
+//   TTL hint: cache_max_age_seconds tells Unity how long to cache the response.
+//
+// ─── quizverse_admin_stats ───────────────────────────────────────────────────
+//   Admin-only health dashboard for the entire question-delivery pipeline.
+//   Returns five sections — all isolated in try/catch; one broken section never
+//   kills the whole call:
+//     config          — qv_config/global integrity
+//     cache           — per-topic cache pool (question count, age, staleness,
+//                       quality-gate pass rate, lang breakdown, providers used)
+//     circuit_breakers — per-provider circuit state (closed/open/half_open,
+//                        fail count, trip count, reset countdown)
+//     pack_stats      — aggregate pack issuance/submission/expiry (Phase 1b)
+//     summary         — traffic-light status: "healthy" | "degraded" | "critical"
+//
+//   Auth: ctx.userId must equal IVX_SYSTEM_USER_ID env var.
+//   Phase awareness: Phase 1a/1b sections return { phase: "not_yet_deployed" }
+//   on a fresh install — zero errors, clear operator messaging.
+//
+// POSTBUILD NOTE
+//   RPC ids in registerRpc() MUST be string literals. Nakama's postbuild AST
+//   walker only extracts __rpc_<id> stubs from literals, not variable references.
+//   See migration.ts PR #69 / index.ts PR #94/#97/#100 for the incident history.
+var QvRemoteConfig;
+(function (QvRemoteConfig) {
+    // ── Storage keys ──────────────────────────────────────────────────────────
+    var COL_CONFIG = "qv_config";
+    var COL_CACHE_PREFIX = "qv_cache_"; // qv_cache_{topic}
+    var COL_CIRCUIT_BREAKER = "qv_circuit_breakers";
+    var COL_STATS = "qv_stats"; // aggregate rollup (Phase 1b)
+    var KEY_GLOBAL = "global";
+    // S3 base for default topic icon URLs. Overridable per-topic in the stored doc.
+    var S3_ICONS_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/topic-icons/";
+    // ── Domain constants ──────────────────────────────────────────────────────
+    // Shared by both RPCs. MUST stay in sync with question_cache.ts when it ships.
+    var KNOWN_TOPICS = [
+        "anime", "pokemon", "movies", "sports", "countries", "flags",
+        "space", "music", "disney", "ghibli", "starwars", "food",
+        "cocktail", "dog", "news", "opentdb", "ai", "daily", "weekly"
+    ];
+    // Every external API provider the cache layer calls. Sync with question_cache.ts.
+    var KNOWN_PROVIDERS = [
+        "jikan", "pokeapi", "tmdb", "nasa",
+        "lastfm", "deezer", "gnews", "currents",
+        "mediastack", "newsapi", "opentdb", "disney",
+        "ghibli", "swapi", "thesportsdb", "cocktaildb",
+        "themealdb", "foodfacts", "dogceo", "restcountries"
+    ];
+    // Cache is considered "near expiry" when ≤ 10 min remain.
+    // Ops gets a warning window before questions run dry.
+    var STALE_WARNING_MS = 10 * 60 * 1000;
+    // ── Shared helpers ────────────────────────────────────────────────────────
+    function nakamaError(msg, code) {
+        return { message: msg, code: code };
+    }
+    function nowMs() {
+        return Date.now();
+    }
+    function isoOf(ms) {
+        return new Date(ms).toISOString();
+    }
+    function requireAdmin(ctx) {
+        var userId = ctx.userId;
+        if (!userId)
+            throw nakamaError("not authenticated", 16 /* nkruntime.Codes.UNAUTHENTICATED */);
+        var env = ctx.env || {};
+        var systemId = env.IVX_SYSTEM_USER_ID || "";
+        if (!systemId || userId !== systemId)
+            throw nakamaError("admin only", 7 /* nkruntime.Codes.PERMISSION_DENIED */);
+    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 1 — GET CONFIG (public RPC)
+    // ══════════════════════════════════════════════════════════════════════════
+    function buildDefaultTopics() {
+        return [
+            { id: "anime", label: "Anime", icon_url: S3_ICONS_BASE + "anime.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 1, max_count: 20 },
+            { id: "pokemon", label: "Pokémon", icon_url: S3_ICONS_BASE + "pokemon.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 2, max_count: 20 },
+            { id: "movies", label: "Movies", icon_url: S3_ICONS_BASE + "movies.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 3, max_count: 20 },
+            { id: "sports", label: "Sports", icon_url: S3_ICONS_BASE + "sports.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 4, max_count: 20 },
+            { id: "countries", label: "Countries", icon_url: S3_ICONS_BASE + "countries.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 5, max_count: 20 },
+            { id: "flags", label: "Flags", icon_url: S3_ICONS_BASE + "flags.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 6, max_count: 20 },
+            { id: "space", label: "Space", icon_url: S3_ICONS_BASE + "space.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 7, max_count: 10 },
+            { id: "music", label: "Music", icon_url: S3_ICONS_BASE + "music.png", has_media: true, media_type: "audio", enabled: true, is_new: false, badge: null, sort_order: 8, max_count: 15 },
+            { id: "disney", label: "Disney", icon_url: S3_ICONS_BASE + "disney.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 9, max_count: 20 },
+            { id: "ghibli", label: "Studio Ghibli", icon_url: S3_ICONS_BASE + "ghibli.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 10, max_count: 20 },
+            { id: "starwars", label: "Star Wars", icon_url: S3_ICONS_BASE + "starwars.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 11, max_count: 20 },
+            { id: "food", label: "Food", icon_url: S3_ICONS_BASE + "food.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 12, max_count: 20 },
+            { id: "cocktail", label: "Cocktails", icon_url: S3_ICONS_BASE + "cocktail.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 13, max_count: 20 },
+            { id: "dog", label: "Dogs", icon_url: S3_ICONS_BASE + "dog.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 14, max_count: 20 },
+            { id: "news", label: "News", icon_url: S3_ICONS_BASE + "news.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 15, max_count: 10 },
+            { id: "opentdb", label: "General Trivia", icon_url: S3_ICONS_BASE + "general.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 16, max_count: 20 },
+            { id: "ai", label: "AI Quiz", icon_url: S3_ICONS_BASE + "ai.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 17, max_count: 10 },
+            { id: "daily", label: "Daily Quiz", icon_url: S3_ICONS_BASE + "daily.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 18, max_count: 10 },
+            { id: "weekly", label: "Weekly Quiz", icon_url: S3_ICONS_BASE + "weekly.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 19, max_count: 10 }
+        ];
+    }
+    function buildDefaultSupportedLangs() {
+        return {
+            anime: ["en"],
+            pokemon: ["en"],
+            movies: ["en"],
+            sports: ["en"],
+            countries: ["en"],
+            flags: ["en"],
+            space: ["en"],
+            music: ["en"],
+            disney: ["en"],
+            ghibli: ["en"],
+            starwars: ["en"],
+            food: ["en"],
+            cocktail: ["en"],
+            dog: ["en"],
+            news: ["en", "es", "fr", "de", "pt", "it"],
+            opentdb: ["en"],
+            ai: ["en", "hi", "es", "fr", "de", "ja", "ko", "pt", "ar", "ru", "id"],
+            daily: ["en"],
+            weekly: ["en"]
+        };
+    }
+    function buildDefaultConfig() {
+        return {
+            schema_version: 1,
+            topics: buildDefaultTopics(),
+            max_count: 20,
+            features: {
+                review_and_learn: true,
+                daily_quiz: true,
+                weekly_quiz: true,
+                personalized_mode: false,
+                ai_topic: true,
+                music_topic: true
+            },
+            supported_langs: buildDefaultSupportedLangs(),
+            client_min_version: "1.0.0",
+            cache_max_age_seconds: 300,
+            last_updated_at: ""
+        };
+    }
+    // Shallow-merges stored doc fields over defaults.
+    // Stored value wins per top-level key; untouched keys come from defaults.
+    // Partial admin edits (e.g. only updating topics[]) cannot break other fields.
+    function mergeConfig(defaults, stored) {
+        if (!stored || typeof stored !== "object")
+            return defaults;
+        var merged = {};
+        var scalars = ["schema_version", "max_count", "client_min_version", "cache_max_age_seconds", "last_updated_at"];
+        for (var i = 0; i < scalars.length; i++) {
+            var f = scalars[i];
+            merged[f] = (stored[f] !== undefined && stored[f] !== null) ? stored[f] : defaults[f];
+        }
+        // topics[] — stored replaces the whole array (no per-topic merge to keep it simple).
+        merged.topics = (stored.topics && stored.topics.length > 0) ? stored.topics : defaults.topics;
+        // features — per-key merge; stored wins per flag, new defaults fill gaps.
+        merged.features = {};
+        var df = defaults.features || {};
+        var sf = stored.features || {};
+        for (var fk in df) {
+            if (df.hasOwnProperty(fk))
+                merged.features[fk] = (sf[fk] !== undefined) ? sf[fk] : df[fk];
+        }
+        for (var sfk in sf) {
+            if (sf.hasOwnProperty(sfk) && merged.features[sfk] === undefined)
+                merged.features[sfk] = sf[sfk];
+        }
+        // supported_langs — same per-key strategy as features.
+        merged.supported_langs = {};
+        var dl = defaults.supported_langs || {};
+        var sl = stored.supported_langs || {};
+        for (var lk in dl) {
+            if (dl.hasOwnProperty(lk))
+                merged.supported_langs[lk] = (sl[lk] !== undefined) ? sl[lk] : dl[lk];
+        }
+        for (var slk in sl) {
+            if (sl.hasOwnProperty(slk) && merged.supported_langs[slk] === undefined)
+                merged.supported_langs[slk] = sl[slk];
+        }
+        return merged;
+    }
+    // ── Client response builder ────────────────────────────────────────────────
+    //
+    // Converts the internal merged config (which uses server-side field names) into
+    // the flat shape that Unity's QuizConfigResponse model expects:
+    //   topics[]:       slug, label, icon, enabled, description, is_new
+    //   features:       review_and_learn, image_questions, ai_explanations,
+    //                   adaptive_difficulty, daily_quiz, weekly_quiz, personalized_mode
+    //   supported_langs: sorted unique lang codes across all topics (flat string[])
+    //   client_min_version, cache_max_age_seconds
+    function buildClientResponse(merged) {
+        // topics: map internal shape (id / icon_url) → Unity shape (slug / icon)
+        var rawTopics = Array.isArray(merged.topics) ? merged.topics : [];
+        var clientTopics = [];
+        for (var ti = 0; ti < rawTopics.length; ti++) {
+            var t = rawTopics[ti];
+            if (!t)
+                continue;
+            clientTopics.push({
+                slug: t.id || t.slug || "",
+                label: t.label || t.id || "",
+                icon: t.icon_url || t.icon || "",
+                enabled: t.enabled !== false,
+                description: t.description || "",
+                is_new: t.is_new === true
+            });
+        }
+        // supported_langs: flatten map → sorted unique lang codes
+        var langSet = {};
+        var slMap = merged.supported_langs || {};
+        for (var lk in slMap) {
+            if (!slMap.hasOwnProperty(lk))
+                continue;
+            var arr = slMap[lk];
+            if (!Array.isArray(arr))
+                continue;
+            for (var li = 0; li < arr.length; li++)
+                if (arr[li])
+                    langSet[arr[li]] = true;
+        }
+        var supportedLangs = Object.keys(langSet).sort();
+        if (supportedLangs.length === 0)
+            supportedLangs = ["en"];
+        // features: server-side flag names → Unity ConfigFeatures field names
+        var sf = merged.features || {};
+        var clientFeatures = {
+            review_and_learn: sf.review_and_learn !== false,
+            image_questions: sf.image_questions === true, // off by default
+            ai_explanations: sf.ai_explanations === true, // off by default
+            adaptive_difficulty: sf.personalized_mode !== false,
+            daily_quiz: sf.daily_quiz !== false,
+            weekly_quiz: sf.weekly_quiz !== false,
+            personalized_mode: sf.personalized_mode !== false,
+            ai_topic: sf.ai_topic !== false
+        };
+        return {
+            ok: true,
+            topics: clientTopics,
+            features: clientFeatures,
+            supported_langs: supportedLangs,
+            client_min_version: merged.client_min_version || "1.0.0",
+            cache_max_age_seconds: merged.cache_max_age_seconds || 300
+        };
+    }
+    function rpcGetConfig(_ctx, logger, nk, _payload) {
+        var defaults = buildDefaultConfig();
+        var stored = null;
+        try {
+            var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "" }]);
+            if (rows && rows.length > 0 && rows[0].value) {
+                stored = rows[0].value;
+            }
+            else {
+                logger.warn("[QvRemoteConfig/get_config] qv_config/global not found — using built-in defaults. " +
+                    "Create the doc in Nakama Console to customise the topic list.");
+            }
+        }
+        catch (err) {
+            logger.error("[QvRemoteConfig/get_config] storage read error: " +
+                (err && err.message ? err.message : String(err)) + " — falling back to built-in defaults.");
+        }
+        return JSON.stringify(buildClientResponse(mergeConfig(defaults, stored)));
+    }
+    // ══════════════════════════════════════════════════════════════════════════
+    // SECTION 2 — ADMIN STATS (admin-only RPC)
+    // ══════════════════════════════════════════════════════════════════════════
+    // Section readers are all isolated — one storage failure never kills the call.
+    function readConfigHealth(nk, logger) {
+        try {
+            var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "" }]);
+            if (!rows || rows.length === 0 || !rows[0].value) {
+                return {
+                    present: false,
+                    source: "built_in_defaults",
+                    note: "qv_config/global not found — server is using built-in defaults. " +
+                        "Create the doc in Nakama Console to customise the topic list."
+                };
+            }
+            var v = rows[0].value;
+            var topics = v.topics || [];
+            var enabledCount = 0;
+            var mediaCount = 0;
+            for (var i = 0; i < topics.length; i++) {
+                if (topics[i].enabled !== false)
+                    enabledCount++;
+                if (topics[i].has_media)
+                    mediaCount++;
+            }
+            return {
+                present: true,
+                schema_version: v.schema_version || 0,
+                topic_count: topics.length,
+                enabled_topics: enabledCount,
+                media_topics: mediaCount,
+                features: v.features || {},
+                client_min_version: v.client_min_version || "",
+                last_updated_at: v.last_updated_at || "",
+                storage_version: rows[0].version || "",
+                storage_updated_ms: rows[0].updateTime ? rows[0].updateTime * 1000 : 0,
+                storage_updated_at: rows[0].updateTime ? isoOf(rows[0].updateTime * 1000) : ""
+            };
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.error("[QvRemoteConfig/admin_stats/config] " + msg);
+            return { present: false, _error: msg };
+        }
+    }
+    function readCacheHealth(nk, logger, now) {
+        var topics = {};
+        var phase = "not_yet_deployed";
+        var anyFound = false;
+        var totalQuestions = 0;
+        var healthyCount = 0;
+        var staleCount = 0;
+        var missingCount = 0;
+        var probe = [];
+        for (var i = 0; i < KNOWN_TOPICS.length; i++) {
+            probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: "" });
+        }
+        try {
+            var rows = nk.storageRead(probe);
+            var byCol = {};
+            if (rows) {
+                for (var ri = 0; ri < rows.length; ri++) {
+                    var r = rows[ri];
+                    if (r && r.value)
+                        byCol[r.collection] = r;
+                }
+            }
+            for (var ti = 0; ti < KNOWN_TOPICS.length; ti++) {
+                var topic = KNOWN_TOPICS[ti];
+                var row = byCol[COL_CACHE_PREFIX + topic];
+                if (!row || !row.value) {
+                    topics[topic] = { present: false };
+                    missingCount++;
+                    continue;
+                }
+                anyFound = true;
+                var v = row.value;
+                var expiresMs = v.expires_at_ms || 0;
+                var cachedMs = v.cached_at_ms || (row.updateTime ? row.updateTime * 1000 : 0);
+                var ageMs = cachedMs > 0 ? now - cachedMs : -1;
+                var isExpired = expiresMs > 0 && expiresMs < now;
+                var isNearExpiry = !isExpired && expiresMs > 0 && (expiresMs - now) < STALE_WARNING_MS;
+                var isStale = isExpired || isNearExpiry;
+                var qCount = v.question_count || (v.questions ? v.questions.length : 0);
+                totalQuestions += qCount;
+                var qg = v.quality_gate || {};
+                var passRate = (qg.total_processed && qg.total_processed > 0)
+                    ? Math.round((qg.passed / qg.total_processed) * 1000) / 10
+                    : null;
+                topics[topic] = {
+                    present: true,
+                    question_count: qCount,
+                    page_count: v.page_count || 1,
+                    cached_at_ms: cachedMs,
+                    cached_at: cachedMs > 0 ? isoOf(cachedMs) : "",
+                    expires_at_ms: expiresMs,
+                    expires_at: expiresMs > 0 ? isoOf(expiresMs) : "",
+                    age_seconds: ageMs > 0 ? Math.floor(ageMs / 1000) : -1,
+                    stale: isStale,
+                    stale_reason: isExpired ? "expired" : isNearExpiry ? "near_expiry" : null,
+                    providers_used: v.providers_used || [],
+                    lang_breakdown: v.lang_breakdown || {},
+                    quality_gate: {
+                        total_processed: qg.total_processed || 0,
+                        passed: qg.passed || 0,
+                        rejected: qg.rejected || 0,
+                        pass_rate_pct: passRate,
+                        top_reject_reason: qg.top_reject_reason || null
+                    }
+                };
+                if (isStale)
+                    staleCount++;
+                else
+                    healthyCount++;
+            }
+            phase = anyFound ? "deployed" : "not_yet_deployed";
+        }
+        catch (err) {
+            logger.warn("[QvRemoteConfig/admin_stats/cache] " + (err && err.message ? err.message : String(err)));
+            phase = "read_error";
+        }
+        return {
+            topics: topics,
+            phase: phase,
+            summary: {
+                total_topics: KNOWN_TOPICS.length,
+                healthy: healthyCount,
+                stale: staleCount,
+                missing: missingCount,
+                total_questions: totalQuestions
+            }
+        };
+    }
+    function readCircuitBreakers(nk, logger, now) {
+        var providers = {};
+        var phase = "not_yet_deployed";
+        var openCount = 0;
+        var halfOpenCount = 0;
+        var closedCount = 0;
+        var noDataCount = 0;
+        var anyFound = false;
+        var probe = [];
+        for (var i = 0; i < KNOWN_PROVIDERS.length; i++) {
+            probe.push({ collection: COL_CIRCUIT_BREAKER, key: KNOWN_PROVIDERS[i], userId: "" });
+        }
+        try {
+            var rows = nk.storageRead(probe);
+            var byKey = {};
+            if (rows) {
+                for (var ri = 0; ri < rows.length; ri++) {
+                    var r = rows[ri];
+                    if (r && r.value)
+                        byKey[r.key] = r.value;
+                }
+            }
+            for (var pi = 0; pi < KNOWN_PROVIDERS.length; pi++) {
+                var provider = KNOWN_PROVIDERS[pi];
+                var v = byKey[provider];
+                if (!v) {
+                    providers[provider] = { state: "no_data", phase: "not_yet_deployed" };
+                    noDataCount++;
+                    continue;
+                }
+                anyFound = true;
+                var state = v.state || "unknown";
+                var openUntilMs = v.open_until_ms || 0;
+                // Reconcile stale "open" doc: if open_until has already passed, the
+                // circuit is effectively half_open (probe on next cache refresh).
+                if (state === "open" && openUntilMs > 0 && openUntilMs <= now)
+                    state = "half_open";
+                if (state === "open")
+                    openCount++;
+                else if (state === "half_open")
+                    halfOpenCount++;
+                else if (state === "closed")
+                    closedCount++;
+                providers[provider] = {
+                    state: state,
+                    fail_count: v.fail_count || 0,
+                    success_count: v.success_count || 0,
+                    trip_count: v.trip_count || 0,
+                    open_until_ms: openUntilMs,
+                    open_until: openUntilMs > 0 ? isoOf(openUntilMs) : null,
+                    resets_in_seconds: (state === "open" && openUntilMs > now)
+                        ? Math.ceil((openUntilMs - now) / 1000) : null,
+                    last_failed_at: v.last_failed_at_ms ? isoOf(v.last_failed_at_ms) : null,
+                    last_opened_at: v.last_opened_at_ms ? isoOf(v.last_opened_at_ms) : null,
+                    last_succeeded_at: v.last_succeeded_at_ms ? isoOf(v.last_succeeded_at_ms) : null
+                };
+            }
+            phase = anyFound ? "deployed" : "not_yet_deployed";
+        }
+        catch (err) {
+            logger.warn("[QvRemoteConfig/admin_stats/circuits] " + (err && err.message ? err.message : String(err)));
+            phase = "read_error";
+        }
+        return {
+            providers: providers,
+            phase: phase,
+            summary: {
+                total_providers: KNOWN_PROVIDERS.length,
+                closed: closedCount,
+                open: openCount,
+                half_open: halfOpenCount,
+                no_data: noDataCount
+            }
+        };
+    }
+    function readPackStats(nk, logger) {
+        try {
+            var rows = nk.storageRead([{ collection: COL_STATS, key: KEY_GLOBAL, userId: "" }]);
+            if (!rows || rows.length === 0 || !rows[0].value) {
+                return {
+                    phase: "not_yet_deployed",
+                    note: "qv_stats/global not yet written. Deploy submit_result.ts (Phase 1b) to populate."
+                };
+            }
+            var v = rows[0].value;
+            return {
+                phase: "deployed",
+                total_packs_issued: v.total_packs_issued || 0,
+                total_packs_submitted: v.total_packs_submitted || 0,
+                total_packs_expired: v.total_packs_expired || 0,
+                active_packs: v.active_packs || 0,
+                daily_issued: v.daily_issued || 0,
+                daily_submitted: v.daily_submitted || 0,
+                last_updated_ms: v.last_updated_ms || 0,
+                last_updated_at: v.last_updated_ms ? isoOf(v.last_updated_ms) : "",
+                inflight: v.inflight ? {
+                    total_active: v.inflight.total_active || 0,
+                    avg_per_active_user: v.inflight.avg_per_active_user || 0,
+                    max_per_user_limit: v.inflight.max_per_user_limit || 3
+                } : { phase: "not_yet_deployed" }
+            };
+        }
+        catch (err) {
+            var msg = err && err.message ? err.message : String(err);
+            logger.warn("[QvRemoteConfig/admin_stats/packs] " + msg);
+            return { phase: "read_error", _error: msg };
+        }
+    }
+    // Traffic-light status — only escalates, never downgrades.
+    function buildSummary(configOk, cache, circuits, packPhase) {
+        var status = "healthy";
+        // Config missing → degraded (defaults work but no admin customisation).
+        if (!configOk)
+            status = "degraded";
+        // Cache — read_error also counts as degraded (can't confirm health).
+        if (cache.phase === "read_error") {
+            if (status !== "critical")
+                status = "degraded";
+        }
+        else if (cache.phase === "deployed") {
+            var cs = cache.summary || {};
+            var total = (cs.total_topics && cs.total_topics > 0) ? cs.total_topics : 1;
+            var bad = ((cs.stale || 0) + (cs.missing || 0)) / total;
+            if (bad > 0.5)
+                status = "critical";
+            else if (bad > 0.2 && status !== "critical")
+                status = "degraded";
+        }
+        // Circuits — read_error = degraded; open circuit = critical.
+        if (circuits.phase === "read_error") {
+            if (status !== "critical")
+                status = "degraded";
+        }
+        else if (circuits.phase === "deployed") {
+            var cbs = circuits.summary || {};
+            if ((cbs.open || 0) > 0)
+                status = "critical";
+            else if ((cbs.half_open || 0) > 0 && status !== "critical")
+                status = "degraded";
+        }
+        var cs2 = cache.summary || {};
+        var cbs2 = circuits.summary || {};
+        return {
+            overall_status: status,
+            config_present: configOk,
+            cache_phase: cache.phase,
+            circuit_phase: circuits.phase,
+            pack_phase: packPhase,
+            total_cached_questions: cs2.total_questions || 0,
+            healthy_topics: cs2.healthy || 0,
+            stale_topics: cs2.stale || 0,
+            missing_topics: cs2.missing || 0,
+            open_circuits: cbs2.open || 0,
+            half_open_circuits: cbs2.half_open || 0
+        };
+    }
+    function rpcAdminStats(ctx, logger, nk, _payload) {
+        requireAdmin(ctx);
+        var now = nowMs();
+        var configHealth = readConfigHealth(nk, logger);
+        var cacheHealth = readCacheHealth(nk, logger, now);
+        var circuitHealth = readCircuitBreakers(nk, logger, now);
+        var packStats = readPackStats(nk, logger);
+        var summary = buildSummary(!!(configHealth.present), cacheHealth, circuitHealth, packStats.phase || "unknown");
+        return JSON.stringify({
+            ok: true,
+            stats: {
+                generated_at_ms: now,
+                generated_at: isoOf(now),
+                summary: summary,
+                config: configHealth,
+                cache: cacheHealth,
+                circuit_breakers: circuitHealth,
+                pack_stats: packStats
+            }
+        });
+    }
+    // ── Registration ──────────────────────────────────────────────────────────
+    // Single-arg register() so postbuild.js autoInvokeRegister replays it on
+    // every pooled Goja VM (not just the InitModule VM). RPC id strings MUST be
+    // literals here — the AST walker cannot resolve namespaced variable references.
+    function register(initializer) {
+        initializer.registerRpc("quizverse_get_config", rpcGetConfig);
+        initializer.registerRpc("quizverse_admin_stats", rpcAdminStats);
+    }
+    QvRemoteConfig.register = register;
+    // IIFE NOOP — populates __rpc_quizverse_get_config and
+    // __rpc_quizverse_admin_stats on every VM at module-load time so pooled
+    // VMs (which never run InitModule) can resolve the handlers.
+    var _NOOP = { registerRpc: function () { } };
+    register(_NOOP);
+})(QvRemoteConfig || (QvRemoteConfig = {}));
+// QuizVerse — Spaced Repetition Queue (SRQ)
+//
+// Schedules questions for review using a simplified SM-2 algorithm:
+//   Wrong answers → review in 3 days
+//   Correct answers → review in 7 days (mastery reinforcement)
+//   Re-correct during review → remove from queue (mastered)
+//
+// Storage:
+//   collection = "qv_srq"
+//   key        = topic slug  (one doc per user × topic)
+//   owner      = userId
+//   value      = { entries: { [question_id]: SRQEntry } }
+//
+// Used by:
+//   submit_result.ts — schedule() called after every graded session
+//   get_questions.ts — getDueInPool() injects due questions at top
+var QvSRQ;
+(function (QvSRQ) {
+    var COLLECTION = "qv_srq";
+    // Interval constants (milliseconds)
+    var WRONG_INTERVAL_MS = 3 * 24 * 3600 * 1000; // 3 days for wrong answers
+    var CORRECT_INTERVAL_MS = 7 * 24 * 3600 * 1000; // 7 days for correct (reinforcement)
+    var MAX_ENTRIES = 200; // cap per topic to keep storage lean
+    // ── Low-level helpers ────────────────────────────────────────────────────────
+    function nowMs() { return Date.now(); }
+    function readQueue(nk, userId, topic) {
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION, key: topic, userId: userId }]);
+            if (rows && rows.length > 0 && rows[0].value && rows[0].value.entries) {
+                return { entries: rows[0].value.entries, version: rows[0].version || "" };
+            }
+        }
+        catch (_e) { }
+        return { entries: {}, version: "" };
+    }
+    function writeQueue(nk, userId, topic, entries, version) {
+        // Prune to MAX_ENTRIES keeping the soonest due entries
+        var ids = Object.keys(entries);
+        if (ids.length > MAX_ENTRIES) {
+            ids.sort(function (a, b) { return (entries[a].due_at_ms || 0) - (entries[b].due_at_ms || 0); });
+            for (var pi = MAX_ENTRIES; pi < ids.length; pi++)
+                delete entries[ids[pi]];
+        }
+        var writeObj = {
+            collection: COLLECTION,
+            key: topic,
+            userId: userId,
+            value: { entries: entries },
+            permissionRead: 1,
+            permissionWrite: 0
+        };
+        if (version)
+            writeObj.version = version;
+        nk.storageWrite([writeObj]);
+    }
+    // ── Public API ───────────────────────────────────────────────────────────────
+    /**
+     * Schedule questions for spaced review after a quiz session.
+     * - wrongIds  → due in WRONG_INTERVAL_MS (3 days)
+     * - correctIds → due in CORRECT_INTERVAL_MS (7 days) for reinforcement
+     *   If an ID was previously in the queue and is now correct, its interval
+     *   doubles (capped at 21 days) to back off scheduling.
+     */
+    function schedule(nk, userId, topic, wrongIds, correctIds) {
+        if (wrongIds.length === 0 && correctIds.length === 0)
+            return;
+        var doc = readQueue(nk, userId, topic);
+        var entries = doc.entries;
+        var now = nowMs();
+        for (var wi = 0; wi < wrongIds.length; wi++) {
+            var qid = wrongIds[wi];
+            if (!qid)
+                continue;
+            var existing = entries[qid] || {};
+            entries[qid] = {
+                due_at_ms: now + WRONG_INTERVAL_MS,
+                review_count: (existing.review_count || 0) + 1,
+                last_wrong: true
+            };
+        }
+        for (var ci = 0; ci < correctIds.length; ci++) {
+            var cqid = correctIds[ci];
+            if (!cqid)
+                continue;
+            var cexist = entries[cqid];
+            if (cexist && cexist.last_wrong) {
+                // Previously wrong, now correct → back off: double interval (max 21d)
+                var newInterval = Math.min(CORRECT_INTERVAL_MS * 2, 21 * 24 * 3600 * 1000);
+                entries[cqid] = {
+                    due_at_ms: now + newInterval,
+                    review_count: (cexist.review_count || 0) + 1,
+                    last_wrong: false
+                };
+            }
+            // Correct on first attempt → no scheduling (optional: 7-day reinforcement)
+            // Uncomment to enable mastery-reinforcement for first-time correct:
+            // else {
+            //   entries[cqid] = {
+            //     due_at_ms: now + CORRECT_INTERVAL_MS,
+            //     review_count: (cexist ? (cexist.review_count || 0) + 1 : 1),
+            //     last_wrong: false
+            //   };
+            // }
+        }
+        try {
+            writeQueue(nk, userId, topic, entries, doc.version);
+        }
+        catch (_e) { }
+    }
+    QvSRQ.schedule = schedule;
+    /**
+     * Return questions from `pool` whose IDs are due for SRQ review now.
+     * Results are sorted by due_at_ms ascending (most overdue first).
+     * This list is prepended to the delivered pack so the player reviews
+     * weak questions before seeing fresh ones.
+     */
+    function getDueInPool(nk, userId, topic, pool) {
+        if (!pool || pool.length === 0)
+            return [];
+        try {
+            var doc = readQueue(nk, userId, topic);
+            var entries = doc.entries;
+            var now = nowMs();
+            // Build a set of due question IDs
+            var dueIds = {};
+            for (var key in entries) {
+                if (!entries.hasOwnProperty(key))
+                    continue;
+                var entry = entries[key];
+                if (entry.due_at_ms <= now) {
+                    dueIds[key] = entry.due_at_ms;
+                }
+            }
+            if (Object.keys(dueIds).length === 0)
+                return [];
+            // Filter pool to due questions and sort most-overdue first
+            var due = [];
+            for (var pi = 0; pi < pool.length; pi++) {
+                if (dueIds[pool[pi].id] !== undefined) {
+                    due.push({ q: pool[pi], due_at_ms: dueIds[pool[pi].id] });
+                }
+            }
+            due.sort(function (a, b) { return a.due_at_ms - b.due_at_ms; });
+            var result = [];
+            for (var ri = 0; ri < due.length; ri++)
+                result.push(due[ri].q);
+            return result;
+        }
+        catch (_e) {
+            return [];
+        }
+    }
+    QvSRQ.getDueInPool = getDueInPool;
+    /**
+     * Remove reviewed question IDs from the SRQ (they are now mastered or
+     * explicitly dismissed).  Call after a successful review session.
+     */
+    function markReviewed(nk, userId, topic, questionIds) {
+        if (!questionIds || questionIds.length === 0)
+            return;
+        try {
+            var doc = readQueue(nk, userId, topic);
+            var entries = doc.entries;
+            var changed = false;
+            for (var i = 0; i < questionIds.length; i++) {
+                if (entries[questionIds[i]]) {
+                    delete entries[questionIds[i]];
+                    changed = true;
+                }
+            }
+            if (changed)
+                writeQueue(nk, userId, topic, entries, doc.version);
+        }
+        catch (_e) { }
+    }
+    QvSRQ.markReviewed = markReviewed;
+    /**
+     * Count the total number of SRQ entries due right now across ALL topics
+     * for this user.  Used to populate the `personalization.srq_due_count`
+     * field in submit_result responses.  Reads at most 20 topic queues.
+     */
+    function countDue(nk, userId) {
+        try {
+            var now = nowMs();
+            var result = nk.storageList(userId, COLLECTION, 20, "");
+            if (!result || !Array.isArray(result.objects))
+                return 0;
+            var count = 0;
+            for (var oi = 0; oi < result.objects.length; oi++) {
+                var obj = result.objects[oi];
+                if (!obj || !obj.value || !obj.value.entries)
+                    continue;
+                var entries = obj.value.entries;
+                for (var key in entries) {
+                    if (entries.hasOwnProperty(key) && entries[key].due_at_ms <= now)
+                        count++;
+                }
+            }
+            return count;
+        }
+        catch (_e) {
+            return 0;
+        }
+    }
+    QvSRQ.countDue = countDue;
+})(QvSRQ || (QvSRQ = {}));
+// QuizVerse — quizverse_submit_result RPC  (Phase 2)
+//
+// Server-authority grading layer.  The client sends back the answers it
+// collected; this RPC does everything on the server side:
+//
+//   1. Load pack from qv_question_packs (task 2.1)
+//   2. Duplicate-submit guard                (task 2.1)
+//   3. Grade each answer against correct_option_ids (task 2.1)
+//   4. Write graded_answers[] + submitted:true back into pack doc (task 2.2)
+//   5. Delete qv_inflight entry (task 2.3)
+//   6. Compute score + time bonus (task 2.4)
+//   7. Update wallet (coins + XP) (task 2.4)
+//   8. Submit to leaderboard (task 2.4)
+//   9. Write per-topic KB performance doc (task 2.5)
+//  10. Fire legacy analytics via __rpc_quiz_submit_result (task 2.5)
+//  11. OCC-safe merge into qv_seen ledger (task 2.6)
+//
+// Request:
+//   { pack_id, answers: [{ question_id, selected_option_id, time_ms? }], duration_ms? }
+//
+// Response:
+//   { ok, pack_id, topic, correct, total, score, time_bonus, coins_earned, xp_earned,
+//     graded_answers[], accuracy_pct }
+var QvSubmitResult;
+(function (QvSubmitResult) {
+    // ── Storage ────────────────────────────────────────────────────────────────
+    var COL_PACKS = "qv_question_packs";
+    var COL_INFLT = "qv_inflight";
+    var COL_SEEN = "qv_seen"; // key = "global_{topic}" (quizverse_seen.js compat)
+    var COL_KB = "qv_kb"; // key = topic, user-owned — per-topic performance
+    // ── Reward constants ───────────────────────────────────────────────────────
+    var POINTS_PER_CORRECT = 100; // base score per correct answer
+    var TIME_BONUS_MAX = 50; // bonus per correct answer if answered in < 1 s
+    var TIME_BONUS_STEP = 5; // lose N bonus pts for each additional second
+    var COINS_PER_CORRECT = 10; // coins per correct answer
+    var XP_PER_CORRECT = 5; // XP per correct answer
+    var PERFECT_BONUS_COINS = 50; // extra coins on 100% accuracy
+    var PERFECT_BONUS_XP = 25; // extra XP on 100% accuracy
+    // ── Leaderboard ────────────────────────────────────────────────────────────
+    var LB_GLOBAL = "quizverse_global"; // all-time global — NO reset (persistent rankings)
+    var LB_RESET_ALLTIME = ""; // never resets
+    var LB_RESET_DAILY = "0 0 * * *"; // midnight UTC daily (topic/game boards)
+    // ── OCC retries ───────────────────────────────────────────────────────────
+    var OCC_MAX_RETRIES = 3;
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function nakamaError(msg, code) {
+        return { message: msg, code: code };
+    }
+    function parseJson(payload) {
+        try {
+            return JSON.parse(payload || "{}");
+        }
+        catch (_e) {
+            throw nakamaError("invalid JSON payload", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+    }
+    function nowMs() { return Date.now(); }
+    function nowIso() {
+        return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+    function slugify(s) {
+        return s.trim().toLowerCase()
+            .replace(/[^a-z0-9]+/g, "_")
+            .replace(/^_|_$/g, "")
+            .substring(0, 64);
+    }
+    // quizverse_seen.js-compatible key: "global_{topic}"
+    function seenKey(topic) {
+        return slugify("global") + "_" + slugify(topic);
+    }
+    // ── Task 2.1 — grading ────────────────────────────────────────────────────
+    /**
+     * Grade one client answer against the server-side question.
+     * `selected_option_id` should be an A/B/C/D letter.
+     * `correct_option_ids` is an array (supports multi-select questions too).
+     */
+    function gradeAnswer(question, selectedOptionId) {
+        var correct = Array.isArray(question.correct_option_ids)
+            ? question.correct_option_ids : [];
+        for (var i = 0; i < correct.length; i++) {
+            if (correct[i] === selectedOptionId)
+                return true;
+        }
+        return false;
+    }
+    // ── Task 2.4 — scoring ────────────────────────────────────────────────────
+    /**
+     * Compute base score + per-question time bonus.
+     * Time bonus: TIME_BONUS_MAX − (floor(time_ms / 1000) − 1) × TIME_BONUS_STEP
+     * Capped at [0, TIME_BONUS_MAX].  Only applied to correct answers.
+     */
+    function computeScore(gradedAnswers) {
+        var base = 0;
+        var timeBonus = 0;
+        for (var i = 0; i < gradedAnswers.length; i++) {
+            var ga = gradedAnswers[i];
+            if (!ga.is_correct)
+                continue;
+            base += POINTS_PER_CORRECT;
+            var secs = ga.time_ms > 0 ? Math.floor(ga.time_ms / 1000) : 0;
+            var bonus = TIME_BONUS_MAX - Math.max(0, (secs - 1) * TIME_BONUS_STEP);
+            timeBonus += Math.max(0, bonus);
+        }
+        return { base: base, timeBonus: timeBonus, total: base + timeBonus };
+    }
+    // ── Task 2.6 — OCC-safe seen merge ───────────────────────────────────────
+    //
+    // Implements the same merge algorithm as quizverse_seen.js (qvsSeenMerge)
+    // using the same storage collection/key so both codepaths interoperate.
+    // Retries up to OCC_MAX_RETRIES on version conflict before giving up.
+    function mergeSeenOcc(nk, logger, userId, topic, questionIds) {
+        if (!questionIds || questionIds.length === 0)
+            return;
+        var key = seenKey(topic);
+        for (var attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+            try {
+                var rows = nk.storageRead([{ collection: COL_SEEN, key: key, userId: userId }]);
+                var rec = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : null;
+                var ver = (rows && rows.length > 0 && rows[0].version) ? rows[0].version : "";
+                var data = rec ? rec : { ids: {}, version: 2 };
+                if (!data.ids)
+                    data.ids = {};
+                var iso = nowIso();
+                for (var i = 0; i < questionIds.length; i++) {
+                    var qid = questionIds[i];
+                    if (qid && typeof qid === "string")
+                        data.ids[qid] = iso;
+                }
+                // Cap ledger size at 10 000 — trim oldest entries
+                var keys = Object.keys(data.ids);
+                if (keys.length > 10000) {
+                    keys.sort(function (a, b) {
+                        var ta = Date.parse(data.ids[a]) || 0;
+                        var tb = Date.parse(data.ids[b]) || 0;
+                        return ta - tb;
+                    });
+                    for (var ri = 0; ri < keys.length - 10000; ri++)
+                        delete data.ids[keys[ri]];
+                }
+                data.version = 2;
+                var writeObj = {
+                    collection: COL_SEEN, key: key, userId: userId,
+                    value: data,
+                    permissionRead: 1, permissionWrite: 0
+                };
+                if (ver)
+                    writeObj.version = ver; // OCC guard (omit on first write)
+                nk.storageWrite([writeObj]);
+                return; // success
+            }
+            catch (e) {
+                if (attempt === OCC_MAX_RETRIES - 1) {
+                    logger.warn("[QvSubmit] seen merge OCC exhausted for topic=" + topic + ": " + (e && e.message));
+                    return; // non-fatal — player can still see repeated questions, not a crash
+                }
+                // Version conflict → re-read and retry
+            }
+        }
+    }
+    // ── Task 2.5 — KB (knowledge base) update ────────────────────────────────
+    //
+    // Per-user, per-topic performance document stored in qv_kb/{topic}.
+    // Tracks cumulative correct/total, accuracy, streak, and last score.
+    // OCC-safe with OCC_MAX_RETRIES retries.
+    function updateKbOcc(nk, logger, userId, topic, correct, total, score) {
+        for (var attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+            try {
+                var rows = nk.storageRead([{ collection: COL_KB, key: topic, userId: userId }]);
+                var rec = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : null;
+                var ver = (rows && rows.length > 0 && rows[0].version) ? rows[0].version : "";
+                var data = rec ? rec : {
+                    topic: topic, total_attempts: 0, total_correct: 0,
+                    accuracy_pct: 0, streak_correct: 0, last_score: 0, last_played_ms: 0
+                };
+                data.total_attempts += total;
+                data.total_correct += correct;
+                data.accuracy_pct = data.total_attempts > 0
+                    ? Math.round((data.total_correct * 1000) / data.total_attempts) / 10
+                    : 0;
+                data.streak_correct = (correct === total) ? (data.streak_correct + 1) : 0;
+                data.last_score = score;
+                data.last_played_ms = nowMs();
+                var writeObj = {
+                    collection: COL_KB, key: topic, userId: userId,
+                    value: data,
+                    permissionRead: 1, permissionWrite: 0
+                };
+                if (ver)
+                    writeObj.version = ver;
+                nk.storageWrite([writeObj]);
+                return;
+            }
+            catch (e) {
+                if (attempt === OCC_MAX_RETRIES - 1) {
+                    logger.warn("[QvSubmit] KB OCC exhausted topic=" + topic + ": " + (e && e.message));
+                    return;
+                }
+            }
+        }
+    }
+    // ── Task 2.4 — wallet update ──────────────────────────────────────────────
+    function updateWallet(nk, logger, userId, topic, coins, xp) {
+        if (coins <= 0 && xp <= 0)
+            return;
+        try {
+            var changeset = {};
+            if (coins > 0)
+                changeset["coins"] = coins;
+            if (xp > 0)
+                changeset["xp"] = xp;
+            nk.walletUpdate(userId, changeset, { reason: "quiz_complete:" + topic }, true);
+        }
+        catch (e) {
+            logger.warn("[QvSubmit] walletUpdate failed: " + (e && e.message));
+        }
+    }
+    // ── Task 2.4 — leaderboard ────────────────────────────────────────────────
+    function submitLeaderboard(nk, logger, userId, username, gameId, topic, score) {
+        if (score <= 0)
+            return;
+        var boards = [LB_GLOBAL];
+        // Also submit to a per-topic board so topic rankings are possible
+        if (topic)
+            boards.push("quizverse_topic_" + slugify(topic));
+        if (gameId)
+            boards.push("leaderboard_" + gameId);
+        for (var bi = 0; bi < boards.length; bi++) {
+            try {
+                nk.leaderboardRecordWrite(boards[bi], userId, username, score, 0, null, null);
+            }
+            catch (e) {
+                // Leaderboard may not exist yet — create it then retry
+                try {
+                    // Global board never resets; per-topic and per-game boards reset daily
+                    var resetSched = (boards[bi] === LB_GLOBAL) ? LB_RESET_ALLTIME : LB_RESET_DAILY;
+                    nk.leaderboardCreate(boards[bi], true, "descending" /* nkruntime.SortOrder.DESCENDING */, "best" /* nkruntime.Operator.BEST */, resetSched);
+                    nk.leaderboardRecordWrite(boards[bi], userId, username, score, 0, null, null);
+                }
+                catch (e2) {
+                    logger.warn("[QvSubmit] leaderboard " + boards[bi] + " failed: " + (e2 && e2.message));
+                }
+            }
+        }
+    }
+    // ── Per-question quality stats (qv_question_elo) ─────────────────────────
+    //
+    // Fires after grading — updates accuracy + avg_time rolling stats and
+    // auto-retires/flags questions that cross quality thresholds.
+    // Non-blocking: each write is wrapped in its own try/catch; up to 20
+    // questions per call to bound latency.
+    var COL_QELO = "qv_question_elo";
+    var QELO_RETIRE_ACC = 0.98; // accuracy > this → too easy → retire
+    var QELO_FLAG_ACC = 0.10; // accuracy < this AND fast → suspected bad question
+    var QELO_FLAG_TIME_MS = 1500; // avg time < this → suspected random guessing
+    var QELO_MIN_ATTEMPTS = 100; // threshold before retirement decisions kick in
+    function updateQuestionElo(nk, logger, gradedAnswers) {
+        var limit = Math.min(gradedAnswers.length, 20); // cap per-call writes
+        for (var gi = 0; gi < limit; gi++) {
+            var ga = gradedAnswers[gi];
+            if (!ga || !ga.question_id)
+                continue;
+            try {
+                var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: "" }]);
+                var doc = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
+                var ver = (rows && rows.length > 0 && rows[0].version) ? rows[0].version : "";
+                var attempts = (doc.attempts || 0) + 1;
+                var correctAttempts = (doc.correct_attempts || 0) + (ga.is_correct ? 1 : 0);
+                var accuracy = correctAttempts / attempts;
+                // Exponential moving average for time (alpha = 0.1)
+                var prevAvg = doc.avg_time_ms || 0;
+                var thisTimeMs = (typeof ga.time_ms === "number" && ga.time_ms >= 0) ? ga.time_ms : 0;
+                var avgTimeMs = prevAvg > 0
+                    ? Math.round(prevAvg * 0.9 + thisTimeMs * 0.1)
+                    : thisTimeMs;
+                // Auto-retirement logic
+                var status = doc.quality_status || "active";
+                if (status === "active" && attempts >= QELO_MIN_ATTEMPTS) {
+                    if (accuracy > QELO_RETIRE_ACC) {
+                        status = "retire";
+                        logger.info("[QvSubmit/qelo] retiring q=" + ga.question_id +
+                            " accuracy=" + accuracy.toFixed(3) + " attempts=" + attempts);
+                    }
+                    else if (accuracy < QELO_FLAG_ACC && avgTimeMs < QELO_FLAG_TIME_MS) {
+                        status = "flagged";
+                        logger.warn("[QvSubmit/qelo] flagging q=" + ga.question_id +
+                            " accuracy=" + accuracy.toFixed(3) + " avg_time_ms=" + avgTimeMs);
+                    }
+                }
+                var writeObj = {
+                    collection: COL_QELO, key: ga.question_id, userId: "",
+                    value: {
+                        attempts: attempts,
+                        correct_attempts: correctAttempts,
+                        accuracy: Math.round(accuracy * 1000) / 1000,
+                        avg_time_ms: avgTimeMs,
+                        quality_status: status,
+                        last_updated_ms: nowMs()
+                    },
+                    permissionRead: 1, permissionWrite: 0
+                };
+                if (ver)
+                    writeObj.version = ver; // OCC guard
+                nk.storageWrite([writeObj]);
+            }
+            catch (e) {
+                logger.warn("[QvSubmit/qelo] write failed q=" + ga.question_id + ": " + (e && e.message));
+            }
+        }
+    }
+    // ── Variable rewards engine ───────────────────────────────────────────────
+    //
+    // Adds dopamine-boosting variable reward events on top of base rewards.
+    // All probabilities + thresholds are configurable via REWARD_CONFIG env var
+    // (JSON string) so they can be tuned without a deployment.
+    //
+    // Events:
+    //   "lucky_draw"  — 5% per-session chance: doubles coins + XP
+    //   "streak_bonus"— N consecutive correct → +50% coins bonus
+    //   "comeback"    — ≤25% first-half accuracy then ≥75% second-half → +30 XP
+    function computeVariableRewards(ctx, correct, _total, gradedAnswers, coinsBase, xpBase, correctStreak) {
+        var cfg = {};
+        try {
+            cfg = JSON.parse((ctx.env && ctx.env["REWARD_CONFIG"]) || "{}");
+        }
+        catch (_ce) { }
+        var bonusCoins = 0;
+        var bonusXp = 0;
+        var events = [];
+        // 1. Lucky draw
+        var luckyPct = (typeof cfg.lucky_pct === "number") ? cfg.lucky_pct : 0.05;
+        if (correct > 0 && Math.random() < luckyPct) {
+            bonusCoins += coinsBase;
+            bonusXp += xpBase;
+            events.push({
+                type: "lucky_draw",
+                label: "Lucky Quiz! 2× Rewards",
+                bonus_coins: coinsBase,
+                bonus_xp: xpBase
+            });
+        }
+        // 2. Streak bonus (+50% coins when correctStreak ≥ threshold)
+        var streakThreshold = (typeof cfg.streak_threshold === "number") ? cfg.streak_threshold : 5;
+        if (correctStreak >= streakThreshold && correct > 0) {
+            var streakBonus = Math.round(coinsBase * 0.5);
+            bonusCoins += streakBonus;
+            events.push({
+                type: "streak_bonus",
+                label: correctStreak + "-answer streak bonus!",
+                bonus_coins: streakBonus,
+                bonus_xp: 0
+            });
+        }
+        // 3. Comeback bonus
+        var half = Math.floor(gradedAnswers.length / 2);
+        if (half >= 2) {
+            var firstOk = 0;
+            var secondOk = 0;
+            for (var fi = 0; fi < half; fi++) {
+                if (gradedAnswers[fi] && gradedAnswers[fi].is_correct)
+                    firstOk++;
+            }
+            for (var si = half; si < gradedAnswers.length; si++) {
+                if (gradedAnswers[si] && gradedAnswers[si].is_correct)
+                    secondOk++;
+            }
+            var firstAcc = firstOk / half;
+            var secondAcc = secondOk / (gradedAnswers.length - half);
+            var comebackXp = (typeof cfg.comeback_xp === "number") ? cfg.comeback_xp : 30;
+            if (firstAcc <= 0.25 && secondAcc >= 0.75) {
+                bonusXp += comebackXp;
+                events.push({
+                    type: "comeback",
+                    label: "Comeback! Strong finish!",
+                    bonus_coins: 0,
+                    bonus_xp: comebackXp
+                });
+            }
+        }
+        return { bonusCoins: bonusCoins, bonusXp: bonusXp, events: events };
+    }
+    // ── Active user registry ─────────────────────────────────────────────────
+    // Writes a lightweight last-played record so prewarm_cron knows which users
+    // to pre-warm. System-owned (userId:"") so it can be listed by the cron.
+    var COL_ACTIVE = "qv_active_users";
+    function updateActiveUser(nk, userId) {
+        try {
+            nk.storageWrite([{
+                    collection: COL_ACTIVE, key: userId, userId: "",
+                    value: { last_played_ms: nowMs() },
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (_e) { /* non-critical */ }
+    }
+    // ── Main RPC ───────────────────────────────────────────────────────────────
+    /**
+     * quizverse_submit_result
+     *
+     * Input:
+     * {
+     *   pack_id:     string,               // from quizverse_get_questions response
+     *   answers: [
+     *     { question_id: string, selected_option_id: string, time_ms?: number }
+     *   ],
+     *   duration_ms?: number               // total quiz duration
+     * }
+     *
+     * Output:
+     * {
+     *   ok:             true,
+     *   pack_id:        string,
+     *   topic:          string,
+     *   correct:        number,
+     *   total:          number,
+     *   accuracy_pct:   number,            // 0–100
+     *   score:          number,            // base + time bonus
+     *   time_bonus:     number,
+     *   coins_earned:   number,
+     *   xp_earned:      number,
+     *   graded_answers: GradedAnswer[]
+     * }
+     */
+    function rpcSubmitResult(ctx, logger, nk, payload) {
+        var req = parseJson(payload);
+        // Use QvContextResolver for unified auth + game_id allowlist + country_code (yel1/yel2)
+        var rctx = QvContextResolver.resolve(nk, ctx, req);
+        var userId = rctx.userId;
+        var username = rctx.username;
+        var packId = (typeof req.pack_id === "string" && req.pack_id) ? req.pack_id : "";
+        var answers = Array.isArray(req.answers) ? req.answers : [];
+        var durationMs = typeof req.duration_ms === "number" ? req.duration_ms : 0;
+        if (!packId)
+            throw nakamaError("pack_id is required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        if (answers.length === 0)
+            throw nakamaError("answers are required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        // ── Task 2.1 — load pack ──────────────────────────────────────────────
+        var rows = nk.storageRead([{ collection: COL_PACKS, key: packId, userId: userId }]);
+        if (!rows || rows.length === 0 || !rows[0].value) {
+            throw nakamaError("pack not found: " + packId, 5 /* nkruntime.Codes.NOT_FOUND */);
+        }
+        var pack = rows[0].value;
+        var packVersion = rows[0].version || "";
+        var topic = pack.topic || "unknown";
+        var gameId = pack.game_id || "";
+        var packLang = pack.lang_actual || pack.lang || "en";
+        // ── Pack expiry guard (red1) ───────────────────────────────────────────
+        if (pack.expires_at_ms && typeof pack.expires_at_ms === "number" && pack.expires_at_ms < nowMs()) {
+            logger.warn("[QvSubmit] pack expired: pack_id=" + packId + " expired_at=" + pack.expires_at_ms);
+            return JSON.stringify({
+                ok: false,
+                error: "pack_expired",
+                pack_id: packId,
+                message: "This question pack has expired. Please start a new quiz."
+            });
+        }
+        // ── Task 2.1 — duplicate submit guard ─────────────────────────────────
+        if (pack.submitted === true) {
+            return JSON.stringify({
+                ok: false,
+                error: "already_submitted",
+                pack_id: packId,
+                message: "This pack has already been submitted."
+            });
+        }
+        // ── Task 2.1 — grade answers ──────────────────────────────────────────
+        var questions = Array.isArray(pack.questions) ? pack.questions : [];
+        if (questions.length === 0) {
+            throw nakamaError("pack contains no questions", 9 /* nkruntime.Codes.FAILED_PRECONDITION */);
+        }
+        // Build a fast question-ID lookup
+        var qIndex = {};
+        for (var qi = 0; qi < questions.length; qi++) {
+            qIndex[questions[qi].id] = questions[qi];
+        }
+        var correct = 0;
+        var gradedAnswers = [];
+        for (var ai = 0; ai < answers.length; ai++) {
+            var a = answers[ai];
+            var qid = (typeof a.question_id === "string") ? a.question_id : "";
+            var selId = (typeof a.selected_option_id === "string") ? a.selected_option_id : "";
+            var timeMs = (typeof a.time_ms === "number" && a.time_ms >= 0) ? a.time_ms : 0;
+            var serverQ = qIndex[qid] || null;
+            var isCorrect = serverQ ? gradeAnswer(serverQ, selId) : false;
+            var correctOptIds = serverQ ? (serverQ.correct_option_ids || []) : [];
+            if (isCorrect)
+                correct++;
+            gradedAnswers.push({
+                question_id: qid,
+                selected_option_id: selId,
+                correct_option_ids: correctOptIds,
+                is_correct: isCorrect,
+                time_ms: timeMs
+            });
+        }
+        var total = questions.length;
+        var accuracyPct = total > 0 ? Math.round((correct * 1000) / total) / 10 : 0;
+        var isPerfect = correct === total && total > 0;
+        // ── Task 2.4 — compute score ──────────────────────────────────────────
+        var scored = computeScore(gradedAnswers);
+        var totalScore = scored.total;
+        // Rewards
+        var coinsEarned = correct * COINS_PER_CORRECT + (isPerfect ? PERFECT_BONUS_COINS : 0);
+        var xpEarned = correct * XP_PER_CORRECT + (isPerfect ? PERFECT_BONUS_XP : 0);
+        logger.info("[QvSubmit] pack=" + packId + " topic=" + topic +
+            " correct=" + correct + "/" + total +
+            " score=" + totalScore + " bonus=" + scored.timeBonus +
+            " coins=" + coinsEarned + " xp=" + xpEarned);
+        // ── Task 2.2 — write graded result back into pack doc ─────────────────
+        try {
+            pack.submitted = true;
+            pack.submitted_at_ms = nowMs();
+            pack.correct = correct;
+            pack.total = total;
+            pack.accuracy_pct = accuracyPct;
+            pack.score = totalScore;
+            pack.time_bonus = scored.timeBonus;
+            pack.coins_earned = coinsEarned;
+            pack.xp_earned = xpEarned;
+            pack.graded_answers = gradedAnswers;
+            pack.duration_ms = durationMs;
+            var packWrite = {
+                collection: COL_PACKS, key: packId, userId: userId,
+                value: pack,
+                permissionRead: 1, permissionWrite: 0
+            };
+            if (packVersion)
+                packWrite.version = packVersion; // OCC on pack doc
+            nk.storageWrite([packWrite]);
+        }
+        catch (e) {
+            logger.warn("[QvSubmit] pack write-back failed (non-fatal): " + (e && e.message));
+        }
+        // ── Task 2.3 — delete inflight entry ──────────────────────────────────
+        try {
+            nk.storageDelete([{ collection: COL_INFLT, key: packId, userId: userId }]);
+        }
+        catch (e) {
+            logger.warn("[QvSubmit] inflight delete failed: " + (e && e.message));
+        }
+        // ── Task 2.4 — wallet + leaderboard (non-critical) ────────────────────
+        updateWallet(nk, logger, userId, topic, coinsEarned, xpEarned);
+        submitLeaderboard(nk, logger, userId, username, gameId, topic, totalScore);
+        // ── Task 2.5 — KB performance write (non-critical) ────────────────────
+        updateKbOcc(nk, logger, userId, topic, correct, total, totalScore);
+        // ── Task 2.5 — analytics: fire legacy quiz_submit_result ──────────────
+        try {
+            var v1 = globalThis.__rpc_quiz_submit_result;
+            if (typeof v1 === "function") {
+                var v1Payload = JSON.stringify({
+                    gameId: gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+                    gameMode: "QuickPlay",
+                    score: totalScore,
+                    correctAnswers: correct,
+                    totalQuestions: total,
+                    timeTakenSeconds: durationMs > 0 ? Math.round(durationMs / 1000) : 0,
+                    won: correct > total / 2,
+                    categoryName: topic,
+                    metadata: {
+                        pack_id: packId,
+                        scoring_version: "v3",
+                        lang: packLang
+                    }
+                });
+                v1(ctx, logger, nk, v1Payload);
+            }
+        }
+        catch (e) {
+            logger.warn("[QvSubmit] legacy analytics dispatch failed: " + (e && e.message));
+        }
+        // ── Task 2.6 — OCC-safe seen merge ────────────────────────────────────
+        var questionIds = [];
+        for (var qi2 = 0; qi2 < questions.length; qi2++)
+            questionIds.push(questions[qi2].id);
+        mergeSeenOcc(nk, logger, userId, topic, questionIds);
+        // ── SRQ — schedule wrong answers for spaced review (red2 / org4) ──────
+        try {
+            var wrongIds = [];
+            var correctIds = [];
+            for (var gi = 0; gi < gradedAnswers.length; gi++) {
+                var ga = gradedAnswers[gi];
+                if (ga.is_correct)
+                    correctIds.push(ga.question_id);
+                else
+                    wrongIds.push(ga.question_id);
+            }
+            QvSRQ.schedule(nk, userId, slugify(topic), wrongIds, correctIds);
+        }
+        catch (e) {
+            logger.warn("[QvSubmit] SRQ schedule failed (non-fatal): " + (e && e.message));
+        }
+        // ── Question quality stats (qv_question_elo) ──────────────────────────
+        try {
+            updateQuestionElo(nk, logger, gradedAnswers);
+        }
+        catch (e) {
+            logger.warn("[QvSubmit] qelo update failed (non-fatal): " + (e && e.message));
+        }
+        // ── Active user registry (for prewarm cron) ───────────────────────────
+        updateActiveUser(nk, userId);
+        // ── Player DNA update (red2) ───────────────────────────────────────────
+        var masteryDelta = 0;
+        try {
+            var dna = PlayerDNA.load(nk, userId);
+            var topicSlug = slugify(topic);
+            var masteryBefore = dna.masteries[topicSlug] !== undefined ? dna.masteries[topicSlug] : 0;
+            var accuracy01 = total > 0 ? correct / total : 0;
+            PlayerDNA.updateAffinity(dna, topicSlug, true);
+            PlayerDNA.updateMastery(dna, topicSlug, accuracy01);
+            // Derive avg difficulty Elo from question difficulty strings
+            var diffSum = 0;
+            var diffN = 0;
+            for (var di = 0; di < questions.length; di++) {
+                var dif = questions[di].difficulty;
+                diffSum += (dif === "hard" ? 1600 : dif === "easy" ? 800 : 1200);
+                diffN++;
+            }
+            PlayerDNA.updateElo(dna, topicSlug, accuracy01, diffN > 0 ? Math.round(diffSum / diffN) : 1200);
+            PlayerDNA.updateBehavioral(dna, total, new Date().getUTCHours());
+            PlayerDNA.save(nk, userId, dna);
+            var masteryAfter = dna.masteries[topicSlug] !== undefined ? dna.masteries[topicSlug] : masteryBefore;
+            masteryDelta = Math.round((masteryAfter - masteryBefore) * 1000) / 1000;
+            logger.info("[QvSubmit] DNA updated topic=" + topicSlug + " mastery_delta=" + masteryDelta +
+                " elo=" + (dna.elos[topicSlug] || 1200));
+        }
+        catch (e) {
+            logger.warn("[QvSubmit] DNA update failed (non-fatal): " + (e && e.message));
+        }
+        // ── Variable rewards engine ───────────────────────────────────────────
+        // Compute bonus events BEFORE the response so correct streak is available.
+        // correctStreak from scored block (or re-derive from gradedAnswers).
+        var currentStreak = 0;
+        for (var csi = gradedAnswers.length - 1; csi >= 0; csi--) {
+            if (gradedAnswers[csi] && gradedAnswers[csi].is_correct)
+                currentStreak++;
+            else
+                break;
+        }
+        var variableRewards = computeVariableRewards(ctx, correct, total, gradedAnswers, coinsEarned, xpEarned, currentStreak);
+        var totalCoins = coinsEarned + variableRewards.bonusCoins;
+        var totalXp = xpEarned + variableRewards.bonusXp;
+        // Apply bonus to wallet if any events fired
+        if (variableRewards.bonusCoins > 0 || variableRewards.bonusXp > 0) {
+            try {
+                var bonusChangeset = {};
+                if (variableRewards.bonusCoins > 0)
+                    bonusChangeset["coins"] = variableRewards.bonusCoins;
+                if (variableRewards.bonusXp > 0)
+                    bonusChangeset["xp"] = variableRewards.bonusXp;
+                nk.walletUpdate(userId, bonusChangeset, { source: "variable_reward" }, false);
+                logger.info("[QvSubmit] variable rewards userId=" + userId +
+                    " events=" + variableRewards.events.length +
+                    " bonus_coins=" + variableRewards.bonusCoins +
+                    " bonus_xp=" + variableRewards.bonusXp);
+            }
+            catch (ve) {
+                logger.warn("[QvSubmit] variable reward wallet write failed: " + (ve && ve.message));
+                totalCoins = coinsEarned;
+                totalXp = xpEarned;
+            }
+        }
+        // ── Personalization block (red3) ───────────────────────────────────────
+        var personalization = {
+            next_suggested_topic: slugify(topic),
+            review_due_count: total - correct,
+            mastery_delta: masteryDelta,
+            streak_at_risk: false
+        };
+        try {
+            var dnaP = PlayerDNA.load(nk, userId);
+            // Suggest next topic: top affinity topic that is NOT the current one
+            var topSuggs = PlayerDNA.topTopics(dnaP, 4);
+            for (var pti = 0; pti < topSuggs.length; pti++) {
+                if (topSuggs[pti] !== slugify(topic)) {
+                    personalization.next_suggested_topic = topSuggs[pti];
+                    break;
+                }
+            }
+            // streak_at_risk: gap > 1.5× avg play interval
+            var beh = dnaP.behavioral;
+            if (beh && beh.last_played_at > 0 && beh.sessions_per_week > 0) {
+                var avgIntervalSec = (7 * 86400) / beh.sessions_per_week;
+                var sinceLastSec = Math.floor(Date.now() / 1000) - beh.last_played_at;
+                personalization.streak_at_risk = sinceLastSec > avgIntervalSec * 1.5;
+            }
+            // SRQ review count across all topics
+            personalization.srq_due_count = QvSRQ.countDue(nk, userId);
+        }
+        catch (_pe) { }
+        // ── Response ──────────────────────────────────────────────────────────
+        return JSON.stringify({
+            ok: true,
+            pack_id: packId,
+            topic: topic,
+            correct: correct,
+            total: total,
+            accuracy_pct: accuracyPct,
+            score: totalScore,
+            time_bonus: scored.timeBonus,
+            coins_earned: totalCoins,
+            xp_earned: totalXp,
+            is_perfect: isPerfect,
+            graded_answers: gradedAnswers,
+            reward_events: variableRewards.events,
+            personalization: personalization
+        });
+    }
+    // ── Registration ───────────────────────────────────────────────────────────
+    function register(initializer) {
+        initializer.registerRpc("quizverse_submit_result", rpcSubmitResult);
+    }
+    QvSubmitResult.register = register;
+    var _NOOP = { registerRpc: function () { } };
+    register(_NOOP);
+})(QvSubmitResult || (QvSubmitResult = {}));
 // QuizVerse — game-specific opcode + type definitions.
 //
 // Mirrors `schemas/multiplayer/games/quizverse.proto` (reserved range
@@ -42694,6 +48436,10 @@ var QuestEventBusBridge;
             meta.category = String(data.category);
         if (data.type)
             meta.type = String(data.type);
+        // topic is extracted globally so DNA-tagged quest steps (filterField="topic")
+        // auto-progress from any event that carries a topic field.
+        if (data.topic)
+            meta.topic = String(data.topic);
         // Event-specific fields
         switch (eventName) {
             case EventBus.Events.QUIZ_COMPLETED:
@@ -42703,6 +48449,9 @@ var QuestEventBusBridge;
                     meta.mode = String(data.mode);
                 if (data.difficulty)
                     meta.difficulty = String(data.difficulty);
+                // topic also captured here for explicit quiz events that set it locally
+                if (data.topic && !meta.topic)
+                    meta.topic = String(data.topic);
                 break;
             case EventBus.Events.ACHIEVEMENT_COMPLETED:
                 if (data.achievementId)

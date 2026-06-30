@@ -7,10 +7,10 @@
 //
 // Phase scope per RPC:
 //   P0 (live):       quizverse_get_player_context
-//   P1 (live):       quizverse_request_questions (router over quizverse_quiz_generate)
-//   P2 (live):       quiz_submit_result_v2 (alongside v1; v1 untouched)
+//   P1 (DEPRECATED): quizverse_request_questions — superseded by quizverse_get_questions
+//   P2 (DEPRECATED): quiz_submit_result_v2       — superseded by quizverse_submit_result
 //   P3 (scaffold):   quizverse_ai_*           — delegate to external AI if env vars set
-//   P4 (scaffold):   quizverse_fetch_external_quiz
+//   P4 (DEPRECATED): quizverse_fetch_external_quiz — superseded by question_cache.ts
 //   P5 (scaffold):   quizverse_mp_request_pack — delegates to existing QuizVersePlugin
 //   P6 (scaffold):   auth_*                   — userinfo serves real data; others stub
 //   P7 (scaffold):   geo/tts/lichess/xpromo/webview/asset_catalog
@@ -171,8 +171,15 @@ namespace QuizVerseMigration {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // PHASE 1 — Question delivery
+  // PHASE 1 — Question delivery  [DEPRECATED]
   // ─────────────────────────────────────────────────────────────────────
+  // @deprecated  quizverse_request_questions is superseded by the
+  //              quizverse_get_questions RPC in get_questions.ts which
+  //              uses the full server-authoritative cache+quality-gate
+  //              pipeline (question_cache.ts / quality_gate.ts).
+  //              Do NOT route new Unity quiz modes here.
+  //              Kept alive only for legacy clients during the rollout window.
+  //
   // quizverse_request_questions = the single Unity-facing question-delivery
   // RPC. Routes by `kind` over existing infrastructure and stamps a
   // `question_pack_id` that Phase-2 scoring reads back to recompute
@@ -213,20 +220,6 @@ namespace QuizVerseMigration {
     }
   }
 
-  function callExistingRpc(
-    rpcVarName: string,
-    ctx: nkruntime.Context,
-    logger: nkruntime.Logger,
-    nk: nkruntime.Nakama,
-    payloadObj: any
-  ): any {
-    var fn = (globalThis as any)[rpcVarName];
-    if (typeof fn !== "function") {
-      throw nakamaError(rpcVarName + " not loaded", nkruntime.Codes.UNAVAILABLE);
-    }
-    return JSON.parse(fn(ctx, logger, nk, JSON.stringify(payloadObj)));
-  }
-
   function rpcRequestQuestions(
     ctx: nkruntime.Context,
     logger: nkruntime.Logger,
@@ -238,80 +231,33 @@ namespace QuizVerseMigration {
     var kind = req.kind || "deduped_s3";
     var sourceTrace: any = { kind: kind, mode: req.mode || "unknown", attempted: [] };
 
-    var generated: any;
-
-    try {
-      if (kind === "deduped_s3" || kind === "daily" || kind === "weekly" || kind === "question_bank") {
-        sourceTrace.attempted.push("quizverse_quiz_generate");
-        generated = callExistingRpc("__rpc_quizverse_quiz_generate", ctx, logger, nk, {
-          mode:              req.mode || "request_questions",
-          scope:             req.scope || "global",
-          topic:             req.topic || "general",
-          count:             req.count || 10,
-          question_bank_url: req.question_bank_url || "",
-          id_prefix:         req.id_prefix || "s3",
-          questions:         req.inline_questions || undefined,
-          repeat_after_days: req.repeat_after_days || 7
-        });
-        sourceTrace.served_by = "quizverse_quiz_generate";
-      } else if (kind === "news") {
-        sourceTrace.attempted.push("quizverse_fetch_news_quiz");
-        generated = callExistingRpc("__rpc_quizverse_fetch_news_quiz", ctx, logger, nk, req);
-        sourceTrace.served_by = "quizverse_fetch_news_quiz";
-      } else if (kind === "external") {
-        return JSON.stringify({
-          ok: false, error: "external_provider_not_yet_enabled",
-          source_trace: sourceTrace, fallback_to_client: true
-        });
-      } else if (kind === "ai") {
-        return JSON.stringify({
-          ok: false, error: "ai_path_not_yet_enabled",
-          source_trace: sourceTrace, fallback_to_client: true
-        });
-      } else {
-        throw nakamaError("unknown kind: " + kind, nkruntime.Codes.INVALID_ARGUMENT);
-      }
-    } catch (err: any) {
-      logger.error("[Migration] request_questions(" + kind + "): " + (err && err.message ? err.message : String(err)));
-      return JSON.stringify({
-        ok: false, error: "delivery_failed",
-        source_trace: sourceTrace, fallback_to_client: true
-      });
-    }
-
-    if (!generated || generated.success === false) {
-      return JSON.stringify({
-        ok: false,
-        error: (generated && generated.error) || "empty_response",
-        source_trace: sourceTrace,
-        fallback_to_client: true
-      });
-    }
-
-    var questions: any[] = generated.questions || [];
-    var packId = newPackId(userId);
-    persistQuestionPack(nk, userId, packId, questions, sourceTrace);
-
-    var contextPackVersion = "v1";
-    try {
-      var pack = readPlayerContext(nk, userId);
-      contextPackVersion = (pack && pack.version) || "v1";
-    } catch (_e) {}
-
+    // P1 is fully superseded by quizverse_get_questions (get_questions.ts).
+    // All Unity quiz modes now call quizverse_get_questions directly.
+    // quizverse_request_questions is kept registered for backward compatibility
+    // with very old client builds, but it always tells the client to fall back
+    // to the new pipeline.
+    logger.warn("[Migration] quizverse_request_questions called with kind=" + kind +
+      " — this RPC is retired. Client should call quizverse_get_questions instead.");
     return JSON.stringify({
-      ok:                   true,
-      questions:            questions,
-      question_pack_id:     packId,
-      seen_snapshot:        generated.question_ids || [],
-      context_pack_version: contextPackVersion,
-      source_trace:         sourceTrace,
-      meta:                 generated.meta || {}
+      ok:                false,
+      error:             "rpc_retired",
+      message:           "quizverse_request_questions is retired. Use quizverse_get_questions.",
+      fallback_to_client: true,
+      source_trace:      { kind: kind, mode: req.mode || "unknown", attempted: [] }
     });
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // PHASE 2 — Score reconciliation v2
+  // PHASE 2 — Score reconciliation v2  [DEPRECATED]
   // ─────────────────────────────────────────────────────────────────────
+  // @deprecated  quiz_submit_result_v2 is superseded by
+  //              quizverse_submit_result in submit_result.ts which pairs
+  //              with quizverse_get_questions packs (qv_question_packs
+  //              collection), supports Player DNA updates, and returns a
+  //              personalization block.
+  //              Do NOT route new Unity quiz modes here.
+  //              Kept alive only for legacy clients during rollout.
+  //
   // v2 contract: client sends { question_pack_id, answers[] } only —
   // server recomputes correctness from the persisted pack so a tampered
   // client cannot lie about which option was correct.
@@ -598,8 +544,16 @@ namespace QuizVerseMigration {
   }
 
   // ─────────────────────────────────────────────────────────────────────
-  // PHASE 4 — External APIs (dispatcher with cache)
+  // PHASE 4 — External APIs (dispatcher with cache)  [DEPRECATED]
   // ─────────────────────────────────────────────────────────────────────
+  // @deprecated  quizverse_fetch_external_quiz is superseded by the
+  //              server-side provider caching layer in question_cache.ts.
+  //              All external providers (OpenTDB, Jikan, TMDB, NASA, etc.)
+  //              are now fetched, normalised, and quality-gated inside
+  //              quizverse_get_questions at cache-miss time.
+  //              Clients must never call external APIs directly.
+  //              Kept alive only for legacy clients during rollout.
+  //
   // Single Unity-facing RPC routes per-provider 3rd-party fetches through
   // Nakama so:
   //   (a) we own a single egress IP (rate-limit + secret rotation),
@@ -2085,7 +2039,13 @@ namespace QuizVerseMigration {
     // Nakama JS runtime resolve the function key. Keep these as literals or
     // the plugin will silently fail-to-mount in prod (see PR #69 follow-up).
     initializer.registerRpc("quizverse_get_player_context",  rpcGetPlayerContext);
+
+    // DEPRECATED — superseded by quizverse_get_questions (get_questions.ts).
+    // Kept for legacy clients; remove after all modes adopt the new pipeline.
     initializer.registerRpc("quizverse_request_questions",   rpcRequestQuestions);
+
+    // DEPRECATED — superseded by quizverse_submit_result (submit_result.ts).
+    // Kept for legacy clients; remove after all modes adopt the new pipeline.
     initializer.registerRpc("quiz_submit_result_v2",         rpcSubmitResultV2);
 
     initializer.registerRpc("quizverse_ai_generate_questions", rpcAiGenerate);
@@ -2093,6 +2053,8 @@ namespace QuizVerseMigration {
     initializer.registerRpc("quizverse_ai_notes_create",      rpcAiNotesCreate);
     initializer.registerRpc("quizverse_ai_stt_transcribe",    rpcAiStt);
 
+    // DEPRECATED — external providers now cached server-side in question_cache.ts.
+    // Kept for legacy clients; remove after all modes adopt the new pipeline.
     initializer.registerRpc("quizverse_fetch_external_quiz",  rpcFetchExternalQuiz);
 
     initializer.registerRpc("quizverse_mp_request_pack",      rpcMpRequestPack);
@@ -2131,8 +2093,17 @@ namespace QuizVerseMigration {
     initializer.registerRpc("quizverse_words_duel_submit",      rpcWordsDuelSubmit);
     initializer.registerRpc("quizverse_words_duel_leaderboard", rpcWordsDuelLeaderboard);
 
+    // Phase 1b — question serve layer (cache-read, filter seen+inflight, pick N)
+    QvGetQuestions.register(initializer);
+
+    // Phase 2 — server-authority grading, wallet, leaderboard, seen, KB
+    QvSubmitResult.register(initializer);
+
+    // Phase 2.5 — review & learn (read-only; exposes graded pack as review cards)
+    QvGetReview.register(initializer);
+
     if (logger && logger.info) {
-      logger.info("[QuizVerseMigration] registered 27 RPCs (P0-P8 live + PWords daily seed + Vocab Duel + weekly polymorphic)");
+      logger.info("[QuizVerseMigration] registered 30 RPCs (P0-P8 live + PWords + Vocab Duel + weekly polymorphic + get_questions + submit_result + get_review)");
     }
   }
 

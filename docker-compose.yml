@@ -50,8 +50,10 @@ services:
           ROLLUP_ENABLED EXTERNAL_POLLERS_ENABLED DASHBOARD_PREFER_ROLLUPS
           ANALYTICS_ENFORCE_SCHEMA
           SATORI_URL SATORI_API_KEY_NAME SATORI_API_KEY SATORI_SIGNING_KEY SATORI_HTTP_TIMEOUT_MS
-          AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION AWS_S3_BUCKET AWS_PRESIGNED_URL_EXPIRY
-          GNEWS_API_KEY NEWSAPI_API_KEY
+          AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION AWS_S3_BUCKET AWS_PRESIGNED_URL_EXPIRY S3_BASE_URL
+          GNEWS_API_KEY CURRENTS_API_KEY MEDIASTACK_API_KEY NEWSAPI_API_KEY
+          LASTFM_API_KEY TMDB_API_KEY NASA_API_KEY
+          IVX_SYSTEM_USER_ID
           PUSH_REGISTER_URL PUSH_SEND_URL DEFAULT_FCM_PROJECT_ID
           SLACK_OPS_WEBHOOK_URL
           DISCORD_QV_OPS_WEBHOOK_URL DISCORD_NAKAMA_WEBHOOK_URL
@@ -138,9 +140,23 @@ services:
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
       - AWS_PRESIGNED_URL_EXPIRY=${AWS_PRESIGNED_URL_EXPIRY:-3600}
-      # News quiz API keys (GNews free: 100 req/day; server caches 6h)
+      # ── QuizVerse Question Cache API keys ────────────────────────────────────
+      # All keys are optional; graceful fallback or skip occurs when absent.
+      # News providers (failover chain: GNews → Currents → MediaStack → NewsAPI)
       - GNEWS_API_KEY=${GNEWS_API_KEY:-}
+      - CURRENTS_API_KEY=${CURRENTS_API_KEY:-}
+      - MEDIASTACK_API_KEY=${MEDIASTACK_API_KEY:-}
       - NEWSAPI_API_KEY=${NEWSAPI_API_KEY:-}
+      # Music (Last.fm chart — top tracks/artists). Free key at last.fm/api.
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
+      # Movies (TMDB — top-rated films). Free key at themoviedb.org/settings/api.
+      - TMDB_API_KEY=${TMDB_API_KEY:-}
+      # Space (NASA APOD). Defaults to "DEMO_KEY" (50 req/day). Get own at api.nasa.gov.
+      - NASA_API_KEY=${NASA_API_KEY:-DEMO_KEY}
+      # S3 base URL override (defaults to intelli-verse-x-media bucket in code)
+      - S3_BASE_URL=${S3_BASE_URL:-}
+      # Admin gate for quizverse_admin_stats RPC (must match a real Nakama userId)
+      - IVX_SYSTEM_USER_ID=${IVX_SYSTEM_USER_ID:-}
       # Push notification Lambda endpoints and FCM project ID
       - PUSH_REGISTER_URL=${PUSH_REGISTER_URL:-}
       - PUSH_SEND_URL=${PUSH_SEND_URL:-}

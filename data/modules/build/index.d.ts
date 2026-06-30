@@ -654,12 +654,40 @@ declare namespace IvxPresence {
     function rpcMarkMessageRead(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvAnalyticsCron {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace BlogEmbed {
     function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace QvContextResolver {
+    interface ResolvedContext {
+        userId: string;
+        username: string;
+        gameId: string;
+        lang: string;
+        countryCode: string;
+        mode: string;
+    }
+    /**
+     * resolve() validates authentication and normalises all context fields.
+     * Throws UNAUTHENTICATED if ctx.userId is missing.
+     *
+     * @param nk   — Nakama runtime (used for profile lookup)
+     * @param ctx  — RPC context
+     * @param req  — parsed JSON request payload (plain object)
+     */
+    function resolve(nk: nkruntime.Nakama, ctx: nkruntime.Context, req: any): ResolvedContext;
 }
 declare namespace QuizVerseGenerator {
     function registerNk(nk: nkruntime.Nakama): void;
     function buildAll(): MpKernelSyncTurn.IGenerator[];
+}
+declare namespace QvGetQuestions {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace QvGetReview {
+    function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace QuizVerseGrowthSnapshot {
     function register(initializer: nkruntime.Initializer): void;
@@ -743,7 +771,175 @@ declare namespace PlayerDNA {
     function updateBehavioral(dna: DNA, questionCount: number, sessionHourUtc: number): void;
     function coldStartTopic(sessionIndex: number): string;
 }
+declare namespace QvPrewarmCron {
+    function opportunisticTick(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QuizVerseProductMetrics {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace QvQualityGate {
+    /**
+     * Decode HTML entities in a raw provider string.
+     * Handles: named entities (&amp; &eacute; …), decimal (&#160;), hex (&#xA0;).
+     * Safe to call on already-clean strings — idempotent, no DOM required.
+     */
+    function htmlDecode(text: string): string;
+    /**
+     * Normalize text for deduplication comparison:
+     * lowercase → collapse whitespace → trim.
+     * Not used for display — only for equality checks.
+     */
+    function normalizeForDedup(text: string): string;
+    /**
+     * Build a plain-object lookup set from an existing pool of validated questions.
+     * Use this for O(1) duplicate detection inside validateQuestion().
+     *
+     * Start with an empty set for a fresh batch, or seed it with an existing pool
+     * when appending to an already-populated cache doc:
+     *
+     *   var seen = QvQualityGate.buildSeenTextSet(existingPoolQuestions);
+     *   // then call validateQuestion(q, seen) for each new candidate
+     */
+    function buildSeenTextSet(questions: any[]): {
+        [key: string]: boolean;
+    };
+    /**
+     * Run all 6 quality gates against a single candidate question.
+     *
+     * ✦ SIDE EFFECT: q.question_text and q.options[].text are HTML-decoded
+     *   in-place before any gate runs. This is intentional — the caller receives
+     *   a cleaned question ready for storage without needing a second decode pass.
+     *
+     * @param q           Raw (provider-normalised) question object.
+     * @param seenTextSet Plain-object set returned by buildSeenTextSet().
+     *                    Caller is responsible for adding accepted questions to
+     *                    the set AFTER this function returns valid=true.
+     * @returns           { valid, reject_reason }
+     *                    reject_reason is null when valid=true.
+     */
+    function validateQuestion(q: any, seenTextSet: {
+        [key: string]: boolean;
+    }): {
+        valid: boolean;
+        reject_reason: string | null;
+    };
+    /**
+     * Validate an entire array of raw questions in one call.
+     * Builds the seen-text set internally (starting empty) so callers don't have
+     * to manage it when processing a fresh provider response from scratch.
+     *
+     * Returns only the questions that passed all 6 gates, plus quality stats
+     * suitable for writing into the qv_cache_{topic} quality_gate object.
+     *
+     * If you are appending to an existing pool, use buildSeenTextSet() +
+     * validateQuestion() in a manual loop instead (to seed with existing texts).
+     *
+     * @param questions   Array of raw normalized question objects.
+     * @param logger      Optional Nakama logger for reject-reason debug lines.
+     * @param topicTag    Short label used in log lines (e.g. "anime").
+     */
+    function batchValidate(questions: any[], logger?: nkruntime.Logger, topicTag?: string): {
+        passed: any[];
+        rejected_count: number;
+        total_processed: number;
+        top_reject_reason: string | null;
+    };
+}
+declare namespace QvQuestionCache {
+    interface NormalizedQuestion {
+        id: string;
+        topic: string;
+        lang: string;
+        question_text: string;
+        question_type: string;
+        options: Array<{
+            id: string;
+            text: string;
+        }>;
+        correct_option_ids: string[];
+        has_media: boolean;
+        media: any;
+        explanation: string;
+        difficulty: string;
+        provider: string;
+    }
+    /**
+     * Full cache refresh pipeline for one topic.
+     * Steps: circuit-check → fetch → validate+decode → shuffle+assign → enrich → store.
+     * Falls back silently (keeps stale cache) on any error; records failure in circuit breaker.
+     */
+    export function refreshCache(nk: nkruntime.Nakama, logger: nkruntime.Logger, env: {
+        [k: string]: string;
+    }, topic: string): {
+        ok: boolean;
+        topic: string;
+        count: number;
+        error?: string;
+    };
+    /**
+     * Read the full validated pool for a topic (all pages merged).
+     * Returns empty array + expired=true on cache miss.
+     * Caller decides whether to trigger refreshCache().
+     */
+    export function readCache(nk: nkruntime.Nakama, logger: nkruntime.Logger, topic: string): {
+        questions: NormalizedQuestion[];
+        expired: boolean;
+        cached_at_ms: number;
+    };
+    /**
+     * Lightweight freshness check — reads only pool_0 metadata (no questions loaded).
+     * Use before readCache to decide whether to trigger a background refresh.
+     */
+    export function isCacheValid(nk: nkruntime.Nakama, topic: string): boolean;
+    /**
+     * Refresh ALL cacheable topics one-by-one with a 2 s stagger between each.
+     * The stagger prevents simultaneous bursts against external providers.
+     * Intended for a Nakama scheduled / cron job — NEVER call from a player RPC.
+     * Returns an array of per-topic results (same shape as refreshCache).
+     */
+    export function refreshAllTopics(nk: nkruntime.Nakama, logger: nkruntime.Logger, env: {
+        [k: string]: string;
+    }): Array<{
+        ok: boolean;
+        topic: string;
+        count: number;
+        error?: string;
+    }>;
+    export {};
+}
+declare namespace QvRemoteConfig {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace QvSRQ {
+    /**
+     * Schedule questions for spaced review after a quiz session.
+     * - wrongIds  → due in WRONG_INTERVAL_MS (3 days)
+     * - correctIds → due in CORRECT_INTERVAL_MS (7 days) for reinforcement
+     *   If an ID was previously in the queue and is now correct, its interval
+     *   doubles (capped at 21 days) to back off scheduling.
+     */
+    function schedule(nk: nkruntime.Nakama, userId: string, topic: string, wrongIds: string[], correctIds: string[]): void;
+    /**
+     * Return questions from `pool` whose IDs are due for SRQ review now.
+     * Results are sorted by due_at_ms ascending (most overdue first).
+     * This list is prepended to the delivered pack so the player reviews
+     * weak questions before seeing fresh ones.
+     */
+    function getDueInPool(nk: nkruntime.Nakama, userId: string, topic: string, pool: any[]): any[];
+    /**
+     * Remove reviewed question IDs from the SRQ (they are now mastered or
+     * explicitly dismissed).  Call after a successful review session.
+     */
+    function markReviewed(nk: nkruntime.Nakama, userId: string, topic: string, questionIds: string[]): void;
+    /**
+     * Count the total number of SRQ entries due right now across ALL topics
+     * for this user.  Used to populate the `personalization.srq_due_count`
+     * field in submit_result responses.  Reads at most 20 topic queues.
+     */
+    function countDue(nk: nkruntime.Nakama, userId: string): number;
+}
+declare namespace QvSubmitResult {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace QuizVerseGame {

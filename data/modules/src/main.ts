@@ -93,17 +93,52 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   }
 
   // ---- QuizVerse Nakama-Only Migration plugin ----
-  // Registers the 22 v2 / Nakama-only RPCs (P0/P1/P2 live, P3-P8
-  // scaffolded) that the Unity client adopts as each network surface
-  // moves behind Nakama. See games/quiz-verse/Docs/plans/PLAN-NAKAMA_ONLY_MIGRATION.md
-  // in the Unity repo for the rollout plan. Mounted after QuizVersePlugin
-  // so P1's request_questions router can delegate to quizverse_quiz_generate
-  // (registered as a top-level legacy module) and P2's submit_result_v2
-  // can delegate to quiz_submit_result.
+  // Registers the migration bridge RPCs (P0 live, P1/P2 deprecated-stub,
+  // P3-P8 scaffolded) that bridge old Unity client calls to the new server
+  // pipeline (quizverse_get_questions / quizverse_submit_result).
+  // P1 (quizverse_request_questions) now returns rpc_retired — all active
+  // Unity modes call quizverse_get_questions directly.
+  // P2 (quiz_submit_result_v2) is superseded by quizverse_submit_result.
   try {
     QuizVerseMigration.register(initializer, nk, logger);
   } catch (err: any) {
     logger.error("[QuizVerseMigration] plugin failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- QuizVerse Remote Config (quizverse_get_config + quizverse_admin_stats) ----
+  // quizverse_get_config  — server-driven topic catalogue, feature flags, language
+  //   support matrix, client_min_version. Called once on startup; zero auth required;
+  //   falls back to built-in defaults when qv_config/global is missing.
+  // quizverse_admin_stats — admin-only pipeline health dashboard (circuit breakers,
+  //   cache staleness, pack counters). Gated behind IVX_SYSTEM_USER_ID.
+  //   Phase-aware: returns "not_yet_deployed" for sections not yet live.
+  try {
+    QvRemoteConfig.register(initializer);
+    logger.info("[QvRemoteConfig] quizverse_get_config + quizverse_admin_stats registered");
+  } catch (err: any) {
+    logger.error("[QvRemoteConfig] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- QuizVerse Pre-warm Tick (qv_readyqueue hourly refresh) ----
+  // quizverse_prewarm_tick: admin/scheduler RPC that pre-filters per-user question
+  // pools and stores them in qv_readyqueue so get_questions can serve <30ms
+  // responses. Invoke via n8n/Kubernetes CronJob every hour, or let get_questions
+  // opportunistically self-schedule it (once per hour globally, rate-gated).
+  try {
+    QvPrewarmCron.register(initializer);
+    logger.info("[QvPrewarm] quizverse_prewarm_tick RPC registered");
+  } catch (err: any) {
+    logger.error("[QvPrewarm] failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // quizverse_pack_cleanup_tick: daily job that sweeps expired/abandoned
+  // qv_question_packs across all recently active users (30-day window).
+  // Gate-limited to once per 24 h. Call from external scheduler (n8n / k8s).
+  try {
+    QvAnalyticsCron.register(initializer);
+    logger.info("[QvCleanup] quizverse_pack_cleanup_tick RPC registered");
+  } catch (err: any) {
+    logger.error("[QvCleanup] failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
   // ---- QuizVerse Live Banner (quizverse_live_banner_check) ----
