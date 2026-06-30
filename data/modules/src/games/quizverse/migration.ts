@@ -2094,13 +2094,16 @@ namespace QuizVerseMigration {
     initializer.registerRpc("quizverse_words_duel_leaderboard", rpcWordsDuelLeaderboard);
 
     // Phase 1b — question serve layer (cache-read, filter seen+inflight, pick N)
-    QvGetQuestions.register(initializer);
+    // Guard: these namespaces may not be loaded yet during the IIFE self-invoke
+    // at module-load time (they live later in the bundle). The real InitModule
+    // call from main.ts always has them available.
+    if (typeof QvGetQuestions !== "undefined" && QvGetQuestions) QvGetQuestions.register(initializer);
 
     // Phase 2 — server-authority grading, wallet, leaderboard, seen, KB
-    QvSubmitResult.register(initializer);
+    if (typeof QvSubmitResult !== "undefined" && QvSubmitResult) QvSubmitResult.register(initializer);
 
     // Phase 2.5 — review & learn (read-only; exposes graded pack as review cards)
-    QvGetReview.register(initializer);
+    if (typeof QvGetReview !== "undefined" && QvGetReview) QvGetReview.register(initializer);
 
     if (logger && logger.info) {
       logger.info("[QuizVerseMigration] registered 30 RPCs (P0-P8 live + PWords + Vocab Duel + weekly polymorphic + get_questions + submit_result + get_review)");
