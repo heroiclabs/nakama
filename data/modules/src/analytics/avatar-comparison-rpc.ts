@@ -1,4 +1,4 @@
-// Phase 4 (avatar bakeoff) — analytics_avatar_comparison RPC.
+﻿// Phase 4 (avatar bakeoff) — analytics_avatar_comparison RPC.
 //
 // Receives per-session avatar bakeoff telemetry from both web (LiveTalk's
 // AvatarRouter) and Unity (AutoCurioGreetingStepV2 → AvatarSession). Each
@@ -140,7 +140,7 @@ namespace QvAvatarComparison {
       nk.storageWrite([{
         collection: COLLECTION,
         key: storageKey,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         value: value,
         permissionRead: 0,
         permissionWrite: 0,

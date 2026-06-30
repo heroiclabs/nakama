@@ -1,4 +1,4 @@
-// MatchResultEnvelope persistence + AnalyticsAlerts wiring (Pillar 1).
+﻿// MatchResultEnvelope persistence + AnalyticsAlerts wiring (Pillar 1).
 //
 // Templates call MpKernelMatchResult.persist(...) on natural / forced
 // match end. The result is stored in Hiro storage under a deterministic
@@ -33,7 +33,7 @@ namespace MpKernelMatchResult {
       // Permissions: 1 = owner-only read; 0 = no public write.
       permissionRead: 2,   // public-read (admin dashboard reads under system).
       permissionWrite: 0,
-      userId: ""           // System-owned record.
+      userId: "00000000-0000-0000-0000-000000000000"           // System-owned record.
     };
     try {
       nk.storageWrite([write]);
@@ -93,7 +93,7 @@ namespace MpKernelMatchResult {
       var rows = nk.storageRead([{
         collection: COLLECTION,
         key: matchId,
-        userId: ""
+        userId: "00000000-0000-0000-0000-000000000000"
       }]);
       if (!rows || rows.length === 0) return null;
       return rows[0].value as MpKernel.IMatchResultEnvelope;

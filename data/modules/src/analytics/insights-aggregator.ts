@@ -1,4 +1,4 @@
-// Phase 2A (qv-insights-loop) — Insights aggregator.
+﻿// Phase 2A (qv-insights-loop) — Insights aggregator.
 //
 // Hourly rollup that turns the raw `analytics_rpc_samples` ZSet (and the
 // per-event records persisted by analytics.js into `analytics_events`)
@@ -587,7 +587,7 @@ namespace InsightsAggregator {
 
   function readLastRun(nk: nkruntime.Nakama): number {
     try {
-      var rows = nk.storageRead([{ collection: STATE_COLLECTION, key: STATE_KEY, userId: "" }]);
+      var rows = nk.storageRead([{ collection: STATE_COLLECTION, key: STATE_KEY, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (rows && rows.length > 0 && rows[0].value && (rows[0].value as any).ts) {
         return (rows[0].value as any).ts as number;
       }
@@ -600,7 +600,7 @@ namespace InsightsAggregator {
       nk.storageWrite([{
         collection: STATE_COLLECTION,
         key: STATE_KEY,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         value: { ts: ts },
         permissionRead: 0,
         permissionWrite: 0,

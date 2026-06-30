@@ -1,4 +1,4 @@
-// QuizVerse — quizverse_submit_result RPC  (Phase 2)
+﻿// QuizVerse — quizverse_submit_result RPC  (Phase 2)
 //
 // Server-authority grading layer.  The client sends back the answers it
 // collected; this RPC does everything on the server side:
@@ -305,7 +305,7 @@ namespace QvSubmitResult {
       var ga = gradedAnswers[gi];
       if (!ga || !ga.question_id) continue;
       try {
-        var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: "" }]);
+        var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: Constants.SYSTEM_USER_ID }]);
         var doc: any = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
         var ver: string = (rows && rows.length > 0 && rows[0].version) ? rows[0].version : "";
 
@@ -335,7 +335,7 @@ namespace QvSubmitResult {
         }
 
         var writeObj: nkruntime.StorageWriteRequest = {
-          collection:      COL_QELO, key: ga.question_id, userId: "",
+          collection:      COL_QELO, key: ga.question_id, userId: "00000000-0000-0000-0000-000000000000",
           value: {
             attempts:         attempts,
             correct_attempts: correctAttempts,
@@ -443,7 +443,7 @@ namespace QvSubmitResult {
   function updateActiveUser(nk: nkruntime.Nakama, userId: string): void {
     try {
       nk.storageWrite([{
-        collection:      COL_ACTIVE, key: userId, userId: "",
+        collection:      COL_ACTIVE, key: userId, userId: "00000000-0000-0000-0000-000000000000",
         value:           { last_played_ms: nowMs() },
         permissionRead:  0,
         permissionWrite: 0

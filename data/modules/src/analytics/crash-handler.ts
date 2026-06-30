@@ -1,4 +1,4 @@
-// Phase 3 (qv-insights-loop) — Crash log RPC + pattern summariser.
+﻿// Phase 3 (qv-insights-loop) — Crash log RPC + pattern summariser.
 //
 // Receives crash payloads from `IVXCrashUploader` (Unity SDK), persists
 // them to `game_crash_log` (one row per crash, indexed for the
@@ -123,7 +123,7 @@ namespace QvCrashHandler {
       nk.storageWrite([{
         collection: LOG_COLLECTION,
         key: key,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         value: row,
         permissionRead: 0,
         permissionWrite: 0,
@@ -175,7 +175,7 @@ namespace QvCrashHandler {
       if (typeof v.tsUnixMs !== "number") continue;
       // Drop rows older than RAW_RETENTION_MS.
       if (now - v.tsUnixMs > RAW_RETENTION_MS) {
-        try { nk.storageDelete([{ collection: LOG_COLLECTION, key: objs[i].key, userId: "" }]); } catch (_) {}
+        try { nk.storageDelete([{ collection: LOG_COLLECTION, key: objs[i].key, userId: "00000000-0000-0000-0000-000000000000" }]); } catch (_) {}
         continue;
       }
       if (v.tsUnixMs < bucketStart) continue;
@@ -222,7 +222,7 @@ namespace QvCrashHandler {
         nk.storageWrite([{
           collection: PATTERN_COLLECTION,
           key: gid2,
-          userId: "",
+          userId: "00000000-0000-0000-0000-000000000000",
           value: summary,
           permissionRead: 0,
           permissionWrite: 0,
@@ -245,7 +245,7 @@ namespace QvCrashHandler {
     gameId: string,
   ): PatternSummary | null {
     try {
-      var rows = nk.storageRead([{ collection: PATTERN_COLLECTION, key: gameId, userId: "" }]);
+      var rows = nk.storageRead([{ collection: PATTERN_COLLECTION, key: gameId, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (rows && rows.length > 0 && rows[0].value) {
         return rows[0].value as PatternSummary;
       }
@@ -289,7 +289,7 @@ namespace QvCrashHandler {
       var rows = nk.storageRead([{
         collection: STATE_COLLECTION,
         key: STATE_KEY_LAST_SUMMARY,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
       }]);
       if (rows && rows.length > 0 && rows[0].value && (rows[0].value as any).ts) {
         return (rows[0].value as any).ts as number;
@@ -303,7 +303,7 @@ namespace QvCrashHandler {
       nk.storageWrite([{
         collection: STATE_COLLECTION,
         key: STATE_KEY_LAST_SUMMARY,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         value: { ts: ts },
         permissionRead: 0,
         permissionWrite: 0,

@@ -1,4 +1,4 @@
-// AsyncTurnMatch — async turn template for games where players take
+﻿// AsyncTurnMatch — async turn template for games where players take
 // turns over hours/days (chess, daily-puzzle PvP, words-with-friends).
 // Reserved opcode range 0x5000-0x5FFF (templates/async_turn.proto).
 //
@@ -89,7 +89,7 @@ namespace MpKernelAsyncTurn {
   function loadPersisted(nk: nkruntime.Nakama, gameId: string): any | null {
     if (!gameId) return null;
     try {
-      var rows = nk.storageRead([{ collection: COLLECTION, key: gameId, userId: "" }]);
+      var rows = nk.storageRead([{ collection: COLLECTION, key: gameId, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (rows && rows.length > 0 && rows[0].value) return rows[0].value;
     } catch (_e) { /* swallow */ }
     return null;
@@ -101,7 +101,7 @@ namespace MpKernelAsyncTurn {
       nk.storageWrite([{
         collection: COLLECTION,
         key: gameId,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         value: blob,
         permissionRead: 2,    // public-read so opponents can rebuild offline
         permissionWrite: 0    // server-only writes

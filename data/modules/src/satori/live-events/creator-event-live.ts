@@ -1,4 +1,4 @@
-namespace SatoriCreatorEvents {
+﻿namespace SatoriCreatorEvents {
 
   // ---- Types ----
 
@@ -1082,7 +1082,7 @@ namespace SatoriCreatorEvents {
         body = body + " Prize pool: " + event.prizePool + " XUT!";
       }
       nk.notificationsSend([{
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         code: 1001,
         subject: title,
         content: {
