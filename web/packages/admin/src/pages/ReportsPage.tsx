@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FileBarChart,
@@ -13,6 +13,7 @@ import {
   UserCheck,
   Gauge,
   CalendarRange,
+  AlertTriangle,
 } from "lucide-react";
 import {
   serverKeyAuth,
@@ -22,7 +23,46 @@ import {
   type FunnelResult,
   type RetentionResult,
 } from "@nakama/shared";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 import { cn } from "@/lib/utils";
+
+/* ── Toast ─────────────────────────────────────────────────────────── */
+
+type ToastVariant = "success" | "error" | "info";
+interface ToastState { id: number; message: string; variant: ToastVariant }
+
+function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void }) {
+  useEffect(() => { const t = setTimeout(onDone, 3500); return () => clearTimeout(t); }, [onDone]);
+  const cls = toast.variant === "success"
+    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+    : toast.variant === "error"
+    ? "border-destructive/40 bg-destructive/10 text-destructive"
+    : "border-primary/40 bg-primary/10 text-primary";
+  return (
+    <div className={cn("fixed bottom-6 right-6 z-[9999] flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-lg", cls)}>
+      <span>{toast.message}</span>
+    </div>
+  );
+}
+
+/* ── ConfirmDialog ──────────────────────────────────────────────────── */
+
+function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+        <div className="mb-4 flex items-start gap-3">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+          <p className="text-sm">{message}</p>
+        </div>
+        <div className="flex justify-end gap-3">
+          <button onClick={onCancel} className="inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-medium text-muted-foreground hover:bg-accent">Cancel</button>
+          <button onClick={onConfirm} className="inline-flex h-9 items-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground hover:bg-destructive/90">Delete</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const TYPE_META: Record<ReportType, { icon: React.ElementType; label: string; color: string }> = {
   funnel: { icon: Filter, label: "Funnel", color: "text-violet-500" },
@@ -42,35 +82,48 @@ function useReports() {
 
 /* ── Builder ──────────────────────────────────────────────────────── */
 
-function ReportForm({ onClose }: { onClose: () => void }) {
+function ReportForm({ onClose, onToast }: { onClose: () => void; onToast: (msg: string, v: ToastVariant) => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [type, setType] = useState<ReportType>("funnel");
   const [description, setDescription] = useState("");
-  // type-specific params
   const [steps, setSteps] = useState("");
   const [windowHours, setWindowHours] = useState("24");
   const [days, setDays] = useState("14");
   const [metricId, setMetricId] = useState("");
+  const [validationError, setValidationError] = useState("");
 
   const save = useMutation({
     mutationFn: () => {
+      setValidationError("");
       let params: Record<string, unknown> = {};
       if (type === "funnel") {
-        params = {
-          steps: steps.split(",").map((s) => s.trim()).filter(Boolean),
-          window_hours: parseInt(windowHours, 10) || 24,
-        };
+        const parsedSteps = steps.split(",").map((s) => s.trim()).filter(Boolean);
+        if (parsedSteps.length < 2) {
+          setValidationError("Funnel requires at least 2 steps.");
+          throw new Error("validation");
+        }
+        params = { steps: parsedSteps, window_hours: parseInt(windowHours, 10) || 24 };
       } else if (type === "retention" || type === "timeline") {
         params = { days: parseInt(days, 10) || 14 };
       } else if (type === "metric") {
+        if (!metricId.trim()) {
+          setValidationError("Metric ID is required.");
+          throw new Error("validation");
+        }
         params = { metricId: metricId.trim() };
       }
       return satori.saveReport({ name: name.trim(), type, description: description.trim(), params }, serverKeyAuth());
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "reports"] });
+      onToast("Report saved", "success");
       onClose();
+    },
+    onError: (err) => {
+      if ((err as Error).message !== "validation") {
+        onToast("Failed to save report", "error");
+      }
     },
   });
 
@@ -131,6 +184,12 @@ function ReportForm({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
+        {validationError && (
+          <p className="mt-3 flex items-center gap-2 text-xs text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {validationError}
+          </p>
+        )}
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-md border border-border bg-card px-4 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground">Cancel</button>
           <button type="submit" disabled={!name.trim() || save.isPending} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
@@ -150,37 +209,46 @@ function pct(v: number | null | undefined): string {
   return `${(v * 100).toFixed(1)}%`;
 }
 
-function ReportResult({ report }: { report: SavedReport }) {
+function ReportResult({ report, gameId }: { report: SavedReport; gameId: string | undefined }) {
+  const [lastRunAt, setLastRunAt] = useState<number | null>(null);
   const run = useQuery({
-    queryKey: ["admin", "report-run", report.id],
+    queryKey: ["admin", "report-run", report.id, gameId],
     enabled: false,
     retry: 0,
     queryFn: async () => {
       const opts = serverKeyAuth();
       const p = report.params as Record<string, unknown>;
+      const scope = gameId ? { game_id: gameId } : {};
       if (report.type === "funnel") {
-        return { kind: "funnel" as const, data: await satori.computeFunnel({ steps: p.steps as string[], window_hours: p.window_hours as number }, opts) };
+        return { kind: "funnel" as const, data: await satori.computeFunnel({ steps: p.steps as string[], window_hours: p.window_hours as number, ...scope }, opts) };
       }
       if (report.type === "retention") {
-        return { kind: "retention" as const, data: await satori.computeRetention({ days: p.days as number }, opts) };
+        return { kind: "retention" as const, data: await satori.computeRetention({ days: p.days as number, ...scope }, opts) };
       }
       if (report.type === "metric") {
-        return { kind: "metric" as const, data: await satori.getMetricSeries({ metricId: p.metricId as string }, opts) };
+        return { kind: "metric" as const, data: await satori.getMetricSeries({ metricId: p.metricId as string, ...scope }, opts) };
       }
-      return { kind: "timeline" as const, data: await satori.getTimeline({ days: p.days as number }, opts) };
+      return { kind: "timeline" as const, data: await satori.getTimeline({ days: p.days as number, ...scope }, opts) };
     },
   });
 
   return (
     <div className="mt-3 border-t border-border pt-3">
-      <button
-        onClick={() => run.refetch()}
-        disabled={run.isFetching}
-        className="inline-flex h-8 items-center gap-2 rounded-md bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
-      >
-        {run.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-        Run report
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => { run.refetch(); setLastRunAt(Date.now()); }}
+          disabled={run.isFetching}
+          className="inline-flex h-8 items-center gap-2 rounded-md bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+        >
+          {run.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+          Run report
+        </button>
+        {lastRunAt && !run.isFetching && (
+          <span className="text-[11px] text-muted-foreground">
+            Last run {new Date(lastRunAt).toLocaleTimeString()}
+          </span>
+        )}
+      </div>
 
       {run.isError && <p className="mt-2 text-xs text-destructive">Failed: {run.error instanceof Error ? run.error.message : "error"}</p>}
 
@@ -235,12 +303,28 @@ function ReportResult({ report }: { report: SavedReport }) {
 
 export function ReportsPage() {
   const qc = useQueryClient();
+  const gameId = useScopedGameId();
   const reports = useReports();
   const [showForm, setShowForm] = useState(false);
+  const counterRef = useRef(0);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  function showToast(message: string, variant: ToastVariant = "success") {
+    setToast({ id: ++counterRef.current, message, variant });
+  }
+
+  function openConfirm(message: string, onConfirm: () => void) {
+    setConfirmState({ message, onConfirm });
+  }
 
   const del = useMutation({
     mutationFn: (id: string) => satori.deleteReport(id, serverKeyAuth()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "reports"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "reports"] });
+      showToast("Report deleted", "success");
+    },
+    onError: () => showToast("Failed to delete report", "error"),
   });
 
   const list = reports.data ?? [];
@@ -287,21 +371,30 @@ export function ReportsPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => { if (window.confirm(`Delete report "${r.name}"?`)) del.mutate(r.id); }}
+                    onClick={() => openConfirm(`Delete report "${r.name}"?`, () => del.mutate(r.id))}
                     className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     title="Delete"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <ReportResult report={r} />
+                <ReportResult report={r} gameId={gameId} />
               </div>
             );
           })}
         </div>
       )}
 
-      {showForm && <ReportForm onClose={() => setShowForm(false)} />}
+      {showForm && <ReportForm onClose={() => setShowForm(false)} onToast={showToast} />}
+
+      {toast && <Toast key={toast.id} toast={toast} onDone={() => setToast(null)} />}
+      {confirmState && (
+        <ConfirmDialog
+          message={confirmState.message}
+          onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
     </div>
   );
 }
