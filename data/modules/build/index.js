@@ -8844,7 +8844,7 @@ var QuizVerseGenerator;
 var QvGetQuestions;
 (function (QvGetQuestions) {
     // ── Storage collection names ───────────────────────────────────────────────
-    var COL_RATE = "qv_rate"; // system-owned (userId = "")
+    var COL_RATE = "qv_rate"; // system-owned (Constants.SYSTEM_USER_ID)
     var COL_INFLT = "qv_inflight"; // user-owned
     var COL_PACKS = "qv_question_packs"; // user-owned
     // qv_seen: user-owned, key = "global_{topic}" (compatible with quizverse_seen.js)
@@ -8861,6 +8861,17 @@ var QvGetQuestions;
     var SEEN_MAX = 500; // cap the seen-IDs array to keep storage lean
     var COL_READYQUEUE = "qv_readyqueue"; // pre-warmed per-user question pool
     var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — discard stale readyqueue entries
+    // Client topic aliases — applied after trim/toLowerCase, before cache lookup
+    var TOPIC_ALIASES = {
+        "dish": "food",
+        "foodish": "food",
+        "guessanime": "anime",
+        "guess_anime": "anime",
+        "guesspokemon": "pokemon",
+        "guess_pokemon": "pokemon",
+        "guessdog": "dog",
+        "guess_dog": "dog"
+    };
     // ── Allowed game IDs (org2) ────────────────────────────────────────────────
     var ALLOWED_GAME_IDS = {
         "126bf539-dae2-4bcf-964d-316c0fa1f92b": true, // QuizVerse production
@@ -9023,6 +9034,24 @@ var QvGetQuestions;
     // 2. Shuffle the remaining "fresh" questions.
     // 3. If fresh count < requested count: backfill from oldest-seen questions
     //    (seenIds is ordered oldest-first — index 0 was seen the longest ago).
+    function mediaEligible(q, mediaType) {
+        if (!q || !q.has_media || !q.media || !q.media.url)
+            return false;
+        if (mediaType) {
+            var qType = (typeof q.media.type === "string") ? q.media.type.toLowerCase() : "";
+            if (qType !== mediaType)
+                return false;
+        }
+        return true;
+    }
+    function filterToMediaPool(pool, mediaType) {
+        var out = [];
+        for (var mi = 0; mi < pool.length; mi++) {
+            if (mediaEligible(pool[mi], mediaType))
+                out.push(pool[mi]);
+        }
+        return out;
+    }
     function filterAndPick(pool, seenIds, inflightIds, count) {
         // Build exclusion set
         var excluded = {};
@@ -9237,11 +9266,18 @@ var QvGetQuestions;
         var topic = (typeof req.topic === "string" && req.topic) ? req.topic.toLowerCase().trim() : "";
         if (!topic)
             throw nakamaError("topic is required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        if (TOPIC_ALIASES[topic])
+            topic = TOPIC_ALIASES[topic];
         var count = DEFAULT_COUNT;
         if (typeof req.count === "number" && req.count >= MIN_COUNT) {
             count = Math.min(MAX_COUNT, Math.max(MIN_COUNT, Math.floor(req.count)));
         }
         var lang = (typeof req.lang === "string" && req.lang) ? req.lang.toLowerCase().trim() : "en";
+        var requireMedia = req.has_media === true;
+        var reqMediaType = (typeof req.media_type === "string" && req.media_type)
+            ? req.media_type.toLowerCase().trim() : "";
+        if (!requireMedia && reqMediaType)
+            requireMedia = true;
         // ── game_id: validate against allowlist (org2) ─────────────────────────
         var rawGameId = (typeof req.game_id === "string" && req.game_id) ? req.game_id : "";
         var defaultGameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) ? ctx.env["DEFAULT_GAME_ID"] : "";
@@ -9330,6 +9366,15 @@ var QvGetQuestions;
         // Skips seen-filtering, cache reading, and lang-filtering when available.
         if (mode !== "personalized") { // personalized mode always uses live cache+SRQ
             var rqServed = serveFromReadyQueue(nk, logger, userId, topic, count);
+            if (rqServed !== null && requireMedia) {
+                var rqMedia = filterToMediaPool(rqServed, reqMediaType);
+                if (rqMedia.length < count) {
+                    rqServed = null;
+                }
+                else {
+                    rqServed = rqMedia.slice(0, count);
+                }
+            }
             if (rqServed !== null) {
                 var rqPackId = makePackId(nk, gameId, topic);
                 writePackStorage(nk, userId, rqPackId, topic, lang, lang, gameId, rqServed);
@@ -9404,6 +9449,21 @@ var QvGetQuestions;
         // Last resort: language field absent on all cached questions
         if (langPool.length === 0)
             langPool = pool;
+        // ── 4a. Media filter (ImageGuess / audio quiz modes) ────────────────────
+        if (requireMedia) {
+            var mediaPool = filterToMediaPool(langPool, reqMediaType);
+            if (mediaPool.length === 0) {
+                logger.warn("[QvGetQ] no media questions topic=" + topic +
+                    " media_type=" + (reqMediaType || "any"));
+                return JSON.stringify({
+                    ok: false,
+                    error: "no_media_questions",
+                    topic: topic,
+                    message: "No questions with media available for this topic."
+                });
+            }
+            langPool = mediaPool;
+        }
         // ── 4b. Elo-range filter ────────────────────────────────────────────────
         //
         // Keep only questions whose difficulty maps within the player's Elo ± 200.
@@ -9583,6 +9643,10 @@ var QvGetQuestions;
         if (coldStartApplied) {
             resp.cold_start = true;
         }
+        try {
+            QvPrewarmCron.opportunisticTick(ctx, logger, nk);
+        }
+        catch (_pt) { /* non-fatal */ }
         return JSON.stringify(resp);
     }
     // ── Registration ───────────────────────────────────────────────────────────
@@ -11556,7 +11620,7 @@ var QuizVerseMigration;
                 nk.storageWrite([{
                         collection: COL_EXTERNAL_CACHE,
                         key: cacheKey,
-                        userId: "",
+                        userId: Constants.SYSTEM_USER_ID,
                         value: {
                             payload: parsed,
                             cached_at_ms: nowMs(),
@@ -12929,7 +12993,7 @@ var QuizVersePackStore;
             {
                 collection: QuizVersePackStore.COLLECTION,
                 key: pack.pack_id,
-                userId: "",
+                userId: Constants.SYSTEM_USER_ID,
                 value: pack,
                 permissionRead: 2, // public read
                 permissionWrite: 0 // admin only
@@ -13584,7 +13648,7 @@ var QvPrewarmCron;
         // Read question cache for this topic
         var pool = [];
         try {
-            var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
+            var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: Constants.SYSTEM_USER_ID }]);
             if (!cacheRows || cacheRows.length === 0 || !cacheRows[0].value)
                 return 0;
             var page0 = cacheRows[0].value;
@@ -13595,7 +13659,7 @@ var QvPrewarmCron;
             if (pageCount > 1) {
                 var reqs = [];
                 for (var p = 1; p < pageCount; p++) {
-                    reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: "00000000-0000-0000-0000-000000000000" });
+                    reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: Constants.SYSTEM_USER_ID });
                 }
                 var extra = nk.storageRead(reqs);
                 if (extra) {
@@ -14374,6 +14438,8 @@ var QvQuestionCache;
     var CIRCUIT_COOLDOWN = 5 * 60 * 1000; // 5 min open cooldown (ms)
     var COL_CACHE = "qv_cache_"; // full key: qv_cache_{topic}
     var COL_CIRCUIT = "qv_circuit_breakers";
+    var COL_REFRESH_GATE = "qv_cache_refresh_gate";
+    var REFRESH_GATE_MS = 30 * 1000; // dedupe concurrent / back-to-back refreshes
     // Per-topic cache TTL (ms)
     var TOPIC_TTL = {
         opentdb: 1 * 3600000,
@@ -15726,7 +15792,7 @@ var QvQuestionCache;
             nk.storageWrite([{
                     collection: COL_CACHE + topic,
                     key: "pool_" + p,
-                    userId: "",
+                    userId: Constants.SYSTEM_USER_ID,
                     value: {
                         topic: topic,
                         page: p,
@@ -15797,6 +15863,28 @@ var QvQuestionCache;
             logger.info("[QvQCache/claude] enriched " + enriched + " explanations via Claude Haiku");
         }
     }
+    // ── Per-topic refresh gate ─────────────────────────────────────────────────
+    //
+    // Prevents duplicate provider fetches when multiple get_questions calls hit
+    // a cold cache simultaneously. Gate failure is non-fatal — caller proceeds.
+    function tryAcquireRefreshGate(nk, topic) {
+        try {
+            var rows = nk.storageRead([{ collection: COL_REFRESH_GATE, key: topic, userId: Constants.SYSTEM_USER_ID }]);
+            var lastMs = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_refresh_ms)
+                ? rows[0].value.last_refresh_ms : 0;
+            if (nowMs() - lastMs < REFRESH_GATE_MS)
+                return false;
+            nk.storageWrite([{
+                    collection: COL_REFRESH_GATE, key: topic, userId: Constants.SYSTEM_USER_ID,
+                    value: { last_refresh_ms: nowMs() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (_e) {
+            return true;
+        }
+    }
     // ══════════════════════════════════════════════════════════════════════════
     // PUBLIC API
     // ══════════════════════════════════════════════════════════════════════════
@@ -15814,6 +15902,10 @@ var QvQuestionCache;
             var cbMsg = "circuit open for provider=" + provider + " — skipping refresh";
             logger.warn("[QvQCache/" + topic + "] " + cbMsg);
             return { ok: false, topic: topic, count: 0, error: cbMsg };
+        }
+        if (!tryAcquireRefreshGate(nk, topic)) {
+            logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed");
+            return { ok: true, topic: topic, count: 0 };
         }
         try {
             // ── Fetch ─────────────────────────────────────────────────────────────
@@ -17035,7 +17127,7 @@ var QvSubmitResult;
             if (!ga || !ga.question_id)
                 continue;
             try {
-                var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: "00000000-0000-0000-0000-000000000000" }]);
+                var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: Constants.SYSTEM_USER_ID }]);
                 var doc = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
                 var ver = (rows && rows.length > 0 && rows[0].version) ? rows[0].version : "";
                 var attempts = (doc.attempts || 0) + 1;
@@ -19977,7 +20069,16 @@ var AdminConsole;
         for (var id in messagesConfig) {
             var def = messagesConfig[id] || {};
             var scheduleAt = def.schedule_at || def.scheduleAt;
-            var status = scheduleAt && scheduleAt > now ? "scheduled" : "draft";
+            // Derive a sensible fallback status: only use "scheduled" when there is
+            // a future scheduleAt; messages that were stored with status="scheduled"
+            // but no scheduleAt (old bug) are treated as draft.
+            var derivedStatus = (scheduleAt && scheduleAt > now) ? "scheduled" : "draft";
+            // Honour the persisted status (e.g. "sent") but guard against "scheduled"
+            // with no actual scheduleAt — that was the "all players, no schedule" bug.
+            var persistedStatus = def.status;
+            var finalStatus = (persistedStatus && !(persistedStatus === "scheduled" && !scheduleAt))
+                ? persistedStatus
+                : derivedStatus;
             messages.push({
                 id: def.id || id,
                 title: def.title || id,
@@ -19985,7 +20086,9 @@ var AdminConsole;
                 audience_id: def.audience_id || def.audienceId,
                 schedule_at: scheduleAt,
                 rewards_json: def.rewards_json || (def.reward ? JSON.stringify(def.reward) : undefined),
-                status: def.status || status,
+                status: finalStatus,
+                delivered_count: def.deliveredCount,
+                sent_at: def.sentAt ? isoFromSec(def.sentAt) : undefined,
                 created_at: isoFromSec(def.createdAt),
                 updated_at: isoFromSec(def.updatedAt)
             });
@@ -53275,7 +53378,11 @@ var SatoriEventDebugger;
 (function (SatoriEventDebugger) {
     var RECENT_COLLECTION = "satori_debugger";
     var RECENT_KEY = "recent_events";
-    var RECENT_MAX = 300;
+    var RECENT_MAX = 1000;
+    // Max events a single event name can occupy in the buffer (flood guard).
+    // Prevents one high-frequency event (e.g. experiment_assigned) from filling
+    // the entire ring and evicting all other event types from the live tail.
+    var RECENT_PER_NAME_MAX = 200;
     // Rejected-event ring buffer — backs the dashboard "Event errors" panel
     // (mirrors Satori Cloud's "Events rejected at ingestion" surface). Written
     // by SatoriEventCapture whenever taxonomy validation fails.
@@ -53298,6 +53405,22 @@ var SatoriEventDebugger;
             var buf = Storage.readSystemJson(nk, RECENT_COLLECTION, RECENT_KEY);
             if (!buf || !buf.events)
                 buf = { events: [] };
+            // Flood guard: count how many entries this event name already has.
+            // If at the per-name cap, drop the oldest entry of that name before adding.
+            var nameCount = 0;
+            for (var ci = 0; ci < buf.events.length; ci++) {
+                if (buf.events[ci].name === event.name)
+                    nameCount++;
+            }
+            if (nameCount >= RECENT_PER_NAME_MAX) {
+                // Remove the oldest occurrence of this event name to make room.
+                for (var ri = 0; ri < buf.events.length; ri++) {
+                    if (buf.events[ri].name === event.name) {
+                        buf.events.splice(ri, 1);
+                        break;
+                    }
+                }
+            }
             buf.events.push(event);
             if (buf.events.length > RECENT_MAX) {
                 buf.events = buf.events.slice(buf.events.length - RECENT_MAX);
@@ -57173,16 +57296,28 @@ var SatoriMessages;
             expiresAt: data.expiresAt,
             createdAt: now
         };
-        if (audienceId && !scheduleAt) {
-            var delivered = deliverToAudience(nk, logger, msgDef, audienceId, gameId);
-            // Persist message with sent status so it appears in admin history
+        if (!scheduleAt) {
+            // No schedule → send immediately, regardless of whether an audience is specified.
+            var delivered = 0;
+            if (audienceId) {
+                delivered = deliverToAudience(nk, logger, msgDef, audienceId, gameId);
+            }
+            else {
+                // "All players (no filter)": deliver to a random sample of up to 100 current users.
+                var allUsers = nk.usersGetRandom(100);
+                for (var ui = 0; ui < allUsers.length; ui++) {
+                    deliverMessage(nk, allUsers[ui].userId, msgDef, gameId);
+                    delivered++;
+                }
+            }
+            // Persist message with sent status so it appears in admin history.
             var definitions = getMessageDefinitions(nk, gameId);
             msgDef.status = "sent";
             msgDef.deliveredCount = delivered;
             msgDef.sentAt = now;
             definitions[msgDef.id] = msgDef;
             ConfigLoader.saveSatoriConfigForGame(nk, "messages", gameId, definitions);
-            return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId, messageId: msgDef.id });
+            return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId || "all", messageId: msgDef.id });
         }
         var definitions = getMessageDefinitions(nk, gameId);
         msgDef.status = "scheduled";
@@ -57283,16 +57418,17 @@ var SatoriMetrics;
             }
             bucket.count++;
             saveMetricState(nk, id, state, gameId);
-            checkAlerts(nk, logger, id, bucket.value);
+            checkAlerts(nk, logger, id, bucket.value, gameId);
         }
     }
     SatoriMetrics.processEvent = processEvent;
-    function getAlerts(nk) {
-        var data = Storage.readSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts");
+    function getAlerts(nk, gameId) {
+        var key = Constants.gameKey(gameId, "alerts");
+        var data = Storage.readSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, key);
         return (data && data.alerts) || [];
     }
-    function checkAlerts(nk, logger, metricId, value) {
-        var alerts = getAlerts(nk);
+    function checkAlerts(nk, logger, metricId, value, gameId) {
+        var alerts = getAlerts(nk, gameId);
         for (var i = 0; i < alerts.length; i++) {
             var alert = alerts[i];
             if (!alert.enabled || alert.metricId !== metricId)
@@ -57387,7 +57523,8 @@ var SatoriMetrics;
         if (!metricId || !data.name || data.threshold === undefined || !data.operator) {
             return RpcHelpers.errorResponse("metricId, name, threshold, and operator required");
         }
-        var alerts = getAlerts(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var alerts = getAlerts(nk, gameId);
         var existing = false;
         for (var i = 0; i < alerts.length; i++) {
             if (alerts[i].name === data.name) {
@@ -57399,7 +57536,8 @@ var SatoriMetrics;
         if (!existing) {
             alerts.push({ metricId: metricId, threshold: data.threshold, operator: data.operator, name: data.name, enabled: data.enabled !== false });
         }
-        Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, "alerts", { alerts: alerts });
+        var alertKey = Constants.gameKey(gameId, "alerts");
+        Storage.writeSystemJson(nk, Constants.SATORI_METRICS_COLLECTION, alertKey, { alerts: alerts });
         return RpcHelpers.successResponse({ alerts: alerts });
     }
     // satori_metrics_series — bucketed time series for one metric (for charts).
@@ -57458,7 +57596,26 @@ var SatoriMetrics;
     // satori_metrics_alerts — list configured alerts + last-triggered state.
     function rpcAlertsList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
-        return RpcHelpers.successResponse({ alerts: getAlerts(nk) });
+        var data = RpcHelpers.parseRpcPayload(payload);
+        return RpcHelpers.successResponse({ alerts: getAlerts(nk, RpcHelpers.gameId(data)) });
+    }
+    function rpcDelete(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.id)
+            return RpcHelpers.errorResponse("id required");
+        var gameId = RpcHelpers.gameId(data);
+        var definitions = getMetricDefinitions(nk, gameId);
+        if (!definitions[data.id])
+            return RpcHelpers.errorResponse("Metric not found: " + data.id);
+        delete definitions[data.id];
+        ConfigLoader.saveSatoriConfigForGame(nk, "metrics", gameId, definitions);
+        // Also clear state bucket to free storage
+        try {
+            Storage.deleteRecord(nk, Constants.SATORI_METRICS_COLLECTION, Constants.gameKey(gameId, data.id), Constants.SYSTEM_USER_ID);
+        }
+        catch (_) { /* ok if not present */ }
+        return RpcHelpers.successResponse({ deleted: data.id });
     }
     function rpcPrometheus(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -57487,6 +57644,7 @@ var SatoriMetrics;
     function register(initializer) {
         initializer.registerRpc("satori_metrics_query", rpcQuery);
         initializer.registerRpc("satori_metrics_define", rpcDefine);
+        initializer.registerRpc("satori_metrics_delete", rpcDelete);
         initializer.registerRpc("satori_metrics_set_alert", rpcSetAlert);
         initializer.registerRpc("satori_metrics_prometheus", rpcPrometheus);
         initializer.registerRpc("satori_metrics_get", rpcQuery);

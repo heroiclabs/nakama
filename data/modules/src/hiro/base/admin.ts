@@ -1843,7 +1843,16 @@ namespace AdminConsole {
     for (var id in messagesConfig) {
       var def = messagesConfig[id] || {};
       var scheduleAt = def.schedule_at || def.scheduleAt;
-      var status = scheduleAt && scheduleAt > now ? "scheduled" : "draft";
+      // Derive a sensible fallback status: only use "scheduled" when there is
+      // a future scheduleAt; messages that were stored with status="scheduled"
+      // but no scheduleAt (old bug) are treated as draft.
+      var derivedStatus = (scheduleAt && scheduleAt > now) ? "scheduled" : "draft";
+      // Honour the persisted status (e.g. "sent") but guard against "scheduled"
+      // with no actual scheduleAt — that was the "all players, no schedule" bug.
+      var persistedStatus = def.status;
+      var finalStatus = (persistedStatus && !(persistedStatus === "scheduled" && !scheduleAt))
+        ? persistedStatus
+        : derivedStatus;
       messages.push({
         id: def.id || id,
         title: def.title || id,
@@ -1851,7 +1860,9 @@ namespace AdminConsole {
         audience_id: def.audience_id || def.audienceId,
         schedule_at: scheduleAt,
         rewards_json: def.rewards_json || (def.reward ? JSON.stringify(def.reward) : undefined),
-        status: def.status || status,
+        status: finalStatus,
+        delivered_count: def.deliveredCount,
+        sent_at: def.sentAt ? isoFromSec(def.sentAt) : undefined,
         created_at: isoFromSec(def.createdAt),
         updated_at: isoFromSec(def.updatedAt)
       });

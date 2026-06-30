@@ -235,16 +235,27 @@ namespace SatoriMessages {
       createdAt: now
     };
 
-    if (audienceId && !scheduleAt) {
-      var delivered = deliverToAudience(nk, logger, msgDef, audienceId, gameId);
-      // Persist message with sent status so it appears in admin history
+    if (!scheduleAt) {
+      // No schedule → send immediately, regardless of whether an audience is specified.
+      var delivered = 0;
+      if (audienceId) {
+        delivered = deliverToAudience(nk, logger, msgDef, audienceId, gameId);
+      } else {
+        // "All players (no filter)": deliver to a random sample of up to 100 current users.
+        var allUsers = nk.usersGetRandom(100);
+        for (var ui = 0; ui < allUsers.length; ui++) {
+          deliverMessage(nk, allUsers[ui].userId, msgDef, gameId);
+          delivered++;
+        }
+      }
+      // Persist message with sent status so it appears in admin history.
       var definitions = getMessageDefinitions(nk, gameId);
       (msgDef as any).status = "sent";
       (msgDef as any).deliveredCount = delivered;
       (msgDef as any).sentAt = now;
       definitions[msgDef.id] = msgDef;
       ConfigLoader.saveSatoriConfigForGame(nk, "messages", gameId, definitions);
-      return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId, messageId: msgDef.id });
+      return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId || "all", messageId: msgDef.id });
     }
 
     var definitions = getMessageDefinitions(nk, gameId);
