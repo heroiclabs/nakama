@@ -472,12 +472,19 @@ function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
     },
   });
 
-  const data: ExperimentResults | undefined = results.data;
-  const needsGoalEvent =
-    results.isError &&
-    results.error instanceof Error &&
-    /goal event/i.test(results.error.message ?? "");
-  const maxRate = data ? Math.max(...data.variants.map((v) => v.rate), 0.0001) : 1;
+  const data: ExperimentResults | undefined =
+    results.data &&
+    Array.isArray(results.data.variants) &&
+    Array.isArray(results.data.comparisons)
+      ? results.data
+      : undefined;
+  const errorMessage =
+    results.error instanceof Error ? results.error.message : "Failed to load results";
+  const needsGoalEvent = /goal event/i.test(errorMessage);
+  const maxRate =
+    data && data.variants.length > 0
+      ? Math.max(...data.variants.map((v) => v.rate), 0.0001)
+      : 1;
 
   const handleDeclare = (variantId: string) => {
     if (
@@ -533,9 +540,7 @@ function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
             ) : (
               <p className="flex items-center gap-2 text-sm text-destructive">
                 <AlertTriangle className="h-4 w-4" />
-                {results.error instanceof Error
-                  ? results.error.message
-                  : "Failed to load results"}
+                {errorMessage}
               </p>
             )}
             <div className="flex gap-2">
@@ -641,10 +646,10 @@ function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
 
             {/* Scan caveats */}
             <p className="text-[11px] text-muted-foreground">
-              Scanned {data.scan.assignmentObjectsScanned.toLocaleString()} assignment
-              objects and {data.scan.eventRecordsScanned.toLocaleString()} event records
-              ({data.scan.totalGoalEvents.toLocaleString()} goal events).
-              {(data.scan.assignmentsTruncated || data.scan.eventsTruncated) && (
+              Scanned {data.scan?.assignmentObjectsScanned?.toLocaleString() ?? "0"} assignment
+              objects and {data.scan?.eventRecordsScanned?.toLocaleString() ?? "0"} event records
+              ({data.scan?.totalGoalEvents?.toLocaleString() ?? "0"} goal events).
+              {(data.scan?.assignmentsTruncated || data.scan?.eventsTruncated) && (
                 <span className="ml-1 text-amber-500">
                   Scan truncated — figures are a lower-bound estimate.
                 </span>
