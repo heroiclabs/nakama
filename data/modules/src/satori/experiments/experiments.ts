@@ -13,12 +13,17 @@ namespace SatoriExperiments {
     Storage.writeJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, Constants.gameKey(gameId, "assignments"), userId, data);
   }
 
+  // Returns the canonical identifier for a variant — prefer id, fall back to name.
+  function variantKey(v: any): string {
+    return v.id || v.name || "0";
+  }
+
   function deterministicAssign(userId: string, experimentId: string, variants: Satori.ExperimentVariant[], splitKey?: string): string {
     var totalWeight = 0;
     for (var i = 0; i < variants.length; i++) {
       totalWeight += variants[i].weight;
     }
-    if (totalWeight <= 0) return variants[0].id;
+    if (totalWeight <= 0) return variantKey(variants[0]);
 
     var seed = userId + ":" + experimentId;
     if (splitKey === "random") {
@@ -34,9 +39,9 @@ namespace SatoriExperiments {
     var cumulative = 0;
     for (var j = 0; j < variants.length; j++) {
       cumulative += variants[j].weight;
-      if (bucket < cumulative) return variants[j].id;
+      if (bucket < cumulative) return variantKey(variants[j]);
     }
-    return variants[variants.length - 1].id;
+    return variantKey(variants[variants.length - 1]);
   }
 
   function isExperimentActive(def: any): boolean {
@@ -65,7 +70,8 @@ namespace SatoriExperiments {
     var userExp = getUserExperiments(nk, userId, gameId);
     var assignment = userExp.assignments[experimentId];
 
-    if (!assignment) {
+    // Treat missing or legacy-broken assignments (variantId undefined/null) as unassigned.
+    if (!assignment || !assignment.variantId) {
       if (!isWithinAdmissionDeadline(def)) return null;
 
       var variantId = deterministicAssign(userId, experimentId, def.variants, def.splitKey);
@@ -84,7 +90,7 @@ namespace SatoriExperiments {
 
     var found: Satori.ExperimentVariant | null = null;
     for (var i = 0; i < def.variants.length; i++) {
-      if (def.variants[i].id === assignment.variantId) { found = def.variants[i]; break; }
+      if (variantKey(def.variants[i]) === assignment.variantId) { found = def.variants[i]; break; }
     }
 
     // Multi-phase: check if current phase has different variants
@@ -127,7 +133,7 @@ namespace SatoriExperiments {
         name: def.name,
         description: def.description,
         type: def.experimentType || "custom",
-        variant: variant ? { id: variant.id, name: variant.name, config: variant.config } : null,
+        variant: variant ? { id: variantKey(variant), name: variant.name, config: variant.config || (variant as any).data || {} } : null,
         startAt: def.startAt,
         endAt: def.endAt,
         goalMetric: def.goalMetric
@@ -143,7 +149,8 @@ namespace SatoriExperiments {
     if (!data.experimentId) return RpcHelpers.errorResponse("experimentId required");
 
     var variant = getVariant(nk, userId, data.experimentId, RpcHelpers.gameId(data));
-    return RpcHelpers.successResponse({ variant: variant });
+    var resp = variant ? { id: variantKey(variant), name: variant.name, config: variant.config || (variant as any).data || {} } : null;
+    return RpcHelpers.successResponse({ variant: resp });
   }
 
   export function register(initializer: nkruntime.Initializer): void {

@@ -53759,13 +53759,17 @@ var SatoriExperiments;
     function saveUserExperiments(nk, userId, data, gameId) {
         Storage.writeJson(nk, Constants.SATORI_ASSIGNMENTS_COLLECTION, Constants.gameKey(gameId, "assignments"), userId, data);
     }
+    // Returns the canonical identifier for a variant — prefer id, fall back to name.
+    function variantKey(v) {
+        return v.id || v.name || "0";
+    }
     function deterministicAssign(userId, experimentId, variants, splitKey) {
         var totalWeight = 0;
         for (var i = 0; i < variants.length; i++) {
             totalWeight += variants[i].weight;
         }
         if (totalWeight <= 0)
-            return variants[0].id;
+            return variantKey(variants[0]);
         var seed = userId + ":" + experimentId;
         if (splitKey === "random") {
             seed = userId + ":" + experimentId + ":" + Date.now();
@@ -53780,9 +53784,9 @@ var SatoriExperiments;
         for (var j = 0; j < variants.length; j++) {
             cumulative += variants[j].weight;
             if (bucket < cumulative)
-                return variants[j].id;
+                return variantKey(variants[j]);
         }
-        return variants[variants.length - 1].id;
+        return variantKey(variants[variants.length - 1]);
     }
     function isExperimentActive(def) {
         if (def.status !== "running")
@@ -53811,7 +53815,8 @@ var SatoriExperiments;
         }
         var userExp = getUserExperiments(nk, userId, gameId);
         var assignment = userExp.assignments[experimentId];
-        if (!assignment) {
+        // Treat missing or legacy-broken assignments (variantId undefined/null) as unassigned.
+        if (!assignment || !assignment.variantId) {
             if (!isWithinAdmissionDeadline(def))
                 return null;
             var variantId = deterministicAssign(userId, experimentId, def.variants, def.splitKey);
@@ -53828,7 +53833,7 @@ var SatoriExperiments;
         }
         var found = null;
         for (var i = 0; i < def.variants.length; i++) {
-            if (def.variants[i].id === assignment.variantId) {
+            if (variantKey(def.variants[i]) === assignment.variantId) {
                 found = def.variants[i];
                 break;
             }
@@ -53871,7 +53876,7 @@ var SatoriExperiments;
                 name: def.name,
                 description: def.description,
                 type: def.experimentType || "custom",
-                variant: variant ? { id: variant.id, name: variant.name, config: variant.config } : null,
+                variant: variant ? { id: variantKey(variant), name: variant.name, config: variant.config || variant.data || {} } : null,
                 startAt: def.startAt,
                 endAt: def.endAt,
                 goalMetric: def.goalMetric
@@ -53885,7 +53890,8 @@ var SatoriExperiments;
         if (!data.experimentId)
             return RpcHelpers.errorResponse("experimentId required");
         var variant = getVariant(nk, userId, data.experimentId, RpcHelpers.gameId(data));
-        return RpcHelpers.successResponse({ variant: variant });
+        var resp = variant ? { id: variantKey(variant), name: variant.name, config: variant.config || variant.data || {} } : null;
+        return RpcHelpers.successResponse({ variant: resp });
     }
     function register(initializer) {
         initializer.registerRpc("satori_experiments_get", rpcGet);
