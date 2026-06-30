@@ -95,7 +95,9 @@ namespace QvGetQuestions {
   // checks count ≤ RATE_MAX, then appends current timestamp and writes back.
 
   function enforceRateLimit(nk: nkruntime.Nakama, userId: string): void {
-    var rows = nk.storageRead([{ collection: COL_RATE, key: userId, userId: "" }]);
+    // User-owned storage (userId = actual user UUID) — system-owned (userId="")
+    // is rejected by production Nakama JS runtime with "expects 'userId' value to be a valid id".
+    var rows = nk.storageRead([{ collection: COL_RATE, key: "rl", userId: userId }]);
     var doc: any = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
     var timestamps: number[] = Array.isArray(doc.timestamps) ? doc.timestamps : [];
     var windowStart = nowMs() - RATE_WINDOW_MS;
@@ -115,7 +117,7 @@ namespace QvGetQuestions {
 
     fresh.push(nowMs());
     nk.storageWrite([{
-      collection: COL_RATE, key: userId, userId: "",
+      collection: COL_RATE, key: "rl", userId: userId,
       value: { timestamps: fresh, updated_ms: nowMs() },
       permissionRead: 0, permissionWrite: 0
     }]);
