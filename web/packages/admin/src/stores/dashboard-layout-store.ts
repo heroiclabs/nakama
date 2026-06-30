@@ -25,7 +25,7 @@ export const DEFAULT_GAME_METRICS_CARDS_ORDER = [
   "game-wau",
   "game-mau",
   "game-events-today",
-  "game-players-24h",
+  "game-players-today",
 ] as const;
 
 export type GameMetricsCardId = (typeof DEFAULT_GAME_METRICS_CARDS_ORDER)[number];
@@ -63,7 +63,8 @@ const LEGACY_CARD_TO_GAME: Record<string, GameMetricsCardId> = {
   "crm-wau": "game-wau",
   "crm-mau": "game-mau",
   "crm-events-24h": "game-events-today",
-  "crm-players-24h": "game-players-24h",
+  "crm-players-24h": "game-players-today",
+  "game-players-24h": "game-players-today",
 };
 
 const LEGACY_SECTION_DROP = new Set(["crm-error", "crm-dual-run"]);

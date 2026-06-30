@@ -503,12 +503,8 @@ function StatusTab({
     return true;
   });
 
-  const eventsToday =
-    analyticsOverview?.live_today?.total ??
-    summary?.eventsToday ??
-    summary?.eventsLast24h ??
-    0;
-  const players24h = summary?.activeUsers?.total?.active24h ?? analyticsOverview?.dau ?? 0;
+  const eventsToday = analytics.eventsTodayFromDashboard(analyticsOverview);
+  const playersToday = analytics.playersTodayFromDashboard(analyticsOverview);
 
   const activeUserCards: Record<ActiveUsersWidgetId, ReactNode> = {
     "active-users-5m": <ActiveUsers5mCard summary={summary} loading={summaryLoading} />,
@@ -557,18 +553,14 @@ function StatusTab({
         loading={analyticsLoading}
       />
     ),
-    "game-players-24h": (
+    "game-players-today": (
       <CountCard
-        label="Active players · 24h"
-        value={
-          analyticsLoading && summaryLoading
-            ? "—"
-            : analytics.formatCompactNumber(players24h)
-        }
+        label="Players · today"
+        value={analyticsLoading ? "—" : analytics.formatCompactNumber(playersToday)}
         accent="bg-cyan-500/10 text-cyan-500"
         icon={Users}
         to={METRICS_TAB_LINK}
-        loading={analyticsLoading || summaryLoading}
+        loading={analyticsLoading}
       />
     ),
   };

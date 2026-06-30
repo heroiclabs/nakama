@@ -26,6 +26,7 @@ export interface AnalyticsDashboardResult {
   mau_estimated?: boolean;
   dau_mau_ratio?: number;
   new_users_today?: number;
+  returning_users_today?: number;
   events_today?: number;
   live_today?: AnalyticsLiveToday | null;
   _meta?: AnalyticsDashboardMeta;
@@ -73,6 +74,16 @@ export function getAnalyticsDashboard(
     body,
     opts,
   ).then(unwrapAnalyticsDashboard);
+}
+
+/** Game events ingested today (UTC) — analytics_live_daily.total. */
+export function eventsTodayFromDashboard(data?: AnalyticsDashboardResult): number {
+  return data?.live_today?.total ?? 0;
+}
+
+/** Distinct players active today — same as dau from analytics_dau. */
+export function playersTodayFromDashboard(data?: AnalyticsDashboardResult): number {
+  return data?.dau ?? 0;
 }
 
 export function formatCompactNumber(n: number): string {
