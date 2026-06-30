@@ -1357,6 +1357,7 @@ type IAPConfig struct {
 	Google          *IAPGoogleConfig          `yaml:"google" json:"google" usage:"Google Play Store purchase validation configuration."`
 	Huawei          *IAPHuaweiConfig          `yaml:"huawei" json:"huawei" usage:"Huawei purchase validation configuration."`
 	FacebookInstant *IAPFacebookInstantConfig `yaml:"facebook_instant" json:"facebook_instant" usage:"Facebook Instant purchase validation configuration."`
+	Samsung         *IAPSamsungConfig         `yaml:"samsung" json:"samsung" usage:"Samsung Galaxy Store purchase validation configuration."`
 }
 
 func (cfg *IAPConfig) GetApple() runtime.IAPAppleConfig {
@@ -1373,6 +1374,10 @@ func (cfg *IAPConfig) GetHuawei() runtime.IAPHuaweiConfig {
 
 func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
 	return cfg.FacebookInstant
+}
+
+func (cfg *IAPConfig) GetSamsung() *IAPSamsungConfig {
+	return cfg.Samsung
 }
 
 func (cfg *IAPConfig) Clone() *IAPConfig {
@@ -1398,6 +1403,10 @@ func (cfg *IAPConfig) Clone() *IAPConfig {
 		c := *(cfg.Huawei)
 		cfgCopy.Huawei = &c
 	}
+	if cfg.Samsung != nil {
+		c := *(cfg.Samsung)
+		cfgCopy.Samsung = &c
+	}
 
 	return &cfgCopy
 }
@@ -1408,6 +1417,7 @@ func NewIAPConfig() *IAPConfig {
 		Google:          &IAPGoogleConfig{},
 		Huawei:          &IAPHuaweiConfig{},
 		FacebookInstant: &IAPFacebookInstantConfig{},
+		Samsung:         &IAPSamsungConfig{},
 	}
 }
 
@@ -1561,6 +1571,16 @@ type IAPFacebookInstantConfig struct {
 func (i IAPFacebookInstantConfig) GetAppSecret() string {
 	return i.AppSecret
 }
+
+type IAPSamsungConfig struct {
+	ServiceAccountID string `yaml:"service_account_id" json:"service_account_id" usage:"Samsung IAP service account ID from Seller Portal > Assistance > API Service."`
+	PrivateKey       string `yaml:"private_key" json:"private_key" usage:"Samsung IAP service account private key PEM downloaded when the service account was created."`
+	PackageName      string `yaml:"package_name" json:"package_name" usage:"The application package name registered in Galaxy Store."`
+}
+
+func (i IAPSamsungConfig) GetServiceAccountID() string { return i.ServiceAccountID }
+func (i IAPSamsungConfig) GetPrivateKey() string         { return i.PrivateKey }
+func (i IAPSamsungConfig) GetPackageName() string      { return i.PackageName }
 
 var _ runtime.GoogleAuthConfig = (*GoogleAuthConfig)(nil)
 

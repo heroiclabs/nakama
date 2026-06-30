@@ -794,6 +794,12 @@ type Initializer interface {
 	// RegisterAfterValidatePurchaseFacebookInstant can be used to perform additional logic after validating an Facebook Instant IAP receipt.
 	RegisterAfterValidatePurchaseFacebookInstant(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseFacebookInstantRequest) error) error
 
+	// RegisterBeforeValidatePurchaseSamsung can be used to perform additional logic before validating a Samsung Galaxy Store IAP receipt.
+	RegisterBeforeValidatePurchaseSamsung(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ValidatePurchaseSamsungRequest) (*api.ValidatePurchaseSamsungRequest, error)) error
+
+	// RegisterAfterValidatePurchaseSamsung can be used to perform additional logic after validating a Samsung Galaxy Store IAP receipt.
+	RegisterAfterValidatePurchaseSamsung(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, out *api.ValidatePurchaseResponse, in *api.ValidatePurchaseSamsungRequest) error) error
+
 	// RegisterBeforeListSubscriptions can be used to perform additional logic before listing subscriptions.
 	RegisterBeforeListSubscriptions(fn func(ctx context.Context, logger Logger, db *sql.DB, nk NakamaModule, in *api.ListSubscriptionsRequest) (*api.ListSubscriptionsRequest, error)) error
 
@@ -1177,6 +1183,7 @@ type NakamaModule interface {
 	}) (*api.ValidatePurchaseResponse, error)
 	PurchaseValidateHuawei(ctx context.Context, userID, signature, inAppPurchaseData string, persist bool) (*api.ValidatePurchaseResponse, error)
 	PurchaseValidateFacebookInstant(ctx context.Context, userID, signedRequest string, persist bool) (*api.ValidatePurchaseResponse, error)
+	PurchaseValidateSamsung(ctx context.Context, userID, purchaseId string, persist bool) (*api.ValidatePurchaseResponse, error)
 	PurchasesList(ctx context.Context, userID string, limit int, cursor string) (*api.PurchaseList, error)
 	PurchaseGetByTransactionId(ctx context.Context, transactionID string) (*api.ValidatedPurchase, error)
 
