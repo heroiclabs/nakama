@@ -23,6 +23,7 @@ import {
 import {
   serverKeyAuth,
   quizverse,
+  analytics,
   type ProductMetricsSlice,
   type OverviewSlice,
   type ModeShare,
@@ -43,6 +44,16 @@ const SLICES: { id: ProductMetricsSlice; label: string }[] = [
   { id: "sponsors", label: "Sponsors" },
   { id: "experiments", label: "Experiments" },
 ];
+
+function useAnalyticsOverviewKpis() {
+  return useQuery({
+    queryKey: ["admin", "analytics-dashboard", "all"],
+    queryFn: () =>
+      analytics.getAnalyticsDashboard({ days: 30, gameId: "all" }, serverKeyAuth()),
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+}
 
 function useProductMetrics<S extends ProductMetricsSlice>(
   slice: S,
@@ -294,6 +305,7 @@ export function ProductTelemetryPanel({ embedded = false }: ProductTelemetryPane
   const [slice, setSlice] = useState<ProductMetricsSlice>("overview");
   const [days, setDays] = useState(30);
   const overview = useProductMetrics("overview");
+  const analyticsKpis = useAnalyticsOverviewKpis();
 
   return (
     <div className="space-y-6">
@@ -328,7 +340,7 @@ export function ProductTelemetryPanel({ embedded = false }: ProductTelemetryPane
                 : "border border-border bg-card text-muted-foreground hover:text-foreground",
             )}
           >
-            {key === "product" ? "CRM · Product" : "Growth · Marketing"}
+            {key === "product" ? "Product · Nakama" : "Growth · Marketing"}
           </button>
         ))}
       </div>
@@ -337,9 +349,10 @@ export function ProductTelemetryPanel({ embedded = false }: ProductTelemetryPane
         <GrowthTelemetryPanel />
       ) : (
         <>
-          {overview.data?.generated_at && (
+          {analyticsKpis.data?._meta?.generated_at && (
             <p className="text-xs text-muted-foreground">
-              Generated {overview.data.generated_at}
+              Audience KPIs from Nakama analytics ·{" "}
+              {new Date(analyticsKpis.data._meta.generated_at).toLocaleString()}
             </p>
           )}
 
@@ -350,9 +363,9 @@ export function ProductTelemetryPanel({ embedded = false }: ProductTelemetryPane
                 DAU
               </div>
               <p className="mt-1 text-3xl font-bold tabular-nums">
-                {overview.isLoading
+                {analyticsKpis.isLoading
                   ? "—"
-                  : quizverse.formatCompactNumber((overview.data?.data as OverviewSlice | undefined)?.dau ?? 0)}
+                  : analytics.formatCompactNumber(analyticsKpis.data?.dau ?? 0)}
               </p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4">
@@ -361,9 +374,9 @@ export function ProductTelemetryPanel({ embedded = false }: ProductTelemetryPane
                 WAU
               </div>
               <p className="mt-1 text-3xl font-bold tabular-nums">
-                {overview.isLoading
+                {analyticsKpis.isLoading
                   ? "—"
-                  : quizverse.formatCompactNumber((overview.data?.data as OverviewSlice | undefined)?.wau ?? 0)}
+                  : analytics.formatCompactNumber(analyticsKpis.data?.wau ?? 0)}
               </p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4">
@@ -372,9 +385,9 @@ export function ProductTelemetryPanel({ embedded = false }: ProductTelemetryPane
                 MAU
               </div>
               <p className="mt-1 text-3xl font-bold tabular-nums">
-                {overview.isLoading
+                {analyticsKpis.isLoading
                   ? "—"
-                  : quizverse.formatCompactNumber((overview.data?.data as OverviewSlice | undefined)?.mau ?? 0)}
+                  : analytics.formatCompactNumber(analyticsKpis.data?.mau ?? 0)}
               </p>
             </div>
           </div>
