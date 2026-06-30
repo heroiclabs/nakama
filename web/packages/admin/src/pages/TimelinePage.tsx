@@ -11,13 +11,14 @@ import {
 } from "lucide-react";
 import { serverKeyAuth, satori, type TimelineActivity } from "@nakama/shared";
 import { cn } from "@/lib/utils";
+import { useScopedGameId } from "@/hooks/useScopedGame";
 
 const DAY_MS = 86400000;
 
-function useTimeline(days: number) {
+function useTimeline(days: number, gameId?: string) {
   return useQuery({
-    queryKey: ["admin", "timeline", days],
-    queryFn: () => satori.getTimeline({ days }, serverKeyAuth()),
+    queryKey: ["admin", "timeline", days, gameId ?? "platform"],
+    queryFn: () => satori.getTimeline({ days, game_id: gameId }, serverKeyAuth()),
     retry: 1,
   });
 }
@@ -34,7 +35,8 @@ const ACTIVITY_META: Record<TimelineActivity["type"], { icon: React.ElementType;
 
 export function TimelinePage() {
   const [days, setDays] = useState(14);
-  const timeline = useTimeline(days);
+  const gameId = useScopedGameId();
+  const timeline = useTimeline(days, gameId ?? undefined);
 
   const dau = timeline.data?.dau ?? [];
   const maxUsers = dau.reduce((m, d) => Math.max(m, d.users), 0);
