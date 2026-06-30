@@ -462,7 +462,59 @@ namespace OnboardingAnalytics {
   }
 
   function resolveUserKey(rec: any): string {
-    return (rec.nakamaUserId || rec.identityId || rec.userId || "").toString();
+    // Prefer stable anon session id so welcome theme + completion stay in one bucket.
+    // nakamaUserId-first split guest (ob_welcome_seen) from post-register (ob_complete).
+    var identityId = (rec.identityId || "").toString();
+    if (identityId) return identityId;
+    return (rec.nakamaUserId || rec.userId || "").toString();
+  }
+
+  function normalizeWelcomeTheme(raw: string): string {
+    var wt = (raw || "").toLowerCase();
+    if (wt === "lavender") return "lavender";
+    if (wt === "v1") return "v1";
+    return "";
+  }
+
+  function applyWelcomeThemeFromRecord(u: any, rec: any): void {
+    if (u.welcomeTheme) return;
+    var data = rec.data || {};
+    if (data.welcome_theme) {
+      u.welcomeTheme = normalizeWelcomeTheme("" + data.welcome_theme);
+      if (u.welcomeTheme) return;
+    }
+    var snap = rec.userSnapshot || {};
+    if (snap.welcome_theme) {
+      u.welcomeTheme = normalizeWelcomeTheme("" + snap.welcome_theme);
+    }
+  }
+
+  /** Merge orphan nakama/cognito buckets that share identityId with the guest bucket. */
+  function coalesceUsersByIdentityId(usersMap: { [uid: string]: any }): number {
+    var canonical: { [identityId: string]: string } = {};
+    var toDelete: string[] = [];
+    var merges = 0;
+
+    for (var uid in usersMap) {
+      if (!Object.prototype.hasOwnProperty.call(usersMap, uid)) continue;
+      var u = usersMap[uid];
+      var iid = (u.identityId || "").toString();
+      if (!iid) continue;
+
+      if (canonical[iid]) {
+        var targetUid = canonical[iid];
+        mergeUserBuckets(usersMap[targetUid], u);
+        toDelete.push(uid);
+        merges++;
+      } else {
+        canonical[iid] = uid;
+      }
+    }
+
+    for (var d = 0; d < toDelete.length; d++) {
+      delete usersMap[toDelete[d]];
+    }
+    return merges;
   }
 
   function loadIdentityLinks(nk: nkruntime.Nakama): { links: any[]; truncated: boolean } {
@@ -799,10 +851,7 @@ namespace OnboardingAnalytics {
         if (rec.name === "ob_streak_shield_activated") u.streakShieldActivated = true;
         applyUnityHandoffFromEvent(u, rec);
 
-        if (!u.welcomeTheme && rec.data && rec.data.welcome_theme) {
-          var wt = ("" + rec.data.welcome_theme).toLowerCase();
-          u.welcomeTheme = (wt === "lavender") ? "lavender" : "v1";
-        }
+        applyWelcomeThemeFromRecord(u, rec);
         if (rec.name === "ob_return_seen") u.returnSeenEvent = true;
 
         if (rec.name === "ob_screen_seen" && rec.screen) {
@@ -884,6 +933,7 @@ namespace OnboardingAnalytics {
     if (userLimit > 1000) userLimit = 1000;
 
     var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
+    var identityCoalesced = coalesceUsersByIdentityId(scan.users);
     var identityLoad = loadIdentityLinks(nk);
     var mergeResult = mergeUsersByIdentityLinks(scan.users, identityLoad.links);
     var usersMap = mergeResult.users;
@@ -904,7 +954,7 @@ namespace OnboardingAnalytics {
       for (var tfuid in usersMap) {
         if (!Object.prototype.hasOwnProperty.call(usersMap, tfuid)) continue;
         var tfu = usersMap[tfuid];
-        var uTheme = tfu.welcomeTheme || "v1";
+        var uTheme = tfu.welcomeTheme || "";
         if (uTheme === welcomeThemeFilter) themeFiltered[tfuid] = tfu;
       }
       usersMap = themeFiltered;
@@ -979,7 +1029,7 @@ namespace OnboardingAnalytics {
         }
       }
 
-      var uWelcomeTheme = u.welcomeTheme || "v1";
+      var uWelcomeTheme = u.welcomeTheme || "";
       if (uWelcomeTheme === "lavender") {
         abLavenderUsers++;
         if (u.completed) abLavenderCompleted++;
