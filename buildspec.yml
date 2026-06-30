@@ -41,7 +41,6 @@ env:
     LLM_PROVIDER: openai
   parameter-store:
     OPENAI_API_KEY:      /nakama/OPENAI_API_KEY
-    ANTHROPIC_API_KEY:   /nakama/ANTHROPIC_API_KEY
     # Question-cache provider keys (all free-tier — get at the links in .env.example)
     TMDB_API_KEY:        /nakama/TMDB_API_KEY
     LASTFM_API_KEY:      /nakama/LASTFM_API_KEY
@@ -226,7 +225,6 @@ phases:
       - |
         INJECT_ARGS=""
         if [ -n "$OPENAI_API_KEY" ];     then INJECT_ARGS="$INJECT_ARGS OPENAI_API_KEY=$OPENAI_API_KEY";         echo "  ✓ OPENAI_API_KEY injected";     else echo "  ⚠ OPENAI_API_KEY not set"; fi
-        if [ -n "$ANTHROPIC_API_KEY" ];  then INJECT_ARGS="$INJECT_ARGS ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"; echo "  ✓ ANTHROPIC_API_KEY injected";  else echo "  ⚠ ANTHROPIC_API_KEY not set"; fi
         if [ -n "$XAI_API_KEY" ];        then INJECT_ARGS="$INJECT_ARGS XAI_API_KEY=$XAI_API_KEY";             echo "  ✓ XAI_API_KEY injected";        else echo "  ⚠ XAI_API_KEY not set"; fi
         if [ -n "$LLM_PROVIDER" ];       then INJECT_ARGS="$INJECT_ARGS LLM_PROVIDER=$LLM_PROVIDER";           echo "  ✓ LLM_PROVIDER injected";       else echo "  ⚠ LLM_PROVIDER not set"; fi
         # Question-cache provider keys
