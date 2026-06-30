@@ -19,7 +19,12 @@ namespace SatoriEventDebugger {
 
   var RECENT_COLLECTION = "satori_debugger";
   var RECENT_KEY = "recent_events";
-  var RECENT_MAX = 300;
+  var RECENT_MAX = 1000;
+
+  // Max events a single event name can occupy in the buffer (flood guard).
+  // Prevents one high-frequency event (e.g. experiment_assigned) from filling
+  // the entire ring and evicting all other event types from the live tail.
+  var RECENT_PER_NAME_MAX = 200;
 
   // Rejected-event ring buffer — backs the dashboard "Event errors" panel
   // (mirrors Satori Cloud's "Events rejected at ingestion" surface). Written
@@ -63,6 +68,23 @@ namespace SatoriEventDebugger {
     try {
       var buf = Storage.readSystemJson<{ events: DebugEvent[] }>(nk, RECENT_COLLECTION, RECENT_KEY);
       if (!buf || !buf.events) buf = { events: [] };
+
+      // Flood guard: count how many entries this event name already has.
+      // If at the per-name cap, drop the oldest entry of that name before adding.
+      var nameCount = 0;
+      for (var ci = 0; ci < buf.events.length; ci++) {
+        if (buf.events[ci].name === event.name) nameCount++;
+      }
+      if (nameCount >= RECENT_PER_NAME_MAX) {
+        // Remove the oldest occurrence of this event name to make room.
+        for (var ri = 0; ri < buf.events.length; ri++) {
+          if (buf.events[ri].name === event.name) {
+            buf.events.splice(ri, 1);
+            break;
+          }
+        }
+      }
+
       buf.events.push(event);
       if (buf.events.length > RECENT_MAX) {
         buf.events = buf.events.slice(buf.events.length - RECENT_MAX);

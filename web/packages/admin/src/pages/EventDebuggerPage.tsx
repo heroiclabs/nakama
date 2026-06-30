@@ -12,6 +12,8 @@ import {
   RefreshCw,
   Search,
   X,
+  ExternalLink,
+  ListPlus,
 } from "lucide-react";
 import {
   serverKeyAuth,
@@ -149,9 +151,17 @@ function IdentityDrawer({
                   </span>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  External / synthetic identity — no Nakama account record.
-                </p>
+                <div className="flex items-start gap-2 rounded-md border border-violet-500/30 bg-violet-500/5 px-3 py-2.5">
+                  <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-violet-500" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-violet-500">External Satori identity</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      This ID was sent by an external SDK or server-side integration.
+                      No Nakama account is linked — identity properties and audience
+                      membership are tracked separately via Satori's identity pipeline.
+                    </p>
+                  </div>
+                </div>
               )}
 
               {/* Audiences + experiments */}
@@ -321,13 +331,44 @@ function NameStats({
     onSuccess: () => qc.invalidateQueries({ queryKey: ["satori", "debugger"] }),
   });
 
+  const unregistered = names.filter((n) => !n.hasSchema);
+
+  async function registerAll() {
+    for (const n of unregistered) {
+      await satori.upsertTaxonomySchema(
+        { name: n.name, description: "Registered from Event Debugger", category: "custom" },
+        serverKeyAuth(),
+      );
+    }
+    qc.invalidateQueries({ queryKey: ["satori", "debugger"] });
+  }
+
+  const registerAllMut = useMutation({ mutationFn: registerAll });
+
   if (names.length === 0) return null;
 
   return (
     <div className="space-y-1">
-      <p className="px-1 text-xs font-medium text-muted-foreground">
-        Event names in view
-      </p>
+      <div className="flex items-center justify-between px-1">
+        <p className="text-xs font-medium text-muted-foreground">
+          Event names in view
+        </p>
+        {unregistered.length > 1 && (
+          <button
+            onClick={() => registerAllMut.mutate()}
+            disabled={registerAllMut.isPending}
+            className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400 disabled:opacity-50"
+            title={`Register all ${unregistered.length} unregistered events`}
+          >
+            {registerAllMut.isPending ? (
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+            ) : (
+              <ListPlus className="h-2.5 w-2.5" />
+            )}
+            Register all ({unregistered.length})
+          </button>
+        )}
+      </div>
       {names.map((n) => (
         <div
           key={n.name}
@@ -410,6 +451,9 @@ export function EventDebuggerPage() {
     mode === "search" && query.data && "scannedRecords" in query.data
       ? (query.data as EventSearchResponse)
       : null;
+  const tailMeta = mode === "tail" && query.data && "bufferSize" in query.data
+    ? (query.data as EventTailResponse)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -511,6 +555,24 @@ export function EventDebuggerPage() {
           </button>
         )}
       </div>
+
+      {/* Live buffer fill indicator */}
+      {tailMeta && tailMeta.bufferMax > 0 && (
+        <div className={cn(
+          "flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs",
+          tailMeta.bufferSize >= tailMeta.bufferMax
+            ? "border-amber-500/30 bg-amber-500/5 text-amber-600 dark:text-amber-400"
+            : "border-border bg-muted/30 text-muted-foreground",
+        )}>
+          {tailMeta.bufferSize >= tailMeta.bufferMax && (
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          )}
+          <span>
+            Live buffer: <strong>{tailMeta.bufferSize}</strong>/{tailMeta.bufferMax} events
+            {tailMeta.bufferSize >= tailMeta.bufferMax && " — buffer full, oldest events rolling off"}
+          </span>
+        </div>
+      )}
 
       {/* Scan stats for search mode */}
       {searchMeta && (
