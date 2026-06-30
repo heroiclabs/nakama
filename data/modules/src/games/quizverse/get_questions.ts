@@ -432,6 +432,32 @@ namespace QvGetQuestions {
     payload: string
   ): string {
 
+    var _traceId = (ctx.userId || "anon") + "_" + Date.now();
+    logger.info("[QvGetQ][ENTER] traceId=" + _traceId + " rawPayload=" + (payload || ""));
+
+    try {
+      return _rpcGetQuestionsImpl(ctx, logger, nk, payload, _traceId);
+    } catch (e: any) {
+      var errMsg  = (e && e.message) ? e.message : String(e);
+      var errCode = (e && typeof e.code === "number") ? e.code : -1;
+      // Full structured error — visible in Grafana / CloudWatch under /aws/ecs/nakama
+      logger.error("[QvGetQ][ERROR] traceId=" + _traceId +
+        " userId=" + (ctx.userId || "anon") +
+        " payload=" + (payload || "") +
+        " errCode=" + errCode +
+        " errMsg=" + errMsg);
+      throw e; // re-throw so Nakama returns proper gRPC status to Unity
+    }
+  }
+
+  function _rpcGetQuestionsImpl(
+    ctx:     nkruntime.Context,
+    logger:  nkruntime.Logger,
+    nk:      nkruntime.Nakama,
+    payload: string,
+    traceId: string
+  ): string {
+
     // ── Auth ───────────────────────────────────────────────────────────────
     var userId = ctx.userId;
     if (!userId) throw nakamaError("not authenticated", nkruntime.Codes.UNAUTHENTICATED);
@@ -479,7 +505,8 @@ namespace QvGetQuestions {
     // ── mode: "standard" | "personalized" (org3) ──────────────────────────
     var mode = (typeof req.mode === "string" && req.mode) ? req.mode : "standard";
 
-    logger.info("[QvGetQ] user=" + userId + " topic=" + topic +
+    logger.info("[QvGetQ][REQ] traceId=" + traceId +
+      " user=" + userId + " topic=" + topic +
       " count=" + count + " lang=" + lang + " gameId=" + gameId +
       " mode=" + mode + " country=" + countryCode);
 
@@ -515,6 +542,7 @@ namespace QvGetQuestions {
     cleanExpiredPacksOpportunistic(nk, logger, userId);
 
     // ── 1. Rate limit (Task 1b.1) ──────────────────────────────────────────
+    logger.info("[QvGetQ][GATE:rate_check] traceId=" + traceId + " user=" + userId);
     enforceRateLimit(nk, userId);
 
     // ── 2. Pack limit — evict oldest if at cap (Task 1b.1) ─────────────────
@@ -580,7 +608,8 @@ namespace QvGetQuestions {
     var pool        = cacheResult.questions;
 
     if (pool.length === 0) {
-      logger.warn("[QvGetQ] cache empty topic=" + topic);
+      logger.warn("[QvGetQ][GATE:cache_empty] traceId=" + traceId + " topic=" + topic +
+        " cacheExpired=" + cacheResult.expired + " — pipeline may still be building");
       return JSON.stringify({
         ok:      false,
         error:   "cache_empty",
@@ -588,6 +617,8 @@ namespace QvGetQuestions {
         message: "No questions cached for this topic yet. The pipeline is building — retry in ~60s."
       });
     }
+    logger.info("[QvGetQ][GATE:cache_ok] traceId=" + traceId + " topic=" + topic +
+      " poolSize=" + pool.length + " cacheExpired=" + cacheResult.expired);
 
     // ── 4. Lang validation + fallback (Task 1b.1 / 1b.4) ──────────────────
     var langActual = lang;
@@ -651,7 +682,8 @@ namespace QvGetQuestions {
     var picked  = filterAndPick(langPool, seenIds, inflightIds, count);
 
     if (picked.length === 0) {
-      logger.info("[QvGetQ] pool exhausted topic=" + topic + " seen=" + seenIds.length);
+      logger.warn("[QvGetQ][GATE:pool_exhausted] traceId=" + traceId + " topic=" + topic +
+        " seen=" + seenIds.length + " langPool=" + langPool.length + " inflight=" + inflightIds.length);
       return JSON.stringify({
         ok:      false,
         error:   "pool_exhausted",
@@ -659,6 +691,9 @@ namespace QvGetQuestions {
         message: "All available questions for this topic have been seen. New questions are being fetched."
       });
     }
+    logger.info("[QvGetQ][GATE:picked] traceId=" + traceId + " topic=" + topic +
+      " picked=" + picked.length + " from langPool=" + langPool.length +
+      " seen=" + seenIds.length + " inflightExcluded=" + inflightIds.length);
 
     // ── 5b. Personalized mix algorithm (org3) ──────────────────────────────
     //
@@ -747,10 +782,12 @@ namespace QvGetQuestions {
     var packId = makePackId(nk, gameId, topic);
     writePackStorage(nk, userId, packId, topic, lang, langActual, gameId, picked);
 
-    logger.info("[QvGetQ] pack=" + packId + " topic=" + topic +
+    logger.info("[QvGetQ][DONE] traceId=" + traceId +
+      " pack=" + packId + " topic=" + topic +
       " delivered=" + picked.length + "/" + count +
       " pool=" + pool.length + " seen=" + seenIds.length +
-      " inflight=" + inflightIds.length + " cache_expired=" + cacheResult.expired);
+      " inflight=" + inflightIds.length + " cache_expired=" + cacheResult.expired +
+      " coldStart=" + coldStartApplied + " mode=" + mode);
 
     // ── 7. Build client-safe response ──────────────────────────────────────
     // Strip internal `provider` field — Unity doesn't need to know the source.
