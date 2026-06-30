@@ -234,11 +234,33 @@ namespace SatoriDashboard {
     var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
     if (legacyEvents.length > 0) topEvents = legacyEvents;
 
+    // Rolling-window live actives — fed by analytics_log_event (in-app) and
+    // onboarding_events_batch (web funnel). Replaces the satori_debugger ring
+    // for dashboard KPI cards (ring only powers timeline + debugger tail).
+    var inAppActive = ActiveRolling.countWindows(nk, "in_app", gameId, now);
+    var onboardingActive = ActiveRolling.countWindows(nk, "onboarding", undefined, now);
+    var totalActive = ActiveRolling.mergeCounts(inAppActive, onboardingActive);
+    var inApp24h = Math.max(inAppActive.active24h, dauToday);
+
     return RpcHelpers.successResponse({
       generatedAt: now,
-      activeUsers5m: distinctCount(users5m),
-      activeUsers1h: distinctCount(users1h),
-      activeUsers24h: Math.max(distinctCount(users24h), dauToday),
+      activeUsers: {
+        onboarding: onboardingActive,
+        inApp: {
+          active5m: inAppActive.active5m,
+          active1h: inAppActive.active1h,
+          active24h: inApp24h
+        },
+        total: {
+          active5m: totalActive.active5m,
+          active1h: totalActive.active1h,
+          active24h: Math.max(totalActive.active24h, dauToday)
+        }
+      },
+      // Flat fields kept for older clients — totals (onboarding + in-app).
+      activeUsers5m: totalActive.active5m,
+      activeUsers1h: totalActive.active1h,
+      activeUsers24h: Math.max(totalActive.active24h, dauToday),
       eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
       // Real daily truth from the analytics pipeline (matches analytics.htm).
       dauToday: dauToday,

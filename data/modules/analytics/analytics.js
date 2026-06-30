@@ -513,6 +513,21 @@ function _liveCountersUpsert(nk, col, key, en, platform, country, city, unixTs, 
     }
 }
 
+/** High-signal gameplay events that count toward in-app "active now" windows. */
+var IN_APP_ACTIVE_TOUCH_EVENTS = {
+    session_start: true,
+    session_end: true,
+    screen_view: true,
+    quiz_complete: true,
+    quiz_completed: true,
+    game_started: true,
+    game_completed: true,
+    media_question_started: true,
+    media_question_completed: true,
+    store_purchase: true,
+    iap_purchased: true
+};
+
 function liveCountersUpdate(nk, ev) {
     var dateStr = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
     var col = "analytics_live_daily";
@@ -562,6 +577,16 @@ function liveCountersUpdate(nk, ev) {
     // "All games" aggregate doc — lets the dashboard "All Games" selector show
     // today's live data without waiting for the nightly rollup.
     _liveCountersUpsert(nk, col, "live_all_" + dateStr, en, platform, country, city, ev.unixTimestamp, metrics, audienceDims);
+
+    // Rolling in-app active users (dashboard Status tab).
+    try {
+        if (ev.userId && typeof ActiveRolling !== "undefined" && ActiveRolling.touch) {
+            var touchEvent = IN_APP_ACTIVE_TOUCH_EVENTS[en];
+            if (touchEvent) {
+                ActiveRolling.touch(nk, "in_app", ev.userId, ev.gameId, ev.unixTimestamp * 1000);
+            }
+        }
+    } catch (_activeTouch) { /* non-fatal */ }
 }
 
 /**

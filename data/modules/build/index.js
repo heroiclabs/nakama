@@ -45367,6 +45367,15 @@ var OnboardingAnalytics;
         if (writes.length > 0) {
             Storage.writeMultiple(nk, writes);
         }
+        for (var ti = 0; ti < events.length; ti++) {
+            var te = events[ti];
+            if (!te || !te.name)
+                continue;
+            var touchId = nakamaUserId || cognitoSub || identityId;
+            if (touchId) {
+                ActiveRolling.touch(nk, "onboarding", touchId, undefined, toMs(te.timestamp) + ti);
+            }
+        }
         if (lastSnapshot) {
             var profilePayload = {
                 identityId: identityId,
@@ -52289,11 +52298,32 @@ var SatoriDashboard;
         var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
         if (legacyEvents.length > 0)
             topEvents = legacyEvents;
+        // Rolling-window live actives — fed by analytics_log_event (in-app) and
+        // onboarding_events_batch (web funnel). Replaces the satori_debugger ring
+        // for dashboard KPI cards (ring only powers timeline + debugger tail).
+        var inAppActive = ActiveRolling.countWindows(nk, "in_app", gameId, now);
+        var onboardingActive = ActiveRolling.countWindows(nk, "onboarding", undefined, now);
+        var totalActive = ActiveRolling.mergeCounts(inAppActive, onboardingActive);
+        var inApp24h = Math.max(inAppActive.active24h, dauToday);
         return RpcHelpers.successResponse({
             generatedAt: now,
-            activeUsers5m: distinctCount(users5m),
-            activeUsers1h: distinctCount(users1h),
-            activeUsers24h: Math.max(distinctCount(users24h), dauToday),
+            activeUsers: {
+                onboarding: onboardingActive,
+                inApp: {
+                    active5m: inAppActive.active5m,
+                    active1h: inAppActive.active1h,
+                    active24h: inApp24h
+                },
+                total: {
+                    active5m: totalActive.active5m,
+                    active1h: totalActive.active1h,
+                    active24h: Math.max(totalActive.active24h, dauToday)
+                }
+            },
+            // Flat fields kept for older clients — totals (onboarding + in-app).
+            activeUsers5m: totalActive.active5m,
+            activeUsers1h: totalActive.active1h,
+            activeUsers24h: Math.max(totalActive.active24h, dauToday),
             eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
             // Real daily truth from the analytics pipeline (matches analytics.htm).
             dauToday: dauToday,
@@ -58270,6 +58300,121 @@ var SatoriWebhooks;
     }
     SatoriWebhooks.registerEventHandlers = registerEventHandlers;
 })(SatoriWebhooks || (SatoriWebhooks = {}));
+// ---------------------------------------------------------------------------
+// ActiveRolling — rolling-window distinct-user counts for admin live KPIs.
+//
+// Written on ingest (analytics_log_event + onboarding_events_batch), read by
+// satori_dashboard_summary. One storage doc per channel + scope holds recent
+// user touches (userId + lastSeenMs), pruned to 24h / capped at MAX_TOUCHES.
+// ---------------------------------------------------------------------------
+var ActiveRolling;
+(function (ActiveRolling) {
+    var COLLECTION = "analytics_active_rolling";
+    var MAX_TOUCHES = 8000;
+    var DAY_MS = 24 * 60 * 60 * 1000;
+    var HOUR_MS = 60 * 60 * 1000;
+    var MIN_5_MS = 5 * 60 * 1000;
+    function isPlatformScope(gameId) {
+        return !gameId || gameId === "all" || gameId === "global";
+    }
+    function scopeKey(channel, gameId) {
+        if (channel === "onboarding")
+            return "roll_onboarding";
+        return "roll_in_app_" + (isPlatformScope(gameId) ? "all" : gameId);
+    }
+    function prune(touches, now) {
+        var cutoff = now - DAY_MS;
+        var out = [];
+        for (var i = 0; i < touches.length; i++) {
+            if (touches[i].u && touches[i].t >= cutoff)
+                out.push(touches[i]);
+        }
+        if (out.length > MAX_TOUCHES)
+            out = out.slice(out.length - MAX_TOUCHES);
+        return out;
+    }
+    function upsertTouch(doc, userId, tsMs) {
+        var touches = doc.touches || [];
+        for (var i = 0; i < touches.length; i++) {
+            if (touches[i].u === userId) {
+                if (tsMs > touches[i].t)
+                    touches[i].t = tsMs;
+                doc.touches = touches;
+                return;
+            }
+        }
+        touches.push({ u: userId, t: tsMs });
+        doc.touches = touches;
+    }
+    function writeDoc(nk, key, doc) {
+        Storage.writeSystemJson(nk, COLLECTION, key, doc);
+    }
+    // Record activity for a channel. in_app also mirrors to roll_in_app_all when scoped.
+    function touch(nk, channel, userId, gameId, tsMs) {
+        if (!userId)
+            return;
+        var now = tsMs || Date.now();
+        try {
+            var key = scopeKey(channel, gameId);
+            var doc = Storage.readSystemJson(nk, COLLECTION, key) || { touches: [], updatedAt: 0 };
+            doc.touches = prune(doc.touches || [], now);
+            upsertTouch(doc, userId, now);
+            doc.touches = prune(doc.touches, now);
+            doc.updatedAt = now;
+            writeDoc(nk, key, doc);
+            if (channel === "in_app" && !isPlatformScope(gameId)) {
+                var allKey = scopeKey("in_app", "all");
+                var allDoc = Storage.readSystemJson(nk, COLLECTION, allKey) || { touches: [], updatedAt: 0 };
+                allDoc.touches = prune(allDoc.touches || [], now);
+                upsertTouch(allDoc, userId, now);
+                allDoc.touches = prune(allDoc.touches, now);
+                allDoc.updatedAt = now;
+                writeDoc(nk, allKey, allDoc);
+            }
+        }
+        catch (e) {
+            // Never break ingest on KPI bookkeeping.
+        }
+    }
+    ActiveRolling.touch = touch;
+    function countWindows(nk, channel, gameId, nowMs) {
+        var now = nowMs || Date.now();
+        var key = scopeKey(channel, gameId);
+        var doc = Storage.readSystemJson(nk, COLLECTION, key);
+        var touches = (doc && doc.touches) || [];
+        var s5 = {};
+        var s1 = {};
+        var s24 = {};
+        for (var i = 0; i < touches.length; i++) {
+            var row = touches[i];
+            if (!row.u)
+                continue;
+            var age = now - row.t;
+            if (age < 0)
+                continue;
+            if (age <= MIN_5_MS)
+                s5[row.u] = true;
+            if (age <= HOUR_MS)
+                s1[row.u] = true;
+            if (age <= DAY_MS)
+                s24[row.u] = true;
+        }
+        return {
+            active5m: Object.keys(s5).length,
+            active1h: Object.keys(s1).length,
+            active24h: Object.keys(s24).length
+        };
+    }
+    ActiveRolling.countWindows = countWindows;
+    function mergeCounts(a, b) {
+        return {
+            active5m: a.active5m + b.active5m,
+            active1h: a.active1h + b.active1h,
+            active24h: a.active24h + b.active24h
+        };
+    }
+    ActiveRolling.mergeCounts = mergeCounts;
+})(ActiveRolling || (ActiveRolling = {}));
 // ad-revenue-event.ts
 // PLAN-ADS-OPTIMIZATION-v2 §11: Server-side ad revenue recording RPC.
 //
