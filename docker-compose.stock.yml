@@ -1,0 +1,55 @@
+# Lightweight REAL Nakama for the QuestX demo — stock Heroic Labs image (no Go
+# plugin build). Loads the already-built JS modules from data/modules and uses
+# a real CockroachDB. Same runtime/version (3.35.0) as production, minus the
+# optional analytics Prometheus plugin.
+#
+#   docker compose -f docker-compose.stock.yml up -d
+#
+services:
+  cockroachdb:
+    image: cockroachdb/cockroach:latest-v24.1
+    command: start-single-node --insecure --store=attrs=ssd,path=/var/lib/cockroach/
+    restart: unless-stopped
+    volumes:
+      - data-stock:/var/lib/cockroach
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  nakama:
+    image: registry.heroiclabs.com/heroiclabs/nakama:3.35.0
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - |
+        /nakama/nakama migrate up --database.address root@cockroachdb:26257
+        exec /nakama/nakama \
+          --name nakama1 \
+          --database.address root@cockroachdb:26257 \
+          --logger.level INFO \
+          --session.token_expiry_sec 43200 \
+          --runtime.path /nakama/data/data/modules \
+          --runtime.env DEFAULT_GAME_ID=126bf539-dae2-4bcf-964d-316c0fa1f92b
+    restart: unless-stopped
+    depends_on:
+      cockroachdb:
+        condition: service_healthy
+    volumes:
+      - ./:/nakama/data
+    ports:
+      - "7349:7349"
+      - "7350:7350"
+      - "7351:7351"
+    healthcheck:
+      test: ["CMD", "/nakama/nakama", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  data-stock:

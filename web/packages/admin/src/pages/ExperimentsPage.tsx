@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -30,6 +30,100 @@ import {
   type ExperimentResults,
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
+
+/* ── Toast ────────────────────────────────────────────────────────── */
+
+type ToastData = { message: string; variant: "success" | "error" | "info" };
+
+function Toast({ message, variant, onDismiss }: ToastData & { onDismiss: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(t);
+  }, [onDismiss]);
+
+  return (
+    <div
+      className={cn(
+        "fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 rounded-lg border px-4 py-3 text-sm font-medium shadow-xl animate-in slide-in-from-bottom-4",
+        variant === "success" && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+        variant === "error" && "border-destructive/30 bg-destructive/10 text-destructive",
+        variant === "info" && "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+      )}
+    >
+      {variant === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+      {message}
+      <button onClick={onDismiss} className="ml-2 opacity-60 hover:opacity-100">
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+/* ── ConfirmDialog ────────────────────────────────────────────────── */
+
+interface ConfirmDialogProps {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  confirmVariant?: "primary" | "danger";
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({
+  title,
+  description,
+  confirmLabel = "Confirm",
+  confirmVariant = "primary",
+  onConfirm,
+  onCancel,
+}: ConfirmDialogProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on backdrop click
+  function handleBackdrop(e: React.MouseEvent) {
+    if (e.target === e.currentTarget) onCancel();
+  }
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onCancel(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={handleBackdrop}
+    >
+      <div ref={ref} className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-2xl animate-in zoom-in-95">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        <div className="mt-5 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="inline-flex h-9 items-center rounded-md border border-border bg-transparent px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className={cn(
+              "inline-flex h-9 items-center gap-1.5 rounded-md px-4 text-sm font-medium text-white transition-colors",
+              confirmVariant === "danger"
+                ? "bg-destructive hover:bg-destructive/90"
+                : "bg-primary hover:bg-primary/90",
+            )}
+          >
+            <Check className="h-3.5 w-3.5" />
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type FilterMode = "all" | "enabled" | "disabled";
 const GLOBAL_CONFIG_SCOPE = "global";
@@ -438,11 +532,13 @@ interface ResultsModalProps {
   experiment: Experiment;
   gameScope: string;
   onClose: () => void;
+  onToast: (msg: string, variant?: ToastData["variant"]) => void;
 }
 
-function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
+function ResultsModal({ experiment, gameScope, onClose, onToast }: ResultsModalProps) {
   const qc = useQueryClient();
   const [goalEvent, setGoalEvent] = useState("");
+  const [declareConfirm, setDeclareConfirm] = useState<string | null>(null);
 
   const results = useQuery({
     queryKey: ["satori", "experiment-results", gameScope, experiment.id, goalEvent],
@@ -464,12 +560,13 @@ function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
         { experimentId: experiment.id, variantId, game_id: rpcGameId(gameScope) },
         serverKeyAuth(),
       ),
-    onSuccess: () => {
+    onSuccess: (_, variantId) => {
       qc.invalidateQueries({ queryKey: ["satori", "experiments", gameScope] });
-      qc.invalidateQueries({
-        queryKey: ["satori", "experiment-results", gameScope, experiment.id],
-      });
+      qc.invalidateQueries({ queryKey: ["satori", "experiment-results", gameScope, experiment.id] });
+      onToast(`Winner declared: "${variantId}". Experiment ended.`);
+      setDeclareConfirm(null);
     },
+    onError: () => onToast("Failed to declare winner.", "error"),
   });
 
   const data: ExperimentResults | undefined = results.data;
@@ -480,14 +577,7 @@ function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
   const maxRate = data ? Math.max(...data.variants.map((v) => v.rate), 0.0001) : 1;
 
   const handleDeclare = (variantId: string) => {
-    if (
-      !window.confirm(
-        `Declare "${variantId}" the winner and END experiment "${experiment.id}" in production?`,
-      )
-    ) {
-      return;
-    }
-    declareWinner.mutate(variantId);
+    setDeclareConfirm(variantId);
   };
 
   return (
@@ -653,6 +743,18 @@ function ResultsModal({ experiment, gameScope, onClose }: ResultsModalProps) {
           </div>
         ) : null}
       </div>
+
+      {/* Declare winner confirmation */}
+      {declareConfirm && (
+        <ConfirmDialog
+          title="Declare winner?"
+          description={`Mark "${declareConfirm}" as the winner and end experiment "${experiment.id}" permanently in production?`}
+          confirmLabel="Declare winner"
+          confirmVariant="primary"
+          onConfirm={() => declareWinner.mutate(declareConfirm)}
+          onCancel={() => setDeclareConfirm(null)}
+        />
+      )}
     </div>
   );
 }
@@ -939,6 +1041,16 @@ export function ExperimentsPage() {
   const [editing, setEditing] = useState<Experiment | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [resultsFor, setResultsFor] = useState<Experiment | null>(null);
+  const [toast, setToast] = useState<ToastData | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<(ConfirmDialogProps & { key: string }) | null>(null);
+
+  const showToast = useCallback((message: string, variant: ToastData["variant"] = "success") => {
+    setToast({ message, variant });
+  }, []);
+
+  const openConfirm = useCallback((props: Omit<ConfirmDialogProps, "onCancel"> & { key: string }) => {
+    setConfirmDialog({ ...props, onCancel: () => setConfirmDialog(null) });
+  }, []);
 
   const filtered = useMemo(() => {
     let list = experiments.data ?? [];
@@ -969,36 +1081,54 @@ export function ExperimentsPage() {
 
   const handleToggle = useCallback(
     (exp: Experiment) => {
-      if (!window.confirm(`${exp.enabled ? "Disable" : "Enable"} experiment "${exp.id}" in production?`)) {
-        return;
-      }
-      setTogglingId(exp.id);
-      setup.mutate(
-        {
-          id: exp.id,
-          name: exp.name,
-          variants_json: JSON.stringify(exp.variants ?? []),
-          enabled: !exp.enabled,
+      const nextEnabled = !exp.enabled;
+      openConfirm({
+        key: `toggle-${exp.id}`,
+        title: `${nextEnabled ? "Enable" : "Pause"} experiment?`,
+        description: `"${exp.name}" will be ${nextEnabled ? "live and assigning players to variants" : "paused — existing assignments are preserved"}.`,
+        confirmLabel: nextEnabled ? "Enable" : "Pause",
+        confirmVariant: nextEnabled ? "primary" : "danger",
+        onConfirm: () => {
+          setConfirmDialog(null);
+          setTogglingId(exp.id);
+          setup.mutate(
+            { id: exp.id, name: exp.name, variants_json: JSON.stringify(exp.variants ?? []), enabled: nextEnabled },
+            {
+              onSuccess: () => showToast(`Experiment "${exp.id}" ${nextEnabled ? "enabled" : "paused"}.`),
+              onError: () => showToast(`Failed to update "${exp.id}".`, "error"),
+              onSettled: () => setTogglingId(null),
+            },
+          );
         },
-        { onSettled: () => setTogglingId(null) },
-      );
+      });
     },
-    [setup],
+    [setup, openConfirm, showToast],
   );
 
   const handleFormSubmit = useCallback(
     (params: Parameters<typeof satori.setupExperiment>[0]) => {
-      if (!window.confirm(`Save experiment "${params.id}" in production?`)) {
-        return;
-      }
-      setup.mutate(params, {
-        onSuccess: () => {
-          setShowForm(false);
-          setEditing(null);
+      const isEdit = !!editing;
+      openConfirm({
+        key: `save-${params.id}`,
+        title: isEdit ? "Save changes?" : "Create experiment?",
+        description: isEdit
+          ? `Update "${params.id}" in production. Running players will stay in their current variant.`
+          : `Launch "${params.id}" in production. Players will start being assigned immediately.`,
+        confirmLabel: isEdit ? "Save changes" : "Create",
+        onConfirm: () => {
+          setConfirmDialog(null);
+          setup.mutate(params, {
+            onSuccess: () => {
+              setShowForm(false);
+              setEditing(null);
+              showToast(isEdit ? `Experiment "${params.id}" updated.` : `Experiment "${params.id}" created and running.`);
+            },
+            onError: () => showToast(`Failed to save "${params.id}".`, "error"),
+          });
         },
       });
     },
-    [setup],
+    [setup, editing, openConfirm, showToast],
   );
 
   return (
@@ -1139,6 +1269,7 @@ export function ExperimentsPage() {
           experiment={resultsFor}
           gameScope={gameScope}
           onClose={() => setResultsFor(null)}
+          onToast={showToast}
         />
       )}
 
@@ -1153,6 +1284,17 @@ export function ExperimentsPage() {
           }}
           isPending={setup.isPending}
         />
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog && (() => {
+        const { key: dialogKey, ...dialogProps } = confirmDialog;
+        return <ConfirmDialog key={dialogKey} {...dialogProps} />;
+      })()}
+
+      {/* Toast */}
+      {toast && (
+        <Toast {...toast} onDismiss={() => setToast(null)} />
       )}
     </div>
   );
