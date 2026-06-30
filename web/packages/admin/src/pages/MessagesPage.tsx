@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -95,6 +95,86 @@ function useCopyToClipboard() {
     setTimeout(() => setCopied(null), 1500);
   }, []);
   return { copied, copy };
+}
+
+/* ── Toast ────────────────────────────────────────────────────── */
+
+type ToastVariant = "success" | "error" | "info";
+interface ToastState { id: number; message: string; variant: ToastVariant }
+
+function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3500);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  const cls =
+    toast.variant === "success"
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+      : toast.variant === "error"
+      ? "border-destructive/40 bg-destructive/10 text-destructive"
+      : "border-primary/40 bg-primary/10 text-primary";
+  return (
+    <div
+      className={cn(
+        "fixed bottom-6 right-6 z-[9999] flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-lg",
+        cls,
+      )}
+    >
+      <span>{toast.message}</span>
+      <button onClick={onDone} className="ml-1 opacity-60 hover:opacity-100">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/* ── Confirm Dialog ───────────────────────────────────────────── */
+
+interface ConfirmDialogState {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  variant?: "default" | "danger";
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ cfg }: { cfg: ConfirmDialogState }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { btnRef.current?.focus(); }, []);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") cfg.onCancel(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [cfg]);
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-2xl">
+        <h4 className="text-base font-semibold">{cfg.title}</h4>
+        <p className="mt-1 text-sm text-muted-foreground">{cfg.description}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            onClick={cfg.onCancel}
+            className="h-9 rounded-md border border-border px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent"
+          >
+            Cancel
+          </button>
+          <button
+            ref={btnRef}
+            onClick={cfg.onConfirm}
+            className={cn(
+              "h-9 rounded-md px-4 text-sm font-medium transition-colors",
+              cfg.variant === "danger"
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : "bg-primary text-primary-foreground hover:bg-primary/90",
+            )}
+          >
+            {cfg.confirmLabel ?? "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const statusColors: Record<string, string> = {
@@ -222,10 +302,14 @@ function BroadcastForm({
   onClose,
   audiences,
   gameScope,
+  onConfirm,
+  onToast,
 }: {
   onClose: () => void;
   audiences: Audience[];
   gameScope: string;
+  onConfirm: (cfg: ConfirmDialogState) => void;
+  onToast: (msg: string, variant: ToastVariant) => void;
 }) {
   const broadcast = useBroadcast(gameScope);
   const [title, setTitle] = useState("");
@@ -251,11 +335,22 @@ function BroadcastForm({
     }
 
     const scope = audienceId ? `audience "${audienceId}"` : "all players";
-    if (!window.confirm(`${scheduleAt ? "Schedule" : "Create"} message "${title.trim()}" for ${scope} in production?`)) {
-      return;
-    }
-
-    broadcast.mutate(params, { onSuccess: onClose });
+    onConfirm({
+      title: scheduleAt ? "Schedule Message?" : "Send Message?",
+      description: `"${title.trim()}" will be sent to ${scope} in production.`,
+      confirmLabel: scheduleAt ? "Schedule" : "Send Now",
+      variant: "default",
+      onConfirm: () => {
+        broadcast.mutate(params, {
+          onSuccess: () => {
+            onToast(scheduleAt ? "Message scheduled!" : "Message sent!", "success");
+            onClose();
+          },
+          onError: () => onToast("Failed to send message", "error"),
+        });
+      },
+      onCancel: () => {},
+    });
   }
 
   return (
@@ -450,6 +545,21 @@ export function MessagesPage() {
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [showForm, setShowForm] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const toastId = useRef(0);
+
+  function showToast(message: string, variant: ToastVariant = "info") {
+    setToast({ id: ++toastId.current, message, variant });
+  }
+
+  function openConfirm(cfg: ConfirmDialogState) {
+    setConfirmDialog({
+      ...cfg,
+      onConfirm: () => { setConfirmDialog(null); cfg.onConfirm(); },
+      onCancel: () => { setConfirmDialog(null); cfg.onCancel(); },
+    });
+  }
 
   const filtered = useMemo(() => {
     let list = messages.data ?? [];
@@ -591,6 +701,20 @@ export function MessagesPage() {
           onClose={() => setShowForm(false)}
           audiences={audiences.data ?? []}
           gameScope={gameScope}
+          onConfirm={openConfirm}
+          onToast={showToast}
+        />
+      )}
+
+      {/* Confirm Dialog */}
+      {confirmDialog && <ConfirmDialog cfg={confirmDialog} />}
+
+      {/* Toast */}
+      {toast && (
+        <Toast
+          key={toast.id}
+          toast={toast}
+          onDone={() => setToast(null)}
         />
       )}
     </div>

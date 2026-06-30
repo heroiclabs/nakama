@@ -56953,20 +56953,56 @@ var SatoriMessages;
     function deliverToAudience(nk, logger, messageDef, audienceId, gameId) {
         var delivered = 0;
         try {
+            // 1. Explicit include-list first (admin-pinned users always get it)
             var explicitIds = SatoriAudiences.getExplicitIncludeIds(nk, audienceId, gameId);
-            for (var explicitIndex = 0; explicitIndex < explicitIds.length; explicitIndex++) {
-                if (SatoriAudiences.isInAudience(nk, explicitIds[explicitIndex], audienceId, gameId)) {
-                    deliverMessage(nk, explicitIds[explicitIndex], messageDef, gameId);
+            for (var ei = 0; ei < explicitIds.length; ei++) {
+                if (SatoriAudiences.isInAudience(nk, explicitIds[ei], audienceId, gameId)) {
+                    deliverMessage(nk, explicitIds[ei], messageDef, gameId);
                     delivered++;
                 }
             }
             if (delivered > 0)
                 return delivered;
-            var users = nk.usersGetRandom(100);
-            for (var i = 0; i < users.length; i++) {
-                if (SatoriAudiences.isInAudience(nk, users[i].userId, audienceId, gameId)) {
-                    deliverMessage(nk, users[i].userId, messageDef, gameId);
-                    delivered++;
+            // 2. Check if audience has property-based rules.
+            //    If yes, scan satori_identity_props (users who sent events) — they have
+            //    the properties needed to evaluate the rule correctly.
+            //    If no rules (e.g. all_players), fall back to random Nakama users.
+            var audienceDef = SatoriAudiences.getDefinition(nk, audienceId, gameId);
+            var hasRuleFilters = audienceDef &&
+                audienceDef.rule &&
+                audienceDef.rule.filters &&
+                audienceDef.rule.filters.length > 0;
+            if (hasRuleFilters) {
+                // Scan identity props pages (up to 500 users = 5 pages × 100)
+                var cursor = "";
+                var PAGE_SIZE = 100;
+                var MAX_PAGES = 5;
+                for (var p = 0; p < MAX_PAGES; p++) {
+                    var page = nk.storageList(null, Constants.SATORI_IDENTITY_COLLECTION, PAGE_SIZE, cursor);
+                    var objects = (page && page.objects) || [];
+                    for (var oi = 0; oi < objects.length; oi++) {
+                        var obj = objects[oi];
+                        if (obj.key !== "props" || !obj.userId)
+                            continue;
+                        if (SatoriAudiences.isInAudience(nk, obj.userId, audienceId, gameId)) {
+                            deliverMessage(nk, obj.userId, messageDef, gameId);
+                            delivered++;
+                        }
+                    }
+                    cursor = (page && page.cursor) || "";
+                    if (!cursor)
+                        break;
+                }
+            }
+            else {
+                // No property rules — audience is open (e.g. all_players).
+                // Use random nakama users (covers users without identity props too).
+                var users = nk.usersGetRandom(100);
+                for (var i = 0; i < users.length; i++) {
+                    if (SatoriAudiences.isInAudience(nk, users[i].userId, audienceId, gameId)) {
+                        deliverMessage(nk, users[i].userId, messageDef, gameId);
+                        delivered++;
+                    }
                 }
             }
         }
@@ -56986,11 +57022,18 @@ var SatoriMessages;
             var deliveryState = Storage.readSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "schedule_" + id));
             if (deliveryState && deliveryState.delivered)
                 continue;
+            var scheduledDelivered = 0;
             if (def.audienceId) {
-                deliverToAudience(nk, logger, def, def.audienceId, gameId);
+                scheduledDelivered = deliverToAudience(nk, logger, def, def.audienceId, gameId);
             }
-            Storage.writeSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "schedule_" + id), { delivered: true, deliveredAt: now });
-            logger.info("Delivered scheduled message: %s", id);
+            // Mark message as sent in definitions
+            def.status = "sent";
+            def.deliveredCount = scheduledDelivered;
+            def.sentAt = now;
+            definitions[id] = def;
+            ConfigLoader.saveSatoriConfigForGame(nk, "messages", gameId, definitions);
+            Storage.writeSystemJson(nk, Constants.SATORI_MESSAGES_COLLECTION, Constants.gameKey(gameId, "schedule_" + id), { delivered: true, deliveredAt: now, count: scheduledDelivered });
+            logger.info("Delivered scheduled message: %s count=%d", id, scheduledDelivered);
         }
     }
     SatoriMessages.processScheduledMessages = processScheduledMessages;
@@ -57099,9 +57142,17 @@ var SatoriMessages;
         };
         if (audienceId && !scheduleAt) {
             var delivered = deliverToAudience(nk, logger, msgDef, audienceId, gameId);
-            return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId });
+            // Persist message with sent status so it appears in admin history
+            var definitions = getMessageDefinitions(nk, gameId);
+            msgDef.status = "sent";
+            msgDef.deliveredCount = delivered;
+            msgDef.sentAt = now;
+            definitions[msgDef.id] = msgDef;
+            ConfigLoader.saveSatoriConfigForGame(nk, "messages", gameId, definitions);
+            return RpcHelpers.successResponse({ delivered: delivered, audienceId: audienceId, messageId: msgDef.id });
         }
         var definitions = getMessageDefinitions(nk, gameId);
+        msgDef.status = "scheduled";
         definitions[msgDef.id] = msgDef;
         ConfigLoader.saveSatoriConfigForGame(nk, "messages", gameId, definitions);
         return RpcHelpers.successResponse({ scheduled: true, messageId: msgDef.id });
