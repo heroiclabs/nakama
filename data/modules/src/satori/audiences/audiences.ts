@@ -113,11 +113,21 @@ namespace SatoriAudiences {
     for (var ck in props.customProperties) allProps[ck] = props.customProperties[ck];
     for (var pk in props.computedProperties) allProps[pk] = props.computedProperties[pk];
 
-    // Add computed time-based properties
+    // Compute time-based properties from first_seen / last_seen
+    var nowMs = Date.now();
     if (allProps["first_seen"]) {
-      var firstSeen = new Date(allProps["first_seen"]).getTime();
-      var daysSince = Math.floor((Date.now() - firstSeen) / 86400000);
-      allProps["first_seen_days_ago"] = String(daysSince);
+      var firstSeenMs = new Date(allProps["first_seen"]).getTime();
+      var firstSeenDays = Math.floor((nowMs - firstSeenMs) / 86400000);
+      allProps["first_seen_days_ago"] = String(firstSeenDays);
+      allProps["days_since_install"]  = String(firstSeenDays); // alias
+    }
+    if (allProps["last_seen"]) {
+      var lastSeenDays = Math.floor((nowMs - new Date(allProps["last_seen"]).getTime()) / 86400000);
+      allProps["last_seen_days_ago"] = String(lastSeenDays);
+    }
+    // Proxy: ad views from event_count_ad_shown, falling back to ad_requested
+    if (!allProps["daily_ad_watches"] && allProps["event_count_ad_shown"]) {
+      allProps["daily_ad_watches"] = allProps["event_count_ad_shown"];
     }
 
     return evaluateRule(allProps, def.rule);
@@ -145,9 +155,18 @@ namespace SatoriAudiences {
       if ((hash % 100) >= def.samplePct) return false;
     }
 
+    var nowMs2 = Date.now();
     if (allProps["first_seen"] && allProps["first_seen_days_ago"] === undefined) {
-      var firstSeen = new Date(allProps["first_seen"]).getTime();
-      allProps["first_seen_days_ago"] = String(Math.floor((Date.now() - firstSeen) / 86400000));
+      var firstSeenMs2 = new Date(allProps["first_seen"]).getTime();
+      var fsdays = String(Math.floor((nowMs2 - firstSeenMs2) / 86400000));
+      allProps["first_seen_days_ago"] = fsdays;
+      allProps["days_since_install"]  = fsdays;
+    }
+    if (allProps["last_seen"] && allProps["last_seen_days_ago"] === undefined) {
+      allProps["last_seen_days_ago"] = String(Math.floor((nowMs2 - new Date(allProps["last_seen"]).getTime()) / 86400000));
+    }
+    if (!allProps["daily_ad_watches"] && allProps["event_count_ad_shown"]) {
+      allProps["daily_ad_watches"] = allProps["event_count_ad_shown"];
     }
 
     return evaluateRule(allProps, def.rule);

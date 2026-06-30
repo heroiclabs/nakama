@@ -1,4 +1,4 @@
-// remote_config.ts — server-driven configuration for the QuizVerse question pipeline.
+﻿// remote_config.ts — server-driven configuration for the QuizVerse question pipeline.
 //
 // RPCS IN THIS FILE
 //   quizverse_get_config   — public, no auth required
@@ -17,7 +17,7 @@
 //   hardcoded in the APK — everything is server-owned. Adding a topic or toggling a
 //   feature is a one-doc Console write; no client release required.
 //
-//   Storage:  qv_config / "global"  (userId: Constants.SYSTEM_USER_ID, permRead: 2, permWrite: 0)
+//   Storage:  qv_config / "global"  (userId: "00000000-0000-0000-0000-000000000000", permRead: 2, permWrite: 0)
 //   Fallback: built-in defaults — the RPC never errors on a missing doc.
 //   Merge:    shallow per-field; stored values win, defaults fill the rest.
 //   TTL hint: cache_max_age_seconds tells Unity how long to cache the response.
@@ -284,7 +284,7 @@ namespace QvRemoteConfig {
     var stored: any = null;
 
     try {
-      var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: Constants.SYSTEM_USER_ID }]);
+      var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (rows && rows.length > 0 && rows[0].value) {
         stored = rows[0].value;
       } else {
@@ -306,7 +306,7 @@ namespace QvRemoteConfig {
 
   function readConfigHealth(nk: nkruntime.Nakama, logger: nkruntime.Logger): any {
     try {
-      var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: Constants.SYSTEM_USER_ID }]);
+      var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (!rows || rows.length === 0 || !rows[0].value) {
         return {
           present: false,
@@ -359,7 +359,7 @@ namespace QvRemoteConfig {
 
     var probe: nkruntime.StorageReadRequest[] = [];
     for (var i = 0; i < KNOWN_TOPICS.length; i++) {
-      probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: Constants.SYSTEM_USER_ID });
+      probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" });
     }
 
     try {
@@ -461,7 +461,7 @@ namespace QvRemoteConfig {
 
     var probe: nkruntime.StorageReadRequest[] = [];
     for (var i = 0; i < KNOWN_PROVIDERS.length; i++) {
-      probe.push({ collection: COL_CIRCUIT_BREAKER, key: KNOWN_PROVIDERS[i], userId: Constants.SYSTEM_USER_ID });
+      probe.push({ collection: COL_CIRCUIT_BREAKER, key: KNOWN_PROVIDERS[i], userId: "00000000-0000-0000-0000-000000000000" });
     }
 
     try {
@@ -534,7 +534,7 @@ namespace QvRemoteConfig {
 
   function readPackStats(nk: nkruntime.Nakama, logger: nkruntime.Logger): any {
     try {
-      var rows = nk.storageRead([{ collection: COL_STATS, key: KEY_GLOBAL, userId: Constants.SYSTEM_USER_ID }]);
+      var rows = nk.storageRead([{ collection: COL_STATS, key: KEY_GLOBAL, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (!rows || rows.length === 0 || !rows[0].value) {
         return {
           phase: "not_yet_deployed",

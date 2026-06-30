@@ -518,10 +518,25 @@ export interface DashboardCounts {
   total: number;
 }
 
+export interface ActiveUserWindows {
+  active5m: number;
+  active1h: number;
+  active24h: number;
+}
+
 export interface DashboardSummary {
   generatedAt: number;
+  /** Split live actives — onboarding web funnel vs in-app game telemetry. */
+  activeUsers?: {
+    onboarding: ActiveUserWindows;
+    inApp: ActiveUserWindows;
+    total: ActiveUserWindows;
+  };
+  /** @deprecated Use activeUsers.total — kept for older dashboard builds. */
   activeUsers5m: number;
+  /** @deprecated Use activeUsers.total — kept for older dashboard builds. */
   activeUsers1h: number;
+  /** @deprecated Use activeUsers.total — kept for older dashboard builds. */
   activeUsers24h: number;
   eventsLast24h: number;
   /** Real daily truth from the legacy analytics pipeline (matches analytics.htm). */

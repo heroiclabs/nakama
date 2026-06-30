@@ -242,52 +242,133 @@ function CountCard({
   );
 }
 
+function activeWindowsForCard(
+  summary: DashboardSummary | undefined,
+  window: "5m" | "1h" | "24h",
+): { onboarding: number; inApp: number; total: number } {
+  const split = summary?.activeUsers;
+  if (split) {
+    const key = window === "5m" ? "active5m" : window === "1h" ? "active1h" : "active24h";
+    const onboarding = split.onboarding[key];
+    const inApp = split.inApp[key];
+    return {
+      onboarding,
+      inApp,
+      total: onboarding + inApp,
+    };
+  }
+  const fallback =
+    window === "5m"
+      ? summary?.activeUsers5m ?? 0
+      : window === "1h"
+        ? summary?.activeUsers1h ?? 0
+        : summary?.activeUsers24h ?? 0;
+  return { onboarding: 0, inApp: fallback, total: fallback };
+}
+
 function ActiveUsers5mCard({ summary, loading }: { summary?: DashboardSummary; loading: boolean }) {
+  const w = activeWindowsForCard(summary, "5m");
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-card p-6">
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <Activity className="h-4 w-4 text-primary" />
-        Active users · last 5 minutes
-      </div>
-      {loading ? (
-        <Loader2 className="mt-3 h-9 w-9 animate-spin text-primary" />
-      ) : (
-        <p className="mt-2 text-5xl font-bold tabular-nums tracking-tight text-primary">
-          {summary?.activeUsers5m ?? 0}
-        </p>
-      )}
-      <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
-    </div>
+    <ActiveUsersSplitCard
+      title="Active users · last 5 minutes"
+      onboarding={w.onboarding}
+      inApp={w.inApp}
+      total={w.total}
+      loading={loading}
+      highlight
+    />
   );
 }
 
 function ActiveUsers1hCard({ summary, loading }: { summary?: DashboardSummary; loading: boolean }) {
+  const w = activeWindowsForCard(summary, "1h");
   return (
-    <div className="h-full w-full rounded-xl border border-border bg-card p-6">
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <Users className="h-4 w-4" />
-        Active users · last hour
-      </div>
-      <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight">
-        {loading ? "—" : (summary?.activeUsers1h ?? 0)}
-      </p>
-    </div>
+    <ActiveUsersSplitCard
+      title="Active users · last hour"
+      onboarding={w.onboarding}
+      inApp={w.inApp}
+      total={w.total}
+      loading={loading}
+    />
   );
 }
 
 function ActiveUsers24hCard({ summary, loading }: { summary?: DashboardSummary; loading: boolean }) {
+  const w = activeWindowsForCard(summary, "24h");
   return (
-    <div className="h-full w-full rounded-xl border border-border bg-card p-6">
+    <ActiveUsersSplitCard
+      title="Active users · last 24h"
+      onboarding={w.onboarding}
+      inApp={w.inApp}
+      total={w.total}
+      loading={loading}
+      footer={`${summary?.eventsLast24h ?? 0} game events captured today`}
+    />
+  );
+}
+
+function ActiveUsersSplitCard({
+  title,
+  onboarding,
+  inApp,
+  total,
+  loading,
+  highlight,
+  footer,
+}: {
+  title: string;
+  onboarding: number;
+  inApp: number;
+  total: number;
+  loading: boolean;
+  highlight?: boolean;
+  footer?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative h-full w-full overflow-hidden rounded-xl border bg-card p-4",
+        highlight ? "border-primary/30 bg-gradient-to-br from-primary/10 to-card" : "border-border",
+      )}
+    >
       <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <TrendingUp className="h-4 w-4" />
-        Active users · last 24h
+        <Activity className={cn("h-4 w-4", highlight && "text-primary")} />
+        {title}
       </div>
-      <p className="mt-2 text-4xl font-bold tabular-nums tracking-tight">
-        {loading ? "—" : (summary?.activeUsers24h ?? 0)}
-      </p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {summary?.eventsLast24h ?? 0} events captured
-      </p>
+      {loading ? (
+        <Loader2 className={cn("mt-3 h-7 w-7 animate-spin", highlight ? "text-primary" : "text-muted-foreground")} />
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Globe2 className="h-3.5 w-3.5" />
+              Onboarding web
+            </span>
+            <span className={cn("text-xl font-bold tabular-nums", highlight && "text-primary")}>
+              {onboarding}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Gamepad2 className="h-3.5 w-3.5" />
+              In-app game
+            </span>
+            <span className="text-xl font-bold tabular-nums">{inApp}</span>
+          </div>
+          <div className="border-t border-border/60 pt-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-medium text-foreground/90">Total active</span>
+              <span className={cn("text-2xl font-bold tabular-nums tracking-tight", highlight && "text-primary")}>
+                {total}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      {footer && <p className="mt-1.5 text-xs text-muted-foreground">{footer}</p>}
+      {highlight && (
+        <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
+      )}
     </div>
   );
 }

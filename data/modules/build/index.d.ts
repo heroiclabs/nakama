@@ -3836,6 +3836,24 @@ declare namespace SatoriWebhooks {
     function register(initializer: nkruntime.Initializer): void;
     function registerEventHandlers(): void;
 }
+declare namespace ActiveRolling {
+    interface Touch {
+        u: string;
+        t: number;
+    }
+    interface Doc {
+        touches: Touch[];
+        updatedAt: number;
+    }
+    interface WindowCounts {
+        active5m: number;
+        active1h: number;
+        active24h: number;
+    }
+    function touch(nk: nkruntime.Nakama, channel: "in_app" | "onboarding", userId: string, gameId?: string, tsMs?: number): void;
+    function countWindows(nk: nkruntime.Nakama, channel: "in_app" | "onboarding", gameId?: string, nowMs?: number): WindowCounts;
+    function mergeCounts(a: WindowCounts, b: WindowCounts): WindowCounts;
+}
 declare namespace AdRevenueEvent {
     /**
      * RPC: ad_revenue_record

@@ -1,4 +1,4 @@
-// Phase 2A (qv-insights-loop) — Pending bundles DLQ.
+﻿// Phase 2A (qv-insights-loop) — Pending bundles DLQ.
 //
 // When InsightsAggregator can't deliver a bundle to the AI svc (network
 // blip, AI svc down, HMAC misconfigured) we persist the envelope here so
@@ -57,7 +57,7 @@ namespace PendingBundles {
       nk.storageWrite([{
         collection: COLLECTION,
         key: bundle.bundleId,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         value: row,
         permissionRead: 0,
         permissionWrite: 0,
@@ -94,7 +94,7 @@ namespace PendingBundles {
         if (ok) {
           // Delete on success.
           try {
-            nk.storageDelete([{ collection: COLLECTION, key: objs[i].key, userId: "" }]);
+            nk.storageDelete([{ collection: COLLECTION, key: objs[i].key, userId: "00000000-0000-0000-0000-000000000000" }]);
             drained++;
           } catch (_) {}
           continue;
@@ -106,12 +106,12 @@ namespace PendingBundles {
             nk.storageWrite([{
               collection: DEAD_COLLECTION,
               key: objs[i].key,
-              userId: "",
+              userId: "00000000-0000-0000-0000-000000000000",
               value: row,
               permissionRead: 0,
               permissionWrite: 0,
             }]);
-            nk.storageDelete([{ collection: COLLECTION, key: objs[i].key, userId: "" }]);
+            nk.storageDelete([{ collection: COLLECTION, key: objs[i].key, userId: "00000000-0000-0000-0000-000000000000" }]);
           } catch (_) {}
           deadLetters++;
           fireDeadLetterAlert(nk, logger, row);
@@ -121,7 +121,7 @@ namespace PendingBundles {
           nk.storageWrite([{
             collection: COLLECTION,
             key: objs[i].key,
-            userId: "",
+            userId: "00000000-0000-0000-0000-000000000000",
             value: row,
             permissionRead: 0,
             permissionWrite: 0,
@@ -137,7 +137,7 @@ namespace PendingBundles {
 
   function readOne(nk: nkruntime.Nakama, key: string): PendingRow | null {
     try {
-      var rows = nk.storageRead([{ collection: COLLECTION, key: key, userId: "" }]);
+      var rows = nk.storageRead([{ collection: COLLECTION, key: key, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (rows && rows.length > 0 && rows[0].value) {
         return rows[0].value as PendingRow;
       }

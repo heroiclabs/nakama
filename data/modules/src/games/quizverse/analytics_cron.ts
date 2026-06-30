@@ -1,4 +1,4 @@
-// analytics_cron.ts — Daily expired qv_question_packs cleanup job.
+﻿// analytics_cron.ts — Daily expired qv_question_packs cleanup job.
 //
 // ── Purpose ───────────────────────────────────────────────────────────────────
 //
@@ -47,13 +47,13 @@ namespace QvAnalyticsCron {
 
   function acquireGate(nk: nkruntime.Nakama): boolean {
     try {
-      var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: Constants.SYSTEM_USER_ID }]);
+      var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000" }]);
       var lastRun: number = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_run_ms)
         ? rows[0].value.last_run_ms : 0;
       if (nowMs() - lastRun < GATE_INTERVAL_MS) return false;
 
       nk.storageWrite([{
-        collection: GATE_COL, key: GATE_KEY, userId: Constants.SYSTEM_USER_ID,
+        collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000",
         value: { last_run_ms: nowMs() },
         permissionRead: 0, permissionWrite: 0
       }]);

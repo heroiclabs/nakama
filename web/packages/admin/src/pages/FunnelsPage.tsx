@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,6 +17,7 @@ import {
   TrendingDown,
   UserCheck,
   X,
+  Info,
 } from "lucide-react";
 import {
   serverKeyAuth,
@@ -28,6 +29,77 @@ import {
 import { cn } from "@/lib/utils";
 
 const GLOBAL_CONFIG_SCOPE = "global";
+
+/* ── Toast ────────────────────────────────────────────────────── */
+
+type ToastVariant = "success" | "error" | "info";
+interface ToastState { id: number; message: string; variant: ToastVariant }
+
+function Toast({ toast, onDone }: { toast: ToastState; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3500);
+    return () => clearTimeout(t);
+  }, [onDone]);
+  const cls =
+    toast.variant === "success"
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+      : toast.variant === "error"
+      ? "border-destructive/40 bg-destructive/10 text-destructive"
+      : "border-primary/40 bg-primary/10 text-primary";
+  return (
+    <div className={cn("fixed bottom-6 right-6 z-[9999] flex items-center gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-lg", cls)}>
+      <span>{toast.message}</span>
+      <button onClick={onDone} className="ml-1 opacity-60 hover:opacity-100">
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
+/* ── Confirm Dialog ───────────────────────────────────────────── */
+
+interface ConfirmDialogState {
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  variant?: "default" | "danger";
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ cfg }: { cfg: ConfirmDialogState }) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { btnRef.current?.focus(); }, []);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") cfg.onCancel(); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [cfg]);
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-2xl">
+        <h4 className="text-base font-semibold">{cfg.title}</h4>
+        <p className="mt-1 text-sm text-muted-foreground">{cfg.description}</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={cfg.onCancel} className="h-9 rounded-md border border-border px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent">
+            Cancel
+          </button>
+          <button
+            ref={btnRef}
+            onClick={cfg.onConfirm}
+            className={cn("h-9 rounded-md px-4 text-sm font-medium transition-colors",
+              cfg.variant === "danger"
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : "bg-primary text-primary-foreground hover:bg-primary/90"
+            )}
+          >
+            {cfg.confirmLabel ?? "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function rpcGameId(scope: string) {
   const trimmed = scope.trim();
@@ -41,7 +113,13 @@ function pct(v: number | null | undefined) {
 
 /* ── Satori Cloud mirror kill-switch ──────────────────────────────── */
 
-function CloudMirrorCard() {
+function CloudMirrorCard({
+  onConfirm,
+  onToast,
+}: {
+  onConfirm: (cfg: ConfirmDialogState) => void;
+  onToast: (msg: string, v: ToastVariant) => void;
+}) {
   const qc = useQueryClient();
   const status = useQuery({
     queryKey: ["satori", "direct-status"],
@@ -50,7 +128,11 @@ function CloudMirrorCard() {
   const toggle = useMutation({
     mutationFn: (enabled: boolean) =>
       satori.toggleSatoriDirect(enabled, serverKeyAuth()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["satori", "direct-status"] }),
+    onSuccess: (_, enabled) => {
+      qc.invalidateQueries({ queryKey: ["satori", "direct-status"] });
+      onToast(enabled ? "Event mirror enabled" : "Event mirror stopped", "info");
+    },
+    onError: () => onToast("Failed to toggle mirror", "error"),
   });
 
   const enabled = status.data?.enabled ?? true;
@@ -91,15 +173,16 @@ function CloudMirrorCard() {
       <button
         onClick={() => {
           const next = !enabled;
-          if (
-            !window.confirm(
-              next
-                ? "Re-enable event mirroring to Satori Cloud?"
-                : "STOP sending events to the paid Satori Cloud instance? Satori-side dashboards will go stale.",
-            )
-          )
-            return;
-          toggle.mutate(next);
+          onConfirm({
+            title: next ? "Enable Event Mirror?" : "Stop Event Mirror?",
+            description: next
+              ? "Re-enable event mirroring to the paid Satori Cloud instance."
+              : "STOP sending events to Satori Cloud. Satori-side dashboards will go stale.",
+            confirmLabel: next ? "Enable" : "Stop Mirror",
+            variant: next ? "default" : "danger",
+            onConfirm: () => toggle.mutate(next),
+            onCancel: () => {},
+          });
         }}
         disabled={toggle.isPending || status.isLoading}
         className={cn(
@@ -125,9 +208,25 @@ function CloudMirrorCard() {
 /* ── Funnel results bars ──────────────────────────────────────────── */
 
 function FunnelBars({ result }: { result: FunnelResult }) {
-  const max = Math.max(result.entered, 1);
+  // Use the max across ALL steps (not just entered) to handle event_volume
+  // paths where later steps can exceed the first step count.
+  const isEventVolume = (result as any).basis === "event_volume";
+  const label = isEventVolume ? "events" : "users";
+  const max = Math.max(...result.steps.map((s) => s.users), 1);
+
   return (
     <div className="space-y-2">
+      {/* Warning: event_volume basis means conversion >100% is expected */}
+      {isEventVolume && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            <strong>Event volume mode</strong> — counts total event occurrences per step (not distinct users).
+            A single user can contribute to multiple steps, so conversion can exceed 100%.
+            To see distinct-user funnels, add an experiment ID to segment.
+          </span>
+        </div>
+      )}
       {result.steps.map((s, i) => (
         <div key={`${s.name}-${i}`} className="space-y-0.5">
           <div className="flex items-center justify-between text-xs">
@@ -135,8 +234,8 @@ function FunnelBars({ result }: { result: FunnelResult }) {
               {i + 1}. {s.name}
             </span>
             <span className="tabular-nums text-muted-foreground">
-              {s.users.toLocaleString()} users · {pct(s.conversionFromStart)} of start
-              {i > 0 && (
+              {s.users.toLocaleString()} {label} · {pct(s.conversionFromStart)} of start
+              {i > 0 && !isEventVolume && (s.conversionFromPrevious ?? 1) < 1 && (
                 <span className="ml-2 inline-flex items-center gap-0.5 text-rose-500">
                   <ArrowDownRight className="h-3 w-3" />
                   {pct(1 - (s.conversionFromPrevious ?? 1))} drop
@@ -150,7 +249,7 @@ function FunnelBars({ result }: { result: FunnelResult }) {
                 "flex h-full items-center rounded px-2 text-[10px] font-bold text-white",
                 i === 0 ? "bg-blue-500" : i === result.steps.length - 1 ? "bg-emerald-500" : "bg-violet-500",
               )}
-              style={{ width: `${Math.max((s.users / max) * 100, 2)}%` }}
+              style={{ width: `${Math.min(Math.max((s.users / max) * 100, 2), 100)}%` }}
             />
           </div>
         </div>
@@ -195,7 +294,15 @@ function FunnelBars({ result }: { result: FunnelResult }) {
 
 /* ── Funnel section ───────────────────────────────────────────────── */
 
-function FunnelSection({ gameScope }: { gameScope: string }) {
+function FunnelSection({
+  gameScope,
+  onConfirm,
+  onToast,
+}: {
+  gameScope: string;
+  onConfirm: (cfg: ConfirmDialogState) => void;
+  onToast: (msg: string, v: ToastVariant) => void;
+}) {
   const qc = useQueryClient();
   const funnels = useQuery({
     queryKey: ["satori", "funnels", gameScope],
@@ -245,13 +352,19 @@ function FunnelSection({ gameScope }: { gameScope: string }) {
     onSuccess: () => {
       setSaveName("");
       qc.invalidateQueries({ queryKey: ["satori", "funnels", gameScope] });
+      onToast("Funnel saved!", "success");
     },
+    onError: () => onToast("Failed to save funnel", "error"),
   });
 
   const del = useMutation({
     mutationFn: (id: string) =>
       satori.deleteFunnel({ id, game_id: rpcGameId(gameScope) }, serverKeyAuth()),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["satori", "funnels", gameScope] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["satori", "funnels", gameScope] });
+      onToast("Funnel deleted", "info");
+    },
+    onError: () => onToast("Failed to delete funnel", "error"),
   });
 
   const runAdhoc = () => {
@@ -296,7 +409,14 @@ function FunnelSection({ gameScope }: { gameScope: string }) {
                 {f.name}
               </button>
               <button
-                onClick={() => window.confirm(`Delete funnel "${f.name}"?`) && del.mutate(f.id)}
+                onClick={() => onConfirm({
+                  title: "Delete Funnel?",
+                  description: `"${f.name}" will be permanently removed.`,
+                  confirmLabel: "Delete",
+                  variant: "danger",
+                  onConfirm: () => del.mutate(f.id),
+                  onCancel: () => {},
+                })}
                 className="rounded-full p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-3 w-3" />
@@ -590,6 +710,21 @@ function RetentionSection({ gameScope }: { gameScope: string }) {
 
 export function FunnelsPage() {
   const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
+  const toastId = useRef(0);
+
+  function showToast(message: string, variant: ToastVariant = "info") {
+    setToast({ id: ++toastId.current, message, variant });
+  }
+
+  function openConfirm(cfg: ConfirmDialogState) {
+    setConfirmDialog({
+      ...cfg,
+      onConfirm: () => { setConfirmDialog(null); cfg.onConfirm(); },
+      onCancel: () => { setConfirmDialog(null); cfg.onCancel(); },
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -606,9 +741,12 @@ export function FunnelsPage() {
         </div>
       </div>
 
-      <CloudMirrorCard />
-      <FunnelSection gameScope={gameScope} />
+      <CloudMirrorCard onConfirm={openConfirm} onToast={showToast} />
+      <FunnelSection gameScope={gameScope} onConfirm={openConfirm} onToast={showToast} />
       <RetentionSection gameScope={gameScope} />
+
+      {confirmDialog && <ConfirmDialog cfg={confirmDialog} />}
+      {toast && <Toast key={toast.id} toast={toast} onDone={() => setToast(null)} />}
     </div>
   );
 }

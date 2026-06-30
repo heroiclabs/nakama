@@ -101,6 +101,15 @@ namespace OnboardingAnalytics {
       Storage.writeMultiple(nk, writes);
     }
 
+    for (var ti = 0; ti < events.length; ti++) {
+      var te = events[ti];
+      if (!te || !te.name) continue;
+      var touchId = nakamaUserId || cognitoSub || identityId;
+      if (touchId) {
+        ActiveRolling.touch(nk, "onboarding", touchId, undefined, toMs(te.timestamp) + ti);
+      }
+    }
+
     if (lastSnapshot) {
       var profilePayload = {
         identityId: identityId,

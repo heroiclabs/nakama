@@ -1,4 +1,4 @@
-// QuizVerse Nakama-Only Migration plugin.
+﻿// QuizVerse Nakama-Only Migration plugin.
 //
 // Single TS module that registers every "v2 / Nakama-only" RPC the
 // Unity client will adopt as it migrates each network surface behind
@@ -646,7 +646,7 @@ namespace QuizVerseMigration {
     // Cache read.
     try {
       var cached = nk.storageRead([{
-        collection: COL_EXTERNAL_CACHE, key: cacheKey, userId: Constants.SYSTEM_USER_ID
+        collection: COL_EXTERNAL_CACHE, key: cacheKey, userId: "00000000-0000-0000-0000-000000000000"
       }]);
       if (cached && cached.length > 0 && cached[0].value) {
         var v: any = cached[0].value;
