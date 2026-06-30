@@ -1487,7 +1487,7 @@ var QvAvatarComparison;
             nk.storageWrite([{
                     collection: QvAvatarComparison.COLLECTION,
                     key: storageKey,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     value: value,
                     permissionRead: 0,
                     permissionWrite: 0,
@@ -1618,7 +1618,7 @@ var QvCrashHandler;
             nk.storageWrite([{
                     collection: QvCrashHandler.LOG_COLLECTION,
                     key: key,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     value: row,
                     permissionRead: 0,
                     permissionWrite: 0,
@@ -1670,7 +1670,7 @@ var QvCrashHandler;
             // Drop rows older than RAW_RETENTION_MS.
             if (now - v.tsUnixMs > QvCrashHandler.RAW_RETENTION_MS) {
                 try {
-                    nk.storageDelete([{ collection: QvCrashHandler.LOG_COLLECTION, key: objs[i].key, userId: "" }]);
+                    nk.storageDelete([{ collection: QvCrashHandler.LOG_COLLECTION, key: objs[i].key, userId: "00000000-0000-0000-0000-000000000000" }]);
                 }
                 catch (_) { }
                 continue;
@@ -1727,7 +1727,7 @@ var QvCrashHandler;
                 nk.storageWrite([{
                         collection: QvCrashHandler.PATTERN_COLLECTION,
                         key: gid2,
-                        userId: "",
+                        userId: "00000000-0000-0000-0000-000000000000",
                         value: summary,
                         permissionRead: 0,
                         permissionWrite: 0,
@@ -1748,7 +1748,7 @@ var QvCrashHandler;
      */
     function readPatternSummary(nk, gameId) {
         try {
-            var rows = nk.storageRead([{ collection: QvCrashHandler.PATTERN_COLLECTION, key: gameId, userId: "" }]);
+            var rows = nk.storageRead([{ collection: QvCrashHandler.PATTERN_COLLECTION, key: gameId, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (rows && rows.length > 0 && rows[0].value) {
                 return rows[0].value;
             }
@@ -1795,7 +1795,7 @@ var QvCrashHandler;
             var rows = nk.storageRead([{
                     collection: QvCrashHandler.STATE_COLLECTION,
                     key: QvCrashHandler.STATE_KEY_LAST_SUMMARY,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                 }]);
             if (rows && rows.length > 0 && rows[0].value && rows[0].value.ts) {
                 return rows[0].value.ts;
@@ -1809,7 +1809,7 @@ var QvCrashHandler;
             nk.storageWrite([{
                     collection: QvCrashHandler.STATE_COLLECTION,
                     key: QvCrashHandler.STATE_KEY_LAST_SUMMARY,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     value: { ts: ts },
                     permissionRead: 0,
                     permissionWrite: 0,
@@ -2936,7 +2936,7 @@ var InsightsAggregator;
     InsightsAggregator.getQvOpsWebhookUrl = getQvOpsWebhookUrl;
     function readLastRun(nk) {
         try {
-            var rows = nk.storageRead([{ collection: InsightsAggregator.STATE_COLLECTION, key: InsightsAggregator.STATE_KEY, userId: "" }]);
+            var rows = nk.storageRead([{ collection: InsightsAggregator.STATE_COLLECTION, key: InsightsAggregator.STATE_KEY, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (rows && rows.length > 0 && rows[0].value && rows[0].value.ts) {
                 return rows[0].value.ts;
             }
@@ -2949,7 +2949,7 @@ var InsightsAggregator;
             nk.storageWrite([{
                     collection: InsightsAggregator.STATE_COLLECTION,
                     key: InsightsAggregator.STATE_KEY,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     value: { ts: ts },
                     permissionRead: 0,
                     permissionWrite: 0,
@@ -3050,7 +3050,7 @@ var PendingBundles;
             nk.storageWrite([{
                     collection: PendingBundles.COLLECTION,
                     key: bundle.bundleId,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     value: row,
                     permissionRead: 0,
                     permissionWrite: 0,
@@ -3087,7 +3087,7 @@ var PendingBundles;
                 if (ok) {
                     // Delete on success.
                     try {
-                        nk.storageDelete([{ collection: PendingBundles.COLLECTION, key: objs[i].key, userId: "" }]);
+                        nk.storageDelete([{ collection: PendingBundles.COLLECTION, key: objs[i].key, userId: "00000000-0000-0000-0000-000000000000" }]);
                         drained++;
                     }
                     catch (_) { }
@@ -3100,12 +3100,12 @@ var PendingBundles;
                         nk.storageWrite([{
                                 collection: PendingBundles.DEAD_COLLECTION,
                                 key: objs[i].key,
-                                userId: "",
+                                userId: "00000000-0000-0000-0000-000000000000",
                                 value: row,
                                 permissionRead: 0,
                                 permissionWrite: 0,
                             }]);
-                        nk.storageDelete([{ collection: PendingBundles.COLLECTION, key: objs[i].key, userId: "" }]);
+                        nk.storageDelete([{ collection: PendingBundles.COLLECTION, key: objs[i].key, userId: "00000000-0000-0000-0000-000000000000" }]);
                     }
                     catch (_) { }
                     deadLetters++;
@@ -3116,7 +3116,7 @@ var PendingBundles;
                     nk.storageWrite([{
                             collection: PendingBundles.COLLECTION,
                             key: objs[i].key,
-                            userId: "",
+                            userId: "00000000-0000-0000-0000-000000000000",
                             value: row,
                             permissionRead: 0,
                             permissionWrite: 0,
@@ -3134,7 +3134,7 @@ var PendingBundles;
     PendingBundles.drain = drain;
     function readOne(nk, key) {
         try {
-            var rows = nk.storageRead([{ collection: PendingBundles.COLLECTION, key: key, userId: "" }]);
+            var rows = nk.storageRead([{ collection: PendingBundles.COLLECTION, key: key, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (rows && rows.length > 0 && rows[0].value) {
                 return rows[0].value;
             }
@@ -3602,7 +3602,7 @@ var QvProductChangelog;
             nk.storageWrite([{
                     collection: QvProductChangelog.COLLECTION,
                     key: storageKey,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     value: data,
                     permissionRead: 0,
                     permissionWrite: 0,
@@ -7841,13 +7841,13 @@ var QvAnalyticsCron;
     // Returns true if we acquired the gate (first call in 24 h), false otherwise.
     function acquireGate(nk) {
         try {
-            var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "" }]);
+            var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000" }]);
             var lastRun = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_run_ms)
                 ? rows[0].value.last_run_ms : 0;
             if (nowMs() - lastRun < GATE_INTERVAL_MS)
                 return false;
             nk.storageWrite([{
-                    collection: GATE_COL, key: GATE_KEY, userId: "",
+                    collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000",
                     value: { last_run_ms: nowMs() },
                     permissionRead: 0, permissionWrite: 0
                 }]);
@@ -8912,7 +8912,9 @@ var QvGetQuestions;
     // no-write from client).  Prunes timestamps older than RATE_WINDOW_MS,
     // checks count ≤ RATE_MAX, then appends current timestamp and writes back.
     function enforceRateLimit(nk, userId) {
-        var rows = nk.storageRead([{ collection: COL_RATE, key: userId, userId: "" }]);
+        // User-owned storage (userId = actual user UUID) — system-owned (userId="")
+        // is rejected by production Nakama JS runtime with "expects 'userId' value to be a valid id".
+        var rows = nk.storageRead([{ collection: COL_RATE, key: "rl", userId: userId }]);
         var doc = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
         var timestamps = Array.isArray(doc.timestamps) ? doc.timestamps : [];
         var windowStart = nowMs() - RATE_WINDOW_MS;
@@ -8927,7 +8929,7 @@ var QvGetQuestions;
         }
         fresh.push(nowMs());
         nk.storageWrite([{
-                collection: COL_RATE, key: userId, userId: "",
+                collection: COL_RATE, key: "rl", userId: userId,
                 value: { timestamps: fresh, updated_ms: nowMs() },
                 permissionRead: 0, permissionWrite: 0
             }]);
@@ -11518,7 +11520,7 @@ var QuizVerseMigration;
         // Cache read.
         try {
             var cached = nk.storageRead([{
-                    collection: COL_EXTERNAL_CACHE, key: cacheKey, userId: ""
+                    collection: COL_EXTERNAL_CACHE, key: cacheKey, userId: "00000000-0000-0000-0000-000000000000"
                 }]);
             if (cached && cached.length > 0 && cached[0].value) {
                 var v = cached[0].value;
@@ -12896,7 +12898,7 @@ var QuizVersePackStore;
             return cache[packId];
         var rows = [];
         try {
-            rows = nk.storageRead([{ collection: QuizVersePackStore.COLLECTION, key: packId, userId: "" }]);
+            rows = nk.storageRead([{ collection: QuizVersePackStore.COLLECTION, key: packId, userId: "00000000-0000-0000-0000-000000000000" }]);
         }
         catch (_e) {
             rows = [];
@@ -13582,7 +13584,7 @@ var QvPrewarmCron;
         // Read question cache for this topic
         var pool = [];
         try {
-            var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: "" }]);
+            var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
             if (!cacheRows || cacheRows.length === 0 || !cacheRows[0].value)
                 return 0;
             var page0 = cacheRows[0].value;
@@ -13593,7 +13595,7 @@ var QvPrewarmCron;
             if (pageCount > 1) {
                 var reqs = [];
                 for (var p = 1; p < pageCount; p++) {
-                    reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: "" });
+                    reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: "00000000-0000-0000-0000-000000000000" });
                 }
                 var extra = nk.storageRead(reqs);
                 if (extra) {
@@ -13701,13 +13703,13 @@ var QvPrewarmCron;
     var GATE_INTERVAL_MS = 3600000; // 1 hour
     function acquireGate(nk) {
         try {
-            var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "" }]);
+            var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000" }]);
             var lastRun = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_run_ms)
                 ? rows[0].value.last_run_ms : 0;
             if (nowMs() - lastRun < GATE_INTERVAL_MS)
                 return false; // still within gate window
             nk.storageWrite([{
-                    collection: GATE_COL, key: GATE_KEY, userId: "",
+                    collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000",
                     value: { last_run_ms: nowMs() },
                     permissionRead: 0, permissionWrite: 0
                 }]);
@@ -14559,7 +14561,7 @@ var QvQuestionCache;
     // ── Circuit breaker ────────────────────────────────────────────────────────
     function readCircuit(nk, provider) {
         try {
-            var rows = nk.storageRead([{ collection: COL_CIRCUIT, key: provider, userId: "" }]);
+            var rows = nk.storageRead([{ collection: COL_CIRCUIT, key: provider, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (rows && rows.length > 0 && rows[0].value)
                 return rows[0].value;
         }
@@ -14569,7 +14571,7 @@ var QvQuestionCache;
     function writeCircuit(nk, provider, doc) {
         try {
             nk.storageWrite([{
-                    collection: COL_CIRCUIT, key: provider, userId: "",
+                    collection: COL_CIRCUIT, key: provider, userId: "00000000-0000-0000-0000-000000000000",
                     value: doc, permissionRead: 1, permissionWrite: 0
                 }]);
         }
@@ -15884,7 +15886,7 @@ var QvQuestionCache;
     function readCache(nk, logger, topic) {
         var questions = [];
         try {
-            var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+            var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
             if (!rows || rows.length === 0 || !rows[0].value) {
                 logger.info("[QvQCache/" + topic + "] cache miss");
                 return { questions: [], expired: true, cached_at_ms: 0 };
@@ -15899,7 +15901,7 @@ var QvQuestionCache;
             if (pageCount > 1) {
                 var reqs = [];
                 for (var p = 1; p < pageCount; p++)
-                    reqs.push({ collection: COL_CACHE + topic, key: "pool_" + p, userId: "" });
+                    reqs.push({ collection: COL_CACHE + topic, key: "pool_" + p, userId: "00000000-0000-0000-0000-000000000000" });
                 var extra = nk.storageRead(reqs);
                 if (extra) {
                     for (var ei = 0; ei < extra.length; ei++) {
@@ -15924,7 +15926,7 @@ var QvQuestionCache;
      */
     function isCacheValid(nk, topic) {
         try {
-            var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+            var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
             if (!rows || rows.length === 0 || !rows[0].value)
                 return false;
             var doc = rows[0].value;
@@ -15978,7 +15980,7 @@ var QvQuestionCache;
 //   hardcoded in the APK — everything is server-owned. Adding a topic or toggling a
 //   feature is a one-doc Console write; no client release required.
 //
-//   Storage:  qv_config / "global"  (userId: "", permRead: 2, permWrite: 0)
+//   Storage:  qv_config / "global"  (userId: "00000000-0000-0000-0000-000000000000", permRead: 2, permWrite: 0)
 //   Fallback: built-in defaults — the RPC never errors on a missing doc.
 //   Merge:    shallow per-field; stored values win, defaults fill the rest.
 //   TTL hint: cache_max_age_seconds tells Unity how long to cache the response.
@@ -16225,7 +16227,7 @@ var QvRemoteConfig;
         var defaults = buildDefaultConfig();
         var stored = null;
         try {
-            var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "" }]);
+            var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (rows && rows.length > 0 && rows[0].value) {
                 stored = rows[0].value;
             }
@@ -16246,7 +16248,7 @@ var QvRemoteConfig;
     // Section readers are all isolated — one storage failure never kills the call.
     function readConfigHealth(nk, logger) {
         try {
-            var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "" }]);
+            var rows = nk.storageRead([{ collection: COL_CONFIG, key: KEY_GLOBAL, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (!rows || rows.length === 0 || !rows[0].value) {
                 return {
                     present: false,
@@ -16295,7 +16297,7 @@ var QvRemoteConfig;
         var missingCount = 0;
         var probe = [];
         for (var i = 0; i < KNOWN_TOPICS.length; i++) {
-            probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: "" });
+            probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" });
         }
         try {
             var rows = nk.storageRead(probe);
@@ -16383,7 +16385,7 @@ var QvRemoteConfig;
         var anyFound = false;
         var probe = [];
         for (var i = 0; i < KNOWN_PROVIDERS.length; i++) {
-            probe.push({ collection: COL_CIRCUIT_BREAKER, key: KNOWN_PROVIDERS[i], userId: "" });
+            probe.push({ collection: COL_CIRCUIT_BREAKER, key: KNOWN_PROVIDERS[i], userId: "00000000-0000-0000-0000-000000000000" });
         }
         try {
             var rows = nk.storageRead(probe);
@@ -16450,7 +16452,7 @@ var QvRemoteConfig;
     }
     function readPackStats(nk, logger) {
         try {
-            var rows = nk.storageRead([{ collection: COL_STATS, key: KEY_GLOBAL, userId: "" }]);
+            var rows = nk.storageRead([{ collection: COL_STATS, key: KEY_GLOBAL, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (!rows || rows.length === 0 || !rows[0].value) {
                 return {
                     phase: "not_yet_deployed",
@@ -17033,7 +17035,7 @@ var QvSubmitResult;
             if (!ga || !ga.question_id)
                 continue;
             try {
-                var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: "" }]);
+                var rows = nk.storageRead([{ collection: COL_QELO, key: ga.question_id, userId: "00000000-0000-0000-0000-000000000000" }]);
                 var doc = (rows && rows.length > 0 && rows[0].value) ? rows[0].value : {};
                 var ver = (rows && rows.length > 0 && rows[0].version) ? rows[0].version : "";
                 var attempts = (doc.attempts || 0) + 1;
@@ -17060,7 +17062,7 @@ var QvSubmitResult;
                     }
                 }
                 var writeObj = {
-                    collection: COL_QELO, key: ga.question_id, userId: "",
+                    collection: COL_QELO, key: ga.question_id, userId: "00000000-0000-0000-0000-000000000000",
                     value: {
                         attempts: attempts,
                         correct_attempts: correctAttempts,
@@ -17158,7 +17160,7 @@ var QvSubmitResult;
     function updateActiveUser(nk, userId) {
         try {
             nk.storageWrite([{
-                    collection: COL_ACTIVE, key: userId, userId: "",
+                    collection: COL_ACTIVE, key: userId, userId: "00000000-0000-0000-0000-000000000000",
                     value: { last_played_ms: nowMs() },
                     permissionRead: 0,
                     permissionWrite: 0
@@ -39504,7 +39506,7 @@ var MpKernelMatchResult;
             // Permissions: 1 = owner-only read; 0 = no public write.
             permissionRead: 2, // public-read (admin dashboard reads under system).
             permissionWrite: 0,
-            userId: "" // System-owned record.
+            userId: "00000000-0000-0000-0000-000000000000" // System-owned record.
         };
         try {
             nk.storageWrite([write]);
@@ -39551,7 +39553,7 @@ var MpKernelMatchResult;
             var rows = nk.storageRead([{
                     collection: MpKernelMatchResult.COLLECTION,
                     key: matchId,
-                    userId: ""
+                    userId: "00000000-0000-0000-0000-000000000000"
                 }]);
             if (!rows || rows.length === 0)
                 return null;
@@ -40633,7 +40635,7 @@ var MpKernelAsyncTurn;
         if (!gameId)
             return null;
         try {
-            var rows = nk.storageRead([{ collection: COLLECTION, key: gameId, userId: "" }]);
+            var rows = nk.storageRead([{ collection: COLLECTION, key: gameId, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (rows && rows.length > 0 && rows[0].value)
                 return rows[0].value;
         }
@@ -40647,7 +40649,7 @@ var MpKernelAsyncTurn;
             nk.storageWrite([{
                     collection: COLLECTION,
                     key: gameId,
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     value: blob,
                     permissionRead: 2, // public-read so opponents can rebuild offline
                     permissionWrite: 0 // server-only writes
@@ -43228,7 +43230,7 @@ var MpKernelPersistentParty;
         if (!partyId)
             return null;
         try {
-            var rows = nk.storageRead([{ collection: MpKernelPersistentParty.STORAGE_COLLECTION, key: partyId, userId: "" }]);
+            var rows = nk.storageRead([{ collection: MpKernelPersistentParty.STORAGE_COLLECTION, key: partyId, userId: "00000000-0000-0000-0000-000000000000" }]);
             if (!rows || rows.length === 0)
                 return null;
             return rows[0].value;
@@ -55693,7 +55695,7 @@ var SatoriCreatorEvents;
                 body = body + " Prize pool: " + event.prizePool + " XUT!";
             }
             nk.notificationsSend([{
-                    userId: "",
+                    userId: "00000000-0000-0000-0000-000000000000",
                     code: 1001,
                     subject: title,
                     content: {
