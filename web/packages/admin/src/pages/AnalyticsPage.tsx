@@ -304,6 +304,20 @@ function useHealth() {
   });
 }
 
+function useDashboardSummary(gameId?: string) {
+  const opts = useServerAuth();
+  return useQuery({
+    queryKey: ["analytics", "dashboard-summary", gameId],
+    queryFn: () =>
+      callRpc<Record<string, unknown>, any>(
+        "satori_dashboard_summary",
+        gameId ? { game_id: gameId } : {},
+        opts,
+      ),
+    refetchInterval: 30_000,
+  });
+}
+
 function useMetrics() {
   const opts = useServerAuth();
   return useQuery({
@@ -322,10 +336,7 @@ function usePlayerEvents(userId: string, limit: number) {
   return useQuery({
     queryKey: ["analytics", "events", userId, limit],
     queryFn: () =>
-      satori.getEventsTimeline(userId, {
-        ...opts,
-        limit,
-      }) as Promise<{ events?: SatoriEvent[] }>,
+      satori.searchEvents({ user_id: userId, limit }, opts) as Promise<{ events?: SatoriEvent[] }>,
     enabled: !!userId,
   });
 }
@@ -392,10 +403,10 @@ function useCreateAlert() {
 /*  Overview tab                                                       */
 /* ------------------------------------------------------------------ */
 
-function OverviewTab() {
+function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
   const health = useHealth();
-  const metrics = useMetrics();
-  const accounts = useAccounts(100);
+  const scopedGameId = useScopedGameId();
+  const summary = useDashboardSummary(scopedGameId);
 
   const healthData = health.data as
     | { node?: string; session_count?: number; goroutine_count?: number; status?: string }
@@ -404,72 +415,50 @@ function OverviewTab() {
     health.isSuccess &&
     (isHealthyStatus(healthData?.status) || healthData?.status === undefined);
 
-  const now = Date.now();
-  const activeToday = useMemo(() => {
-    if (!accounts.data?.users) return 0;
-    return accounts.data.users.filter((u: NakamaUser) => {
-      const diff = now - new Date(u.update_time).getTime();
-      return diff < 86_400_000;
-    }).length;
-  }, [accounts.data, now]);
-
-  const activeWeek = useMemo(() => {
-    if (!accounts.data?.users) return 0;
-    return accounts.data.users.filter((u: NakamaUser) => {
-      const diff = now - new Date(u.update_time).getTime();
-      return diff < 7 * 86_400_000;
-    }).length;
-  }, [accounts.data, now]);
-
-  const totalUsers = accounts.data?.users?.length ?? 0;
-
-  const metricCount = useMemo(() => {
-    if (metrics.data?.metrics) return metrics.data.metrics.length;
-    if (metrics.data?.raw) {
-      return metrics.data.raw.split("\n").filter((l) => l && !l.startsWith("#"))
-        .length;
-    }
-    return 0;
-  }, [metrics.data]);
+  // Pull real live data from satori_dashboard_summary instead of fake listAccounts(100).
+  const summaryData = summary.data as any;
+  const dau = summaryData?.dauToday ?? 0;
+  const active5m = summaryData?.activeUsers5m ?? 0;
+  const active24h = summaryData?.activeUsers24h ?? 0;
+  const eventsToday = summaryData?.eventsToday ?? 0;
+  const experiments = summaryData?.experiments ?? {};
+  const liveEventsCount = summaryData?.liveEvents ?? {};
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Active Sessions"
-          value={healthData?.session_count ?? 0}
+          title="Active Now (5 min)"
+          value={fmtNum(active5m)}
           icon={Activity}
-          subtitle={healthData?.node ?? "—"}
-          loading={health.isLoading}
-          error={health.isError}
+          subtitle={`${fmtNum(active24h)} in last 24h`}
+          loading={summary.isLoading}
+          error={summary.isError}
+          trend={active5m > 0 ? "up" : "neutral"}
         />
         <StatCard
-          title="Total Users (sampled)"
-          value={fmtNum(totalUsers)}
+          title="DAU Today"
+          value={fmtNum(dau)}
           icon={Users}
-          subtitle={`${activeToday} active today`}
-          loading={accounts.isLoading}
-          error={accounts.isError}
+          subtitle={`${fmtNum(eventsToday)} events today`}
+          loading={summary.isLoading}
+          error={summary.isError}
         />
         <StatCard
-          title="Active This Week"
-          value={fmtNum(activeWeek)}
+          title="Experiments"
+          value={experiments.ongoing ?? 0}
           icon={TrendingUp}
-          subtitle={
-            totalUsers
-              ? `${((activeWeek / totalUsers) * 100).toFixed(0)}% of sampled`
-              : "—"
-          }
-          loading={accounts.isLoading}
-          error={accounts.isError}
+          subtitle={`${experiments.total ?? 0} total · ${experiments.scheduled ?? 0} scheduled`}
+          loading={summary.isLoading}
+          error={summary.isError}
         />
         <StatCard
-          title="Tracked Metrics"
-          value={metricCount}
+          title="Live Events"
+          value={liveEventsCount.ongoing ?? 0}
           icon={BarChart3}
-          subtitle="Satori metrics"
-          loading={metrics.isLoading}
-          error={metrics.isError}
+          subtitle={`${liveEventsCount.total ?? 0} total`}
+          loading={summary.isLoading}
+          error={summary.isError}
         />
       </div>
 
@@ -520,10 +509,7 @@ function OverviewTab() {
           <button
             key={t.key}
             className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent"
-            onClick={() => {
-              const el = document.querySelector(`[data-tab="${t.key}"]`);
-              el?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-            }}
+            onClick={() => onTabChange(t.key)}
           >
             <t.icon className="h-5 w-5 text-primary" />
             <div>
@@ -705,9 +691,15 @@ function MetricsTab() {
     return parsedMetrics.filter((m) => m.name.toLowerCase().includes(q));
   }, [parsedMetrics, filter]);
 
+  const [confirmCreate, setConfirmCreate] = useState(false);
+
   const handleCreateAlert = () => {
     if (!alertForm.metric_id || !alertForm.name) return;
-    if (!window.confirm(`Create metric alert "${alertForm.name}" in production?`)) return;
+    setConfirmCreate(true);
+  };
+
+  const doCreateAlert = () => {
+    setConfirmCreate(false);
     createAlert.mutate(alertForm, {
       onSuccess: () => {
         setShowForm(false);
@@ -718,6 +710,20 @@ function MetricsTab() {
 
   return (
     <div className="space-y-6">
+      {confirmCreate && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 shadow-xl">
+            <div className="mb-4 flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+              <p className="text-sm">Create metric alert <strong>"{alertForm.name}"</strong> in production?</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmCreate(false)} className="inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-medium text-muted-foreground hover:bg-accent">Cancel</button>
+              <button onClick={doCreateAlert} className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">Create Alert</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading
           title="Satori Metrics"
@@ -863,6 +869,11 @@ function MetricsTab() {
 
       {filtered.length > 0 && (
         <div className="overflow-hidden rounded-lg border border-border">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            These are <strong className="text-foreground">Nakama system metrics</strong> (Prometheus — go_*, nakama_*).
+            For game Satori metrics (DAU, events, revenue) see the <strong className="text-foreground">Metrics</strong> page in the sidebar.
+          </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -1391,11 +1402,16 @@ function GameIntelligenceTab() {
   useEffect(() => {
     setGameId(scopedGameId ?? "quizverse");
   }, [scopedGameId]);
+  // Build the RPC name from the game ID — each game registers its own
+  // <gameId>_game_intelligence_report RPC. Fall back to quizverse.
+  const rpcGameSlug = (gameId.trim() || "quizverse").toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const intelligenceRpc = `${rpcGameSlug}_game_intelligence_report`;
+
   const report = useQuery({
     queryKey: ["analytics", "game-intelligence", gameId],
     queryFn: () =>
       callRpc(
-        "quizverse_game_intelligence_report",
+        intelligenceRpc,
         { game_id: gameId.trim() || "quizverse", hours: 24, days: 7, sample_players: 25 },
         serverKeyAuth(),
       ),
@@ -1548,9 +1564,9 @@ function GameIntelligenceTab() {
 
         {report.isError && (
           <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-300">
-            The intelligence report endpoint is not available from this dashboard
-            build yet. Use the MCP tool `quizverse_game_intelligence_report` until
-            the runtime RPC bridge is deployed.
+            RPC <code className="rounded bg-yellow-500/20 px-1 font-mono text-xs">{intelligenceRpc}</code> is not registered for this game.
+            Make sure the game module exports a <code className="font-mono text-xs">{intelligenceRpc}</code> handler,
+            or switch to the QuizVerse app in the top-bar selector.
           </div>
         )}
 
@@ -1674,7 +1690,7 @@ export function AnalyticsPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
           <p className="text-muted-foreground">
-            Metrics, data lake, and cohort analysis``
+            Metrics, data lake, and cohort analysis
           </p>
         </div>
         <button
@@ -1707,7 +1723,7 @@ export function AnalyticsPage() {
       </div>
 
       {/* Tab content */}
-      {tab === "overview" && <OverviewTab />}
+      {tab === "overview" && <OverviewTab onTabChange={setTab} />}
       {tab === "dashboard" && <StandaloneDashboardTab />}
       {tab === "events" && <PlayerEventsTab />}
       {tab === "metrics" && <MetricsTab />}
