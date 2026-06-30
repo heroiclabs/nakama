@@ -237,6 +237,7 @@ namespace LegacyNotifScheduler {
 
       // Collect which tasks are due (mutates tasks in-place to claim the slot)
       var dueDaily    = sharedDue(tasks, "daily_quiz",            30);
+      var duePremium  = sharedDue(tasks, "premium_daily_quiz",    30);
       var dueWeekly   = sharedDue(tasks, "weekly_quiz",           60);
       var dueWinback  = sharedDue(tasks, "idle_winback",          30);
       var dueStreak   = sharedDue(tasks, "streak_warning",        30);
@@ -259,7 +260,8 @@ namespace LegacyNotifScheduler {
       }
 
       // Only the pod that won the CAS write reaches here.
-      if (dueDaily)    dispatchSafely("daily_quiz",          LegacyPush.runDailyQuizCron,     ctx, logger, nk);
+      if (dueDaily)    dispatchSafely("daily_quiz",          LegacyPush.runDailyQuizCron,          ctx, logger, nk);
+      if (duePremium)  dispatchSafely("premium_daily_quiz",  LegacyPush.runPremiumDailyQuizCron,   ctx, logger, nk);
       if (dueWeekly)   dispatchSafely("weekly_quiz",         LegacyPush.runWeeklyQuizCron,    ctx, logger, nk);
       if (dueWinback)  dispatchSafely("idle_winback",        LegacyPush.runIdleWinbackCron,   ctx, logger, nk);
       if (dueStreak)   dispatchSafely("streak_warning",      LegacyPush.runStreakWarningCron, ctx, logger, nk);

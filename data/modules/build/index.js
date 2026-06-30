@@ -49,6 +49,7 @@ function InitModule(ctx, logger, nk, initializer) {
     try {
         PushAlerts.init(ctx, logger);
         PushAlerts.register(originalInitializer);
+        PushAlerts.cacheWebhookUrl(nk);
         logger.info("[PushAlerts] installed; push delivery failures will page Discord");
     }
     catch (err) {
@@ -32988,6 +32989,7 @@ var LegacyNotifScheduler;
             var before = JSON.stringify(tasks);
             // Collect which tasks are due (mutates tasks in-place to claim the slot)
             var dueDaily = sharedDue(tasks, "daily_quiz", 30);
+            var duePremium = sharedDue(tasks, "premium_daily_quiz", 30);
             var dueWeekly = sharedDue(tasks, "weekly_quiz", 60);
             var dueWinback = sharedDue(tasks, "idle_winback", 30);
             var dueStreak = sharedDue(tasks, "streak_warning", 30);
@@ -33011,6 +33013,8 @@ var LegacyNotifScheduler;
             // Only the pod that won the CAS write reaches here.
             if (dueDaily)
                 dispatchSafely("daily_quiz", LegacyPush.runDailyQuizCron, ctx, logger, nk);
+            if (duePremium)
+                dispatchSafely("premium_daily_quiz", LegacyPush.runPremiumDailyQuizCron, ctx, logger, nk);
             if (dueWeekly)
                 dispatchSafely("weekly_quiz", LegacyPush.runWeeklyQuizCron, ctx, logger, nk);
             if (dueWinback)
@@ -33341,6 +33345,7 @@ var PushAlerts;
     var POST_COOLDOWN_MS = 30 * 60 * 1000; // min spacing between alerts (per pod)
     var WEBHOOK_ENV = "DISCORD_PUSH_WEBHOOK_URL";
     var WEBHOOK_FALLBACK_ENV = "DISCORD_NAKAMA_WEBHOOK_URL";
+    var WEBHOOK_FALLBACK2_ENV = "DISCORD_QV_OPS_WEBHOOK_URL";
     var LOCK_COLLECTION = "push_alerts_locks";
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
     // ── Per-pod state ─────────────────────────────────────────────────────────
@@ -33370,7 +33375,7 @@ var PushAlerts;
     function init(ctx, logger) {
         try {
             var env = (ctx && ctx.env) ? ctx.env : {};
-            webhookUrl = (env[WEBHOOK_ENV] || env[WEBHOOK_FALLBACK_ENV] || "");
+            webhookUrl = (env[WEBHOOK_ENV] || env[WEBHOOK_FALLBACK_ENV] || env[WEBHOOK_FALLBACK2_ENV] || "");
             if (env["IVX_NAKAMA_INSTANCE_LABEL"])
                 instanceLabel = env["IVX_NAKAMA_INSTANCE_LABEL"];
             else if (env["HOSTNAME"])
@@ -33385,7 +33390,7 @@ var PushAlerts;
                 FAIL_RATE_THRESHOLD = rate;
             resetWindow();
             configured = true;
-            logger.info("[PushAlerts] init pod=%s webhook=%s window=%sms failRate=%s deadSpike=%s", podId, webhookUrl ? "configured" : "MISSING (" + WEBHOOK_ENV + "/" + WEBHOOK_FALLBACK_ENV + ")", String(WINDOW_MS), String(FAIL_RATE_THRESHOLD), String(DEAD_SPIKE_MIN));
+            logger.info("[PushAlerts] init pod=%s webhook=%s window=%sms failRate=%s deadSpike=%s", podId, webhookUrl ? "configured" : "MISSING (" + WEBHOOK_ENV + "/" + WEBHOOK_FALLBACK_ENV + "/" + WEBHOOK_FALLBACK2_ENV + ")", String(WINDOW_MS), String(FAIL_RATE_THRESHOLD), String(DEAD_SPIKE_MIN));
         }
         catch (e) {
             try {
@@ -33648,6 +33653,153 @@ var PushAlerts;
         initializer.registerRpc("push_alerts_test", rpcTest);
     }
     PushAlerts.register = register;
+    // ── postCronReport ─────────────────────────────────────────────────────────
+    // Called at the end of every scheduled cron (daily quiz, premium daily quiz,
+    // etc.) to post a rich analytics embed to Discord. This is a REPORT, not an
+    // alert — it fires on every run regardless of success/failure so the team
+    // always sees what happened. Uses DISCORD_PUSH_WEBHOOK_URL if set, otherwise
+    // falls back to DISCORD_NAKAMA_WEBHOOK_URL. Completely fail-safe.
+    //
+    // stats.byLocale: { [locale: string]: { sent: number; gated: number } }
+    // Locale → flag/country mapping for the embed. Mirrors the 13 locales in
+    // NOTIF_STRINGS, plus a catch-all for any unlisted code.
+    var LOCALE_FLAGS = {
+        "en": "🇺🇸 English", "hi": "🇮🇳 Hindi", "ar": "🇸🇦 Arabic", "fr": "🇫🇷 French",
+        "de": "🇩🇪 German", "pt": "🇧🇷 Portuguese", "ru": "🇷🇺 Russian", "ja": "🇯🇵 Japanese",
+        "ko": "🇰🇷 Korean", "zh-Hans": "🇨🇳 Chinese", "es": "🇪🇸 Spanish", "id": "🇮🇩 Indonesian",
+        "zu": "🇿🇦 Zulu", "pt-BR": "🇧🇷 Portuguese"
+    };
+    function postCronReport(nk, logger, stats) {
+        try {
+            // Lazy-init: ensureConfigured needs ctx — use a best-effort fallback if
+            // webhookUrl is still empty (init ran from a different VM pool member).
+            if (!webhookUrl) {
+                try {
+                    // nk.localcacheGet is not standard Nakama JS API; read env via a known
+                    // Nakama route — we can't safely call ctx.env here. Fall back to a
+                    // stored key written by init(). If still empty, silently skip.
+                    var envRec = nk.storageRead([{
+                            collection: "push_config_cache", key: "webhook_url",
+                            userId: "00000000-0000-0000-0000-000000000000"
+                        }]);
+                    if (envRec && envRec.length > 0 && envRec[0].value && envRec[0].value.url) {
+                        webhookUrl = envRec[0].value.url;
+                    }
+                }
+                catch (_) { }
+            }
+            if (!webhookUrl) {
+                logger.warn("[PushAlerts] postCronReport: webhook not configured — skipping Discord post for " + stats.cronName);
+                return;
+            }
+            var embed = buildCronEmbed(stats);
+            var body = JSON.stringify({ username: "Nakama Cron Reporter", embeds: [embed] });
+            var resp = nk.httpRequest(webhookUrl, "post", { "Content-Type": "application/json" }, body, 5000);
+            var code = resp && resp.code ? resp.code : 0;
+            if (code >= 200 && code < 300) {
+                logger.info("[PushAlerts] CronReport posted to Discord: cron=%s sent=%s gated=%s scanned=%s", stats.cronName, stats.sent, stats.gated, stats.scanned);
+            }
+            else {
+                logger.warn("[PushAlerts] CronReport Discord post non-2xx: code=" + String(code));
+            }
+        }
+        catch (e) {
+            try {
+                logger.warn("[PushAlerts] postCronReport swallowed: " + (e && e.message ? e.message : String(e)));
+            }
+            catch (_) { }
+        }
+    }
+    PushAlerts.postCronReport = postCronReport;
+    // Cache the webhook URL at init time so pooled VMs can find it via storage.
+    function cacheWebhookUrl(nk) {
+        if (!webhookUrl)
+            return;
+        try {
+            nk.storageWrite([{
+                    collection: "push_config_cache", key: "webhook_url",
+                    userId: "00000000-0000-0000-0000-000000000000",
+                    value: { url: webhookUrl, cachedAt: Date.now() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+        }
+        catch (_) { }
+    }
+    PushAlerts.cacheWebhookUrl = cacheWebhookUrl;
+    function buildCronEmbed(s) {
+        var sentRate = s.scanned > 0 ? (s.sent / s.scanned) : 0;
+        var color = sentRate >= 0.3 ? 0x2ecc71 : // green  ≥30% sent
+            sentRate >= 0.05 ? 0xf39c12 : // yellow ≥5%
+                0xe74c3c; // red    <5%
+        var cronLabel = {
+            "daily_quiz": "🎯 Daily Quiz",
+            "premium_daily_quiz": "⭐ Premium Daily Quiz",
+            "weekly_quiz": "📚 Weekly Quiz",
+            "streak_warning": "🔥 Streak Warning",
+            "idle_winback": "👋 Winback",
+            "motivation": "💪 Motivation",
+            "reminders": "⏰ Reminders",
+            "review_due": "📖 Review Due",
+        };
+        var name = cronLabel[s.cronName] || s.cronName;
+        var fields = [];
+        // ── Summary ──────────────────────────────────────────────────────────────
+        fields.push({
+            name: "📊 Run Summary",
+            value: "Scanned: **" + s.scanned + "** opted-in users\n" +
+                "✅ Sent: **" + s.sent + "** (" + pct(s.sent, s.scanned) + ")\n" +
+                "⏭ Gated: **" + s.gated + "** (" + pct(s.gated, s.scanned) + ")\n" +
+                (s.noQuiz ? "⚠️ **Quiz file missing in S3** — no sends possible\n" : "") +
+                (s.topic ? "📌 Topic: *" + String(s.topic).slice(0, 80) + "*" : ""),
+            inline: false,
+        });
+        // ── Breakdown by locale/region ────────────────────────────────────────
+        var localeRows = [];
+        for (var loc in s.byLocale) {
+            if (s.byLocale.hasOwnProperty(loc)) {
+                localeRows.push({ locale: loc, sent: s.byLocale[loc].sent, gated: s.byLocale[loc].gated });
+            }
+        }
+        // Sort by sent desc so top-performing locales are first.
+        localeRows.sort(function (a, b) { return b.sent - a.sent; });
+        if (localeRows.length > 0) {
+            var lines = [];
+            for (var i = 0; i < localeRows.length && i < 12; i++) {
+                var r = localeRows[i];
+                var flag = LOCALE_FLAGS[r.locale] || ("🌐 " + r.locale);
+                var total_r = r.sent + r.gated;
+                lines.push(flag + " — **" + r.sent + "** sent, " + r.gated + " gated" +
+                    " (" + pct(r.sent, total_r) + ")");
+            }
+            fields.push({
+                name: "🌍 By Language / Region (" + localeRows.length + " active)",
+                value: lines.join("\n").slice(0, 1024),
+                inline: false,
+            });
+        }
+        // ── Health signal ──────────────────────────────────────────────────────
+        var healthLines = [];
+        if (s.noQuiz)
+            healthLines.push("❌ S3 quiz file not found — AI service may not have generated today's content yet");
+        if (s.sent === 0 && !s.noQuiz)
+            healthLines.push("⚠️ Zero sends despite quiz being present — check timezone gate & opted-in user count");
+        if (sentRate > 0 && sentRate < 0.05)
+            healthLines.push("⚠️ Very low send rate (<5%) — investigate timezone/token coverage");
+        if (sentRate >= 0.3)
+            healthLines.push("✅ Send rate healthy");
+        if (healthLines.length > 0) {
+            fields.push({ name: "🩺 Health", value: healthLines.join("\n").slice(0, 512), inline: false });
+        }
+        return {
+            title: name + " Cron Report — " + s.dateKey,
+            description: "Scheduled push cron completed. " +
+                "Sent **" + s.sent + "** device notifications out of **" + s.scanned + "** scanned users.",
+            color: color,
+            timestamp: new Date().toISOString(),
+            footer: { text: "nakama-cron-reports • " + instanceLabel + " • " + s.cronName },
+            fields: fields,
+        };
+    }
 })(PushAlerts || (PushAlerts = {}));
 var LegacyPush;
 (function (LegacyPush) {
@@ -34376,6 +34528,19 @@ var LegacyPush;
             ar: "موضوع اليوم: {topic}. انقر للعب!", id: "Topik hari ini: {topic}. Ketuk untuk main!",
             zu: "Isihloko sanamuhla: {topic}. Thepha ukuze udlale!"
         },
+        daily_premium_quiz_title: {
+            en: "⭐ Premium Daily Quiz!", hi: "⭐ प्रीमियम डेली क्विज़!", es: "⭐ ¡Quiz Premium Diario!", fr: "⭐ Quiz Premium du Jour !",
+            de: "⭐ Premium-Tages-Quiz!", pt: "⭐ Quiz Premium Diário!", ru: "⭐ Премиум-квиз дня!", ja: "⭐ プレミアムデイリークイズ！",
+            ko: "⭐ 프리미엄 데일리 퀴즈!", "zh-Hans": "⭐ 高级每日测验！", ar: "⭐ اختبار يومي مميز!", id: "⭐ Quiz Premium Harian!"
+        },
+        daily_premium_quiz_body: {
+            en: "Today's premium topic: {topic}. Tap to challenge yourself!", hi: "आज का प्रीमियम विषय: {topic}. खुद को चुनौती दें!",
+            es: "Tema premium de hoy: {topic}. ¡Desafíate!", fr: "Sujet premium d'aujourd'hui : {topic}. Relevez le défi !",
+            de: "Heutiges Premium-Thema: {topic}. Tritt die Herausforderung an!", pt: "Tema premium de hoje: {topic}. Toque para se desafiar!",
+            ru: "Премиум-тема дня: {topic}. Нажмите, чтобы проверить себя!", ja: "本日のプレミアムトピック：{topic}。挑戦しよう！",
+            ko: "오늘의 프리미엄 주제: {topic}. 탭해서 도전하세요!", "zh-Hans": "今日高级主题：{topic}。点击挑战自我！",
+            ar: "موضوع المميز اليوم: {topic}. انقر للتحدي!", id: "Topik premium hari ini: {topic}. Tantang dirimu!"
+        },
         weekly_quiz_title: {
             en: "📚 Fresh Weekly Quiz!", hi: "📚 नया साप्ताहिक क्विज़!", es: "📚 ¡Nuevo Quiz Semanal!", fr: "📚 Nouveau Quiz Hebdo !",
             de: "📚 Neues Wochen-Quiz!", pt: "📚 Novo Quiz Semanal!", ru: "📚 Новый еженедельный квиз!", ja: "📚 新しいウィークリークイズ！",
@@ -34606,7 +34771,13 @@ var LegacyPush;
     // users get a sensible morning window. The permanent fix is the client
     // sending a numeric offset ("+05:30"), which the parser below honours
     // exactly for every region.
-    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 330; // IST (Asia/Kolkata)
+    // UTC (offset 0) is the safe global default. IST (+330) was used previously
+    // because the user base was India-first, but it silently gated ALL users in
+    // other timezones (e.g. USA 9 AM ET = 14:00 UTC → appeared as 19:30 IST →
+    // always outside the send window). UTC-0 means users with unparseable
+    // timezone strings ("Local", "Unknown") receive pushes based on server UTC,
+    // which is neutral — the quiet-hours guard (22:00-08:00) still protects them.
+    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 0; // UTC — safe global fallback
     function getUserTimezoneOffsetMinutes(nk, userId) {
         try {
             var account = nk.accountGetId(userId);
@@ -34965,10 +35136,16 @@ var LegacyPush;
         if (ctx.userId)
             return RpcHelpers.errorResponse("Admin only");
         var quiz = fetchDailyQuizForToday(nk, logger);
-        if (!quiz)
-            return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
         var todayKey = todayDateKey();
+        if (!quiz) {
+            PushAlerts.postCronReport(nk, logger, {
+                cronName: "daily_quiz", dateKey: todayKey, scanned: 0, sent: 0, gated: 0,
+                noQuiz: true, byLocale: {}
+            });
+            return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
+        }
         var sent = 0, gated = 0, scanned = 0;
+        var byLocale = {};
         var batch = 100, offset = 0;
         while (true) {
             var users = listOptedInUsers(nk, batch, offset);
@@ -34977,33 +35154,150 @@ var LegacyPush;
             for (var i = 0; i < users.length; i++) {
                 scanned++;
                 var u = users[i];
+                var locale = getUserLocale(nk, u);
+                if (!byLocale[locale])
+                    byLocale[locale] = { sent: 0, gated: 0 };
                 var h = getUserLocalHour(nk, u);
-                if (h < 9 || h >= 13) {
+                if (h < 7 || h >= 22) {
                     gated++;
-                    continue;
-                } // outside daily push window
-                if (hasMarker(nk, u, "daily_quiz", todayKey)) {
-                    gated++;
+                    byLocale[locale].gated++;
                     continue;
                 }
-                // Localize the topic to each user's language (the push templates are
-                // already localized; the topic value must be too).
-                var topic = pickQuizTopic(quiz, getUserLocale(nk, u));
+                if (hasMarker(nk, u, "daily_quiz", todayKey)) {
+                    gated++;
+                    byLocale[locale].gated++;
+                    continue;
+                }
+                var topic = pickQuizTopic(quiz, locale);
                 var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz", "daily_quiz_title", "daily_quiz_body", { topic: topic }, { data: { screen: "daily_quiz" } });
                 if (ok) {
                     recordMarker(nk, u, "daily_quiz", todayKey);
                     sent++;
+                    byLocale[locale].sent++;
                 }
                 else {
                     gated++;
+                    byLocale[locale].gated++;
                 }
             }
             offset += batch;
             if (users.length < batch)
                 break;
         }
-        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: pickQuizTopic(quiz, "en") });
+        var reportTopic = pickQuizTopic(quiz, "en");
+        PushAlerts.postCronReport(nk, logger, {
+            cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
+            scanned: scanned, sent: sent, gated: gated, byLocale: byLocale
+        });
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: reportTopic });
     }
+    // ─── S3 fetch: premium daily quiz (locale-aware, falls back to English) ────
+    // Premium files live at quiz-verse/daily/dailyquiz-prem-{lang}-{date}.json.
+    // We try the user's resolved locale first, then English, so every user gets
+    // a meaningful topic name even when their language file isn't ready yet.
+    function fetchPremiumDailyQuizForToday(nk, logger, locale) {
+        var dateStr = todayDateKey();
+        // Supported premium language codes (mirrors what Intelliverse-X-AI produces).
+        var knownLangs = {
+            "en": true, "hi": true, "ar": true, "de": true, "es": true,
+            "fr": true, "id": true, "ja": true, "ko": true, "ru": true
+        };
+        var base = String(locale || "en").split("-")[0].toLowerCase();
+        var lang = knownLangs[base] ? base : "en";
+        // Try locale-specific first, then English fallback.
+        var tryLangs = lang !== "en" ? [lang, "en"] : ["en"];
+        for (var li = 0; li < tryLangs.length; li++) {
+            var url = S3_BASE + "/quiz-verse/daily/dailyquiz-prem-" + tryLangs[li] + "-" + dateStr + ".json";
+            try {
+                var resp = nk.httpRequest(url, "get", {}, "", 10000);
+                if (resp && resp.code >= 200 && resp.code < 300) {
+                    try {
+                        return JSON.parse(resp.body);
+                    }
+                    catch (_) {
+                        continue;
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("[NotifCron] premium daily fetch failed (%s): %s", tryLangs[li], e && e.message ? e.message : String(e));
+            }
+        }
+        return null;
+    }
+    // ─── 1b. Premium daily quiz cron ────────────────────────────────────────────
+    // Mirrors the regular daily quiz cron but targets the premium quiz content.
+    // Sends to ALL opted-in users (premium content serves as upsell for free users
+    // and as value delivery for subscribers). Uses per-user locale to pick the
+    // right S3 file and topic translation. Once-per-day marker is independent of
+    // the regular daily quiz marker so users receive both.
+    function rpcNotifCronPremiumDailyQuiz(ctx, logger, nk, payload) {
+        if (ctx.userId)
+            return RpcHelpers.errorResponse("Admin only");
+        var todayKey = todayDateKey();
+        var sent = 0, gated = 0, scanned = 0;
+        var byLocale = {};
+        var quizMissedAll = false;
+        var batch = 100, offset = 0;
+        while (true) {
+            var users = listOptedInUsers(nk, batch, offset);
+            if (!users || users.length === 0)
+                break;
+            for (var i = 0; i < users.length; i++) {
+                scanned++;
+                var u = users[i];
+                var locale = getUserLocale(nk, u);
+                if (!byLocale[locale])
+                    byLocale[locale] = { sent: 0, gated: 0 };
+                var h = getUserLocalHour(nk, u);
+                if (h < 9 || h >= 22) {
+                    gated++;
+                    byLocale[locale].gated++;
+                    continue;
+                }
+                if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) {
+                    gated++;
+                    byLocale[locale].gated++;
+                    continue;
+                }
+                var quiz = fetchPremiumDailyQuizForToday(nk, logger, locale);
+                if (!quiz) {
+                    gated++;
+                    byLocale[locale].gated++;
+                    quizMissedAll = true;
+                    continue;
+                }
+                var topic = pickQuizTopic(quiz, locale);
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_premium_quiz", "daily_premium_quiz_title", "daily_premium_quiz_body", { topic: topic }, { data: { screen: "daily_premium_quiz" } });
+                if (ok) {
+                    recordMarker(nk, u, "daily_premium_quiz", todayKey);
+                    sent++;
+                    byLocale[locale].sent++;
+                }
+                else {
+                    gated++;
+                    byLocale[locale].gated++;
+                }
+            }
+            offset += batch;
+            if (users.length < batch)
+                break;
+        }
+        // Fetch English quiz for report topic label (best-effort, ignore failure)
+        var engQuiz = fetchPremiumDailyQuizForToday(nk, logger, "en");
+        var reportTopic = engQuiz ? pickQuizTopic(engQuiz, "en") : undefined;
+        PushAlerts.postCronReport(nk, logger, {
+            cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
+            scanned: scanned, sent: sent, gated: gated,
+            noQuiz: quizMissedAll && sent === 0,
+            byLocale: byLocale
+        });
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
+    }
+    function runPremiumDailyQuizCron(ctx, logger, nk, payload) {
+        return rpcNotifCronPremiumDailyQuiz(ctx, logger, nk, payload);
+    }
+    LegacyPush.runPremiumDailyQuizCron = runPremiumDailyQuizCron;
     // ─── 1b. Research survey-invite push (server-triggered campaign) ────────────
     // Drives the customer-discovery survey (quizverse_research_survey_submit) to
     // the opted-in install base via APNs/FCM. Admin/http_key only (no ctx.userId).
@@ -35791,6 +36085,7 @@ var LegacyPush;
         initializer.registerRpc("push_flush_pending", rpcPushFlushPending);
         // Notification broadcaster — admin/server-key callers only (no userId in ctx).
         initializer.registerRpc("notif_cron_daily_quiz", rpcNotifCronDailyQuiz);
+        initializer.registerRpc("notif_cron_premium_daily_quiz", rpcNotifCronPremiumDailyQuiz);
         initializer.registerRpc("notif_cron_survey_push", rpcNotifCronSurveyPush);
         initializer.registerRpc("notif_cron_weekly_quiz", rpcNotifCronWeeklyQuiz);
         initializer.registerRpc("notif_cron_idle_winback", rpcNotifCronIdleWinback);
@@ -45862,7 +46157,61 @@ var OnboardingAnalytics;
         }
     }
     function resolveUserKey(rec) {
-        return (rec.nakamaUserId || rec.identityId || rec.userId || "").toString();
+        // Prefer stable anon session id so welcome theme + completion stay in one bucket.
+        // nakamaUserId-first split guest (ob_welcome_seen) from post-register (ob_complete).
+        var identityId = (rec.identityId || "").toString();
+        if (identityId)
+            return identityId;
+        return (rec.nakamaUserId || rec.userId || "").toString();
+    }
+    function normalizeWelcomeTheme(raw) {
+        var wt = (raw || "").toLowerCase();
+        if (wt === "lavender")
+            return "lavender";
+        if (wt === "v1")
+            return "v1";
+        return "";
+    }
+    function applyWelcomeThemeFromRecord(u, rec) {
+        if (u.welcomeTheme)
+            return;
+        var data = rec.data || {};
+        if (data.welcome_theme) {
+            u.welcomeTheme = normalizeWelcomeTheme("" + data.welcome_theme);
+            if (u.welcomeTheme)
+                return;
+        }
+        var snap = rec.userSnapshot || {};
+        if (snap.welcome_theme) {
+            u.welcomeTheme = normalizeWelcomeTheme("" + snap.welcome_theme);
+        }
+    }
+    /** Merge orphan nakama/cognito buckets that share identityId with the guest bucket. */
+    function coalesceUsersByIdentityId(usersMap) {
+        var canonical = {};
+        var toDelete = [];
+        var merges = 0;
+        for (var uid in usersMap) {
+            if (!Object.prototype.hasOwnProperty.call(usersMap, uid))
+                continue;
+            var u = usersMap[uid];
+            var iid = (u.identityId || "").toString();
+            if (!iid)
+                continue;
+            if (canonical[iid]) {
+                var targetUid = canonical[iid];
+                mergeUserBuckets(usersMap[targetUid], u);
+                toDelete.push(uid);
+                merges++;
+            }
+            else {
+                canonical[iid] = uid;
+            }
+        }
+        for (var d = 0; d < toDelete.length; d++) {
+            delete usersMap[toDelete[d]];
+        }
+        return merges;
     }
     function loadIdentityLinks(nk) {
         var links = [];
@@ -46267,10 +46616,7 @@ var OnboardingAnalytics;
                 if (rec.name === "ob_streak_shield_activated")
                     u.streakShieldActivated = true;
                 applyUnityHandoffFromEvent(u, rec);
-                if (!u.welcomeTheme && rec.data && rec.data.welcome_theme) {
-                    var wt = ("" + rec.data.welcome_theme).toLowerCase();
-                    u.welcomeTheme = (wt === "lavender") ? "lavender" : "v1";
-                }
+                applyWelcomeThemeFromRecord(u, rec);
                 if (rec.name === "ob_return_seen")
                     u.returnSeenEvent = true;
                 if (rec.name === "ob_screen_seen" && rec.screen) {
@@ -46360,6 +46706,7 @@ var OnboardingAnalytics;
         if (userLimit > 1000)
             userLimit = 1000;
         var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
+        var identityCoalesced = coalesceUsersByIdentityId(scan.users);
         var identityLoad = loadIdentityLinks(nk);
         var mergeResult = mergeUsersByIdentityLinks(scan.users, identityLoad.links);
         var usersMap = mergeResult.users;
@@ -46381,7 +46728,7 @@ var OnboardingAnalytics;
                 if (!Object.prototype.hasOwnProperty.call(usersMap, tfuid))
                     continue;
                 var tfu = usersMap[tfuid];
-                var uTheme = tfu.welcomeTheme || "v1";
+                var uTheme = tfu.welcomeTheme || "";
                 if (uTheme === welcomeThemeFilter)
                     themeFiltered[tfuid] = tfu;
             }
@@ -46471,7 +46818,7 @@ var OnboardingAnalytics;
                         abSoftSubscribed++;
                 }
             }
-            var uWelcomeTheme = u.welcomeTheme || "v1";
+            var uWelcomeTheme = u.welcomeTheme || "";
             if (uWelcomeTheme === "lavender") {
                 abLavenderUsers++;
                 if (u.completed)

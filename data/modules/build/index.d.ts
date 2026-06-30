@@ -1510,6 +1510,23 @@ declare namespace PushAlerts {
         [code: string]: number;
     }): void;
     function register(initializer: nkruntime.Initializer): void;
+    interface CronStats {
+        cronName: string;
+        dateKey: string;
+        topic?: string;
+        scanned: number;
+        sent: number;
+        gated: number;
+        noQuiz?: boolean;
+        byLocale: {
+            [locale: string]: {
+                sent: number;
+                gated: number;
+            };
+        };
+    }
+    function postCronReport(nk: nkruntime.Nakama, logger: nkruntime.Logger, stats: CronStats): void;
+    function cacheWebhookUrl(nk: nkruntime.Nakama): void;
 }
 declare namespace LegacyPush {
     export function userHasPushTokens(nk: nkruntime.Nakama, userId: string): boolean;
@@ -1523,6 +1540,7 @@ declare namespace LegacyPush {
         [k: string]: any;
     }): boolean;
     function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    export function runPremiumDailyQuizCron(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronWeeklyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronIdleWinback(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcNotifCronStreakWarning(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;

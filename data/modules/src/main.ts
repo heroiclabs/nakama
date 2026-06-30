@@ -57,6 +57,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   try {
     PushAlerts.init(ctx, logger);
     PushAlerts.register(originalInitializer);
+    PushAlerts.cacheWebhookUrl(nk);
     logger.info("[PushAlerts] installed; push delivery failures will page Discord");
   } catch (err: any) {
     logger.error("[PushAlerts] failed to install: " + (err && err.message ? err.message : String(err)));
