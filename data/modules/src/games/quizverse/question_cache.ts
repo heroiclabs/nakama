@@ -1,4 +1,4 @@
-// question_cache.ts — QuizVerse question-delivery cache layer.
+﻿// question_cache.ts — QuizVerse question-delivery cache layer.
 //
 // NO RPCS IN THIS FILE — utility namespace only.
 // Called by get_questions.ts (Phase 1b) and by a background cron refresh.
@@ -292,7 +292,7 @@ namespace QvQuestionCache {
 
   function readCircuit(nk: nkruntime.Nakama, provider: string): any {
     try {
-      var rows = nk.storageRead([{ collection: COL_CIRCUIT, key: provider, userId: "" }]);
+      var rows = nk.storageRead([{ collection: COL_CIRCUIT, key: provider, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (rows && rows.length > 0 && rows[0].value) return rows[0].value;
     } catch (_e) {}
     return { state: "closed", fail_count: 0, success_count: 0, trip_count: 0, open_until_ms: 0 };
@@ -301,7 +301,7 @@ namespace QvQuestionCache {
   function writeCircuit(nk: nkruntime.Nakama, provider: string, doc: any): void {
     try {
       nk.storageWrite([{
-        collection: COL_CIRCUIT, key: provider, userId: "",
+        collection: COL_CIRCUIT, key: provider, userId: "00000000-0000-0000-0000-000000000000",
         value: doc, permissionRead: 1, permissionWrite: 0
       }]);
     } catch (_e) {}
@@ -1539,7 +1539,7 @@ namespace QvQuestionCache {
   ): { questions: NormalizedQuestion[]; expired: boolean; cached_at_ms: number } {
     var questions: NormalizedQuestion[] = [];
     try {
-      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
       if (!rows || rows.length === 0 || !rows[0].value) {
         logger.info("[QvQCache/" + topic + "] cache miss");
         return { questions: [], expired: true, cached_at_ms: 0 };
@@ -1554,7 +1554,7 @@ namespace QvQuestionCache {
 
       if (pageCount > 1) {
         var reqs: nkruntime.StorageReadRequest[] = [];
-        for (var p = 1; p < pageCount; p++) reqs.push({ collection: COL_CACHE + topic, key: "pool_" + p, userId: "" });
+        for (var p = 1; p < pageCount; p++) reqs.push({ collection: COL_CACHE + topic, key: "pool_" + p, userId: "00000000-0000-0000-0000-000000000000" });
         var extra = nk.storageRead(reqs);
         if (extra) {
           for (var ei = 0; ei < extra.length; ei++) {
@@ -1578,7 +1578,7 @@ namespace QvQuestionCache {
    */
   export function isCacheValid(nk: nkruntime.Nakama, topic: string): boolean {
     try {
-      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "" }]);
+      var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
       if (!rows || rows.length === 0 || !rows[0].value) return false;
       var doc: any = rows[0].value;
       return doc.expires_at_ms ? doc.expires_at_ms > nowMs() : false;

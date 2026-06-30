@@ -1,4 +1,4 @@
-// Phase 0.5 (qv-insights-loop) — product_changelog_append RPC.
+﻿// Phase 0.5 (qv-insights-loop) — product_changelog_append RPC.
 //
 // Any service that ships a product change (release, server deploy, satori
 // experiment flip, remote-config change, incident, content drop, economy
@@ -109,7 +109,7 @@ namespace QvProductChangelog {
       nk.storageWrite([{
         collection: COLLECTION,
         key: storageKey,
-        userId: "",
+        userId: "00000000-0000-0000-0000-000000000000",
         value: data as any,
         permissionRead: 0,
         permissionWrite: 0,

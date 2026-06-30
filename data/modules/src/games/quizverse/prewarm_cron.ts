@@ -1,4 +1,4 @@
-// prewarm_cron.ts — Hourly pre-warm cron for QuizVerse question delivery.
+﻿// prewarm_cron.ts — Hourly pre-warm cron for QuizVerse question delivery.
 //
 // ── Purpose ───────────────────────────────────────────────────────────────────
 //
@@ -134,7 +134,7 @@ namespace QvPrewarmCron {
     // Read question cache for this topic
     var pool: any[] = [];
     try {
-      var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: "" }]);
+      var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
       if (!cacheRows || cacheRows.length === 0 || !cacheRows[0].value) return 0;
       var page0: any = cacheRows[0].value;
       if (Array.isArray(page0.questions)) pool = page0.questions.slice();
@@ -143,7 +143,7 @@ namespace QvPrewarmCron {
       if (pageCount > 1) {
         var reqs: nkruntime.StorageReadRequest[] = [];
         for (var p = 1; p < pageCount; p++) {
-          reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: "" });
+          reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: "00000000-0000-0000-0000-000000000000" });
         }
         var extra = nk.storageRead(reqs);
         if (extra) {
@@ -251,13 +251,13 @@ namespace QvPrewarmCron {
 
   function acquireGate(nk: nkruntime.Nakama): boolean {
     try {
-      var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "" }]);
+      var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000" }]);
       var lastRun: number = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_run_ms)
         ? rows[0].value.last_run_ms : 0;
       if (nowMs() - lastRun < GATE_INTERVAL_MS) return false; // still within gate window
 
       nk.storageWrite([{
-        collection: GATE_COL, key: GATE_KEY, userId: "",
+        collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000",
         value: { last_run_ms: nowMs() },
         permissionRead: 0, permissionWrite: 0
       }]);

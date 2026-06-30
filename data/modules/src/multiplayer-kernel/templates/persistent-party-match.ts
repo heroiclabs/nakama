@@ -1,4 +1,4 @@
-// PersistentPartyRoom — long-lived party / friend-group room.
+﻿// PersistentPartyRoom — long-lived party / friend-group room.
 //
 // Reserved opcode range 0xA000-0xAFFF.
 //
@@ -116,7 +116,7 @@ namespace MpKernelPersistentParty {
   function readDoc(nk: nkruntime.Nakama, partyId: string): IPartyDoc | null {
     if (!partyId) return null;
     try {
-      var rows = nk.storageRead([{ collection: STORAGE_COLLECTION, key: partyId, userId: "" }]);
+      var rows = nk.storageRead([{ collection: STORAGE_COLLECTION, key: partyId, userId: "00000000-0000-0000-0000-000000000000" }]);
       if (!rows || rows.length === 0) return null;
       return rows[0].value as IPartyDoc;
     } catch (_e) {

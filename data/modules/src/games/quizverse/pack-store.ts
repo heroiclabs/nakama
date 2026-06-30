@@ -1,4 +1,4 @@
-// QuizVerse pack store — Nakama storage wrapper for question packs.
+﻿// QuizVerse pack store — Nakama storage wrapper for question packs.
 //
 // Packs live in the `quizverse_packs` collection (system-owned). The
 // QuizVerseGame.SEED_PACK is the always-available fallback so smoke
@@ -18,7 +18,7 @@ namespace QuizVersePackStore {
 
     var rows: nkruntime.StorageObject[] = [];
     try {
-      rows = nk.storageRead([{ collection: COLLECTION, key: packId, userId: "" }]);
+      rows = nk.storageRead([{ collection: COLLECTION, key: packId, userId: "00000000-0000-0000-0000-000000000000" }]);
     } catch (_e) {
       rows = [];
     }
