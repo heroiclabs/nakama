@@ -3,13 +3,14 @@ import type { SatoriSystem } from "../../lib/constants";
 import type { Audience, Experiment, SatoriMessage } from "../types";
 
 function unwrapData<T>(value: unknown): T {
-  if (
-    value &&
-    typeof value === "object" &&
-    "success" in value &&
-    "data" in value
-  ) {
-    return (value as { data: T }).data;
+  if (value && typeof value === "object" && "success" in value) {
+    const envelope = value as { success: boolean; data?: T; error?: string };
+    if (envelope.success === false) {
+      throw new Error(envelope.error ?? "RPC request failed");
+    }
+    if ("data" in envelope) {
+      return envelope.data as T;
+    }
   }
   return value as T;
 }
