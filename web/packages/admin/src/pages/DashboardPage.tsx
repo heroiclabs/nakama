@@ -249,10 +249,12 @@ function activeWindowsForCard(
   const split = summary?.activeUsers;
   if (split) {
     const key = window === "5m" ? "active5m" : window === "1h" ? "active1h" : "active24h";
+    const onboarding = split.onboarding[key];
+    const inApp = split.inApp[key];
     return {
-      onboarding: split.onboarding[key],
-      inApp: split.inApp[key],
-      total: split.total[key],
+      onboarding,
+      inApp,
+      total: onboarding + inApp,
     };
   }
   const fallback =
@@ -325,7 +327,7 @@ function ActiveUsersSplitCard({
   return (
     <div
       className={cn(
-        "relative h-full w-full overflow-hidden rounded-xl border bg-card p-6",
+        "relative h-full w-full overflow-hidden rounded-xl border bg-card p-4",
         highlight ? "border-primary/30 bg-gradient-to-br from-primary/10 to-card" : "border-border",
       )}
     >
@@ -334,36 +336,36 @@ function ActiveUsersSplitCard({
         {title}
       </div>
       {loading ? (
-        <Loader2 className={cn("mt-4 h-8 w-8 animate-spin", highlight ? "text-primary" : "text-muted-foreground")} />
+        <Loader2 className={cn("mt-3 h-7 w-7 animate-spin", highlight ? "text-primary" : "text-muted-foreground")} />
       ) : (
-        <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Globe2 className="h-3.5 w-3.5" />
               Onboarding web
             </span>
-            <span className={cn("text-2xl font-bold tabular-nums", highlight && "text-primary")}>
+            <span className={cn("text-xl font-bold tabular-nums", highlight && "text-primary")}>
               {onboarding}
             </span>
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <Gamepad2 className="h-3.5 w-3.5" />
               In-app game
             </span>
-            <span className="text-2xl font-bold tabular-nums">{inApp}</span>
+            <span className="text-xl font-bold tabular-nums">{inApp}</span>
           </div>
-          <div className="border-t border-border/60 pt-3">
-            <div className="flex items-center justify-between gap-3">
+          <div className="border-t border-border/60 pt-2">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-medium text-foreground/90">Total active</span>
-              <span className={cn("text-3xl font-bold tabular-nums tracking-tight", highlight && "text-primary")}>
+              <span className={cn("text-2xl font-bold tabular-nums tracking-tight", highlight && "text-primary")}>
                 {total}
               </span>
             </div>
           </div>
         </div>
       )}
-      {footer && <p className="mt-2 text-xs text-muted-foreground">{footer}</p>}
+      {footer && <p className="mt-1.5 text-xs text-muted-foreground">{footer}</p>}
       {highlight && (
         <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-primary/10 blur-2xl" />
       )}
