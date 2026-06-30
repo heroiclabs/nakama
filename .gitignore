@@ -768,3 +768,5 @@ data/lambda-functions/*/dist/
 data/lambda-functions/*/_stage/
 data/lambda-functions/*/*.zip
 data/lambda-functions/*/package-lock.json
+scripts/run-direct.ps1
+scripts/start-local.ps1
