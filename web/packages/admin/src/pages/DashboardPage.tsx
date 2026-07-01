@@ -68,7 +68,7 @@ import {
   SortableVerticalList,
   useStatusLayoutEditMode,
 } from "@/components/dashboard/SortableDashboard";
-import { ProductTelemetryPanel } from "@/components/product-telemetry/ProductTelemetryPanel";
+import { GrowthTelemetryPanel } from "@/pages/product-telemetry/GrowthTelemetryPanel";
 
 const REFETCH_MS = 15_000;
 
@@ -1500,7 +1500,7 @@ export function DashboardPage() {
       ? "Live audience, geography, and LiveOps overview."
       : tab === "metrics"
         ? "Installs, sessions, revenue, and segment breakdowns."
-        : "CRM mode mix, sponsor performance, and growth marketing snapshots.";
+        : "Growth and marketing snapshots from GSC, GA4, newsletter, and user signups.";
 
   return (
     <div className="space-y-6">
@@ -1528,7 +1528,6 @@ export function DashboardPage() {
               hiroStatus.refetch();
               satoriStatus.refetch();
               if (tab === "telemetry") {
-                queryClient.invalidateQueries({ queryKey: ["admin", "product-metrics"] });
                 queryClient.invalidateQueries({ queryKey: ["admin", "growth-snapshot"] });
               }
             }}
@@ -1592,7 +1591,7 @@ export function DashboardPage() {
         {([
           ["status", "Status"],
           ["metrics", "Game Metrics"],
-          ["telemetry", "Product Telemetry"],
+          ["telemetry", "Growth Marketing"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -1640,7 +1639,7 @@ export function DashboardPage() {
           onEventFilterChange={setEventFilter}
         />
       ) : (
-        <ProductTelemetryPanel embedded />
+        <GrowthTelemetryPanel />
       )}
     </div>
   );
