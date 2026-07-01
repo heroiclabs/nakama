@@ -139,12 +139,6 @@ function ago(iso: string): string {
   return `${Math.floor(ms / 86_400_000)}d ago`;
 }
 
-function fmtNum(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
 function fmtAge(seconds?: number | null): string {
   if (seconds === null || seconds === undefined) return "No events";
   if (seconds < 60) return `${seconds}s ago`;
@@ -290,20 +284,6 @@ function useServerAuth(): RpcOptions {
   return serverKeyAuth();
 }
 
-function useDashboardSummary(gameId?: string) {
-  const opts = useServerAuth();
-  return useQuery({
-    queryKey: ["analytics", "dashboard-summary", gameId],
-    queryFn: () =>
-      callRpc<Record<string, unknown>, any>(
-        "satori_dashboard_summary",
-        gameId ? { game_id: gameId } : {},
-        opts,
-      ),
-    refetchInterval: 30_000,
-  });
-}
-
 function useMetrics() {
   const opts = useServerAuth();
   return useQuery({
@@ -418,57 +398,25 @@ const SIDEBAR_SHORTCUTS = [
 
 function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
   const navigate = useNavigate();
-  const scopedGameId = useScopedGameId();
-  const summary = useDashboardSummary(scopedGameId);
-
-  const summaryData = summary.data as any;
-  const dau = summaryData?.dauToday ?? 0;
-  const active5m = summaryData?.activeUsers5m ?? 0;
-  const active24h = summaryData?.activeUsers24h ?? 0;
-  const eventsToday = summaryData?.eventsToday ?? 0;
-  const experiments = summaryData?.experiments ?? {};
-  const liveEventsCount = summaryData?.liveEvents ?? {};
 
   return (
     <div className="space-y-6">
-      {/* Live stats — game-scoped real-time data */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Active Now (5 min)"
-          value={fmtNum(active5m)}
-          icon={Activity}
-          subtitle={`${fmtNum(active24h)} in last 24h`}
-          loading={summary.isLoading}
-          error={summary.isError}
-          trend={active5m > 0 ? "up" : "neutral"}
-        />
-        <StatCard
-          title="DAU Today"
-          value={fmtNum(dau)}
-          icon={Users}
-          subtitle={`${fmtNum(eventsToday)} events today`}
-          loading={summary.isLoading}
-          error={summary.isError}
-        />
-        <StatCard
-          title="Experiments"
-          value={experiments.ongoing ?? 0}
-          icon={TrendingUp}
-          subtitle={`${experiments.total ?? 0} total · ${experiments.scheduled ?? 0} scheduled`}
-          loading={summary.isLoading}
-          error={summary.isError}
-        />
-        <StatCard
-          title="Live Events"
-          value={liveEventsCount.ongoing ?? 0}
-          icon={BarChart3}
-          subtitle={`${liveEventsCount.total ?? 0} total`}
-          loading={summary.isLoading}
-          error={summary.isError}
-        />
+      {/* Info callout — point to Dashboard for live metrics */}
+      <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <p className="text-sm text-muted-foreground">
+          Live metrics (DAU, active users, experiments, live events) are on the{" "}
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="font-medium text-primary hover:underline"
+          >
+            Dashboard
+          </button>
+          . This page is for deep-dive analytics tools.
+        </p>
       </div>
 
-      {/* Analytics deep-links — row 1: dedicated sidebar tools */}
+      {/* Row 1 — dedicated sidebar analytics pages */}
       <SectionHeading
         title="Analytics Tools"
         description="Jump directly to dedicated analytics pages"
@@ -489,7 +437,7 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
         ))}
       </div>
 
-      {/* Analytics sub-tabs — row 2: tabs within this page */}
+      {/* Row 2 — advanced tabs within this page */}
       <SectionHeading
         title="Advanced Analytics"
         description="Deeper analytics available on this page"
