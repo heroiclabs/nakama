@@ -1500,7 +1500,7 @@ export function DashboardPage() {
       ? "Live audience, geography, and LiveOps overview."
       : tab === "metrics"
         ? "Installs, sessions, revenue, and segment breakdowns."
-        : "Funnels, retention, and growth snapshots (CRM slices when n8n is available).";
+        : "CRM mode mix, sponsor performance, and growth marketing snapshots.";
 
   return (
     <div className="space-y-6">
