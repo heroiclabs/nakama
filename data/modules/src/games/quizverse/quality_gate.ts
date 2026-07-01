@@ -52,9 +52,10 @@
 //             Catches providers that embed <br/>, <sup>, <em> etc. in content.
 //
 //   GATE 6 — duplicate question in pool
-//             Reject if normalized(question_text) already exists in seenTextSet.
-//             Prevents the same question from appearing twice in a topic's pool,
-//             e.g. when two providers both return "Who created Pikachu?".
+//             Reject if the question's copy key already exists in seenTextSet.
+//             Text questions: normalized(question_text).
+//             Media questions (has_media): provider_key, else media.url, else id.
+//             ImageGuess templates share one prompt; uniqueness is image + options.
 //
 // ── Usage pattern in question_cache.ts ───────────────────────────────────────
 //
@@ -198,6 +199,27 @@ namespace QvQualityGate {
   }
 
   /**
+   * Dedup key for GATE 6 and buildSeenTextSet.
+   * Media questions share template prompts — key on provider_key / media.url instead.
+   */
+  export function questionDedupeKey(q: any): string {
+    if (q && q.has_media === true) {
+      if (q.provider_key && typeof q.provider_key === "string") {
+        return normalizeForDedup("media_pk:" + q.provider_key);
+      }
+      if (q.media && q.media.url && typeof q.media.url === "string") {
+        return normalizeForDedup("media_url:" + q.media.url);
+      }
+      if (q.id && typeof q.id === "string") {
+        return normalizeForDedup("media_id:" + q.id);
+      }
+    }
+    var qText = (q && q.question_text && typeof q.question_text === "string")
+      ? q.question_text : "";
+    return normalizeForDedup(qText);
+  }
+
+  /**
    * Decode HTML entities in question_text and every option text, in-place.
    * Also strips residual raw HTML tags and returns whether any stripping occurred.
    */
@@ -254,8 +276,8 @@ namespace QvQualityGate {
     if (!questions || !Array.isArray(questions)) return set;
     for (var i = 0; i < questions.length; i++) {
       var q = questions[i];
-      if (q && q.question_text) {
-        set[normalizeForDedup(q.question_text)] = true;
+      if (q) {
+        set[questionDedupeKey(q)] = true;
       }
     }
     return set;
@@ -386,11 +408,10 @@ namespace QvQualityGate {
 
     // ══════════════════════════════════════════════════════════════════════
     // GATE 6 — duplicate question in pool
-    // Compare normalized question_text against the caller-supplied seen set.
-    // Catches cross-provider duplicates ("Who created Pikachu?" from two APIs).
+    // Text: normalized question_text. Media: provider_key / media.url / id.
     // ══════════════════════════════════════════════════════════════════════
-    var normalizedQ = normalizeForDedup(qText);
-    if (seenTextSet[normalizedQ]) {
+    var dedupeKey = questionDedupeKey(q);
+    if (seenTextSet[dedupeKey]) {
       return { valid: false, reject_reason: "duplicate_question_text" };
     }
 
@@ -455,7 +476,7 @@ namespace QvQualityGate {
       }
 
       // Gate passed: add to seen set to catch within-batch duplicates
-      seen[normalizeForDedup(q.question_text)] = true;
+      seen[questionDedupeKey(q)] = true;
       passed.push(q);
     }
 

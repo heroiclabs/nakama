@@ -49,8 +49,10 @@ namespace QvRemoteConfig {
   var COL_CONFIG          = "qv_config";
   var COL_CACHE_PREFIX    = "qv_cache_";          // qv_cache_{topic}
   var COL_CIRCUIT_BREAKER = "qv_circuit_breakers";
+  var COL_REFRESH_GATE    = "qv_cache_refresh_gate";
   var COL_STATS           = "qv_stats";            // aggregate rollup (Phase 1b)
   var KEY_GLOBAL          = "global";
+  var SYSTEM_USER         = "00000000-0000-0000-0000-000000000000";
 
   // S3 base for default topic icon URLs. Overridable per-topic in the stored doc.
   var S3_ICONS_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/topic-icons/";
@@ -75,6 +77,56 @@ namespace QvRemoteConfig {
   // Cache is considered "near expiry" when ≤ 10 min remain.
   // Ops gets a warning window before questions run dry.
   var STALE_WARNING_MS = 10 * 60 * 1000;
+
+  // Per-topic refresh dedupe gate — sync with question_cache.ts REFRESH_GATE_MS.
+  var REFRESH_GATE_MS = 30 * 1000;
+
+  // Topic → primary provider — sync with question_cache.ts topicProvider().
+  function topicProvider(topic: string): string {
+    var map: { [t: string]: string } = {
+      opentdb: "opentdb", anime: "jikan", pokemon: "pokeapi",
+      cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
+      ghibli: "ghibli", disney: "disney", starwars: "swapi",
+      countries: "restcountries", flags: "restcountries",
+      space: "nasa", movies: "tmdb", sports: "thesportsdb",
+      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3", ai: "claude"
+    };
+    return map[topic] || topic;
+  }
+
+  function cacheActionHint(topic: string): string {
+    return "POST quizverse_cache_refresh_tick { \"mode\": \"topic\", \"topic\": \"" + topic + "\" }";
+  }
+
+  function circuitStateForProvider(
+    provider: string,
+    circuitByKey: { [k: string]: any },
+    now: number
+  ): string {
+    var v: any = circuitByKey[provider];
+    if (!v) return "no_data";
+    var state: string = v.state || "unknown";
+    var openUntilMs: number = v.open_until_ms || 0;
+    if (state === "open" && openUntilMs > 0 && openUntilMs <= now) return "half_open";
+    return state;
+  }
+
+  function buildTopicCacheMeta(
+    topic: string,
+    gateByTopic: { [topic: string]: number },
+    circuitByKey: { [k: string]: any },
+    now: number
+  ): { provider: string; circuit_state: string; last_refresh_gate_ms: number; refresh_gate_active: boolean; action_hint: string } {
+    var provider = topicProvider(topic);
+    var lastGateMs = gateByTopic[topic] || 0;
+    return {
+      provider:              provider,
+      circuit_state:         circuitStateForProvider(provider, circuitByKey, now),
+      last_refresh_gate_ms:  lastGateMs,
+      refresh_gate_active:   lastGateMs > 0 && (now - lastGateMs) < REFRESH_GATE_MS,
+      action_hint:           cacheActionHint(topic)
+    };
+  }
 
   // ── Shared helpers ────────────────────────────────────────────────────────
 
@@ -118,7 +170,7 @@ namespace QvRemoteConfig {
       { id: "food",      label: "Food",           icon_url: S3_ICONS_BASE + "food.png",      has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 12, max_count: 20 },
       { id: "cocktail",  label: "Cocktails",      icon_url: S3_ICONS_BASE + "cocktail.png",  has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 13, max_count: 20 },
       { id: "dog",       label: "Dogs",           icon_url: S3_ICONS_BASE + "dog.png",       has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 14, max_count: 20 },
-      { id: "news",      label: "News",           icon_url: S3_ICONS_BASE + "news.png",      has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 15, max_count: 10 },
+      { id: "news",      label: "News",           icon_url: S3_ICONS_BASE + "news.png",      has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 15, max_count: 10 },
       { id: "opentdb",   label: "General Trivia", icon_url: S3_ICONS_BASE + "general.png",   has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 16, max_count: 20 },
       { id: "ai",        label: "AI Quiz",        icon_url: S3_ICONS_BASE + "ai.png",        has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 17, max_count: 10 },
       { id: "daily",     label: "Daily Quiz",     icon_url: S3_ICONS_BASE + "daily.png",     has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 18, max_count: 10 },
@@ -359,26 +411,55 @@ namespace QvRemoteConfig {
 
     var probe: nkruntime.StorageReadRequest[] = [];
     for (var i = 0; i < KNOWN_TOPICS.length; i++) {
-      probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" });
+      probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: SYSTEM_USER });
+      probe.push({ collection: COL_REFRESH_GATE, key: KNOWN_TOPICS[i], userId: SYSTEM_USER });
+    }
+
+    var circuitProbe: nkruntime.StorageReadRequest[] = [];
+    for (var ci = 0; ci < KNOWN_PROVIDERS.length; ci++) {
+      circuitProbe.push({ collection: COL_CIRCUIT_BREAKER, key: KNOWN_PROVIDERS[ci], userId: SYSTEM_USER });
     }
 
     try {
       var rows = nk.storageRead(probe);
+      var circuitRows = nk.storageRead(circuitProbe);
 
       var byCol: { [col: string]: any } = {};
+      var gateByTopic: { [topic: string]: number } = {};
       if (rows) {
         for (var ri = 0; ri < rows.length; ri++) {
           var r = rows[ri];
-          if (r && r.value) byCol[r.collection] = r;
+          if (!r || !r.value) continue;
+          if (r.collection === COL_REFRESH_GATE) {
+            gateByTopic[r.key] = r.value.last_refresh_ms || 0;
+          } else {
+            byCol[r.collection] = r;
+          }
+        }
+      }
+
+      var circuitByKey: { [k: string]: any } = {};
+      if (circuitRows) {
+        for (var cri = 0; cri < circuitRows.length; cri++) {
+          var cr = circuitRows[cri];
+          if (cr && cr.value) circuitByKey[cr.key] = cr.value;
         }
       }
 
       for (var ti = 0; ti < KNOWN_TOPICS.length; ti++) {
         var topic = KNOWN_TOPICS[ti];
         var row   = byCol[COL_CACHE_PREFIX + topic];
+        var meta  = buildTopicCacheMeta(topic, gateByTopic, circuitByKey, now);
 
         if (!row || !row.value) {
-          topics[topic] = { present: false };
+          topics[topic] = {
+            present: false,
+            provider:              meta.provider,
+            circuit_state:         meta.circuit_state,
+            last_refresh_gate_ms:  meta.last_refresh_gate_ms,
+            refresh_gate_active:   meta.refresh_gate_active,
+            action_hint:           meta.action_hint
+          };
           missingCount++;
           continue;
         }
@@ -412,6 +493,11 @@ namespace QvRemoteConfig {
           stale_reason:    isExpired ? "expired" : isNearExpiry ? "near_expiry" : null,
           providers_used:  v.providers_used  || [],
           lang_breakdown:  v.lang_breakdown  || {},
+          provider:              meta.provider,
+          circuit_state:         meta.circuit_state,
+          last_refresh_gate_ms:  meta.last_refresh_gate_ms,
+          refresh_gate_active:   meta.refresh_gate_active,
+          action_hint:           meta.action_hint,
           quality_gate: {
             total_processed:   qg.total_processed    || 0,
             passed:            qg.passed             || 0,

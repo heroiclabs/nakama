@@ -33,11 +33,11 @@
 //   State stored in qv_circuit_breakers/{provider} (system-owned, no-write).
 //   readCache falls back to stale pool when the circuit is open.
 //
-// ── Providers ─────────────────────────────────────────────────────────────────
-//   No-auth (always available): OpenTDB, Jikan, PokeAPI, CocktailDB, MealDB,
-//     Dog CEO, Disney, Ghibli, SWAPI, RestCountries
-//   Key-gated (env var required): NASA, TMDB, TheSportsDB, Last.fm,
-//     GNews/Currents/MediaStack/NewsAPI
+  // ── Providers ─────────────────────────────────────────────────────────────────
+  //   No-auth (always available): OpenTDB, Jikan, PokeAPI, CocktailDB, MealDB,
+  //     Dog CEO, Disney, Ghibli, SWAPI
+  //   Key-gated (env var required): RestCountries (v5), NASA, TMDB, TheSportsDB,
+  //     Last.fm, GNews/Currents/MediaStack/NewsAPI
 //   S3-based (env S3_BASE_URL): daily, weekly
 //
 // ── postbuild note ────────────────────────────────────────────────────────────
@@ -102,6 +102,8 @@ namespace QvQuestionCache {
   //   CURRENTS    → https://currentsapi.services/en/register  (1000/day)
   //   MEDIASTACK  → https://mediastack.com/signup/free  (500/month)
   //   NEWSAPI     → https://newsapi.org/register  (100/day)
+  //   GUARDIAN    → https://open-platform.theguardian.com/access/  (free dev key; "test" works)
+  //   SPACEFLIGHT → https://api.spaceflightnewsapi.net/v4/  (no key — open API, 100% images)
   //   NASA        → https://api.nasa.gov  (already defaults to DEMO_KEY)
 
   var FALLBACK_KEYS: { [k: string]: string } = {
@@ -111,6 +113,7 @@ namespace QvQuestionCache {
     CURRENTS_API_KEY:   "vJ7f8IPcf_vrhpwk2_-wqzVOpFCxHV26zMhKv4NPV_KiXb-r",
     MEDIASTACK_API_KEY: "ec6ef35b59624891e5604efb140adefb",
     NEWSAPI_API_KEY:    "5cbc52d4e9e14df683ed965b04cbf6fb",
+    GUARDIAN_API_KEY:   "test",   // Guardian developer tier — replace with production key when ready
     NASA_API_KEY:       "DEMO_KEY"   // safe public fallback (50 req/day)
   };
 
@@ -366,7 +369,10 @@ namespace QvQuestionCache {
     var bridge: any = {
       question_text:      raw.question_text,
       options:            bridgeOpts,
-      correct_option_ids: correctIds
+      correct_option_ids: correctIds,
+      has_media:          raw.has_media,
+      provider_key:       raw.provider_key,
+      media:              raw.media
     };
 
     // Run gate (mutates bridge.question_text and bridge.options[].text)
@@ -616,7 +622,7 @@ namespace QvQuestionCache {
     var results: RawQuestion[] = [];
     var listData = httpGet(nk, "https://pokeapi.co/api/v2/pokemon?limit=151&offset=0");
     if (!listData || !Array.isArray(listData.results)) throw new Error("PokeAPI: no list");
-    var sample: any[] = pick(listData.results, 12);  // 12 fetches to stay fast
+    var sample: any[] = pick(listData.results, 40);
 
     for (var pi = 0; pi < sample.length; pi++) {
       try {
@@ -728,7 +734,7 @@ namespace QvQuestionCache {
   }
 
   // ── 6. Dog CEO ────────────────────────────────────────────────────────────
-  function fetchDogceo(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+  function fetchDogceo(nk: nkruntime.Nakama, env: { [k: string]: string }, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
     var breedsData: any = httpGet(nk, "https://dog.ceo/api/breeds/list/all");
     if (!breedsData || !breedsData.message) throw new Error("Dog CEO: no breeds");
@@ -743,18 +749,31 @@ namespace QvQuestionCache {
         allBreeds.push(breed);
       }
     }
-    var selected = pick(allBreeds, 10);
+    var breedSample = 40;
+    if (env && env["QV_DOGCEO_BREED_SAMPLE"]) {
+      var parsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 10);
+      if (!isNaN(parsed) && parsed > 0) breedSample = parsed;
+    }
+    var selected = pick(allBreeds, breedSample);
     for (var bi = 0; bi < selected.length; bi++) {
       var breedName: string = selected[bi] as string;
       try {
         var parts = breedName.indexOf(" ") !== -1 ? breedName.split(" ") : [breedName];
         var breedKey = parts.length >= 2 ? parts[1] + "/" + parts[0] : parts[0];
         var imgData: any = httpGet(nk, "https://dog.ceo/api/breed/" + breedKey + "/images/random");
-        if (!imgData || !imgData.message) continue;
+        if (!imgData || !imgData.message) {
+          logger.info("[QvQCache/dogceo] event=dogceo_breed_skip breed=" +
+            breedName.replace(/\s+/g, "_") + " reason=no_image");
+          continue;
+        }
         var exSet3: { [k: string]: boolean } = {};
         exSet3[breedName] = true;
         var wb = pickExcluding(allBreeds, exSet3, 3);
-        if (wb.length < 3) continue;
+        if (wb.length < 3) {
+          logger.info("[QvQCache/dogceo] event=dogceo_breed_skip breed=" +
+            breedName.replace(/\s+/g, "_") + " reason=insufficient_wrong_options");
+          continue;
+        }
         var dOpts: RawOpt[] = [{ text: capitalize(breedName), is_correct: true }];
         for (var wbi = 0; wbi < wb.length; wbi++) dOpts.push({ text: capitalize(wb[wbi] as string), is_correct: false });
         results.push({
@@ -769,7 +788,11 @@ namespace QvQuestionCache {
           difficulty: "hard", provider: "dogceo",
           meta: { breed: breedName }
         });
-      } catch (e: any) { logger.debug("[QvQCache/dogceo] skip " + breedName + ": " + (e && e.message)); }
+      } catch (e: any) {
+        var skipReason = e && e.message ? String(e.message).replace(/\s+/g, "_") : "unknown";
+        logger.info("[QvQCache/dogceo] event=dogceo_breed_skip breed=" +
+          breedName.replace(/\s+/g, "_") + " reason=" + skipReason);
+      }
     }
     return results;
   }
@@ -779,40 +802,53 @@ namespace QvQuestionCache {
     var results: RawQuestion[] = [];
     var data3: any[] = httpGet(nk, "https://ghibliapi.vercel.app/films");
     if (!Array.isArray(data3)) throw new Error("Ghibli API: no array");
-    var directorPool: string[] = [];
+    var titlePool: string[] = [];
     for (var gx2 = 0; gx2 < data3.length; gx2++) {
-      if (data3[gx2].director) directorPool.push(data3[gx2].director);
+      if (data3[gx2].title) titlePool.push(data3[gx2].title);
     }
-    var extraDirs = ["Akira Kurosawa", "Satoshi Kon", "Mamoru Hosoda", "Makoto Shinkai",
-      "Hideaki Anno", "Katsuhiro Otomo", "Yoshiyuki Tomino"];
-    var fullDirPool = directorPool.concat(extraDirs);
+    var withImage = 0;
+    var skipped = 0;
 
     for (var gi4 = 0; gi4 < data3.length; gi4++) {
       var film: any = data3[gi4];
       try {
-        var ftitle = film.title || "Unknown";
+        var ftitle = film.title || null;
+        var filmImage = film.image || null;
         var fdirector = film.director || null;
         var fyear = film.release_date || null;
-        if (!fdirector) continue;
-        var exDir: { [k: string]: boolean } = {};
-        exDir[fdirector] = true;
-        var wd = pickExcluding(fullDirPool, exDir, 3);
-        if (wd.length < 3) continue;
-        var gOpts2: RawOpt[] = [{ text: fdirector, is_correct: true }];
-        for (var wdi = 0; wdi < wd.length; wdi++) gOpts2.push({ text: wd[wdi] as string, is_correct: false });
+        if (!ftitle || !filmImage) {
+          skipped++;
+          continue;
+        }
+        withImage++;
+        var exTitle: { [k: string]: boolean } = {};
+        exTitle[ftitle] = true;
+        var wt = pickExcluding(titlePool, exTitle, 3);
+        if (wt.length < 3) {
+          skipped++;
+          continue;
+        }
+        var gOpts2: RawOpt[] = [{ text: ftitle, is_correct: true }];
+        for (var wti = 0; wti < wt.length; wti++) gOpts2.push({ text: wt[wti] as string, is_correct: false });
         results.push({
-          provider_key: "ghibli_dir_" + djb2(ftitle),
+          provider_key: "ghibli_poster_" + (film.id || djb2(ftitle)),
           topic: "ghibli", lang: "en",
-          question_text: "Who directed the Studio Ghibli film \"" + ftitle + "\"?",
+          question_text: "Which Studio Ghibli film is this?",
           question_type: "single_select",
           raw_options: gOpts2,
-          has_media: false, media: null,
-          explanation: "\"" + ftitle + "\" (" + (fyear || "?") + ") was directed by " + fdirector + " and produced by Studio Ghibli.",
+          has_media: true,
+          media: { type: "image", url: filmImage, thumbnail_url: filmImage, duration_seconds: null, mime_type: "image/jpeg" },
+          explanation: "\"" + ftitle + "\" (" + (fyear || "?") + ") — directed by " + (fdirector || "unknown") + ".",
           difficulty: "medium", provider: "ghibli",
           meta: { title: ftitle, director: fdirector, year: fyear }
         });
-      } catch (e: any) { logger.debug("[QvQCache/ghibli] skip: " + (e && e.message)); }
+      } catch (e: any) {
+        skipped++;
+        logger.debug("[QvQCache/ghibli] skip: " + (e && e.message));
+      }
     }
+    logger.info("[QvQCache/ghibli] event=ghibli_fetch_summary total_films=" + data3.length +
+      " with_image=" + withImage + " skipped=" + skipped + " emitted=" + results.length);
     return results;
   }
 
@@ -922,33 +958,130 @@ namespace QvQuestionCache {
     return results;
   }
 
-  // ── 10. RestCountries (Countries + Flags) ─────────────────────────────────
-  function fetchRestcountries(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+  // ── 10. RestCountries v5 (Countries + Flags) — key-gated ─────────────────
+  function rcV5Str(obj: any, flatKey: string, nestedKeys: string[]): string {
+    if (obj && obj[flatKey] !== undefined && obj[flatKey] !== null) return String(obj[flatKey]);
+    var cur: any = obj;
+    for (var ni = 0; ni < nestedKeys.length; ni++) {
+      if (!cur) return "";
+      cur = cur[nestedKeys[ni]];
+    }
+    return cur ? String(cur) : "";
+  }
+
+  function rcV5CommonName(country: any): string {
+    return rcV5Str(country, "names.common", ["names", "common"]);
+  }
+
+  function rcV5Capital(country: any): string {
+    if (country && country["capitals.name"]) return String(country["capitals.name"]);
+    if (country && country.capitals && country.capitals.length > 0) {
+      var cap = country.capitals[0];
+      if (typeof cap === "string") return cap;
+      if (cap && cap.name) return String(cap.name);
+    }
+    return "";
+  }
+
+  function rcV5Alpha2(country: any): string {
+    return rcV5Str(country, "codes.alpha_2", ["codes", "alpha_2"]);
+  }
+
+  function rcV5Region(country: any): string {
+    var region = rcV5Str(country, "region", ["region"]);
+    return region || "Unknown";
+  }
+
+  function rcV5FlagPng(country: any, alpha2: string): string | null {
+    var url = rcV5Str(country, "flag.url_png", ["flag", "url_png"]);
+    if (url) return url;
+    if (alpha2) return "https://flags.restcountries.com/v5/w320/" + alpha2.toLowerCase() + ".png";
+    return null;
+  }
+
+  function fetchRestcountries(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger, topic: string): RawQuestion[] {
     var results: RawQuestion[] = [];
-    var data6: any = httpGet(nk, "https://restcountries.com/v3.1/all?fields=name,capital,region,flags,population");
-    if (!Array.isArray(data6)) throw new Error("RestCountries: no array");
+    var apiKey = envKey(env, "REST_COUNTRIES_API_KEY");
+    var keyPresent = !!apiKey;
+
+    logger.info("[QvQCache/restcountries] event=provider_v5_fetch_start topic=" + topic +
+      " key_present=" + (keyPresent ? "true" : "false") +
+      " host=api.restcountries.com limit=100 paginated=true");
+
+    if (!apiKey) throw new Error("missing_api_key");
+
+    var authHeaders: { [k: string]: string } = { "Authorization": "Bearer " + apiKey };
+    var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
+    var objects: any[] = [];
+    var offset = 0;
+    var pagesFetched = 0;
+
+    while (true) {
+      var pageUrl = baseUrl + "&offset=" + offset;
+      var parsed: any;
+      try {
+        parsed = httpGet(nk, pageUrl, authHeaders);
+      } catch (he: any) {
+        var hmsg = he && he.message ? he.message : String(he);
+        if (hmsg.indexOf("HTTP 401") !== -1) throw new Error("http_401");
+        if (hmsg.indexOf("HTTP 403") !== -1) throw new Error("http_403");
+        throw he;
+      }
+
+      if (parsed && parsed.success === false && parsed.errors) {
+        throw new Error("restcountries_v3_deprecated");
+      }
+      if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
+        throw new Error("unexpected_response_shape");
+      }
+
+      var pageObjects: any[] = parsed.data.objects;
+      var meta: any = parsed.data.meta || {};
+      pagesFetched++;
+      logger.info("[QvQCache/restcountries] event=provider_v5_page_done topic=" + topic +
+        " offset=" + offset +
+        " page_count=" + pageObjects.length +
+        " meta_total=" + (meta.total ? meta.total : 0) +
+        " meta_more=" + (meta.more ? "true" : "false"));
+
+      for (var pi = 0; pi < pageObjects.length; pi++) objects.push(pageObjects[pi]);
+
+      if (!meta.more) break;
+      offset += 100;
+      if (offset > 1000) break;
+    }
+
+    logger.info("[QvQCache/restcountries] event=provider_v5_fetch_done topic=" + topic +
+      " object_count=" + objects.length +
+      " pages_fetched=" + pagesFetched);
+
+    if (objects.length === 0) throw new Error("provider_returned_zero");
 
     var withCap: any[] = [];
-    for (var rc = 0; rc < data6.length; rc++) {
-      if (data6[rc].capital && data6[rc].capital.length > 0 && data6[rc].name && data6[rc].name.common) {
-        withCap.push(data6[rc]);
+    for (var rc = 0; rc < objects.length; rc++) {
+      if (rcV5CommonName(objects[rc]) && rcV5Capital(objects[rc])) {
+        withCap.push(objects[rc]);
       }
     }
     var allCaps: string[] = [];
     var allCNames: string[] = [];
     for (var rc2 = 0; rc2 < withCap.length; rc2++) {
-      if (withCap[rc2].capital[0]) allCaps.push(withCap[rc2].capital[0]);
-      allCNames.push(withCap[rc2].name.common);
+      var capName = rcV5Capital(withCap[rc2]);
+      if (capName) allCaps.push(capName);
+      allCNames.push(rcV5CommonName(withCap[rc2]));
     }
 
+    var flagRawCount = 0;
+    var capRawCount = 0;
     var sample2 = pick(withCap, 40);
     for (var ci3 = 0; ci3 < sample2.length; ci3++) {
       var country: any = sample2[ci3];
       try {
-        var cname2 = country.name.common;
-        var capital = country.capital[0];
-        var region = country.region || "Unknown";
-        var flagPng: string | null = (country.flags && country.flags.png) ? country.flags.png : null;
+        var cname2 = rcV5CommonName(country);
+        var capital = rcV5Capital(country);
+        var region = rcV5Region(country);
+        var alpha2 = rcV5Alpha2(country);
+        var flagPng: string | null = rcV5FlagPng(country, alpha2);
 
         // Capital question
         var exCap: { [k: string]: boolean } = {};
@@ -969,6 +1102,7 @@ namespace QvQuestionCache {
             difficulty: "medium", provider: "restcountries",
             meta: { name: cname2, capital: capital, region: region }
           });
+          capRawCount++;
         }
 
         // Flag question (topic = "flags")
@@ -991,10 +1125,17 @@ namespace QvQuestionCache {
               difficulty: "medium", provider: "restcountries",
               meta: { name: cname2, capital: capital, region: region }
             });
+            flagRawCount++;
           }
         }
-      } catch (e: any) { logger.debug("[QvQCache/restcountries] skip " + (country && country.name && country.name.common) + ": " + (e && e.message)); }
+      } catch (e: any) { logger.debug("[QvQCache/restcountries] skip " + rcV5CommonName(country) + ": " + (e && e.message)); }
     }
+
+    logger.info("[QvQCache/restcountries] event=provider_v5_raw_built topic=" + topic +
+      " countries_sampled=" + sample2.length +
+      " raw_flags=" + flagRawCount +
+      " raw_countries=" + capRawCount);
+
     return results;
   }
 
@@ -1089,44 +1230,62 @@ namespace QvQuestionCache {
       { id: "4424", name: "NFL" },
       { id: "4346", name: "NHL" }
     ];
+    var totalTeams = 0;
+    var withBadge = 0;
+    var skipped = 0;
+
     for (var li = 0; li < leagues.length; li++) {
       var league = leagues[li];
       try {
         var sdata: any = httpGet(nk, "https://www.thesportsdb.com/api/v1/json/3/lookup_all_teams.php?id=" + league.id);
         if (!sdata || !Array.isArray(sdata.teams)) continue;
         var teams: any[] = sdata.teams.slice(0, 20);
-        var stadiums: string[] = [];
-        for (var sx = 0; sx < teams.length; sx++) { if (teams[sx].strStadium) stadiums.push(teams[sx].strStadium); }
+        var teamPool: string[] = [];
+        for (var sx = 0; sx < teams.length; sx++) {
+          if (teams[sx].strTeam) teamPool.push(teams[sx].strTeam);
+        }
         for (var ti2 = 0; ti2 < teams.length; ti2++) {
           var team: any = teams[ti2];
+          totalTeams++;
           try {
-            var tname = team.strTeam || "Unknown";
-            var stadium = team.strStadium || null;
+            var tname = team.strTeam || null;
             var tbadge: string | null = team.strTeamBadge || null;
             var tfounded = team.intFormedYear || null;
-            if (!stadium) continue;
-            var exStad: { [k: string]: boolean } = {};
-            exStad[stadium] = true;
-            var ws2 = pickExcluding(stadiums, exStad, 3);
-            if (ws2.length < 3) continue;
-            var stOpts: RawOpt[] = [{ text: stadium, is_correct: true }];
+            if (!tname || !tbadge) {
+              skipped++;
+              continue;
+            }
+            withBadge++;
+            var exTeam: { [k: string]: boolean } = {};
+            exTeam[tname] = true;
+            var ws2 = pickExcluding(teamPool, exTeam, 3);
+            if (ws2.length < 3) {
+              skipped++;
+              continue;
+            }
+            var stOpts: RawOpt[] = [{ text: tname, is_correct: true }];
             for (var wsi2 = 0; wsi2 < ws2.length; wsi2++) stOpts.push({ text: ws2[wsi2] as string, is_correct: false });
             results.push({
-              provider_key: "sdb_stad_" + (team.idTeam || djb2(tname)),
+              provider_key: "sdb_badge_" + (team.idTeam || djb2(tname)),
               topic: "sports", lang: "en",
-              question_text: "What is the home stadium of " + tname + "?",
+              question_text: "Who is this athlete/team?",
               question_type: "single_select",
               raw_options: stOpts,
-              has_media: !!tbadge,
-              media: tbadge ? { type: "image", url: tbadge, thumbnail_url: null, duration_seconds: null, mime_type: "image/png" } : null,
-              explanation: tname + " (" + league.name + ") plays at " + stadium + (tfounded ? ", founded in " + tfounded : "") + ".",
+              has_media: true,
+              media: { type: "image", url: tbadge, thumbnail_url: tbadge, duration_seconds: null, mime_type: "image/png" },
+              explanation: tname + " (" + league.name + ")" + (tfounded ? ", founded in " + tfounded : "") + ".",
               difficulty: "medium", provider: "sportsdb",
-              meta: {}
+              meta: { team: tname, league: league.name }
             });
-          } catch (e: any) { logger.debug("[QvQCache/sdb] skip team: " + (e && e.message)); }
+          } catch (e: any) {
+            skipped++;
+            logger.debug("[QvQCache/sdb] skip team: " + (e && e.message));
+          }
         }
       } catch (e: any) { logger.debug("[QvQCache/sdb] skip league " + league.name + ": " + (e && e.message)); }
     }
+    logger.info("[QvQCache/sdb] event=sports_fetch_summary total_teams=" + totalTeams +
+      " with_badge=" + withBadge + " skipped=" + skipped + " emitted=" + results.length);
     return results;
   }
 
@@ -1171,7 +1330,60 @@ namespace QvQuestionCache {
     return results;
   }
 
-  // ── 15. News — GNews → Currents → MediaStack → NewsAPI failover chain ──────
+  // ── 15. News — keyed APIs + Guardian + Spaceflight News (open) ─────────────
+  function newsArticleImage(art: any): string | null {
+    if (!art) return null;
+    if (art.image && String(art.image).trim()) return String(art.image).trim();
+    if (art.urlToImage && String(art.urlToImage).trim()) return String(art.urlToImage).trim();
+    if (art.image_url && String(art.image_url).trim()) return String(art.image_url).trim();
+    if (art.fields && art.fields.thumbnail && String(art.fields.thumbnail).trim()) {
+      return String(art.fields.thumbnail).trim();
+    }
+    return null;
+  }
+
+  function appendGuardianArticles(
+    nk: nkruntime.Nakama, logger: nkruntime.Logger, articles: any[], apiKey: string
+  ): void {
+    if (!apiKey) return;
+    try {
+      var gdata: any = httpGet(nk,
+        "https://content.guardianapis.com/search?show-fields=thumbnail,trailText&page-size=20&order-by=newest&api-key=" + apiKey
+      );
+      if (!gdata || !gdata.response || !Array.isArray(gdata.response.results)) return;
+      var gr: any[] = gdata.response.results;
+      for (var gi = 0; gi < gr.length; gi++) {
+        var item: any = gr[gi];
+        if (!item.webTitle) continue;
+        articles.push({
+          title: item.webTitle,
+          description: (item.fields && item.fields.trailText) ? item.fields.trailText : "",
+          image: (item.fields && item.fields.thumbnail) ? item.fields.thumbnail : null,
+          source: { name: "The Guardian" },
+          provider: "guardian"
+        });
+      }
+    } catch (e: any) { logger.warn("[QvQCache/news] Guardian: " + (e && e.message)); }
+  }
+
+  function appendSpaceflightArticles(nk: nkruntime.Nakama, logger: nkruntime.Logger, articles: any[]): void {
+    try {
+      var sf: any = httpGet(nk, "https://api.spaceflightnewsapi.net/v4/articles/?limit=20");
+      if (!sf || !Array.isArray(sf.results)) return;
+      for (var si = 0; si < sf.results.length; si++) {
+        var item: any = sf.results[si];
+        if (!item.title) continue;
+        articles.push({
+          title: item.title,
+          description: item.summary || "",
+          image: item.image_url || null,
+          source: { name: item.news_site || "Spaceflight News" },
+          provider: "spaceflightnews"
+        });
+      }
+    } catch (e: any) { logger.warn("[QvQCache/news] SpaceflightNews: " + (e && e.message)); }
+  }
+
   function fetchNews(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
     var articles: any[] = [];
@@ -1179,42 +1391,88 @@ namespace QvQuestionCache {
     var curKey = envKey(env, "CURRENTS_API_KEY");
     var msKey  = envKey(env, "MEDIASTACK_API_KEY");
     var naKey  = envKey(env, "NEWSAPI_API_KEY");
+    var guKey  = envKey(env, "GUARDIAN_API_KEY");
 
     if (gnKey) {
       try {
-        var gd: any = httpGet(nk, "https://gnews.io/api/v4/top-headlines?token=" + gnKey + "&lang=en&max=10");
-        if (gd && gd.articles) articles = articles.concat(gd.articles);
+        var gd: any = httpGet(nk, "https://gnews.io/api/v4/top-headlines?token=" + gnKey + "&lang=en&max=20");
+        if (gd && gd.articles) {
+          for (var gni = 0; gni < gd.articles.length; gni++) {
+            var ga: any = gd.articles[gni];
+            articles.push({
+              title: ga.title, description: ga.description || "",
+              image: ga.image || null,
+              source: ga.source || { name: "GNews" },
+              provider: "gnews"
+            });
+          }
+        }
       } catch (e: any) { logger.warn("[QvQCache/news] GNews: " + (e && e.message)); }
     }
-    if (curKey && articles.length < 10) {
+    if (curKey) {
       try {
         var cd: any = httpGet(nk, "https://api.currentsapi.services/v1/latest-news?apiKey=" + curKey + "&language=en");
         if (cd && Array.isArray(cd.news)) {
           for (var cni = 0; cni < cd.news.length; cni++) {
             var cn: any = cd.news[cni];
-            articles.push({ title: cn.title, description: cn.description, source: { name: cn.author || "Currents" } });
+            articles.push({
+              title: cn.title, description: cn.description || "",
+              image: cn.image || null,
+              source: { name: cn.author || "Currents" },
+              provider: "currents"
+            });
           }
         }
       } catch (e: any) { logger.warn("[QvQCache/news] Currents: " + (e && e.message)); }
     }
-    if (msKey && articles.length < 10) {
+    if (msKey) {
       try {
-        var md: any = httpGet(nk, "http://api.mediastack.com/v1/news?access_key=" + msKey + "&languages=en&limit=10");
+        var md: any = httpGet(nk, "http://api.mediastack.com/v1/news?access_key=" + msKey + "&languages=en&limit=20");
         if (md && Array.isArray(md.data)) {
           for (var mni = 0; mni < md.data.length; mni++) {
             var mn: any = md.data[mni];
-            articles.push({ title: mn.title, description: mn.description, source: { name: mn.source || "MediaStack" } });
+            articles.push({
+              title: mn.title, description: mn.description || "",
+              image: mn.image || null,
+              source: { name: mn.source || "MediaStack" },
+              provider: "mediastack"
+            });
           }
         }
       } catch (e: any) { logger.warn("[QvQCache/news] MediaStack: " + (e && e.message)); }
     }
-    if (naKey && articles.length < 10) {
+    if (naKey) {
       try {
-        var nd: any = httpGet(nk, "https://newsapi.org/v2/top-headlines?apiKey=" + naKey + "&language=en&pageSize=10");
-        if (nd && Array.isArray(nd.articles)) articles = articles.concat(nd.articles);
+        var nd: any = httpGet(nk, "https://newsapi.org/v2/top-headlines?apiKey=" + naKey + "&language=en&pageSize=20");
+        if (nd && Array.isArray(nd.articles)) {
+          for (var nai = 0; nai < nd.articles.length; nai++) {
+            var na: any = nd.articles[nai];
+            articles.push({
+              title: na.title, description: na.description || "",
+              image: na.urlToImage || null,
+              source: na.source || { name: "NewsAPI" },
+              provider: "newsapi"
+            });
+          }
+        }
       } catch (e: any) { logger.warn("[QvQCache/news] NewsAPI: " + (e && e.message)); }
     }
-    if (articles.length === 0) throw new Error("All news providers failed or not configured (set at least one of GNEWS_API_KEY, CURRENTS_API_KEY, MEDIASTACK_API_KEY, NEWSAPI_API_KEY)");
+
+    // Open fallbacks — no paid keys required; guarantee image+headline coverage
+    appendGuardianArticles(nk, logger, articles, guKey);
+    appendSpaceflightArticles(nk, logger, articles);
+
+    if (articles.length === 0) {
+      throw new Error("All news providers failed (GNews, Currents, MediaStack, NewsAPI, Guardian, Spaceflight News API)");
+    }
+
+    var headlinePool: string[] = [];
+    for (var hpi = 0; hpi < articles.length; hpi++) {
+      var ht = (articles[hpi].title || "").trim();
+      if (ht.length >= 20) headlinePool.push(ht);
+    }
+    var withImage = 0;
+    var skipped = 0;
 
     for (var ni2 = 0; ni2 < articles.length; ni2++) {
       var art: any = articles[ni2];
@@ -1222,22 +1480,50 @@ namespace QvQuestionCache {
         var headline = (art.title || "").trim();
         var desc = art.description || "";
         var srcName = art.source && art.source.name ? art.source.name : "News";
-        if (!headline || headline.length < 20) continue;
+        var imgUrl: string | null = newsArticleImage(art);
+        var artProvider = art.provider || "gnews";
+        if (!headline || headline.length < 20 || !imgUrl) {
+          skipped++;
+          continue;
+        }
+        withImage++;
+        var exHead: { [k: string]: boolean } = {};
+        exHead[headline] = true;
+        var wh = pickExcluding(headlinePool, exHead, 3);
+        if (wh.length < 3) {
+          skipped++;
+          continue;
+        }
+        var hlShort = headline.length > 120 ? headline.substring(0, 117) + "..." : headline;
+        var nOpts: RawOpt[] = [{ text: hlShort, is_correct: true }];
+        for (var whi = 0; whi < wh.length; whi++) {
+          var wrongHl = wh[whi] as string;
+          nOpts.push({
+            text: wrongHl.length > 120 ? wrongHl.substring(0, 117) + "..." : wrongHl,
+            is_correct: false
+          });
+        }
         results.push({
-          provider_key: "news_" + djb2(headline),
+          provider_key: "news_img_" + djb2(headline),
           topic: "news", lang: "en",
-          question_text: "Is this a real news headline: \"" + headline.substring(0, 120) + "\"?",
-          question_type: "true_false",
-          raw_options: [
-            { text: "True — this is a real headline",  is_correct: true },
-            { text: "False — this is a fake headline", is_correct: false }
-          ],
-          has_media: false, media: null,
+          question_text: "What is shown in this news image?",
+          question_type: "single_select",
+          raw_options: nOpts,
+          has_media: true,
+          media: { type: "image", url: imgUrl, thumbnail_url: imgUrl, duration_seconds: null, mime_type: "image/jpeg" },
           explanation: "This headline is from " + srcName + ". " + desc.substring(0, 150),
-          difficulty: "easy", provider: "gnews",
-          meta: {}
+          difficulty: "medium", provider: artProvider,
+          meta: { headline: headline, source: srcName }
         });
-      } catch (e: any) { logger.debug("[QvQCache/news] skip: " + (e && e.message)); }
+      } catch (e: any) {
+        skipped++;
+        logger.debug("[QvQCache/news] skip: " + (e && e.message));
+      }
+    }
+    logger.info("[QvQCache/news] event=news_fetch_summary total_articles=" + articles.length +
+      " with_image=" + withImage + " skipped=" + skipped + " emitted=" + results.length);
+    if (results.length === 0) {
+      throw new Error("No news articles with images — total_articles=" + articles.length + " with_image=" + withImage);
     }
     return results;
   }
@@ -1303,16 +1589,16 @@ namespace QvQuestionCache {
       case "pokemon":   return fetchPokeapi(nk, logger);
       case "cocktail":  return fetchCocktaildb(nk, logger);
       case "food":      return fetchMealdb(nk, logger);
-      case "dog":       return fetchDogceo(nk, logger);
+      case "dog":       return fetchDogceo(nk, env, logger);
       case "ghibli":    return fetchGhibli(nk, logger);
       case "disney":    return fetchDisney(nk, logger);
       case "starwars":  return fetchSwapi(nk, logger);
       case "countries": {
-        var all = fetchRestcountries(nk, logger);
+        var all = fetchRestcountries(nk, env, logger, "countries");
         return all.filter(function(q) { return q.topic === "countries"; });
       }
       case "flags": {
-        var all2 = fetchRestcountries(nk, logger);
+        var all2 = fetchRestcountries(nk, env, logger, "flags");
         return all2.filter(function(q) { return q.topic === "flags"; });
       }
       case "space":    return fetchNasa(nk, env, logger);
@@ -1467,7 +1753,8 @@ namespace QvQuestionCache {
     nk:     nkruntime.Nakama,
     logger: nkruntime.Logger,
     env:    { [k: string]: string },
-    topic:  string
+    topic:  string,
+    force?: boolean
   ): { ok: boolean; topic: string; count: number; error?: string } {
 
     if (topic === "ai") return { ok: false, topic: topic, count: 0, error: "ai topic is never cached" };
@@ -1477,18 +1764,21 @@ namespace QvQuestionCache {
 
     if (circuitIsOpen(nk, provider)) {
       var cbMsg = "circuit open for provider=" + provider + " — skipping refresh";
-      logger.warn("[QvQCache/" + topic + "] " + cbMsg);
+      logger.warn("[QvQCache/" + topic + "] " + cbMsg +
+        " event=circuit_open provider=" + provider + " topic=" + topic);
       return { ok: false, topic: topic, count: 0, error: cbMsg };
     }
 
-    if (!tryAcquireRefreshGate(nk, topic)) {
-      logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed");
+    if (!force && !tryAcquireRefreshGate(nk, topic)) {
+      logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed" +
+        " event=provider_refresh_gated topic=" + topic);
       return { ok: true, topic: topic, count: 0 };
     }
 
     try {
       // ── Fetch ─────────────────────────────────────────────────────────────
-      logger.info("[QvQCache/" + topic + "] fetching from " + provider + "…");
+      logger.info("[QvQCache/" + topic + "] fetching from " + provider + "…" +
+        " event=provider_fetch_start topic=" + topic + " provider=" + provider);
       var rawList = fetchForTopic(nk, env, logger, topic);
       logger.info("[QvQCache/" + topic + "] fetched " + rawList.length + " raw questions");
       if (rawList.length === 0) throw new Error("Provider returned 0 questions");
@@ -1507,12 +1797,22 @@ namespace QvQuestionCache {
           continue;
         }
         // Gate passed — add to seen set to catch within-batch duplicates
-        seenSet[QvQualityGate.normalizeForDedup(rawList[qi].question_text)] = true;
+        seenSet[QvQualityGate.questionDedupeKey(rawList[qi])] = true;
         passed.push(rawList[qi]);
       }
 
       logger.info("[QvQCache/" + topic + "] gate: " + passed.length + "/" + rawList.length +
         " passed (rejected=" + rejected + ", top_reason=" + topRejectReason + ")");
+
+      if (topic === "dog") {
+        var dogBreedSample = 40;
+        if (env && env["QV_DOGCEO_BREED_SAMPLE"]) {
+          var dogSampleParsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 10);
+          if (!isNaN(dogSampleParsed) && dogSampleParsed > 0) dogBreedSample = dogSampleParsed;
+        }
+        logger.info("[QvQCache/dog] event=provider_gate_summary topic=dog raw_count=" + rawList.length +
+          " passed_count=" + passed.length + " breed_sample=" + dogBreedSample + " provider=dogceo");
+      }
 
       if (passed.length === 0) throw new Error("All questions rejected by quality gate. top_reason=" + topRejectReason);
 
@@ -1542,14 +1842,16 @@ namespace QvQuestionCache {
       writeCache(nk, logger, topic, capped, provider, qStats, ttlMs);
 
       recordSuccess(nk, provider);
-      logger.info("[QvQCache/" + topic + "] refresh complete — " + capped.length + " stored, TTL=" + (ttlMs / 3600000).toFixed(1) + "h");
+      logger.info("[QvQCache/" + topic + "] refresh complete — " + capped.length + " stored, TTL=" + (ttlMs / 3600000).toFixed(1) + "h" +
+        " event=provider_refresh_done topic=" + topic + " count=" + capped.length + " provider=" + provider);
       return { ok: true, topic: topic, count: capped.length };
 
     } catch (err: any) {
       var errMsg = err && err.message ? err.message : String(err);
       // Existing cached data (stale or not) is intentionally NOT overwritten —
       // Unity clients keep serving from the last good cache until next refresh.
-      logger.error("[QvQCache/" + topic + "] refresh FAILED — keeping stale cache: " + errMsg);
+      logger.error("[QvQCache/" + topic + "] refresh FAILED — keeping stale cache: " + errMsg +
+        " event=provider_refresh_failed topic=" + topic + " error=" + errMsg.replace(/\s+/g, "_"));
       recordFailure(nk, provider, errMsg);
       return { ok: false, topic: topic, count: 0, error: errMsg };
     }
@@ -1569,7 +1871,7 @@ namespace QvQuestionCache {
     try {
       var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
       if (!rows || rows.length === 0 || !rows[0].value) {
-        logger.info("[QvQCache/" + topic + "] cache miss");
+        logger.info("[QvQCache/" + topic + "] cache miss event=provider_cache_miss topic=" + topic);
         return { questions: [], expired: true, cached_at_ms: 0 };
       }
       var page0: any      = rows[0].value;
