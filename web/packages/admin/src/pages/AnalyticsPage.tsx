@@ -283,15 +283,23 @@ function useAccounts(limit: number) {
   });
 }
 
+/** Unwrap the { success, data } envelope that all backend RPCs return. */
+function unwrapRpc<T>(raw: unknown): T {
+  const r = raw as any;
+  if (r && typeof r === "object" && "success" in r) {
+    if (r.success === false) throw new Error(r.error ?? "RPC failed");
+    if ("data" in r) return r.data as T;
+  }
+  return raw as T;
+}
+
 function useTaxonomy() {
   const opts = useServerAuth();
   return useQuery({
     queryKey: ["analytics", "taxonomy"],
     queryFn: () =>
-      callRpc<Record<string, unknown>, { schemas?: TaxonomySchema[] }>(
-        "satori_taxonomy_schemas",
-        {},
-        opts,
+      callRpc("satori_taxonomy_schemas", {}, opts).then(
+        (v) => unwrapRpc<{ schemas?: Record<string, unknown>; enforceStrict?: boolean; categories?: string[] }>(v),
       ),
     retry: false,
   });
@@ -302,10 +310,8 @@ function useDataLakeConfig() {
   return useQuery({
     queryKey: ["analytics", "datalake"],
     queryFn: () =>
-      callRpc<Record<string, unknown>, DataLakeConfig>(
-        "satori_datalake_config",
-        {},
-        opts,
+      callRpc("satori_datalake_config", {}, opts).then(
+        (v) => unwrapRpc<{ enabledGlobally?: boolean; retentionDays?: number; targets?: any[] }>(v),
       ),
     retry: false,
   });
@@ -316,10 +322,9 @@ function useWebhooks() {
   return useQuery({
     queryKey: ["analytics", "webhooks"],
     queryFn: () =>
-      callRpc<
-        Record<string, unknown>,
-        { webhooks?: WebhookEntry[] }
-      >("satori_webhooks_list", {}, opts),
+      callRpc("satori_webhooks_list", {}, opts).then(
+        (v) => unwrapRpc<{ webhooks?: WebhookEntry[] }>(v),
+      ),
     retry: false,
   });
 }
@@ -891,19 +896,18 @@ function DataLakeTab() {
   const webhooks = useWebhooks();
   const [taxFilter, setTaxFilter] = useState("");
 
-  // Backend returns schemas as a key→value object { event_name: schema }
-  // with camelCase fields (requiredMetadata, metadataTypes).
-  // Normalize to a flat array with snake_case fields the table expects.
+  // Backend returns schemas as { event_name: schema } object (camelCase).
+  // Convert to a flat array with the snake_case fields the table expects.
   const schemas = useMemo<TaxonomySchema[]>(() => {
     const raw = taxonomy.data?.schemas;
     if (!raw) return [];
     if (Array.isArray(raw)) return raw as TaxonomySchema[];
-    return Object.entries(raw as Record<string, any>).map(([name, s]) => ({
+    return Object.entries(raw).map(([name, s]: [string, any]) => ({
       name,
       description: s.description,
       category: s.category,
-      required_metadata: s.required_metadata ?? s.requiredMetadata,
-      metadata_types: s.metadata_types ?? s.metadataTypes,
+      required_metadata: s.requiredMetadata ?? s.required_metadata ?? [],
+      metadata_types: s.metadataTypes ?? s.metadata_types,
       deprecated: s.deprecated ?? false,
     }));
   }, [taxonomy.data]);
@@ -918,18 +922,18 @@ function DataLakeTab() {
     );
   }, [schemas, taxFilter]);
 
-  // Backend uses camelCase; normalise to the shape the UI expects.
-  const dlRaw = datalake.data as any;
+  // Normalize camelCase backend fields to the UI shape.
+  const dlRaw = datalake.data;
   const dlConfig = dlRaw
     ? {
-        enabled: dlRaw.enabled ?? dlRaw.enabledGlobally ?? false,
-        retention_days: dlRaw.retention_days ?? dlRaw.retentionDays,
+        enabled: (dlRaw as any).enabledGlobally ?? false,
+        retention_days: (dlRaw as any).retentionDays as number | undefined,
         targets: ((dlRaw.targets ?? []) as any[]).map((t: any) => ({
           id: t.id,
           type: t.type,
           enabled: t.enabled,
           config: t.config,
-          event_filters: t.event_filters ?? t.eventFilters,
+          event_filters: t.eventFilters ?? t.event_filters,
         })) as DataLakeTarget[],
       }
     : undefined;
