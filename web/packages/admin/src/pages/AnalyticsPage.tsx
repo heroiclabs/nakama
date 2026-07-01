@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -27,15 +27,10 @@ import {
   ArrowDownRight,
   Clock,
   Webhook,
-  ChevronDown,
-  ChevronUp,
-  Shield,
-  Eye,
   Calendar,
   TrendingUp,
   Server,
   Hash,
-  Tag,
   CheckCircle,
   XCircle,
   Info,
@@ -58,14 +53,6 @@ interface MetricAlert {
   name: string;
   threshold: number;
   operator: "gt" | "lt" | "gte" | "lte";
-}
-
-interface SatoriEvent {
-  name: string;
-  id?: string;
-  metadata?: Record<string, unknown>;
-  timestamp?: string;
-  value?: string;
 }
 
 interface TaxonomySchema {
@@ -112,7 +99,6 @@ interface CohortBucket {
 const TABS = [
   { key: "overview", label: "Overview", icon: BarChart3 },
   { key: "dashboard", label: "Live Dashboard", icon: LayoutDashboard },
-  { key: "events", label: "Player Events", icon: Activity },
   { key: "metrics", label: "Metrics & Alerts", icon: Bell },
   { key: "cohorts", label: "Cohort Analysis", icon: Users },
   { key: "intelligence", label: "Game Intelligence", icon: TrendingUp },
@@ -130,14 +116,6 @@ const STANDALONE_DASHBOARD_URL = "https://nakama.intelli-verse-x.ai/analytics.ht
 /* ------------------------------------------------------------------ */
 /*  Utility                                                            */
 /* ------------------------------------------------------------------ */
-
-function ago(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return "just now";
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
-  return `${Math.floor(ms / 86_400_000)}d ago`;
-}
 
 function fmtAge(seconds?: number | null): string {
   if (seconds === null || seconds === undefined) return "No events";
@@ -297,16 +275,6 @@ function useMetrics() {
   });
 }
 
-function usePlayerEvents(userId: string, limit: number) {
-  const opts = useServerAuth();
-  return useQuery({
-    queryKey: ["analytics", "events", userId, limit],
-    queryFn: () =>
-      satori.searchEvents({ user_id: userId, limit }, opts) as Promise<{ events?: SatoriEvent[] }>,
-    enabled: !!userId,
-  });
-}
-
 function useAccounts(limit: number) {
   const opts = useServerAuth();
   return useQuery({
@@ -461,132 +429,6 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
 /* ------------------------------------------------------------------ */
 /*  Player Events tab                                                  */
 /* ------------------------------------------------------------------ */
-
-function PlayerEventsTab() {
-  const [userId, setUserId] = useState("");
-  const [query, setQuery] = useState("");
-  const [limit, setLimit] = useState(50);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const events = usePlayerEvents(query, limit);
-
-  const handleSearch = () => {
-    setQuery(userId.trim());
-  };
-
-  const toggle = (i: number) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
-      return next;
-    });
-
-  const evtList = events.data?.events ?? [];
-
-  return (
-    <div className="space-y-6">
-      <SectionHeading
-        title="Player Event Timeline"
-        description="Search a player's Satori event history by user ID"
-      />
-
-      <div className="flex flex-wrap gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Enter user ID…"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-        <select
-          value={limit}
-          onChange={(e) => setLimit(Number(e.target.value))}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value={25}>25 events</option>
-          <option value={50}>50 events</option>
-          <option value={100}>100 events</option>
-        </select>
-        <button
-          onClick={handleSearch}
-          disabled={!userId.trim()}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-        >
-          <Search className="h-4 w-4" />
-          Search
-        </button>
-      </div>
-
-      {events.isLoading && (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
-
-      {events.isError && (
-        <ErrorBanner message="Failed to fetch events. Verify the user ID is correct." />
-      )}
-
-      {!query && !events.isLoading && (
-        <EmptyState
-          icon={Activity}
-          message="Enter a user ID to view their event timeline"
-        />
-      )}
-
-      {query && !events.isLoading && !events.isError && evtList.length === 0 && (
-        <EmptyState
-          icon={Activity}
-          message="No events found for this user"
-        />
-      )}
-
-      {evtList.length > 0 && (
-        <div className="divide-y divide-border rounded-lg border border-border">
-          {evtList.map((evt, i) => (
-            <div key={i} className="p-3">
-              <button
-                onClick={() => toggle(i)}
-                className="flex w-full items-center justify-between text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <Tag className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">{evt.name}</span>
-                  {evt.value && (
-                    <Badge variant="outline">{evt.value}</Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {evt.timestamp && (
-                    <span className="text-xs text-muted-foreground">
-                      {ago(evt.timestamp)}
-                    </span>
-                  )}
-                  {expanded.has(i) ? (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-              </button>
-              {expanded.has(i) && evt.metadata && (
-                <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted/50 p-3 text-xs">
-                  {JSON.stringify(evt.metadata, null, 2)}
-                </pre>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Metrics & Alerts tab                                               */
@@ -1661,7 +1503,7 @@ export function AnalyticsPage() {
       {/* Tab content */}
       {tab === "overview" && <OverviewTab onTabChange={setTab} />}
       {tab === "dashboard" && <StandaloneDashboardTab />}
-      {tab === "events" && <PlayerEventsTab />}
+
       {tab === "metrics" && <MetricsTab />}
       {tab === "cohorts" && <CohortsTab />}
       {tab === "intelligence" && <GameIntelligenceTab />}
