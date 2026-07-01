@@ -214,7 +214,7 @@ export function AdminLayout() {
       >
         <div
           className={cn(
-            "flex h-14 items-center border-b border-border",
+            "flex h-20 items-center border-b border-border",
             collapsed ? "justify-center px-2" : "justify-between px-4",
           )}
         >
@@ -222,7 +222,7 @@ export function AdminLayout() {
             <img
               src={`${import.meta.env.BASE_URL}ivx-logo.png`}
               alt="IVX"
-              className="h-9 w-9 shrink-0 object-contain"
+              className="h-16 w-16 shrink-0 object-contain"
             />
           </span>
           {!collapsed && (
