@@ -222,14 +222,8 @@ export function AdminLayout() {
             <img
               src={`${import.meta.env.BASE_URL}ivx-logo.png`}
               alt="IVX"
-              className="h-7 w-7 shrink-0 object-contain"
+              className="h-9 w-9 shrink-0 object-contain"
             />
-            {!collapsed && (
-              <>
-                <span className="text-foreground">IVX</span>
-                <span className="text-muted-foreground">Console</span>
-              </>
-            )}
           </span>
           {!collapsed && (
             <button
