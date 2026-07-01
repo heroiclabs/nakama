@@ -479,6 +479,24 @@
     };
   }
 
+  function questionElapsedMs(provided: any, perQuestionSec: number): number | null {
+    if (!provided || typeof provided !== "object") return null;
+    var raw = (provided as any).elapsedMs;
+    if (raw === undefined || raw === null) raw = (provided as any).elapsed_ms;
+    if (raw === undefined || raw === null) raw = (provided as any).answerMs;
+    var n = Number(raw);
+    if (!isFinite(n) || n < 0) return null;
+    var capMs = Math.max(1, perQuestionSec * 1000);
+    return Math.min(capMs, Math.floor(n));
+  }
+
+  function perQuestionSpeedBonus(correct: boolean, elapsedMs: number | null, perQuestionSec: number, maxSpeedBonus: number): number {
+    if (!correct || elapsedMs === null) return 0;
+    var capMs = Math.max(1, perQuestionSec * 1000);
+    var ratio = Math.max(0, Math.min(1, (capMs - elapsedMs) / capMs));
+    return Math.floor(maxSpeedBonus * ratio);
+  }
+
   function scoreQuestionSet(def: CreatorEventDefinition, data: any, nowMs: number): any {
     var questions = def.questions || [];
     if (!questions || questions.length === 0) {
@@ -508,8 +526,6 @@
     var maxSpeedBonus = Math.floor(perQuestionSec * 10 * difficultySpeedMultiplier(def.difficulty));
     var startMs = Math.floor(numericValue(def.scheduledAt, 0) * 1000);
     var elapsedSec = startMs > 0 ? Math.max(0, Math.floor((nowMs - startMs) / 1000)) : 0;
-    var trustedQuestionBudget = Math.max(1, questions.length * perQuestionSec);
-    var trustedSpeedRatio = Math.max(0, Math.min(1, (trustedQuestionBudget - elapsedSec) / trustedQuestionBudget));
 
     for (var i = 0; i < questions.length; i++) {
       var question = questions[i] as any;
@@ -525,10 +541,8 @@
       var expected = questionAnswer(question);
       var correct = answersMatch(given, expected);
       var baseScore = correct ? Math.floor(numericValue(question.points, 100)) : 0;
-      var appliedSpeedBonus = 0;
-      if (correct) {
-        appliedSpeedBonus = Math.floor(maxSpeedBonus * trustedSpeedRatio);
-      }
+      var questionMs = questionElapsedMs(provided, perQuestionSec);
+      var appliedSpeedBonus = perQuestionSpeedBonus(correct, questionMs, perQuestionSec, maxSpeedBonus);
 
       var qScore = baseScore + appliedSpeedBonus;
       if (correct) correctCount++;
