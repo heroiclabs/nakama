@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   callRpc,
@@ -33,7 +34,6 @@ import {
   Calendar,
   TrendingUp,
   Server,
-  Cpu,
   Hash,
   Tag,
   CheckCircle,
@@ -143,11 +143,6 @@ function fmtNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
-}
-
-function isHealthyStatus(status?: string) {
-  const normalized = String(status ?? "").toLowerCase();
-  return normalized === "ok" || normalized === "healthy";
 }
 
 function fmtAge(seconds?: number | null): string {
@@ -295,15 +290,6 @@ function useServerAuth(): RpcOptions {
   return serverKeyAuth();
 }
 
-function useHealth() {
-  const opts = useServerAuth();
-  return useQuery({
-    queryKey: ["analytics", "health"],
-    queryFn: () => nakama.getHealthcheck(opts),
-    refetchInterval: 30_000,
-  });
-}
-
 function useDashboardSummary(gameId?: string) {
   const opts = useServerAuth();
   return useQuery({
@@ -403,19 +389,38 @@ function useCreateAlert() {
 /*  Overview tab                                                       */
 /* ------------------------------------------------------------------ */
 
+const SIDEBAR_SHORTCUTS = [
+  {
+    label: "Funnels & Retention",
+    description: "Step-through funnels, D1/D7/D30 retention",
+    icon: TrendingUp,
+    href: "/funnels",
+  },
+  {
+    label: "Event Debugger",
+    description: "Live event tail, per-user event history",
+    icon: Activity,
+    href: "/event-debugger",
+  },
+  {
+    label: "Reports",
+    description: "Saved funnel & retention reports",
+    icon: BarChart3,
+    href: "/reports",
+  },
+  {
+    label: "Metrics",
+    description: "Game KPIs, DAU series, custom metrics",
+    icon: Bell,
+    href: "/metrics",
+  },
+] as const;
+
 function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
-  const health = useHealth();
+  const navigate = useNavigate();
   const scopedGameId = useScopedGameId();
   const summary = useDashboardSummary(scopedGameId);
 
-  const healthData = health.data as
-    | { node?: string; session_count?: number; goroutine_count?: number; status?: string }
-    | undefined;
-  const isHealthy =
-    health.isSuccess &&
-    (isHealthyStatus(healthData?.status) || healthData?.status === undefined);
-
-  // Pull real live data from satori_dashboard_summary instead of fake listAccounts(100).
   const summaryData = summary.data as any;
   const dau = summaryData?.dauToday ?? 0;
   const active5m = summaryData?.activeUsers5m ?? 0;
@@ -426,6 +431,7 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
 
   return (
     <div className="space-y-6">
+      {/* Live stats — game-scoped real-time data */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Active Now (5 min)"
@@ -462,49 +468,33 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
         />
       </div>
 
+      {/* Analytics deep-links — row 1: dedicated sidebar tools */}
       <SectionHeading
-        title="Server Status"
-        description="Current Nakama runtime health"
-      />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          <Server className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium">Node</p>
-            <p className="text-xs text-muted-foreground">
-              {healthData?.node ?? "Nakama REST healthcheck"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          <Cpu className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium">Goroutines</p>
-            <p className="text-xs text-muted-foreground">
-              {healthData?.goroutine_count ?? "—"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          {isHealthy ? (
-            <CheckCircle className="h-5 w-5 text-green-500" />
-          ) : (
-            <XCircle className="h-5 w-5 text-red-500" />
-          )}
-          <div>
-            <p className="text-sm font-medium">Status</p>
-            <p className="text-xs text-muted-foreground">
-              {healthData?.status ?? (health.isSuccess ? "reachable" : "—")}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <SectionHeading
-        title="Quick Actions"
-        description="Jump to analytics sub-pages"
+        title="Analytics Tools"
+        description="Jump directly to dedicated analytics pages"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {SIDEBAR_SHORTCUTS.map((s) => (
+          <button
+            key={s.href}
+            className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+            onClick={() => navigate(s.href)}
+          >
+            <s.icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-medium">{s.label}</p>
+              <p className="text-xs text-muted-foreground">{s.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Analytics sub-tabs — row 2: tabs within this page */}
+      <SectionHeading
+        title="Advanced Analytics"
+        description="Deeper analytics available on this page"
+      />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {TABS.filter((t) => t.key !== "overview").map((t) => (
           <button
             key={t.key}
@@ -512,9 +502,7 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
             onClick={() => onTabChange(t.key)}
           >
             <t.icon className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-sm font-medium">{t.label}</p>
-            </div>
+            <p className="text-sm font-medium">{t.label}</p>
           </button>
         ))}
       </div>
