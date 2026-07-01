@@ -135,10 +135,12 @@ export function fetchProductMetricsSlice<S extends ProductMetricsSlice>(
   ).then((value) => unwrapData<ProductMetricsResult<S>>(value));
 }
 
-export function formatCompactNumber(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toLocaleString();
+export function formatCompactNumber(n: number | null | undefined): string {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "0";
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}k`;
+  return v.toLocaleString();
 }
 
 export function formatPct(n: number | null | undefined): string {

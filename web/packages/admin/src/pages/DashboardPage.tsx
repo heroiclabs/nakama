@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -72,11 +72,12 @@ import { GrowthTelemetryPanel } from "@/pages/product-telemetry/GrowthTelemetryP
 
 const REFETCH_MS = 15_000;
 
-type DashboardTab = "status" | "metrics" | "telemetry";
+type DashboardTab = "status" | "metrics" | "growth";
 
 function parseDashboardTab(value: string | null): DashboardTab {
   if (value === "metrics") return "metrics";
-  if (value === "telemetry") return "telemetry";
+  // Legacy bookmark: ?tab=telemetry → Growth Marketing
+  if (value === "growth" || value === "telemetry") return "growth";
   return "status";
 }
 
@@ -1461,6 +1462,13 @@ function StatGroupCard({
 export function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseDashboardTab(searchParams.get("tab"));
+
+  // Normalize legacy ?tab=telemetry bookmarks to ?tab=growth
+  useEffect(() => {
+    if (searchParams.get("tab") === "telemetry") {
+      setSearchParams({ tab: "growth" }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [metricsDays, setMetricsDays] = useState(14);
   const [eventFilter, setEventFilter] = useState("");
   const queryClient = useQueryClient();
@@ -1527,7 +1535,7 @@ export function DashboardPage() {
               eventErrors.refetch();
               hiroStatus.refetch();
               satoriStatus.refetch();
-              if (tab === "telemetry") {
+              if (tab === "growth") {
                 queryClient.invalidateQueries({ queryKey: ["admin", "growth-snapshot"] });
               }
             }}
@@ -1591,7 +1599,7 @@ export function DashboardPage() {
         {([
           ["status", "Status"],
           ["metrics", "Game Metrics"],
-          ["telemetry", "Growth Marketing"],
+          ["growth", "Growth Marketing"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
