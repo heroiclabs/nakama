@@ -790,8 +790,8 @@ export interface SavedReport {
   updatedAt: number;
 }
 
-export function listReports(opts: RpcOptions): Promise<{ reports: SavedReport[] }> {
-  return callRpc("satori_reports_list", {}, opts).then((value) =>
+export function listReports(opts: RpcOptions, gameId?: string): Promise<{ reports: SavedReport[] }> {
+  return callRpc("satori_reports_list", { game_id: gameId }, opts).then((value) =>
     unwrapData<{ reports: SavedReport[] }>(value),
   );
 }
@@ -803,6 +803,7 @@ export function saveReport(
     type: ReportType;
     description?: string;
     params: Record<string, unknown>;
+    game_id?: string;
   },
   opts: RpcOptions,
 ): Promise<{ report: SavedReport }> {
@@ -811,8 +812,8 @@ export function saveReport(
   );
 }
 
-export function deleteReport(id: string, opts: RpcOptions) {
-  return callRpc("satori_reports_delete", { id }, opts);
+export function deleteReport(id: string, opts: RpcOptions, gameId?: string) {
+  return callRpc("satori_reports_delete", { id, game_id: gameId }, opts);
 }
 
 /* ── Metrics ──────────────────────────────────────────────────────── */
