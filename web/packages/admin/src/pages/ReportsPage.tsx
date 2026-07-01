@@ -71,10 +71,10 @@ const TYPE_META: Record<ReportType, { icon: React.ElementType; label: string; co
   timeline: { icon: CalendarRange, label: "Timeline", color: "text-amber-500" },
 };
 
-function useReports() {
+function useReports(gameId: string | undefined) {
   return useQuery({
-    queryKey: ["admin", "reports"],
-    queryFn: () => satori.listReports(serverKeyAuth()),
+    queryKey: ["admin", "reports", gameId ?? "global"],
+    queryFn: () => satori.listReports(serverKeyAuth(), gameId),
     select: (d) => d.reports ?? [],
     retry: 1,
   });
@@ -82,7 +82,7 @@ function useReports() {
 
 /* ── Builder ──────────────────────────────────────────────────────── */
 
-function ReportForm({ onClose, onToast }: { onClose: () => void; onToast: (msg: string, v: ToastVariant) => void }) {
+function ReportForm({ onClose, onToast, gameId }: { onClose: () => void; onToast: (msg: string, v: ToastVariant) => void; gameId: string | undefined }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [type, setType] = useState<ReportType>("funnel");
@@ -113,10 +113,10 @@ function ReportForm({ onClose, onToast }: { onClose: () => void; onToast: (msg: 
         }
         params = { metricId: metricId.trim() };
       }
-      return satori.saveReport({ name: name.trim(), type, description: description.trim(), params }, serverKeyAuth());
+      return satori.saveReport({ name: name.trim(), type, description: description.trim(), params, game_id: gameId }, serverKeyAuth());
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "reports"] });
+      qc.invalidateQueries({ queryKey: ["admin", "reports", gameId ?? "global"] });
       onToast("Report saved", "success");
       onClose();
     },
@@ -253,14 +253,30 @@ function ReportResult({ report, gameId }: { report: SavedReport; gameId: string 
       {run.isError && <p className="mt-2 text-xs text-destructive">Failed: {run.error instanceof Error ? run.error.message : "error"}</p>}
 
       {run.data?.kind === "funnel" && (() => {
-        const r = run.data.data as FunnelResult;
+        const r = run.data.data as FunnelResult & { basis?: string };
+        const isEventVolume = r.basis === "event_volume";
         return (
           <div className="mt-3 space-y-1.5">
-            <p className="text-xs text-muted-foreground">{r.entered} entered · {r.completed} completed · <span className="font-semibold text-foreground">{pct(r.overallConversion)}</span> overall</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-muted-foreground">{r.entered} entered · {r.completed} completed · <span className="font-semibold text-foreground">{pct(r.overallConversion)}</span> overall</p>
+              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                isEventVolume
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              )}>
+                {isEventVolume ? "event volume" : "distinct users"}
+              </span>
+            </div>
+            {isEventVolume && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                Event counts, not unique users — one user doing 3 quizzes counts as 3. Steps can exceed 100%.
+              </p>
+            )}
             {r.steps.map((s, i) => (
               <div key={i} className="space-y-1">
                 <div className="flex justify-between text-xs"><span className="font-mono">{s.name}</span><span className="tabular-nums text-muted-foreground">{s.users} · {pct(s.conversionFromStart)}</span></div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${(s.conversionFromStart || 0) * 100}%` }} /></div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${Math.min((s.conversionFromStart || 0) * 100, 100)}%` }} /></div>
               </div>
             ))}
           </div>
@@ -304,7 +320,7 @@ function ReportResult({ report, gameId }: { report: SavedReport; gameId: string 
 export function ReportsPage() {
   const qc = useQueryClient();
   const gameId = useScopedGameId();
-  const reports = useReports();
+  const reports = useReports(gameId);
   const [showForm, setShowForm] = useState(false);
   const counterRef = useRef(0);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -319,9 +335,9 @@ export function ReportsPage() {
   }
 
   const del = useMutation({
-    mutationFn: (id: string) => satori.deleteReport(id, serverKeyAuth()),
+    mutationFn: (id: string) => satori.deleteReport(id, serverKeyAuth(), gameId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "reports"] });
+      qc.invalidateQueries({ queryKey: ["admin", "reports", gameId ?? "global"] });
       showToast("Report deleted", "success");
     },
     onError: () => showToast("Failed to delete report", "error"),
@@ -333,7 +349,14 @@ export function ReportsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Reports</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold tracking-tight">Reports</h2>
+            {gameId && (
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                {gameId}
+              </span>
+            )}
+          </div>
           <p className="text-muted-foreground">Saved funnel, retention, metric, and timeline queries you can re-run.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -385,7 +408,7 @@ export function ReportsPage() {
         </div>
       )}
 
-      {showForm && <ReportForm onClose={() => setShowForm(false)} onToast={showToast} />}
+      {showForm && <ReportForm onClose={() => setShowForm(false)} onToast={showToast} gameId={gameId} />}
 
       {toast && <Toast key={toast.id} toast={toast} onDone={() => setToast(null)} />}
       {confirmState && (
