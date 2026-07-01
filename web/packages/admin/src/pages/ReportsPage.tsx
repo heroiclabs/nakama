@@ -253,14 +253,30 @@ function ReportResult({ report, gameId }: { report: SavedReport; gameId: string 
       {run.isError && <p className="mt-2 text-xs text-destructive">Failed: {run.error instanceof Error ? run.error.message : "error"}</p>}
 
       {run.data?.kind === "funnel" && (() => {
-        const r = run.data.data as FunnelResult;
+        const r = run.data.data as FunnelResult & { basis?: string };
+        const isEventVolume = r.basis === "event_volume";
         return (
           <div className="mt-3 space-y-1.5">
-            <p className="text-xs text-muted-foreground">{r.entered} entered · {r.completed} completed · <span className="font-semibold text-foreground">{pct(r.overallConversion)}</span> overall</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-muted-foreground">{r.entered} entered · {r.completed} completed · <span className="font-semibold text-foreground">{pct(r.overallConversion)}</span> overall</p>
+              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                isEventVolume
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              )}>
+                {isEventVolume ? "event volume" : "distinct users"}
+              </span>
+            </div>
+            {isEventVolume && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                Event counts, not unique users — one user doing 3 quizzes counts as 3. Steps can exceed 100%.
+              </p>
+            )}
             {r.steps.map((s, i) => (
               <div key={i} className="space-y-1">
                 <div className="flex justify-between text-xs"><span className="font-mono">{s.name}</span><span className="tabular-nums text-muted-foreground">{s.users} · {pct(s.conversionFromStart)}</span></div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${(s.conversionFromStart || 0) * 100}%` }} /></div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${Math.min((s.conversionFromStart || 0) * 100, 100)}%` }} /></div>
               </div>
             ))}
           </div>
