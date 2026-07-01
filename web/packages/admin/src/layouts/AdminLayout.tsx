@@ -220,7 +220,7 @@ export function AdminLayout() {
         >
           <span className="flex items-center gap-2 text-sm font-bold tracking-tight">
             <img
-              src="/ivx-logo.png"
+              src={`${import.meta.env.BASE_URL}ivx-logo.png`}
               alt="IVX"
               className="h-7 w-7 shrink-0 object-contain"
             />
