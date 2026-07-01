@@ -891,7 +891,23 @@ function DataLakeTab() {
   const webhooks = useWebhooks();
   const [taxFilter, setTaxFilter] = useState("");
 
-  const schemas = taxonomy.data?.schemas ?? [];
+  // Backend returns schemas as a key→value object { event_name: schema }
+  // with camelCase fields (requiredMetadata, metadataTypes).
+  // Normalize to a flat array with snake_case fields the table expects.
+  const schemas = useMemo<TaxonomySchema[]>(() => {
+    const raw = taxonomy.data?.schemas;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as TaxonomySchema[];
+    return Object.entries(raw as Record<string, any>).map(([name, s]) => ({
+      name,
+      description: s.description,
+      category: s.category,
+      required_metadata: s.required_metadata ?? s.requiredMetadata,
+      metadata_types: s.metadata_types ?? s.metadataTypes,
+      deprecated: s.deprecated ?? false,
+    }));
+  }, [taxonomy.data]);
+
   const filteredSchemas = useMemo(() => {
     if (!taxFilter) return schemas;
     const q = taxFilter.toLowerCase();
@@ -902,7 +918,21 @@ function DataLakeTab() {
     );
   }, [schemas, taxFilter]);
 
-  const dlConfig = datalake.data;
+  // Backend uses camelCase; normalise to the shape the UI expects.
+  const dlRaw = datalake.data as any;
+  const dlConfig = dlRaw
+    ? {
+        enabled: dlRaw.enabled ?? dlRaw.enabledGlobally ?? false,
+        retention_days: dlRaw.retention_days ?? dlRaw.retentionDays,
+        targets: ((dlRaw.targets ?? []) as any[]).map((t: any) => ({
+          id: t.id,
+          type: t.type,
+          enabled: t.enabled,
+          config: t.config,
+          event_filters: t.event_filters ?? t.eventFilters,
+        })) as DataLakeTarget[],
+      }
+    : undefined;
   const whList = webhooks.data?.webhooks ?? [];
 
   const allFailed =
