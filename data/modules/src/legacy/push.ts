@@ -736,6 +736,19 @@ namespace LegacyPush {
       ar: "موضوع اليوم: {topic}. انقر للعب!",                       id: "Topik hari ini: {topic}. Ketuk untuk main!",
       zu: "Isihloko sanamuhla: {topic}. Thepha ukuze udlale!"
     },
+    daily_premium_quiz_title: {
+      en: "⭐ Premium Daily Quiz!",     hi: "⭐ प्रीमियम डेली क्विज़!",    es: "⭐ ¡Quiz Premium Diario!",   fr: "⭐ Quiz Premium du Jour !",
+      de: "⭐ Premium-Tages-Quiz!",     pt: "⭐ Quiz Premium Diário!",      ru: "⭐ Премиум-квиз дня!",       ja: "⭐ プレミアムデイリークイズ！",
+      ko: "⭐ 프리미엄 데일리 퀴즈!",   "zh-Hans": "⭐ 高级每日测验！",      ar: "⭐ اختبار يومي مميز!",       id: "⭐ Quiz Premium Harian!"
+    },
+    daily_premium_quiz_body: {
+      en: "Today's premium topic: {topic}. Tap to challenge yourself!",      hi: "आज का प्रीमियम विषय: {topic}. खुद को चुनौती दें!",
+      es: "Tema premium de hoy: {topic}. ¡Desafíate!",                       fr: "Sujet premium d'aujourd'hui : {topic}. Relevez le défi !",
+      de: "Heutiges Premium-Thema: {topic}. Tritt die Herausforderung an!",  pt: "Tema premium de hoje: {topic}. Toque para se desafiar!",
+      ru: "Премиум-тема дня: {topic}. Нажмите, чтобы проверить себя!",      ja: "本日のプレミアムトピック：{topic}。挑戦しよう！",
+      ko: "오늘의 프리미엄 주제: {topic}. 탭해서 도전하세요!",              "zh-Hans": "今日高级主题：{topic}。点击挑战自我！",
+      ar: "موضوع المميز اليوم: {topic}. انقر للتحدي!",                      id: "Topik premium hari ini: {topic}. Tantang dirimu!"
+    },
     weekly_quiz_title: {
       en: "📚 Fresh Weekly Quiz!",    hi: "📚 नया साप्ताहिक क्विज़!",   es: "📚 ¡Nuevo Quiz Semanal!",  fr: "📚 Nouveau Quiz Hebdo !",
       de: "📚 Neues Wochen-Quiz!",    pt: "📚 Novo Quiz Semanal!",     ru: "📚 Новый еженедельный квиз!", ja: "📚 新しいウィークリークイズ！",
@@ -961,7 +974,13 @@ namespace LegacyPush {
   // users get a sensible morning window. The permanent fix is the client
   // sending a numeric offset ("+05:30"), which the parser below honours
   // exactly for every region.
-  var NOTIF_DEFAULT_TZ_OFFSET_MIN = 330; // IST (Asia/Kolkata)
+  // UTC (offset 0) is the safe global default. IST (+330) was used previously
+  // because the user base was India-first, but it silently gated ALL users in
+  // other timezones (e.g. USA 9 AM ET = 14:00 UTC → appeared as 19:30 IST →
+  // always outside the send window). UTC-0 means users with unparseable
+  // timezone strings ("Local", "Unknown") receive pushes based on server UTC,
+  // which is neutral — the quiet-hours guard (22:00-08:00) still protects them.
+  var NOTIF_DEFAULT_TZ_OFFSET_MIN = 0; // UTC — safe global fallback
   function getUserTimezoneOffsetMinutes(nk: nkruntime.Nakama, userId: string): number {
     try {
       var account: any = nk.accountGetId(userId);
@@ -1295,9 +1314,17 @@ namespace LegacyPush {
   function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
     var quiz = fetchDailyQuizForToday(nk, logger);
-    if (!quiz) return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
     var todayKey = todayDateKey();
+    if (!quiz) {
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "daily_quiz", dateKey: todayKey, scanned: 0, sent: 0, gated: 0,
+        noQuiz: true, byLocale: {}
+      });
+      return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
+    }
     var sent = 0, gated = 0, scanned = 0;
+    var byLocale: { [l: string]: { sent: number; gated: number } } = {};
+    var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1305,21 +1332,125 @@ namespace LegacyPush {
       for (var i = 0; i < users.length; i++) {
         scanned++;
         var u = users[i];
+        var locale = getUserLocale(nk, u);
+        if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
         var h = getUserLocalHour(nk, u);
-        if (h < 9 || h >= 13) { gated++; continue; }            // outside daily push window
-        if (hasMarker(nk, u, "daily_quiz", todayKey)) { gated++; continue; }
-        // Localize the topic to each user's language (the push templates are
-        // already localized; the topic value must be too).
-        var topic = pickQuizTopic(quiz, getUserLocale(nk, u));
+        if (h < 7 || h >= 22) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
+        if (hasMarker(nk, u, "daily_quiz", todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
+        var topic = pickQuizTopic(quiz, locale);
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz",
           "daily_quiz_title", "daily_quiz_body", { topic: topic },
           { data: { screen: "daily_quiz" } });
-        if (ok) { recordMarker(nk, u, "daily_quiz", todayKey); sent++; } else { gated++; }
+        if (ok) { recordMarker(nk, u, "daily_quiz", todayKey); sent++; byLocale[locale].sent++; }
+        else {
+          gated++; byLocale[locale].gated++;
+          // Distinguish no-token from send-failure cheaply using the exported helper
+          // (reads the same storage key sendLocalizedPushToUser already read).
+          if (!LegacyPush.userHasPushTokens(nk, u)) {
+            gateReasons.noToken++;
+          } else {
+            gateReasons.sendFailed++;
+          }
+        }
       }
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: pickQuizTopic(quiz, "en") });
+    var reportTopic = pickQuizTopic(quiz, "en");
+    PushAlerts.postCronReport(nk, logger, {
+      cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
+      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons
+    });
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: reportTopic });
+  }
+
+  // ─── S3 fetch: premium daily quiz (locale-aware, falls back to English) ────
+  // Premium files live at quiz-verse/daily/dailyquiz-prem-{lang}-{date}.json.
+  // We try the user's resolved locale first, then English, so every user gets
+  // a meaningful topic name even when their language file isn't ready yet.
+  function fetchPremiumDailyQuizForToday(nk: nkruntime.Nakama, logger: nkruntime.Logger, locale: string): any {
+    var dateStr = todayDateKey();
+    // Supported premium language codes (mirrors what Intelliverse-X-AI produces).
+    var knownLangs: { [k: string]: boolean } = {
+      "en": true, "hi": true, "ar": true, "de": true, "es": true,
+      "fr": true, "id": true, "ja": true, "ko": true, "ru": true
+    };
+    var base = String(locale || "en").split("-")[0].toLowerCase();
+    var lang = knownLangs[base] ? base : "en";
+    // Try locale-specific first, then English fallback.
+    var tryLangs = lang !== "en" ? [lang, "en"] : ["en"];
+    for (var li = 0; li < tryLangs.length; li++) {
+      var url = S3_BASE + "/quiz-verse/daily/dailyquiz-prem-" + tryLangs[li] + "-" + dateStr + ".json";
+      try {
+        var resp: any = nk.httpRequest(url, "get", {}, "", 10000);
+        if (resp && resp.code >= 200 && resp.code < 300) {
+          try { return JSON.parse(resp.body); } catch (_) { continue; }
+        }
+      } catch (e: any) {
+        logger.warn("[NotifCron] premium daily fetch failed (%s): %s", tryLangs[li], e && e.message ? e.message : String(e));
+      }
+    }
+    return null;
+  }
+
+  // ─── 1b. Premium daily quiz cron ────────────────────────────────────────────
+  // Mirrors the regular daily quiz cron but targets the premium quiz content.
+  // Sends to ALL opted-in users (premium content serves as upsell for free users
+  // and as value delivery for subscribers). Uses per-user locale to pick the
+  // right S3 file and topic translation. Once-per-day marker is independent of
+  // the regular daily quiz marker so users receive both.
+  function rpcNotifCronPremiumDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
+    var todayKey = todayDateKey();
+    var sent = 0, gated = 0, scanned = 0;
+    var byLocale: { [l: string]: { sent: number; gated: number } } = {};
+    var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
+    var quizMissedAll = false;
+    var batch = 100, offset = 0;
+    while (true) {
+      var users = listOptedInUsers(nk, batch, offset);
+      if (!users || users.length === 0) break;
+      for (var i = 0; i < users.length; i++) {
+        scanned++;
+        var u = users[i];
+        var locale = getUserLocale(nk, u);
+        if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
+        var h = getUserLocalHour(nk, u);
+        if (h < 9 || h >= 22) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
+        if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
+        var quiz = fetchPremiumDailyQuizForToday(nk, logger, locale);
+        if (!quiz) { gated++; byLocale[locale].gated++; quizMissedAll = true; continue; }
+        var topic = pickQuizTopic(quiz, locale);
+        var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_premium_quiz",
+          "daily_premium_quiz_title", "daily_premium_quiz_body", { topic: topic },
+          { data: { screen: "daily_premium_quiz" } });
+        if (ok) { recordMarker(nk, u, "daily_premium_quiz", todayKey); sent++; byLocale[locale].sent++; }
+        else {
+          gated++; byLocale[locale].gated++;
+          if (!LegacyPush.userHasPushTokens(nk, u)) {
+            gateReasons.noToken++;
+          } else {
+            gateReasons.sendFailed++;
+          }
+        }
+      }
+      offset += batch;
+      if (users.length < batch) break;
+    }
+    // Fetch English quiz for report topic label (best-effort, ignore failure)
+    var engQuiz = fetchPremiumDailyQuizForToday(nk, logger, "en");
+    var reportTopic = engQuiz ? pickQuizTopic(engQuiz, "en") : undefined;
+    PushAlerts.postCronReport(nk, logger, {
+      cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
+      scanned: scanned, sent: sent, gated: gated,
+      noQuiz: quizMissedAll && sent === 0,
+      byLocale: byLocale, gateReasons: gateReasons
+    });
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
+  }
+
+  export function runPremiumDailyQuizCron(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    return rpcNotifCronPremiumDailyQuiz(ctx, logger, nk, payload);
   }
 
   // ─── 1b. Research survey-invite push (server-triggered campaign) ────────────
@@ -1992,6 +2123,7 @@ namespace LegacyPush {
     initializer.registerRpc("push_flush_pending", rpcPushFlushPending);
     // Notification broadcaster — admin/server-key callers only (no userId in ctx).
     initializer.registerRpc("notif_cron_daily_quiz", rpcNotifCronDailyQuiz);
+    initializer.registerRpc("notif_cron_premium_daily_quiz", rpcNotifCronPremiumDailyQuiz);
     initializer.registerRpc("notif_cron_survey_push", rpcNotifCronSurveyPush);
     initializer.registerRpc("notif_cron_weekly_quiz", rpcNotifCronWeeklyQuiz);
     initializer.registerRpc("notif_cron_idle_winback", rpcNotifCronIdleWinback);

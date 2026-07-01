@@ -172,21 +172,40 @@ export async function sendFcmDirect({ projectId, deviceToken, title, body, data,
         body: JSON.stringify(payload),
     });
     const respJson = await fcmResp.json().catch(() => ({}));
+    console.log(`[fcm-direct] FCM v1 response: status=${fcmResp.status} ok=${fcmResp.ok} bodyPreview=${JSON.stringify(respJson).slice(0, 300)}`);
 
     if (!fcmResp.ok) {
+        // FCM v1 error shape:
+        //   { error: { code: 404, status: "NOT_FOUND", details: [{ errorCode: "UNREGISTERED" }] } }
+        // `error.status` is the HTTP-level status string (e.g. "NOT_FOUND").
+        // The FCM-specific canonical code lives in details[0].errorCode (e.g. "UNREGISTERED").
+        // We check BOTH so dead-token detection works regardless of which field FCM populates.
         const errStatus = respJson?.error?.status || `HTTP_${fcmResp.status}`;
+        // Extract FCM-specific errorCode from details array if present.
+        const details = respJson?.error?.details;
+        const fcmErrorCode = (Array.isArray(details) && details.length > 0)
+            ? (details[0]?.errorCode || errStatus)
+            : errStatus;
         const errMessage = respJson?.error?.message || JSON.stringify(respJson).slice(0, 300);
-        // Surface FCM's canonical error codes so callers can decide whether
-        // to disable the token (UNREGISTERED / INVALID_ARGUMENT) vs retry
-        // (UNAVAILABLE / INTERNAL). See: https://firebase.google.com/docs/cloud-messaging/manage-tokens
+
+        // Dead-token codes: remove the SNS endpoint so it is never retried.
+        // UNREGISTERED = app uninstalled / token expired.
+        // NOT_FOUND    = same error, different FCM surface (HTTP status field).
+        // INVALID_ARGUMENT = malformed / wrong-project token (permanent failure).
+        // SENDER_ID_MISMATCH = token belongs to a different Firebase project.
+        const DEAD_CODES = ["UNREGISTERED", "NOT_FOUND", "INVALID_ARGUMENT", "SENDER_ID_MISMATCH"];
+        const shouldRemoveToken = DEAD_CODES.includes(fcmErrorCode) || DEAD_CODES.includes(errStatus);
+
+        console.log(`[fcm-direct] FCM error: errStatus=${errStatus} fcmErrorCode=${fcmErrorCode} shouldRemoveToken=${shouldRemoveToken}`);
+        // See: https://firebase.google.com/docs/cloud-messaging/manage-tokens
         return {
             success: false,
             provider: "fcm-v1",
             projectId,
-            errorCode: errStatus,
+            errorCode: fcmErrorCode,
             error: errMessage,
             httpStatus: fcmResp.status,
-            shouldRemoveToken: ["UNREGISTERED", "INVALID_ARGUMENT", "NOT_FOUND"].includes(errStatus),
+            shouldRemoveToken,
         };
     }
     return {

@@ -38,6 +38,7 @@ namespace PushAlerts {
 
   var WEBHOOK_ENV = "DISCORD_PUSH_WEBHOOK_URL";
   var WEBHOOK_FALLBACK_ENV = "DISCORD_NAKAMA_WEBHOOK_URL";
+  var WEBHOOK_FALLBACK2_ENV = "DISCORD_QV_OPS_WEBHOOK_URL";
   var LOCK_COLLECTION = "push_alerts_locks";
   var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 
@@ -79,7 +80,7 @@ namespace PushAlerts {
   export function init(ctx: nkruntime.Context, logger: nkruntime.Logger): void {
     try {
       var env: any = (ctx && ctx.env) ? ctx.env : {};
-      webhookUrl = (env[WEBHOOK_ENV] || env[WEBHOOK_FALLBACK_ENV] || "") as string;
+      webhookUrl = (env[WEBHOOK_ENV] || env[WEBHOOK_FALLBACK_ENV] || env[WEBHOOK_FALLBACK2_ENV] || "") as string;
       if (env["IVX_NAKAMA_INSTANCE_LABEL"]) instanceLabel = env["IVX_NAKAMA_INSTANCE_LABEL"];
       else if (env["HOSTNAME"]) instanceLabel = env["HOSTNAME"];
 
@@ -95,7 +96,7 @@ namespace PushAlerts {
       configured = true;
       logger.info("[PushAlerts] init pod=%s webhook=%s window=%sms failRate=%s deadSpike=%s",
         podId,
-        webhookUrl ? "configured" : "MISSING (" + WEBHOOK_ENV + "/" + WEBHOOK_FALLBACK_ENV + ")",
+        webhookUrl ? "configured" : "MISSING (" + WEBHOOK_ENV + "/" + WEBHOOK_FALLBACK_ENV + "/" + WEBHOOK_FALLBACK2_ENV + ")",
         String(WINDOW_MS), String(FAIL_RATE_THRESHOLD), String(DEAD_SPIKE_MIN));
     } catch (e: any) {
       try { logger.warn("[PushAlerts] init failed: " + (e && e.message ? e.message : String(e))); } catch (_) {}
@@ -353,5 +354,192 @@ namespace PushAlerts {
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("push_alerts_status", rpcStatus);
     initializer.registerRpc("push_alerts_test", rpcTest);
+  }
+
+  // ── postCronReport ─────────────────────────────────────────────────────────
+  // Called at the end of every scheduled cron (daily quiz, premium daily quiz,
+  // etc.) to post a rich analytics embed to Discord. This is a REPORT, not an
+  // alert — it fires on every run regardless of success/failure so the team
+  // always sees what happened. Uses DISCORD_PUSH_WEBHOOK_URL if set, otherwise
+  // falls back to DISCORD_NAKAMA_WEBHOOK_URL. Completely fail-safe.
+  //
+  // stats.byLocale: { [locale: string]: { sent: number; gated: number } }
+  // Locale → flag/country mapping for the embed. Mirrors the 13 locales in
+  // NOTIF_STRINGS, plus a catch-all for any unlisted code.
+  var LOCALE_FLAGS: { [l: string]: string } = {
+    "en": "🇺🇸 English", "hi": "🇮🇳 Hindi",   "ar": "🇸🇦 Arabic",    "fr": "🇫🇷 French",
+    "de": "🇩🇪 German",  "pt": "🇧🇷 Portuguese","ru": "🇷🇺 Russian",   "ja": "🇯🇵 Japanese",
+    "ko": "🇰🇷 Korean",  "zh-Hans": "🇨🇳 Chinese","es": "🇪🇸 Spanish", "id": "🇮🇩 Indonesian",
+    "zu": "🇿🇦 Zulu",    "pt-BR": "🇧🇷 Portuguese"
+  };
+
+  export interface GateReasons {
+    quietHours: number;    // local time outside 07:00–22:00
+    alreadySent: number;   // day-marker already set (already got push today)
+    noToken: number;       // send returned false — no registered token / token deleted
+    sendFailed: number;    // Lambda/FCM returned an error
+  }
+
+  export interface CronStats {
+    cronName: string;          // "daily_quiz" | "premium_daily_quiz" | etc.
+    dateKey: string;           // "2026-07-01"
+    topic?: string;            // English topic for context
+    scanned: number;
+    sent: number;
+    gated: number;
+    noQuiz?: boolean;          // true if S3 file was missing
+    byLocale: { [locale: string]: { sent: number; gated: number } };
+    gateReasons?: GateReasons; // breakdown of WHY users were gated
+  }
+
+  export function postCronReport(nk: nkruntime.Nakama, logger: nkruntime.Logger, stats: CronStats): void {
+    try {
+      // Lazy-init: ensureConfigured needs ctx — use a best-effort fallback if
+      // webhookUrl is still empty (init ran from a different VM pool member).
+      if (!webhookUrl) {
+        try {
+          // nk.localcacheGet is not standard Nakama JS API; read env via a known
+          // Nakama route — we can't safely call ctx.env here. Fall back to a
+          // stored key written by init(). If still empty, silently skip.
+          var envRec: any = nk.storageRead([{
+            collection: "push_config_cache", key: "webhook_url",
+            userId: "00000000-0000-0000-0000-000000000000"
+          }]);
+          if (envRec && envRec.length > 0 && envRec[0].value && envRec[0].value.url) {
+            webhookUrl = envRec[0].value.url;
+          }
+        } catch (_) {}
+      }
+      if (!webhookUrl) {
+        logger.warn("[PushAlerts] postCronReport: webhook not configured — skipping Discord post for " + stats.cronName);
+        return;
+      }
+
+      var embed = buildCronEmbed(stats);
+      var body = JSON.stringify({ username: "Nakama Cron Reporter", embeds: [embed] });
+      var resp: any = nk.httpRequest(webhookUrl, "post", { "Content-Type": "application/json" }, body, 5000);
+      var code = resp && resp.code ? resp.code : 0;
+      if (code >= 200 && code < 300) {
+        logger.info("[PushAlerts] CronReport posted to Discord: cron=%s sent=%s gated=%s scanned=%s",
+          stats.cronName, stats.sent, stats.gated, stats.scanned);
+      } else {
+        logger.warn("[PushAlerts] CronReport Discord post non-2xx: code=" + String(code));
+      }
+    } catch (e: any) {
+      try { logger.warn("[PushAlerts] postCronReport swallowed: " + (e && e.message ? e.message : String(e))); } catch (_) {}
+    }
+  }
+
+  // Cache the webhook URL at init time so pooled VMs can find it via storage.
+  export function cacheWebhookUrl(nk: nkruntime.Nakama): void {
+    if (!webhookUrl) return;
+    try {
+      nk.storageWrite([{
+        collection: "push_config_cache", key: "webhook_url",
+        userId: "00000000-0000-0000-0000-000000000000",
+        value: { url: webhookUrl, cachedAt: Date.now() },
+        permissionRead: 0, permissionWrite: 0
+      }]);
+    } catch (_) {}
+  }
+
+  function buildCronEmbed(s: CronStats): any {
+    var sentRate = s.scanned > 0 ? (s.sent / s.scanned) : 0;
+    var color = sentRate >= 0.3 ? 0x2ecc71 :   // green  ≥30% sent
+                sentRate >= 0.05 ? 0xf39c12 :   // yellow ≥5%
+                0xe74c3c;                         // red    <5%
+
+    var cronLabel: { [k: string]: string } = {
+      "daily_quiz":         "🎯 Daily Quiz",
+      "premium_daily_quiz": "⭐ Premium Daily Quiz",
+      "weekly_quiz":        "📚 Weekly Quiz",
+      "streak_warning":     "🔥 Streak Warning",
+      "idle_winback":       "👋 Winback",
+      "motivation":         "💪 Motivation",
+      "reminders":          "⏰ Reminders",
+      "review_due":         "📖 Review Due",
+    };
+    var name = cronLabel[s.cronName] || s.cronName;
+
+    var fields: any[] = [];
+
+    // ── Summary ──────────────────────────────────────────────────────────────
+    fields.push({
+      name: "📊 Run Summary",
+      value:
+        "Scanned: **" + s.scanned + "** opted-in users\n" +
+        "✅ Sent: **" + s.sent + "** (" + pct(s.sent, s.scanned) + ")\n" +
+        "⏭ Gated: **" + s.gated + "** (" + pct(s.gated, s.scanned) + ")\n" +
+        (s.noQuiz ? "⚠️ **Quiz file missing in S3** — no sends possible\n" : "") +
+        (s.topic ? "📌 Topic: *" + String(s.topic).slice(0, 80) + "*" : ""),
+      inline: false,
+    });
+
+    // ── Breakdown by locale/region ────────────────────────────────────────
+    var localeRows: { locale: string; sent: number; gated: number }[] = [];
+    for (var loc in s.byLocale) {
+      if (s.byLocale.hasOwnProperty(loc)) {
+        localeRows.push({ locale: loc, sent: s.byLocale[loc].sent, gated: s.byLocale[loc].gated });
+      }
+    }
+    // Sort by sent desc so top-performing locales are first.
+    localeRows.sort(function (a, b) { return b.sent - a.sent; });
+
+    if (localeRows.length > 0) {
+      var lines: string[] = [];
+      for (var i = 0; i < localeRows.length && i < 12; i++) {
+        var r = localeRows[i];
+        var flag = LOCALE_FLAGS[r.locale] || ("🌐 " + r.locale);
+        var total_r = r.sent + r.gated;
+        lines.push(flag + " — **" + r.sent + "** sent, " + r.gated + " gated" +
+          " (" + pct(r.sent, total_r) + ")");
+      }
+      fields.push({
+        name: "🌍 By Language / Region (" + localeRows.length + " active)",
+        value: lines.join("\n").slice(0, 1024),
+        inline: false,
+      });
+    }
+
+    // ── Gate reasons breakdown ────────────────────────────────────────────
+    if (s.gateReasons && s.gated > 0) {
+      var gr = s.gateReasons;
+      var grLines: string[] = [];
+      if (gr.quietHours > 0)  grLines.push("🌙 Quiet hours (local time outside 07–22): **" + gr.quietHours + "**");
+      if (gr.alreadySent > 0) grLines.push("✅ Already received today (marker set): **" + gr.alreadySent + "**");
+      if (gr.noToken > 0)     grLines.push("📵 No push token / token deleted: **" + gr.noToken + "**");
+      if (gr.sendFailed > 0)  grLines.push("❌ Send failed (Lambda/FCM error): **" + gr.sendFailed + "**");
+      if (grLines.length > 0) {
+        fields.push({
+          name: "⏭ Why users were gated (" + s.gated + " total)",
+          value: grLines.join("\n").slice(0, 512),
+          inline: false,
+        });
+      }
+    }
+
+    // ── Health signal ──────────────────────────────────────────────────────
+    var healthLines: string[] = [];
+    if (s.noQuiz)             healthLines.push("❌ S3 quiz file not found — AI service may not have generated today's content yet");
+    if (s.sent === 0 && !s.noQuiz) healthLines.push("⚠️ Zero sends despite quiz being present — check timezone gate & opted-in user count");
+    if (sentRate > 0 && sentRate < 0.05) healthLines.push("⚠️ Very low send rate (<5%) — investigate timezone/token coverage");
+    if (sentRate >= 0.3)      healthLines.push("✅ Send rate healthy");
+    // Surface token/send failures prominently
+    if (s.gateReasons && s.gateReasons.sendFailed > 0)
+      healthLines.push("🚨 " + s.gateReasons.sendFailed + " send failures — check Lambda logs & FCM credentials");
+    if (s.gateReasons && s.gateReasons.noToken > 0)
+      healthLines.push("📵 " + s.gateReasons.noToken + " users have no push token — they need to re-open the app");
+    if (healthLines.length > 0) {
+      fields.push({ name: "🩺 Health", value: healthLines.join("\n").slice(0, 512), inline: false });
+    }
+    return {
+      title: name + " Cron Report — " + s.dateKey,
+      description: "Scheduled push cron completed. " +
+        "Sent **" + s.sent + "** device notifications out of **" + s.scanned + "** scanned users.",
+      color: color,
+      timestamp: new Date().toISOString(),
+      footer: { text: "nakama-cron-reports • " + instanceLabel + " • " + s.cronName },
+      fields: fields,
+    };
   }
 }
