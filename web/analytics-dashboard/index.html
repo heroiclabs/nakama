@@ -4033,10 +4033,106 @@ select { color-scheme: dark; }
         let selectedMode = '';
         let autoRefreshTimer = null;
         let autoKickIntervalStarted = false;
+        let sessionRefreshTimer = null;
+        let sessionRefreshInFlight = null;
+        // Renew admin session this many seconds before JWT expiry (12h TTL on server).
+        const SESSION_REFRESH_BUFFER_SEC = 30 * 60;
+        // Poll for upcoming expiry while the tab stays open.
+        const SESSION_REFRESH_POLL_MS = 5 * 60 * 1000;
 
         // ─────────────────────────────────────────────────────────────────────
         // Admin Authentication
         // ─────────────────────────────────────────────────────────────────────
+
+        function renewAdminSession(data) {
+            const username = data.username || adminUsername || 'admin';
+            const saved = {
+                token: data.token,
+                username: username,
+                expiresAt: data.expiresAt || null
+            };
+            persistAdminSession(saved);
+            sessionToken = saved.token;
+            adminUsername = saved.username;
+            adminExpiresAt = saved.expiresAt;
+            isAuthenticated = true;
+        }
+
+        function secondsUntilSessionExpiry() {
+            if (!adminExpiresAt) return null;
+            return adminExpiresAt - Math.floor(Date.now() / 1000);
+        }
+
+        function sessionNeedsRenewal() {
+            const remaining = secondsUntilSessionExpiry();
+            if (remaining === null) return false;
+            return remaining <= SESSION_REFRESH_BUFFER_SEC;
+        }
+
+        /**
+         * Mint a fresh admin token via admin_session_bootstrap (dashboard_secret).
+         * This is the refresh mechanism — Nakama admin sessions have no OAuth
+         * refresh_token; the embedded bootstrapSecret is the long-lived credential.
+         */
+        async function refreshAdminSessionSilently() {
+            if (!canAttemptSilentBootstrap()) return false;
+            if (sessionRefreshInFlight) return sessionRefreshInFlight;
+
+            sessionRefreshInFlight = (async function() {
+                const controller = new AbortController();
+                const timer = setTimeout(function() { controller.abort(); }, 15000);
+                try {
+                    const resp = await fetch(
+                        `${CONFIG.serverUrl}/v2/rpc/admin_session_bootstrap?http_key=${encodeURIComponent(CONFIG.serverKey)}`,
+                        {
+                            method: 'POST',
+                            signal: controller.signal,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(JSON.stringify({ dashboard_secret: CONFIG.bootstrapSecret }))
+                        }
+                    );
+                    if (!resp.ok) return false;
+
+                    const wrapped = await resp.json();
+                    const data = wrapped && wrapped.payload ? JSON.parse(wrapped.payload) : wrapped;
+                    if (!data || !data.success || !data.token) return false;
+
+                    renewAdminSession(data);
+                    console.info('[analytics] admin session renewed silently, expiresAt=' + (data.expiresAt || 'unknown'));
+                    return true;
+                } catch (e) {
+                    console.warn('[analytics] silent session renewal failed', e);
+                    return false;
+                } finally {
+                    clearTimeout(timer);
+                    sessionRefreshInFlight = null;
+                }
+            })();
+
+            return sessionRefreshInFlight;
+        }
+
+        function startSessionRefreshLoop() {
+            if (sessionRefreshTimer) clearInterval(sessionRefreshTimer);
+            if (!canAttemptSilentBootstrap()) return;
+
+            async function tick() {
+                if (!isAuthenticated || sessionToken === 'local-dev-token') return;
+                if (!sessionNeedsRenewal()) return;
+                await refreshAdminSessionSilently();
+            }
+
+            // Renew immediately if the restored session is already near expiry.
+            tick();
+            sessionRefreshTimer = setInterval(tick, SESSION_REFRESH_POLL_MS);
+        }
+
+        function stopSessionRefreshLoop() {
+            if (sessionRefreshTimer) {
+                clearInterval(sessionRefreshTimer);
+                sessionRefreshTimer = null;
+            }
+        }
 
         function readStoredSession() {
             const stores = [window.localStorage, window.sessionStorage];
@@ -4129,6 +4225,7 @@ select { color-scheme: dark; }
                     }
                 }, 90000);
             }
+            startSessionRefreshLoop();
         }
 
         function isAllowedTokenOrigin(origin) {
@@ -4148,34 +4245,15 @@ select { color-scheme: dark; }
 
             showAuthLoading();
 
-            const controller = new AbortController();
-            const timer = setTimeout(function() { controller.abort(); }, 15000);
+            const ok = await refreshAdminSessionSilently();
+            if (!ok) return false;
 
-            try {
-                const resp = await fetch(
-                    `${CONFIG.serverUrl}/v2/rpc/admin_session_bootstrap?http_key=${encodeURIComponent(CONFIG.serverKey)}`,
-                    {
-                        method: 'POST',
-                        signal: controller.signal,
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(JSON.stringify({ dashboard_secret: CONFIG.bootstrapSecret }))
-                    }
-                );
-
-                if (!resp.ok) return false;
-
-                const wrapped = await resp.json();
-                const data = wrapped && wrapped.payload ? JSON.parse(wrapped.payload) : wrapped;
-                if (!data || !data.success || !data.token) return false;
-
-                finalizeLogin(data, { silent: true });
-                return true;
-            } catch (e) {
-                console.warn('[analytics] silent bootstrap failed', e);
-                return false;
-            } finally {
-                clearTimeout(timer);
-            }
+            finalizeLogin({
+                token: sessionToken,
+                username: adminUsername,
+                expiresAt: adminExpiresAt
+            }, { silent: true });
+            return true;
         }
 
         // Calls the server-side `admin_login` RPC. On success we get a real
@@ -4280,6 +4358,7 @@ select { color-scheme: dark; }
             sessionToken = null;
             adminUsername = null;
             adminExpiresAt = null;
+            stopSessionRefreshLoop();
             clearAdminSession();
             showLoginForm();
             document.getElementById('connectionStatus').className = 'status disconnected';
@@ -4629,17 +4708,30 @@ select { color-scheme: dark; }
             const controller = new AbortController();
             const timeoutMs = options.timeoutMs || RPC_TIMEOUT_MS;
             const timer = setTimeout(function() { controller.abort(); }, timeoutMs);
-            let response;
-            try {
-                response = await fetch(`${CONFIG.serverUrl}/v2/rpc/${rpcId}`, {
+
+            async function rpcFetch(bearerToken) {
+                return fetch(`${CONFIG.serverUrl}/v2/rpc/${rpcId}`, {
                     method: 'POST',
                     signal: controller.signal,
                     headers: {
-                        'Authorization': 'Bearer ' + sessionToken,
+                        'Authorization': 'Bearer ' + bearerToken,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(JSON.stringify(payload))
                 });
+            }
+
+            let response;
+            try {
+                response = await rpcFetch(sessionToken);
+
+                // Token expired mid-session — renew via bootstrap_secret, retry once.
+                if ((response.status === 401 || response.status === 403) && canAttemptSilentBootstrap()) {
+                    const renewed = await refreshAdminSessionSilently();
+                    if (renewed) {
+                        response = await rpcFetch(sessionToken);
+                    }
+                }
             } catch (fetchErr) {
                 if (fetchErr && fetchErr.name === 'AbortError') {
                     throw new Error('RPC ' + rpcId + ' timed out after ' + (timeoutMs / 1000) + 's. The server handler may be too slow (gateway 502 often shows as a CORS error in DevTools).');
@@ -11833,6 +11925,7 @@ select { color-scheme: dark; }
             // 3) Fall back to manual login form
             if (checkAuth()) {
                 hideAuthOverlay();
+                startSessionRefreshLoop();
                 refreshAll();
                 onAutoRefreshChange();
                 setTimeout(() => refreshModeFilterOptions().catch(() => {}), 800);
