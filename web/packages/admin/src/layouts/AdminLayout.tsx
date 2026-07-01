@@ -212,23 +212,16 @@ export function AdminLayout() {
           collapsed ? "w-16" : "w-60",
         )}
       >
-        <div
-          className={cn(
-            "flex h-20 items-center border-b border-border",
-            collapsed ? "justify-center px-2" : "justify-between px-4",
-          )}
-        >
-          <span className="flex items-center gap-2 text-sm font-bold tracking-tight">
-            <img
-              src={`${import.meta.env.BASE_URL}ivx-logo.png`}
-              alt="IVX"
-              className="h-16 w-16 shrink-0 object-contain"
-            />
-          </span>
+        <div className="relative flex h-20 items-center justify-center border-b border-border px-2">
+          <img
+            src={`${import.meta.env.BASE_URL}ivx-logo.png`}
+            alt="IVX"
+            className="h-16 w-16 shrink-0 object-contain"
+          />
           {!collapsed && (
             <button
               onClick={() => setCollapsed((c) => !c)}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <ChevronLeft size={16} />
             </button>
