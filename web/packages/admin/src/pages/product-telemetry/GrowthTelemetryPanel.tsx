@@ -42,14 +42,21 @@ function StatTile({ label, value, hint }: { label: string; value: string | numbe
   );
 }
 
+function fmtFixed(n: number | null | undefined, digits = 1): string {
+  const v = Number(n);
+  return Number.isFinite(v) ? v.toFixed(digits) : "—";
+}
+
 function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
+  const summary = snapshot.summary ?? ({} as GscSnapshot["summary"]);
+  const queries = snapshot.queries ?? [];
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Clicks" value={quizverse.formatCompactNumber(snapshot.summary.totalClicks)} hint="28d" />
-        <StatTile label="Impressions" value={quizverse.formatCompactNumber(snapshot.summary.totalImpressions)} />
-        <StatTile label="Avg CTR" value={quizverse.formatPct(snapshot.summary.avgCtr)} />
-        <StatTile label="Avg position" value={snapshot.summary.avgPosition.toFixed(1)} hint="lower is better" />
+        <StatTile label="Clicks" value={quizverse.formatCompactNumber(summary.totalClicks)} hint="28d" />
+        <StatTile label="Impressions" value={quizverse.formatCompactNumber(summary.totalImpressions)} />
+        <StatTile label="Avg CTR" value={quizverse.formatPct(summary.avgCtr)} />
+        <StatTile label="Avg position" value={fmtFixed(summary.avgPosition)} hint="lower is better" />
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
@@ -62,12 +69,12 @@ function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
             </tr>
           </thead>
           <tbody>
-            {snapshot.queries.slice(0, 25).map((row) => (
+            {queries.slice(0, 25).map((row) => (
               <tr key={row.query} className="border-b border-border/60">
                 <td className="max-w-xs truncate px-4 py-2 font-medium">{row.query}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatCompactNumber(row.clicks)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatPct(row.ctr)}</td>
-                <td className="px-4 py-2 text-right tabular-nums">#{row.position.toFixed(1)}</td>
+                <td className="px-4 py-2 text-right tabular-nums">#{fmtFixed(row.position)}</td>
               </tr>
             ))}
           </tbody>
@@ -78,30 +85,33 @@ function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
 }
 
 function Ga4Panel({ snapshot }: { snapshot: Ga4Snapshot }) {
-  const maxUsers = snapshot.installFunnel[0]?.users ?? 1;
+  const summary = snapshot.summary ?? ({} as Ga4Snapshot["summary"]);
+  const installFunnel = snapshot.installFunnel ?? [];
+  const topPages = snapshot.topPages ?? [];
+  const maxUsers = installFunnel[0]?.users ?? 1;
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Sessions" value={quizverse.formatCompactNumber(snapshot.summary.totalSessions)} />
-        <StatTile label="Users" value={quizverse.formatCompactNumber(snapshot.summary.totalUsers)} />
-        <StatTile label="New users" value={quizverse.formatCompactNumber(snapshot.summary.newUsers)} />
-        <StatTile label="Bounce rate" value={quizverse.formatPct(snapshot.summary.bounceRate)} />
+        <StatTile label="Sessions" value={quizverse.formatCompactNumber(summary.totalSessions)} />
+        <StatTile label="Users" value={quizverse.formatCompactNumber(summary.totalUsers)} />
+        <StatTile label="New users" value={quizverse.formatCompactNumber(summary.newUsers)} />
+        <StatTile label="Bounce rate" value={quizverse.formatPct(summary.bounceRate)} />
       </div>
-      {snapshot.installFunnel.length > 0 && (
+      {installFunnel.length > 0 && (
         <div className="space-y-3 rounded-xl border border-border bg-card p-4">
           <h4 className="text-sm font-semibold">Install funnel</h4>
-          {snapshot.installFunnel.map((step, i) => (
+          {installFunnel.map((step, i) => (
             <div key={step.label} className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{step.label}</span>
                 <span>
-                  {quizverse.formatCompactNumber(step.users)} · {step.completionRate.toFixed(1)}%
+                  {quizverse.formatCompactNumber(step.users)} · {fmtFixed(step.completionRate)}%
                 </span>
               </div>
               <div className="h-5 overflow-hidden rounded-full bg-muted">
                 <div
                   className={cn("h-full rounded-full", i === 0 ? "bg-primary" : "bg-violet-500/80")}
-                  style={{ width: `${(step.users / maxUsers) * 100}%` }}
+                  style={{ width: `${((step.users ?? 0) / maxUsers) * 100}%` }}
                 />
               </div>
             </div>
@@ -118,7 +128,7 @@ function Ga4Panel({ snapshot }: { snapshot: Ga4Snapshot }) {
             </tr>
           </thead>
           <tbody>
-            {snapshot.topPages.slice(0, 15).map((row) => (
+            {topPages.slice(0, 15).map((row) => (
               <tr key={row.path} className="border-b border-border/60">
                 <td className="max-w-xs truncate px-4 py-2 font-mono text-xs">{row.path}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatCompactNumber(row.sessions)}</td>
@@ -133,16 +143,18 @@ function Ga4Panel({ snapshot }: { snapshot: Ga4Snapshot }) {
 }
 
 function NewsletterPanel({ snapshot }: { snapshot: BeehiivSnapshot }) {
+  const publication = snapshot.publication ?? ({} as BeehiivSnapshot["publication"]);
+  const recentPosts = snapshot.recentPosts ?? [];
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Subscribers" value={quizverse.formatCompactNumber(snapshot.publication.subscriberCount)} />
-        <StatTile label="Total ever" value={quizverse.formatCompactNumber(snapshot.publication.totalSubscriptions)} />
-        <StatTile label="Avg open" value={quizverse.formatPct(snapshot.publication.avgOpenRate)} />
-        <StatTile label="Avg click" value={quizverse.formatPct(snapshot.publication.avgClickRate)} />
+        <StatTile label="Subscribers" value={quizverse.formatCompactNumber(publication.subscriberCount)} />
+        <StatTile label="Total ever" value={quizverse.formatCompactNumber(publication.totalSubscriptions)} />
+        <StatTile label="Avg open" value={quizverse.formatPct(publication.avgOpenRate)} />
+        <StatTile label="Avg click" value={quizverse.formatPct(publication.avgClickRate)} />
       </div>
-      {snapshot.publication.name && (
-        <p className="text-sm text-muted-foreground">Publication: {snapshot.publication.name}</p>
+      {publication.name && (
+        <p className="text-sm text-muted-foreground">Publication: {publication.name}</p>
       )}
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
@@ -156,7 +168,7 @@ function NewsletterPanel({ snapshot }: { snapshot: BeehiivSnapshot }) {
             </tr>
           </thead>
           <tbody>
-            {snapshot.recentPosts.map((row) => (
+            {recentPosts.map((row) => (
               <tr key={row.id} className="border-b border-border/60">
                 <td className="max-w-xs truncate px-4 py-2 font-medium">{row.subject}</td>
                 <td className="px-4 py-2 text-xs text-muted-foreground">
