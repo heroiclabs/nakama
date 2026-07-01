@@ -517,6 +517,33 @@ namespace OnboardingAnalytics {
     return merges;
   }
 
+  /**
+   * Merge legacy nakama-keyed buckets into the identityId bucket when the same
+   * user was split by resolveUserKey (pre-fix: nakamaUserId-first bucketing).
+   */
+  function mergeOrphanNakamaBuckets(usersMap: { [uid: string]: any }): number {
+    var toDelete: string[] = [];
+    var merges = 0;
+
+    for (var uid in usersMap) {
+      if (!Object.prototype.hasOwnProperty.call(usersMap, uid)) continue;
+      if (!isNakamaUuid(uid)) continue;
+
+      var orphan = usersMap[uid];
+      var iid = (orphan.identityId || "").toString();
+      if (!iid || iid === uid || !usersMap[iid]) continue;
+
+      mergeUserBuckets(usersMap[iid], orphan);
+      toDelete.push(uid);
+      merges++;
+    }
+
+    for (var d = 0; d < toDelete.length; d++) {
+      delete usersMap[toDelete[d]];
+    }
+    return merges;
+  }
+
   function loadIdentityLinks(nk: nkruntime.Nakama): { links: any[]; truncated: boolean } {
     var links: any[] = [];
     var cursor = "";
@@ -628,40 +655,42 @@ namespace OnboardingAnalytics {
       var anonId = (link.anonId || "").toString();
       var nakamaId = (link.nakamaUserId || "").toString();
       var cognitoSub = (link.cognitoSub || link.userId || "").toString();
-      if (!anonId || !nakamaId || !isNakamaUuid(nakamaId)) continue;
+      if (!anonId || (!nakamaId && !cognitoSub)) continue;
+      if (nakamaId && !isNakamaUuid(nakamaId)) nakamaId = "";
 
       var guestBucket = usersMap[anonId];
-      var nakamaBucket = usersMap[nakamaId];
-      var cognitoBucket = cognitoSub && cognitoSub !== nakamaId && cognitoSub !== anonId ? usersMap[cognitoSub] : null;
+      var targetId = nakamaId || cognitoSub;
+      var targetBucket = usersMap[targetId];
+      var cognitoBucket = cognitoSub && cognitoSub !== targetId && cognitoSub !== anonId ? usersMap[cognitoSub] : null;
 
-      if (!guestBucket && !nakamaBucket && !cognitoBucket) continue;
+      if (!guestBucket && !targetBucket && !cognitoBucket) continue;
 
-      if (!nakamaBucket) {
-        nakamaBucket = guestBucket || cognitoBucket;
-        usersMap[nakamaId] = nakamaBucket;
-        nakamaBucket.userId = nakamaId;
+      if (!targetBucket) {
+        targetBucket = guestBucket || cognitoBucket;
+        usersMap[targetId] = targetBucket;
+        targetBucket.userId = targetId;
         if (guestBucket && usersMap[anonId]) delete usersMap[anonId];
         if (cognitoBucket && cognitoSub && usersMap[cognitoSub]) delete usersMap[cognitoSub];
         merges++;
       } else {
-        if (guestBucket && anonId !== nakamaId) {
-          mergeUserBuckets(nakamaBucket, guestBucket);
+        if (guestBucket && anonId !== targetId) {
+          mergeUserBuckets(targetBucket, guestBucket);
           delete usersMap[anonId];
           merges++;
         }
         if (cognitoBucket && cognitoSub && usersMap[cognitoSub]) {
-          mergeUserBuckets(nakamaBucket, cognitoBucket);
+          mergeUserBuckets(targetBucket, cognitoBucket);
           delete usersMap[cognitoSub];
           merges++;
         }
       }
 
-      nakamaBucket = usersMap[nakamaId];
-      if (nakamaBucket) {
-        nakamaBucket.nakamaUserId = nakamaId;
-        nakamaBucket.identityLinked = true;
-        if (!nakamaBucket.identityId) nakamaBucket.identityId = anonId;
-        if (cognitoSub && !nakamaBucket.cognitoSub) nakamaBucket.cognitoSub = cognitoSub;
+      targetBucket = usersMap[targetId];
+      if (targetBucket) {
+        if (nakamaId) targetBucket.nakamaUserId = nakamaId;
+        targetBucket.identityLinked = true;
+        if (!targetBucket.identityId) targetBucket.identityId = anonId;
+        if (cognitoSub && !targetBucket.cognitoSub) targetBucket.cognitoSub = cognitoSub;
       }
     }
     return { users: usersMap, merges: merges };
@@ -934,10 +963,11 @@ namespace OnboardingAnalytics {
 
     var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
     var identityCoalesced = coalesceUsersByIdentityId(scan.users);
+    var nakamaOrphanMerges = mergeOrphanNakamaBuckets(scan.users);
     var identityLoad = loadIdentityLinks(nk);
     var mergeResult = mergeUsersByIdentityLinks(scan.users, identityLoad.links);
     var usersMap = mergeResult.users;
-    var identityMerges = mergeResult.merges;
+    var identityMerges = mergeResult.merges + identityCoalesced + nakamaOrphanMerges;
     var identityLinksTotal = identityLoad.links.length;
 
     if (pathwayFilter) {
