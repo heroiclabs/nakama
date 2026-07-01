@@ -222,7 +222,7 @@ export function AdminLayout() {
             <img
               src="/ivx-logo.png"
               alt="IVX"
-              className="h-7 w-7 shrink-0 rounded-md object-cover"
+              className="h-7 w-7 shrink-0 object-contain"
             />
             {!collapsed && (
               <>
