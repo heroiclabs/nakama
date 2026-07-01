@@ -212,23 +212,42 @@ export function AdminLayout() {
           collapsed ? "w-16" : "w-60",
         )}
       >
-        <div className="flex h-14 items-center justify-between border-b border-border px-4">
-          {!collapsed && (
-            <span className="flex items-center gap-2 text-sm font-bold tracking-tight">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-primary">
-                <Sparkles size={14} />
-              </span>
-              <span className="text-foreground">IVX</span>
-              <span className="text-muted-foreground">Console</span>
-            </span>
+        <div
+          className={cn(
+            "flex h-14 items-center border-b border-border",
+            collapsed ? "justify-center px-2" : "justify-between px-4",
           )}
+        >
+          <span className="flex items-center gap-2 text-sm font-bold tracking-tight">
+            <img
+              src="/ivx-logo.png"
+              alt="IVX"
+              className="h-7 w-7 shrink-0 rounded-md object-cover"
+            />
+            {!collapsed && (
+              <>
+                <span className="text-foreground">IVX</span>
+                <span className="text-muted-foreground">Console</span>
+              </>
+            )}
+          </span>
+          {!collapsed && (
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          )}
+        </div>
+        {collapsed && (
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex items-center justify-center border-b border-border py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            <ChevronRight size={16} />
           </button>
-        </div>
+        )}
 
         <nav className={cn("min-h-0 flex-1 space-y-1 p-2", SCROLL_AREA)}>
           {visibleGroups.map((group) => (
