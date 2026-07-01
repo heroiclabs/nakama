@@ -42,6 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAdminStore } from "@/stores/admin-store";
 import { useActiveApp } from "@/hooks/useScopedGame";
+import { hiddenNavPathsForApp } from "@/config/app-nav-manifest";
 import { useAdminAuth } from "@/auth/admin-auth";
 
 interface NavItem {
@@ -189,6 +190,15 @@ export function AdminLayout() {
   const activeApp = useActiveApp();
   const showAppSelector = !PLATFORM_ONLY_ROUTES.has(location.pathname);
 
+  // Hide nav items whose backend is hard-wired to a different app than the
+  // one currently selected (see app-nav-manifest.ts). "All Apps" and
+  // not-yet-classified apps see everything.
+  const hiddenPaths = hiddenNavPathsForApp(activeApp.slug);
+  const visibleGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !hiddenPaths.has(item.to)),
+  })).filter((group) => group.items.length > 0);
+
   function toggleTheme() {
     const next = theme === "light" ? "dark" : theme === "dark" ? "system" : "light";
     setTheme(next);
@@ -221,7 +231,7 @@ export function AdminLayout() {
         </div>
 
         <nav className={cn("min-h-0 flex-1 space-y-1 p-2", SCROLL_AREA)}>
-          {NAV_GROUPS.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label} className="py-1">
               {!collapsed && (
                 <p className="mb-1 px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

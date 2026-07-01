@@ -11,7 +11,7 @@ import {
 import type { RpcOptions, NakamaUser } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 import { useIframeAuth } from "@/lib/useIframeAuth";
-import { useActiveApp } from "@/hooks/useScopedGame";
+import { useActiveApp, toAppSlug } from "@/hooks/useScopedGame";
 import {
   BarChart3,
   Activity,
@@ -1205,19 +1205,10 @@ function DataLakeTab() {
   );
 }
 
-/** Derive a clean RPC slug from any string (UUID → sanitized slug). */
-function toRpcSlug(s: string): string {
-  return s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-}
-
 function GameIntelligenceTab() {
   // Resolve the selected app → use its slug, not its UUID.
-  const { app } = useActiveApp();
-
-  // Derive the canonical slug: prefer app.slug, then sanitize app.title, then "quizverse".
-  const defaultSlug = app
-    ? toRpcSlug(app.slug ?? app.title)
-    : "quizverse";
+  const { slug } = useActiveApp();
+  const defaultSlug = slug ?? "quizverse";
 
   const [gameSlug, setGameSlug] = useState(defaultSlug);
   useEffect(() => {
@@ -1306,7 +1297,7 @@ function GameIntelligenceTab() {
         Game slug
         <input
           value={gameSlug}
-          onChange={(e) => setGameSlug(toRpcSlug(e.target.value))}
+          onChange={(e) => setGameSlug(toAppSlug(e.target.value))}
           className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
           placeholder="quizverse"
         />
