@@ -11,7 +11,7 @@ import {
 import type { RpcOptions, NakamaUser } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 import { useIframeAuth } from "@/lib/useIframeAuth";
-import { useScopedGameId } from "@/hooks/useScopedGame";
+import { useActiveApp } from "@/hooks/useScopedGame";
 import {
   BarChart3,
   Activity,
@@ -1171,26 +1171,34 @@ function DataLakeTab() {
   );
 }
 
+/** Derive a clean RPC slug from any string (UUID → sanitized slug). */
+function toRpcSlug(s: string): string {
+  return s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
 function GameIntelligenceTab() {
-  // Default the report scope to the console-wide app selection (falling back to
-  // QuizVerse, which this diagnostic was originally built around). The box below
-  // stays as a manual override; switching apps in the top bar re-syncs it.
-  const scopedGameId = useScopedGameId();
-  const [gameId, setGameId] = useState(scopedGameId ?? "quizverse");
+  // Resolve the selected app → use its slug, not its UUID.
+  const { app } = useActiveApp();
+
+  // Derive the canonical slug: prefer app.slug, then sanitize app.title, then "quizverse".
+  const defaultSlug = app
+    ? toRpcSlug(app.slug ?? app.title)
+    : "quizverse";
+
+  const [gameSlug, setGameSlug] = useState(defaultSlug);
   useEffect(() => {
-    setGameId(scopedGameId ?? "quizverse");
-  }, [scopedGameId]);
-  // Build the RPC name from the game ID — each game registers its own
-  // <gameId>_game_intelligence_report RPC. Fall back to quizverse.
-  const rpcGameSlug = (gameId.trim() || "quizverse").toLowerCase().replace(/[^a-z0-9_]/g, "_");
-  const intelligenceRpc = `${rpcGameSlug}_game_intelligence_report`;
+    setGameSlug(defaultSlug);
+  }, [defaultSlug]);
+
+  // Build the RPC name: <slug>_game_intelligence_report
+  const intelligenceRpc = `${gameSlug || "quizverse"}_game_intelligence_report`;
 
   const report = useQuery({
-    queryKey: ["analytics", "game-intelligence", gameId],
+    queryKey: ["analytics", "game-intelligence", gameSlug],
     queryFn: () =>
       callRpc(
         intelligenceRpc,
-        { game_id: gameId.trim() || "quizverse", hours: 24, days: 7, sample_players: 25 },
+        { game_id: gameSlug || "quizverse", hours: 24, days: 7, sample_players: 25 },
         serverKeyAuth(),
       ),
     retry: 1,
@@ -1261,10 +1269,10 @@ function GameIntelligenceTab() {
       />
 
       <label className="flex max-w-xs items-center gap-2 text-xs text-muted-foreground">
-        Game ID
+        Game slug
         <input
-          value={gameId}
-          onChange={(e) => setGameId(e.target.value)}
+          value={gameSlug}
+          onChange={(e) => setGameSlug(toRpcSlug(e.target.value))}
           className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
           placeholder="quizverse"
         />
@@ -1320,7 +1328,7 @@ function GameIntelligenceTab() {
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Pulls the `quizverse_game_intelligence_report` operator endpoint through
+            Pulls the <code className="rounded bg-muted px-1 font-mono text-xs">{intelligenceRpc}</code> operator endpoint through
             the authenticated admin proxy.
           </p>
           <button
@@ -1342,9 +1350,9 @@ function GameIntelligenceTab() {
 
         {report.isError && (
           <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-300">
-            RPC <code className="rounded bg-yellow-500/20 px-1 font-mono text-xs">{intelligenceRpc}</code> is not registered for this game.
-            Make sure the game module exports a <code className="font-mono text-xs">{intelligenceRpc}</code> handler,
-            or switch to the QuizVerse app in the top-bar selector.
+            RPC <code className="rounded bg-yellow-500/20 px-1 font-mono text-xs">{intelligenceRpc}</code> is not registered.
+            Make sure the Nakama module for <strong>{gameSlug || "quizverse"}</strong> exports a <code className="font-mono text-xs">{intelligenceRpc}</code> handler.
+            Also verify the game slug in the field above matches the registered RPC prefix.
           </div>
         )}
 
