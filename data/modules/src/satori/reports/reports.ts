@@ -5,8 +5,8 @@
 // definition is stored here; the admin UI executes it by calling the existing
 // funnel / retention / metric / timeline RPCs with the saved params.
 //
-// Definitions live in satori_configs/"reports" ({ reports: { [id]: def } }).
-// Admin-only.
+// Definitions live in satori_configs/"reports" per game
+// ({ reports: { [id]: def } }). Admin-only.
 // ---------------------------------------------------------------------------
 namespace SatoriReports {
 
@@ -20,13 +20,13 @@ namespace SatoriReports {
     updatedAt: number;
   }
 
-  function getReports(nk: nkruntime.Nakama): { [id: string]: ReportDef } {
-    var raw = ConfigLoader.loadSatoriConfig<any>(nk, "reports", { reports: {} });
+  function getReports(nk: nkruntime.Nakama, gameId?: string): { [id: string]: ReportDef } {
+    var raw = ConfigLoader.loadSatoriConfigForGame<any>(nk, "reports", gameId, { reports: {} });
     return (raw && raw.reports) ? raw.reports : {};
   }
 
-  function saveReports(nk: nkruntime.Nakama, reports: { [id: string]: ReportDef }): void {
-    ConfigLoader.saveSatoriConfig(nk, "reports", { reports: reports });
+  function saveReports(nk: nkruntime.Nakama, reports: { [id: string]: ReportDef }, gameId?: string): void {
+    ConfigLoader.saveSatoriConfigForGame(nk, "reports", gameId, { reports: reports });
   }
 
   function toList(reports: { [id: string]: ReportDef }): ReportDef[] {
@@ -36,22 +36,25 @@ namespace SatoriReports {
     return out;
   }
 
-  // satori_reports_list
+  // satori_reports_list — Payload: { game_id? }
   function rpcList(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
-    return RpcHelpers.successResponse({ reports: toList(getReports(nk)) });
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var gameId = RpcHelpers.gameId(data);
+    return RpcHelpers.successResponse({ reports: toList(getReports(nk, gameId)), game_id: gameId || Constants.DEFAULT_GAME_ID });
   }
 
   var VALID_TYPES: { [t: string]: boolean } = { funnel: true, retention: true, metric: true, timeline: true };
 
-  // satori_reports_save — Payload: { id?, name, type, description?, params }
+  // satori_reports_save — Payload: { id?, name, type, description?, params, game_id? }
   function rpcSave(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.name) return RpcHelpers.errorResponse("name required");
     if (!data.type || !VALID_TYPES[data.type]) return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
+    var gameId = RpcHelpers.gameId(data);
 
-    var reports = getReports(nk);
+    var reports = getReports(nk, gameId);
     var now = Math.floor(Date.now() / 1000);
     var id = data.id || ("rep_" + now + "_" + Math.floor(Math.random() * 100000));
     var existing = reports[id];
@@ -65,18 +68,19 @@ namespace SatoriReports {
       createdAt: existing ? existing.createdAt : now,
       updatedAt: now
     };
-    saveReports(nk, reports);
+    saveReports(nk, reports, gameId);
     return RpcHelpers.successResponse({ report: reports[id] });
   }
 
-  // satori_reports_delete — Payload: { id }
+  // satori_reports_delete — Payload: { id, game_id? }
   function rpcDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.id) return RpcHelpers.errorResponse("id required");
-    var reports = getReports(nk);
+    var gameId = RpcHelpers.gameId(data);
+    var reports = getReports(nk, gameId);
     delete reports[data.id];
-    saveReports(nk, reports);
+    saveReports(nk, reports, gameId);
     return RpcHelpers.successResponse({ deleted: data.id });
   }
 

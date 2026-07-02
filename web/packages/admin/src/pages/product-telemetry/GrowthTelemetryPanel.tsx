@@ -1,6 +1,6 @@
-import { useState } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Globe2, Loader2, Mail, Search, Users } from "lucide-react";
 import {
   serverKeyAuth,
   quizverse,
@@ -12,11 +12,15 @@ import {
 } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
-const GROWTH_TABS: { id: GrowthSnapshotSource; label: string }[] = [
-  { id: "gsc", label: "SEO · GSC" },
-  { id: "ga4", label: "Web · GA4" },
-  { id: "newsletter", label: "Newsletter" },
-  { id: "users", label: "Users" },
+const GROWTH_SECTIONS: {
+  id: GrowthSnapshotSource;
+  label: string;
+  icon: typeof Search;
+}[] = [
+  { id: "gsc", label: "SEO · GSC", icon: Search },
+  { id: "ga4", label: "Web · GA4", icon: Globe2 },
+  { id: "newsletter", label: "Newsletter", icon: Mail },
+  { id: "users", label: "Users", icon: Users },
 ];
 
 function useGrowth(source: GrowthSnapshotSource) {
@@ -38,14 +42,21 @@ function StatTile({ label, value, hint }: { label: string; value: string | numbe
   );
 }
 
+function fmtFixed(n: number | null | undefined, digits = 1): string {
+  const v = Number(n);
+  return Number.isFinite(v) ? v.toFixed(digits) : "—";
+}
+
 function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
+  const summary = snapshot.summary ?? ({} as GscSnapshot["summary"]);
+  const queries = snapshot.queries ?? [];
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Clicks" value={quizverse.formatCompactNumber(snapshot.summary.totalClicks)} hint="28d" />
-        <StatTile label="Impressions" value={quizverse.formatCompactNumber(snapshot.summary.totalImpressions)} />
-        <StatTile label="Avg CTR" value={quizverse.formatPct(snapshot.summary.avgCtr)} />
-        <StatTile label="Avg position" value={snapshot.summary.avgPosition.toFixed(1)} hint="lower is better" />
+        <StatTile label="Clicks" value={quizverse.formatCompactNumber(summary.totalClicks)} hint="28d" />
+        <StatTile label="Impressions" value={quizverse.formatCompactNumber(summary.totalImpressions)} />
+        <StatTile label="Avg CTR" value={quizverse.formatPct(summary.avgCtr)} />
+        <StatTile label="Avg position" value={fmtFixed(summary.avgPosition)} hint="lower is better" />
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
@@ -58,12 +69,12 @@ function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
             </tr>
           </thead>
           <tbody>
-            {snapshot.queries.slice(0, 25).map((row) => (
+            {queries.slice(0, 25).map((row) => (
               <tr key={row.query} className="border-b border-border/60">
                 <td className="max-w-xs truncate px-4 py-2 font-medium">{row.query}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatCompactNumber(row.clicks)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatPct(row.ctr)}</td>
-                <td className="px-4 py-2 text-right tabular-nums">#{row.position.toFixed(1)}</td>
+                <td className="px-4 py-2 text-right tabular-nums">#{fmtFixed(row.position)}</td>
               </tr>
             ))}
           </tbody>
@@ -74,28 +85,33 @@ function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
 }
 
 function Ga4Panel({ snapshot }: { snapshot: Ga4Snapshot }) {
-  const maxUsers = snapshot.installFunnel[0]?.users ?? 1;
+  const summary = snapshot.summary ?? ({} as Ga4Snapshot["summary"]);
+  const installFunnel = snapshot.installFunnel ?? [];
+  const topPages = snapshot.topPages ?? [];
+  const maxUsers = installFunnel[0]?.users ?? 1;
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Sessions" value={quizverse.formatCompactNumber(snapshot.summary.totalSessions)} />
-        <StatTile label="Users" value={quizverse.formatCompactNumber(snapshot.summary.totalUsers)} />
-        <StatTile label="New users" value={quizverse.formatCompactNumber(snapshot.summary.newUsers)} />
-        <StatTile label="Bounce rate" value={quizverse.formatPct(snapshot.summary.bounceRate)} />
+        <StatTile label="Sessions" value={quizverse.formatCompactNumber(summary.totalSessions)} />
+        <StatTile label="Users" value={quizverse.formatCompactNumber(summary.totalUsers)} />
+        <StatTile label="New users" value={quizverse.formatCompactNumber(summary.newUsers)} />
+        <StatTile label="Bounce rate" value={quizverse.formatPct(summary.bounceRate)} />
       </div>
-      {snapshot.installFunnel.length > 0 && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+      {installFunnel.length > 0 && (
+        <div className="space-y-3 rounded-xl border border-border bg-card p-4">
           <h4 className="text-sm font-semibold">Install funnel</h4>
-          {snapshot.installFunnel.map((step, i) => (
+          {installFunnel.map((step, i) => (
             <div key={step.label} className="space-y-1">
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{step.label}</span>
-                <span>{quizverse.formatCompactNumber(step.users)} · {step.completionRate.toFixed(1)}%</span>
+                <span>
+                  {quizverse.formatCompactNumber(step.users)} · {fmtFixed(step.completionRate)}%
+                </span>
               </div>
-              <div className="h-5 rounded-full bg-muted overflow-hidden">
+              <div className="h-5 overflow-hidden rounded-full bg-muted">
                 <div
                   className={cn("h-full rounded-full", i === 0 ? "bg-primary" : "bg-violet-500/80")}
-                  style={{ width: `${(step.users / maxUsers) * 100}%` }}
+                  style={{ width: `${((step.users ?? 0) / maxUsers) * 100}%` }}
                 />
               </div>
             </div>
@@ -112,7 +128,7 @@ function Ga4Panel({ snapshot }: { snapshot: Ga4Snapshot }) {
             </tr>
           </thead>
           <tbody>
-            {snapshot.topPages.slice(0, 15).map((row) => (
+            {topPages.slice(0, 15).map((row) => (
               <tr key={row.path} className="border-b border-border/60">
                 <td className="max-w-xs truncate px-4 py-2 font-mono text-xs">{row.path}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatCompactNumber(row.sessions)}</td>
@@ -127,16 +143,18 @@ function Ga4Panel({ snapshot }: { snapshot: Ga4Snapshot }) {
 }
 
 function NewsletterPanel({ snapshot }: { snapshot: BeehiivSnapshot }) {
+  const publication = snapshot.publication ?? ({} as BeehiivSnapshot["publication"]);
+  const recentPosts = snapshot.recentPosts ?? [];
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Subscribers" value={quizverse.formatCompactNumber(snapshot.publication.subscriberCount)} />
-        <StatTile label="Total ever" value={quizverse.formatCompactNumber(snapshot.publication.totalSubscriptions)} />
-        <StatTile label="Avg open" value={quizverse.formatPct(snapshot.publication.avgOpenRate)} />
-        <StatTile label="Avg click" value={quizverse.formatPct(snapshot.publication.avgClickRate)} />
+        <StatTile label="Subscribers" value={quizverse.formatCompactNumber(publication.subscriberCount)} />
+        <StatTile label="Total ever" value={quizverse.formatCompactNumber(publication.totalSubscriptions)} />
+        <StatTile label="Avg open" value={quizverse.formatPct(publication.avgOpenRate)} />
+        <StatTile label="Avg click" value={quizverse.formatPct(publication.avgClickRate)} />
       </div>
-      {snapshot.publication.name && (
-        <p className="text-sm text-muted-foreground">Publication: {snapshot.publication.name}</p>
+      {publication.name && (
+        <p className="text-sm text-muted-foreground">Publication: {publication.name}</p>
       )}
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
@@ -150,10 +168,12 @@ function NewsletterPanel({ snapshot }: { snapshot: BeehiivSnapshot }) {
             </tr>
           </thead>
           <tbody>
-            {snapshot.recentPosts.map((row) => (
+            {recentPosts.map((row) => (
               <tr key={row.id} className="border-b border-border/60">
                 <td className="max-w-xs truncate px-4 py-2 font-medium">{row.subject}</td>
-                <td className="px-4 py-2 text-xs text-muted-foreground">{quizverse.formatBeehiivPublishDate(row.publishDate)}</td>
+                <td className="px-4 py-2 text-xs text-muted-foreground">
+                  {quizverse.formatBeehiivPublishDate(row.publishDate)}
+                </td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatCompactNumber(row.totalRecipients)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatPct(row.openRate)}</td>
                 <td className="px-4 py-2 text-right tabular-nums">{quizverse.formatPct(row.clickRate)}</td>
@@ -196,51 +216,59 @@ function UsersPanel({ snapshot }: { snapshot: UsersSnapshot }) {
   );
 }
 
-export function GrowthTelemetryPanel() {
-  const [tab, setTab] = useState<GrowthSnapshotSource>("gsc");
-  const q = useGrowth(tab);
+function GrowthSourceSection({
+  id,
+  label,
+  icon: Icon,
+  children,
+}: {
+  id: GrowthSnapshotSource;
+  label: string;
+  icon: typeof Search;
+  children: (snapshot: NonNullable<ReturnType<typeof useGrowth>["data"]>["snapshot"]) => ReactNode;
+}) {
+  const q = useGrowth(id);
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Growth & marketing snapshots via n8n (WF-32 GSC, WF-41 GA4, WF-33 Beehiiv, WF-40 Users).
-      </p>
-      <div className="flex flex-wrap gap-2 border-b border-border pb-2">
-        {GROWTH_TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              tab === t.id
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Icon className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold">{label}</h3>
       </div>
-
       {q.isLoading ? (
-        <div className="flex h-48 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div className="flex h-32 items-center justify-center rounded-xl border border-border bg-card">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : q.isError || (!q.data?.ok && !q.data?.snapshot) ? (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-700 dark:text-amber-300">
-          {q.data?.error ?? "Growth snapshot unavailable. Check n8n workflow credentials and Nakama env vars."}
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+          {q.data?.error ?? "Snapshot unavailable. Check n8n workflow credentials and Nakama env vars."}
         </div>
-      ) : tab === "gsc" && q.data.snapshot ? (
-        <GscPanel snapshot={q.data.snapshot as GscSnapshot} />
-      ) : tab === "ga4" && q.data.snapshot ? (
-        <Ga4Panel snapshot={q.data.snapshot as Ga4Snapshot} />
-      ) : tab === "newsletter" && q.data.snapshot ? (
-        <NewsletterPanel snapshot={q.data.snapshot as BeehiivSnapshot} />
-      ) : tab === "users" && q.data.snapshot ? (
-        <UsersPanel snapshot={q.data.snapshot as UsersSnapshot} />
+      ) : q.data.snapshot ? (
+        children(q.data.snapshot)
       ) : (
         <p className="text-sm text-muted-foreground">No data for this source yet.</p>
       )}
+    </section>
+  );
+}
+
+export function GrowthTelemetryPanel() {
+  return (
+    <div className="space-y-8">
+      <p className="text-sm text-muted-foreground">
+        Growth and marketing snapshots via n8n (WF-32 GSC, WF-41 GA4, WF-33 Beehiiv, WF-40 Users).
+      </p>
+
+      {GROWTH_SECTIONS.map((section) => (
+        <GrowthSourceSection key={section.id} id={section.id} label={section.label} icon={section.icon}>
+          {(snapshot) => {
+            if (section.id === "gsc") return <GscPanel snapshot={snapshot as GscSnapshot} />;
+            if (section.id === "ga4") return <Ga4Panel snapshot={snapshot as Ga4Snapshot} />;
+            if (section.id === "newsletter") return <NewsletterPanel snapshot={snapshot as BeehiivSnapshot} />;
+            return <UsersPanel snapshot={snapshot as UsersSnapshot} />;
+          }}
+        </GrowthSourceSection>
+      ))}
     </div>
   );
 }

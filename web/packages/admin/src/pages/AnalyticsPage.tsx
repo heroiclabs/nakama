@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   callRpc,
@@ -10,7 +11,7 @@ import {
 import type { RpcOptions, NakamaUser } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 import { useIframeAuth } from "@/lib/useIframeAuth";
-import { useScopedGameId } from "@/hooks/useScopedGame";
+import { useActiveApp, toAppSlug } from "@/hooks/useScopedGame";
 import {
   BarChart3,
   Activity,
@@ -26,16 +27,10 @@ import {
   ArrowDownRight,
   Clock,
   Webhook,
-  ChevronDown,
-  ChevronUp,
-  Shield,
-  Eye,
   Calendar,
   TrendingUp,
   Server,
-  Cpu,
   Hash,
-  Tag,
   CheckCircle,
   XCircle,
   Info,
@@ -58,14 +53,6 @@ interface MetricAlert {
   name: string;
   threshold: number;
   operator: "gt" | "lt" | "gte" | "lte";
-}
-
-interface SatoriEvent {
-  name: string;
-  id?: string;
-  metadata?: Record<string, unknown>;
-  timestamp?: string;
-  value?: string;
 }
 
 interface TaxonomySchema {
@@ -112,7 +99,6 @@ interface CohortBucket {
 const TABS = [
   { key: "overview", label: "Overview", icon: BarChart3 },
   { key: "dashboard", label: "Live Dashboard", icon: LayoutDashboard },
-  { key: "events", label: "Player Events", icon: Activity },
   { key: "metrics", label: "Metrics & Alerts", icon: Bell },
   { key: "cohorts", label: "Cohort Analysis", icon: Users },
   { key: "intelligence", label: "Game Intelligence", icon: TrendingUp },
@@ -130,25 +116,6 @@ const STANDALONE_DASHBOARD_URL = "https://nakama.intelli-verse-x.ai/analytics.ht
 /* ------------------------------------------------------------------ */
 /*  Utility                                                            */
 /* ------------------------------------------------------------------ */
-
-function ago(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return "just now";
-  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
-  return `${Math.floor(ms / 86_400_000)}d ago`;
-}
-
-function fmtNum(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
-function isHealthyStatus(status?: string) {
-  const normalized = String(status ?? "").toLowerCase();
-  return normalized === "ok" || normalized === "healthy";
-}
 
 function fmtAge(seconds?: number | null): string {
   if (seconds === null || seconds === undefined) return "No events";
@@ -295,29 +262,6 @@ function useServerAuth(): RpcOptions {
   return serverKeyAuth();
 }
 
-function useHealth() {
-  const opts = useServerAuth();
-  return useQuery({
-    queryKey: ["analytics", "health"],
-    queryFn: () => nakama.getHealthcheck(opts),
-    refetchInterval: 30_000,
-  });
-}
-
-function useDashboardSummary(gameId?: string) {
-  const opts = useServerAuth();
-  return useQuery({
-    queryKey: ["analytics", "dashboard-summary", gameId],
-    queryFn: () =>
-      callRpc<Record<string, unknown>, any>(
-        "satori_dashboard_summary",
-        gameId ? { game_id: gameId } : {},
-        opts,
-      ),
-    refetchInterval: 30_000,
-  });
-}
-
 function useMetrics() {
   const opts = useServerAuth();
   return useQuery({
@@ -331,16 +275,6 @@ function useMetrics() {
   });
 }
 
-function usePlayerEvents(userId: string, limit: number) {
-  const opts = useServerAuth();
-  return useQuery({
-    queryKey: ["analytics", "events", userId, limit],
-    queryFn: () =>
-      satori.searchEvents({ user_id: userId, limit }, opts) as Promise<{ events?: SatoriEvent[] }>,
-    enabled: !!userId,
-  });
-}
-
 function useAccounts(limit: number) {
   const opts = useServerAuth();
   return useQuery({
@@ -349,15 +283,23 @@ function useAccounts(limit: number) {
   });
 }
 
+/** Unwrap the { success, data } envelope that all backend RPCs return. */
+function unwrapRpc<T>(raw: unknown): T {
+  const r = raw as any;
+  if (r && typeof r === "object" && "success" in r) {
+    if (r.success === false) throw new Error(r.error ?? "RPC failed");
+    if ("data" in r) return r.data as T;
+  }
+  return raw as T;
+}
+
 function useTaxonomy() {
   const opts = useServerAuth();
   return useQuery({
     queryKey: ["analytics", "taxonomy"],
     queryFn: () =>
-      callRpc<Record<string, unknown>, { schemas?: TaxonomySchema[] }>(
-        "satori_taxonomy_schemas",
-        {},
-        opts,
+      callRpc("satori_taxonomy_schemas", {}, opts).then(
+        (v) => unwrapRpc<{ schemas?: Record<string, unknown>; enforceStrict?: boolean; categories?: string[] }>(v),
       ),
     retry: false,
   });
@@ -368,10 +310,8 @@ function useDataLakeConfig() {
   return useQuery({
     queryKey: ["analytics", "datalake"],
     queryFn: () =>
-      callRpc<Record<string, unknown>, DataLakeConfig>(
-        "satori_datalake_config",
-        {},
-        opts,
+      callRpc("satori_datalake_config", {}, opts).then(
+        (v) => unwrapRpc<{ enabledGlobally?: boolean; retentionDays?: number; targets?: any[] }>(v),
       ),
     retry: false,
   });
@@ -382,10 +322,9 @@ function useWebhooks() {
   return useQuery({
     queryKey: ["analytics", "webhooks"],
     queryFn: () =>
-      callRpc<
-        Record<string, unknown>,
-        { webhooks?: WebhookEntry[] }
-      >("satori_webhooks_list", {}, opts),
+      callRpc("satori_webhooks_list", {}, opts).then(
+        (v) => unwrapRpc<{ webhooks?: WebhookEntry[] }>(v),
+      ),
     retry: false,
   });
 }
@@ -403,108 +342,80 @@ function useCreateAlert() {
 /*  Overview tab                                                       */
 /* ------------------------------------------------------------------ */
 
+const SIDEBAR_SHORTCUTS = [
+  {
+    label: "Funnels & Retention",
+    description: "Step-through funnels, D1/D7/D30 retention",
+    icon: TrendingUp,
+    href: "/funnels",
+  },
+  {
+    label: "Event Debugger",
+    description: "Live event tail, per-user event history",
+    icon: Activity,
+    href: "/event-debugger",
+  },
+  {
+    label: "Reports",
+    description: "Saved funnel & retention reports",
+    icon: BarChart3,
+    href: "/reports",
+  },
+  {
+    label: "Metrics",
+    description: "Game KPIs, DAU series, custom metrics",
+    icon: Bell,
+    href: "/metrics",
+  },
+] as const;
+
 function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
-  const health = useHealth();
-  const scopedGameId = useScopedGameId();
-  const summary = useDashboardSummary(scopedGameId);
-
-  const healthData = health.data as
-    | { node?: string; session_count?: number; goroutine_count?: number; status?: string }
-    | undefined;
-  const isHealthy =
-    health.isSuccess &&
-    (isHealthyStatus(healthData?.status) || healthData?.status === undefined);
-
-  // Pull real live data from satori_dashboard_summary instead of fake listAccounts(100).
-  const summaryData = summary.data as any;
-  const dau = summaryData?.dauToday ?? 0;
-  const active5m = summaryData?.activeUsers5m ?? 0;
-  const active24h = summaryData?.activeUsers24h ?? 0;
-  const eventsToday = summaryData?.eventsToday ?? 0;
-  const experiments = summaryData?.experiments ?? {};
-  const liveEventsCount = summaryData?.liveEvents ?? {};
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="Active Now (5 min)"
-          value={fmtNum(active5m)}
-          icon={Activity}
-          subtitle={`${fmtNum(active24h)} in last 24h`}
-          loading={summary.isLoading}
-          error={summary.isError}
-          trend={active5m > 0 ? "up" : "neutral"}
-        />
-        <StatCard
-          title="DAU Today"
-          value={fmtNum(dau)}
-          icon={Users}
-          subtitle={`${fmtNum(eventsToday)} events today`}
-          loading={summary.isLoading}
-          error={summary.isError}
-        />
-        <StatCard
-          title="Experiments"
-          value={experiments.ongoing ?? 0}
-          icon={TrendingUp}
-          subtitle={`${experiments.total ?? 0} total · ${experiments.scheduled ?? 0} scheduled`}
-          loading={summary.isLoading}
-          error={summary.isError}
-        />
-        <StatCard
-          title="Live Events"
-          value={liveEventsCount.ongoing ?? 0}
-          icon={BarChart3}
-          subtitle={`${liveEventsCount.total ?? 0} total`}
-          loading={summary.isLoading}
-          error={summary.isError}
-        />
+      {/* Info callout — point to Dashboard for live metrics */}
+      <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <p className="text-sm text-muted-foreground">
+          Live metrics (DAU, active users, experiments, live events) are on the{" "}
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="font-medium text-primary hover:underline"
+          >
+            Dashboard
+          </button>
+          . This page is for deep-dive analytics tools.
+        </p>
       </div>
 
+      {/* Row 1 — dedicated sidebar analytics pages */}
       <SectionHeading
-        title="Server Status"
-        description="Current Nakama runtime health"
-      />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          <Server className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium">Node</p>
-            <p className="text-xs text-muted-foreground">
-              {healthData?.node ?? "Nakama REST healthcheck"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          <Cpu className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <p className="text-sm font-medium">Goroutines</p>
-            <p className="text-xs text-muted-foreground">
-              {healthData?.goroutine_count ?? "—"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          {isHealthy ? (
-            <CheckCircle className="h-5 w-5 text-green-500" />
-          ) : (
-            <XCircle className="h-5 w-5 text-red-500" />
-          )}
-          <div>
-            <p className="text-sm font-medium">Status</p>
-            <p className="text-xs text-muted-foreground">
-              {healthData?.status ?? (health.isSuccess ? "reachable" : "—")}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <SectionHeading
-        title="Quick Actions"
-        description="Jump to analytics sub-pages"
+        title="Analytics Tools"
+        description="Jump directly to dedicated analytics pages"
       />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {SIDEBAR_SHORTCUTS.map((s) => (
+          <button
+            key={s.href}
+            className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent"
+            onClick={() => navigate(s.href)}
+          >
+            <s.icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <p className="text-sm font-medium">{s.label}</p>
+              <p className="text-xs text-muted-foreground">{s.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* Row 2 — advanced tabs within this page */}
+      <SectionHeading
+        title="Advanced Analytics"
+        description="Deeper analytics available on this page"
+      />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {TABS.filter((t) => t.key !== "overview").map((t) => (
           <button
             key={t.key}
@@ -512,9 +423,7 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
             onClick={() => onTabChange(t.key)}
           >
             <t.icon className="h-5 w-5 text-primary" />
-            <div>
-              <p className="text-sm font-medium">{t.label}</p>
-            </div>
+            <p className="text-sm font-medium">{t.label}</p>
           </button>
         ))}
       </div>
@@ -525,132 +434,6 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
 /* ------------------------------------------------------------------ */
 /*  Player Events tab                                                  */
 /* ------------------------------------------------------------------ */
-
-function PlayerEventsTab() {
-  const [userId, setUserId] = useState("");
-  const [query, setQuery] = useState("");
-  const [limit, setLimit] = useState(50);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const events = usePlayerEvents(query, limit);
-
-  const handleSearch = () => {
-    setQuery(userId.trim());
-  };
-
-  const toggle = (i: number) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
-      return next;
-    });
-
-  const evtList = events.data?.events ?? [];
-
-  return (
-    <div className="space-y-6">
-      <SectionHeading
-        title="Player Event Timeline"
-        description="Search a player's Satori event history by user ID"
-      />
-
-      <div className="flex flex-wrap gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Enter user ID…"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:ring-1 focus:ring-primary"
-          />
-        </div>
-        <select
-          value={limit}
-          onChange={(e) => setLimit(Number(e.target.value))}
-          className="rounded-md border border-border bg-background px-3 py-2 text-sm"
-        >
-          <option value={25}>25 events</option>
-          <option value={50}>50 events</option>
-          <option value={100}>100 events</option>
-        </select>
-        <button
-          onClick={handleSearch}
-          disabled={!userId.trim()}
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-        >
-          <Search className="h-4 w-4" />
-          Search
-        </button>
-      </div>
-
-      {events.isLoading && (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      )}
-
-      {events.isError && (
-        <ErrorBanner message="Failed to fetch events. Verify the user ID is correct." />
-      )}
-
-      {!query && !events.isLoading && (
-        <EmptyState
-          icon={Activity}
-          message="Enter a user ID to view their event timeline"
-        />
-      )}
-
-      {query && !events.isLoading && !events.isError && evtList.length === 0 && (
-        <EmptyState
-          icon={Activity}
-          message="No events found for this user"
-        />
-      )}
-
-      {evtList.length > 0 && (
-        <div className="divide-y divide-border rounded-lg border border-border">
-          {evtList.map((evt, i) => (
-            <div key={i} className="p-3">
-              <button
-                onClick={() => toggle(i)}
-                className="flex w-full items-center justify-between text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <Tag className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">{evt.name}</span>
-                  {evt.value && (
-                    <Badge variant="outline">{evt.value}</Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {evt.timestamp && (
-                    <span className="text-xs text-muted-foreground">
-                      {ago(evt.timestamp)}
-                    </span>
-                  )}
-                  {expanded.has(i) ? (
-                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </div>
-              </button>
-              {expanded.has(i) && evt.metadata && (
-                <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted/50 p-3 text-xs">
-                  {JSON.stringify(evt.metadata, null, 2)}
-                </pre>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Metrics & Alerts tab                                               */
@@ -1113,7 +896,22 @@ function DataLakeTab() {
   const webhooks = useWebhooks();
   const [taxFilter, setTaxFilter] = useState("");
 
-  const schemas = taxonomy.data?.schemas ?? [];
+  // Backend returns schemas as { event_name: schema } object (camelCase).
+  // Convert to a flat array with the snake_case fields the table expects.
+  const schemas = useMemo<TaxonomySchema[]>(() => {
+    const raw = taxonomy.data?.schemas;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw as TaxonomySchema[];
+    return Object.entries(raw).map(([name, s]: [string, any]) => ({
+      name,
+      description: s.description,
+      category: s.category,
+      required_metadata: s.requiredMetadata ?? s.required_metadata ?? [],
+      metadata_types: s.metadataTypes ?? s.metadata_types,
+      deprecated: s.deprecated ?? false,
+    }));
+  }, [taxonomy.data]);
+
   const filteredSchemas = useMemo(() => {
     if (!taxFilter) return schemas;
     const q = taxFilter.toLowerCase();
@@ -1124,7 +922,21 @@ function DataLakeTab() {
     );
   }, [schemas, taxFilter]);
 
-  const dlConfig = datalake.data;
+  // Normalize camelCase backend fields to the UI shape.
+  const dlRaw = datalake.data;
+  const dlConfig = dlRaw
+    ? {
+        enabled: (dlRaw as any).enabledGlobally ?? false,
+        retention_days: (dlRaw as any).retentionDays as number | undefined,
+        targets: ((dlRaw.targets ?? []) as any[]).map((t: any) => ({
+          id: t.id,
+          type: t.type,
+          enabled: t.enabled,
+          config: t.config,
+          event_filters: t.eventFilters ?? t.event_filters,
+        })) as DataLakeTarget[],
+      }
+    : undefined;
   const whList = webhooks.data?.webhooks ?? [];
 
   const allFailed =
@@ -1394,25 +1206,24 @@ function DataLakeTab() {
 }
 
 function GameIntelligenceTab() {
-  // Default the report scope to the console-wide app selection (falling back to
-  // QuizVerse, which this diagnostic was originally built around). The box below
-  // stays as a manual override; switching apps in the top bar re-syncs it.
-  const scopedGameId = useScopedGameId();
-  const [gameId, setGameId] = useState(scopedGameId ?? "quizverse");
+  // Resolve the selected app → use its slug, not its UUID.
+  const { slug } = useActiveApp();
+  const defaultSlug = slug ?? "quizverse";
+
+  const [gameSlug, setGameSlug] = useState(defaultSlug);
   useEffect(() => {
-    setGameId(scopedGameId ?? "quizverse");
-  }, [scopedGameId]);
-  // Build the RPC name from the game ID — each game registers its own
-  // <gameId>_game_intelligence_report RPC. Fall back to quizverse.
-  const rpcGameSlug = (gameId.trim() || "quizverse").toLowerCase().replace(/[^a-z0-9_]/g, "_");
-  const intelligenceRpc = `${rpcGameSlug}_game_intelligence_report`;
+    setGameSlug(defaultSlug);
+  }, [defaultSlug]);
+
+  // Build the RPC name: <slug>_game_intelligence_report
+  const intelligenceRpc = `${gameSlug || "quizverse"}_game_intelligence_report`;
 
   const report = useQuery({
-    queryKey: ["analytics", "game-intelligence", gameId],
+    queryKey: ["analytics", "game-intelligence", gameSlug],
     queryFn: () =>
       callRpc(
         intelligenceRpc,
-        { game_id: gameId.trim() || "quizverse", hours: 24, days: 7, sample_players: 25 },
+        { game_id: gameSlug || "quizverse", hours: 24, days: 7, sample_players: 25 },
         serverKeyAuth(),
       ),
     retry: 1,
@@ -1483,10 +1294,10 @@ function GameIntelligenceTab() {
       />
 
       <label className="flex max-w-xs items-center gap-2 text-xs text-muted-foreground">
-        Game ID
+        Game slug
         <input
-          value={gameId}
-          onChange={(e) => setGameId(e.target.value)}
+          value={gameSlug}
+          onChange={(e) => setGameSlug(toAppSlug(e.target.value))}
           className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
           placeholder="quizverse"
         />
@@ -1542,7 +1353,7 @@ function GameIntelligenceTab() {
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Pulls the `quizverse_game_intelligence_report` operator endpoint through
+            Pulls the <code className="rounded bg-muted px-1 font-mono text-xs">{intelligenceRpc}</code> operator endpoint through
             the authenticated admin proxy.
           </p>
           <button
@@ -1564,9 +1375,9 @@ function GameIntelligenceTab() {
 
         {report.isError && (
           <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-300">
-            RPC <code className="rounded bg-yellow-500/20 px-1 font-mono text-xs">{intelligenceRpc}</code> is not registered for this game.
-            Make sure the game module exports a <code className="font-mono text-xs">{intelligenceRpc}</code> handler,
-            or switch to the QuizVerse app in the top-bar selector.
+            RPC <code className="rounded bg-yellow-500/20 px-1 font-mono text-xs">{intelligenceRpc}</code> is not registered.
+            Make sure the Nakama module for <strong>{gameSlug || "quizverse"}</strong> exports a <code className="font-mono text-xs">{intelligenceRpc}</code> handler.
+            Also verify the game slug in the field above matches the registered RPC prefix.
           </div>
         )}
 
@@ -1725,7 +1536,7 @@ export function AnalyticsPage() {
       {/* Tab content */}
       {tab === "overview" && <OverviewTab onTabChange={setTab} />}
       {tab === "dashboard" && <StandaloneDashboardTab />}
-      {tab === "events" && <PlayerEventsTab />}
+
       {tab === "metrics" && <MetricsTab />}
       {tab === "cohorts" && <CohortsTab />}
       {tab === "intelligence" && <GameIntelligenceTab />}

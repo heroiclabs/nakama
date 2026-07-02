@@ -410,9 +410,13 @@ export function PrizesPage() {
           <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Gift className="h-6 w-6 text-primary" />
             Live Event Prizes
+            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              QuizVerse
+            </span>
           </h2>
           <p className="text-sm text-muted-foreground">
-            Review and approve gift-card vouchers won in live events.
+            Review and approve gift-card vouchers won in live events. This data is always QuizVerse-scoped
+            — it is not affected by the app selector in the top bar.
           </p>
         </div>
         <button

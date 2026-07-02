@@ -32787,13 +32787,19 @@ var LegacyMultiGame;
 //    handler, so the scheduler just dispatches frequently enough to not miss
 //    any user's local time window. 60 s tick is plenty.
 //
-//      daily_quiz       -> every 30 minutes (per-user 09:00-13:00 local gating)
+//      daily_quiz       -> every 30 minutes (per-user 09:00-13:00 local gating — morning only)
+//      premium_daily_quiz-> every 30 minutes (per-user 17:00-21:00 local gating — evening only)
 //      weekly_quiz      -> every 60 minutes (5 types x 13 langs S3 reads)
 //      idle_winback     -> every 30 minutes (per-user 11:00-19:00 local gating)
 //      streak_warning   -> every 30 minutes (per-user 18:00-22:00 local gating)
 //      motivation       -> every 60 minutes (per-user 12:00-18:00 + 3-day throttle)
 //      reminders        -> every  5 minutes (per-user scheduled local time, 15-min grace)
 //      review_due       -> every 30 minutes (per-user 17:00-21:00 local, once/day)
+//
+//  Clean push schedule per user per day (max 4 server pushes total):
+//    09:00-13:00  daily_quiz        (morning)
+//    11:00-19:00  idle_winback      (mid-day, only if idle 3-30 days)
+//    17:00-21:00  premium_quiz OR review_due OR streak_warning  (evening)
 // ===========================================================================
 var LegacyNotifScheduler;
 (function (LegacyNotifScheduler) {
@@ -35184,7 +35190,11 @@ var LegacyPush;
                 if (!byLocale[locale])
                     byLocale[locale] = { sent: 0, gated: 0 };
                 var h = getUserLocalHour(nk, u);
-                if (h < 7 || h >= 22) {
+                // Send daily quiz only in the morning window 09:00–13:00 local time.
+                // The scheduler comment always documented this range; the old 07–22 guard
+                // let pushes fire at 7 AM or 9 PM, which both feel wrong and caused
+                // the screenshot "5 notifications before noon" problem.
+                if (h < 9 || h >= 13) {
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;
@@ -35287,7 +35297,11 @@ var LegacyPush;
                 if (!byLocale[locale])
                     byLocale[locale] = { sent: 0, gated: 0 };
                 var h = getUserLocalHour(nk, u);
-                if (h < 9 || h >= 22) {
+                // Premium daily quiz fires in the EVENING window 17:00–21:00 local time.
+                // Sending it in the morning (old guard: 09:00–22:00) caused it to land
+                // 13 minutes after the regular daily quiz — two back-to-back pushes that
+                // felt like spam. Evening is the natural "second touch" of the day.
+                if (h < 17 || h >= 21) {
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;

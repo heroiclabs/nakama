@@ -1335,7 +1335,11 @@ namespace LegacyPush {
         var locale = getUserLocale(nk, u);
         if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
         var h = getUserLocalHour(nk, u);
-        if (h < 7 || h >= 22) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
+        // Send daily quiz only in the morning window 09:00–13:00 local time.
+        // The scheduler comment always documented this range; the old 07–22 guard
+        // let pushes fire at 7 AM or 9 PM, which both feel wrong and caused
+        // the screenshot "5 notifications before noon" problem.
+        if (h < 9 || h >= 13) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
         if (hasMarker(nk, u, "daily_quiz", todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
         var topic = pickQuizTopic(quiz, locale);
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz",
@@ -1416,7 +1420,11 @@ namespace LegacyPush {
         var locale = getUserLocale(nk, u);
         if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
         var h = getUserLocalHour(nk, u);
-        if (h < 9 || h >= 22) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
+        // Premium daily quiz fires in the EVENING window 17:00–21:00 local time.
+        // Sending it in the morning (old guard: 09:00–22:00) caused it to land
+        // 13 minutes after the regular daily quiz — two back-to-back pushes that
+        // felt like spam. Evening is the natural "second touch" of the day.
+        if (h < 17 || h >= 21) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
         if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
         var quiz = fetchPremiumDailyQuizForToday(nk, logger, locale);
         if (!quiz) { gated++; byLocale[locale].gated++; quizMissedAll = true; continue; }

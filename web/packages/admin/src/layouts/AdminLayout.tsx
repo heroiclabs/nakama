@@ -42,6 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAdminStore } from "@/stores/admin-store";
 import { useActiveApp } from "@/hooks/useScopedGame";
+import { hiddenNavPathsForApp } from "@/config/app-nav-manifest";
 import { useAdminAuth } from "@/auth/admin-auth";
 
 interface NavItem {
@@ -189,6 +190,15 @@ export function AdminLayout() {
   const activeApp = useActiveApp();
   const showAppSelector = !PLATFORM_ONLY_ROUTES.has(location.pathname);
 
+  // Hide nav items whose backend is hard-wired to a different app than the
+  // one currently selected (see app-nav-manifest.ts). "All Apps" and
+  // not-yet-classified apps see everything.
+  const hiddenPaths = hiddenNavPathsForApp(activeApp.slug);
+  const visibleGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => !hiddenPaths.has(item.to)),
+  })).filter((group) => group.items.length > 0);
+
   function toggleTheme() {
     const next = theme === "light" ? "dark" : theme === "dark" ? "system" : "light";
     setTheme(next);
@@ -202,26 +212,32 @@ export function AdminLayout() {
           collapsed ? "w-16" : "w-60",
         )}
       >
-        <div className="flex h-14 items-center justify-between border-b border-border px-4">
+        <div className="relative flex h-20 items-center justify-center border-b border-border px-2">
+          <img
+            src={`${import.meta.env.BASE_URL}ivx-logo.png`}
+            alt="IVX"
+            className="h-16 w-16 shrink-0 object-contain"
+          />
           {!collapsed && (
-            <span className="flex items-center gap-2 text-sm font-bold tracking-tight">
-              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/15 text-primary">
-                <Sparkles size={14} />
-              </span>
-              <span className="text-foreground">IVX</span>
-              <span className="text-muted-foreground">Console</span>
-            </span>
+            <button
+              onClick={() => setCollapsed((c) => !c)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <ChevronLeft size={16} />
+            </button>
           )}
+        </div>
+        {collapsed && (
           <button
             onClick={() => setCollapsed((c) => !c)}
-            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="flex items-center justify-center border-b border-border py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            <ChevronRight size={16} />
           </button>
-        </div>
+        )}
 
         <nav className={cn("min-h-0 flex-1 space-y-1 p-2", SCROLL_AREA)}>
-          {NAV_GROUPS.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label} className="py-1">
               {!collapsed && (
                 <p className="mb-1 px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

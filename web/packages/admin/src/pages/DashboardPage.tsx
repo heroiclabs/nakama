@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -68,15 +68,16 @@ import {
   SortableVerticalList,
   useStatusLayoutEditMode,
 } from "@/components/dashboard/SortableDashboard";
-import { ProductTelemetryPanel } from "@/components/product-telemetry/ProductTelemetryPanel";
+import { GrowthTelemetryPanel } from "@/pages/product-telemetry/GrowthTelemetryPanel";
 
 const REFETCH_MS = 15_000;
 
-type DashboardTab = "status" | "metrics" | "telemetry";
+type DashboardTab = "status" | "metrics" | "growth";
 
 function parseDashboardTab(value: string | null): DashboardTab {
   if (value === "metrics") return "metrics";
-  if (value === "telemetry") return "telemetry";
+  // Legacy bookmark: ?tab=telemetry → Growth Marketing
+  if (value === "growth" || value === "telemetry") return "growth";
   return "status";
 }
 
@@ -1461,6 +1462,13 @@ function StatGroupCard({
 export function DashboardPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = parseDashboardTab(searchParams.get("tab"));
+
+  // Normalize legacy ?tab=telemetry bookmarks to ?tab=growth
+  useEffect(() => {
+    if (searchParams.get("tab") === "telemetry") {
+      setSearchParams({ tab: "growth" }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [metricsDays, setMetricsDays] = useState(14);
   const [eventFilter, setEventFilter] = useState("");
   const queryClient = useQueryClient();
@@ -1500,7 +1508,7 @@ export function DashboardPage() {
       ? "Live audience, geography, and LiveOps overview."
       : tab === "metrics"
         ? "Installs, sessions, revenue, and segment breakdowns."
-        : "Funnels, retention, and growth snapshots (CRM slices when n8n is available).";
+        : "Growth and marketing snapshots from GSC, GA4, newsletter, and user signups.";
 
   return (
     <div className="space-y-6">
@@ -1527,8 +1535,7 @@ export function DashboardPage() {
               eventErrors.refetch();
               hiroStatus.refetch();
               satoriStatus.refetch();
-              if (tab === "telemetry") {
-                queryClient.invalidateQueries({ queryKey: ["admin", "product-metrics"] });
+              if (tab === "growth") {
                 queryClient.invalidateQueries({ queryKey: ["admin", "growth-snapshot"] });
               }
             }}
@@ -1592,7 +1599,7 @@ export function DashboardPage() {
         {([
           ["status", "Status"],
           ["metrics", "Game Metrics"],
-          ["telemetry", "Product Telemetry"],
+          ["growth", "Growth Marketing"],
         ] as const).map(([key, label]) => (
           <button
             key={key}
@@ -1640,7 +1647,7 @@ export function DashboardPage() {
           onEventFilterChange={setEventFilter}
         />
       ) : (
-        <ProductTelemetryPanel embedded />
+        <GrowthTelemetryPanel />
       )}
     </div>
   );

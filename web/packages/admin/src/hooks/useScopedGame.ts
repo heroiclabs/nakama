@@ -36,6 +36,13 @@ export interface ActiveApp {
   label: string;
   app: RegisteredApp | undefined;
   isAllApps: boolean;
+  /** Canonical lowercase slug for the active app (e.g. "quizverse"), or undefined for "All Apps". */
+  slug: string | undefined;
+}
+
+/** Derive a clean, RPC/manifest-safe slug from any string (UUID, title, etc). */
+export function toAppSlug(s: string): string {
+  return s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
 /** Resolves the active scope to a display label for page headers / badges. */
@@ -45,10 +52,12 @@ export function useActiveApp(): ActiveApp {
   const app = selectedAppId
     ? (apps ?? []).find((a) => a.id === selectedAppId)
     : undefined;
+  const slug = app ? toAppSlug(app.slug ?? app.title) : undefined;
   return {
     appId: selectedAppId || undefined,
     isAllApps: !selectedAppId,
     app,
+    slug,
     label: selectedAppId
       ? (app?.title ?? `${selectedAppId.slice(0, 8)}…`)
       : "All Apps (combined)",
