@@ -1,19 +1,22 @@
 # Purge sandbox/seeded IAP revenue from QuizVerse prod analytics storage.
-# Requires DASHBOARD_SECRET in d:\nakama\.env (and NAKAMA_HTTP_KEY for direct mode).
+# Requires DASHBOARD_SECRET + NAKAMA_HTTP_KEY in d:\nakama\.env
 #
-# Usage:
-#   cd d:\nakama
-#   .\scripts\purge-sandbox-revenue.ps1
+# FAST (recommended for Daily Revenue $47.29, ~10 seconds):
 #   .\scripts\purge-sandbox-revenue.ps1 -Apply
-#   .\scripts\purge-sandbox-revenue.ps1 -Apply -SkipEvents
+#
+# SLOW (full scan of all analytics_events, 30+ min, usually unnecessary):
+#   .\scripts\purge-sandbox-revenue.ps1 -Apply -IncludeEvents
+#
+# Skip monthly/lifetime recompute (fastest apply):
+#   .\scripts\purge-sandbox-revenue.ps1 -Apply -SkipRecompute
 
 param(
   [string]$HttpKey = $env:NAKAMA_HTTP_KEY,
   [string]$BaseUrl = $env:NAKAMA_BASE_URL,
-  [string]$From = "2026-06-29",
+  [string]$From = "2026-06-02",
   [string]$To = "2026-07-02",
   [switch]$Apply,
-  [switch]$SkipEvents,
+  [switch]$IncludeEvents,
   [switch]$SkipRecompute
 )
 
@@ -24,8 +27,9 @@ $envFile = Join-Path $repoRoot ".env"
 $secret = $null
 if (Test-Path $envFile) {
   foreach ($line in Get-Content $envFile) {
-    if ($line -match '^\s*DASHBOARD_SECRET=(.+)$') { $secret = $matches[1].Trim(); break }
+    if (-not $secret -and $line -match '^\s*DASHBOARD_SECRET=(.+)$') { $secret = $matches[1].Trim() }
     if (-not $HttpKey -and $line -match '^\s*NAKAMA_HTTP_KEY=(.+)$') { $HttpKey = $matches[1].Trim() }
+    if (-not $BaseUrl -and $line -match '^\s*NAKAMA_BASE_URL=(.+)$') { $BaseUrl = $matches[1].Trim() }
   }
 }
 if (-not $secret) { Write-Error "DASHBOARD_SECRET not found in $envFile" }
@@ -44,7 +48,7 @@ function Invoke-NakamaRpc($rpcId, $payload) {
 
 Write-Host "=== Before: satori_game_metrics (31d) ==="
 $before = Invoke-NakamaRpc "satori_game_metrics" @{ days = 31; game_id = $gameId }
-$badDays = @($before.series | Where-Object { [double]$_.revenue -gt 0.05 })
+$badDays = @($before.series | Where-Object { [double]$_.revenue -gt 0.001 })
 if ($badDays.Count -gt 0) {
   foreach ($row in $badDays) {
     Write-Host ("  {0}: USD {1} ({2} payers)" -f $row.date, $row.revenue, $row.payers)
@@ -54,11 +58,19 @@ if ($badDays.Count -gt 0) {
 }
 Write-Host ("  31d total revenue: USD {0}" -f $before.totals.revenue)
 
-if (-not $SkipEvents) {
+if (-not $IncludeEvents) {
+  Write-Host ""
+  Write-Host "Skipping analytics_events_purge (fast mode). Use -IncludeEvents for full event scan."
+}
+
+if ($IncludeEvents) {
   Write-Host ""
   Write-Host "=== analytics_events_purge (dry_run=$dryRun) ${From} .. ${To} ==="
+  Write-Host "This scans the entire analytics_events collection; may take 30+ minutes."
   $cursor = $null
+  $page = 0
   do {
+    $page++
     $ep = @{
       game_id = $gameId
       from = $From
@@ -68,9 +80,12 @@ if (-not $SkipEvents) {
     }
     if ($cursor) { $ep.cursor = $cursor }
     $resp = Invoke-NakamaRpc "analytics_events_purge" $ep
-    Write-Host ($resp | ConvertTo-Json -Compress -Depth 6)
+    $matched = if ($null -ne $resp.matched) { [int]$resp.matched } else { 0 }
+    $scanned = if ($null -ne $resp.scanned) { [int]$resp.scanned } else { 0 }
+    Write-Host ("  page {0}: scanned={1} matched={2} truncated={3}" -f $page, $scanned, $matched, $resp.truncated)
     $cursor = $resp.next_cursor
   } while ($cursor)
+  Write-Host ("  events purge finished ({0} pages)" -f $page)
 }
 
 Write-Host ""
@@ -105,13 +120,13 @@ if ($Apply -and -not $SkipRecompute) {
 Write-Host ""
 Write-Host "=== After: satori_game_metrics (31d) ==="
 $after = Invoke-NakamaRpc "satori_game_metrics" @{ days = 31; game_id = $gameId }
-$badAfter = @($after.series | Where-Object { [double]$_.revenue -gt 0.05 })
+$badAfter = @($after.series | Where-Object { [double]$_.revenue -gt 0.001 })
 if ($badAfter.Count -gt 0) {
   foreach ($row in $badAfter) {
     Write-Host ("  STILL {0}: USD {1}" -f $row.date, $row.revenue)
   }
 } else {
-  Write-Host "  OK - no daily revenue above 0.05 USD"
+  Write-Host "  OK - all daily revenue zero"
 }
 Write-Host ("  31d total revenue: USD {0}" -f $after.totals.revenue)
 

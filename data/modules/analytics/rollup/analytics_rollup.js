@@ -259,7 +259,7 @@ function arLiveDailyKeysForPurge(gameId, dayStr) {
     return keys;
 }
 
-// Zero IAP revenue counters in analytics_live_daily (revenue-purge previously skipped this).
+// Zero IAP + ad revenue counters in analytics_live_daily.
 function arPurgeLiveDailyMoney(nk, gameId, dayStr, dryRun, auditMeta) {
     var keys = arLiveDailyKeysForPurge(gameId, dayStr);
     var purchaseNames = ["iap_purchased", "iap_purchase", "purchase_completed", "offer_purchased"];
@@ -273,7 +273,9 @@ function arPurgeLiveDailyMoney(nk, gameId, dayStr, dryRun, auditMeta) {
             out.push({ key: liveKey, found: false });
             continue;
         }
-        var beforeUsd = parseFloat(doc.revenue_usd) || 0;
+        var beforeIapUsd = parseFloat(doc.revenue_usd) || 0;
+        var beforeAdUsd = parseFloat(doc.ad_revenue_usd) || 0;
+        var beforeTotal = beforeIapUsd + beforeAdUsd;
         var beforeIap = 0;
         var byName = doc.by_name || {};
         for (var pi = 0; pi < purchaseNames.length; pi++) {
@@ -282,14 +284,16 @@ function arPurgeLiveDailyMoney(nk, gameId, dayStr, dryRun, auditMeta) {
         var entry = {
             key: liveKey,
             found: true,
-            before_usd: Math.round(beforeUsd * 100) / 100,
-            before_iap_events: beforeIap,
-            ad_revenue_usd_kept: parseFloat(doc.ad_revenue_usd) || 0
+            before_iap_usd: Math.round(beforeIapUsd * 100) / 100,
+            before_ad_usd: Math.round(beforeAdUsd * 100) / 100,
+            before_total_usd: Math.round(beforeTotal * 100) / 100,
+            before_iap_events: beforeIap
         };
-        totalRemovedUsd += beforeUsd;
+        totalRemovedUsd += beforeTotal;
 
-        if (!dryRun && (beforeUsd > 0 || beforeIap > 0)) {
+        if (!dryRun && (beforeTotal > 0 || beforeIap > 0)) {
             doc.revenue_usd = 0;
+            doc.ad_revenue_usd = 0;
             for (var zi = 0; zi < purchaseNames.length; zi++) {
                 if (byName[purchaseNames[zi]]) byName[purchaseNames[zi]] = 0;
             }
@@ -2652,39 +2656,48 @@ function rpcAnalyticsRevenuePurge(ctx, logger, nk, payload) {
             entry.rollup = { found: false, skipped: "no rollup doc" };
         } else {
             var rev = doc.revenue || {};
-            var beforeUsd = rev.usd || 0;
+            var beforeIapUsd = rev.usd || 0;
+            var beforeAdUsd = rev.ad_revenue_usd || 0;
+            var beforeTotal = beforeIapUsd + beforeAdUsd;
             var beforeIap = rev.iap_count || 0;
 
-            // Already purged? Report and skip the re-stamp (idempotent).
-            if (rev._purged) {
+            // Skip only when fully zero (including ad micro-revenue).
+            if (rev._purged && beforeTotal <= 0 && beforeIap <= 0) {
                 entry.rollup = {
                     found: true, already_purged: true,
                     removed_usd: 0, removed_iap: 0,
-                    current_usd: beforeUsd, current_iap: beforeIap
+                    current_usd: beforeIapUsd, current_ad_usd: beforeAdUsd
+                };
+            } else if (beforeTotal <= 0 && beforeIap <= 0) {
+                entry.rollup = {
+                    found: true, skipped: "already zero",
+                    current_usd: 0, current_ad_usd: 0
                 };
             } else {
-                totalRemovedUsd += beforeUsd;
+                totalRemovedUsd += beforeTotal;
                 totalRemovedIap += beforeIap;
                 docsTouched++;
 
                 entry.rollup = {
-                    found: true, already_purged: false,
-                    before_usd: Math.round(beforeUsd * 100) / 100,
-                    before_iap_count: beforeIap,
-                    ad_revenue_usd_kept: rev.ad_revenue_usd || 0
+                    found: true, already_purged: !!rev._purged,
+                    before_iap_usd: Math.round(beforeIapUsd * 100) / 100,
+                    before_ad_usd: Math.round(beforeAdUsd * 100) / 100,
+                    before_total_usd: Math.round(beforeTotal * 100) / 100,
+                    before_iap_count: beforeIap
                 };
 
                 if (!dryRun) {
-                    // Zero only the IAP-money fields + purchase-derived funnel counts.
-                    // Ad revenue + ad funnel are real (~$0.14) and left untouched.
                     rev.usd = 0;
+                    rev.ad_revenue_usd = 0;
                     rev.iap_count = 0;
                     rev.paywall_converted = 0;
                     rev.paywall_conversion_rate_pct = 0;
                     rev.top_products = [];
                     rev._purged = {
                         purged_at: purgedAt,
-                        removed_usd: Math.round(beforeUsd * 100) / 100,
+                        removed_iap_usd: Math.round(beforeIapUsd * 100) / 100,
+                        removed_ad_usd: Math.round(beforeAdUsd * 100) / 100,
+                        removed_total_usd: Math.round(beforeTotal * 100) / 100,
                         removed_iap_count: beforeIap,
                         reason: auditMeta.reason,
                         by: auditMeta.by
