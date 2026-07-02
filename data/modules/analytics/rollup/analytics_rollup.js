@@ -30,6 +30,7 @@
 var AR_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
 var AR_ADMIN_USERS_COLLECTION = "admin_users";
 var AR_ROLLUP_COLLECTION = "analytics_rollup_daily";
+var AR_LIVE_COLLECTION = "analytics_live_daily";
 var AR_RETENTION_COLLECTION = "analytics_retention";
 var AR_FUNNEL_COLLECTION = "analytics_funnel_daily";
 var AR_META_COLLECTION = "analytics_rollup_meta";
@@ -244,6 +245,66 @@ function arWriteOne(nk, collection, key, userId, value) {
         // Return the error message so callers can decide whether to fail or warn.
         return { ok: false, error: e.message || String(e) };
     }
+}
+
+// analytics_live_daily keys the dashboard reads when no rollup doc exists (e.g. today).
+function arLiveDailyKeysForPurge(gameId, dayStr) {
+    var keys = [];
+    if (!gameId || gameId === "all" || gameId === "global") {
+        keys.push("live_all_" + dayStr);
+    } else {
+        keys.push("live_" + gameId + "_" + dayStr);
+        keys.push("live_all_" + dayStr);
+    }
+    return keys;
+}
+
+// Zero IAP revenue counters in analytics_live_daily (revenue-purge previously skipped this).
+function arPurgeLiveDailyMoney(nk, gameId, dayStr, dryRun, auditMeta) {
+    var keys = arLiveDailyKeysForPurge(gameId, dayStr);
+    var purchaseNames = ["iap_purchased", "iap_purchase", "purchase_completed", "offer_purchased"];
+    var out = [];
+    var totalRemovedUsd = 0;
+
+    for (var ki = 0; ki < keys.length; ki++) {
+        var liveKey = keys[ki];
+        var doc = arReadOne(nk, AR_LIVE_COLLECTION, liveKey, AR_SYSTEM_USER);
+        if (!doc) {
+            out.push({ key: liveKey, found: false });
+            continue;
+        }
+        var beforeUsd = parseFloat(doc.revenue_usd) || 0;
+        var beforeIap = 0;
+        var byName = doc.by_name || {};
+        for (var pi = 0; pi < purchaseNames.length; pi++) {
+            beforeIap += parseInt(byName[purchaseNames[pi]], 10) || 0;
+        }
+        var entry = {
+            key: liveKey,
+            found: true,
+            before_usd: Math.round(beforeUsd * 100) / 100,
+            before_iap_events: beforeIap,
+            ad_revenue_usd_kept: parseFloat(doc.ad_revenue_usd) || 0
+        };
+        totalRemovedUsd += beforeUsd;
+
+        if (!dryRun && (beforeUsd > 0 || beforeIap > 0)) {
+            doc.revenue_usd = 0;
+            for (var zi = 0; zi < purchaseNames.length; zi++) {
+                if (byName[purchaseNames[zi]]) byName[purchaseNames[zi]] = 0;
+            }
+            doc.by_name = byName;
+            doc.revenue_purged = auditMeta || { purged_at: new Date().toISOString() };
+            var w = arWriteOne(nk, AR_LIVE_COLLECTION, liveKey, AR_SYSTEM_USER, doc);
+            if (w !== true) {
+                entry.write_error = (w && w.error) || "write failed";
+            } else {
+                entry.purged = true;
+            }
+        }
+        out.push(entry);
+    }
+    return { keys: out, removed_usd: Math.round(totalRemovedUsd * 100) / 100 };
 }
 
 // ─── Core: scan events for one day ────────────────────────
@@ -2519,7 +2580,7 @@ function rpcAnalyticsRevenueVerify(ctx, logger, nk, payload) {
 
 /**
  * analytics_revenue_purge — zero out seeded/test IAP revenue in daily rollup
- * docs WITHOUT touching the raw analytics_events. Reversible: re-running
+ * docs AND the analytics_live_daily live counter (revenue_usd + iap by_name).
  * analytics_rollup_run for the same date recomputes revenue from the
  * (untouched) events.
  *
@@ -2571,67 +2632,81 @@ function rpcAnalyticsRevenuePurge(ctx, logger, nk, payload) {
     var results = [];
     var totalRemovedUsd = 0;
     var totalRemovedIap = 0;
+    var totalRemovedLiveUsd = 0;
     var docsTouched = 0;
+    var liveDocsTouched = 0;
+    var auditMeta = {
+        purged_at: purgedAt,
+        reason: data.reason || "seeded/test IAP revenue removed",
+        by: gate.bypass || "admin"
+    };
 
     for (var di = 0; di < dates.length; di++) {
         var dayStr = dates[di];
+        var entry = { date: dayStr };
+
+        // --- analytics_rollup_daily (when present) ---
         var key = "rollup_" + gameId + "_" + dayStr;
         var doc = arReadOne(nk, AR_ROLLUP_COLLECTION, key, AR_SYSTEM_USER);
         if (!doc) {
-            results.push({ date: dayStr, found: false, skipped: "no rollup doc" });
-            continue;
-        }
-        var rev = doc.revenue || {};
-        var beforeUsd = rev.usd || 0;
-        var beforeIap = rev.iap_count || 0;
+            entry.rollup = { found: false, skipped: "no rollup doc" };
+        } else {
+            var rev = doc.revenue || {};
+            var beforeUsd = rev.usd || 0;
+            var beforeIap = rev.iap_count || 0;
 
-        // Already purged? Report and skip the re-stamp (idempotent).
-        if (rev._purged) {
-            results.push({
-                date: dayStr, found: true, already_purged: true,
-                removed_usd: 0, removed_iap: 0,
-                current_usd: beforeUsd, current_iap: beforeIap
-            });
-            continue;
-        }
-
-        totalRemovedUsd += beforeUsd;
-        totalRemovedIap += beforeIap;
-        docsTouched++;
-
-        var entry = {
-            date: dayStr, found: true, already_purged: false,
-            before_usd: Math.round(beforeUsd * 100) / 100,
-            before_iap_count: beforeIap,
-            ad_revenue_usd_kept: rev.ad_revenue_usd || 0
-        };
-
-        if (!dryRun) {
-            // Zero only the IAP-money fields + purchase-derived funnel counts.
-            // Ad revenue + ad funnel are real (~$0.14) and left untouched.
-            rev.usd = 0;
-            rev.iap_count = 0;
-            rev.paywall_converted = 0;
-            rev.paywall_conversion_rate_pct = 0;
-            rev.top_products = [];
-            // Audit trail so the purge is traceable and a rollup re-run is an
-            // obvious un-purge (it overwrites the whole revenue object).
-            rev._purged = {
-                purged_at: purgedAt,
-                removed_usd: Math.round(beforeUsd * 100) / 100,
-                removed_iap_count: beforeIap,
-                reason: data.reason || "seeded/test IAP revenue removed",
-                by: gate.bypass || "admin"
-            };
-            doc.revenue = rev;
-
-            var w = arWriteOne(nk, AR_ROLLUP_COLLECTION, key, AR_SYSTEM_USER, doc);
-            if (w !== true) {
-                entry.write_error = (w && w.error) || "write failed";
+            // Already purged? Report and skip the re-stamp (idempotent).
+            if (rev._purged) {
+                entry.rollup = {
+                    found: true, already_purged: true,
+                    removed_usd: 0, removed_iap: 0,
+                    current_usd: beforeUsd, current_iap: beforeIap
+                };
             } else {
-                entry.purged = true;
+                totalRemovedUsd += beforeUsd;
+                totalRemovedIap += beforeIap;
+                docsTouched++;
+
+                entry.rollup = {
+                    found: true, already_purged: false,
+                    before_usd: Math.round(beforeUsd * 100) / 100,
+                    before_iap_count: beforeIap,
+                    ad_revenue_usd_kept: rev.ad_revenue_usd || 0
+                };
+
+                if (!dryRun) {
+                    // Zero only the IAP-money fields + purchase-derived funnel counts.
+                    // Ad revenue + ad funnel are real (~$0.14) and left untouched.
+                    rev.usd = 0;
+                    rev.iap_count = 0;
+                    rev.paywall_converted = 0;
+                    rev.paywall_conversion_rate_pct = 0;
+                    rev.top_products = [];
+                    rev._purged = {
+                        purged_at: purgedAt,
+                        removed_usd: Math.round(beforeUsd * 100) / 100,
+                        removed_iap_count: beforeIap,
+                        reason: auditMeta.reason,
+                        by: auditMeta.by
+                    };
+                    doc.revenue = rev;
+
+                    var w = arWriteOne(nk, AR_ROLLUP_COLLECTION, key, AR_SYSTEM_USER, doc);
+                    if (w !== true) {
+                        entry.rollup.write_error = (w && w.error) || "write failed";
+                    } else {
+                        entry.rollup.purged = true;
+                    }
+                }
             }
         }
+
+        // --- analytics_live_daily (always — fixes today's dashboard before rollup exists) ---
+        var liveResult = arPurgeLiveDailyMoney(nk, gameId, dayStr, dryRun, auditMeta);
+        entry.live_daily = liveResult.keys;
+        totalRemovedLiveUsd += liveResult.removed_usd || 0;
+        if (liveResult.removed_usd > 0) liveDocsTouched++;
+
         results.push(entry);
     }
 
@@ -2640,12 +2715,14 @@ function rpcAnalyticsRevenuePurge(ctx, logger, nk, payload) {
         dry_run: dryRun,
         dates: dates,
         docs_touched: docsTouched,
+        live_docs_touched: liveDocsTouched,
         total_removed_usd: Math.round(totalRemovedUsd * 100) / 100,
+        total_removed_live_usd: Math.round(totalRemovedLiveUsd * 100) / 100,
         total_removed_iap_count: totalRemovedIap,
         results: results,
         hint: dryRun
             ? "DRY RUN — nothing written. Re-call with {\"dry_run\": false} to apply. Reversible later via analytics_rollup_run for each date."
-            : "Purged. Re-run analytics_revenue_verify to confirm. To restore real values, run analytics_rollup_run for each date (recomputes from raw events)."
+            : "Purged rollup + live_daily IAP counters. Re-run analytics_revenue_verify / satori_game_metrics to confirm."
     });
 }
 
