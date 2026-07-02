@@ -41,7 +41,11 @@ ARG NODE_VERSION=18
 # Docker Hub pull rate limit (HTTP 429 toomanyrequests) that intermittently
 # breaks CodeBuild from shared NAT IPs.
 # ---------------------------------------------------------------------------
-FROM public.ecr.aws/docker/library/golang:${GO_VERSION}-bookworm AS gomod
+# Pinned to $BUILDPLATFORM: the Go toolchain always runs on the native
+# CodeBuild arch and CROSS-compiles for $TARGETARCH (see server/plugins
+# stages). This keeps multi-arch (amd64+arm64/Graviton) builds fast — the
+# compiler is never emulated under QEMU.
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:${GO_VERSION}-bookworm AS gomod
 
 ENV CGO_ENABLED=1 \
     GO111MODULE=on \
@@ -51,6 +55,17 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates gcc libc6-dev git make \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
+
+# Cross toolchain for the arm64 (Graviton) image half. CGO must stay enabled
+# (Go plugins require it), so cross-compiling to arm64 from an amd64 builder
+# needs the aarch64 gcc + arm64 libc headers. No-op when the builder is
+# already arm64 (native gcc suffices there).
+RUN if [ "$(dpkg --print-architecture)" != "arm64" ]; then \
+      apt-get update \
+   && apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu libc6-dev-arm64-cross \
+   && apt-get clean \
+   && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -82,7 +97,16 @@ RUN if [ -f web/analytics-dashboard/index.html ]; then \
     else \
       echo ">>> WARNING: web/analytics-dashboard/index.html missing — embedded dashboard stays on legacy version"; \
     fi
-RUN go build -trimpath -mod=vendor -ldflags "-s -w" -o /out/nakama .
+# Cross-compile for the target platform of this image half. On the amd64
+# half this is a plain native build (CC=gcc, GOARCH=amd64); on the arm64
+# half it cross-compiles with the aarch64 gcc installed in the gomod stage.
+ARG TARGETOS
+ARG TARGETARCH
+RUN set -eu; \
+    CC=gcc; \
+    if [ "${TARGETARCH:-}" = "arm64" ] && [ "$(dpkg --print-architecture)" != "arm64" ]; then CC=aarch64-linux-gnu-gcc; fi; \
+    GOOS="${TARGETOS:-linux}" GOARCH="${TARGETARCH:-}" CC="$CC" \
+    go build -trimpath -mod=vendor -ldflags "-s -w" -o /out/nakama .
 
 # ---------------------------------------------------------------------------
 # Stage 3: build any Go plugins under data/modules/<name>/*.go
@@ -95,9 +119,17 @@ RUN go build -trimpath -mod=vendor -ldflags "-s -w" -o /out/nakama .
 # ---------------------------------------------------------------------------
 FROM gomod AS plugins
 COPY . .
+# Same cross-compile arrangement as the server stage: plugins MUST be built
+# with the exact same toolchain/GOOS/GOARCH as the server binary that dlopens
+# them, so mirror the CC/GOARCH selection here.
+ARG TARGETOS
+ARG TARGETARCH
 # Note: /bin/sh in debian:bookworm is dash, which does not support `pipefail`.
 # Script has no pipes, so `set -eu` is sufficient (fail on error + unset var).
 RUN set -eu; \
+    CC=gcc; \
+    if [ "${TARGETARCH:-}" = "arm64" ] && [ "$(dpkg --print-architecture)" != "arm64" ]; then CC=aarch64-linux-gnu-gcc; fi; \
+    export GOOS="${TARGETOS:-linux}" GOARCH="${TARGETARCH:-}" CC="$CC"; \
     mkdir -p /out; \
     if [ -d data/modules ]; then \
       for dir in data/modules/*/; do \
@@ -136,7 +168,9 @@ RUN set -eu; \
 #     d) `node -c index.js` is a hard syntax gate. Mirrors the dev
 #        Dockerfile (which has had this gate since day one).
 # ---------------------------------------------------------------------------
-FROM public.ecr.aws/docker/library/node:${NODE_VERSION}-alpine AS modules
+# Pinned to $BUILDPLATFORM: tsc output is plain JS (arch-independent), so
+# there is no reason to run node under QEMU for the arm64 image half.
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:${NODE_VERSION}-alpine AS modules
 WORKDIR /build/modules
 
 # (a) Cacheable npm install layer — only invalidated when deps change.

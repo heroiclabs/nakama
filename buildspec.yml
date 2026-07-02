@@ -70,6 +70,9 @@ phases:
       - echo "REPOSITORY_URI=$REPOSITORY_URI"
       - echo "=== Logging into ECR ==="
       - aws ecr get-login-password --region "$AWS_DEFAULT_REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+      - echo "=== Setting up docker buildx for multi-arch (amd64+arm64) builds ==="
+      - docker run --privileged --rm tonistiigi/binfmt --install arm64 || true
+      - docker buildx create --use --name multiarch || docker buildx use multiarch
       - echo "=== Configuring kubectl for EKS ==="
       - aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER_NAME"
       - kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}' || true
@@ -155,9 +158,13 @@ phases:
     # failure in build/smoke-test/push never reaches the rollout step.
     on-failure: ABORT
     commands:
-      - echo "=== Building image ${REPOSITORY_URI}:${IMAGE_VERSION} ==="
+      - echo "=== Building image ${REPOSITORY_URI}:${IMAGE_VERSION} (amd64, loaded locally for smoke test) ==="
+      # Built via buildx (same builder as the multi-arch push in post_build) so
+      # the amd64 layers are cached and the post_build step only adds arm64.
       - >
-        docker build
+        docker buildx build
+        --platform linux/amd64
+        --load
         -f Dockerfile.production
         --build-arg IMAGE_VERSION="$IMAGE_VERSION"
         --build-arg GIT_SHA="$CODEBUILD_RESOLVED_SOURCE_VERSION"
@@ -177,10 +184,23 @@ phases:
 
   post_build:
     commands:
-      - echo "=== Pushing immutable tag ${IMAGE_VERSION} ==="
-      - docker push "${REPOSITORY_URI}:${IMAGE_VERSION}"
-      - echo "=== Pushing :latest (compat only — rollouts use immutable tag) ==="
-      - docker push "${REPOSITORY_URI}:latest"
+      # Multi-arch (amd64+arm64) build-and-push. The amd64 half is fully cached
+      # from the build phase; the arm64 half cross-compiles natively (see
+      # Dockerfile.production: GOARCH=$TARGETARCH on a $BUILDPLATFORM-pinned
+      # builder stage — no QEMU for the Go compile). Pushes BOTH tags
+      # (immutable + :latest) as a single manifest list.
+      - echo "=== Building + pushing multi-arch (amd64+arm64) ${IMAGE_VERSION} and :latest ==="
+      - >
+        docker buildx build
+        --platform linux/amd64,linux/arm64
+        --provenance=false
+        -f Dockerfile.production
+        --build-arg IMAGE_VERSION="$IMAGE_VERSION"
+        --build-arg GIT_SHA="$CODEBUILD_RESOLVED_SOURCE_VERSION"
+        -t "${REPOSITORY_URI}:${IMAGE_VERSION}"
+        -t "${REPOSITORY_URI}:latest"
+        --push
+        .
       - echo "=== Resolving immutable digest from ECR ==="
       - >
         IMAGE_DIGEST=$(aws ecr describe-images
@@ -400,8 +420,8 @@ phases:
           echo "  No web/ changes — skipping console rebuild (current console image stays live)."
         else
           echo "  Building console image ${ADMIN_REPO}:${ADMIN_TAG} (context: web/)"
-          if docker build -f web/packages/admin/Dockerfile -t "${ADMIN_REPO}:${ADMIN_TAG}" -t "${ADMIN_REPO}:latest" web; then
-            docker push "${ADMIN_REPO}:${ADMIN_TAG}" && docker push "${ADMIN_REPO}:latest"
+          if docker buildx build --platform linux/amd64,linux/arm64 --provenance=false -f web/packages/admin/Dockerfile -t "${ADMIN_REPO}:${ADMIN_TAG}" -t "${ADMIN_REPO}:latest" --push web; then
+            echo "  multi-arch console image pushed (amd64+arm64)"
             ADMIN_DIGEST=$(aws ecr describe-images --repository-name nakama-admin-dashboard --image-ids imageTag="${ADMIN_TAG}" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)
             if [ -n "${ADMIN_DIGEST}" ] && [ "${ADMIN_DIGEST}" != "None" ]; then
               kubectl set image deployment/nakama-admin-dashboard admin-dashboard="${ADMIN_REPO}@${ADMIN_DIGEST}" -n "$K8S_NAMESPACE"
