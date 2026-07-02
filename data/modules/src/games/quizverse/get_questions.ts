@@ -34,7 +34,7 @@ namespace QvGetQuestions {
   var INFLIGHT_TTL_MS   = 1800000;  // 30 minutes
   var ABANDON_TTL_GETQUESTIONS_MS = 5 * 60 * 1000; // 5 min — purge unsubmitted packs per request
   var DEFAULT_COUNT     = 10;
-  var MAX_COUNT         = 20;
+  var MAX_COUNT         = 100;
   var MIN_COUNT         = 1;
   var MAX_FULFILL_ATTEMPTS = 3;
   var SEEN_MAX          = 500;      // cap the seen-IDs array to keep storage lean

@@ -114,7 +114,7 @@ namespace QvQuestionCache {
     MEDIASTACK_API_KEY: "ec6ef35b59624891e5604efb140adefb",
     NEWSAPI_API_KEY:    "5cbc52d4e9e14df683ed965b04cbf6fb",
     GUARDIAN_API_KEY:   "test",   // Guardian developer tier — replace with production key when ready
-    NASA_API_KEY:       "DEMO_KEY"   // safe public fallback (50 req/day)
+    NASA_API_KEY:       "g2ofGlzt9YRi0pt2xHhLjCygLWdi6536mEGezmr9"   // safe public fallback (50 req/day)
   };
 
   function envKey(env: any, key: string): string {
@@ -122,6 +122,7 @@ namespace QvQuestionCache {
     if (FALLBACK_KEYS[key] && String(FALLBACK_KEYS[key]).trim()) return String(FALLBACK_KEYS[key]).trim();
     return "";
   }
+
 
   // Option letter IDs
   var LETTERS = ["A", "B", "C", "D", "E", "F"];
@@ -194,6 +195,7 @@ namespace QvQuestionCache {
     difficulty:         string;
     provider:           string;
   }
+
 
   // ── Low-level helpers ──────────────────────────────────────────────────────
 
@@ -662,7 +664,7 @@ namespace QvQuestionCache {
   function fetchCocktaildb(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
     var seen: { [n: string]: boolean } = {};
-    for (var ci = 0; ci < 20; ci++) {
+    for (var ci = 0; ci < 40; ci++) {
       try {
         var data: any = httpGet(nk, "https://www.thecocktaildb.com/api/json/v1/1/random.php");
         if (!data || !data.drinks || !data.drinks[0]) continue;
@@ -700,7 +702,7 @@ namespace QvQuestionCache {
   function fetchMealdb(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
     var seen2: { [n: string]: boolean } = {};
-    for (var mi = 0; mi < 20; mi++) {
+    for (var mi = 0; mi < 40; mi++) {
       try {
         var data2: any = httpGet(nk, "https://www.themealdb.com/api/json/v1/1/random.php");
         if (!data2 || !data2.meals || !data2.meals[0]) continue;
@@ -751,7 +753,7 @@ namespace QvQuestionCache {
     }
     var breedSample = 40;
     if (env && env["QV_DOGCEO_BREED_SAMPLE"]) {
-      var parsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 10);
+      var parsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 40);
       if (!isNaN(parsed) && parsed > 0) breedSample = parsed;
     }
     var selected = pick(allBreeds, breedSample);
@@ -813,7 +815,7 @@ namespace QvQuestionCache {
       var film: any = data3[gi4];
       try {
         var ftitle = film.title || null;
-        var filmImage = film.image || null;
+        var filmImage = film.movie_banner || null;
         var fdirector = film.director || null;
         var fyear = film.release_date || null;
         if (!ftitle || !filmImage) {
@@ -852,10 +854,16 @@ namespace QvQuestionCache {
     return results;
   }
 
+  function getRandomInt(min: number, max: number): number {
+    // Use Math.floor to round down to the nearest whole number
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
   // ── 8. Disney API ─────────────────────────────────────────────────────────
   function fetchDisney(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
-    var data4: any = httpGet(nk, "https://api.disneyapi.dev/character?pageSize=50&page=1");
+    // Random offset for Disney API pagination
+    var data4: any = httpGet(nk, "https://api.disneyapi.dev/character?pageSize=50&page=" + getRandomInt(1, 50));
     if (!data4 || !Array.isArray(data4.data)) throw new Error("Disney API: no data");
     var chars: any[] = data4.data;
     // Build pool of all source titles
@@ -1140,10 +1148,10 @@ namespace QvQuestionCache {
   }
 
   // ── 11. NASA APOD (Space) — key-gated; falls back to DEMO_KEY ─────────────
-  function fetchNasa(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger): RawQuestion[] {
+  function fetchNasa(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger, ): RawQuestion[] {
     var results: RawQuestion[] = [];
     var apiKey = envKey(env, "NASA_API_KEY") || "DEMO_KEY";
-    var data7: any = httpGet(nk, "https://api.nasa.gov/planetary/apod?api_key=" + apiKey + "&count=20&thumbs=true");
+    var data7: any = httpGet(nk, "https://api.nasa.gov/planetary/apod?api_key=" + apiKey + "&count=50&thumbs=true");
     if (!Array.isArray(data7)) throw new Error("NASA APOD: expected array");
 
     for (var ni = 0; ni < data7.length; ni++) {
@@ -1249,7 +1257,7 @@ namespace QvQuestionCache {
           totalTeams++;
           try {
             var tname = team.strTeam || null;
-            var tbadge: string | null = team.strTeamBadge || null;
+            var tbadge: string | null = team.strFanart1 || team.strBadge|| null;
             var tfounded = team.intFormedYear || null;
             if (!tname || !tbadge) {
               skipped++;
@@ -1393,9 +1401,25 @@ namespace QvQuestionCache {
     var naKey  = envKey(env, "NEWSAPI_API_KEY");
     var guKey  = envKey(env, "GUARDIAN_API_KEY");
 
+    if (msKey) {
+      try {
+        var md: any = httpGet(nk, "http://api.mediastack.com/v1/news?access_key=" + msKey + "&languages=en&limit=50");
+        if (md && Array.isArray(md.data)) {
+          for (var mni = 0; mni < md.data.length; mni++) {
+            var mn: any = md.data[mni];
+            articles.push({
+              title: mn.title, description: mn.description || "",
+              image: mn.image || null,
+              source: { name: mn.source || "MediaStack" },
+              provider: "mediastack"
+            });
+          }
+        }
+      } catch (e: any) { logger.warn("[QvQCache/news] MediaStack: " + (e && e.message)); }
+    }
     if (gnKey) {
       try {
-        var gd: any = httpGet(nk, "https://gnews.io/api/v4/top-headlines?token=" + gnKey + "&lang=en&max=20");
+        var gd: any = httpGet(nk, "https://gnews.io/api/v4/top-headlines?token=" + gnKey + "&lang=en&max=50");
         if (gd && gd.articles) {
           for (var gni = 0; gni < gd.articles.length; gni++) {
             var ga: any = gd.articles[gni];
@@ -1425,25 +1449,9 @@ namespace QvQuestionCache {
         }
       } catch (e: any) { logger.warn("[QvQCache/news] Currents: " + (e && e.message)); }
     }
-    if (msKey) {
-      try {
-        var md: any = httpGet(nk, "http://api.mediastack.com/v1/news?access_key=" + msKey + "&languages=en&limit=20");
-        if (md && Array.isArray(md.data)) {
-          for (var mni = 0; mni < md.data.length; mni++) {
-            var mn: any = md.data[mni];
-            articles.push({
-              title: mn.title, description: mn.description || "",
-              image: mn.image || null,
-              source: { name: mn.source || "MediaStack" },
-              provider: "mediastack"
-            });
-          }
-        }
-      } catch (e: any) { logger.warn("[QvQCache/news] MediaStack: " + (e && e.message)); }
-    }
     if (naKey) {
       try {
-        var nd: any = httpGet(nk, "https://newsapi.org/v2/top-headlines?apiKey=" + naKey + "&language=en&pageSize=20");
+        var nd: any = httpGet(nk, "https://newsapi.org/v2/top-headlines?apiKey=" + naKey + "&language=en&pageSize=50");
         if (nd && Array.isArray(nd.articles)) {
           for (var nai = 0; nai < nd.articles.length; nai++) {
             var na: any = nd.articles[nai];
@@ -1584,7 +1592,7 @@ namespace QvQuestionCache {
 
   function fetchForTopic(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger, topic: string): RawQuestion[] {
     switch (topic) {
-      case "opentdb":   return fetchOpentdb(nk, logger);
+      case "geography":   return fetchOpentdb(nk, logger);
       case "anime":     return fetchJikan(nk, logger);
       case "pokemon":   return fetchPokeapi(nk, logger);
       case "cocktail":  return fetchCocktaildb(nk, logger);
