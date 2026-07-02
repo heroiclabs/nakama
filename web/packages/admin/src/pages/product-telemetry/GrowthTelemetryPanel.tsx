@@ -47,16 +47,43 @@ function fmtFixed(n: number | null | undefined, digits = 1): string {
   return Number.isFinite(v) ? v.toFixed(digits) : "—";
 }
 
+function formatSnapshotDate(value: string | null | undefined): string {
+  if (!value) return "unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return date.toLocaleDateString("en-IN", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
   const summary = snapshot.summary ?? ({} as GscSnapshot["summary"]);
   const queries = snapshot.queries ?? [];
+  const queryScope = summary.queryCount ? `Top ${summary.queryCount} queries` : "Top queries";
+  const rangeLabel = `${formatSnapshotDate(snapshot.dateRange?.start)} - ${formatSnapshotDate(snapshot.dateRange?.end)}`;
+  const updatedLabel = quizverse.formatRelative(snapshot.updatedAt);
   return (
     <div className="space-y-6">
+      <div className="rounded-xl border border-border bg-card/60 px-4 py-3 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">Google Search Console snapshot</span>
+        <span className="mx-2">·</span>
+        <span>{queryScope}</span>
+        <span className="mx-2">·</span>
+        <span>Range {rangeLabel}</span>
+        <span className="mx-2">·</span>
+        <span>Updated {updatedLabel}</span>
+      </div>
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Clicks" value={quizverse.formatCompactNumber(summary.totalClicks)} hint="28d" />
-        <StatTile label="Impressions" value={quizverse.formatCompactNumber(summary.totalImpressions)} />
-        <StatTile label="Avg CTR" value={quizverse.formatPct(summary.avgCtr)} />
-        <StatTile label="Avg position" value={fmtFixed(summary.avgPosition)} hint="lower is better" />
+        <StatTile label="Clicks" value={quizverse.formatCompactNumber(summary.totalClicks)} hint={queryScope} />
+        <StatTile
+          label="Impressions"
+          value={quizverse.formatCompactNumber(summary.totalImpressions)}
+          hint={queryScope}
+        />
+        <StatTile label="Avg CTR" value={quizverse.formatPct(summary.avgCtr)} hint={`${queryScope} avg`} />
+        <StatTile label="Avg position" value={fmtFixed(summary.avgPosition)} hint={`${queryScope} · lower is better`} />
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
