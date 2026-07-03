@@ -297,19 +297,18 @@ namespace SatoriFunnels {
       result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
       result.basis = "distinct_users";
     } else {
-      // Default: try the per-user event scan first (distinct users, accurate funnel).
-      // This uses the satori_events ring buffer which stores per-event rows.
+      // Default: try per-user scan on the sparse satori_events ring first.
       var perUserResult = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, null, windowHours ? windowHours * 3600000 : undefined);
-      if (perUserResult.scannedRecords > 0) {
-        // Per-user data available — use it (distinct users, step N cannot exceed step N-1).
+      if (perUserResult.entered > 0) {
+        // Distinct-user funnel — step N cannot exceed step N-1.
         result = perUserResult;
         result.basis = "distinct_users";
       } else {
-        // No per-user event rows in the ring buffer — fall back to aggregated event counts.
-        // NOTE: event-volume counts raw occurrences per step, so a later step can exceed
-        // an earlier one (e.g. a user starts 3 quizzes = 3 quiz_start events).
+        // Ring empty for this window, truncated without matches, or events lack
+        // userId — fall back to real analytics_live_daily by_name counts.
         result = computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId);
         result.basis = "event_volume";
+        if (perUserResult.truncated) result.ringScanTruncated = true;
       }
     }
     result.sinceMs = sinceMs;

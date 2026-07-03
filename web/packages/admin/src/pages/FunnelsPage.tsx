@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useScopedGameId } from "@/hooks/useScopedGame";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -106,6 +106,10 @@ function rpcGameId(scope: string) {
   return trimmed && trimmed !== GLOBAL_CONFIG_SCOPE ? trimmed : undefined;
 }
 
+function parseFunnelSteps(input: string): string[] {
+  return input.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
 function pct(v: number | null | undefined) {
   if (v === null || v === undefined) return "—";
   return `${(v * 100).toFixed(1)}%`;
@@ -208,9 +212,7 @@ function CloudMirrorCard({
 /* ── Funnel results bars ──────────────────────────────────────────── */
 
 function FunnelBars({ result }: { result: FunnelResult }) {
-  // Use the max across ALL steps (not just entered) to handle event_volume
-  // paths where later steps can exceed the first step count.
-  const isEventVolume = (result as any).basis === "event_volume";
+  const isEventVolume = result.basis === "event_volume";
   const label = isEventVolume ? "events" : "users";
   const max = Math.max(...result.steps.map((s) => s.users), 1);
 
@@ -329,11 +331,17 @@ function FunnelSection({
 
   const appendStep = (name: string) => {
     setStepsInput((prev) => {
-      const steps = prev.split(",").map((s) => s.trim()).filter(Boolean);
+      const steps = parseFunnelSteps(prev);
       if (steps.includes(name)) return prev;
       return [...steps, name].join(", ");
     });
   };
+
+  const selectedStepOrder = useMemo(() => {
+    const order = new Map<string, number>();
+    parseFunnelSteps(stepsInput).forEach((name, i) => order.set(name, i + 1));
+    return order;
+  }, [stepsInput]);
 
   const compute = useMutation({
     mutationFn: (params: Parameters<typeof satori.computeFunnel>[0]) =>
@@ -342,7 +350,7 @@ function FunnelSection({
 
   const save = useMutation({
     mutationFn: () => {
-      const steps = stepsInput.split(",").map((s) => s.trim()).filter(Boolean);
+      const steps = parseFunnelSteps(stepsInput);
       const id = saveName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_");
       return satori.saveFunnel(
         { id, name: saveName.trim(), steps, game_id: rpcGameId(gameScope) },
@@ -368,7 +376,7 @@ function FunnelSection({
   });
 
   const runAdhoc = () => {
-    const steps = stepsInput.split(",").map((s) => s.trim()).filter(Boolean);
+    const steps = parseFunnelSteps(stepsInput);
     if (steps.length < 2) return;
     compute.mutate({
       steps,
@@ -444,18 +452,40 @@ function FunnelSection({
                 Click to add a real logged event ({sinceDays}d volume):
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {catalog.data!.slice(0, 24).map((ev) => (
-                  <button
-                    key={ev.name}
-                    type="button"
-                    onClick={() => appendStep(ev.name)}
-                    title={`${ev.count.toLocaleString()} events`}
-                    className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2 py-0.5 font-mono text-[10px] text-muted-foreground hover:border-primary hover:text-primary"
-                  >
-                    {ev.name}
-                    <span className="text-[9px] opacity-60">{ev.count.toLocaleString()}</span>
-                  </button>
-                ))}
+                {catalog.data!.slice(0, 24).map((ev) => {
+                  const stepOrder = selectedStepOrder.get(ev.name);
+                  const isSelected = stepOrder !== undefined;
+                  return (
+                    <button
+                      key={ev.name}
+                      type="button"
+                      onClick={() => appendStep(ev.name)}
+                      aria-pressed={isSelected}
+                      title={
+                        isSelected
+                          ? `Step ${stepOrder} in funnel · ${ev.count.toLocaleString()} events (7d)`
+                          : `${ev.count.toLocaleString()} events (7d) — click to add`
+                      }
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] transition-colors",
+                        isSelected
+                          ? "border-primary/70 bg-primary/15 font-medium text-primary shadow-sm"
+                          : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary",
+                      )}
+                    >
+                      {isSelected && <Check className="h-3 w-3 shrink-0" aria-hidden />}
+                      <span>{ev.name}</span>
+                      {isSelected && (
+                        <span className="rounded bg-primary/20 px-1 text-[9px] font-semibold tabular-nums">
+                          {stepOrder}
+                        </span>
+                      )}
+                      <span className={cn("text-[9px] tabular-nums", isSelected ? "opacity-80" : "opacity-60")}>
+                        {ev.count.toLocaleString()}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -615,6 +645,15 @@ function RetentionSection({ gameScope }: { gameScope: string }) {
 
         {data && (
           <div className="space-y-4 border-t border-border pt-3">
+            {(data.basis === "active_user_rolling" || data.source === "analytics_pipeline") && (
+              <div className="flex items-start gap-2 rounded-md border border-blue-500/30 bg-blue-500/5 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
+                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <strong>Rolling active-user retention</strong> — each row is users active on that date;
+                  D1/D3/D7 = share who were also active 1/3/7 days later. Not new-user install cohorts.
+                </span>
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               {data.totalUsers.toLocaleString()} active users in window ·{" "}
               {data.scannedRecords.toLocaleString()} events scanned
@@ -630,7 +669,7 @@ function RetentionSection({ gameScope }: { gameScope: string }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-1.5 pr-4 font-medium">Cohort (first active)</th>
+                    <th className="py-1.5 pr-4 font-medium">Date (active users)</th>
                     <th className="py-1.5 pr-4 font-medium">Users</th>
                     <th className="py-1.5 pr-4 font-medium">D1</th>
                     <th className="py-1.5 pr-4 font-medium">D3</th>
