@@ -272,13 +272,31 @@ namespace InsightsAggregator {
     var partial = false;
 
     // Pull bounded slice of samples written into analytics_rpc_samples.
+    //
+    // RCA 2026-07-03: this used to call nk.storageList(), which returns
+    // rows ordered by KEY ascending. With ~2.3M rows in the collection the
+    // first MAX_* keys were always the lexicographically-smallest (i.e.
+    // oldest) rows, so every bucket scan intersected to zero and the
+    // aggregator emitted 0 bundles despite live traffic. Query by
+    // update_time instead — rows are written at event time, so a bucket
+    // window (± flush slack) on update_time selects exactly the rows we
+    // need regardless of collection size.
+    var WINDOW_SLACK_MS = 2 * 60 * 1000; // buffer flush is 30s; allow 2m
     var sampleRows: SampleRow[] = [];
     try {
-      var listRes = nk.storageList(SYSTEM_USER, SAMPLE_COLLECTION, MAX_SAMPLES_PER_BUCKET);
-      var objs = (listRes && (listRes as any).objects) || [];
-      if (objs.length >= MAX_SAMPLES_PER_BUCKET) partial = true;
-      for (var i = 0; i < objs.length; i++) {
-        var v: any = objs[i].value;
+      var sRes: any = nk.sqlQuery(
+        "SELECT value::text AS v FROM storage " +
+        "WHERE collection = $1 AND user_id = $2 " +
+        "AND update_time >= to_timestamp($3) AND update_time < to_timestamp($4) " +
+        "LIMIT $5",
+        [SAMPLE_COLLECTION, SYSTEM_USER,
+          (bucketStart - WINDOW_SLACK_MS) / 1000, (bucketEnd + WINDOW_SLACK_MS) / 1000,
+          MAX_SAMPLES_PER_BUCKET]
+      ) || [];
+      if (sRes.length >= MAX_SAMPLES_PER_BUCKET) partial = true;
+      for (var i = 0; i < sRes.length; i++) {
+        var v: any = null;
+        try { v = JSON.parse(sRes[i].v); } catch (_) { continue; }
         if (!v || !v.samples) continue;
         for (var s = 0; s < v.samples.length; s++) {
           var row = v.samples[s];
@@ -294,17 +312,23 @@ namespace InsightsAggregator {
 
     // Bucket events too — analytics.js writes one row per event under
     // `analytics_events` (system user, key contains gameId + day + event
-    // name). We don't have a dense secondary index by ts so we sample
-    // the last MAX_EVENTS_PER_BUCKET keys, intersected with the bucket
-    // timestamp range. Aggregator's job is signal density, not exhaustive
-    // counts — the dashboard already does that.
+    // name). Same update_time-window query as samples above; the row's
+    // own unixTimestamp remains the authoritative bucket filter.
     var eventRows: any[] = [];
     try {
-      var elRes = nk.storageList(SYSTEM_USER, EVENTS_COLLECTION, MAX_EVENTS_PER_BUCKET);
-      var eObjs = (elRes && (elRes as any).objects) || [];
-      if (eObjs.length >= MAX_EVENTS_PER_BUCKET) partial = true;
-      for (var ei = 0; ei < eObjs.length; ei++) {
-        var ev: any = eObjs[ei].value;
+      var eRes: any = nk.sqlQuery(
+        "SELECT value::text AS v FROM storage " +
+        "WHERE collection = $1 AND user_id = $2 " +
+        "AND update_time >= to_timestamp($3) AND update_time < to_timestamp($4) " +
+        "LIMIT $5",
+        [EVENTS_COLLECTION, SYSTEM_USER,
+          (bucketStart - WINDOW_SLACK_MS) / 1000, (bucketEnd + WINDOW_SLACK_MS) / 1000,
+          MAX_EVENTS_PER_BUCKET]
+      ) || [];
+      if (eRes.length >= MAX_EVENTS_PER_BUCKET) partial = true;
+      for (var ei = 0; ei < eRes.length; ei++) {
+        var ev: any = null;
+        try { ev = JSON.parse(eRes[ei].v); } catch (_) { continue; }
         if (!ev || !ev.unixTimestamp) continue;
         var tsMs = ev.unixTimestamp * 1000;
         if (tsMs < bucketStart || tsMs >= bucketEnd) continue;
@@ -353,13 +377,17 @@ namespace InsightsAggregator {
     for (var ei2 = 0; ei2 < eventRows.length; ei2++) {
       var ev = eventRows[ei2];
       var gid2 = ev.gameId || "unknown";
-      var cl2 = (ev.eventData && ev.eventData.cohort_label) || "pending";
-      var qm2 = (ev.eventData && ev.eventData.quiz_mode) || "_none";
+      // analytics.js persists event payloads under `properties`; older
+      // writers used `eventData`. Accept both so no cohort/mode signal
+      // silently degrades to "pending"/"_none".
+      var props2 = ev.properties || ev.eventData || {};
+      var cl2 = props2.cohort_label || "pending";
+      var qm2 = props2.quiz_mode || "_none";
       var key2 = gid2 + "::" + cl2 + "::" + qm2;
       var agg2 = aggregates[key2] || newAggregate(gid2, cl2, qm2);
       agg2.eventCounts[ev.eventName] = (agg2.eventCounts[ev.eventName] || 0) + 1;
-      if (ev.eventData && ev.eventData.quiz_card_type) {
-        agg2.cards[ev.eventData.quiz_card_type] = (agg2.cards[ev.eventData.quiz_card_type] || 0) + 1;
+      if (props2.quiz_card_type) {
+        agg2.cards[props2.quiz_card_type] = (agg2.cards[props2.quiz_card_type] || 0) + 1;
       }
       if (ev.sessionId) agg2.distinctSessions[ev.sessionId] = true;
       if (ev.userId) {
