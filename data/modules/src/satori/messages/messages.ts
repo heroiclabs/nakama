@@ -114,6 +114,14 @@ namespace SatoriMessages {
       var scheduledDelivered = 0;
       if (def.audienceId) {
         scheduledDelivered = deliverToAudience(nk, logger, def, def.audienceId, gameId);
+      } else {
+        // No audience filter = "all players": same random-sample delivery as
+        // the immediate-send path, so scheduled broadcasts actually go out.
+        var sampled = nk.usersGetRandom(100);
+        for (var si = 0; si < sampled.length; si++) {
+          deliverMessage(nk, sampled[si].userId, def, gameId);
+          scheduledDelivered++;
+        }
       }
 
       // Mark message as sent in definitions
