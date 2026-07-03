@@ -52169,10 +52169,20 @@ var AnalyticsAlerts;
     // RPC handlers (admin-style; gated by HTTP key via ctx)
     // ---------------------------------------------------------------------------
     function rpcTick(ctx, logger, nk, _payload) {
+        // Nakama runs a pool of JS VMs; module-level state set in InitModule's VM
+        // is not visible in RPC-serving VMs. Lazily re-init from ctx.env so the
+        // webhook is available regardless of which VM serves the request (same
+        // pattern as InsightsAggregator.rpcTick).
+        if (!webhookUrl) {
+            init(ctx, logger);
+        }
         var res = runSchedulerTick(nk, logger);
         return JSON.stringify({ success: true, data: res });
     }
-    function rpcStatus(_ctx, _logger, nk, _payload) {
+    function rpcStatus(ctx, logger, nk, _payload) {
+        if (!webhookUrl) {
+            init(ctx, logger);
+        }
         var lastPosted = getLastPostedSlot(nk);
         var nextSlotStart = lastClosedSlotStart(SUMMARY_INTERVAL_MS, Date.now());
         return JSON.stringify({
