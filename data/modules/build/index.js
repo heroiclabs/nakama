@@ -34993,6 +34993,16 @@ var LegacyPush;
         // the daily quiz once per owning account (prod audit 2026-07-03: 96 shared
         // endpoints → ~174 duplicate deliveries/day). The cron passes one shared
         // set per run; an ARN already pushed this run is skipped for later users.
+        // When every device this user owns was already pushed this run (via another
+        // account on the same phone), we must still report success so the cron
+        // records this user's day-marker: returning false left the co-owner account
+        // unmarked, and the NEXT cron run re-sent to the same phone through it —
+        // the in-run dedup merely postponed the duplicate by one run (observed
+        // 2026-07-03: dupe pairs 20 min apart, one per consecutive run). The device
+        // HAS the notification; that is the semantic the marker tracks. We do NOT
+        // return early: the per-ACCOUNT in-app inbox entry below must still be
+        // written for this account.
+        var dedupSuppressedAll = false;
         if (opts.dedupArns) {
             var unseen = [];
             for (var di = 0; di < deliverable.length; di++) {
@@ -35005,15 +35015,7 @@ var LegacyPush;
                 unseen.push(deliverable[di]);
             }
             deliverable = unseen;
-            // Every device this user owns was already pushed this run (via another
-            // account on the same phone). Return TRUE so the cron records this user's
-            // day-marker: returning false left the co-owner account unmarked, and the
-            // NEXT cron run re-sent to the same phone through it — the in-run dedup
-            // merely postponed the duplicate by one run (observed 2026-07-03: dupe
-            // pairs 20 min apart, one per consecutive run). The user's device HAS the
-            // notification for today; that is the semantic the marker tracks.
-            if (deliverable.length === 0)
-                return true;
+            dedupSuppressedAll = deliverable.length === 0;
         }
         var sent = 0;
         var localDead = {};
@@ -35069,17 +35071,22 @@ var LegacyPush;
         }
         // Scheduled-push delivery observability — same signal as the on-demand path
         // so the cron silently dropping to 0 device-sends raises a Discord alert.
-        try {
-            var locDead = 0;
-            for (var ldk in localDead) {
-                if (localDead.hasOwnProperty(ldk) && localDead[ldk])
-                    locDead++;
+        // Skip when the in-run dedup suppressed every device: counting those as
+        // attempted-but-not-delivered would inflate the failure rate and trip the
+        // delivery-failure alert for what is intentional suppression, not failure.
+        if (!dedupSuppressedAll) {
+            try {
+                var locDead = 0;
+                for (var ldk in localDead) {
+                    if (localDead.hasOwnProperty(ldk) && localDead[ldk])
+                        locDead++;
+                }
+                PushAlerts.ensureConfigured(ctx, logger);
+                PushAlerts.recordOutcome(nk, logger, "cron", tokensData.tokens.length, sent, locDead, localCodes);
             }
-            PushAlerts.ensureConfigured(ctx, logger);
-            PushAlerts.recordOutcome(nk, logger, "cron", tokensData.tokens.length, sent, locDead, localCodes);
+            catch (_) { }
         }
-        catch (_) { }
-        return sent > 0;
+        return sent > 0 || dedupSuppressedAll;
     }
     LegacyPush.sendLocalizedPushToUser = sendLocalizedPushToUser;
     // Provider-only push used by the chat failed-push retry queue. Unlike
