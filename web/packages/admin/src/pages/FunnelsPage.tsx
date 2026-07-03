@@ -329,10 +329,12 @@ function FunnelSection({
     staleTime: 60_000,
   });
 
-  const appendStep = (name: string) => {
+  const toggleStep = (name: string) => {
     setStepsInput((prev) => {
       const steps = parseFunnelSteps(prev);
-      if (steps.includes(name)) return prev;
+      if (steps.includes(name)) {
+        return steps.filter((s) => s !== name).join(", ");
+      }
       return [...steps, name].join(", ");
     });
   };
@@ -449,7 +451,7 @@ function FunnelSection({
           {(catalog.data?.length ?? 0) > 0 && (
             <div className="mt-2">
               <p className="mb-1 text-[11px] text-muted-foreground">
-                Click to add a real logged event ({sinceDays}d volume):
+                Click to add or remove a step ({sinceDays}d volume). Selected chips show funnel order.
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {catalog.data!.slice(0, 24).map((ev) => {
@@ -459,21 +461,23 @@ function FunnelSection({
                     <button
                       key={ev.name}
                       type="button"
-                      onClick={() => appendStep(ev.name)}
+                      onClick={() => toggleStep(ev.name)}
                       aria-pressed={isSelected}
                       title={
                         isSelected
-                          ? `Step ${stepOrder} in funnel · ${ev.count.toLocaleString()} events (7d)`
-                          : `${ev.count.toLocaleString()} events (7d) — click to add`
+                          ? `Step ${stepOrder} — click to remove · ${ev.count.toLocaleString()} events (${sinceDays}d)`
+                          : `${ev.count.toLocaleString()} events (${sinceDays}d) — click to add`
                       }
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] transition-colors",
                         isSelected
-                          ? "border-primary/70 bg-primary/15 font-medium text-primary shadow-sm"
+                          ? "border-primary/70 bg-primary/15 font-medium text-primary shadow-sm hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
                           : "border-border bg-background text-muted-foreground hover:border-primary hover:text-primary",
                       )}
                     >
-                      {isSelected && <Check className="h-3 w-3 shrink-0" aria-hidden />}
+                      {isSelected ? (
+                        <Check className="h-3 w-3 shrink-0" aria-hidden />
+                      ) : null}
                       <span>{ev.name}</span>
                       {isSelected && (
                         <span className="rounded bg-primary/20 px-1 text-[9px] font-semibold tabular-nums">
