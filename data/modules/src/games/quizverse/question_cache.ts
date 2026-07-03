@@ -477,7 +477,7 @@ namespace QvQuestionCache {
   function fetchOpentdb(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
     // url3986 encoding — decode with decodeURIComponent
-    var data = httpGet(nk, "https://opentdb.com/api.php?amount=50&encode=url3986&type=multiple");
+    var data = httpGet(nk, "https://opentdb.com/api.php?amount=50&category=22&type=multiple");
     if (!data || !Array.isArray(data.results) || data.response_code !== 0) {
       throw new Error("OpenTDB response_code=" + (data && data.response_code));
     }

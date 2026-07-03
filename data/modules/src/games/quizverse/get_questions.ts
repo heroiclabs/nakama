@@ -393,6 +393,15 @@ namespace QvGetQuestions {
     return out;
   }
 
+  function filterToTextPool(pool: any[]): any[] {
+    var out: any[] = [];
+    for (var ti = 0; ti < pool.length; ti++) {
+      var q = pool[ti];
+      if (!q || !q.has_media || !q.media || !q.media.url) out.push(q);
+    }
+    return out;
+  }
+
   function filterAndPick(
     pool:        any[],
     seenIds:     string[],
@@ -417,21 +426,44 @@ namespace QvGetQuestions {
 
     if (fresh.length >= count) return fresh.slice(0, count);
 
-    // --- Backfill from oldest-seen -------------------------------------------
+    // --- Backfill tiers until count or unique pool is consumed ---------------
     // Build a lookup of questions that ARE in the pool (some seen IDs may
     // have been evicted from the cache since they were first delivered).
     var poolById: { [id: string]: any } = {};
     for (var pb = 0; pb < pool.length; pb++) poolById[pool[pb].id] = pool[pb];
 
-    // Walk seenIds oldest-first; collect those still in pool
-    var backfill: any[] = [];
-    var needed = count - fresh.length;
-    for (var oi = 0; oi < seenIds.length && backfill.length < needed; oi++) {
-      var q = poolById[seenIds[oi]];
-      if (q) backfill.push(q);
+    var pickedIds: { [id: string]: boolean } = {};
+    for (var pk = 0; pk < fresh.length; pk++) {
+      if (fresh[pk] && fresh[pk].id) pickedIds[fresh[pk].id] = true;
     }
 
-    return fresh.concat(backfill);
+    // Tier 2: walk seenIds oldest-first; collect those still in pool, not picked
+    var tier2: any[] = [];
+    var needed = count - fresh.length;
+    for (var oi = 0; oi < seenIds.length && tier2.length < needed; oi++) {
+      var sid = seenIds[oi];
+      if (pickedIds[sid]) continue;
+      var q2 = poolById[sid];
+      if (q2) {
+        tier2.push(q2);
+        pickedIds[sid] = true;
+      }
+    }
+
+    needed = count - fresh.length - tier2.length;
+    if (needed <= 0) return fresh.concat(tier2).slice(0, count);
+
+    // Tier 3: any remaining pool question (covers inflight-reserved IDs)
+    var tier3: any[] = [];
+    for (var ti = 0; ti < pool.length && tier3.length < needed; ti++) {
+      var pq = pool[ti];
+      if (!pq || !pq.id) continue;
+      if (pickedIds[pq.id]) continue;
+      tier3.push(pq);
+      pickedIds[pq.id] = true;
+    }
+
+    return fresh.concat(tier2).concat(tier3).slice(0, count);
   }
 
   function collectInflightIdsForTopic(inflightPacks: any[], topic: string): string[] {
@@ -486,7 +518,8 @@ namespace QvGetQuestions {
     pool:         any[],
     lang:         string,
     requireMedia: boolean,
-    reqMediaType: string
+    reqMediaType: string,
+    excludeMedia: boolean
   ): { langPool: any[]; langActual: string } {
     var langActual = lang;
     var langPool: any[] = [];
@@ -509,6 +542,9 @@ namespace QvGetQuestions {
     if (requireMedia) {
       var mediaPool = filterToMediaPool(langPool, reqMediaType);
       if (mediaPool.length > 0) langPool = mediaPool;
+    } else if (excludeMedia) {
+      var textPool = filterToTextPool(langPool);
+      if (textPool.length > 0) langPool = textPool;
     }
 
     return { langPool: langPool, langActual: langActual };
@@ -556,6 +592,7 @@ namespace QvGetQuestions {
     lang:           string,
     requireMedia:   boolean,
     reqMediaType:   string,
+    excludeMedia:   boolean,
     requestedCount: number,
     seenIds:        string[],
     inflightPacks:  any[],
@@ -600,7 +637,7 @@ namespace QvGetQuestions {
         QvQuestionCache.refreshCache(nk, logger, env, topic, true);
         cacheResult = QvQuestionCache.readCache(nk, logger, topic);
         pool        = cacheResult.questions;
-        var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType);
+        var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType, excludeMedia);
         langPool    = rebuilt.langPool;
         langActual  = rebuilt.langActual;
         picked      = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
@@ -975,9 +1012,11 @@ namespace QvGetQuestions {
     var lang = (typeof req.lang === "string" && req.lang) ? req.lang.toLowerCase().trim() : "en";
 
     var requireMedia = req.has_media === true;
+    var excludeMedia = req.exclude_media === true;
     var reqMediaType = (typeof req.media_type === "string" && req.media_type)
       ? req.media_type.toLowerCase().trim() : "";
     if (!requireMedia && reqMediaType) requireMedia = true;
+    if (requireMedia) excludeMedia = false;
 
     // ── game_id: validate against allowlist (org2) ─────────────────────────
     var rawGameId = (typeof req.game_id === "string" && req.game_id) ? req.game_id : "";
@@ -1193,7 +1232,7 @@ namespace QvGetQuestions {
         QvQuestionCache.refreshCache(nk, logger, ctx.env || {}, topic, true);
         cacheResult = QvQuestionCache.readCache(nk, logger, topic);
         pool = cacheResult.questions;
-        var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType);
+        var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType, excludeMedia);
         langPool = rebuilt.langPool;
         langActual = rebuilt.langActual;
         mediaPool = filterToMediaPool(langPool, reqMediaType);
@@ -1217,6 +1256,14 @@ namespace QvGetQuestions {
         });
       }
       langPool = mediaPool;
+    } else if (excludeMedia) {
+      var textOnlyPool = filterToTextPool(langPool);
+      if (textOnlyPool.length > 0) {
+        langPool = textOnlyPool;
+      } else if (langPool.length > 0) {
+        logger.warn("[QvGetQ] exclude_media but no text questions topic=" + topic +
+          " langPool=" + langPool.length);
+      }
     }
 
     // ── 4b. Elo-range filter ────────────────────────────────────────────────
@@ -1258,7 +1305,7 @@ namespace QvGetQuestions {
     var picked  = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
 
     var fulfillResult = fulfillRequestedCount(
-      nk, logger, ctx.env || {}, userId, topic, lang, requireMedia, reqMediaType,
+      nk, logger, ctx.env || {}, userId, topic, lang, requireMedia, reqMediaType, excludeMedia,
       requestedCount, seenIds, inflightPacks, pool, langPool, langActual, cacheResult,
       picked, traceId
     );
