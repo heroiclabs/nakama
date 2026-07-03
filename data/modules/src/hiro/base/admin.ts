@@ -1849,7 +1849,7 @@ namespace AdminConsole {
       var derivedStatus = (scheduleAt && scheduleAt > now) ? "scheduled" : "draft";
       // Honour the persisted status (e.g. "sent") but guard against "scheduled"
       // with no actual scheduleAt — that was the "all players, no schedule" bug.
-      var persistedStatus = def.status;
+      var persistedStatus = def.status === "delivered" ? "sent" : def.status;
       var finalStatus = (persistedStatus && !(persistedStatus === "scheduled" && !scheduleAt))
         ? persistedStatus
         : derivedStatus;
@@ -2034,9 +2034,23 @@ namespace AdminConsole {
 
     var key = saveScopedSatoriConfig(nk, "messages", gameId, definitions);
     var delivered = 0;
-    if (audienceId && (!scheduleAt || scheduleAt <= now)) {
-      delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId, gameId);
-      messageDef.status = "delivered";
+    var sendNow = !scheduleAt || scheduleAt <= now;
+    if (sendNow) {
+      if (audienceId) {
+        delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId, gameId);
+      } else {
+        // "All players (no filter)": deliver to a random sample of up to 100 users,
+        // mirroring satori_messages_broadcast. Without this the message was saved
+        // as "draft" and never left the config store.
+        var allUsers = nk.usersGetRandom(100);
+        for (var ui = 0; ui < allUsers.length; ui++) {
+          SatoriMessages.deliverMessage(nk, allUsers[ui].userId, messageDef, gameId);
+          delivered++;
+        }
+      }
+      messageDef.status = "sent";
+      messageDef.deliveredCount = delivered;
+      messageDef.sentAt = now;
       messageDef.deliveredAt = now;
       saveScopedSatoriConfig(nk, "messages", gameId, definitions);
     }
