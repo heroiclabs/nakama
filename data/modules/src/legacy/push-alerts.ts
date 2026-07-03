@@ -390,6 +390,7 @@ namespace PushAlerts {
     noQuiz?: boolean;          // true if S3 file was missing
     byLocale: { [locale: string]: { sent: number; gated: number } };
     gateReasons?: GateReasons; // breakdown of WHY users were gated
+    dedupedDevices?: number;   // duplicate deliveries suppressed (same device under 2+ accounts)
   }
 
   export function postCronReport(nk: nkruntime.Nakama, logger: nkruntime.Logger, stats: CronStats): void {
@@ -505,7 +506,7 @@ namespace PushAlerts {
     if (s.gateReasons && s.gated > 0) {
       var gr = s.gateReasons;
       var grLines: string[] = [];
-      if (gr.quietHours > 0)  grLines.push("🌙 Quiet hours (local time outside 07–22): **" + gr.quietHours + "**");
+      if (gr.quietHours > 0)  grLines.push("🌙 Outside local send window (daily 09–13 / premium 17–21 local): **" + gr.quietHours + "**");
       if (gr.alreadySent > 0) grLines.push("✅ Already received today (marker set): **" + gr.alreadySent + "**");
       if (gr.noToken > 0)     grLines.push("📵 No push token / token deleted: **" + gr.noToken + "**");
       if (gr.sendFailed > 0)  grLines.push("❌ Send failed (Lambda/FCM error): **" + gr.sendFailed + "**");
@@ -520,10 +521,25 @@ namespace PushAlerts {
 
     // ── Health signal ──────────────────────────────────────────────────────
     var healthLines: string[] = [];
+    // A run where EVERY gate was the local-time window is normal cadence
+    // behaviour (the 30-min cron simply ran outside most users' window),
+    // not a fault — don't page ops for it.
+    var allGatedByWindow = s.gateReasons
+      ? (s.gated > 0 && s.gateReasons.quietHours >= s.gated - 1 &&
+         s.gateReasons.noToken === 0 && s.gateReasons.sendFailed === 0)
+      : false;
     if (s.noQuiz)             healthLines.push("❌ S3 quiz file not found — AI service may not have generated today's content yet");
-    if (s.sent === 0 && !s.noQuiz) healthLines.push("⚠️ Zero sends despite quiz being present — check timezone gate & opted-in user count");
+    if (s.sent === 0 && !s.noQuiz) {
+      if (allGatedByWindow) {
+        healthLines.push("💤 All scanned users are outside their local send window right now — expected; sends resume when their window opens");
+      } else {
+        healthLines.push("⚠️ Zero sends despite quiz being present — check timezone gate & opted-in user count");
+      }
+    }
     if (sentRate > 0 && sentRate < 0.05) healthLines.push("⚠️ Very low send rate (<5%) — investigate timezone/token coverage");
     if (sentRate >= 0.3)      healthLines.push("✅ Send rate healthy");
+    if (s.dedupedDevices && s.dedupedDevices > 0)
+      healthLines.push("🔁 " + s.dedupedDevices + " duplicate device deliveries suppressed (same phone under multiple accounts)");
     // Surface token/send failures prominently
     if (s.gateReasons && s.gateReasons.sendFailed > 0)
       healthLines.push("🚨 " + s.gateReasons.sendFailed + " send failures — check Lambda logs & FCM credentials");

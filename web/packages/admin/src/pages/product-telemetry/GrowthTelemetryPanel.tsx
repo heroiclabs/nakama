@@ -20,7 +20,7 @@ const GROWTH_SECTIONS: {
   { id: "gsc", label: "SEO · GSC", icon: Search },
   { id: "ga4", label: "Web · GA4", icon: Globe2 },
   { id: "newsletter", label: "Newsletter", icon: Mail },
-  { id: "users", label: "Users", icon: Users },
+  { id: "users", label: "Platform · Users", icon: Users },
 ];
 
 function useGrowth(source: GrowthSnapshotSource) {
@@ -47,16 +47,43 @@ function fmtFixed(n: number | null | undefined, digits = 1): string {
   return Number.isFinite(v) ? v.toFixed(digits) : "—";
 }
 
+function formatSnapshotDate(value: string | null | undefined): string {
+  if (!value) return "unknown";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return date.toLocaleDateString("en-IN", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function GscPanel({ snapshot }: { snapshot: GscSnapshot }) {
   const summary = snapshot.summary ?? ({} as GscSnapshot["summary"]);
   const queries = snapshot.queries ?? [];
+  const queryScope = summary.queryCount ? `Top ${summary.queryCount} queries` : "Top queries";
+  const rangeLabel = `${formatSnapshotDate(snapshot.dateRange?.start)} - ${formatSnapshotDate(snapshot.dateRange?.end)}`;
+  const updatedLabel = quizverse.formatRelative(snapshot.updatedAt);
   return (
     <div className="space-y-6">
+      <div className="rounded-xl border border-border bg-card/60 px-4 py-3 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">Google Search Console snapshot</span>
+        <span className="mx-2">·</span>
+        <span>{queryScope}</span>
+        <span className="mx-2">·</span>
+        <span>Range {rangeLabel}</span>
+        <span className="mx-2">·</span>
+        <span>Updated {updatedLabel}</span>
+      </div>
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Clicks" value={quizverse.formatCompactNumber(summary.totalClicks)} hint="28d" />
-        <StatTile label="Impressions" value={quizverse.formatCompactNumber(summary.totalImpressions)} />
-        <StatTile label="Avg CTR" value={quizverse.formatPct(summary.avgCtr)} />
-        <StatTile label="Avg position" value={fmtFixed(summary.avgPosition)} hint="lower is better" />
+        <StatTile label="Clicks" value={quizverse.formatCompactNumber(summary.totalClicks)} hint={queryScope} />
+        <StatTile
+          label="Impressions"
+          value={quizverse.formatCompactNumber(summary.totalImpressions)}
+          hint={queryScope}
+        />
+        <StatTile label="Avg CTR" value={quizverse.formatPct(summary.avgCtr)} hint={`${queryScope} avg`} />
+        <StatTile label="Avg position" value={fmtFixed(summary.avgPosition)} hint={`${queryScope} · lower is better`} />
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
@@ -188,22 +215,63 @@ function NewsletterPanel({ snapshot }: { snapshot: BeehiivSnapshot }) {
 
 function UsersPanel({ snapshot }: { snapshot: UsersSnapshot }) {
   const regPct = snapshot.totalUsers > 0 ? (snapshot.registeredUsers / snapshot.totalUsers) * 100 : 0;
+  const updatedLabel = snapshot.updatedAt
+    ? new Date(snapshot.updatedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    : null;
+
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">Platform identity registry (Cognito)</p>
+        <p className="mt-1 leading-relaxed">
+          Counts unique QuizVerse sign-in identities from Admin Management — registered accounts plus
+          guest profiles. This is <strong className="font-medium text-foreground">not</strong> Nakama game
+          account rows and <strong className="font-medium text-foreground">not</strong> daily active players.
+          For DAU, WAU, and MAU, use the Status tab above.
+        </p>
+        {updatedLabel && (
+          <p className="mt-2 text-xs">Snapshot · {updatedLabel} · via WF-40</p>
+        )}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Total users" value={quizverse.formatCompactNumber(snapshot.totalUsers)} />
-        <StatTile label="Registered" value={quizverse.formatCompactNumber(snapshot.registeredUsers)} />
-        <StatTile label="Guests" value={quizverse.formatCompactNumber(snapshot.guestUsers)} />
-        <StatTile label="Conversion" value={quizverse.formatPct(snapshot.conversionRate)} />
+        <StatTile
+          label="Platform total"
+          value={quizverse.formatCompactNumber(snapshot.totalUsers)}
+          hint="registered + guests"
+        />
+        <StatTile
+          label="Registered"
+          value={quizverse.formatCompactNumber(snapshot.registeredUsers)}
+          hint="Cognito sign-in"
+        />
+        <StatTile
+          label="Guests"
+          value={quizverse.formatCompactNumber(snapshot.guestUsers)}
+          hint="anonymous profiles"
+        />
+        <StatTile
+          label="Conversion"
+          value={quizverse.formatPct(snapshot.conversionRate)}
+          hint="registered ÷ platform total"
+        />
       </div>
       <div className="grid gap-3 sm:grid-cols-4">
-        <StatTile label="Signups today" value={quizverse.formatCompactNumber(snapshot.signupsToday)} />
-        <StatTile label="WTD" value={quizverse.formatCompactNumber(snapshot.signupsWtd)} />
-        <StatTile label="MTD" value={quizverse.formatCompactNumber(snapshot.signupsMtd)} />
-        <StatTile label="7d conv rate" value={quizverse.formatPct(snapshot.conversionRate7d)} />
+        <StatTile
+          label="Signups today"
+          value={quizverse.formatCompactNumber(snapshot.signupsToday)}
+          hint="new registered"
+        />
+        <StatTile label="WTD signups" value={quizverse.formatCompactNumber(snapshot.signupsWtd)} hint="week to date" />
+        <StatTile label="MTD signups" value={quizverse.formatCompactNumber(snapshot.signupsMtd)} hint="month to date" />
+        <StatTile
+          label="7d conv rate"
+          value={quizverse.formatPct(snapshot.conversionRate7d)}
+          hint="new users who registered"
+        />
       </div>
       <div className="rounded-xl border border-border bg-card p-4">
-        <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Registered vs guest</p>
+        <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">Registered vs guest · platform total</p>
         <div className="flex h-4 overflow-hidden rounded-full bg-muted">
           <div className="bg-emerald-500/80" style={{ width: `${regPct}%` }} />
           <div className="bg-sky-500/60" style={{ width: `${100 - regPct}%` }} />
