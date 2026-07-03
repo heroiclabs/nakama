@@ -1613,6 +1613,14 @@ namespace LegacyPush {
     var todayKey = todayDateKey();
     var sent = 0, gated = 0, scanned = 0;
     var batch = 100, offset = 0;
+    // Cross-account device dedup within this run (same phone under multiple accounts).
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
+    // Fixed per-day marker: at most ONE weekly-quiz push per user per day, no matter
+    // how many types change or across how many hourly runs the changes are detected.
+    // (The old key included changedTypes.join("_"), so each run that detected a
+    // different changed type produced a fresh key and re-pushed the same users.)
+    var dayMarkerKey = "weekly_quiz";
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
       if (!users || users.length === 0) break;
@@ -1621,7 +1629,6 @@ namespace LegacyPush {
         var u = users[i];
         var h = getUserLocalHour(nk, u);
         if (h < 10 || h >= 20) { gated++; continue; }           // weekly window 10:00–20:00 local
-        var dayMarkerKey = "weekly_quiz_" + changedTypes.join("_");
         if (hasMarker(nk, u, dayMarkerKey, todayKey)) { gated++; continue; }
         var locale = getUserLocale(nk, u);
         // Push one notification mentioning whichever changed type has copy in user's locale (first match).
@@ -1634,13 +1641,13 @@ namespace LegacyPush {
         var typeLabel = changedByType[pushedForType][locale] || changedByType[pushedForType]["en"] || pushedForType;
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "weekly_quiz",
           "weekly_quiz_title", "weekly_quiz_body", { type: typeLabel },
-          { data: { screen: "weekly_quiz", type: pushedForType } });
+          { data: { screen: "weekly_quiz", type: pushedForType }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) { recordMarker(nk, u, dayMarkerKey, todayKey); sent++; } else { gated++; }
       }
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes });
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes, dedupedDevices: runDedupStats.skippedDevices });
   }
 
   // ─── 3. Idle win-back cron (24–48 h since last session) ────────────────────

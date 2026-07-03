@@ -35546,6 +35546,14 @@ var LegacyPush;
         var todayKey = todayDateKey();
         var sent = 0, gated = 0, scanned = 0;
         var batch = 100, offset = 0;
+        // Cross-account device dedup within this run (same phone under multiple accounts).
+        var runDedupArns = {};
+        var runDedupStats = { skippedDevices: 0 };
+        // Fixed per-day marker: at most ONE weekly-quiz push per user per day, no matter
+        // how many types change or across how many hourly runs the changes are detected.
+        // (The old key included changedTypes.join("_"), so each run that detected a
+        // different changed type produced a fresh key and re-pushed the same users.)
+        var dayMarkerKey = "weekly_quiz";
         while (true) {
             var users = listOptedInUsers(nk, batch, offset);
             if (!users || users.length === 0)
@@ -35558,7 +35566,6 @@ var LegacyPush;
                     gated++;
                     continue;
                 } // weekly window 10:00–20:00 local
-                var dayMarkerKey = "weekly_quiz_" + changedTypes.join("_");
                 if (hasMarker(nk, u, dayMarkerKey, todayKey)) {
                     gated++;
                     continue;
@@ -35576,7 +35583,7 @@ var LegacyPush;
                 if (!pushedForType)
                     pushedForType = changedTypes[0];
                 var typeLabel = changedByType[pushedForType][locale] || changedByType[pushedForType]["en"] || pushedForType;
-                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "weekly_quiz", "weekly_quiz_title", "weekly_quiz_body", { type: typeLabel }, { data: { screen: "weekly_quiz", type: pushedForType } });
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "weekly_quiz", "weekly_quiz_title", "weekly_quiz_body", { type: typeLabel }, { data: { screen: "weekly_quiz", type: pushedForType }, dedupArns: runDedupArns, dedupStats: runDedupStats });
                 if (ok) {
                     recordMarker(nk, u, dayMarkerKey, todayKey);
                     sent++;
@@ -35589,7 +35596,7 @@ var LegacyPush;
             if (users.length < batch)
                 break;
         }
-        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes });
+        return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes, dedupedDevices: runDedupStats.skippedDevices });
     }
     // ─── 3. Idle win-back cron (24–48 h since last session) ────────────────────
     function rpcNotifCronIdleWinback(ctx, logger, nk, payload) {
@@ -54966,20 +54973,20 @@ var SatoriFunnels;
             result.basis = "distinct_users";
         }
         else {
-            // Default: try the per-user event scan first (distinct users, accurate funnel).
-            // This uses the satori_events ring buffer which stores per-event rows.
+            // Default: try per-user scan on the sparse satori_events ring first.
             var perUserResult = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, null, windowHours ? windowHours * 3600000 : undefined);
-            if (perUserResult.scannedRecords > 0) {
-                // Per-user data available — use it (distinct users, step N cannot exceed step N-1).
+            if (perUserResult.entered > 0) {
+                // Distinct-user funnel — step N cannot exceed step N-1.
                 result = perUserResult;
                 result.basis = "distinct_users";
             }
             else {
-                // No per-user event rows in the ring buffer — fall back to aggregated event counts.
-                // NOTE: event-volume counts raw occurrences per step, so a later step can exceed
-                // an earlier one (e.g. a user starts 3 quizzes = 3 quiz_start events).
+                // Ring empty for this window, truncated without matches, or events lack
+                // userId — fall back to real analytics_live_daily by_name counts.
                 result = computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId);
                 result.basis = "event_volume";
+                if (perUserResult.truncated)
+                    result.ringScanTruncated = true;
             }
         }
         result.sinceMs = sinceMs;
