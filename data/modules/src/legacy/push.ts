@@ -1612,6 +1612,8 @@ namespace LegacyPush {
 
     var todayKey = todayDateKey();
     var sent = 0, gated = 0, scanned = 0;
+    var byLocale: { [l: string]: { sent: number; gated: number } } = {};
+    var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     var batch = 100, offset = 0;
     // Cross-account device dedup within this run (same phone under multiple accounts).
     var runDedupArns: { [arn: string]: boolean } = {};
@@ -1627,10 +1629,11 @@ namespace LegacyPush {
       for (var i = 0; i < users.length; i++) {
         scanned++;
         var u = users[i];
-        var h = getUserLocalHour(nk, u);
-        if (h < 10 || h >= 20) { gated++; continue; }           // weekly window 10:00–20:00 local
-        if (hasMarker(nk, u, dayMarkerKey, todayKey)) { gated++; continue; }
         var locale = getUserLocale(nk, u);
+        if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
+        var h = getUserLocalHour(nk, u);
+        if (h < 10 || h >= 20) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }  // weekly window 10:00–20:00 local
+        if (hasMarker(nk, u, dayMarkerKey, todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
         // Push one notification mentioning whichever changed type has copy in user's locale (first match).
         var pushedForType: string | null = null;
         for (var c = 0; c < changedTypes.length; c++) {
@@ -1642,11 +1645,23 @@ namespace LegacyPush {
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "weekly_quiz",
           "weekly_quiz_title", "weekly_quiz_body", { type: typeLabel },
           { data: { screen: "weekly_quiz", type: pushedForType }, dedupArns: runDedupArns, dedupStats: runDedupStats });
-        if (ok) { recordMarker(nk, u, dayMarkerKey, todayKey); sent++; } else { gated++; }
+        if (ok) { recordMarker(nk, u, dayMarkerKey, todayKey); sent++; byLocale[locale].sent++; }
+        else {
+          gated++; byLocale[locale].gated++;
+          if (!LegacyPush.userHasPushTokens(nk, u)) { gateReasons.noToken++; } else { gateReasons.sendFailed++; }
+        }
       }
       offset += batch;
       if (users.length < batch) break;
     }
+    // Weekly cron never reported to Discord before — sends were invisible next to
+    // the daily/premium "Sent 0" reports. Post only on runs that detected changes
+    // (it runs hourly; a no-change report every hour would be noise).
+    PushAlerts.postCronReport(nk, logger, {
+      cronName: "weekly_quiz", dateKey: todayKey, topic: changedTypes.join(", "),
+      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons,
+      dedupedDevices: runDedupStats.skippedDevices
+    });
     return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes, dedupedDevices: runDedupStats.skippedDevices });
   }
 
