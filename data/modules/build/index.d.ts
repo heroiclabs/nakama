@@ -1531,6 +1531,7 @@ declare namespace PushAlerts {
             };
         };
         gateReasons?: GateReasons;
+        dedupedDevices?: number;
     }
     function postCronReport(nk: nkruntime.Nakama, logger: nkruntime.Logger, stats: CronStats): void;
     function cacheWebhookUrl(nk: nkruntime.Nakama): void;
@@ -1542,6 +1543,12 @@ declare namespace LegacyPush {
         gameId?: string;
         data?: any;
         skipInAppNotification?: boolean;
+        dedupArns?: {
+            [arn: string]: boolean;
+        };
+        dedupStats?: {
+            skippedDevices: number;
+        };
     }): boolean;
     export function retryChatProviderPush(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, userId: string, eventType: string, title: string, body: string, data: {
         [k: string]: any;

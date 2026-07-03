@@ -33788,7 +33788,7 @@ var PushAlerts;
             var gr = s.gateReasons;
             var grLines = [];
             if (gr.quietHours > 0)
-                grLines.push("🌙 Quiet hours (local time outside 07–22): **" + gr.quietHours + "**");
+                grLines.push("🌙 Outside local send window (daily 09–13 / premium 17–21 local): **" + gr.quietHours + "**");
             if (gr.alreadySent > 0)
                 grLines.push("✅ Already received today (marker set): **" + gr.alreadySent + "**");
             if (gr.noToken > 0)
@@ -33805,14 +33805,29 @@ var PushAlerts;
         }
         // ── Health signal ──────────────────────────────────────────────────────
         var healthLines = [];
+        // A run where EVERY gate was the local-time window is normal cadence
+        // behaviour (the 30-min cron simply ran outside most users' window),
+        // not a fault — don't page ops for it.
+        var allGatedByWindow = s.gateReasons
+            ? (s.gated > 0 && s.gateReasons.quietHours >= s.gated - 1 &&
+                s.gateReasons.noToken === 0 && s.gateReasons.sendFailed === 0)
+            : false;
         if (s.noQuiz)
             healthLines.push("❌ S3 quiz file not found — AI service may not have generated today's content yet");
-        if (s.sent === 0 && !s.noQuiz)
-            healthLines.push("⚠️ Zero sends despite quiz being present — check timezone gate & opted-in user count");
+        if (s.sent === 0 && !s.noQuiz) {
+            if (allGatedByWindow) {
+                healthLines.push("💤 All scanned users are outside their local send window right now — expected; sends resume when their window opens");
+            }
+            else {
+                healthLines.push("⚠️ Zero sends despite quiz being present — check timezone gate & opted-in user count");
+            }
+        }
         if (sentRate > 0 && sentRate < 0.05)
             healthLines.push("⚠️ Very low send rate (<5%) — investigate timezone/token coverage");
         if (sentRate >= 0.3)
             healthLines.push("✅ Send rate healthy");
+        if (s.dedupedDevices && s.dedupedDevices > 0)
+            healthLines.push("🔁 " + s.dedupedDevices + " duplicate device deliveries suppressed (same phone under multiple accounts)");
         // Surface token/send failures prominently
         if (s.gateReasons && s.gateReasons.sendFailed > 0)
             healthLines.push("🚨 " + s.gateReasons.sendFailed + " send failures — check Lambda logs & FCM credentials");
@@ -34953,6 +34968,28 @@ var LegacyPush;
         var deliverable = dedupeTokensByPlatform(tokensData.tokens);
         if (deliverable.length === 0)
             return false;
+        // Cross-ACCOUNT device dedup (opts.dedupArns, supplied by broadcast crons):
+        // one physical device can be registered under 2+ user accounts (guest play
+        // followed by login re-registers the same FCM token/endpoint under the new
+        // account). Per-user day-markers can't see that, so the same phone received
+        // the daily quiz once per owning account (prod audit 2026-07-03: 96 shared
+        // endpoints → ~174 duplicate deliveries/day). The cron passes one shared
+        // set per run; an ARN already pushed this run is skipped for later users.
+        if (opts.dedupArns) {
+            var unseen = [];
+            for (var di = 0; di < deliverable.length; di++) {
+                var darn = deliverable[di] && deliverable[di].endpointArn;
+                if (darn && opts.dedupArns[darn]) {
+                    if (opts.dedupStats)
+                        opts.dedupStats.skippedDevices++;
+                    continue;
+                }
+                unseen.push(deliverable[di]);
+            }
+            deliverable = unseen;
+            if (deliverable.length === 0)
+                return false;
+        }
         var sent = 0;
         var localDead = {};
         var localHasDead = false;
@@ -34965,6 +35002,9 @@ var LegacyPush;
             });
             if (providerResult.success === true) {
                 sent++;
+                // Claim this device for the rest of the cron run (cross-account dedup).
+                if (opts.dedupArns && t.endpointArn)
+                    opts.dedupArns[t.endpointArn] = true;
             }
             else {
                 var lck = providerResult.removeToken ? "UNREGISTERED" : (providerResult.code || "send_failed");
@@ -35178,6 +35218,10 @@ var LegacyPush;
         var sent = 0, gated = 0, scanned = 0;
         var byLocale = {};
         var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
+        // One shared set per run: devices (endpoint ARNs) already pushed. Catches
+        // the same physical phone registered under multiple user accounts.
+        var runDedupArns = {};
+        var runDedupStats = { skippedDevices: 0 };
         var batch = 100, offset = 0;
         while (true) {
             var users = listOptedInUsers(nk, batch, offset);
@@ -35207,7 +35251,7 @@ var LegacyPush;
                     continue;
                 }
                 var topic = pickQuizTopic(quiz, locale);
-                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz", "daily_quiz_title", "daily_quiz_body", { topic: topic }, { data: { screen: "daily_quiz" } });
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz", "daily_quiz_title", "daily_quiz_body", { topic: topic }, { data: { screen: "daily_quiz" }, dedupArns: runDedupArns, dedupStats: runDedupStats });
                 if (ok) {
                     recordMarker(nk, u, "daily_quiz", todayKey);
                     sent++;
@@ -35233,7 +35277,8 @@ var LegacyPush;
         var reportTopic = pickQuizTopic(quiz, "en");
         PushAlerts.postCronReport(nk, logger, {
             cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
-            scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons
+            scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons,
+            dedupedDevices: runDedupStats.skippedDevices
         });
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: reportTopic });
     }
@@ -35285,6 +35330,9 @@ var LegacyPush;
         var byLocale = {};
         var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var quizMissedAll = false;
+        // Shared per-run device set — see rpcNotifCronDailyQuiz for rationale.
+        var runDedupArns = {};
+        var runDedupStats = { skippedDevices: 0 };
         var batch = 100, offset = 0;
         while (true) {
             var users = listOptedInUsers(nk, batch, offset);
@@ -35321,7 +35369,7 @@ var LegacyPush;
                     continue;
                 }
                 var topic = pickQuizTopic(quiz, locale);
-                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_premium_quiz", "daily_premium_quiz_title", "daily_premium_quiz_body", { topic: topic }, { data: { screen: "daily_premium_quiz" } });
+                var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_premium_quiz", "daily_premium_quiz_title", "daily_premium_quiz_body", { topic: topic }, { data: { screen: "daily_premium_quiz" }, dedupArns: runDedupArns, dedupStats: runDedupStats });
                 if (ok) {
                     recordMarker(nk, u, "daily_premium_quiz", todayKey);
                     sent++;
@@ -35349,7 +35397,8 @@ var LegacyPush;
             cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
             scanned: scanned, sent: sent, gated: gated,
             noQuiz: quizMissedAll && sent === 0,
-            byLocale: byLocale, gateReasons: gateReasons
+            byLocale: byLocale, gateReasons: gateReasons,
+            dedupedDevices: runDedupStats.skippedDevices
         });
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
     }
@@ -46272,6 +46321,31 @@ var OnboardingAnalytics;
         }
         return merges;
     }
+    /**
+     * Merge legacy nakama-keyed buckets into the identityId bucket when the same
+     * user was split by resolveUserKey (pre-fix: nakamaUserId-first bucketing).
+     */
+    function mergeOrphanNakamaBuckets(usersMap) {
+        var toDelete = [];
+        var merges = 0;
+        for (var uid in usersMap) {
+            if (!Object.prototype.hasOwnProperty.call(usersMap, uid))
+                continue;
+            if (!isNakamaUuid(uid))
+                continue;
+            var orphan = usersMap[uid];
+            var iid = (orphan.identityId || "").toString();
+            if (!iid || iid === uid || !usersMap[iid])
+                continue;
+            mergeUserBuckets(usersMap[iid], orphan);
+            toDelete.push(uid);
+            merges++;
+        }
+        for (var d = 0; d < toDelete.length; d++) {
+            delete usersMap[toDelete[d]];
+        }
+        return merges;
+    }
     function loadIdentityLinks(nk) {
         var links = [];
         var cursor = "";
@@ -46427,17 +46501,20 @@ var OnboardingAnalytics;
             var anonId = (link.anonId || "").toString();
             var nakamaId = (link.nakamaUserId || "").toString();
             var cognitoSub = (link.cognitoSub || link.userId || "").toString();
-            if (!anonId || !nakamaId || !isNakamaUuid(nakamaId))
+            if (!anonId || (!nakamaId && !cognitoSub))
                 continue;
+            if (nakamaId && !isNakamaUuid(nakamaId))
+                nakamaId = "";
             var guestBucket = usersMap[anonId];
-            var nakamaBucket = usersMap[nakamaId];
-            var cognitoBucket = cognitoSub && cognitoSub !== nakamaId && cognitoSub !== anonId ? usersMap[cognitoSub] : null;
-            if (!guestBucket && !nakamaBucket && !cognitoBucket)
+            var targetId = nakamaId || cognitoSub;
+            var targetBucket = usersMap[targetId];
+            var cognitoBucket = cognitoSub && cognitoSub !== targetId && cognitoSub !== anonId ? usersMap[cognitoSub] : null;
+            if (!guestBucket && !targetBucket && !cognitoBucket)
                 continue;
-            if (!nakamaBucket) {
-                nakamaBucket = guestBucket || cognitoBucket;
-                usersMap[nakamaId] = nakamaBucket;
-                nakamaBucket.userId = nakamaId;
+            if (!targetBucket) {
+                targetBucket = guestBucket || cognitoBucket;
+                usersMap[targetId] = targetBucket;
+                targetBucket.userId = targetId;
                 if (guestBucket && usersMap[anonId])
                     delete usersMap[anonId];
                 if (cognitoBucket && cognitoSub && usersMap[cognitoSub])
@@ -46445,25 +46522,26 @@ var OnboardingAnalytics;
                 merges++;
             }
             else {
-                if (guestBucket && anonId !== nakamaId) {
-                    mergeUserBuckets(nakamaBucket, guestBucket);
+                if (guestBucket && anonId !== targetId) {
+                    mergeUserBuckets(targetBucket, guestBucket);
                     delete usersMap[anonId];
                     merges++;
                 }
                 if (cognitoBucket && cognitoSub && usersMap[cognitoSub]) {
-                    mergeUserBuckets(nakamaBucket, cognitoBucket);
+                    mergeUserBuckets(targetBucket, cognitoBucket);
                     delete usersMap[cognitoSub];
                     merges++;
                 }
             }
-            nakamaBucket = usersMap[nakamaId];
-            if (nakamaBucket) {
-                nakamaBucket.nakamaUserId = nakamaId;
-                nakamaBucket.identityLinked = true;
-                if (!nakamaBucket.identityId)
-                    nakamaBucket.identityId = anonId;
-                if (cognitoSub && !nakamaBucket.cognitoSub)
-                    nakamaBucket.cognitoSub = cognitoSub;
+            targetBucket = usersMap[targetId];
+            if (targetBucket) {
+                if (nakamaId)
+                    targetBucket.nakamaUserId = nakamaId;
+                targetBucket.identityLinked = true;
+                if (!targetBucket.identityId)
+                    targetBucket.identityId = anonId;
+                if (cognitoSub && !targetBucket.cognitoSub)
+                    targetBucket.cognitoSub = cognitoSub;
             }
         }
         return { users: usersMap, merges: merges };
@@ -46766,10 +46844,11 @@ var OnboardingAnalytics;
             userLimit = 1000;
         var scan = scanOnboardingEvents(nk, sinceMs, untilMs, pathwayFilter, platformFilter);
         var identityCoalesced = coalesceUsersByIdentityId(scan.users);
+        var nakamaOrphanMerges = mergeOrphanNakamaBuckets(scan.users);
         var identityLoad = loadIdentityLinks(nk);
         var mergeResult = mergeUsersByIdentityLinks(scan.users, identityLoad.links);
         var usersMap = mergeResult.users;
-        var identityMerges = mergeResult.merges;
+        var identityMerges = mergeResult.merges + identityCoalesced + nakamaOrphanMerges;
         var identityLinksTotal = identityLoad.links.length;
         if (pathwayFilter) {
             var filteredUsers = {};
@@ -54881,13 +54960,27 @@ var SatoriFunnels;
         var experimentId = data.experiment_id || data.experimentId;
         var result;
         if (experimentId) {
-            // Variant segmentation needs per-user rows → fall back to the event scan.
+            // Variant segmentation: per-user scan with assignment filter.
             var assignments = SatoriExperimentResults.collectAssignments(nk, experimentId, gameId).byUser;
             result = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, assignments, windowHours ? windowHours * 3600000 : undefined);
+            result.basis = "distinct_users";
         }
         else {
-            // Common case: real event-volume funnel from the analytics pipeline.
-            result = computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId);
+            // Default: try the per-user event scan first (distinct users, accurate funnel).
+            // This uses the satori_events ring buffer which stores per-event rows.
+            var perUserResult = computeFunnel(nk, steps, sinceMs, untilMs, maxPages, null, windowHours ? windowHours * 3600000 : undefined);
+            if (perUserResult.scannedRecords > 0) {
+                // Per-user data available — use it (distinct users, step N cannot exceed step N-1).
+                result = perUserResult;
+                result.basis = "distinct_users";
+            }
+            else {
+                // No per-user event rows in the ring buffer — fall back to aggregated event counts.
+                // NOTE: event-volume counts raw occurrences per step, so a later step can exceed
+                // an earlier one (e.g. a user starts 3 quizzes = 3 quiz_start events).
+                result = computeFunnelLegacy(nk, steps, sinceMs, untilMs, gameId);
+                result.basis = "event_volume";
+            }
         }
         result.sinceMs = sinceMs;
         result.untilMs = untilMs;
@@ -55644,6 +55737,27 @@ var SatoriCreatorEvents;
             qAnswers: [],
         };
     }
+    function questionElapsedMs(provided, perQuestionSec) {
+        if (!provided || typeof provided !== "object")
+            return null;
+        var raw = provided.elapsedMs;
+        if (raw === undefined || raw === null)
+            raw = provided.elapsed_ms;
+        if (raw === undefined || raw === null)
+            raw = provided.answerMs;
+        var n = Number(raw);
+        if (!isFinite(n) || n < 0)
+            return null;
+        var capMs = Math.max(1, perQuestionSec * 1000);
+        return Math.min(capMs, Math.floor(n));
+    }
+    function perQuestionSpeedBonus(correct, elapsedMs, perQuestionSec, maxSpeedBonus) {
+        if (!correct || elapsedMs === null)
+            return 0;
+        var capMs = Math.max(1, perQuestionSec * 1000);
+        var ratio = Math.max(0, Math.min(1, (capMs - elapsedMs) / capMs));
+        return Math.floor(maxSpeedBonus * ratio);
+    }
     function scoreQuestionSet(def, data, nowMs) {
         var questions = def.questions || [];
         if (!questions || questions.length === 0) {
@@ -55673,8 +55787,6 @@ var SatoriCreatorEvents;
         var maxSpeedBonus = Math.floor(perQuestionSec * 10 * difficultySpeedMultiplier(def.difficulty));
         var startMs = Math.floor(numericValue(def.scheduledAt, 0) * 1000);
         var elapsedSec = startMs > 0 ? Math.max(0, Math.floor((nowMs - startMs) / 1000)) : 0;
-        var trustedQuestionBudget = Math.max(1, questions.length * perQuestionSec);
-        var trustedSpeedRatio = Math.max(0, Math.min(1, (trustedQuestionBudget - elapsedSec) / trustedQuestionBudget));
         for (var i = 0; i < questions.length; i++) {
             var question = questions[i];
             var provided = submitted.length > 0 ? submittedByIndex[i] : splitAnswers[i];
@@ -55688,10 +55800,8 @@ var SatoriCreatorEvents;
             var expected = questionAnswer(question);
             var correct = answersMatch(given, expected);
             var baseScore = correct ? Math.floor(numericValue(question.points, 100)) : 0;
-            var appliedSpeedBonus = 0;
-            if (correct) {
-                appliedSpeedBonus = Math.floor(maxSpeedBonus * trustedSpeedRatio);
-            }
+            var questionMs = questionElapsedMs(provided, perQuestionSec);
+            var appliedSpeedBonus = perQuestionSpeedBonus(correct, questionMs, perQuestionSec, maxSpeedBonus);
             var qScore = baseScore + appliedSpeedBonus;
             if (correct)
                 correctCount++;
@@ -58084,17 +58194,17 @@ var SatoriMetrics;
 // definition is stored here; the admin UI executes it by calling the existing
 // funnel / retention / metric / timeline RPCs with the saved params.
 //
-// Definitions live in satori_configs/"reports" ({ reports: { [id]: def } }).
-// Admin-only.
+// Definitions live in satori_configs/"reports" per game
+// ({ reports: { [id]: def } }). Admin-only.
 // ---------------------------------------------------------------------------
 var SatoriReports;
 (function (SatoriReports) {
-    function getReports(nk) {
-        var raw = ConfigLoader.loadSatoriConfig(nk, "reports", { reports: {} });
+    function getReports(nk, gameId) {
+        var raw = ConfigLoader.loadSatoriConfigForGame(nk, "reports", gameId, { reports: {} });
         return (raw && raw.reports) ? raw.reports : {};
     }
-    function saveReports(nk, reports) {
-        ConfigLoader.saveSatoriConfig(nk, "reports", { reports: reports });
+    function saveReports(nk, reports, gameId) {
+        ConfigLoader.saveSatoriConfigForGame(nk, "reports", gameId, { reports: reports });
     }
     function toList(reports) {
         var out = [];
@@ -58103,13 +58213,15 @@ var SatoriReports;
         out.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
         return out;
     }
-    // satori_reports_list
+    // satori_reports_list — Payload: { game_id? }
     function rpcList(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
-        return RpcHelpers.successResponse({ reports: toList(getReports(nk)) });
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var gameId = RpcHelpers.gameId(data);
+        return RpcHelpers.successResponse({ reports: toList(getReports(nk, gameId)), game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
     var VALID_TYPES = { funnel: true, retention: true, metric: true, timeline: true };
-    // satori_reports_save — Payload: { id?, name, type, description?, params }
+    // satori_reports_save — Payload: { id?, name, type, description?, params, game_id? }
     function rpcSave(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
@@ -58117,7 +58229,8 @@ var SatoriReports;
             return RpcHelpers.errorResponse("name required");
         if (!data.type || !VALID_TYPES[data.type])
             return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
-        var reports = getReports(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var reports = getReports(nk, gameId);
         var now = Math.floor(Date.now() / 1000);
         var id = data.id || ("rep_" + now + "_" + Math.floor(Math.random() * 100000));
         var existing = reports[id];
@@ -58130,18 +58243,19 @@ var SatoriReports;
             createdAt: existing ? existing.createdAt : now,
             updatedAt: now
         };
-        saveReports(nk, reports);
+        saveReports(nk, reports, gameId);
         return RpcHelpers.successResponse({ report: reports[id] });
     }
-    // satori_reports_delete — Payload: { id }
+    // satori_reports_delete — Payload: { id, game_id? }
     function rpcDelete(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.id)
             return RpcHelpers.errorResponse("id required");
-        var reports = getReports(nk);
+        var gameId = RpcHelpers.gameId(data);
+        var reports = getReports(nk, gameId);
         delete reports[data.id];
-        saveReports(nk, reports);
+        saveReports(nk, reports, gameId);
         return RpcHelpers.successResponse({ deleted: data.id });
     }
     function register(initializer) {

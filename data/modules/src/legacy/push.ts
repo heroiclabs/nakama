@@ -1104,7 +1104,7 @@ namespace LegacyPush {
   export function sendLocalizedPushToUser(
     ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
     userId: string, eventType: string, titleKey: string, bodyKey: string,
-    vars: any, opts?: { skipQuietHours?: boolean; gameId?: string; data?: any; skipInAppNotification?: boolean }
+    vars: any, opts?: { skipQuietHours?: boolean; gameId?: string; data?: any; skipInAppNotification?: boolean; dedupArns?: { [arn: string]: boolean }; dedupStats?: { skippedDevices: number } }
   ): boolean {
     opts = opts || {};
     if (!opts.skipQuietHours && isInQuietHours(nk, userId)) return false;
@@ -1133,6 +1133,27 @@ namespace LegacyPush {
     var deliverable = dedupeTokensByPlatform(tokensData.tokens);
     if (deliverable.length === 0) return false;
 
+    // Cross-ACCOUNT device dedup (opts.dedupArns, supplied by broadcast crons):
+    // one physical device can be registered under 2+ user accounts (guest play
+    // followed by login re-registers the same FCM token/endpoint under the new
+    // account). Per-user day-markers can't see that, so the same phone received
+    // the daily quiz once per owning account (prod audit 2026-07-03: 96 shared
+    // endpoints → ~174 duplicate deliveries/day). The cron passes one shared
+    // set per run; an ARN already pushed this run is skipped for later users.
+    if (opts.dedupArns) {
+      var unseen: any[] = [];
+      for (var di = 0; di < deliverable.length; di++) {
+        var darn = deliverable[di] && deliverable[di].endpointArn;
+        if (darn && opts.dedupArns[darn]) {
+          if (opts.dedupStats) opts.dedupStats.skippedDevices++;
+          continue;
+        }
+        unseen.push(deliverable[di]);
+      }
+      deliverable = unseen;
+      if (deliverable.length === 0) return false;
+    }
+
     var sent = 0;
     var localDead: { [token: string]: boolean } = {};
     var localHasDead = false;
@@ -1145,6 +1166,8 @@ namespace LegacyPush {
       });
       if (providerResult.success === true) {
         sent++;
+        // Claim this device for the rest of the cron run (cross-account dedup).
+        if (opts.dedupArns && t.endpointArn) opts.dedupArns[t.endpointArn] = true;
       } else {
         var lck = providerResult.removeToken ? "UNREGISTERED" : (providerResult.code || "send_failed");
         localCodes[lck] = (localCodes[lck] || 0) + 1;
@@ -1325,6 +1348,10 @@ namespace LegacyPush {
     var sent = 0, gated = 0, scanned = 0;
     var byLocale: { [l: string]: { sent: number; gated: number } } = {};
     var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
+    // One shared set per run: devices (endpoint ARNs) already pushed. Catches
+    // the same physical phone registered under multiple user accounts.
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1344,7 +1371,7 @@ namespace LegacyPush {
         var topic = pickQuizTopic(quiz, locale);
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_quiz",
           "daily_quiz_title", "daily_quiz_body", { topic: topic },
-          { data: { screen: "daily_quiz" } });
+          { data: { screen: "daily_quiz" }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) { recordMarker(nk, u, "daily_quiz", todayKey); sent++; byLocale[locale].sent++; }
         else {
           gated++; byLocale[locale].gated++;
@@ -1363,7 +1390,8 @@ namespace LegacyPush {
     var reportTopic = pickQuizTopic(quiz, "en");
     PushAlerts.postCronReport(nk, logger, {
       cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
-      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons
+      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons,
+      dedupedDevices: runDedupStats.skippedDevices
     });
     return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: reportTopic });
   }
@@ -1410,6 +1438,9 @@ namespace LegacyPush {
     var byLocale: { [l: string]: { sent: number; gated: number } } = {};
     var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     var quizMissedAll = false;
+    // Shared per-run device set — see rpcNotifCronDailyQuiz for rationale.
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1431,7 +1462,7 @@ namespace LegacyPush {
         var topic = pickQuizTopic(quiz, locale);
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_premium_quiz",
           "daily_premium_quiz_title", "daily_premium_quiz_body", { topic: topic },
-          { data: { screen: "daily_premium_quiz" } });
+          { data: { screen: "daily_premium_quiz" }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) { recordMarker(nk, u, "daily_premium_quiz", todayKey); sent++; byLocale[locale].sent++; }
         else {
           gated++; byLocale[locale].gated++;
@@ -1452,7 +1483,8 @@ namespace LegacyPush {
       cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
       scanned: scanned, sent: sent, gated: gated,
       noQuiz: quizMissedAll && sent === 0,
-      byLocale: byLocale, gateReasons: gateReasons
+      byLocale: byLocale, gateReasons: gateReasons,
+      dedupedDevices: runDedupStats.skippedDevices
     });
     return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
   }
