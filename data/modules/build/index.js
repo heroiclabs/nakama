@@ -35002,8 +35002,15 @@ var LegacyPush;
                 unseen.push(deliverable[di]);
             }
             deliverable = unseen;
+            // Every device this user owns was already pushed this run (via another
+            // account on the same phone). Return TRUE so the cron records this user's
+            // day-marker: returning false left the co-owner account unmarked, and the
+            // NEXT cron run re-sent to the same phone through it — the in-run dedup
+            // merely postponed the duplicate by one run (observed 2026-07-03: dupe
+            // pairs 20 min apart, one per consecutive run). The user's device HAS the
+            // notification for today; that is the semantic the marker tracks.
             if (deliverable.length === 0)
-                return false;
+                return true;
         }
         var sent = 0;
         var localDead = {};
