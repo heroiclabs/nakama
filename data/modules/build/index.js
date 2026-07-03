@@ -57727,6 +57727,16 @@ var SatoriMessages;
         };
         inbox.messages.push(msg);
         saveUserMessages(nk, userId, inbox, gameId);
+        // Bridge to Nakama built-in notifications so the message surfaces in the
+        // game clients' Notification Center (Unity reads list_notification_inbox /
+        // the realtime socket, neither of which sees satori_messages storage).
+        // Code 110 is unmapped in the client NOTIFICATION_CODE_MAP, so it renders
+        // as event_type "system". Best-effort: the satori inbox write above is
+        // the source of truth.
+        try {
+            nk.notificationSend(userId, messageDef.title, { title: messageDef.title, body: messageDef.body || "", messageDefId: messageDef.id, hasReward: !!messageDef.reward }, 110, "", true);
+        }
+        catch (_e) { /* notification is a best-effort mirror */ }
     }
     SatoriMessages.deliverMessage = deliverMessage;
     function deliverToAudience(nk, logger, messageDef, audienceId, gameId) {
