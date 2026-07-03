@@ -384,6 +384,9 @@ export interface FunnelResult {
   sinceMs: number;
   untilMs: number;
   experimentId: string | null;
+  basis?: "distinct_users" | "event_volume";
+  source?: string;
+  ringScanTruncated?: boolean;
 }
 
 export function listFunnels(opts: RpcOptions, gameId?: string): Promise<{ funnels: FunnelDefinition[] }> {
@@ -454,6 +457,8 @@ export interface RetentionResult {
   totalUsers: number;
   scannedRecords: number;
   truncated: boolean;
+  basis?: string;
+  source?: string;
 }
 
 export function computeRetention(
