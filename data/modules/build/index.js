@@ -20245,8 +20245,6 @@ var AdminConsole;
             createdAt: (definitions[messageId] && definitions[messageId].createdAt) || now,
             updatedAt: now
         };
-        definitions[messageId] = messageDef;
-        var key = saveScopedSatoriConfig(nk, "messages", gameId, definitions);
         var delivered = 0;
         var sendNow = !scheduleAt || scheduleAt <= now;
         if (sendNow) {
@@ -20267,8 +20265,13 @@ var AdminConsole;
             messageDef.deliveredCount = delivered;
             messageDef.sentAt = now;
             messageDef.deliveredAt = now;
-            saveScopedSatoriConfig(nk, "messages", gameId, definitions);
         }
+        // Persist ONCE, after delivery. A second storageWrite to the same key in
+        // the same RPC invocation is rejected by Nakama's version check (observed
+        // on prod: "Storage write rejected - version check failed"), which was
+        // leaving immediate sends stuck at status=draft.
+        definitions[messageId] = messageDef;
+        var key = saveScopedSatoriConfig(nk, "messages", gameId, definitions);
         logAdminAudit(nk, ctx, "satori_message_broadcast", { id: messageId, audienceId: audienceId, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { scheduled: !!scheduleAt, delivered: delivered });
         return RpcHelpers.successResponse({ scheduled: !!(scheduleAt && scheduleAt > now), delivered: delivered, messageId: messageId });
     }

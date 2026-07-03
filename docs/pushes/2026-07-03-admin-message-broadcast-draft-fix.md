@@ -46,6 +46,15 @@ initial `"draft"` status. Two secondary issues:
 | `data/modules/src/satori/messages/messages.ts` (`processScheduledMessages`) | Scheduled messages with no audience filter now deliver to the same random-sample of users instead of being silently marked sent. |
 | `data/modules/index.js`, `data/modules/build/index.js` | Regenerated bundle (1170 RPCs). |
 
+## Follow-up (same day)
+
+First deploy still left immediate sends at `draft`. Prod debugging showed the
+handler's **second** `storageWrite` to `satori_configs/<game>:messages` within
+the same RPC invocation was rejected by Nakama's storage version check
+(`Storage write rejected - version check failed`), so the draft→sent update
+never persisted even though delivery ran. The handler now persists **once,
+after delivery**, matching the working `satori_messages_broadcast` pattern.
+
 ## Notes
 
 - Existing draft messages are **not** retroactively sent — re-send them from
