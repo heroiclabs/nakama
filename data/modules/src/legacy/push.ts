@@ -1349,28 +1349,101 @@ namespace LegacyPush {
   }
 
   // ─── 1. Daily quiz cron (broadcast localized "new daily quiz" with topic) ─
+  // ── Time-budgeted, resumable daily quiz scan ─────────────────────────────
+  //
+  // RCA 2026-07-03: the old implementation scanned ALL ~14k opted-in users in
+  // one synchronous pass (~3+ storage reads per user), taking minutes — every
+  // HTTP invocation (n8n monitor, ALB 60s idle timeout) timed out and reported
+  // failure even though the sends eventually happened. The RPC now processes
+  // users within a wall-clock budget and persists a cursor + running stats so
+  // successive invocations (n8n loop, or the in-process 30-min scheduler tick)
+  // resume where the last one stopped. The Discord cron report fires ONCE per
+  // day, when a full pass completes — no more per-slice alert spam.
+  var DQ_CURSOR_COLLECTION = "notif_cron_state";
+  var DQ_CURSOR_KEY = "daily_quiz_cursor";
+  var DQ_DEFAULT_BUDGET_MS = 20000;
+  var DQ_MAX_BUDGET_MS = 45000; // stay under the 60s gateway/ALB timeout
+
+  interface DailyQuizCursor {
+    dateKey: string;
+    offset: number;
+    scanned: number;
+    sent: number;
+    gated: number;
+    byLocale: { [l: string]: { sent: number; gated: number } };
+    gateReasons: PushAlerts.GateReasons;
+    dedupedDevices: number;
+    reported: boolean;
+  }
+
+  function readDailyQuizCursor(nk: nkruntime.Nakama, todayKey: string): DailyQuizCursor {
+    var fresh: DailyQuizCursor = {
+      dateKey: todayKey, offset: 0, scanned: 0, sent: 0, gated: 0,
+      byLocale: {}, gateReasons: { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 },
+      dedupedDevices: 0, reported: false
+    };
+    try {
+      var objs = nk.storageRead([{ collection: DQ_CURSOR_COLLECTION, key: DQ_CURSOR_KEY, userId: Constants.SYSTEM_USER_ID }]);
+      if (objs && objs.length > 0 && objs[0].value) {
+        var v: any = objs[0].value;
+        if (v.dateKey === todayKey) return v as DailyQuizCursor;
+      }
+    } catch (_) { /* fall through to fresh */ }
+    return fresh;
+  }
+
+  function writeDailyQuizCursor(nk: nkruntime.Nakama, cursor: DailyQuizCursor): void {
+    try {
+      nk.storageWrite([{
+        collection: DQ_CURSOR_COLLECTION, key: DQ_CURSOR_KEY, userId: Constants.SYSTEM_USER_ID,
+        value: cursor as any, permissionRead: 0, permissionWrite: 0
+      }]);
+    } catch (_) { /* non-fatal: worst case we rescan a slice */ }
+  }
+
   function rpcNotifCronDailyQuiz(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
+    var budgetMs = DQ_DEFAULT_BUDGET_MS;
+    try {
+      var data = payload ? JSON.parse(payload) : {};
+      if (typeof data.time_budget_ms === "number" && data.time_budget_ms > 0) {
+        budgetMs = Math.min(data.time_budget_ms, DQ_MAX_BUDGET_MS);
+      }
+    } catch (_) { /* default budget */ }
+    var startedAt = Date.now();
+
     var quiz = fetchDailyQuizForToday(nk, logger);
     var todayKey = todayDateKey();
     if (!quiz) {
-      PushAlerts.postCronReport(nk, logger, {
-        cronName: "daily_quiz", dateKey: todayKey, scanned: 0, sent: 0, gated: 0,
-        noQuiz: true, byLocale: {}
-      });
-      return RpcHelpers.successResponse({ skipped: "no_daily_quiz" });
+      // Alert once per day at most — repeated invocations of a no-quiz day
+      // must not re-post the same "no quiz" report every 30 minutes.
+      var nqCursor = readDailyQuizCursor(nk, todayKey);
+      if (!nqCursor.reported) {
+        PushAlerts.postCronReport(nk, logger, {
+          cronName: "daily_quiz", dateKey: todayKey, scanned: 0, sent: 0, gated: 0,
+          noQuiz: true, byLocale: {}
+        });
+        nqCursor.reported = true;
+        writeDailyQuizCursor(nk, nqCursor);
+      }
+      return RpcHelpers.successResponse({ done: true, skipped: "no_daily_quiz" });
     }
+
+    var cursor = readDailyQuizCursor(nk, todayKey);
+    var byLocale = cursor.byLocale;
+    var gateReasons = cursor.gateReasons;
     var sent = 0, gated = 0, scanned = 0;
-    var byLocale: { [l: string]: { sent: number; gated: number } } = {};
-    var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     // One shared set per run: devices (endpoint ARNs) already pushed. Catches
-    // the same physical phone registered under multiple user accounts.
+    // the same physical phone registered under multiple user accounts. The
+    // cross-invocation dedup is handled by the per-user `alreadySent` marker.
     var runDedupArns: { [arn: string]: boolean } = {};
     var runDedupStats = { skippedDevices: 0 };
-    var batch = 100, offset = 0;
+    var batch = 100, offset = cursor.offset;
+    var completedPass = false;
     while (true) {
+      if (Date.now() - startedAt >= budgetMs) break;
       var users = listOptedInUsers(nk, batch, offset);
-      if (!users || users.length === 0) break;
+      if (!users || users.length === 0) { completedPass = true; break; }
       for (var i = 0; i < users.length; i++) {
         scanned++;
         var u = users[i];
@@ -1400,15 +1473,38 @@ namespace LegacyPush {
         }
       }
       offset += batch;
-      if (users.length < batch) break;
+      if (users.length < batch) { completedPass = true; break; }
     }
+
+    // Persist cumulative progress. On a completed pass the offset resets so
+    // the next invocation (scheduler tick 30 min later) starts a fresh sweep —
+    // per-user `alreadySent` markers make re-sweeps idempotent, and users whose
+    // local morning window opens later in the day still get their push.
+    cursor.scanned += scanned;
+    cursor.sent += sent;
+    cursor.gated += gated;
+    cursor.byLocale = byLocale;
+    cursor.gateReasons = gateReasons;
+    cursor.dedupedDevices += runDedupStats.skippedDevices;
+    cursor.offset = completedPass ? 0 : offset;
     var reportTopic = pickQuizTopic(quiz, "en");
-    PushAlerts.postCronReport(nk, logger, {
-      cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
-      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons,
-      dedupedDevices: runDedupStats.skippedDevices
+    if (completedPass && !cursor.reported) {
+      // First full pass of the day → the single daily Discord report.
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
+        scanned: cursor.scanned, sent: cursor.sent, gated: cursor.gated,
+        byLocale: cursor.byLocale, gateReasons: cursor.gateReasons,
+        dedupedDevices: cursor.dedupedDevices
+      });
+      cursor.reported = true;
+    }
+    writeDailyQuizCursor(nk, cursor);
+    return RpcHelpers.successResponse({
+      done: completedPass, resumeOffset: cursor.offset,
+      sent: sent, gated: gated, scanned: scanned,
+      totalSentToday: cursor.sent, totalScannedToday: cursor.scanned,
+      elapsedMs: Date.now() - startedAt, dateKey: todayKey, topic: reportTopic
     });
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey, topic: reportTopic });
   }
 
   // ─── S3 fetch: premium daily quiz (locale-aware, falls back to English) ────
