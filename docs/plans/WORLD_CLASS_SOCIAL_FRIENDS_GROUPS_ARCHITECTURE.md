@@ -25,6 +25,8 @@
 14. [Dry-Run: Critical User Flows](#14-dry-run-critical-user-flows)
 15. [Migration Phases](#15-migration-phases)
 16. [Non-Goals & Out of Scope](#16-non-goals--out-of-scope)
+17. [Live Codebase Validation & New Opportunities — 2026-07-04 Update](#17-live-codebase-validation--new-opportunities--2026-07-04-update)
+18. [Cross-Reference With Related Planning Documents — 2026-07-04 Update](#18-cross-reference-with-related-planning-documents--2026-07-04-update)
 
 ---
 
@@ -1307,6 +1309,130 @@ After Unity release stabilizes (2+ weeks), remove:
 
 ---
 
+## 17. Live Codebase Validation & New Opportunities — 2026-07-04 Update
+
+> **Method:** Re-read this document against the live Unity client (`Assets/_QuizVerse/Scripts/`) and the live Nakama server (`data/modules/src/` + deployed `data/modules/*.js` + compiled `data/modules/index.js`), plus fresh 2026 research on Duolingo Leagues/Friends Quests and the Gizmo Study Group flow. This section validates the original audit against ground truth and adds new, smaller, high-leverage findings that weren't visible from code analysis alone on 2026-06-29.
+
+### 17.1 Bug Audit — Validated Against Code
+
+| # | Original Claim | Verdict | Evidence |
+|---|----------------|---------|----------|
+| B-001 | Historical split-brain in `friend_invites.js` | ✅ **Confirmed, fix present** | `friend_invites.js:448-454` now calls `nk.friendsAdd()` on send — the "SPLIT-BRAIN FIX" comment is in the live file |
+| B-003 | Dual registration of `create_game_group` / `get_user_groups` | ✅ **Confirmed — worse than described** | THREE independent implementations exist in source: `data/modules/legacy_runtime.js` (`rpcCreateGameGroup`), `data/modules/src/legacy/groups.ts` (compiled in), and the deployed `groups.js` registers the differently-named `create_quizverse_group`. The compiled `index.js` only shows **one** winning `registerRpc("create_game_group", …)` because postbuild's `__rpc_create_game_group = fn` variable-assignment pattern silently overwrites — confirming the "winner determined by merge order, not intent" risk is real and currently live, not hypothetical |
+| B-007 | Unity 3-tier accept fallback | ✅ **Confirmed** | `FriendInviteActionHelper.cs` still has the fallback chain including a bypass to `client.AddFriendsAsync` (Nakama SDK direct call) |
+| B-009 | Invite rate limit is per-user not per-pair | ✅ **Confirmed** | `friend_invites.js:65-66`: `FRIEND_INV_RATELIMIT_KEY = 'fr_invite_send'` keyed only by `fromUserId` — a user can invite-spam N different targets at 1-per-5s with zero per-pair cap |
+| B-010 | `friends_challenge_user` duplicate alias | ✅ **Confirmed** | Unity's own RPC constant table calls out `send_friend_challenge (+ legacy alias friends_challenge_user)` as a known duplicate-call risk from different code paths |
+
+**Everything audited in Section 2 checks out.** No original findings were invalidated by live code — this plan's diagnosis is sound.
+
+### 17.2 Major New Finding — A Second Social Layer Already Exists, Unregistered
+
+The single biggest opportunity this document missed: **`data/modules/social_v2/social_v2.js` contains 12 fully-written RPC handlers that are never wired to `registerRpc` and are therefore 100% dead/unreachable code**, plus `data/modules/copilot/social_features.js` which is explicitly headed "THIS FILE IS DEAD CODE — DO NOT EDIT."
+
+The unregistered handlers in `social_v2.js` map almost exactly onto the Duolingo/Gizmo mechanics this plan is trying to design from scratch:
+
+| Dead handler | Duolingo/Gizmo equivalent | Plan section it would satisfy |
+|---|---|---|
+| `rpcDailyDuoCreate` / `rpcDailyDuoStatus` | **Duolingo Friends Quests** — weekly random-paired co-op challenge | Not currently in this plan at all — see 17.5 |
+| `rpcTeamQuizCreate` / `rpcTeamQuizJoin` | **Gizmo Study Group live quiz** — synchronized group quiz session | Related to §15 activity feed but this is the missing real-time piece |
+| `rpcGroupQuestCreate` / `rpcGroupQuestProgress` | **Gizmo "group goals"** — collaborative weekly target | §7 Groups (partially — this is more specific than `ivx_groups_progress`) |
+| `rpcGroupActivityFeed` | Friends activity feed | Overlaps with the new §15 `ivx_social_friends_feed` — likely a first draft of it |
+| `rpcGetRivalry` / `rpcFriendScoreAlert` | **Duolingo "Maria just passed you"** loss-aversion nudge | Directly overlaps with §E.6 "friendsAheadOfMe" — this may already be a working implementation |
+| `rpcChallengeAccept` / `rpcChallengeDecline` / `rpcChallengeList` | Generic challenge lifecycle | Overlaps with `friend_challenges.js` (the live system) — likely superseded, but worth diffing before deleting |
+
+**Recommendation:** Before building any new RPC in Phase 3, **read and diff `social_v2.js` against the equivalent new RPC design**. Some of this may be salvageable — reducing net-new engineering for `rivalry`/`friendScoreAlert` (§E.6) and `dailyDuo` (a genuinely new idea, see 17.5) to a *revival + hardening* task instead of a from-scratch build. This is the single cheapest way to close several "High priority" gaps from Appendix E's action list (G-020 especially).
+
+### 17.3 Unity Client — Redundant Systems & Shipped-But-Invisible Backend Work
+
+The Unity-side audit surfaced structural debt that has direct product impact and isn't in the original plan (which focused on the server):
+
+1. **Three parallel group/clan systems ship in the client, only one is live.** `SocialZoneV2Controller` + `GroupsNakamaService` (→ `create_quizverse_group`) is the production path. `ClanManager` (`Trivia.Clan`) is a **complete, working backend manager with zero UI** — `HomeScreen.OnClanClicked()` shows a "Coming Soon" popup because `UIClanScreen` was never built. `GuildManager` is `[Obsolete]` but **`D7D30RetentionBootstrap` still calls it** for XP/contribution flows. This means there is already a working Clans backend (challenges, leaderboard, contributions, gem-based creation) sitting idle behind a placeholder popup — directly relevant to closing the "Groups" gap this plan spends Section 7 designing, since a Clan-style system with challenges/leaderboards is arguably *more* Duolingo-League-like than the current cooperative QuizVerse group.
+2. **Two chat stacks coexist**: `UnifiedChatController` (UIToolkit, Social Zone-native) and `UIChatMainController` (legacy uGUI, still owns `gift_send`). Any new social feature that touches chat needs to pick one, or gift-sending silently breaks.
+3. **Misleading diagnostics**: Social Zone code logs `"Calling RPC 'intelliverse_friends_list'"` but the actual call is to `FriendsNakamaService.GetFriendsListAsync` → RPC `friends_list`. Harmless today, but will actively mislead whoever debugs the Phase 4 client migration to `ivx_social_friends_list`.
+4. **`SocialPressureManager` (client-side retention UI) currently renders *simulated/mock* friend activity**, not real data — meaning the "social pressure" screen a player sees today is fake. This is a strong argument for prioritizing §E.6/G-020 (real `ivx_social_pressure_summary` with `friendsAheadOfMe`) — there's already a UI slot waiting for real data, which lowers the client-side lift for that item to near-zero.
+
+### 17.4 Documentation Debt Discovered
+
+`docs/COMPLETE_RPC_REFERENCE.md` documents roughly 18 social RPCs. The live server has **70+** registered social RPCs across friends/presence/invites/challenges/streaks/quests/groups/chat/notifications. The doc also lists `friends_add` as a real RPC — it does not exist (the actual paths are `send_friend_invite`, the Nakama SDK's `AddFriendsAsync`, or the alias `hiro_friends_add`). Any RPC consolidation work (Phase 3-5) should regenerate this reference from `index.js` rather than hand-edit it, or it will be stale again within a week.
+
+### 17.5 Competitive Refresh (2026) — Two Mechanics Missing From the Original Research
+
+Fresh research surfaced two specific, well-documented Duolingo mechanics that are more precise than what Section 3.2 captured, plus confirmation of the Gizmo real-time group quiz flow:
+
+**Duolingo Leagues (tiered ladder, not just "weekly leaderboard"):**
+- Every player is placed in a **30-person pool**, matched by *similar recent activity level* and *timezone* — not by friend graph. This is a distinct feature from the friend leaderboard already planned in §6/§E.6.
+- **10 tiers** (Bronze → Diamond). Top finishers each week get *promoted* a tier; bottom finishers get *demoted*. This turns a 7-day mechanic into a multi-month (10-week minimum) engagement ladder.
+- Sunday-night deadline deliberately targets weekend drop-off — the exact opposite of a "reset at midnight every day" design.
+- **QuizVerse gap:** the existing `leaderboard_friends_*` system (friend-only) and any group leaderboard are both *relationship-scoped*. There is no *stranger-matched, skill-banded, promotion/demotion* ladder. This is a genuinely new system, not a rename of an existing one — but it reuses 90% of the plumbing already planned (weekly reset job, `ivx_groups_progress`-style storage pattern, notification tier for promotion/demotion events).
+
+**Duolingo Friends Quests (random weekly pairing + shared 5-day goal):**
+- Every Tuesday, mutual followers are randomly paired (not user-chosen) into a 2-person team with a randomly-assigned joint goal ("earn X XP together" / "complete Y perfect lessons"), with 5 days to finish. Pre-written "nudge" messages let players prod their partner with zero typing.
+- This is **exactly what the dead `rpcDailyDuoCreate`/`rpcDailyDuoStatus` handlers in `social_v2.js` appear to implement** (see 17.2) — strong signal this was already scoped once and abandoned mid-build.
+- Cold-start value: unlike friend challenges (require an existing relationship), Duolingo explicitly pairs "someone you only know from the leaderboard" — i.e., this mechanic can be a **cold-start tool** (feeds directly into §E.4's Stage 1/2 ladder) rather than only a retention tool for existing friends.
+
+**Gizmo Study Group live quiz (confirmed, adds detail to §3.3):**
+- Members joining a group quiz see **each other's live answers, time-per-question, and mistakes** during the same session — not just a post-hoc leaderboard. The group owner can see who's struggling in real time.
+- "Nudge anyone who hasn't taken today's quiz" is a per-member, per-day action — narrower and more actionable than a generic streak reminder.
+- QuizVerse already has the underlying primitives for this (`multiplayer-kernel/templates/persistent-party-match.ts`, `TeamBattleManager`) — the gap is wiring "Study Group quiz" as a named, discoverable entry point from the Group Detail screen rather than a generic Team Battle mode.
+
+### 17.6 Prioritized Quick-Win Backlog (New, Small-Effort Items)
+
+These are deliberately **small** additions — scoped to be doable inside the existing Phase 1-3 plan, ranked by estimated effort vs. player-segment impact. "Segment" uses the Cold-Start Ladder from §E.4.
+
+| # | Quick Win | Effort | Segment(s) Helped | Why It's Cheap |
+|---|-----------|--------|--------------------|-----------------|
+| Q-01 | Fix per-pair rate limit on `send_friend_invite` (B-009) | XS | All | One key-format change in `friend_invites.js`, already scoped as Phase 1 |
+| Q-02 | Diff & revive `rpcGetRivalry`/`rpcFriendScoreAlert` from `social_v2.js` into the real `ivx_social_pressure_summary` (G-020) | S | Stage 2-3 (3+ friends) | Client UI slot already exists (`SocialPressureManager`) and currently shows fake data — this is a data-wiring fix, not a new feature |
+| Q-03 | Wire `create_game_group` to a single source, delete the losing two (B-003) | S | All | Removes a live footgun before Phase 2 adds more group RPCs on top of an ambiguous foundation |
+| Q-04 | Fix the `intelliverse_friends_list` misleading log line | XS | Engineering only | 1-line fix, prevents future debugging time loss |
+| Q-05 | Ship `ivx_social_group_invite_link` + native Share Sheet (already planned in §7.3/§13, just re-flagging as highest-K-factor item) | M | Stage 0-1 (cold start) | Directly targets K-factor (G-002); infra already designed, just needs building first |
+| Q-06 | Revive `rpcDailyDuoCreate`/`rpcDailyDuoStatus` as "Duo Quest" — Duolingo Friends Quests clone, randomly paired, 5-day joint goal | M | Stage 1-2 (cold start + early retention) | Backend handler logic already exists in dead code; mainly needs registration, hardening, and a small Unity card UI |
+| Q-07 | Add a "Study Group Live Quiz" entry point on `GroupDetailController` reusing existing party-match/`TeamBattleManager` infra | M | Core users (existing groups) | No new backend match system needed — just a UI affordance + party-match template config |
+| Q-08 | Ship Clan UI (`UIClanScreen`) as a thin wrapper around the already-complete `ClanManager` backend, OR formally deprecate/remove `ClanManager` to stop the confusion | M (build) / XS (remove) | Core/power users, or engineering cleanup | Backend already 100% built; this is either "turn on a switch" or "delete confirmed-dead code," never a from-scratch build |
+| Q-09 | Cold-start `ivx_social_onboarding_state` RPC (G-014) returning a friend-count-based stage + suggested action | S | Stage 0 (brand new users) | Pure read RPC over data that already exists (friend count via `nk.friendsList`) |
+| Q-10 | Regenerate `COMPLETE_RPC_REFERENCE.md` from `index.js` RPC names (script, not manual) | XS | Engineering only | Prevents the next audit from repeating this discrepancy |
+| Q-11 | League ladder (Bronze→Diamond, 30-person skill/timezone-matched pool, weekly promotion/demotion) | L | Stage 3+ (power users) + also solves cold-start (no friends required to compete) | Larger than the others, but uniquely solves "engagement with zero friends" — listed here because it reuses the weekly-reset job pattern already planned for friend leagues in §3.2/§E.6, so it's additive infra, not a parallel system |
+
+**Suggested sequencing:** Q-01, Q-03, Q-04, Q-10 cost almost nothing and remove active landmines — do these regardless of anything else. Q-02 and Q-09 turn already-half-built things into real features. Q-05/Q-06/Q-08 are the highest-leverage *new* player-facing wins because each reuses dead or half-idle code instead of net-new systems. Q-07 and Q-11 are the two items worth a dedicated design pass before building, since they touch live match infrastructure and a new storage/matchmaking system respectively.
+
+---
+
+## 18. Cross-Reference With Related Planning Documents — 2026-07-04 Update
+
+> While validating Section 17, two sibling planning documents were found that materially change how this plan should be prioritized. Neither is referenced in the original Appendix B. Both are read-only cross-references — nothing here modifies those documents.
+
+### 18.1 `quiz-verse/docs/plans/PLAN-ENGAGEMENT_SYSTEM_07_FRIENDS_SOCIAL.md` (Unity-side companion plan)
+
+This is a **more authoritative, MCP-verified** companion to this document, covering the Unity client half of the same "Friends/Social" surface (this architecture doc is server-first; that plan is client-first). It used live Unity MCP `find_gameobjects` probes against the running `MainQuiz` scene — not just static code reads — which surfaces something Section 17.3 missed entirely:
+
+**Critical correction to Section 17.3:** live-scene MCP probes confirm these managers have `totalCount: 0` in `MainQuiz.unity` — i.e. **they do not exist anywhere in the running scene, not even inactive**:
+
+| Component | Live in scene? | Why it matters to *this* document |
+|---|---|---|
+| `IVXFriendsManager` (`_IntelliVerseXSDK/Social/Runtime/IVXFriendsManager.cs`) | ❌ **Not in scene** | This is the realtime socket dispatcher for the native Nakama friend graph. **Every notification-driven flow this document designs in §9 (Notification & Event Bus) and §14 (Dry-Run flows) assumes the client is listening on the socket.** If `IVXFriendsManager` never boots (its `[RuntimeInitializeOnLoadMethod]` auto-bootstrap is racy against Nakama auth timing), `OnFriendRequestReceived`/`OnFriendChallengeReceived`/`OnFriendListChanged` never fire, and `QVNFriendsManager`'s realtime refresh subscription (which the production friends UI depends on) silently degrades to polling-only. **This is a bigger risk to "world-class" than any server-side RPC redesign in this document** — a perfect server notification pipeline delivering into a client that isn't listening produces the same UX as no notification pipeline at all. |
+| `FriendBattleManager` | ❌ **Not in scene** | UI panels (`UIFriendBattlePanel`, `FriendChallengeController`) hold null references to it today — tapping "Challenge to 1v1" is either a silent no-op or a crash risk in production right now. |
+| `SocialPressureManager` | ❌ **Not in scene** (and separately confirmed mock-data-only per Section 17.3) | Consistent with this document's finding — doubly confirmed by an independent read. |
+| `FriendsUIManager` (`Friends Request/` legacy folder) | ❌ **Not in scene** | Confirms Unity's own audit (17.3) that a third, unused friends UI stack exists purely as dead weight. |
+
+**Additional finding not in this document at all — Friend Quest progress is client-side exploitable:** `FriendQuestManager.RecordProgress` increments quest progress in `PlayerPrefs` only; the server's `friend_quest_complete` RPC accepts the claimed completion at face value with no validation against a real activity log. A player can edit local prefs to fake quest completion and claim the reward. This is a live economy exploit, not a hypothetical — and it's outside this document's threat model in §E.3 (which covers challenge score integrity but not friend-quest progress integrity). **Recommend folding this into §E.3 as a sibling finding to "Async Challenge Score Integrity."**
+
+**Practical implication for this document's sequencing:** Phase 1 of *this* plan (Section "Migration Phases") is styled as "no breaking changes, fix known bugs" at the server. The Unity companion plan's own Phase 1 ("Stabilize") is scoped at ~5 weeks and is a **prerequisite**, not a parallel track — a redesigned server-side notification/event bus (this doc's §9) has no effect on the player until `IVXFriendsManager` is actually placed in the scene and its reflection-based SDK binding (`Type.GetType("IntelliVerseX.Backend.IVXNManager, IntelliVerseX.V2")`) is replaced with a direct reference. **Recommend sequencing this doc's Phase 1 and the Unity plan's Phase 1 together, not server-first.**
+
+### 18.2 `nakama/docs/RPC_DEDUPLICATION_PLAN.md` (approved 2026-03-14, prior consolidation effort)
+
+This is an **already-approved** (not just proposed) server-wide RPC consolidation plan predating this document by over three months, covering all 187 registered RPCs (social is one of eight clusters). Two things worth reconciling:
+
+1. **Cluster 5 ("Challenge Systems", 16 → 9 RPCs) explicitly named `daily_duo_create`, `get_rivalry`, `daily_duo_status`, and `friends_challenge_user` as consolidation targets**, to be redirected into a canonical `async_challenge_*` RPC family (`async_challenge_create`, `_join`, `_cancel`, `_list`, `_stats`). This is strong corroborating evidence for the Section 17.2 finding that `social_v2.js`'s dead `rpcDailyDuoCreate`/`rpcGetRivalry`/`rpcDailyDuoStatus` handlers were a real, once-live feature set that got orphaned — very likely *during* this exact consolidation effort, when the RPC names were meant to move to `async_challenge_*` (which Unity's `AsyncChallengeManager.cs` confirms exists) but the `social_v2.js` file was never cleaned up or re-registered afterward.
+2. **The plan's own status is "APPROVED ✅" but Section 17.1 of this document just confirmed `create_game_group` is still triple-implemented in source** (`legacy_runtime.js`, `src/legacy/groups.ts`, plus the differently-named `create_quizverse_group` in `groups.js`) — meaning at least part of the approved deduplication work was never executed. **Before adding the 26 new `ivx_social_*` RPCs this document proposes in Section 12, it's worth running a quick audit of which of the other 7 clusters in `RPC_DEDUPLICATION_PLAN.md` were actually completed** — otherwise this document risks adding a 9th unconsolidated cluster on top of work that already has a stalled, approved plan sitting in the repo.
+
+**Recommended addition to this document's Migration Phases:** insert a "Phase 0.5 — Verify Prior Consolidation" step that checks `RPC_DEDUPLICATION_PLAN.md`'s 8 clusters against current `index.js` registrations before Phase 1 begins, so this document's own RPC count claims (44 → 37 in Appendix C) are measured against reality, not against the pre-consolidation RPC count from March.
+
+### 18.3 Note on Appendix B's Existing "Internal" References
+
+This document's Appendix B cites `UNITY_SOCIAL_ZONE_FRIENDS_GROUPS_FLOW.md` and `social-zone-friends-groups-backend-flow.md` as internal references. **Neither file could be located anywhere in the Unity or Nakama repositories** — they do not exist under those names or any close variant found via search. They should be treated as either aspirational (never actually written) or superseded by `PLAN-ENGAGEMENT_SYSTEM_07_FRIENDS_SOCIAL.md` (Unity side, confirmed to exist and cover the same ground in more depth) and this document itself (backend side). Recommend updating Appendix B to point at the real files, or removing the dead references.
+
+---
+
 ## Appendix A: Key Numbers
 
 | Metric | Current | Target (World-Class) |
@@ -2108,3 +2234,5 @@ These patterns look reasonable in isolation but are known to destroy social feat
 
 *Document generated by AI architecture review — 2026-06-29.*  
 *All changes are PLANNING ONLY. Zero code modifications made.*
+
+*Section 17 added 2026-07-04: live validation against the Unity client and Nakama server codebases, plus a fresh Duolingo/Gizmo competitive pass. All Section 2 bug claims were confirmed accurate against code. Zero code modifications made in this update either — Section 17 and its backlog are still planning-only.*
