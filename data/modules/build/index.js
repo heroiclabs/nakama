@@ -58173,6 +58173,23 @@ var SatoriMetrics;
         }
         return null;
     }
+    // Fallback source for config-defined metrics: the legacy analytics pipeline.
+    //
+    // Game clients report telemetry via analytics_log_event (which feeds
+    // analytics_live_daily.by_name per-day counters) — NOT via the satori_event
+    // capture path that SatoriMetrics.processEvent listens on. So a metric
+    // defined on a real gameplay event (question_answered,
+    // media_question_completed, session_start, …) never accumulates capture
+    // state and sits at 0 forever, even though the event fires hundreds of
+    // times a day. When the capture path has no buckets for a count metric we
+    // read the same per-day counters the legacy_* builtins use. Count only:
+    // by_name stores plain counters, so sum/avg/min/max/unique can't be derived.
+    function canDeriveFromLegacy(def) {
+        return !!(def && def.eventName && def.aggregation === "count");
+    }
+    function legacyCountForDay(day, eventName) {
+        return (day.byName && day.byName[eventName]) || 0;
+    }
     function builtinValue(day, field) {
         switch (field) {
             case "dau": return day.dau;
@@ -58272,13 +58289,16 @@ var SatoriMetrics;
         var definitions = getMetricDefinitions(nk, gameId);
         var results = [];
         var now = Math.floor(Date.now() / 1000);
+        var todayForFallback = null;
         var metricIds = data.metricIds || Object.keys(definitions);
         for (var i = 0; i < metricIds.length; i++) {
             var metricId = metricIds[i];
             var state = getMetricState(nk, metricId, gameId);
             var latestBucket = "all";
             var latestTime = 0;
+            var hasBuckets = false;
             for (var bk in state.buckets) {
+                hasBuckets = true;
                 var bkTime = parseInt(bk) || 0;
                 if (bkTime > latestTime) {
                     latestTime = bkTime;
@@ -58286,9 +58306,20 @@ var SatoriMetrics;
                 }
             }
             var bucket = state.buckets[latestBucket];
+            var value = bucket ? bucket.value : 0;
+            // No capture-path state → derive today's value from the legacy
+            // analytics per-day event counters (the pipeline the game actually
+            // reports through).
+            var defn = definitions[metricId];
+            if (!hasBuckets && canDeriveFromLegacy(defn)) {
+                if (!todayForFallback) {
+                    todayForFallback = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(Date.now()), gameId);
+                }
+                value = legacyCountForDay(todayForFallback, defn.eventName);
+            }
             results.push({
                 metricId: metricId,
-                value: bucket ? bucket.value : 0,
+                value: value,
                 computedAt: now
             });
         }
@@ -58395,10 +58426,27 @@ var SatoriMetrics;
         points.sort(function (a, b) { return a.bucketSec - b.bucketSec; });
         if (points.length > limit)
             points = points.slice(points.length - limit);
+        // No capture-path buckets → derive a daily series from the legacy
+        // analytics per-day event counters (same source as the legacy_* builtins).
+        var basis = "capture";
+        if (points.length === 0 && canDeriveFromLegacy(def)) {
+            basis = "legacy_by_name";
+            var fbDays = Math.min(Math.max(parseInt(data.days, 10) || 30, 3), 60);
+            var fbRange = LegacyAnalytics.readRange(nk, Date.now(), fbDays, gameId);
+            for (var fd = 0; fd < fbRange.length; fd++) {
+                var cnt = legacyCountForDay(fbRange[fd], def.eventName);
+                points.push({
+                    bucketSec: Math.floor(new Date(fbRange[fd].date + "T00:00:00Z").getTime() / 1000),
+                    value: cnt,
+                    count: cnt
+                });
+            }
+        }
         return RpcHelpers.successResponse({
             metricId: data.metricId,
             definition: def || null,
-            windowed: !!(def && def.windowSec),
+            windowed: !!(def && def.windowSec) || basis === "legacy_by_name",
+            basis: basis,
             points: points
         });
     }
