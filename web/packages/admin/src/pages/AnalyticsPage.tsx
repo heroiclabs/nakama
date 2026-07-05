@@ -722,8 +722,13 @@ function CohortsTab() {
     if (!accounts.data?.users) return [];
     const map = new Map<string, NakamaUser[]>();
     for (const u of accounts.data.users) {
-      const d = new Date(u.create_time);
-      const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      // admin_accounts_list returns ConsoleAccount rows: timestamps live on
+      // the nested `user` object, not the top level.
+      const created = (u as any).user?.create_time ?? u.create_time;
+      const d = new Date(created);
+      const label = isNaN(d.getTime())
+        ? "Unknown"
+        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const arr = map.get(label) ?? [];
       arr.push(u);
       map.set(label, arr);
@@ -749,7 +754,9 @@ function CohortsTab() {
       users: [],
     }));
     for (const u of accounts.data.users) {
-      const diff = now - new Date(u.update_time).getTime();
+      const updated = (u as any).user?.update_time ?? u.update_time;
+      const ts = new Date(updated).getTime();
+      const diff = isNaN(ts) ? Infinity : now - ts;
       for (let i = 0; i < buckets.length; i++) {
         if (diff < buckets[i].max) {
           result[i].count++;
