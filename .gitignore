@@ -770,3 +770,13 @@ data/lambda-functions/*/*.zip
 data/lambda-functions/*/package-lock.json
 scripts/run-direct.ps1
 scripts/start-local.ps1
+
+# Gas Town (added by gt)
+.runtime/
+.claude/
+.opencode/
+.logs/
+state.json
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
