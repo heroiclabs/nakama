@@ -1232,7 +1232,7 @@ function GameIntelligenceTab() {
         intelligenceRpc,
         { game_id: gameSlug || "quizverse", hours: 24, days: 7, sample_players: 25 },
         serverKeyAuth(),
-      ),
+      ).then(unwrapRpc),
     retry: 1,
   });
 
