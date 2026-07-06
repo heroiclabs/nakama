@@ -55520,40 +55520,32 @@ var LegacyAnalytics;
     }
     // Read the analytics_dau + analytics_live_daily aggregate docs for one date.
     // gameId "all" / undefined maps to the platform-wide aggregate keys.
-    // If a game-scoped key exists it is preferred; if it is absent (first time a
-    // per-game aggregate has not been written yet) we transparently fall back to
-    // the platform-wide key so Timeline / Dashboard never show a blank chart.
+    // A game-scoped request ONLY reads its own scoped key — it never falls back
+    // to the platform-wide aggregate. A missing scoped doc means that game had
+    // no activity that day, so we correctly return zeros/empty rather than
+    // showing another game's (or the whole platform's) numbers under this
+    // game's name.
     function readDay(nk, dateStr, gameId) {
         var sys = Constants.SYSTEM_USER_ID;
         var out = emptyDay(dateStr);
         var rollupRevenue = -1; // <0 = no rollup doc for this day
         var rollupPurchases = 0;
-        // Build the read list. For game-scoped requests include both the scoped key
-        // and the platform-wide fallback key — we pick the scoped one when present,
-        // otherwise silently use the platform-wide aggregate.
-        var useGameScope = !isPlatform(gameId);
         var reads = [
             { collection: DAU_COLLECTION, key: dauKeyOf(dateStr, gameId), userId: sys },
             { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys },
             { collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, gameId), userId: sys }
         ];
-        if (useGameScope) {
-            reads.push({ collection: DAU_COLLECTION, key: dauKeyOf(dateStr, undefined), userId: sys });
-            reads.push({ collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, undefined), userId: sys });
-            reads.push({ collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, undefined), userId: sys });
-        }
         try {
             var rawRecs = nk.storageRead(reads);
-            // Index records by key so we can resolve scoped-vs-platform preference.
+            // Index records by key (inline to avoid ES5 block-function error).
             var byKey = {};
             for (var ri = 0; ri < rawRecs.length; ri++) {
                 if (rawRecs[ri] && rawRecs[ri].value)
                     byKey[rawRecs[ri].key] = rawRecs[ri];
             }
-            // Prefer scoped key, fall back to platform-wide (inline to avoid ES5 block-function error).
-            var dauRec = byKey[dauKeyOf(dateStr, gameId)] || (useGameScope ? byKey[dauKeyOf(dateStr, undefined)] : null);
-            var liveRec = byKey[liveKeyOf(dateStr, gameId)] || (useGameScope ? byKey[liveKeyOf(dateStr, undefined)] : null);
-            var rollupRec = byKey[rollupKeyOf(dateStr, gameId)] || (useGameScope ? byKey[rollupKeyOf(dateStr, undefined)] : null);
+            var dauRec = byKey[dauKeyOf(dateStr, gameId)] || null;
+            var liveRec = byKey[liveKeyOf(dateStr, gameId)] || null;
+            var rollupRec = byKey[rollupKeyOf(dateStr, gameId)] || null;
             var recs = [];
             if (dauRec)
                 recs.push(dauRec);
