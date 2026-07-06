@@ -1641,6 +1641,9 @@ function QuestEnginePanel() {
   const [editing, setEditing] = useState<QuestEngineQuest | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<QuestEngineQuest | null>(null);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkJson, setBulkJson] = useState("");
+  const [bulkError, setBulkError] = useState("");
 
   const { data: config, isLoading, isError, error, refetch } = useQuestEngineConfig(engineGameId);
   const save = useSaveQuestEngineConfig(engineGameId);
@@ -1717,6 +1720,47 @@ function QuestEnginePanel() {
     setShowForm(false);
   }, []);
 
+  const openBulkEditor = useCallback(() => {
+    const map: Record<string, QuestEngineQuest> = {};
+    for (const q of quests) map[q.id] = q;
+    setBulkJson(JSON.stringify(map, null, 2));
+    setBulkError("");
+    setShowBulk(true);
+    setShowForm(false);
+    setEditing(null);
+  }, [quests]);
+
+  const handleBulkSave = useCallback(() => {
+    let parsed: Record<string, QuestEngineQuest>;
+    try {
+      parsed = JSON.parse(bulkJson) as Record<string, QuestEngineQuest>;
+    } catch (e) {
+      setBulkError(`Invalid JSON: ${(e as Error).message}`);
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setBulkError("Top level must be an object keyed by quest id: { \"quest_id\": { ... } }");
+      return;
+    }
+    for (const [key, q] of Object.entries(parsed)) {
+      if (!q || typeof q !== "object") { setBulkError(`"${key}" must be a quest object.`); return; }
+      q.id = q.id || key;
+      if (!q.name) { setBulkError(`"${key}" is missing a name.`); return; }
+      if (!Array.isArray(q.steps) || q.steps.length === 0) { setBulkError(`"${key}" needs at least one step.`); return; }
+      for (const s of q.steps) {
+        if (!s.eventType) { setBulkError(`"${key}" has a step without an eventType.`); return; }
+        if (!s.requiredCount || s.requiredCount < 1) { setBulkError(`"${key}" has a step without a valid requiredCount.`); return; }
+        s.id = s.id || "s1";
+        s.description = s.description || s.eventType;
+      }
+    }
+    setBulkError("");
+    save.mutate({ quests: parsed }, {
+      onSuccess: () => setShowBulk(false),
+      onError: (e) => setBulkError((e as Error).message),
+    });
+  }, [bulkJson, save]);
+
   return (
     <div className="space-y-6">
       {/* Panel header */}
@@ -1736,9 +1780,18 @@ function QuestEnginePanel() {
             Refresh
           </button>
           <button
+            onClick={openBulkEditor}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Bulk JSON
+          </button>
+          <button
             onClick={() => {
               setEditing(null);
               setShowForm(true);
+              setShowBulk(false);
             }}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
@@ -1747,6 +1800,47 @@ function QuestEnginePanel() {
           </button>
         </div>
       </div>
+
+      {/* Bulk JSON editor */}
+      {showBulk && (
+        <div className="space-y-3 rounded-lg border border-border bg-card p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Bulk Edit — Full Quest Config (JSON)</h3>
+            <p className="text-xs text-muted-foreground">
+              Saving replaces the <em>entire</em> config for scope{" "}
+              <code className="rounded bg-muted px-1 py-0.5">{engineGameId}</code>. Apps see changes on their next fetch.
+            </p>
+          </div>
+          <textarea
+            value={bulkJson}
+            onChange={(e) => setBulkJson(e.target.value)}
+            rows={22}
+            spellCheck={false}
+            className={cn(
+              "w-full rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y",
+              bulkError ? "border-destructive" : "border-border",
+            )}
+          />
+          {bulkError && <p className="text-xs text-destructive">{bulkError}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBulkSave}
+              disabled={save.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Save All Quests
+            </button>
+            <button
+              onClick={() => setShowBulk(false)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Form */}
       {(showForm || editing) && (
