@@ -849,6 +849,113 @@ namespace LegacyPush {
       ar: "قبل {name} طلب صداقتك. قل مرحباً!",                  id: "{name} menerima permintaan temanmu. Sapa dia!",
       zu: "U-{name} wamukel' isicelo sakho somngane. Sho sawubona!"
     },
+    // ── Challenge accepted ({name} = the acceptor's display name) ───────────
+    // Sent to the CHALLENGER when their outgoing challenge is accepted.
+    // Added 2026-07-06 for the revived sendFriendsPushBridge (notification_codes.js).
+    challenge_accepted_title: {
+      en: "🔥 Challenge Accepted!",   hi: "🔥 चैलेंज स्वीकार हो गया!",     es: "🔥 ¡Reto aceptado!",      fr: "🔥 Défi accepté !",
+      de: "🔥 Herausforderung angenommen!", pt: "🔥 Desafio aceito!",     ru: "🔥 Вызов принят!",        ja: "🔥 挑戦が受理されました！",
+      ko: "🔥 도전 수락됨!",          "zh-Hans": "🔥 挑战已接受！",       ar: "🔥 تم قبول التحدي!",       id: "🔥 Tantangan diterima!",     zu: "🔥 Inselelo yamukelwe!"
+    },
+    challenge_accepted_body: {
+      en: "{name} accepted your challenge. Game on!",            hi: "{name} ने आपका चैलेंज स्वीकार कर लिया। खेल शुरू!",
+      es: "{name} aceptó tu reto. ¡Que empiece el juego!",       fr: "{name} a accepté ton défi. Que le jeu commence !",
+      de: "{name} hat deine Herausforderung angenommen. Los geht's!", pt: "{name} aceitou seu desafio. Valendo!",
+      ru: "{name} принял(а) твой вызов. Игра началась!",         ja: "{name}さんが挑戦を受けました。勝負開始！",
+      ko: "{name}님이 도전을 수락했어요. 게임 시작!",             "zh-Hans": "{name} 接受了你的挑战。开战吧！",
+      ar: "قبل {name} تحديك. لتبدأ اللعبة!",                     id: "{name} menerima tantanganmu. Ayo main!",
+      zu: "U-{name} uyamukele inselelo yakho. Umdlalo usuqalile!"
+    },
+    // ── Async challenge (Phantom Arena) lifecycle — added 2026-07-06 ─────────
+    // Consumed by the asyncChallengeSendNotification push bridge in
+    // legacy_runtime.js. {name} = the other player, {mode} = quiz mode name,
+    // {score} = the other player's score.
+    ac_opponent_joined_title: {
+      en: "🎮 Challenge Accepted!",   hi: "🎮 चैलेंज स्वीकार!",          es: "🎮 ¡Reto aceptado!",      fr: "🎮 Défi accepté !",
+      de: "🎮 Herausforderung angenommen!", pt: "🎮 Desafio aceito!",    ru: "🎮 Вызов принят!",        ja: "🎮 対戦相手が参加！",
+      ko: "🎮 도전 수락!",            "zh-Hans": "🎮 挑战已接受！",      ar: "🎮 تم قبول التحدي!",       id: "🎮 Tantangan diterima!",    zu: "🎮 Inselelo yamukelwe!"
+    },
+    ac_opponent_joined_body: {
+      en: "{name} joined your challenge. Play now!",             hi: "{name} आपके चैलेंज में शामिल हो गए। अभी खेलें!",
+      es: "{name} se unió a tu reto. ¡Juega ya!",                fr: "{name} a rejoint ton défi. Joue maintenant !",
+      de: "{name} ist deiner Herausforderung beigetreten. Spiel jetzt!", pt: "{name} entrou no seu desafio. Jogue agora!",
+      ru: "{name} присоединился(ась) к твоему вызову. Играй!",  ja: "{name}さんが挑戦に参加しました。今すぐプレイ！",
+      ko: "{name}님이 도전에 참여했어요. 지금 플레이하세요!",     "zh-Hans": "{name} 加入了你的挑战。快来玩！",
+      ar: "انضم {name} إلى تحديك. العب الآن!",                   id: "{name} bergabung dengan tantanganmu. Main sekarang!",
+      zu: "U-{name} ujoyine inselelo yakho. Dlala manje!"
+    },
+    ac_your_turn_title: {
+      en: "⏰ Your Turn!",            hi: "⏰ आपकी बारी!",              es: "⏰ ¡Tu turno!",            fr: "⏰ À ton tour !",
+      de: "⏰ Du bist dran!",          pt: "⏰ Sua vez!",                 ru: "⏰ Твой ход!",             ja: "⏰ あなたの番！",
+      ko: "⏰ 당신 차례!",            "zh-Hans": "⏰ 该你了！",           ar: "⏰ دورك!",                 id: "⏰ Giliranmu!",              zu: "⏰ Ithuba lakho!"
+    },
+    ac_your_turn_body: {
+      en: "{name} scored {score} — beat it if you can!",         hi: "{name} ने {score} अंक बनाए — हरा सकें तो हराइए!",
+      es: "{name} logró {score} puntos. ¡Supéralo si puedes!",   fr: "{name} a marqué {score} points. Fais mieux si tu peux !",
+      de: "{name} hat {score} Punkte. Schlag das, wenn du kannst!", pt: "{name} fez {score} pontos. Supere se puder!",
+      ru: "{name} набрал(а) {score}. Побей рекорд!",             ja: "{name}さんが{score}点獲得。超えられるか？",
+      ko: "{name}님이 {score}점 기록! 이겨보세요!",              "zh-Hans": "{name} 得了 {score} 分——有本事就超过他！",
+      ar: "سجل {name} {score} نقطة — تفوق عليه إن استطعت!",      id: "{name} mencetak {score} — kalahkan kalau bisa!",
+      zu: "U-{name} uthole u-{score} — mehlule uma ukwazi!"
+    },
+    ac_results_title: {
+      en: "🏆 Results Are In!",       hi: "🏆 नतीजे आ गए!",             es: "🏆 ¡Resultados listos!",   fr: "🏆 Résultats disponibles !",
+      de: "🏆 Ergebnisse sind da!",    pt: "🏆 Saíram os resultados!",    ru: "🏆 Результаты готовы!",    ja: "🏆 結果発表！",
+      ko: "🏆 결과 발표!",            "zh-Hans": "🏆 结果揭晓！",         ar: "🏆 ظهرت النتائج!",         id: "🏆 Hasil sudah keluar!",     zu: "🏆 Imiphumela isifikile!"
+    },
+    ac_results_body: {
+      en: "{name} scored {score} — see who won!",                hi: "{name} ने {score} अंक बनाए — देखें कौन जीता!",
+      es: "{name} logró {score} puntos. ¡Mira quién ganó!",      fr: "{name} a marqué {score} points. Regarde qui a gagné !",
+      de: "{name} hat {score} Punkte. Sieh nach, wer gewonnen hat!", pt: "{name} fez {score} pontos. Veja quem venceu!",
+      ru: "{name} набрал(а) {score}. Узнай, кто победил!",       ja: "{name}さんが{score}点。勝者は誰だ？",
+      ko: "{name}님이 {score}점! 누가 이겼는지 확인하세요!",     "zh-Hans": "{name} 得了 {score} 分——看看谁赢了！",
+      ar: "سجل {name} {score} نقطة — شاهد من فاز!",              id: "{name} mencetak {score} — lihat siapa menang!",
+      zu: "U-{name} uthole u-{score} — bheka ukuthi ubani ophumelele!"
+    },
+    // ── Async challenge expiry warning ({hours} = hours remaining) ──────────
+    ac_expiry_title: {
+      en: "⏳ Challenge Expiring!",   hi: "⏳ चैलेंज खत्म होने वाला है!",  es: "⏳ ¡El reto expira!",      fr: "⏳ Le défi expire !",
+      de: "⏳ Herausforderung läuft ab!", pt: "⏳ Desafio expirando!",      ru: "⏳ Вызов истекает!",       ja: "⏳ 挑戦がまもなく終了！",
+      ko: "⏳ 도전 만료 임박!",       "zh-Hans": "⏳ 挑战即将到期！",      ar: "⏳ التحدي على وشك الانتهاء!", id: "⏳ Tantangan segera berakhir!", zu: "⏳ Inselelo isizophela!"
+    },
+    ac_expiry_body: {
+      en: "Your challenge expires in {hours}h — finish it before it's gone!", hi: "आपका चैलेंज {hours} घंटे में खत्म हो जाएगा — जल्दी पूरा करें!",
+      es: "Tu reto expira en {hours} h. ¡Termínalo antes de que desaparezca!", fr: "Ton défi expire dans {hours} h. Termine-le vite !",
+      de: "Deine Herausforderung läuft in {hours} Std. ab — schnell beenden!", pt: "Seu desafio expira em {hours}h — conclua antes que suma!",
+      ru: "Твой вызов истекает через {hours} ч. Успей завершить!",            ja: "挑戦は残り{hours}時間で終了します。お早めに！",
+      ko: "도전이 {hours}시간 후 만료됩니다. 서두르세요!",                     "zh-Hans": "你的挑战将在 {hours} 小时后到期——抓紧完成！",
+      ar: "ينتهي تحديك خلال {hours} ساعة — أنجزه قبل فوات الأوان!",           id: "Tantanganmu berakhir dalam {hours} jam — selesaikan sekarang!",
+      zu: "Inselelo yakho iphela emahoreni angu-{hours} — yiqede ngokushesha!"
+    },
+    // ── Duo Quest pairing / completion ({name} = partner, {coins} = reward) ─
+    duo_paired_title: {
+      en: "🤝 Duo Quest!",            hi: "🤝 डुओ क्वेस्ट!",              es: "🤝 ¡Misión en dúo!",       fr: "🤝 Quête en duo !",
+      de: "🤝 Duo-Quest!",             pt: "🤝 Missão em dupla!",          ru: "🤝 Дуо-квест!",            ja: "🤝 デュオクエスト！",
+      ko: "🤝 듀오 퀘스트!",          "zh-Hans": "🤝 双人任务！",          ar: "🤝 مهمة ثنائية!",           id: "🤝 Misi Duo!",               zu: "🤝 I-Duo Quest!"
+    },
+    duo_paired_body: {
+      en: "You and {name} share a quest this week — team up and win together!", hi: "इस हफ्ते आप और {name} की साझा क्वेस्ट है — मिलकर जीतें!",
+      es: "Tú y {name} comparten una misión esta semana. ¡Ganen juntos!",       fr: "Toi et {name} partagez une quête cette semaine. Gagnez ensemble !",
+      de: "Du und {name} teilt diese Woche eine Quest — gewinnt zusammen!",     pt: "Você e {name} têm uma missão juntos esta semana. Vençam juntos!",
+      ru: "У тебя и {name} общий квест на этой неделе — победите вместе!",      ja: "今週は{name}さんと共同クエスト！力を合わせて勝とう！",
+      ko: "이번 주 {name}님과 공동 퀘스트! 함께 승리하세요!",                    "zh-Hans": "本周你和 {name} 共享任务——组队共赢！",
+      ar: "أنت و{name} تتشاركان مهمة هذا الأسبوع — تعاونا وافوزا معاً!",         id: "Kamu dan {name} berbagi misi minggu ini — menang bersama!",
+      zu: "Wena no-{name} nabelana ngomsebenzi kuleli sonto — nqobani ndawonye!"
+    },
+    duo_done_title: {
+      en: "🏆 Duo Quest Complete!",   hi: "🏆 डुओ क्वेस्ट पूरी!",          es: "🏆 ¡Misión en dúo completa!", fr: "🏆 Quête en duo terminée !",
+      de: "🏆 Duo-Quest geschafft!",   pt: "🏆 Missão em dupla concluída!", ru: "🏆 Дуо-квест завершён!",     ja: "🏆 デュオクエスト達成！",
+      ko: "🏆 듀오 퀘스트 완료!",     "zh-Hans": "🏆 双人任务完成！",       ar: "🏆 اكتملت المهمة الثنائية!",  id: "🏆 Misi Duo selesai!",        zu: "🏆 I-Duo Quest iphelile!"
+    },
+    duo_done_body: {
+      en: "You both did it! +{coins} coins each. 🎉",                hi: "आप दोनों ने कर दिखाया! दोनों को +{coins} सिक्के। 🎉",
+      es: "¡Lo lograron! +{coins} monedas para cada uno. 🎉",        fr: "Vous avez réussi ! +{coins} pièces chacun. 🎉",
+      de: "Ihr habt es geschafft! Je +{coins} Münzen. 🎉",           pt: "Vocês conseguiram! +{coins} moedas cada. 🎉",
+      ru: "Вы справились! По +{coins} монет каждому. 🎉",            ja: "二人ともクリア！それぞれ+{coins}コイン獲得！🎉",
+      ko: "둘 다 해냈어요! 각자 +{coins} 코인! 🎉",                  "zh-Hans": "你们做到了！每人 +{coins} 金币。🎉",
+      ar: "نجحتما معاً! +{coins} عملة لكل منكما. 🎉",                 id: "Kalian berhasil! +{coins} koin masing-masing. 🎉",
+      zu: "Nikwenzile nobabili! +{coins} izinhlamvu ngamunye. 🎉"
+    },
     // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
     chat_message_title: {
       en: "💬 {name}",                hi: "💬 {name}",                 es: "💬 {name}",               fr: "💬 {name}",

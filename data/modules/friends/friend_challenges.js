@@ -400,6 +400,25 @@ function rpcSendFriendChallenge(ctx, logger, nk, payload) {
         return _fcErr('Unable to send challenge at this time', 'send_blocked');
     }
 
+    // ── Score integrity (G-013 / AP-007, 2026-07-06) ───────────────────────
+    // When the challenge carries a claimed score, require a server-signed
+    // token minted by the quiz submit RPC. Enforcement is flag-gated via the
+    // app registry ("scoreSigning") so existing clients keep working until
+    // the Unity build that attaches tokens has rolled out — then flipping
+    // the flag closes the { myScore: 999999 } exploit with zero deploys.
+    var claimedScore = (rawData && typeof rawData.myScore === 'number') ? rawData.myScore
+                     : (rawData && typeof rawData.targetScore === 'number') ? rawData.targetScore : null;
+    if (claimedScore !== null &&
+        typeof SocialAppRegistry !== 'undefined' && SocialAppRegistry.featureEnabled &&
+        typeof ScoreSigning !== 'undefined' && ScoreSigning.verify &&
+        SocialAppRegistry.featureEnabled(nk, gameId, 'scoreSigning')) {
+        var sv = ScoreSigning.verify(ctx, nk, rawData.scoreToken, senderId, claimedScore);
+        if (!sv.valid) {
+            return _fcErr('Score could not be verified — finish a quiz first, then challenge',
+                          'invalid_score_token', { reason: sv.reason });
+        }
+    }
+
     // ── Rate limits (STRICT — pair AND global) ─────────────────────────────
     var pairRl = _fcCheckPairRateLimit(nk, senderId, targetUserId);
     if (!pairRl.allowed) {
@@ -462,7 +481,7 @@ function rpcSendFriendChallenge(ctx, logger, nk, payload) {
 
     // ── Notify recipient (canonical Subject/Code contract) ─────────────────
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_RECEIVED', targetUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_CHALLENGE_RECEIVED', targetUserId, {
             challengeId:     challengeId,
             fromUserId:      senderId,
             fromUsername:    ctx.username || senderId,
@@ -596,7 +615,7 @@ function rpcAcceptFriendChallenge(ctx, logger, nk, payload) {
 
     // Notify the sender
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_ACCEPTED', challenge.fromUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_CHALLENGE_ACCEPTED', challenge.fromUserId, {
             challengeId:           challengeId,
             acceptedBy:            userId,
             acceptedByDisplayName: _fcDisplayName(nk, userId, ctx.username),
@@ -678,7 +697,7 @@ function rpcDeclineFriendChallenge(ctx, logger, nk, payload) {
     }
 
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_DECLINED', challenge.fromUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_CHALLENGE_DECLINED', challenge.fromUserId, {
             challengeId: challengeId,
             declinedBy:  userId,
             reason:      reason
@@ -764,7 +783,7 @@ function rpcCancelFriendChallenge(ctx, logger, nk, payload) {
     }
 
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_CANCELLED', recipientId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_CHALLENGE_CANCELLED', recipientId, {
             challengeId: challengeId,
             cancelledBy: userId
         }, userId);
@@ -822,7 +841,7 @@ function rpcListPendingFriendChallenges(ctx, logger, nk, payload) {
                 // Also fire an EXPIRED notification to the SENDER so their
                 // outbox UI clears without polling.
                 try {
-                    sendFriendsNotification(nk, logger, 'FRIEND_CHALLENGE_EXPIRED',
+                    sendFriendsNotification(ctx, nk, logger, 'FRIEND_CHALLENGE_EXPIRED',
                         c.fromUserId, {
                             challengeId: c.challengeId,
                             expiredFor:  userId
@@ -1003,7 +1022,7 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
     // Notify the friend that someone wants to spectate (canonical code 105)
     try {
         var requesterName = _fcDisplayName(nk, userId, ctx.username);
-        sendFriendsNotification(nk, logger, 'FRIEND_SPECTATE_REQUEST', friendUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_SPECTATE_REQUEST', friendUserId, {
             fromUserId:      userId,
             fromUsername:    ctx.username || userId,
             fromDisplayName: requesterName,
@@ -1034,9 +1053,20 @@ function rpcFriendsSpectate(ctx, logger, nk, payload) {
 //
 // IMPORTANT: legacy_runtime.js's `friends_challenge_user` registration must
 // stay removed / commented so it doesn't compete with our handler.
+// Phase-5 deprecation telemetry (2026-07-06): current Unity code now calls
+// the canonical 'send_friend_challenge' (FriendsNakamaService.cs). This
+// alias serves ONLY app builds already in the field. AnalyticsAlerts counts
+// per-RPC traffic — hard-remove once this shows zero calls for 14+ days.
+function rpcFriendsChallengeUserDeprecated(ctx, logger, nk, payload) {
+    try {
+        logger.warn('[FriendChallenges] DEPRECATED alias friends_challenge_user called (user=' + (ctx && ctx.userId) + ') — old client build');
+    } catch (_) {}
+    return rpcSendFriendChallenge(ctx, logger, nk, payload);
+}
+
 function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc('send_friend_challenge',          rpcSendFriendChallenge);
-    initializer.registerRpc('friends_challenge_user',         rpcSendFriendChallenge); // legacy alias
+    initializer.registerRpc('friends_challenge_user',         rpcFriendsChallengeUserDeprecated); // field-only deprecated alias
     initializer.registerRpc('accept_friend_challenge',        rpcAcceptFriendChallenge);
     initializer.registerRpc('decline_friend_challenge',       rpcDeclineFriendChallenge);
     initializer.registerRpc('cancel_friend_challenge',        rpcCancelFriendChallenge);

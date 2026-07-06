@@ -3,6 +3,9 @@
 **Last Updated**: November 16, 2025  
 **Version**: 2.0.0
 
+> ⚠️ **Existence check (added 2026-07-06):** this document is hand-written and can lag behind the code (it once documented RPCs that never existed and missed 50+ that did — see WORLD_CLASS_SOCIAL_FRIENDS_GROUPS_ARCHITECTURE.md §17.4). The authoritative, auto-generated list of every registered RPC is [RPC_INDEX_GENERATED.md](RPC_INDEX_GENERATED.md) — regenerate with `npm run docs:rpc-index` after every build.
+
+
 ## Table of Contents
 
 1. [Introduction](#introduction)

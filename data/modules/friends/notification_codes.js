@@ -169,39 +169,53 @@ function mirrorFriendsNotificationToInbox(nk, logger, subjectKey, userId, payloa
 }
 
 /**
- * Best-effort FCM/APNS bridge for friend lifecycle (push.ts sendLocalizedPushToUser).
+ * Best-effort FCM/APNS bridge for friend lifecycle.
+ *
+ * ⚠️ FIXED 2026-07-06 (live bug, sibling of B-006): this bridge previously
+ * guarded on `typeof sendLocalizedPushToUser !== 'function'` — but push.ts
+ * compiles that function INSIDE the LegacyPush namespace; no bare global
+ * ever exists. The guard was therefore always true and this bridge has
+ * silently NO-OPed since it shipped: accept/challenge pushes never reached
+ * any device. Now calls LegacyPush.sendLocalizedPushToUser with a real ctx
+ * (required — the helper reads ctx.env for the push endpoint URL).
+ *
+ * Delivery matrix follows the architecture doc §9.3:
+ *   FRIEND_REQUEST            → NO push here — friend_invites.js sends its
+ *                               own richer direct push at send time; pushing
+ *                               here too would double-notify the target.
+ *   FRIEND_REQUEST_ACCEPTED   → NO push here — same reason: friend_invites.js
+ *                               accept path sends its own direct
+ *                               friend_accepted_* push with inviteId data.
+ *   FRIEND_CHALLENGE_RECEIVED → push (friend_challenge_* keys) — challenges
+ *                               have NO direct push anywhere; the bridge owns them.
+ *   FRIEND_CHALLENGE_ACCEPTED → push (challenge_accepted_* keys) — same.
+ *   declined / cancelled / removed / expired / spectate → in-app tiers only.
+ *
  * No-op when push module is not loaded. Never throws.
  */
-function sendFriendsPushBridge(nk, logger, subjectKey, userId, payload, senderId) {
-    if (typeof sendLocalizedPushToUser !== 'function') return;
+function sendFriendsPushBridge(ctx, nk, logger, subjectKey, userId, payload, senderId) {
+    if (typeof LegacyPush === 'undefined' || !LegacyPush.sendLocalizedPushToUser) return;
+    if (!ctx) return; // helper dereferences ctx.env — never call without a real ctx
     var p = payload || {};
     var data = friendNotifDataFromPayload(payload, senderId);
     data.screen = 'friends';
 
     try {
-        if (subjectKey === 'FRIEND_REQUEST') {
-            var reqName = p.fromDisplayName || p.fromUsername || 'Someone';
-            sendLocalizedPushToUser(nk, logger, userId, 'friend_request',
-                'friend_request_title', 'friend_request_body', { name: reqName },
-                { skipQuietHours: true, data: data });
-        } else if (subjectKey === 'FRIEND_REQUEST_ACCEPTED') {
-            var accName = p.acceptedByDisplayName || p.acceptedByUsername || 'Someone';
-            sendLocalizedPushToUser(nk, logger, userId, 'friend_request_accepted',
-                'friend_request_title', 'friend_request_body', { name: accName },
-                { skipQuietHours: true, data: data });
-        } else if (subjectKey === 'FRIEND_REQUEST_DECLINED') {
-            sendLocalizedPushToUser(nk, logger, userId, 'friend_request_declined',
-                'friend_request_title', 'friend_request_body', { name: 'Someone' },
-                { skipQuietHours: true, data: data });
-        } else if (subjectKey === 'FRIEND_REQUEST_CANCELLED') {
-            sendLocalizedPushToUser(nk, logger, userId, 'friend_request_cancelled',
-                'friend_request_title', 'friend_request_body', { name: 'Someone' },
-                { skipQuietHours: true, data: data });
-        } else if (subjectKey === 'FRIEND_REMOVED') {
-            sendLocalizedPushToUser(nk, logger, userId, 'friend_removed',
-                'friend_request_title', 'friend_request_body', { name: 'Someone' },
-                { skipQuietHours: true, data: data });
+        if (subjectKey === 'FRIEND_CHALLENGE_RECEIVED') {
+            var chName = p.fromDisplayName || p.fromUsername || 'Someone';
+            var chMode = (p.challengeData && (p.challengeData.modeName || p.challengeData.mode)) || p.gameId || 'a quiz battle';
+            LegacyPush.sendLocalizedPushToUser(ctx, logger, nk, userId,
+                'friend_challenge',
+                'friend_challenge_title', 'friend_challenge_body', { name: chName, mode: chMode },
+                { skipQuietHours: true, skipInAppNotification: true, data: data });
+        } else if (subjectKey === 'FRIEND_CHALLENGE_ACCEPTED') {
+            var accByName = p.acceptedByDisplayName || p.acceptedByUsername || 'Someone';
+            LegacyPush.sendLocalizedPushToUser(ctx, logger, nk, userId,
+                'friend_challenge_accepted',
+                'challenge_accepted_title', 'challenge_accepted_body', { name: accByName },
+                { skipQuietHours: true, skipInAppNotification: true, data: data });
         }
+        // All other subjects: in-app inbox + socket only (doc §9.3).
     } catch (err) {
         if (logger && logger.warn) {
             logger.warn('[FriendsNotif] sendFriendsPushBridge failed: ' + err.message);
@@ -239,17 +253,42 @@ function buildFriendsNotification(subjectKey, userId, payload, senderId) {
  * Convenience wrapper that sends a single friends-system notification.
  * Catches and logs failure (notifications must never break the parent RPC).
  */
-function sendFriendsNotification(nk, logger, subjectKey, userId, payload, senderId) {
+function sendFriendsNotification(ctx, nk, logger, subjectKey, userId, payload, senderId) {
+    // Signature change 2026-07-06: ctx added as first param so the push
+    // bridge can reach ctx.env (see sendFriendsPushBridge fix above). All
+    // call sites in friend_invites.js / friend_challenges.js updated.
+    // B-006 fix (2026-07-06): tier isolation. Previously all three delivery
+    // tiers shared ONE try/catch, so nk.notificationsSend (Tier 1, realtime
+    // socket) throwing silently skipped the durable inbox mirror (Tier 2)
+    // AND the device push (Tier 3). Per the architecture doc §9.4: Tier 2 is
+    // the durable record and runs FIRST; Tiers 1 and 3 are best-effort and
+    // each isolated so no tier's failure can mask another's.
+    var rec = null;
     try {
-        var rec = buildFriendsNotification(subjectKey, userId, payload, senderId);
-        nk.notificationsSend([rec]);
-        mirrorFriendsNotificationToInbox(nk, logger, subjectKey, userId, payload, senderId);
-        sendFriendsPushBridge(nk, logger, subjectKey, userId, payload, senderId);
-        return true;
+        rec = buildFriendsNotification(subjectKey, userId, payload, senderId);
     } catch (err) {
         if (logger && logger.warn) {
-            logger.warn('[FriendsNotif] Failed to send ' + subjectKey + ' to ' + userId + ': ' + err.message);
+            logger.warn('[FriendsNotif] build failed for ' + subjectKey + ': ' + err.message);
         }
         return false;
     }
+
+    // Tier 2 — durable inbox mirror (internally try/caught, never throws)
+    mirrorFriendsNotificationToInbox(nk, logger, subjectKey, userId, payload, senderId);
+
+    // Tier 1 — realtime socket + Nakama persistent notification (isolated)
+    var socketOk = false;
+    try {
+        nk.notificationsSend([rec]);
+        socketOk = true;
+    } catch (err) {
+        if (logger && logger.warn) {
+            logger.warn('[FriendsNotif] socket send failed for ' + subjectKey + ' to ' + userId + ' (non-fatal): ' + err.message);
+        }
+    }
+
+    // Tier 3 — device push via FCM/APNS bridge (internally try/caught)
+    sendFriendsPushBridge(ctx, nk, logger, subjectKey, userId, payload, senderId);
+
+    return socketOk;
 }

@@ -82,7 +82,36 @@ function _stubFriendBattlesGetActive() { return JSON.stringify({ success: true, 
 
 // ── Module init ───────────────────────────────────────────────────
 
+// Phase-5 deprecation telemetry (2026-07-06): the hiro_* friend aliases have
+// ZERO references in any current client codebase (Unity games + web checked).
+// They remain registered only in case old field builds used them. Each call
+// logs loudly; hard-remove once AnalyticsAlerts shows zero traffic for 14+ days.
+function _sdkDeprecatedAlias(aliasName, target) {
+    return function (ctx, logger, nk, payload) {
+        try {
+            logger.warn('[SdkAliases] DEPRECATED alias ' + aliasName + ' called (user=' + (ctx && ctx.userId) + ')');
+        } catch (_) {}
+        return target(ctx, logger, nk, payload);
+    };
+}
+
+var _dep_hiro_friends_list             = null;
+var _dep_hiro_friends_remove           = null;
+var _dep_hiro_friends_block            = null;
+var _dep_hiro_friend_quests_get_active = null;
+var _dep_hiro_friend_quests_contribute = null;
+var _dep_hiro_friend_battles_challenge = null;
+var _dep_hiro_friends_add              = null;
+
 function InitModule(ctx, logger, nk, initializer) {
+    _dep_hiro_friends_list             = _sdkDeprecatedAlias("hiro_friends_list", __rpc_friends_list);
+    _dep_hiro_friends_remove           = _sdkDeprecatedAlias("hiro_friends_remove", __rpc_friends_remove);
+    _dep_hiro_friends_block            = _sdkDeprecatedAlias("hiro_friends_block", __rpc_friends_block);
+    _dep_hiro_friend_quests_get_active = _sdkDeprecatedAlias("hiro_friend_quests_get_active", __rpc_friend_quest_get_state);
+    _dep_hiro_friend_quests_contribute = _sdkDeprecatedAlias("hiro_friend_quests_contribute", __rpc_friend_quest_record_progress);
+    _dep_hiro_friend_battles_challenge = _sdkDeprecatedAlias("hiro_friend_battles_challenge", __rpc_friend_battle_create);
+    _dep_hiro_friends_add              = _sdkDeprecatedAlias("hiro_friends_add", _aliasHiroFriendsAdd);
+
     // ─── Hiro naming aliases (singular/plural + verb-position swaps) ──
     initializer.registerRpc("hiro_get_streaks",                 __rpc_hiro_streaks_get);
     initializer.registerRpc("hiro_streak_get",                  __rpc_hiro_streaks_get);
@@ -93,12 +122,12 @@ function InitModule(ctx, logger, nk, initializer) {
     initializer.registerRpc("hiro_spin_wheel",                  __rpc_fortune_wheel_spin);
     initializer.registerRpc("hiro_spin_wheel_config",           __rpc_fortune_wheel_get_state);
 
-    initializer.registerRpc("hiro_friends_list",                __rpc_friends_list);
-    initializer.registerRpc("hiro_friends_remove",              __rpc_friends_remove);
-    initializer.registerRpc("hiro_friends_block",               __rpc_friends_block);
-    initializer.registerRpc("hiro_friend_quests_get_active",    __rpc_friend_quest_get_state);
-    initializer.registerRpc("hiro_friend_quests_contribute",    __rpc_friend_quest_record_progress);
-    initializer.registerRpc("hiro_friend_battles_challenge",    __rpc_friend_battle_create);
+    initializer.registerRpc("hiro_friends_list",                _dep_hiro_friends_list);
+    initializer.registerRpc("hiro_friends_remove",              _dep_hiro_friends_remove);
+    initializer.registerRpc("hiro_friends_block",               _dep_hiro_friends_block);
+    initializer.registerRpc("hiro_friend_quests_get_active",    _dep_hiro_friend_quests_get_active);
+    initializer.registerRpc("hiro_friend_quests_contribute",    _dep_hiro_friend_quests_contribute);
+    initializer.registerRpc("hiro_friend_battles_challenge",    _dep_hiro_friend_battles_challenge);
 
     // ─── Satori naming aliases (verb-position swap) ──────────────────
     initializer.registerRpc("satori_publish_events",            __rpc_satori_events_batch);
@@ -108,7 +137,7 @@ function InitModule(ctx, logger, nk, initializer) {
 
     // ─── Composite aliases (route or wrap) ───────────────────────────
     initializer.registerRpc("ivx_sync_metadata",                _aliasIvxSyncMetadata);
-    initializer.registerRpc("hiro_friends_add",                 _aliasHiroFriendsAdd);
+    initializer.registerRpc("hiro_friends_add",                 _dep_hiro_friends_add);
 
     // ─── Soft-stubs (unblock SDK; replace with real impl later) ──────
     initializer.registerRpc("hiro_get_offerwall",               _stubOfferwallList);

@@ -338,6 +338,42 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Legacy] Registering groups RPCs...");
     LegacyGroups.register(initializer);
 
+    // ── Social maintenance tick (§19.7 / G-018 / B-005) ────────────────────
+    // Service-token cleanup RPC driven by the k8s CronJob
+    // (intelli-verse-kube-infra/nakama/social-maintenance-cronjob.yaml).
+    // Sweeps expired challenges, stale rate-limit buckets (incl. the B-009
+    // per-pair keys) and dead presence rows. Mounted after AnalyticsAlerts.init
+    // so it gets latency/error instrumentation like every other RPC.
+    logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
+    SocialMaintenance.register(initializer);
+
+    // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
+    logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");
+    SocialOnboardingState.register(initializer);
+
+    // ── Social Layer v2 features (doc §8.2, §7.3, §7.4, §14A) ──────────────
+    logger.info("[SocialV2] Registering presence v2, group links, group search, friends feed...");
+    SocialPresenceV2.register(initializer);
+    SocialGroupLinks.register(initializer);
+    SocialGroupSearch.register(initializer);
+    SocialFriendsFeed.register(initializer);
+
+    // ── Multi-app registry + engagement systems (doc §19.3, G-020, Q-06, G-017) ──
+    logger.info("[SocialV2] Registering app registry, pressure summary, duo quests, fanout queue...");
+    SocialAppRegistry.register(initializer);
+    SocialPressureSummary.register(initializer);
+    DuoQuests.register(initializer);
+    FanoutQueue.register(initializer);
+    SocialReports.register(initializer);
+    // SocialPlayerStats has no RPCs — it's written by the quiz submit flow
+    // and read by friends_list; nothing to register.
+
+    // ── Phase-3 consolidation + engagement tail (doc §12/App.C, Q-11, G-003/015/016/021/022) ──
+    logger.info("[SocialV2] Registering ivx_social_* aliases, leagues, engagement extras...");
+    SocialRpcAliases.register(initializer);
+    SocialLeagues.register(initializer);
+    SocialEngagementExtras.register(initializer);
+
     // ── Group membership cross-device sync hooks ──────────────────────────
     // After a successful built-in JoinGroup / LeaveGroup, send the acting user
     // a self-notification (code 500 / 501) so ALL of their open sockets — i.e.

@@ -102,42 +102,11 @@ namespace IntelliverseNearbyPlayers {
    * Returns a { userId: boolean } map; missing entries default to false.
    * Presence is best-effort context — never fails the suggestion query.
    */
+  // B-004 fix (2026-07-06): canonical implementation lives in
+  // FriendsPresenceShared (presence_shared.ts). This wrapper keeps every
+  // call site unchanged while eliminating the triple copy-paste.
   function loadOnlineMap(nk: nkruntime.Nakama, userIds: string[]): { [id: string]: boolean } {
-    var map: { [id: string]: boolean } = {};
-    if (!userIds || userIds.length === 0) return map;
-
-    var reads: nkruntime.StorageReadRequest[] = [];
-    for (var i = 0; i < userIds.length; i++) {
-      reads.push({ collection: PRESENCE_COLLECTION, key: PRESENCE_KEY, userId: userIds[i] });
-    }
-
-    var rows: nkruntime.StorageObject[] | null = null;
-    try {
-      rows = nk.storageRead(reads);
-    } catch (e: any) {
-      return map;
-    }
-    if (!rows) return map;
-
-    var nowMs = Date.now();
-    for (var r = 0; r < rows.length; r++) {
-      var row = rows[r];
-      if (!row || !row.value) continue;
-      var v: any = row.value;
-      var online = false;
-      if (v.online === true) {
-        var lastSeenMs = 0;
-        if (typeof v.lastSeenMs === "number")        lastSeenMs = v.lastSeenMs;
-        else if (typeof v.last_seen_ms === "number") lastSeenMs = v.last_seen_ms;
-        else if (typeof v.lastSeen === "string") {
-          var t = Date.parse(v.lastSeen);
-          if (!isNaN(t)) lastSeenMs = t;
-        }
-        if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) online = true;
-      }
-      map[row.userId] = online;
-    }
-    return map;
+    return FriendsPresenceShared.loadOnlineMap(nk, userIds);
   }
 
   /**
@@ -355,5 +324,6 @@ namespace IntelliverseNearbyPlayers {
   // ── Public registration ────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("intelliverse_find_nearby_players", rpcFindNearbyPlayers);
+    initializer.registerRpc("ivx_social_friend_nearby", rpcFindNearbyPlayers); // Phase-3 alias (doc Appendix C)
   }
 }

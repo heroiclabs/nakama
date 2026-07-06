@@ -766,9 +766,59 @@ namespace QvSubmitResult {
       personalization.srq_due_count = QvSRQ.countDue(nk, userId);
     } catch (_pe: any) {}
 
+    // ── Friends activity feed (doc §14A.6) ────────────────────────────────
+    // Feed-worthiness is decided HERE (the game layer), rendering is done by
+    // the social layer. Best-effort — feed failure never affects the result.
+    try {
+      var feedAuthorName = username || userId;
+      try {
+        var feedUsers = nk.usersGetId([userId]);
+        if (feedUsers && feedUsers.length > 0 && feedUsers[0]) {
+          feedAuthorName = feedUsers[0].displayName || feedUsers[0].username || feedAuthorName;
+        }
+      } catch (_) {}
+      SocialFriendsFeed.writeEvent(nk, logger, userId, feedAuthorName, "quizverse",
+        "quiz_completed",
+        { quizId: packId, quizTitle: topic, topic: slugify(topic),
+          score: totalScore, correct: correct, total: total, isPerfect: isPerfect },
+        { type: "challenge", label: "Beat this score",
+          payload: { challengeFriendId: userId, quizId: packId, topic: slugify(topic), targetScore: totalScore } });
+    } catch (_feedErr: any) {
+      logger.warn("[QvSubmit] feed event write failed (non-fatal): " + (_feedErr && _feedErr.message));
+    }
+
+    // ── Duo Quest credit (server-authoritative — never client-claimed) ────
+    try {
+      DuoQuests.creditQuizCompletion(nk, logger, userId, "quizverse");
+    } catch (_duoErr: any) {
+      logger.warn("[QvSubmit] duo credit failed (non-fatal): " + (_duoErr && _duoErr.message));
+    }
+
+    // ── Weekly player stats (ML-002 — feeds friends_list gameActivity) ────
+    try {
+      SocialPlayerStats.recordQuizCompletion(nk, logger, userId, "quizverse", totalXp, totalScore);
+    } catch (_statsErr: any) {
+      logger.warn("[QvSubmit] player stats failed (non-fatal): " + (_statsErr && _statsErr.message));
+    }
+
+    // ── Group streaks (G-022 — any member playing keeps the streak alive) ─
+    try {
+      SocialEngagementExtras.creditGroupStreaks(nk, logger, userId);
+    } catch (_gsErr: any) {
+      logger.warn("[QvSubmit] group streak credit failed (non-fatal): " + (_gsErr && _gsErr.message));
+    }
+
+    // ── Score token (G-013): lets the client attach a server-signed proof
+    // of this score to a friend challenge; friend_challenges.js verifies it.
+    var scoreToken = "";
+    try {
+      scoreToken = ScoreSigning.sign(ctx, nk, userId, totalScore, packId);
+    } catch (_) { /* token absent = feature dark, never fatal */ }
+
     // ── Response ──────────────────────────────────────────────────────────
     return JSON.stringify({
       ok:              true,
+      score_token:     scoreToken,
       pack_id:         packId,
       topic:           topic,
       correct:         correct,

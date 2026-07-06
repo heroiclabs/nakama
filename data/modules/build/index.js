@@ -309,6 +309,37 @@ function InitModule(ctx, logger, nk, initializer) {
         IvxPresence.register(initializer);
         logger.info("[Legacy] Registering groups RPCs...");
         LegacyGroups.register(initializer);
+        // ── Social maintenance tick (§19.7 / G-018 / B-005) ────────────────────
+        // Service-token cleanup RPC driven by the k8s CronJob
+        // (intelli-verse-kube-infra/nakama/social-maintenance-cronjob.yaml).
+        // Sweeps expired challenges, stale rate-limit buckets (incl. the B-009
+        // per-pair keys) and dead presence rows. Mounted after AnalyticsAlerts.init
+        // so it gets latency/error instrumentation like every other RPC.
+        logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
+        SocialMaintenance.register(initializer);
+        // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
+        logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");
+        SocialOnboardingState.register(initializer);
+        // ── Social Layer v2 features (doc §8.2, §7.3, §7.4, §14A) ──────────────
+        logger.info("[SocialV2] Registering presence v2, group links, group search, friends feed...");
+        SocialPresenceV2.register(initializer);
+        SocialGroupLinks.register(initializer);
+        SocialGroupSearch.register(initializer);
+        SocialFriendsFeed.register(initializer);
+        // ── Multi-app registry + engagement systems (doc §19.3, G-020, Q-06, G-017) ──
+        logger.info("[SocialV2] Registering app registry, pressure summary, duo quests, fanout queue...");
+        SocialAppRegistry.register(initializer);
+        SocialPressureSummary.register(initializer);
+        DuoQuests.register(initializer);
+        FanoutQueue.register(initializer);
+        SocialReports.register(initializer);
+        // SocialPlayerStats has no RPCs — it's written by the quiz submit flow
+        // and read by friends_list; nothing to register.
+        // ── Phase-3 consolidation + engagement tail (doc §12/App.C, Q-11, G-003/015/016/021/022) ──
+        logger.info("[SocialV2] Registering ivx_social_* aliases, leagues, engagement extras...");
+        SocialRpcAliases.register(initializer);
+        SocialLeagues.register(initializer);
+        SocialEngagementExtras.register(initializer);
         // ── Group membership cross-device sync hooks ──────────────────────────
         // After a successful built-in JoinGroup / LeaveGroup, send the acting user
         // a self-notification (code 500 / 501) so ALL of their open sockets — i.e.
@@ -6398,53 +6429,11 @@ var IntelliverseFriends;
      *
      * Returns a { userId: boolean } map. Missing entries default to false.
      */
+    // B-004 fix (2026-07-06): canonical implementation lives in
+    // FriendsPresenceShared (presence_shared.ts). This wrapper keeps every
+    // call site unchanged while eliminating the triple copy-paste.
     function loadOnlineMap(nk, userIds) {
-        var map = {};
-        if (!userIds || userIds.length === 0)
-            return map;
-        var reads = [];
-        for (var i = 0; i < userIds.length; i++) {
-            reads.push({
-                collection: PRESENCE_COLLECTION,
-                key: PRESENCE_KEY,
-                userId: userIds[i]
-            });
-        }
-        var rows = null;
-        try {
-            rows = nk.storageRead(reads);
-        }
-        catch (e) {
-            // Presence is optional context — never fail the search because of it.
-            return map;
-        }
-        if (!rows)
-            return map;
-        var nowMs = Date.now();
-        for (var r = 0; r < rows.length; r++) {
-            var row = rows[r];
-            if (!row || !row.value)
-                continue;
-            var v = row.value;
-            var online = false;
-            if (v.online === true) {
-                var lastSeenMs = 0;
-                if (typeof v.lastSeenMs === "number")
-                    lastSeenMs = v.lastSeenMs;
-                else if (typeof v.last_seen_ms === "number")
-                    lastSeenMs = v.last_seen_ms;
-                else if (typeof v.lastSeen === "string") {
-                    var t = Date.parse(v.lastSeen);
-                    if (!isNaN(t))
-                        lastSeenMs = t;
-                }
-                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
-                    online = true;
-                }
-            }
-            map[row.userId] = online;
-        }
-        return map;
+        return FriendsPresenceShared.loadOnlineMap(nk, userIds);
     }
     /**
      * Collapse Nakama's friend graph into:
@@ -6855,6 +6844,7 @@ var IntelliverseFriends;
     // ── Public registration ────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("intelliverse_find_friends", rpcIntelliverseFindFriends);
+        initializer.registerRpc("ivx_social_friend_search", rpcIntelliverseFindFriends); // Phase-3 alias (doc Appendix C)
     }
     IntelliverseFriends.register = register;
 })(IntelliverseFriends || (IntelliverseFriends = {}));
@@ -6958,47 +6948,11 @@ var IntelliverseNearbyPlayers;
      * Returns a { userId: boolean } map; missing entries default to false.
      * Presence is best-effort context — never fails the suggestion query.
      */
+    // B-004 fix (2026-07-06): canonical implementation lives in
+    // FriendsPresenceShared (presence_shared.ts). This wrapper keeps every
+    // call site unchanged while eliminating the triple copy-paste.
     function loadOnlineMap(nk, userIds) {
-        var map = {};
-        if (!userIds || userIds.length === 0)
-            return map;
-        var reads = [];
-        for (var i = 0; i < userIds.length; i++) {
-            reads.push({ collection: PRESENCE_COLLECTION, key: PRESENCE_KEY, userId: userIds[i] });
-        }
-        var rows = null;
-        try {
-            rows = nk.storageRead(reads);
-        }
-        catch (e) {
-            return map;
-        }
-        if (!rows)
-            return map;
-        var nowMs = Date.now();
-        for (var r = 0; r < rows.length; r++) {
-            var row = rows[r];
-            if (!row || !row.value)
-                continue;
-            var v = row.value;
-            var online = false;
-            if (v.online === true) {
-                var lastSeenMs = 0;
-                if (typeof v.lastSeenMs === "number")
-                    lastSeenMs = v.lastSeenMs;
-                else if (typeof v.last_seen_ms === "number")
-                    lastSeenMs = v.last_seen_ms;
-                else if (typeof v.lastSeen === "string") {
-                    var t = Date.parse(v.lastSeen);
-                    if (!isNaN(t))
-                        lastSeenMs = t;
-                }
-                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS)
-                    online = true;
-            }
-            map[row.userId] = online;
-        }
-        return map;
+        return FriendsPresenceShared.loadOnlineMap(nk, userIds);
     }
     /**
      * Build a set of every userId the caller already has a relationship with
@@ -7188,6 +7142,7 @@ var IntelliverseNearbyPlayers;
     // ── Public registration ────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("intelliverse_find_nearby_players", rpcFindNearbyPlayers);
+        initializer.registerRpc("ivx_social_friend_nearby", rpcFindNearbyPlayers); // Phase-3 alias (doc Appendix C)
     }
     IntelliverseNearbyPlayers.register = register;
 })(IntelliverseNearbyPlayers || (IntelliverseNearbyPlayers = {}));
@@ -7296,53 +7251,11 @@ var IntelliverseFriendsList;
      * once postbuild has merged everything; namespace boundaries are real.
      * Keeping these in sync is enforced by code review.
      */
+    // B-004 fix (2026-07-06): canonical implementation lives in
+    // FriendsPresenceShared (presence_shared.ts). This wrapper keeps every
+    // call site unchanged while eliminating the triple copy-paste.
     function loadOnlineMap(nk, userIds) {
-        var map = {};
-        if (!userIds || userIds.length === 0)
-            return map;
-        var reads = [];
-        for (var i = 0; i < userIds.length; i++) {
-            reads.push({
-                collection: PRESENCE_COLLECTION,
-                key: PRESENCE_KEY,
-                userId: userIds[i]
-            });
-        }
-        var rows = null;
-        try {
-            rows = nk.storageRead(reads);
-        }
-        catch (e) {
-            // Presence is optional context — never fail the list because of it.
-            return map;
-        }
-        if (!rows)
-            return map;
-        var nowMs = Date.now();
-        for (var r = 0; r < rows.length; r++) {
-            var row = rows[r];
-            if (!row || !row.value)
-                continue;
-            var v = row.value;
-            var online = false;
-            if (v.online === true) {
-                var lastSeenMs = 0;
-                if (typeof v.lastSeenMs === "number")
-                    lastSeenMs = v.lastSeenMs;
-                else if (typeof v.last_seen_ms === "number")
-                    lastSeenMs = v.last_seen_ms;
-                else if (typeof v.lastSeen === "string") {
-                    var t = Date.parse(v.lastSeen);
-                    if (!isNaN(t))
-                        lastSeenMs = t;
-                }
-                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
-                    online = true;
-                }
-            }
-            map[row.userId] = online;
-        }
-        return map;
+        return FriendsPresenceShared.loadOnlineMap(nk, userIds);
     }
     /**
      * Map a Nakama `friend.state` int to the canonical relationshipStatus
@@ -7420,10 +7333,15 @@ var IntelliverseFriendsList;
      * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
      * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
      */
-    function flattenFriend(fr, online, country) {
+    function flattenFriend(fr, online, country, gameActivity) {
         var u = fr.user || {};
         var state = unwrapState(fr.state);
         return {
+            // ML-002 fix (2026-07-06): per-friend weekly activity ("xpThisWeek",
+            // "quizzesThisWeek", "bestScoreThisWeek", "lastPlayedAt") from
+            // ivx_game_player_stats, written by the quiz submit flow. null =
+            // friend hasn't played this week; clients render zeros/dashes.
+            gameActivity: gameActivity || null,
             userId: u.id || "",
             username: u.username || "",
             displayName: u.displayName || u.display_name || u.username || "",
@@ -7505,6 +7423,14 @@ var IntelliverseFriendsList;
         catch (e) {
             myCountry = "";
         }
+        // ── Bulk-load weekly game activity (ML-002 — one batched read) ──────
+        var statsMap = {};
+        try {
+            if (typeof SocialPlayerStats !== "undefined" && SocialPlayerStats.loadStatsMap) {
+                statsMap = SocialPlayerStats.loadStatsMap(nk, "quizverse", ids);
+            }
+        }
+        catch (_) { /* optional enrichment — cards degrade to no-activity */ }
         // ── Flatten ─────────────────────────────────────────────────────────
         var results = [];
         for (var j = 0; j < rawFriends.length; j++) {
@@ -7513,7 +7439,7 @@ var IntelliverseFriendsList;
                 continue;
             var online = !!onlineMap[fr.user.id];
             var fcountry = countryMap[fr.user.id] || "";
-            results.push(flattenFriend(fr, online, fcountry));
+            results.push(flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null));
         }
         if (logger && logger.info) {
             logger.info("[FriendsList] user=" + userId +
@@ -7587,7 +7513,13 @@ var IntelliverseFriendsList;
     // ── Public registration ────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("friends_list", rpcFriendsList);
+        // Phase-3 canonical aliases (doc Appendix C): same handlers, new ivx_
+        // names. These keep the module's existing flat shape — the unified
+        // envelope for this cluster ships when the module migrates natively
+        // (its shape is already flat + presence-enriched, the Phase-4 target).
+        initializer.registerRpc("ivx_social_friends_list", rpcFriendsList);
         initializer.registerRpc("list_blocked_users", rpcListBlockedUsers);
+        initializer.registerRpc("ivx_social_friends_blocked", rpcListBlockedUsers);
     }
     IntelliverseFriendsList.register = register;
 })(IntelliverseFriendsList || (IntelliverseFriendsList = {}));
@@ -7833,6 +7765,80 @@ var IvxPresence;
     }
     IvxPresence.register = register;
 })(IvxPresence || (IvxPresence = {}));
+// presence_shared.ts — canonical presence read helper for the friends domain.
+//
+// B-004 fix (2026-07-06): `loadOnlineMap` was copy-pasted (semantically
+// identical, whitespace-only drift) across THREE namespaces:
+//   - IntelliverseFriendsList  (friends_list.ts)
+//   - IntelliverseFriends      (find_friends.ts)
+//   - IntelliverseNearbyPlayers(find_nearby_players.ts)
+// Any future presence-format change would have had to be applied three
+// times. This file is now the single source of truth; each namespace keeps
+// a one-line local wrapper delegating here so call sites stay unchanged.
+//
+// See docs/plans/WORLD_CLASS_SOCIAL_FRIENDS_GROUPS_ARCHITECTURE.md §8.2:
+// the 5-minute window is the CURRENT contract. When Presence v2 ships
+// (per-game keys + 150s window) only THIS file changes.
+var FriendsPresenceShared;
+(function (FriendsPresenceShared) {
+    var PRESENCE_COLLECTION = "player_presence";
+    var PRESENCE_KEY = "status";
+    var ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // last_seen within 5 min ⇒ online
+    /**
+     * Batch-read presence rows for the given users and collapse each into a
+     * boolean online flag. One nk.storageRead call regardless of list size.
+     * Presence is optional context — any read failure returns an empty map
+     * and must never fail the calling RPC.
+     */
+    function loadOnlineMap(nk, userIds) {
+        var map = {};
+        if (!userIds || userIds.length === 0)
+            return map;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({
+                collection: PRESENCE_COLLECTION,
+                key: PRESENCE_KEY,
+                userId: userIds[i]
+            });
+        }
+        var rows = null;
+        try {
+            rows = nk.storageRead(reads);
+        }
+        catch (e) {
+            return map;
+        }
+        if (!rows)
+            return map;
+        var nowMs = Date.now();
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var online = false;
+            if (v.online === true) {
+                var lastSeenMs = 0;
+                if (typeof v.lastSeenMs === "number")
+                    lastSeenMs = v.lastSeenMs;
+                else if (typeof v.last_seen_ms === "number")
+                    lastSeenMs = v.last_seen_ms;
+                else if (typeof v.lastSeen === "string") {
+                    var t = Date.parse(v.lastSeen);
+                    if (!isNaN(t))
+                        lastSeenMs = t;
+                }
+                if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
+                    online = true;
+                }
+            }
+            map[row.userId] = online;
+        }
+        return map;
+    }
+    FriendsPresenceShared.loadOnlineMap = loadOnlineMap;
+})(FriendsPresenceShared || (FriendsPresenceShared = {}));
 // analytics_cron.ts — Daily expired qv_question_packs cleanup job.
 //
 // ── Purpose ───────────────────────────────────────────────────────────────────
@@ -17590,9 +17596,57 @@ var QvSubmitResult;
             personalization.srq_due_count = QvSRQ.countDue(nk, userId);
         }
         catch (_pe) { }
+        // ── Friends activity feed (doc §14A.6) ────────────────────────────────
+        // Feed-worthiness is decided HERE (the game layer), rendering is done by
+        // the social layer. Best-effort — feed failure never affects the result.
+        try {
+            var feedAuthorName = username || userId;
+            try {
+                var feedUsers = nk.usersGetId([userId]);
+                if (feedUsers && feedUsers.length > 0 && feedUsers[0]) {
+                    feedAuthorName = feedUsers[0].displayName || feedUsers[0].username || feedAuthorName;
+                }
+            }
+            catch (_) { }
+            SocialFriendsFeed.writeEvent(nk, logger, userId, feedAuthorName, "quizverse", "quiz_completed", { quizId: packId, quizTitle: topic, topic: slugify(topic),
+                score: totalScore, correct: correct, total: total, isPerfect: isPerfect }, { type: "challenge", label: "Beat this score",
+                payload: { challengeFriendId: userId, quizId: packId, topic: slugify(topic), targetScore: totalScore } });
+        }
+        catch (_feedErr) {
+            logger.warn("[QvSubmit] feed event write failed (non-fatal): " + (_feedErr && _feedErr.message));
+        }
+        // ── Duo Quest credit (server-authoritative — never client-claimed) ────
+        try {
+            DuoQuests.creditQuizCompletion(nk, logger, userId, "quizverse");
+        }
+        catch (_duoErr) {
+            logger.warn("[QvSubmit] duo credit failed (non-fatal): " + (_duoErr && _duoErr.message));
+        }
+        // ── Weekly player stats (ML-002 — feeds friends_list gameActivity) ────
+        try {
+            SocialPlayerStats.recordQuizCompletion(nk, logger, userId, "quizverse", totalXp, totalScore);
+        }
+        catch (_statsErr) {
+            logger.warn("[QvSubmit] player stats failed (non-fatal): " + (_statsErr && _statsErr.message));
+        }
+        // ── Group streaks (G-022 — any member playing keeps the streak alive) ─
+        try {
+            SocialEngagementExtras.creditGroupStreaks(nk, logger, userId);
+        }
+        catch (_gsErr) {
+            logger.warn("[QvSubmit] group streak credit failed (non-fatal): " + (_gsErr && _gsErr.message));
+        }
+        // ── Score token (G-013): lets the client attach a server-signed proof
+        // of this score to a friend challenge; friend_challenges.js verifies it.
+        var scoreToken = "";
+        try {
+            scoreToken = ScoreSigning.sign(ctx, nk, userId, totalScore, packId);
+        }
+        catch (_) { /* token absent = feature dark, never fatal */ }
         // ── Response ──────────────────────────────────────────────────────────
         return JSON.stringify({
             ok: true,
+            score_token: scoreToken,
             pack_id: packId,
             topic: topic,
             correct: correct,
@@ -31762,8 +31816,29 @@ var LegacyGroups;
             var state = data.state;
             var cursor = data.cursor || "";
             var result = nk.userGroupsList(userId, limit, state, cursor);
+            var userGroups = result.userGroups || [];
+            // B-008 fix (2026-07-06, WORLD_CLASS_SOCIAL_FRIENDS_GROUPS_ARCHITECTURE.md
+            // §2.1/§7.2): optional server-side gameId filter. Previously every
+            // group (all games) was shipped to the client, which then filtered by
+            // metadata.gameId — wasted bandwidth and a cross-game data leak.
+            // Backward compatible: when the caller omits gameId, behaviour is
+            // byte-identical to the old implementation.
+            // NOTE on pagination: the filter runs on the current page, so a page
+            // can legitimately return fewer than `limit` groups while `cursor` is
+            // still set — clients must key "end of list" off cursor, not count.
+            var gameId = data.gameId;
+            if (gameId && typeof gameId === "string") {
+                var filtered = [];
+                for (var i = 0; i < userGroups.length; i++) {
+                    var ug = userGroups[i];
+                    var meta = (ug && ug.group && ug.group.metadata) || {};
+                    if (meta.gameId === gameId)
+                        filtered.push(ug);
+                }
+                userGroups = filtered;
+            }
             return RpcHelpers.successResponse({
-                userGroups: result.userGroups || [],
+                userGroups: userGroups,
                 cursor: result.cursor || ""
             });
         }
@@ -34743,6 +34818,113 @@ var LegacyPush;
             ko: "{name}님이 요청을 수락했어요. 인사해보세요!", "zh-Hans": "{name} 接受了你的好友申请。打个招呼吧！",
             ar: "قبل {name} طلب صداقتك. قل مرحباً!", id: "{name} menerima permintaan temanmu. Sapa dia!",
             zu: "U-{name} wamukel' isicelo sakho somngane. Sho sawubona!"
+        },
+        // ── Challenge accepted ({name} = the acceptor's display name) ───────────
+        // Sent to the CHALLENGER when their outgoing challenge is accepted.
+        // Added 2026-07-06 for the revived sendFriendsPushBridge (notification_codes.js).
+        challenge_accepted_title: {
+            en: "🔥 Challenge Accepted!", hi: "🔥 चैलेंज स्वीकार हो गया!", es: "🔥 ¡Reto aceptado!", fr: "🔥 Défi accepté !",
+            de: "🔥 Herausforderung angenommen!", pt: "🔥 Desafio aceito!", ru: "🔥 Вызов принят!", ja: "🔥 挑戦が受理されました！",
+            ko: "🔥 도전 수락됨!", "zh-Hans": "🔥 挑战已接受！", ar: "🔥 تم قبول التحدي!", id: "🔥 Tantangan diterima!", zu: "🔥 Inselelo yamukelwe!"
+        },
+        challenge_accepted_body: {
+            en: "{name} accepted your challenge. Game on!", hi: "{name} ने आपका चैलेंज स्वीकार कर लिया। खेल शुरू!",
+            es: "{name} aceptó tu reto. ¡Que empiece el juego!", fr: "{name} a accepté ton défi. Que le jeu commence !",
+            de: "{name} hat deine Herausforderung angenommen. Los geht's!", pt: "{name} aceitou seu desafio. Valendo!",
+            ru: "{name} принял(а) твой вызов. Игра началась!", ja: "{name}さんが挑戦を受けました。勝負開始！",
+            ko: "{name}님이 도전을 수락했어요. 게임 시작!", "zh-Hans": "{name} 接受了你的挑战。开战吧！",
+            ar: "قبل {name} تحديك. لتبدأ اللعبة!", id: "{name} menerima tantanganmu. Ayo main!",
+            zu: "U-{name} uyamukele inselelo yakho. Umdlalo usuqalile!"
+        },
+        // ── Async challenge (Phantom Arena) lifecycle — added 2026-07-06 ─────────
+        // Consumed by the asyncChallengeSendNotification push bridge in
+        // legacy_runtime.js. {name} = the other player, {mode} = quiz mode name,
+        // {score} = the other player's score.
+        ac_opponent_joined_title: {
+            en: "🎮 Challenge Accepted!", hi: "🎮 चैलेंज स्वीकार!", es: "🎮 ¡Reto aceptado!", fr: "🎮 Défi accepté !",
+            de: "🎮 Herausforderung angenommen!", pt: "🎮 Desafio aceito!", ru: "🎮 Вызов принят!", ja: "🎮 対戦相手が参加！",
+            ko: "🎮 도전 수락!", "zh-Hans": "🎮 挑战已接受！", ar: "🎮 تم قبول التحدي!", id: "🎮 Tantangan diterima!", zu: "🎮 Inselelo yamukelwe!"
+        },
+        ac_opponent_joined_body: {
+            en: "{name} joined your challenge. Play now!", hi: "{name} आपके चैलेंज में शामिल हो गए। अभी खेलें!",
+            es: "{name} se unió a tu reto. ¡Juega ya!", fr: "{name} a rejoint ton défi. Joue maintenant !",
+            de: "{name} ist deiner Herausforderung beigetreten. Spiel jetzt!", pt: "{name} entrou no seu desafio. Jogue agora!",
+            ru: "{name} присоединился(ась) к твоему вызову. Играй!", ja: "{name}さんが挑戦に参加しました。今すぐプレイ！",
+            ko: "{name}님이 도전에 참여했어요. 지금 플레이하세요!", "zh-Hans": "{name} 加入了你的挑战。快来玩！",
+            ar: "انضم {name} إلى تحديك. العب الآن!", id: "{name} bergabung dengan tantanganmu. Main sekarang!",
+            zu: "U-{name} ujoyine inselelo yakho. Dlala manje!"
+        },
+        ac_your_turn_title: {
+            en: "⏰ Your Turn!", hi: "⏰ आपकी बारी!", es: "⏰ ¡Tu turno!", fr: "⏰ À ton tour !",
+            de: "⏰ Du bist dran!", pt: "⏰ Sua vez!", ru: "⏰ Твой ход!", ja: "⏰ あなたの番！",
+            ko: "⏰ 당신 차례!", "zh-Hans": "⏰ 该你了！", ar: "⏰ دورك!", id: "⏰ Giliranmu!", zu: "⏰ Ithuba lakho!"
+        },
+        ac_your_turn_body: {
+            en: "{name} scored {score} — beat it if you can!", hi: "{name} ने {score} अंक बनाए — हरा सकें तो हराइए!",
+            es: "{name} logró {score} puntos. ¡Supéralo si puedes!", fr: "{name} a marqué {score} points. Fais mieux si tu peux !",
+            de: "{name} hat {score} Punkte. Schlag das, wenn du kannst!", pt: "{name} fez {score} pontos. Supere se puder!",
+            ru: "{name} набрал(а) {score}. Побей рекорд!", ja: "{name}さんが{score}点獲得。超えられるか？",
+            ko: "{name}님이 {score}점 기록! 이겨보세요!", "zh-Hans": "{name} 得了 {score} 分——有本事就超过他！",
+            ar: "سجل {name} {score} نقطة — تفوق عليه إن استطعت!", id: "{name} mencetak {score} — kalahkan kalau bisa!",
+            zu: "U-{name} uthole u-{score} — mehlule uma ukwazi!"
+        },
+        ac_results_title: {
+            en: "🏆 Results Are In!", hi: "🏆 नतीजे आ गए!", es: "🏆 ¡Resultados listos!", fr: "🏆 Résultats disponibles !",
+            de: "🏆 Ergebnisse sind da!", pt: "🏆 Saíram os resultados!", ru: "🏆 Результаты готовы!", ja: "🏆 結果発表！",
+            ko: "🏆 결과 발표!", "zh-Hans": "🏆 结果揭晓！", ar: "🏆 ظهرت النتائج!", id: "🏆 Hasil sudah keluar!", zu: "🏆 Imiphumela isifikile!"
+        },
+        ac_results_body: {
+            en: "{name} scored {score} — see who won!", hi: "{name} ने {score} अंक बनाए — देखें कौन जीता!",
+            es: "{name} logró {score} puntos. ¡Mira quién ganó!", fr: "{name} a marqué {score} points. Regarde qui a gagné !",
+            de: "{name} hat {score} Punkte. Sieh nach, wer gewonnen hat!", pt: "{name} fez {score} pontos. Veja quem venceu!",
+            ru: "{name} набрал(а) {score}. Узнай, кто победил!", ja: "{name}さんが{score}点。勝者は誰だ？",
+            ko: "{name}님이 {score}점! 누가 이겼는지 확인하세요!", "zh-Hans": "{name} 得了 {score} 分——看看谁赢了！",
+            ar: "سجل {name} {score} نقطة — شاهد من فاز!", id: "{name} mencetak {score} — lihat siapa menang!",
+            zu: "U-{name} uthole u-{score} — bheka ukuthi ubani ophumelele!"
+        },
+        // ── Async challenge expiry warning ({hours} = hours remaining) ──────────
+        ac_expiry_title: {
+            en: "⏳ Challenge Expiring!", hi: "⏳ चैलेंज खत्म होने वाला है!", es: "⏳ ¡El reto expira!", fr: "⏳ Le défi expire !",
+            de: "⏳ Herausforderung läuft ab!", pt: "⏳ Desafio expirando!", ru: "⏳ Вызов истекает!", ja: "⏳ 挑戦がまもなく終了！",
+            ko: "⏳ 도전 만료 임박!", "zh-Hans": "⏳ 挑战即将到期！", ar: "⏳ التحدي على وشك الانتهاء!", id: "⏳ Tantangan segera berakhir!", zu: "⏳ Inselelo isizophela!"
+        },
+        ac_expiry_body: {
+            en: "Your challenge expires in {hours}h — finish it before it's gone!", hi: "आपका चैलेंज {hours} घंटे में खत्म हो जाएगा — जल्दी पूरा करें!",
+            es: "Tu reto expira en {hours} h. ¡Termínalo antes de que desaparezca!", fr: "Ton défi expire dans {hours} h. Termine-le vite !",
+            de: "Deine Herausforderung läuft in {hours} Std. ab — schnell beenden!", pt: "Seu desafio expira em {hours}h — conclua antes que suma!",
+            ru: "Твой вызов истекает через {hours} ч. Успей завершить!", ja: "挑戦は残り{hours}時間で終了します。お早めに！",
+            ko: "도전이 {hours}시간 후 만료됩니다. 서두르세요!", "zh-Hans": "你的挑战将在 {hours} 小时后到期——抓紧完成！",
+            ar: "ينتهي تحديك خلال {hours} ساعة — أنجزه قبل فوات الأوان!", id: "Tantanganmu berakhir dalam {hours} jam — selesaikan sekarang!",
+            zu: "Inselelo yakho iphela emahoreni angu-{hours} — yiqede ngokushesha!"
+        },
+        // ── Duo Quest pairing / completion ({name} = partner, {coins} = reward) ─
+        duo_paired_title: {
+            en: "🤝 Duo Quest!", hi: "🤝 डुओ क्वेस्ट!", es: "🤝 ¡Misión en dúo!", fr: "🤝 Quête en duo !",
+            de: "🤝 Duo-Quest!", pt: "🤝 Missão em dupla!", ru: "🤝 Дуо-квест!", ja: "🤝 デュオクエスト！",
+            ko: "🤝 듀오 퀘스트!", "zh-Hans": "🤝 双人任务！", ar: "🤝 مهمة ثنائية!", id: "🤝 Misi Duo!", zu: "🤝 I-Duo Quest!"
+        },
+        duo_paired_body: {
+            en: "You and {name} share a quest this week — team up and win together!", hi: "इस हफ्ते आप और {name} की साझा क्वेस्ट है — मिलकर जीतें!",
+            es: "Tú y {name} comparten una misión esta semana. ¡Ganen juntos!", fr: "Toi et {name} partagez une quête cette semaine. Gagnez ensemble !",
+            de: "Du und {name} teilt diese Woche eine Quest — gewinnt zusammen!", pt: "Você e {name} têm uma missão juntos esta semana. Vençam juntos!",
+            ru: "У тебя и {name} общий квест на этой неделе — победите вместе!", ja: "今週は{name}さんと共同クエスト！力を合わせて勝とう！",
+            ko: "이번 주 {name}님과 공동 퀘스트! 함께 승리하세요!", "zh-Hans": "本周你和 {name} 共享任务——组队共赢！",
+            ar: "أنت و{name} تتشاركان مهمة هذا الأسبوع — تعاونا وافوزا معاً!", id: "Kamu dan {name} berbagi misi minggu ini — menang bersama!",
+            zu: "Wena no-{name} nabelana ngomsebenzi kuleli sonto — nqobani ndawonye!"
+        },
+        duo_done_title: {
+            en: "🏆 Duo Quest Complete!", hi: "🏆 डुओ क्वेस्ट पूरी!", es: "🏆 ¡Misión en dúo completa!", fr: "🏆 Quête en duo terminée !",
+            de: "🏆 Duo-Quest geschafft!", pt: "🏆 Missão em dupla concluída!", ru: "🏆 Дуо-квест завершён!", ja: "🏆 デュオクエスト達成！",
+            ko: "🏆 듀오 퀘스트 완료!", "zh-Hans": "🏆 双人任务完成！", ar: "🏆 اكتملت المهمة الثنائية!", id: "🏆 Misi Duo selesai!", zu: "🏆 I-Duo Quest iphelile!"
+        },
+        duo_done_body: {
+            en: "You both did it! +{coins} coins each. 🎉", hi: "आप दोनों ने कर दिखाया! दोनों को +{coins} सिक्के। 🎉",
+            es: "¡Lo lograron! +{coins} monedas para cada uno. 🎉", fr: "Vous avez réussi ! +{coins} pièces chacun. 🎉",
+            de: "Ihr habt es geschafft! Je +{coins} Münzen. 🎉", pt: "Vocês conseguiram! +{coins} moedas cada. 🎉",
+            ru: "Вы справились! По +{coins} монет каждому. 🎉", ja: "二人ともクリア！それぞれ+{coins}コイン獲得！🎉",
+            ko: "둘 다 해냈어요! 각자 +{coins} 코인! 🎉", "zh-Hans": "你们做到了！每人 +{coins} 金币。🎉",
+            ar: "نجحتما معاً! +{coins} عملة لكل منكما. 🎉", id: "Kalian berhasil! +{coins} koin masing-masing. 🎉",
+            zu: "Nikwenzile nobabili! +{coins} izinhlamvu ngamunye. 🎉"
         },
         // ── Chat: new direct message ({name} = sender, {text} = message preview) ──
         chat_message_title: {
@@ -62215,6 +62397,3492 @@ var WebAdReward;
     }
     WebAdReward.register = register;
 })(WebAdReward || (WebAdReward = {}));
+// app_registry.ts — storage-backed multi-app registry (doc §19.3).
+//
+// Replaces hardcoded game-id lists scattered through modules with ONE
+// server-owned document per app. Onboarding a new app = one Console write
+// (the proven qv_config/global pattern) — no build, no deploy.
+//
+// STORAGE
+//   ivx_app_registry / {appId}    system-owned, permRead 2 (public read —
+//   registry entries hold config, never secrets), permWrite 0.
+//
+// RPCs
+//   ivx_app_config_get       — client fetch of one app's public config
+//   ivx_app_registry_upsert  — service-token admin write (deep-merged)
+//
+// RESOLUTION CONTRACT (SocialAppRegistry.resolveApp):
+//   unknown/missing appId → the built-in "quizverse" default entry, never an
+//   error — an older client must never brick on registry lookups. Every
+//   entry carries features (per-app kill switches) and limits (quotas).
+var SocialAppRegistry;
+(function (SocialAppRegistry) {
+    var COLLECTION = "ivx_app_registry";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var DEFAULT_FEATURES = {
+        friends: true, groups: true, challenges: true, feed: true,
+        presence: true, inviteLinks: true, duoQuests: true, chat: true,
+        // Progressive-enable flags: default OFF until the client build that
+        // supports them has rolled out (doc §19.9 flag-first shipping).
+        leagues: false, contactImport: false, scoreSigning: false
+    };
+    var DEFAULT_LIMITS = {
+        maxFriends: 1000, maxGroupsPerUser: 20, maxGroupSize: 100,
+        invitesPerHour: 20, pushPerUserPerDay: 2
+    };
+    // Built-in seeds — used when no storage doc exists yet. Writing a storage
+    // doc OVERRIDES these field-by-field (shallow merge, stored wins).
+    var SEEDS = {
+        "quizverse": {
+            appId: "quizverse", appUuid: "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+            status: "active", features: DEFAULT_FEATURES, limits: DEFAULT_LIMITS,
+            branding: { displayName: "QuizVerse", deepLinkHost: "quizverse.world", scheme: "quizverse" }
+        },
+        "lasttolive": {
+            appId: "lasttolive", appUuid: "", status: "active",
+            features: DEFAULT_FEATURES, limits: DEFAULT_LIMITS,
+            branding: { displayName: "LastToLive", deepLinkHost: "", scheme: "lasttolive" }
+        },
+        "cricket": {
+            appId: "cricket", appUuid: "", status: "active",
+            features: DEFAULT_FEATURES, limits: DEFAULT_LIMITS,
+            branding: { displayName: "Cricket King", deepLinkHost: "", scheme: "cricket" }
+        }
+    };
+    function shallowMerge(base, over) {
+        var out = {};
+        var k;
+        for (k in base) {
+            if (Object.prototype.hasOwnProperty.call(base, k))
+                out[k] = base[k];
+        }
+        for (k in over) {
+            if (!Object.prototype.hasOwnProperty.call(over, k))
+                continue;
+            if (out[k] && typeof out[k] === "object" && typeof over[k] === "object" &&
+                !Array.isArray(out[k]) && !Array.isArray(over[k])) {
+                var inner = {};
+                var ik;
+                for (ik in out[k]) {
+                    if (Object.prototype.hasOwnProperty.call(out[k], ik))
+                        inner[ik] = out[k][ik];
+                }
+                for (ik in over[k]) {
+                    if (Object.prototype.hasOwnProperty.call(over[k], ik))
+                        inner[ik] = over[k][ik];
+                }
+                out[k] = inner;
+            }
+            else {
+                out[k] = over[k];
+            }
+        }
+        return out;
+    }
+    /**
+     * Resolve an appId to its full registry entry. Storage doc wins over the
+     * built-in seed field-by-field; unknown ids fall back to quizverse.
+     * One storage read per call (Goja VMs are pooled — no module-level cache,
+     * per AGENTS.md rule 4). Callers on hot paths should resolve once per RPC.
+     */
+    function resolveApp(nk, rawAppId) {
+        var appId = (typeof rawAppId === "string" && rawAppId) ? rawAppId.toLowerCase() : "quizverse";
+        var seed = SEEDS[appId] || SEEDS["quizverse"];
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION, key: appId, userId: SYSTEM_USER }]);
+            if (rows && rows.length > 0 && rows[0] && rows[0].value) {
+                return shallowMerge(seed, rows[0].value);
+            }
+        }
+        catch (_) { /* seed applies */ }
+        return seed;
+    }
+    SocialAppRegistry.resolveApp = resolveApp;
+    /** Convenience: is a feature enabled for this app? Missing key = seed default. */
+    function featureEnabled(nk, appId, feature) {
+        var entry = resolveApp(nk, appId);
+        if (entry.status !== "active")
+            return false;
+        return !entry.features || entry.features[feature] !== false;
+    }
+    SocialAppRegistry.featureEnabled = featureEnabled;
+    function rpcAppConfigGet(ctx, logger, nk, payload) {
+        try {
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var entry = resolveApp(nk, data.appId || data.gameId);
+            return RpcHelpers.successResponse({ app: entry });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to read app config");
+        }
+    }
+    function rpcRegistryUpsert(ctx, logger, nk, payload) {
+        try {
+            var data = {};
+            try {
+                data = payload ? JSON.parse(payload) : {};
+            }
+            catch (_) { }
+            var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) ||
+                (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+            if (!expected || data.service_token !== expected) {
+                return RpcHelpers.errorResponse("service-only", 401);
+            }
+            var appId = (typeof data.appId === "string" && data.appId) ? data.appId.toLowerCase() : "";
+            if (!appId || !data.entry || typeof data.entry !== "object") {
+                return RpcHelpers.errorResponse("appId and entry are required");
+            }
+            // Merge over the current effective entry so partial updates are safe.
+            var merged = shallowMerge(resolveApp(nk, appId), data.entry);
+            merged.appId = appId;
+            merged.updatedAt = new Date().toISOString();
+            nk.storageWrite([{
+                    collection: COLLECTION, key: appId, userId: SYSTEM_USER,
+                    value: merged, permissionRead: 2, permissionWrite: 0
+                }]);
+            logger.info("[AppRegistry] upsert " + appId);
+            return RpcHelpers.successResponse({ app: merged });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to upsert app registry");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_app_config_get", rpcAppConfigGet);
+        initializer.registerRpc("ivx_app_registry_upsert", rpcRegistryUpsert);
+    }
+    SocialAppRegistry.register = register;
+})(SocialAppRegistry || (SocialAppRegistry = {}));
+// duo_quests.ts — Duo Quests revival (Q-06, doc §17.5 / §F.2 rank #1).
+//
+// Revives the dead social_v2.js rpcDailyDuoCreate/rpcDailyDuoStatus handlers
+// (never registered — 100% unreachable) as a hardened Duolingo-Friends-Quests
+// mechanic: two players share a joint goal with a deadline; completing quizzes
+// credits each side SERVER-side; both done → both rewarded.
+//
+// RPCs
+//   ivx_duo_quest_create   — manual pairing: invite one mutual friend
+//   ivx_duo_quest_status   — my active duo(s) + progress
+//   ivx_duo_quest_accept   — partner accepts the invite (activates the duo)
+//
+// WEEKLY RANDOM PAIRING (the Duolingo cold-start trick — §17.5):
+//   weeklyPairingTick() is invoked from ivx_social_maintenance_tick. Once per
+//   ISO week (idempotent via a system marker row) it pairs users who were
+//   active in the last 7 days (ivx_presence_v2 rows) into auto-accepted duos
+//   and notifies both. Random partner ≠ requires existing friendship — this
+//   is deliberately a cold-start tool, not just a retention tool.
+//
+// ANTI-CHEAT: progress is NEVER client-claimed. creditQuizCompletion() is
+// called from the server-side quiz submit flow only — the dead code's design
+// (and the friend-quest PlayerPrefs exploit in §18.1) accepted client claims;
+// this does not.
+//
+// STORAGE
+//   ivx_duo_quests / duo_{id}            system-owned canonical row
+//   ivx_duo_quests / idx_{userId}_{id}   thin per-user index (owner=user)
+//   ivx_duo_quests / weekly_marker_{isoWeek}  pairing idempotency marker
+var DuoQuests;
+(function (DuoQuests) {
+    var COLLECTION = "ivx_duo_quests";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var STATE_FRIEND = 0;
+    var DUO_DURATION_DAYS = 5; // §17.5: 5-day joint goal
+    var DUO_GOAL_QUIZZES = 5; // "complete 5 quizzes together" (per side: any mix)
+    var REWARD_COINS = 100; // §F.6 free-tier reward, each
+    var NOTIF_CODE_DUO = 31; // social_nudge range (doc §9.3)
+    var MAX_ACTIVE_PER_USER = 3;
+    function isoWeek(d) {
+        // ISO-8601 week id, e.g. "2026-W28" — stable pairing idempotency key.
+        var t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        var dayNum = (t.getUTCDay() + 6) % 7;
+        t.setUTCDate(t.getUTCDate() - dayNum + 3);
+        var firstThursday = t.getTime();
+        t.setUTCMonth(0, 1);
+        if (t.getUTCDay() !== 4)
+            t.setUTCMonth(0, 1 + ((4 - t.getUTCDay()) + 7) % 7);
+        var week = 1 + Math.ceil((firstThursday - t.getTime()) / 604800000);
+        return d.getUTCFullYear() + "-W" + (week < 10 ? "0" + week : week);
+    }
+    function newDuoId() {
+        return "duo_" + Date.now().toString(36) + "_" + Math.floor(Math.random() * 1679616).toString(36);
+    }
+    function readDuo(nk, duoId) {
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION, key: duoId, userId: SYSTEM_USER }]);
+            if (rows && rows.length > 0 && rows[0] && rows[0].value) {
+                return { value: rows[0].value, version: rows[0].version || "" };
+            }
+        }
+        catch (_) { }
+        return null;
+    }
+    function writeDuo(nk, duo, version) {
+        var req = {
+            collection: COLLECTION, key: duo.duoId, userId: SYSTEM_USER,
+            value: duo, permissionRead: 2, permissionWrite: 0
+        };
+        if (version)
+            req.version = version;
+        nk.storageWrite([req]);
+    }
+    function writeUserIndex(nk, userId, duoId, expiresAt) {
+        try {
+            nk.storageWrite([{
+                    collection: COLLECTION, key: "idx_" + userId + "_" + duoId, userId: userId,
+                    value: { duoId: duoId, expiresAt: expiresAt }, permissionRead: 1, permissionWrite: 0
+                }]);
+        }
+        catch (_) { }
+    }
+    function buildDuo(gameId, aId, aName, bId, bName, status, source) {
+        var nowMs = Date.now();
+        return {
+            duoId: newDuoId(), gameId: gameId,
+            playerA: aId, playerAName: aName || "",
+            playerB: bId, playerBName: bName || "",
+            goalQuizzes: DUO_GOAL_QUIZZES,
+            progressA: 0, progressB: 0,
+            status: status, // "invited" | "active" | "completed" | "expired"
+            source: source, // "manual" | "weekly_pairing"
+            createdAt: new Date(nowMs).toISOString(),
+            expiresAt: new Date(nowMs + DUO_DURATION_DAYS * 86400000).toISOString(),
+            rewardCoins: REWARD_COINS,
+            rewarded: false
+        };
+    }
+    function notifyDuo(nk, logger, targetId, senderId, subject, content) {
+        try {
+            content.type = subject;
+            content.code = NOTIF_CODE_DUO;
+            nk.notificationsSend([{
+                    userId: targetId, subject: subject, content: content,
+                    code: NOTIF_CODE_DUO, senderId: senderId || undefined, persistent: true
+                }]);
+        }
+        catch (e) {
+            logger.warn("[DuoQuests] notify failed (non-fatal): " + (e && e.message));
+        }
+        // Device push via the fan-out queue (AP-008: never inline). Offline
+        // players are the entire point of duo nudges — in-app alone is not enough.
+        try {
+            if (typeof FanoutQueue === "undefined" || !FanoutQueue.enqueue)
+                return;
+            var pushData = { eventType: "duo_quest", screen: "duo_quest", type: subject, duoId: content.duoId || "" };
+            if (subject === "duo_quest_invite" || subject === "duo_quest_paired") {
+                FanoutQueue.enqueue(nk, logger, [{
+                        targetUserId: targetId, eventType: "duo_quest",
+                        titleKey: "duo_paired_title", bodyKey: "duo_paired_body",
+                        vars: { name: content.partnerName || content.fromName || "a player" }, data: pushData
+                    }]);
+            }
+            else if (subject === "duo_quest_completed") {
+                FanoutQueue.enqueue(nk, logger, [{
+                        targetUserId: targetId, eventType: "duo_quest",
+                        titleKey: "duo_done_title", bodyKey: "duo_done_body",
+                        vars: { coins: String(content.rewardCoins || "") }, data: pushData
+                    }]);
+            }
+            // duo_quest_accepted: in-app only — acceptance implies the other side
+            // is actively playing; a push would burn the daily budget (AP-001).
+        }
+        catch (pe) {
+            logger.warn("[DuoQuests] push enqueue failed (non-fatal): " + (pe && pe.message));
+        }
+    }
+    function activeDuosFor(nk, userId) {
+        var out = [];
+        try {
+            var res = nk.storageList(userId, COLLECTION, 50, undefined);
+            var objs = (res && res.objects) ? res.objects : [];
+            var now = Date.now();
+            for (var i = 0; i < objs.length; i++) {
+                var idx = objs[i] && objs[i].value;
+                if (!idx || !idx.duoId)
+                    continue;
+                if (idx.expiresAt && Date.parse(idx.expiresAt) < now)
+                    continue;
+                var found = readDuo(nk, idx.duoId);
+                if (found && (found.value.status === "active" || found.value.status === "invited")) {
+                    out.push(found.value);
+                }
+            }
+        }
+        catch (_) { }
+        return out;
+    }
+    function areFriends(nk, a, b) {
+        try {
+            var page = nk.friendsList(a, 1000, STATE_FRIEND, null);
+            if (page && page.friends) {
+                for (var i = 0; i < page.friends.length; i++) {
+                    var fr = page.friends[i];
+                    if (fr && fr.user && fr.user.id === b)
+                        return true;
+                }
+            }
+        }
+        catch (_) { }
+        return false;
+    }
+    function displayName(nk, userId, fallback) {
+        try {
+            var users = nk.usersGetId([userId]);
+            if (users && users.length > 0 && users[0]) {
+                return users[0].displayName || users[0].username || fallback;
+            }
+        }
+        catch (_) { }
+        return fallback;
+    }
+    // ── RPC: ivx_duo_quest_create ─────────────────────────────────────────────
+    function rpcCreate(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var partnerId = data.partnerUserId || data.partner_user_id;
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            if (!partnerId || typeof partnerId !== "string")
+                return RpcHelpers.errorResponse("partnerUserId is required");
+            if (partnerId === userId)
+                return RpcHelpers.errorResponse("You cannot duo with yourself");
+            if (!areFriends(nk, userId, partnerId))
+                return RpcHelpers.errorResponse("You can only invite mutual friends to a Duo Quest");
+            // One active/invited duo per pair; cap per user.
+            var mine = activeDuosFor(nk, userId);
+            if (mine.length >= MAX_ACTIVE_PER_USER)
+                return RpcHelpers.errorResponse("You already have " + MAX_ACTIVE_PER_USER + " active Duo Quests");
+            for (var i = 0; i < mine.length; i++) {
+                var d = mine[i];
+                if ((d.playerA === userId && d.playerB === partnerId) || (d.playerB === userId && d.playerA === partnerId)) {
+                    return RpcHelpers.successResponse({ duo: d, alreadyExists: true });
+                }
+            }
+            var myName = displayName(nk, userId, ctx.username || "");
+            var duo = buildDuo(gameId, userId, myName, partnerId, displayName(nk, partnerId, ""), "invited", "manual");
+            writeDuo(nk, duo);
+            writeUserIndex(nk, userId, duo.duoId, duo.expiresAt);
+            writeUserIndex(nk, partnerId, duo.duoId, duo.expiresAt);
+            notifyDuo(nk, logger, partnerId, userId, "duo_quest_invite", { duoId: duo.duoId, gameId: gameId, fromUserId: userId, fromName: myName, goalQuizzes: duo.goalQuizzes, expiresAt: duo.expiresAt });
+            return RpcHelpers.successResponse({ duo: duo });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to create duo quest");
+        }
+    }
+    // ── RPC: ivx_duo_quest_accept ─────────────────────────────────────────────
+    function rpcAccept(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            if (!data.duoId || typeof data.duoId !== "string")
+                return RpcHelpers.errorResponse("duoId is required");
+            var found = readDuo(nk, data.duoId);
+            if (!found)
+                return RpcHelpers.errorResponse("Duo quest not found");
+            var duo = found.value;
+            if (duo.playerB !== userId)
+                return RpcHelpers.errorResponse("This invite is not for you");
+            if (duo.status === "active")
+                return RpcHelpers.successResponse({ duo: duo, alreadyActive: true });
+            if (duo.status !== "invited")
+                return RpcHelpers.errorResponse("This duo quest is " + duo.status);
+            if (Date.parse(duo.expiresAt) < Date.now())
+                return RpcHelpers.errorResponse("This duo quest has expired");
+            duo.status = "active";
+            duo.acceptedAt = new Date().toISOString();
+            writeDuo(nk, duo, found.version);
+            notifyDuo(nk, logger, duo.playerA, userId, "duo_quest_accepted", { duoId: duo.duoId, byUserId: userId, byName: duo.playerBName });
+            return RpcHelpers.successResponse({ duo: duo });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to accept duo quest");
+        }
+    }
+    // ── RPC: ivx_duo_quest_status ─────────────────────────────────────────────
+    function rpcStatus(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var duos = activeDuosFor(nk, userId);
+            var shaped = [];
+            for (var i = 0; i < duos.length; i++) {
+                var d = duos[i];
+                var mine = (d.playerA === userId);
+                shaped.push({
+                    duoId: d.duoId, gameId: d.gameId, status: d.status, source: d.source,
+                    partnerUserId: mine ? d.playerB : d.playerA,
+                    partnerName: mine ? d.playerBName : d.playerAName,
+                    goalQuizzes: d.goalQuizzes,
+                    myProgress: mine ? d.progressA : d.progressB,
+                    partnerProgress: mine ? d.progressB : d.progressA,
+                    expiresAt: d.expiresAt, rewardCoins: d.rewardCoins,
+                    bothCompleted: (d.progressA >= d.goalQuizzes && d.progressB >= d.goalQuizzes)
+                });
+            }
+            return RpcHelpers.successResponse({ duos: shaped, count: shaped.length });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to read duo status");
+        }
+    }
+    // ── SERVER-side progress credit — called from quiz submit flow only ──────
+    function creditQuizCompletion(nk, logger, userId, gameId) {
+        try {
+            var duos = activeDuosFor(nk, userId);
+            for (var i = 0; i < duos.length; i++) {
+                var d = duos[i];
+                if (d.status !== "active" || d.gameId !== gameId)
+                    continue;
+                // Re-read with version for OCC (ML-008 pattern: retry once on clash).
+                for (var attempt = 0; attempt < 2; attempt++) {
+                    var found = readDuo(nk, d.duoId);
+                    if (!found || found.value.status !== "active")
+                        break;
+                    var duo = found.value;
+                    if (duo.playerA === userId)
+                        duo.progressA = (duo.progressA || 0) + 1;
+                    else if (duo.playerB === userId)
+                        duo.progressB = (duo.progressB || 0) + 1;
+                    else
+                        break;
+                    var done = duo.progressA >= duo.goalQuizzes && duo.progressB >= duo.goalQuizzes;
+                    if (done && !duo.rewarded) {
+                        duo.status = "completed";
+                        duo.rewarded = true;
+                        duo.completedAt = new Date().toISOString();
+                    }
+                    try {
+                        writeDuo(nk, duo, found.version);
+                    }
+                    catch (occErr) {
+                        if (attempt === 0)
+                            continue; // version clash — retry once
+                        break;
+                    }
+                    if (done && duo.rewarded) {
+                        // Reward BOTH sides exactly once (rewarded flag flipped in the
+                        // same OCC write that completed the duo).
+                        try {
+                            nk.walletUpdate(duo.playerA, { coins: duo.rewardCoins }, { source: "duo_quest", duoId: duo.duoId }, true);
+                        }
+                        catch (_) { }
+                        try {
+                            nk.walletUpdate(duo.playerB, { coins: duo.rewardCoins }, { source: "duo_quest", duoId: duo.duoId }, true);
+                        }
+                        catch (_) { }
+                        notifyDuo(nk, logger, duo.playerA, duo.playerB, "duo_quest_completed", { duoId: duo.duoId, rewardCoins: duo.rewardCoins });
+                        notifyDuo(nk, logger, duo.playerB, duo.playerA, "duo_quest_completed", { duoId: duo.duoId, rewardCoins: duo.rewardCoins });
+                    }
+                    break;
+                }
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn)
+                logger.warn("[DuoQuests] credit failed (non-fatal): " + (e && e.message));
+        }
+    }
+    DuoQuests.creditQuizCompletion = creditQuizCompletion;
+    // ── Weekly random pairing — invoked from ivx_social_maintenance_tick ─────
+    function weeklyPairingTick(ctx, logger, nk) {
+        var week = isoWeek(new Date());
+        var markerKey = "weekly_marker_" + week;
+        try {
+            var marker = nk.storageRead([{ collection: COLLECTION, key: markerKey, userId: SYSTEM_USER }]);
+            if (marker && marker.length > 0 && marker[0] && marker[0].value) {
+                return { skipped: true, week: week };
+            }
+        }
+        catch (_) { }
+        // Claim the marker FIRST (conditional create) so concurrent ticks can't
+        // double-pair; the loser of the race gets a version conflict and skips.
+        try {
+            nk.storageWrite([{
+                    collection: COLLECTION, key: markerKey, userId: SYSTEM_USER,
+                    value: { week: week, startedAt: new Date().toISOString() },
+                    permissionRead: 0, permissionWrite: 0, version: "*"
+                }]);
+        }
+        catch (raceErr) {
+            return { skipped: true, week: week, reason: "marker_race" };
+        }
+        // Recently-active users (presence v2 heartbeats in last 7 days), capped.
+        var candidates = [];
+        try {
+            var rows = nk.sqlQuery("SELECT DISTINCT user_id FROM storage " +
+                "WHERE collection = 'ivx_presence_v2' AND update_time > now() - INTERVAL '7 days' " +
+                "LIMIT 500", []);
+            if (rows) {
+                for (var i = 0; i < rows.length; i++) {
+                    if (rows[i] && rows[i].user_id)
+                        candidates.push(String(rows[i].user_id));
+                }
+            }
+        }
+        catch (e) {
+            logger.warn("[DuoQuests] candidate query failed: " + (e && e.message));
+        }
+        // Fisher-Yates shuffle, then pair adjacent.
+        for (var s = candidates.length - 1; s > 0; s--) {
+            var j = Math.floor(Math.random() * (s + 1));
+            var tmp = candidates[s];
+            candidates[s] = candidates[j];
+            candidates[j] = tmp;
+        }
+        var paired = 0;
+        for (var p = 0; p + 1 < candidates.length; p += 2) {
+            var a = candidates[p], b = candidates[p + 1];
+            try {
+                var duo = buildDuo("quizverse", a, displayName(nk, a, ""), b, displayName(nk, b, ""), "active", "weekly_pairing");
+                writeDuo(nk, duo);
+                writeUserIndex(nk, a, duo.duoId, duo.expiresAt);
+                writeUserIndex(nk, b, duo.duoId, duo.expiresAt);
+                notifyDuo(nk, logger, a, b, "duo_quest_paired", { duoId: duo.duoId, partnerName: duo.playerBName, goalQuizzes: duo.goalQuizzes, expiresAt: duo.expiresAt });
+                notifyDuo(nk, logger, b, a, "duo_quest_paired", { duoId: duo.duoId, partnerName: duo.playerAName, goalQuizzes: duo.goalQuizzes, expiresAt: duo.expiresAt });
+                paired++;
+            }
+            catch (pairErr) {
+                logger.warn("[DuoQuests] pairing failed for " + a + "/" + b + ": " + (pairErr && pairErr.message));
+            }
+        }
+        logger.info("[DuoQuests] weekly pairing " + week + ": " + paired + " duos from " + candidates.length + " candidates");
+        return { week: week, candidates: candidates.length, paired: paired };
+    }
+    DuoQuests.weeklyPairingTick = weeklyPairingTick;
+    function register(initializer) {
+        initializer.registerRpc("ivx_duo_quest_create", rpcCreate);
+        initializer.registerRpc("ivx_duo_quest_accept", rpcAccept);
+        initializer.registerRpc("ivx_duo_quest_status", rpcStatus);
+    }
+    DuoQuests.register = register;
+})(DuoQuests || (DuoQuests = {}));
+// engagement_extras.ts — five compact engagement systems from the doc's
+// Appendix E action list, grouped because each is a thin RPC over data that
+// already exists elsewhere in the platform:
+//
+//   G-021 ivx_social_quiz_social_proof   — "Ana and 2 friends played this"
+//   G-022 ivx_social_group_streak_status — collaborative group streaks
+//   G-003 ivx_social_friend_recommendations — friends-of-friends via SQL
+//   G-016 ivx_social_starter_groups      — curated cold-start groups
+//   G-015 ivx_social_contact_hash_register / ivx_social_contacts_match
+//         — privacy-preserving phone-contact matching (SHA-256 hashes only)
+var SocialEngagementExtras;
+(function (SocialEngagementExtras) {
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var STATE_FRIEND = 0;
+    // ═══ G-021: quiz social proof ═════════════════════════════════════════════
+    // Source: the friends feed events already written by quiz completion
+    // (7-day window) — no new write path needed.
+    function rpcQuizSocialProof(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            var quizIds = [];
+            if (data.quizIds && Object.prototype.toString.call(data.quizIds) === "[object Array]") {
+                for (var q = 0; q < data.quizIds.length && quizIds.length < 20; q++) {
+                    if (typeof data.quizIds[q] === "string" && data.quizIds[q])
+                        quizIds.push(data.quizIds[q]);
+                }
+            }
+            if (quizIds.length === 0)
+                return RpcHelpers.errorResponse("quizIds (non-empty array, max 20) required");
+            var friendIds = [];
+            try {
+                var page = nk.friendsList(userId, 1000, STATE_FRIEND, null);
+                if (page && page.friends) {
+                    for (var i = 0; i < page.friends.length && friendIds.length < 100; i++) {
+                        var fr = page.friends[i];
+                        if (fr && fr.user && fr.user.id)
+                            friendIds.push(fr.user.id);
+                    }
+                }
+            }
+            catch (_) { }
+            var proof = {};
+            for (var z = 0; z < quizIds.length; z++) {
+                proof[quizIds[z]] = { friendsCompleted: 0, topFriendScore: 0, friendNames: [] };
+            }
+            if (friendIds.length === 0)
+                return RpcHelpers.successResponse({ proof: proof });
+            // One SQL over feed events: friends' quiz_completed rows for these quizzes.
+            var params = [];
+            var fph = [];
+            for (var f = 0; f < friendIds.length; f++) {
+                params.push(friendIds[f]);
+                fph.push("$" + params.length);
+            }
+            var qph = [];
+            for (var qq = 0; qq < quizIds.length; qq++) {
+                params.push(quizIds[qq]);
+                qph.push("$" + params.length);
+            }
+            params.push(gameId);
+            var gp = "$" + params.length;
+            var rows = [];
+            try {
+                rows = nk.sqlQuery("SELECT value FROM storage " +
+                    "WHERE collection = 'ivx_friends_feed_events' " +
+                    "  AND user_id IN (" + fph.join(",") + ") " +
+                    "  AND (value->>'eventType') = 'quiz_completed' " +
+                    "  AND (value->'data'->>'quizId') IN (" + qph.join(",") + ") " +
+                    "  AND (value->>'gameId') = " + gp + " " +
+                    "LIMIT 500", params);
+            }
+            catch (e) {
+                logger.warn("[SocialProof] SQL failed: " + (e && e.message));
+                return RpcHelpers.successResponse({ proof: proof, degraded: true });
+            }
+            if (!rows)
+                rows = [];
+            var seenPerQuiz = {};
+            for (var r = 0; r < rows.length; r++) {
+                var v = rows[r] && rows[r].value;
+                if (typeof v === "string") {
+                    try {
+                        v = JSON.parse(v);
+                    }
+                    catch (_) {
+                        v = null;
+                    }
+                }
+                if (!v || !v.data || !v.data.quizId || !proof[v.data.quizId])
+                    continue;
+                var slot = proof[v.data.quizId];
+                var dedupKey = v.data.quizId + "|" + v.authorId;
+                if (seenPerQuiz[dedupKey]) {
+                    // Same friend replayed — only track best score, not count.
+                }
+                else {
+                    seenPerQuiz[dedupKey] = true;
+                    slot.friendsCompleted++;
+                    if (slot.friendNames.length < 3 && v.authorName)
+                        slot.friendNames.push(v.authorName);
+                }
+                var sc = (typeof v.data.score === "number") ? v.data.score : 0;
+                if (sc > slot.topFriendScore)
+                    slot.topFriendScore = sc;
+            }
+            return RpcHelpers.successResponse({ proof: proof });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to compute social proof");
+        }
+    }
+    // ═══ G-022: group streaks ═════════════════════════════════════════════════
+    // The group streak survives if ANY member plays each day (collaborative,
+    // unlike individual streaks). Contribution is recorded from the quiz
+    // submit flow for every group the player belongs to (capped).
+    var GROUP_STREAK_COLLECTION = "ivx_group_streaks";
+    var MAX_GROUPS_PER_CREDIT = 10;
+    function dayStr(offsetDays) {
+        return new Date(Date.now() + offsetDays * 86400000).toISOString().slice(0, 10);
+    }
+    function creditGroupStreaks(nk, logger, userId) {
+        try {
+            var res = nk.userGroupsList(userId, MAX_GROUPS_PER_CREDIT, undefined, undefined);
+            var list = (res && res.userGroups) ? res.userGroups : [];
+            var today = dayStr(0), yesterday = dayStr(-1);
+            for (var i = 0; i < list.length; i++) {
+                var ug = list[i];
+                if (!ug || !ug.group || !ug.group.id)
+                    continue;
+                if (typeof ug.state === "number" && ug.state > 2)
+                    continue; // join-request only
+                var gid = ug.group.id;
+                for (var attempt = 0; attempt < 2; attempt++) {
+                    var cur = null, version = "";
+                    try {
+                        var rows = nk.storageRead([{ collection: GROUP_STREAK_COLLECTION, key: gid, userId: SYSTEM_USER }]);
+                        if (rows && rows.length > 0 && rows[0] && rows[0].value) {
+                            cur = rows[0].value;
+                            version = rows[0].version || "";
+                        }
+                    }
+                    catch (_) { }
+                    if (cur && cur.lastContributionDate === today)
+                        break; // already alive today
+                    var streak;
+                    if (cur && cur.lastContributionDate === yesterday) {
+                        streak = cur;
+                        streak.streakDays = (streak.streakDays || 0) + 1;
+                    }
+                    else {
+                        streak = { groupId: gid, streakDays: 1, bestStreakDays: (cur && cur.bestStreakDays) || 0 };
+                    }
+                    streak.lastContributionDate = today;
+                    streak.lastContributorId = userId;
+                    streak.bestStreakDays = Math.max(streak.bestStreakDays || 0, streak.streakDays);
+                    var req = { collection: GROUP_STREAK_COLLECTION, key: gid, userId: SYSTEM_USER,
+                        value: streak, permissionRead: 2, permissionWrite: 0 };
+                    if (version)
+                        req.version = version;
+                    try {
+                        nk.storageWrite([req]);
+                        break;
+                    }
+                    catch (occ) {
+                        if (attempt === 1)
+                            break;
+                    }
+                }
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn)
+                logger.warn("[GroupStreaks] credit failed (non-fatal): " + (e && e.message));
+        }
+    }
+    SocialEngagementExtras.creditGroupStreaks = creditGroupStreaks;
+    function rpcGroupStreakStatus(ctx, logger, nk, payload) {
+        try {
+            RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            if (!data.groupId || typeof data.groupId !== "string")
+                return RpcHelpers.errorResponse("groupId is required");
+            var value = { groupId: data.groupId, streakDays: 0, bestStreakDays: 0, lastContributionDate: "", lastContributorId: "" };
+            try {
+                var rows = nk.storageRead([{ collection: GROUP_STREAK_COLLECTION, key: data.groupId, userId: SYSTEM_USER }]);
+                if (rows && rows.length > 0 && rows[0] && rows[0].value)
+                    value = rows[0].value;
+            }
+            catch (_) { }
+            var today = dayStr(0), yesterday = dayStr(-1);
+            // A streak whose last contribution predates yesterday is broken —
+            // report zero live days but keep best/history fields.
+            var alive = (value.lastContributionDate === today || value.lastContributionDate === yesterday);
+            return RpcHelpers.successResponse({
+                groupId: data.groupId,
+                streakDays: alive ? (value.streakDays || 0) : 0,
+                bestStreakDays: value.bestStreakDays || 0,
+                contributedToday: value.lastContributionDate === today,
+                atRisk: value.lastContributionDate === yesterday, // nobody played yet today
+                lastContributorId: value.lastContributorId || ""
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to read group streak");
+        }
+    }
+    // ═══ G-003: friend-of-friend recommendations ══════════════════════════════
+    // Graph distance beats geography (§E.1): 2nd-degree connections ranked by
+    // mutual-friend count, in ONE SQL over Nakama's user_edge table
+    // (source_id, destination_id, state; 0=friend, 3=blocked).
+    function rpcFriendRecommendations(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var limit = (typeof data.limit === "number" && data.limit > 0) ? Math.min(Math.floor(data.limit), 25) : 10;
+            var rows = [];
+            try {
+                rows = nk.sqlQuery(
+                // fof = friends of my friends, excluding me, anyone already in my
+                // graph (any state — friend/pending/blocked), and anyone who
+                // blocked me. Ranked by mutual count.
+                "SELECT fof.destination_id AS user_id, count(*) AS mutual_count " +
+                    "FROM user_edge me " +
+                    "JOIN user_edge fof ON fof.source_id = me.destination_id AND fof.state = 0 " +
+                    "WHERE me.source_id = $1 AND me.state = 0 " +
+                    "  AND fof.destination_id <> $1 " +
+                    "  AND NOT EXISTS (SELECT 1 FROM user_edge mine WHERE mine.source_id = $1 AND mine.destination_id = fof.destination_id) " +
+                    "  AND NOT EXISTS (SELECT 1 FROM user_edge blk  WHERE blk.source_id = fof.destination_id AND blk.destination_id = $1 AND blk.state = 3) " +
+                    "GROUP BY fof.destination_id " +
+                    "ORDER BY mutual_count DESC " +
+                    "LIMIT $2", [userId, limit]);
+            }
+            catch (e) {
+                logger.warn("[FoF] SQL failed: " + (e && e.message));
+                return RpcHelpers.successResponse({ recommendations: [], degraded: true });
+            }
+            if (!rows)
+                rows = [];
+            var ids = [];
+            var mutual = {};
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                if (!r || !r.user_id)
+                    continue;
+                var uid = String(r.user_id);
+                ids.push(uid);
+                mutual[uid] = (typeof r.mutual_count === "number") ? r.mutual_count : parseInt(String(r.mutual_count || 0), 10);
+            }
+            var recs = [];
+            if (ids.length > 0) {
+                try {
+                    var users = nk.usersGetId(ids);
+                    if (users) {
+                        for (var u = 0; u < users.length; u++) {
+                            var usr = users[u];
+                            if (!usr || !usr.userId)
+                                continue;
+                            recs.push({
+                                userId: usr.userId,
+                                username: usr.username || "",
+                                displayName: usr.displayName || usr.username || "",
+                                avatarUrl: usr.avatarUrl || "",
+                                mutualFriends: mutual[usr.userId] || 0,
+                                reason: "mutual_friends"
+                            });
+                        }
+                    }
+                }
+                catch (_) { }
+            }
+            recs.sort(function (a, b) { return b.mutualFriends - a.mutualFriends; });
+            return RpcHelpers.successResponse({ recommendations: recs, count: recs.length });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to compute recommendations");
+        }
+    }
+    // ═══ G-016: curated starter groups ════════════════════════════════════════
+    var STARTER_COLLECTION = "ivx_starter_groups";
+    function rpcStarterGroups(ctx, logger, nk, payload) {
+        try {
+            RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            var groupIds = [];
+            try {
+                var rows = nk.storageRead([{ collection: STARTER_COLLECTION, key: gameId, userId: SYSTEM_USER }]);
+                if (rows && rows.length > 0 && rows[0] && rows[0].value && rows[0].value.groupIds) {
+                    groupIds = rows[0].value.groupIds;
+                }
+            }
+            catch (_) { }
+            if (groupIds.length === 0)
+                return RpcHelpers.successResponse({ groups: [], curated: false });
+            var cards = [];
+            try {
+                var groups = nk.groupsGetId(groupIds.slice(0, 20));
+                if (groups) {
+                    for (var g = 0; g < groups.length; g++) {
+                        var grp = groups[g];
+                        if (!grp || !grp.id)
+                            continue;
+                        var meta = {};
+                        try {
+                            meta = (typeof grp.metadata === "string") ? JSON.parse(grp.metadata || "{}") : (grp.metadata || {});
+                        }
+                        catch (_) { }
+                        cards.push({
+                            id: grp.id, name: grp.name || "", description: grp.description || "",
+                            avatarUrl: grp.avatarUrl || "", memberCount: grp.edgeCount || 0,
+                            maxCount: grp.maxCount || 0, groupType: meta.groupType || "", badge: meta.badge || ""
+                        });
+                    }
+                }
+            }
+            catch (_) { }
+            return RpcHelpers.successResponse({ groups: cards, curated: true });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to load starter groups");
+        }
+    }
+    function rpcStarterGroupsSet(ctx, logger, nk, payload) {
+        try {
+            var data = {};
+            try {
+                data = payload ? JSON.parse(payload) : {};
+            }
+            catch (_) { }
+            var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) ||
+                (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+            if (!expected || data.service_token !== expected)
+                return RpcHelpers.errorResponse("service-only", 401);
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            var groupIds = (data.groupIds && Object.prototype.toString.call(data.groupIds) === "[object Array]") ? data.groupIds : [];
+            nk.storageWrite([{
+                    collection: STARTER_COLLECTION, key: gameId, userId: SYSTEM_USER,
+                    value: { gameId: gameId, groupIds: groupIds.slice(0, 20), updatedAt: new Date().toISOString() },
+                    permissionRead: 2, permissionWrite: 0
+                }]);
+            return RpcHelpers.successResponse({ gameId: gameId, count: groupIds.length });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to save starter groups");
+        }
+    }
+    // ═══ G-015: contact matching (privacy-preserving) ═════════════════════════
+    // Clients hash phone numbers (SHA-256 of E.164) LOCALLY — raw numbers
+    // never reach the server (the WhatsApp/Snapchat/Duolingo pattern, §E.4).
+    //   register: user stores their OWN hash → userId mapping (opt-in).
+    //   match:    caller submits contact hashes; server returns matches.
+    var CONTACTS_COLLECTION = "ivx_contact_hashes";
+    var HASH_RE = /^[0-9a-f]{64}$/i;
+    var MAX_MATCH_BATCH = 500;
+    function rpcContactHashRegister(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            if (data.remove === true) {
+                // Opt-out: remove any prior registration (needs the hash to locate it).
+                if (typeof data.phoneHash === "string" && HASH_RE.test(data.phoneHash)) {
+                    try {
+                        nk.storageDelete([{ collection: CONTACTS_COLLECTION, key: data.phoneHash.toLowerCase(), userId: SYSTEM_USER }]);
+                    }
+                    catch (_) { }
+                }
+                return RpcHelpers.successResponse({ removed: true });
+            }
+            if (typeof data.phoneHash !== "string" || !HASH_RE.test(data.phoneHash)) {
+                return RpcHelpers.errorResponse("phoneHash must be a 64-char SHA-256 hex string");
+            }
+            nk.storageWrite([{
+                    collection: CONTACTS_COLLECTION, key: data.phoneHash.toLowerCase(), userId: SYSTEM_USER,
+                    value: { userId: userId, registeredAt: new Date().toISOString() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+            return RpcHelpers.successResponse({ registered: true });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to register contact hash");
+        }
+    }
+    function rpcContactsMatch(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var hashes = [];
+            if (data.hashedPhones && Object.prototype.toString.call(data.hashedPhones) === "[object Array]") {
+                for (var i = 0; i < data.hashedPhones.length && hashes.length < MAX_MATCH_BATCH; i++) {
+                    var h = data.hashedPhones[i];
+                    if (typeof h === "string" && HASH_RE.test(h))
+                        hashes.push(h.toLowerCase());
+                }
+            }
+            if (hashes.length === 0)
+                return RpcHelpers.errorResponse("hashedPhones (array of SHA-256 hex, max " + MAX_MATCH_BATCH + ") required");
+            var reads = [];
+            for (var r = 0; r < hashes.length; r++) {
+                reads.push({ collection: CONTACTS_COLLECTION, key: hashes[r], userId: SYSTEM_USER });
+            }
+            var matchedIds = [];
+            var byUser = {};
+            try {
+                var rows = nk.storageRead(reads);
+                if (rows) {
+                    for (var w = 0; w < rows.length; w++) {
+                        var v = rows[w] && rows[w].value;
+                        if (v && v.userId && v.userId !== userId && !byUser[v.userId]) {
+                            byUser[v.userId] = true;
+                            matchedIds.push(v.userId);
+                        }
+                    }
+                }
+            }
+            catch (_) { }
+            var matches = [];
+            if (matchedIds.length > 0) {
+                try {
+                    var users = nk.usersGetId(matchedIds.slice(0, 100));
+                    if (users) {
+                        for (var u = 0; u < users.length; u++) {
+                            var usr = users[u];
+                            if (!usr || !usr.userId)
+                                continue;
+                            matches.push({
+                                userId: usr.userId, username: usr.username || "",
+                                displayName: usr.displayName || usr.username || "",
+                                avatarUrl: usr.avatarUrl || ""
+                            });
+                        }
+                    }
+                }
+                catch (_) { }
+            }
+            return RpcHelpers.successResponse({ matches: matches, count: matches.length });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to match contacts");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_quiz_social_proof", rpcQuizSocialProof);
+        initializer.registerRpc("ivx_social_group_streak_status", rpcGroupStreakStatus);
+        initializer.registerRpc("ivx_social_friend_recommendations", rpcFriendRecommendations);
+        initializer.registerRpc("ivx_social_starter_groups", rpcStarterGroups);
+        initializer.registerRpc("ivx_social_starter_groups_set", rpcStarterGroupsSet);
+        initializer.registerRpc("ivx_social_contact_hash_register", rpcContactHashRegister);
+        initializer.registerRpc("ivx_social_contacts_match", rpcContactsMatch);
+    }
+    SocialEngagementExtras.register = register;
+})(SocialEngagementExtras || (SocialEngagementExtras = {}));
+// fanout_queue.ts — async notification fan-out queue (G-017 / AP-008).
+//
+// RULE (doc §E.5): fan-out NEVER happens inline in an RPC handler. A
+// 50-member group event = 50 pushes; inline that's a multi-second RPC and a
+// Goja-call timeout waiting to happen. Producers enqueue cheap rows; the
+// drain tick delivers in bounded batches out-of-band.
+//
+// PRODUCER API (internal):
+//   FanoutQueue.enqueue(nk, logger, items[])
+//     item = { targetUserId, eventType, titleKey, bodyKey, vars, data,
+//              inAppSubject?, inAppContent? }   — localized push via
+//     LegacyPush keys; optional in-app notification mirrored first.
+//
+// DRAIN:
+//   ivx_social_fanout_tick (service token) — also invoked from the hourly
+//   maintenance tick as a backstop. Dedicated CronJob runs it every minute
+//   (intelli-verse-kube-infra/nakama/social-fanout-cronjob.yaml) so
+//   fan-out latency is ≤~60s, not ≤1h.
+//   Per-row failures increment attempts; rows are dropped after 3 attempts
+//   (push is best-effort by contract — doc §9.1 Tier 3).
+//
+// STORAGE: ivx_notification_fanout / q_{tsMs}_{rand}   (system-owned).
+// Key embeds enqueue time so storageList order approximates FIFO.
+var FanoutQueue;
+(function (FanoutQueue) {
+    var COLLECTION = "ivx_notification_fanout";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var MAX_ATTEMPTS = 3;
+    var DRAIN_BATCH = 200;
+    function enqueue(nk, logger, items) {
+        if (!items || items.length === 0)
+            return 0;
+        var writes = [];
+        var nowMs = Date.now();
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            if (!it || !it.targetUserId || !it.eventType)
+                continue;
+            writes.push({
+                collection: COLLECTION,
+                key: "q_" + nowMs.toString(36) + "_" + i.toString(36) + "_" + Math.floor(Math.random() * 46656).toString(36),
+                userId: SYSTEM_USER,
+                value: {
+                    targetUserId: it.targetUserId, eventType: it.eventType,
+                    titleKey: it.titleKey || "", bodyKey: it.bodyKey || "",
+                    vars: it.vars || {}, data: it.data || {},
+                    inAppSubject: it.inAppSubject || "", inAppContent: it.inAppContent || null,
+                    inAppCode: (typeof it.inAppCode === "number") ? it.inAppCode : 0,
+                    enqueuedAt: new Date(nowMs).toISOString(), attempts: 0
+                },
+                permissionRead: 0, permissionWrite: 0
+            });
+        }
+        if (writes.length === 0)
+            return 0;
+        try {
+            nk.storageWrite(writes);
+            return writes.length;
+        }
+        catch (e) {
+            if (logger && logger.warn)
+                logger.warn("[Fanout] enqueue failed: " + (e && e.message));
+            return 0;
+        }
+    }
+    FanoutQueue.enqueue = enqueue;
+    function drain(ctx, logger, nk, maxRows) {
+        var batch = (typeof maxRows === "number" && maxRows > 0) ? Math.min(maxRows, DRAIN_BATCH) : DRAIN_BATCH;
+        var objs = [];
+        try {
+            var res = nk.storageList(SYSTEM_USER, COLLECTION, batch, undefined);
+            objs = (res && res.objects) ? res.objects : [];
+        }
+        catch (e) {
+            logger.warn("[Fanout] list failed: " + (e && e.message));
+            return { sent: 0, failed: 0, dropped: 0 };
+        }
+        var sent = 0, failed = 0, dropped = 0;
+        var deletes = [];
+        var retries = [];
+        var pushAvailable = (typeof LegacyPush !== "undefined" && !!LegacyPush.sendLocalizedPushToUser);
+        for (var i = 0; i < objs.length; i++) {
+            var row = objs[i];
+            if (!row || !row.value)
+                continue;
+            var v = row.value;
+            var ok = true;
+            try {
+                // Optional in-app tier first (durable), then device push.
+                if (v.inAppSubject && v.inAppContent) {
+                    try {
+                        var content = v.inAppContent;
+                        content.type = v.inAppSubject;
+                        nk.notificationsSend([{
+                                userId: v.targetUserId, subject: v.inAppSubject, content: content,
+                                code: v.inAppCode || 0, persistent: true
+                            }]);
+                    }
+                    catch (_) { /* in-app best effort inside fan-out */ }
+                }
+                if (pushAvailable && v.titleKey && v.bodyKey) {
+                    LegacyPush.sendLocalizedPushToUser(ctx, logger, nk, v.targetUserId, v.eventType, v.titleKey, v.bodyKey, v.vars || {}, { skipInAppNotification: true, data: v.data || {} });
+                }
+            }
+            catch (sendErr) {
+                ok = false;
+            }
+            if (ok) {
+                sent++;
+                deletes.push({ collection: COLLECTION, key: row.key, userId: SYSTEM_USER });
+            }
+            else {
+                var attempts = (typeof v.attempts === "number" ? v.attempts : 0) + 1;
+                if (attempts >= MAX_ATTEMPTS) {
+                    dropped++;
+                    deletes.push({ collection: COLLECTION, key: row.key, userId: SYSTEM_USER });
+                }
+                else {
+                    failed++;
+                    v.attempts = attempts;
+                    retries.push({
+                        collection: COLLECTION, key: row.key, userId: SYSTEM_USER,
+                        value: v, permissionRead: 0, permissionWrite: 0
+                    });
+                }
+            }
+        }
+        try {
+            if (deletes.length > 0)
+                nk.storageDelete(deletes);
+        }
+        catch (delErr) {
+            logger.warn("[Fanout] delete failed: " + (delErr && delErr.message));
+        }
+        try {
+            if (retries.length > 0)
+                nk.storageWrite(retries);
+        }
+        catch (_) { }
+        if (sent + failed + dropped > 0) {
+            logger.info("[Fanout] drained: sent=" + sent + " retry=" + failed + " dropped=" + dropped);
+        }
+        return { sent: sent, failed: failed, dropped: dropped, remainingHint: objs.length >= batch };
+    }
+    FanoutQueue.drain = drain;
+    function rpcFanoutTick(ctx, logger, nk, payload) {
+        var data = {};
+        try {
+            data = payload ? JSON.parse(payload) : {};
+        }
+        catch (_) { }
+        var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) ||
+            (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+        if (!expected || data.service_token !== expected) {
+            return RpcHelpers.errorResponse("service-only", 401);
+        }
+        return RpcHelpers.successResponse(drain(ctx, logger, nk, data.max_rows));
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_fanout_tick", rpcFanoutTick);
+    }
+    FanoutQueue.register = register;
+})(FanoutQueue || (FanoutQueue = {}));
+// friends_feed.ts — Gizmo-style friends activity feed (doc §14A).
+//
+// "Without this, the Social Zone answers 'who are my friends?'
+//  With this, it answers 'what did my friends DO today — and can I beat them?'"
+//
+// RPCs:
+//   ivx_social_friends_feed      — merged, time-sorted stream of friends' events
+//   ivx_social_feed_privacy_set  — per-user control of what their friends see
+//   ivx_social_feed_privacy_get  — read own settings (settings UI needs it)
+//
+// WRITER (internal, not an RPC): SocialFriendsFeed.writeEvent(...) — called
+// by game flows (quizverse submit_result hooks quiz_completed; other emitters
+// opt in the same way). Deliberate separation of concerns per §14A.6: the
+// social layer renders the feed, game layers decide what is feed-worthy.
+//
+// STORAGE  (all corrections from the 2026-07-06 architecture pass applied)
+//   ivx_friends_feed_events / {gameId}_{authorId}_{eventId}   owner = author
+//     permissionRead: 1  (C-002: owner-only — public read would let ANY
+//     client bypass both the friend check and privacy settings; this RPC
+//     reads with server privileges so owner-read is sufficient)
+//     expiresAt field + maintenance-tick sweep (C-001: Nakama has NO native
+//     TTL; retention = 7 days via ivx_social_maintenance_tick)
+//   ivx_user_settings / feed_privacy                          owner = user
+//
+// READ PATH (C-003): ONE SQL query over the storage table with a generated
+// IN-list — NOT per-friend storageList calls (50 sequential round-trips
+// would blow the 300ms budget). Ordered by the indexed create_time column
+// (feed events are immutable, so create_time == occurredAt ordering).
+var SocialFriendsFeed;
+(function (SocialFriendsFeed) {
+    var EVENTS_COLLECTION = "ivx_friends_feed_events";
+    var SETTINGS_COLLECTION = "ivx_user_settings";
+    var SETTINGS_KEY = "feed_privacy";
+    var RETENTION_DAYS = 7;
+    var MAX_FRIENDS_SCANNED = 100; // newest-relationship first beyond this
+    var MAX_LIMIT = 50;
+    var STATE_FRIEND = 0;
+    // Event types the feed understands. displayText templates are rendered
+    // SERVER-side (§14A.5) so all clients show identical copy.
+    var EVENT_TYPES = {
+        "quiz_completed": true, "challenge_won": true, "streak_milestone": true,
+        "group_joined": true, "group_level_up": true, "badge_earned": true,
+        "friend_joined": true, "challenge_sent": true
+    };
+    // Which privacy toggle gates each event type.
+    var TYPE_TO_PRIVACY_FIELD = {
+        "quiz_completed": "shareQuizScores",
+        "challenge_won": "shareQuizScores",
+        "challenge_sent": "shareQuizScores",
+        "streak_milestone": "shareStreakMilestones",
+        "badge_earned": "shareBadges",
+        "group_joined": "shareFeedEvents",
+        "group_level_up": "shareFeedEvents",
+        "friend_joined": "shareFeedEvents"
+    };
+    var DEFAULT_PRIVACY = {
+        shareFeedEvents: true,
+        shareQuizScores: true,
+        shareStreakMilestones: true,
+        shareBadges: true
+    };
+    // ── Internal writer — call from game flows, never throws ─────────────────
+    function writeEvent(nk, logger, authorId, authorName, gameId, eventType, eventData, cta) {
+        try {
+            if (!authorId || !EVENT_TYPES[eventType])
+                return;
+            var nowMs = Date.now();
+            var eventId = "evt_" + nowMs.toString(36) + "_" + Math.floor(Math.random() * 1679616).toString(36);
+            nk.storageWrite([{
+                    collection: EVENTS_COLLECTION,
+                    key: gameId + "_" + authorId + "_" + eventId,
+                    userId: authorId,
+                    value: {
+                        eventId: eventId,
+                        eventType: eventType,
+                        gameId: gameId,
+                        authorId: authorId,
+                        authorName: authorName || "",
+                        occurredAt: new Date(nowMs).toISOString(),
+                        expiresAt: new Date(nowMs + RETENTION_DAYS * 86400000).toISOString(),
+                        data: eventData || {},
+                        ctaType: cta ? cta.type : "",
+                        ctaLabel: cta ? cta.label : "",
+                        ctaPayload: cta ? cta.payload : null
+                    },
+                    permissionRead: 1, // C-002: owner-only; served via this RPC only
+                    permissionWrite: 0
+                }]);
+        }
+        catch (e) {
+            if (logger && logger.warn)
+                logger.warn("[FriendsFeed] writeEvent failed (non-fatal): " + (e && e.message));
+        }
+    }
+    SocialFriendsFeed.writeEvent = writeEvent;
+    // ── Server-side display text (§14A.5) ─────────────────────────────────────
+    function renderDisplayText(ev) {
+        var name = ev.authorName || "A friend";
+        var d = ev.data || {};
+        switch (ev.eventType) {
+            case "quiz_completed":
+                return name + " scored " + (d.score !== undefined ? d.score : "?") +
+                    (d.quizTitle ? " in " + d.quizTitle : (d.topic ? " in " + d.topic : ""));
+            case "challenge_won":
+                return name + " won a challenge" + (d.opponentName ? " against " + d.opponentName : "");
+            case "challenge_sent":
+                return name + " sent a challenge" + (d.targetScore ? " — beat " + d.targetScore + "!" : "");
+            case "streak_milestone":
+                return name + " hit a " + (d.days || "?") + "-day streak 🔥";
+            case "group_joined":
+                return name + " joined " + (d.groupName || "a group");
+            case "group_level_up":
+                return (d.groupName || "Your group") + " reached Level " + (d.level || "?") + "! 🎉";
+            case "badge_earned":
+                return name + " earned the " + (d.badgeName || "a") + " badge 🏅";
+            case "friend_joined":
+                return name + " just joined QuizVerse";
+            default:
+                return name + " did something awesome";
+        }
+    }
+    function timeAgo(iso) {
+        var t = Date.parse(iso || "");
+        if (isNaN(t))
+            return "";
+        var s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+        if (s < 60)
+            return "just now";
+        if (s < 3600)
+            return Math.floor(s / 60) + " minutes ago";
+        if (s < 86400)
+            return Math.floor(s / 3600) + " hours ago";
+        return Math.floor(s / 86400) + " days ago";
+    }
+    function loadPrivacyFor(nk, userIds) {
+        var out = {};
+        if (!userIds || userIds.length === 0)
+            return out;
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({ collection: SETTINGS_COLLECTION, key: SETTINGS_KEY, userId: userIds[i] });
+        }
+        try {
+            var rows = nk.storageRead(reads);
+            if (rows) {
+                for (var r = 0; r < rows.length; r++) {
+                    if (rows[r] && rows[r].value && rows[r].userId)
+                        out[rows[r].userId] = rows[r].value;
+                }
+            }
+        }
+        catch (_) { /* defaults apply */ }
+        return out;
+    }
+    function allows(privacy, eventType) {
+        var p = privacy || DEFAULT_PRIVACY;
+        if (p.shareFeedEvents === false)
+            return false; // global kill switch
+        var field = TYPE_TO_PRIVACY_FIELD[eventType] || "shareFeedEvents";
+        return p[field] !== false;
+    }
+    // ── RPC: ivx_social_friends_feed ──────────────────────────────────────────
+    // Payload: { gameId?, limit?, cursor?, eventTypes?: string[] }
+    function rpcFriendsFeed(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            var limit = (typeof data.limit === "number" && data.limit > 0) ? Math.min(Math.floor(data.limit), MAX_LIMIT) : 20;
+            var typeFilter = null;
+            if (data.eventTypes && Object.prototype.toString.call(data.eventTypes) === "[object Array]" && data.eventTypes.length > 0) {
+                typeFilter = {};
+                for (var tf = 0; tf < data.eventTypes.length; tf++) {
+                    if (typeof data.eventTypes[tf] === "string")
+                        typeFilter[data.eventTypes[tf]] = true;
+                }
+            }
+            // 1. Confirmed friends (state=0), capped.
+            var friendIds = [];
+            try {
+                var page = nk.friendsList(userId, 1000, STATE_FRIEND, null);
+                if (page && page.friends) {
+                    for (var f = 0; f < page.friends.length && friendIds.length < MAX_FRIENDS_SCANNED; f++) {
+                        var fr = page.friends[f];
+                        if (fr && fr.user && fr.user.id)
+                            friendIds.push(fr.user.id);
+                    }
+                }
+            }
+            catch (fe) {
+                logger.warn("[FriendsFeed] friendsList failed: " + (fe && fe.message));
+            }
+            if (friendIds.length === 0) {
+                return RpcHelpers.successResponse({ events: [], count: 0, nextCursor: "", emptyReason: "no_friends" });
+            }
+            // 2. ONE SQL query (C-003). Generated IN-list placeholders — the JS
+            // runtime's sqlQuery does not take array parameters.
+            var params = [EVENTS_COLLECTION];
+            var placeholders = [];
+            for (var p = 0; p < friendIds.length; p++) {
+                params.push(friendIds[p]);
+                placeholders.push("$" + (params.length));
+            }
+            params.push(gameId);
+            var gameParam = "$" + params.length;
+            var cursorClause = "";
+            if (typeof data.cursor === "string" && data.cursor) {
+                var cur = Date.parse(data.cursor);
+                if (!isNaN(cur)) {
+                    params.push(new Date(cur).toISOString());
+                    cursorClause = " AND create_time < $" + params.length;
+                }
+            }
+            params.push(limit + 1);
+            var limitParam = "$" + params.length;
+            var rows = [];
+            try {
+                rows = nk.sqlQuery("SELECT value, create_time FROM storage " +
+                    "WHERE collection = " + "$1" +
+                    "  AND user_id IN (" + placeholders.join(",") + ") " +
+                    "  AND (value->>'gameId') = " + gameParam +
+                    cursorClause + " " +
+                    "ORDER BY create_time DESC " +
+                    "LIMIT " + limitParam, params);
+            }
+            catch (sqlErr) {
+                logger.error("[FriendsFeed] SQL failed: " + (sqlErr && sqlErr.message));
+                return RpcHelpers.errorResponse("Feed unavailable — try again");
+            }
+            if (!rows)
+                rows = [];
+            var hasMore = rows.length > limit;
+            if (hasMore)
+                rows = rows.slice(0, limit);
+            // 3. Author privacy (one batched read for distinct authors on this page).
+            var authorSet = {};
+            var parsed = [];
+            for (var i = 0; i < rows.length; i++) {
+                var v = rows[i] && rows[i].value;
+                if (typeof v === "string") {
+                    try {
+                        v = JSON.parse(v);
+                    }
+                    catch (_) {
+                        v = null;
+                    }
+                }
+                if (!v || !v.authorId)
+                    continue;
+                v.__createTime = rows[i].create_time;
+                parsed.push(v);
+                authorSet[v.authorId] = true;
+            }
+            var authors = [];
+            for (var ak in authorSet) {
+                if (Object.prototype.hasOwnProperty.call(authorSet, ak))
+                    authors.push(ak);
+            }
+            var privacyById = loadPrivacyFor(nk, authors);
+            // 4. Filter + render.
+            var events = [];
+            var lastCreate = "";
+            for (var e = 0; e < parsed.length; e++) {
+                var ev = parsed[e];
+                lastCreate = ev.__createTime || lastCreate;
+                if (ev.expiresAt && Date.parse(ev.expiresAt) < Date.now())
+                    continue; // belt-and-braces vs sweep lag
+                if (typeFilter && !typeFilter[ev.eventType])
+                    continue;
+                if (!allows(privacyById[ev.authorId], ev.eventType))
+                    continue;
+                events.push({
+                    eventId: ev.eventId,
+                    eventType: ev.eventType,
+                    authorId: ev.authorId,
+                    authorName: ev.authorName || "",
+                    occurredAt: ev.occurredAt,
+                    timeAgo: timeAgo(ev.occurredAt),
+                    displayText: renderDisplayText(ev),
+                    data: ev.data || {},
+                    cta: ev.ctaType ? { type: ev.ctaType, label: ev.ctaLabel || "", payload: ev.ctaPayload || null } : null
+                });
+            }
+            return RpcHelpers.successResponse({
+                events: events,
+                count: events.length,
+                nextCursor: hasMore && lastCreate ? String(lastCreate) : ""
+            });
+        }
+        catch (err) {
+            return RpcHelpers.errorResponse((err && err.message) || "Failed to load feed");
+        }
+    }
+    // ── RPC: ivx_social_feed_privacy_set / _get ───────────────────────────────
+    function rpcPrivacySet(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var incoming = data.settings || data; // accept flat or wrapped
+            // Merge over current (or defaults) — partial updates allowed.
+            var current = null;
+            try {
+                var rows = nk.storageRead([{ collection: SETTINGS_COLLECTION, key: SETTINGS_KEY, userId: userId }]);
+                if (rows && rows.length > 0 && rows[0] && rows[0].value)
+                    current = rows[0].value;
+            }
+            catch (_) { }
+            var merged = {};
+            for (var dk in DEFAULT_PRIVACY) {
+                if (!Object.prototype.hasOwnProperty.call(DEFAULT_PRIVACY, dk))
+                    continue;
+                if (incoming[dk] !== undefined)
+                    merged[dk] = incoming[dk] === true;
+                else if (current && current[dk] !== undefined)
+                    merged[dk] = current[dk] === true;
+                else
+                    merged[dk] = DEFAULT_PRIVACY[dk];
+            }
+            merged.updatedAt = new Date().toISOString();
+            nk.storageWrite([{
+                    collection: SETTINGS_COLLECTION, key: SETTINGS_KEY, userId: userId,
+                    value: merged, permissionRead: 1, permissionWrite: 0
+                }]);
+            return RpcHelpers.successResponse({ settings: merged });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to save feed privacy");
+        }
+    }
+    function rpcPrivacyGet(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var settings = DEFAULT_PRIVACY;
+            try {
+                var rows = nk.storageRead([{ collection: SETTINGS_COLLECTION, key: SETTINGS_KEY, userId: userId }]);
+                if (rows && rows.length > 0 && rows[0] && rows[0].value)
+                    settings = rows[0].value;
+            }
+            catch (_) { }
+            return RpcHelpers.successResponse({ settings: settings });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to read feed privacy");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_friends_feed", rpcFriendsFeed);
+        initializer.registerRpc("ivx_social_feed_privacy_set", rpcPrivacySet);
+        initializer.registerRpc("ivx_social_feed_privacy_get", rpcPrivacyGet);
+    }
+    SocialFriendsFeed.register = register;
+})(SocialFriendsFeed || (SocialFriendsFeed = {}));
+// group_links.ts — shareable group invite codes (doc §7.3, §E.2; Q-05 —
+// flagged the highest-K-factor item in the quick-win backlog).
+//
+// RPCs:
+//   ivx_social_group_invite_link   — owner/admin mints a 6-char code
+//   ivx_social_group_join_by_code  — anyone with the code joins directly
+//
+// STORAGE
+//   ivx_groups_invite_codes / {CODE}   (system-owned, server-only perms)
+//     { groupId, gameId, createdBy, createdAt, expiresAt|null,
+//       maxUses|null, useCount, revoked }
+//
+// DESIGN NOTES
+//   - Codes are 6 chars from an unambiguous alphabet (no 0/O/1/I/L) →
+//     ~887M combinations; collision handled by retry-on-existing.
+//   - Join uses nk.groupUsersAdd (server authority) — an invite code IS the
+//     authorization, so private/invite-only groups are joined directly
+//     rather than creating a state-3 join request.
+//   - deepLink uses the web fallback domain (quizverse.world — the REAL
+//     production domain per web/lib/site.ts; NOT quizverse.app, see the
+//     Phantom guide Gap 11) plus the custom scheme for installed clients.
+//   - shareText included per §E.2 so Unity can hand it straight to the
+//     native Share Sheet.
+//   - Used/expired codes are swept by ivx_social_maintenance_tick.
+var SocialGroupLinks;
+(function (SocialGroupLinks) {
+    var CODES_COLLECTION = "ivx_groups_invite_codes";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O/1/I/L
+    var CODE_LEN = 6;
+    var MAX_MINT_RETRIES = 5;
+    var MAX_EXPIRES_HOURS = 24 * 30; // 30 days cap
+    var WEB_LINK_BASE = "https://quizverse.world/join/group/";
+    var SCHEME_LINK_BASE = "quizverse://group/join/";
+    // Nakama group member states.
+    var ROLE_SUPERADMIN = 0;
+    var ROLE_ADMIN = 1;
+    function mintCode(nk) {
+        var code = "";
+        for (var i = 0; i < CODE_LEN; i++) {
+            code += CODE_ALPHABET.charAt(Math.floor(Math.random() * CODE_ALPHABET.length));
+        }
+        return code;
+    }
+    function readCode(nk, code) {
+        try {
+            var rows = nk.storageRead([{ collection: CODES_COLLECTION, key: code, userId: SYSTEM_USER }]);
+            if (rows && rows.length > 0 && rows[0] && rows[0].value) {
+                return { value: rows[0].value, version: rows[0].version || "" };
+            }
+        }
+        catch (_) { }
+        return null;
+    }
+    function callerRoleInGroup(nk, userId, groupId) {
+        try {
+            var res = nk.userGroupsList(userId, 100, undefined, undefined);
+            var list = (res && res.userGroups) ? res.userGroups : [];
+            for (var i = 0; i < list.length; i++) {
+                var ug = list[i];
+                if (ug && ug.group && ug.group.id === groupId && typeof ug.state === "number") {
+                    return ug.state;
+                }
+            }
+        }
+        catch (_) { }
+        return -1;
+    }
+    // ── RPC: ivx_social_group_invite_link ─────────────────────────────────────
+    // Payload: { groupId, expiresInHours?: number, maxUses?: number }
+    function rpcInviteLink(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var groupId = data.groupId;
+            if (!groupId || typeof groupId !== "string") {
+                return RpcHelpers.errorResponse("groupId is required");
+            }
+            // Auth: only owner (superadmin) or admin may mint share links.
+            var role = callerRoleInGroup(nk, userId, groupId);
+            if (role !== ROLE_SUPERADMIN && role !== ROLE_ADMIN) {
+                return RpcHelpers.errorResponse("Only the group owner or an admin can create invite links");
+            }
+            // Group must exist; pull name + gameId for the link payload.
+            var groups = nk.groupsGetId([groupId]);
+            if (!groups || groups.length === 0) {
+                return RpcHelpers.errorResponse("Group not found");
+            }
+            var group = groups[0];
+            var meta = {};
+            try {
+                meta = (typeof group.metadata === "string") ? JSON.parse(group.metadata || "{}") : (group.metadata || {});
+            }
+            catch (_) { }
+            var gameId = meta.gameId || "quizverse";
+            var expiresAt = null;
+            if (typeof data.expiresInHours === "number" && data.expiresInHours > 0) {
+                var hours = Math.min(data.expiresInHours, MAX_EXPIRES_HOURS);
+                expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+            }
+            var maxUses = null;
+            if (typeof data.maxUses === "number" && data.maxUses > 0) {
+                maxUses = Math.min(Math.floor(data.maxUses), 10000);
+            }
+            // Mint a unique code (retry on the astronomically-unlikely collision).
+            var code = "";
+            var minted = false;
+            for (var attempt = 0; attempt < MAX_MINT_RETRIES && !minted; attempt++) {
+                code = mintCode(nk);
+                if (readCode(nk, code) === null)
+                    minted = true;
+            }
+            if (!minted) {
+                return RpcHelpers.errorResponse("Could not mint a unique invite code — try again");
+            }
+            nk.storageWrite([{
+                    collection: CODES_COLLECTION, key: code, userId: SYSTEM_USER,
+                    value: {
+                        groupId: groupId,
+                        gameId: gameId,
+                        groupName: group.name || "",
+                        createdBy: userId,
+                        createdAt: new Date().toISOString(),
+                        expiresAt: expiresAt,
+                        maxUses: maxUses,
+                        useCount: 0,
+                        revoked: false
+                    },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+            var deepLink = WEB_LINK_BASE + code;
+            return RpcHelpers.successResponse({
+                inviteCode: code,
+                deepLink: deepLink,
+                schemeLink: SCHEME_LINK_BASE + code,
+                expiresAt: expiresAt,
+                maxUses: maxUses,
+                shareText: "Join my QuizVerse group \"" + (group.name || "my group") + "\"! 🎯 " + deepLink
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to create invite link");
+        }
+    }
+    // ── RPC: ivx_social_group_join_by_code ────────────────────────────────────
+    // Payload: { inviteCode, gameId? }
+    function rpcJoinByCode(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var rawCode = data.inviteCode;
+            if (!rawCode || typeof rawCode !== "string") {
+                return RpcHelpers.errorResponse("inviteCode is required");
+            }
+            var code = rawCode.toUpperCase().replace(/[^A-Z0-9]/g, "").substring(0, CODE_LEN);
+            var found = readCode(nk, code);
+            if (!found) {
+                return RpcHelpers.errorResponse("Invalid or expired invite code");
+            }
+            var row = found.value;
+            if (row.revoked === true) {
+                return RpcHelpers.errorResponse("This invite link has been revoked");
+            }
+            if (row.expiresAt && Date.parse(row.expiresAt) < Date.now()) {
+                return RpcHelpers.errorResponse("This invite link has expired");
+            }
+            if (typeof row.maxUses === "number" && row.maxUses > 0 && row.useCount >= row.maxUses) {
+                return RpcHelpers.errorResponse("This invite link has reached its usage limit");
+            }
+            if (data.gameId && typeof data.gameId === "string" &&
+                row.gameId && data.gameId.toLowerCase() !== String(row.gameId).toLowerCase()) {
+                return RpcHelpers.errorResponse("This invite is for a different game");
+            }
+            // Group must still exist and have room.
+            var groups = nk.groupsGetId([row.groupId]);
+            if (!groups || groups.length === 0) {
+                return RpcHelpers.errorResponse("This group no longer exists");
+            }
+            var group = groups[0];
+            if (typeof group.edgeCount === "number" && typeof group.maxCount === "number" &&
+                group.maxCount > 0 && group.edgeCount >= group.maxCount) {
+                return RpcHelpers.errorResponse("This group is full");
+            }
+            // Already a member? Idempotent success.
+            var existingRole = callerRoleInGroup(nk, userId, row.groupId);
+            var alreadyMember = (existingRole >= ROLE_SUPERADMIN && existingRole <= 2);
+            if (!alreadyMember) {
+                // Server-authority add — the code IS the authorization, so this works
+                // for private/invite-only groups without a join-request round-trip.
+                nk.groupUsersAdd(row.groupId, [userId]);
+                // Bump useCount (version-checked, best-effort — a lost increment is
+                // an acceptable, conservative failure: the code allows one extra use).
+                try {
+                    row.useCount = (typeof row.useCount === "number" ? row.useCount : 0) + 1;
+                    row.lastUsedAt = new Date().toISOString();
+                    nk.storageWrite([{
+                            collection: CODES_COLLECTION, key: code, userId: SYSTEM_USER,
+                            value: row, version: found.version,
+                            permissionRead: 0, permissionWrite: 0
+                        }]);
+                }
+                catch (_) { /* non-fatal */ }
+                // ML-004 fix: notify the group owner someone joined via their link.
+                try {
+                    var joinerName = ctx.username || userId;
+                    try {
+                        var users = nk.usersGetId([userId]);
+                        if (users && users.length > 0 && users[0]) {
+                            joinerName = users[0].displayName || users[0].username || joinerName;
+                        }
+                    }
+                    catch (_) { }
+                    nk.notificationsSend([{
+                            userId: row.createdBy,
+                            subject: "group_member_joined",
+                            content: {
+                                type: "group_member_joined", code: 22,
+                                groupId: row.groupId, groupName: group.name || "",
+                                joinedUserId: userId, joinedName: joinerName,
+                                viaInviteCode: code
+                            },
+                            code: 22, senderId: userId, persistent: true
+                        }]);
+                }
+                catch (notifErr) {
+                    logger.warn("[GroupLinks] owner notification failed (non-fatal): " + (notifErr && notifErr.message));
+                }
+            }
+            return RpcHelpers.successResponse({
+                joined: !alreadyMember,
+                alreadyMember: alreadyMember,
+                group: {
+                    id: row.groupId,
+                    name: group.name || "",
+                    description: group.description || "",
+                    avatarUrl: group.avatarUrl || "",
+                    memberCount: group.edgeCount || 0,
+                    maxCount: group.maxCount || 0,
+                    gameId: row.gameId || ""
+                }
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to join by code");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_group_invite_link", rpcInviteLink);
+        initializer.registerRpc("ivx_social_group_join_by_code", rpcJoinByCode);
+    }
+    SocialGroupLinks.register = register;
+})(SocialGroupLinks || (SocialGroupLinks = {}));
+// group_search.ts — server-side, gameId-filtered group discovery (doc §7.4).
+//
+// REPLACES the Unity client calling raw client.ListGroupsAsync, which cannot
+// filter by metadata.gameId — the client currently downloads every game's
+// groups and filters locally (bandwidth waste + cross-game leak, B-008's
+// sibling on the discovery path).
+//
+// Single SQL query over Nakama's first-class `groups` table (NOT the storage
+// table — groups have their own schema with a JSONB metadata column).
+// Precedent for raw SQL in this runtime: find_friends.ts, insights-aggregator.
+// Every group created via create_quizverse_group / create_game_group has
+// metadata.gameId set (createGroupMetadata in groups/groups.js), so the
+// strict filter matches all platform-created groups.
+//
+// Pagination: numeric offset cursor (opaque string to clients — doc §19.5:
+// clients must never parse cursors).
+var SocialGroupSearch;
+(function (SocialGroupSearch) {
+    var MAX_LIMIT = 50;
+    var MAX_QUERY = 64;
+    function rpcGroupSearch(ctx, logger, nk, payload) {
+        try {
+            RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            var limit = (typeof data.limit === "number" && data.limit > 0) ? Math.min(Math.floor(data.limit), MAX_LIMIT) : 20;
+            var offset = 0;
+            if (typeof data.cursor === "string" && data.cursor) {
+                var parsedOffset = parseInt(data.cursor, 10);
+                if (!isNaN(parsedOffset) && parsedOffset > 0)
+                    offset = parsedOffset;
+            }
+            var query = "";
+            if (typeof data.query === "string" && data.query.trim()) {
+                query = data.query.trim().substring(0, MAX_QUERY);
+            }
+            // open-only filter (default true): closed groups are invite-only and
+            // should not surface in public discovery unless explicitly requested.
+            var openOnly = data.openOnly !== false;
+            var rows = [];
+            try {
+                if (query) {
+                    // Escape ILIKE wildcards in user input, then wrap in %...%.
+                    var escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+                    rows = nk.sqlQuery("SELECT id, name, description, avatar_url, edge_count, max_count, state, metadata " +
+                        "FROM groups " +
+                        "WHERE (metadata->>'gameId') = $1 " +
+                        "  AND ($2 = false OR state = 0) " +
+                        "  AND name ILIKE $3 " +
+                        "ORDER BY edge_count DESC, name ASC " +
+                        "LIMIT $4 OFFSET $5", [gameId, openOnly, "%" + escaped + "%", limit + 1, offset]);
+                }
+                else {
+                    rows = nk.sqlQuery("SELECT id, name, description, avatar_url, edge_count, max_count, state, metadata " +
+                        "FROM groups " +
+                        "WHERE (metadata->>'gameId') = $1 " +
+                        "  AND ($2 = false OR state = 0) " +
+                        "ORDER BY edge_count DESC, name ASC " +
+                        "LIMIT $3 OFFSET $4", [gameId, openOnly, limit + 1, offset]);
+                }
+            }
+            catch (sqlErr) {
+                logger.error("[GroupSearch] SQL failed: " + (sqlErr && sqlErr.message));
+                return RpcHelpers.errorResponse("Group search unavailable — try again");
+            }
+            if (!rows)
+                rows = [];
+            // We fetched limit+1 to detect whether another page exists.
+            var hasMore = rows.length > limit;
+            if (hasMore)
+                rows = rows.slice(0, limit);
+            var groups = [];
+            for (var i = 0; i < rows.length; i++) {
+                var r = rows[i];
+                if (!r)
+                    continue;
+                var meta = {};
+                try {
+                    meta = (typeof r.metadata === "string") ? JSON.parse(r.metadata || "{}") : (r.metadata || {});
+                }
+                catch (_) { }
+                groups.push({
+                    id: r.id,
+                    name: r.name || "",
+                    description: r.description || "",
+                    avatarUrl: r.avatar_url || "",
+                    memberCount: (typeof r.edge_count === "number") ? r.edge_count : parseInt(String(r.edge_count || 0), 10),
+                    maxCount: (typeof r.max_count === "number") ? r.max_count : parseInt(String(r.max_count || 0), 10),
+                    open: String(r.state) === "0",
+                    gameId: meta.gameId || gameId,
+                    groupType: meta.groupType || "",
+                    level: (typeof meta.level === "number") ? meta.level : 1,
+                    badge: meta.badge || "",
+                    joinPolicy: meta.joinPolicy || (String(r.state) === "0" ? "open" : "private")
+                });
+            }
+            return RpcHelpers.successResponse({
+                groups: groups,
+                count: groups.length,
+                nextCursor: hasMore ? String(offset + limit) : ""
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to search groups");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_group_search", rpcGroupSearch);
+    }
+    SocialGroupSearch.register = register;
+})(SocialGroupSearch || (SocialGroupSearch = {}));
+// leagues.ts — Duolingo-style weekly Leagues (Q-11, doc §17.5 / §F.2 rank #2).
+//
+// THE MECHANIC: every player sits in a ≤30-person pool within a 10-tier
+// ladder (Bronze → Legend). Standings are weekly XP (ivx_game_player_stats —
+// the ML-002 system, so NO separate score submission exists to cheat).
+// At the ISO-week rollover, top finishers promote a tier, bottom finishers
+// demote. This is deliberately NOT relationship-scoped: it solves
+// "engagement with zero friends" — the cold-start segment nothing else
+// reaches (doc §17.5).
+//
+// RPCs
+//   ivx_league_get — auto-enrolls the caller into this week's pool for their
+//     tier (first call of the week) and returns live standings.
+//
+// ROLLOVER: weeklyLeagueTick() from ivx_social_maintenance_tick — idempotent
+// per ISO week via conditional-create marker. It ranks LAST week's pools
+// using last week's stats rows (safe: the lazy weekly reset in player_stats
+// preserves old values until the user next plays) and writes each member's
+// new tier + promotion/demotion notification (via the fan-out queue).
+//
+// FLAG-GATED: app registry feature "leagues" (default OFF) — ships dark,
+// one Console write turns it on per app (doc §19.9).
+//
+// STORAGE (collection ivx_leagues, system-owned)
+//   pool_{week}_{tier}_{n}   { members: [userId...], week, tier, n }
+//   poolidx_{week}_{tier}    { openPool: n }        (assignment cursor)
+//   member_{userId}          { tier, week, poolKey } (current placement)
+//   roll_marker_{week}       rollover idempotency marker
+var SocialLeagues;
+(function (SocialLeagues) {
+    var COLLECTION = "ivx_leagues";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var POOL_SIZE = 30;
+    var PROMOTE_N = 10; // top 10 promote
+    var DEMOTE_N = 5; // bottom 5 demote
+    var TIERS = ["bronze", "silver", "gold", "sapphire", "ruby", "emerald", "amethyst", "pearl", "obsidian", "legend"];
+    function isoWeek(d) {
+        var t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        var dayNum = (t.getUTCDay() + 6) % 7;
+        t.setUTCDate(t.getUTCDate() - dayNum + 3);
+        var firstThursday = t.getTime();
+        t.setUTCMonth(0, 1);
+        if (t.getUTCDay() !== 4)
+            t.setUTCMonth(0, 1 + ((4 - t.getUTCDay()) + 7) % 7);
+        var week = 1 + Math.ceil((firstThursday - t.getTime()) / 604800000);
+        return d.getUTCFullYear() + "-W" + (week < 10 ? "0" + week : week);
+    }
+    function prevIsoWeek() {
+        return isoWeek(new Date(Date.now() - 7 * 86400000));
+    }
+    function readSys(nk, key) {
+        try {
+            var rows = nk.storageRead([{ collection: COLLECTION, key: key, userId: SYSTEM_USER }]);
+            if (rows && rows.length > 0 && rows[0] && rows[0].value) {
+                return { value: rows[0].value, version: rows[0].version || "" };
+            }
+        }
+        catch (_) { }
+        return null;
+    }
+    function writeSys(nk, key, value, version) {
+        var req = { collection: COLLECTION, key: key, userId: SYSTEM_USER, value: value, permissionRead: 2, permissionWrite: 0 };
+        if (version !== undefined)
+            req.version = version;
+        nk.storageWrite([req]);
+    }
+    function tierIndex(tier) {
+        for (var i = 0; i < TIERS.length; i++) {
+            if (TIERS[i] === tier)
+                return i;
+        }
+        return 0;
+    }
+    /** Assign a user to this week's open pool in their tier (OCC append, retried). */
+    function enroll(nk, logger, userId, week, tier) {
+        for (var attempt = 0; attempt < 3; attempt++) {
+            var idxKey = "poolidx_" + week + "_" + tier;
+            var idx = readSys(nk, idxKey);
+            var n = idx ? (idx.value.openPool || 0) : 0;
+            var poolKey = "pool_" + week + "_" + tier + "_" + n;
+            var pool = readSys(nk, poolKey);
+            var members = pool ? (pool.value.members || []) : [];
+            // Already in? (idempotency under retry)
+            for (var m = 0; m < members.length; m++) {
+                if (members[m] === userId)
+                    return poolKey;
+            }
+            if (members.length >= POOL_SIZE) {
+                // Pool full — advance the cursor and retry with the next pool.
+                try {
+                    writeSys(nk, idxKey, { openPool: n + 1 }, idx ? idx.version : "*");
+                }
+                catch (_) { }
+                continue;
+            }
+            members.push(userId);
+            try {
+                writeSys(nk, poolKey, { week: week, tier: tier, n: n, members: members }, pool ? pool.version : "*");
+                writeSys(nk, "member_" + userId, { userId: userId, tier: tier, week: week, poolKey: poolKey });
+                return poolKey;
+            }
+            catch (occ) { /* clash — retry */ }
+        }
+        logger.warn("[Leagues] enroll contention for " + userId + " tier=" + tier);
+        return "";
+    }
+    function rpcLeagueGet(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            if (typeof SocialAppRegistry !== "undefined" && SocialAppRegistry.featureEnabled &&
+                !SocialAppRegistry.featureEnabled(nk, gameId, "leagues")) {
+                return RpcHelpers.errorResponse("Leagues are not enabled yet", 404);
+            }
+            var week = isoWeek(new Date());
+            // Current placement (tier survives across weeks; pool is per-week).
+            var member = readSys(nk, "member_" + userId);
+            var tier = (member && member.value.tier) ? member.value.tier : TIERS[0];
+            var poolKey = (member && member.value.week === week) ? member.value.poolKey : "";
+            if (!poolKey) {
+                poolKey = enroll(nk, logger, userId, week, tier);
+                if (!poolKey)
+                    return RpcHelpers.errorResponse("League enrollment busy — try again");
+            }
+            var pool = readSys(nk, poolKey);
+            var members = pool ? (pool.value.members || []) : [userId];
+            // Live standings = this week's XP from player stats (one batched read).
+            var statsMap = {};
+            if (typeof SocialPlayerStats !== "undefined" && SocialPlayerStats.loadStatsMap) {
+                statsMap = SocialPlayerStats.loadStatsMap(nk, gameId, members);
+            }
+            var names = {};
+            try {
+                var users = nk.usersGetId(members);
+                if (users) {
+                    for (var u = 0; u < users.length; u++) {
+                        var usr = users[u];
+                        if (usr && usr.userId)
+                            names[usr.userId] = { name: usr.displayName || usr.username || "", avatar: usr.avatarUrl || "" };
+                    }
+                }
+            }
+            catch (_) { }
+            var standings = [];
+            for (var i = 0; i < members.length; i++) {
+                var mid = members[i];
+                standings.push({
+                    userId: mid,
+                    displayName: (names[mid] && names[mid].name) || "",
+                    avatarUrl: (names[mid] && names[mid].avatar) || "",
+                    xpThisWeek: (statsMap[mid] && statsMap[mid].xpThisWeek) || 0,
+                    isMe: mid === userId
+                });
+            }
+            standings.sort(function (a, b) { return b.xpThisWeek - a.xpThisWeek; });
+            var myRank = 0;
+            for (var r = 0; r < standings.length; r++) {
+                standings[r].rank = r + 1;
+                if (standings[r].isMe)
+                    myRank = r + 1;
+            }
+            return RpcHelpers.successResponse({
+                week: week, tier: tier, tierIndex: tierIndex(tier), tiers: TIERS,
+                poolSize: standings.length, myRank: myRank,
+                promoteCount: PROMOTE_N, demoteCount: DEMOTE_N,
+                standings: standings
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to load league");
+        }
+    }
+    /** Weekly rollover — promotions/demotions for LAST week's pools. */
+    function weeklyLeagueTick(ctx, logger, nk) {
+        var lastWeek = prevIsoWeek();
+        var markerKey = "roll_marker_" + lastWeek;
+        if (readSys(nk, markerKey))
+            return { skipped: true, week: lastWeek };
+        try {
+            writeSys(nk, markerKey, { week: lastWeek, startedAt: new Date().toISOString() }, "*");
+        }
+        catch (race) {
+            return { skipped: true, week: lastWeek, reason: "marker_race" };
+        }
+        var processed = 0, promoted = 0, demoted = 0;
+        for (var t = 0; t < TIERS.length; t++) {
+            var tier = TIERS[t];
+            // Sweep pools 0..N until a gap.
+            for (var n = 0; n < 1000; n++) {
+                var pool = readSys(nk, "pool_" + lastWeek + "_" + tier + "_" + n);
+                if (!pool)
+                    break;
+                var members = pool.value.members || [];
+                if (members.length === 0)
+                    continue;
+                // Last week's stats rows still carry last week's numbers until each
+                // user plays again (lazy reset) — rank by them.
+                var xp = {};
+                try {
+                    var reads = [];
+                    for (var m = 0; m < members.length; m++) {
+                        reads.push({ collection: "ivx_game_player_stats", key: "quizverse_" + members[m], userId: members[m] });
+                    }
+                    var rows = nk.storageRead(reads);
+                    if (rows) {
+                        for (var rr = 0; rr < rows.length; rr++) {
+                            var row = rows[rr];
+                            if (row && row.value && row.userId && row.value.weekId === lastWeek) {
+                                xp[row.userId] = row.value.xpThisWeek || 0;
+                            }
+                        }
+                    }
+                }
+                catch (_) { }
+                var ranked = members.slice(0);
+                ranked.sort(function (a, b) { return (xp[b] || 0) - (xp[a] || 0); });
+                for (var k = 0; k < ranked.length; k++) {
+                    var uid = ranked[k];
+                    var newTier = tier;
+                    var moved = "";
+                    if (k < PROMOTE_N && (xp[uid] || 0) > 0 && t < TIERS.length - 1) {
+                        newTier = TIERS[t + 1];
+                        moved = "promoted";
+                        promoted++;
+                    }
+                    else if (k >= ranked.length - DEMOTE_N && t > 0 && ranked.length > DEMOTE_N) {
+                        newTier = TIERS[t - 1];
+                        moved = "demoted";
+                        demoted++;
+                    }
+                    try {
+                        writeSys(nk, "member_" + uid, { userId: uid, tier: newTier, week: "", poolKey: "" });
+                    }
+                    catch (_) { }
+                    if (moved && typeof FanoutQueue !== "undefined" && FanoutQueue.enqueue) {
+                        FanoutQueue.enqueue(nk, logger, [{
+                                targetUserId: uid, eventType: "league_" + moved,
+                                titleKey: "", bodyKey: "", vars: {},
+                                data: { screen: "leagues", type: moved, newTier: newTier },
+                                inAppSubject: "league_" + moved, inAppCode: 32,
+                                inAppContent: { type: "league_" + moved, fromTier: tier, newTier: newTier, week: lastWeek, rank: k + 1 }
+                            }]);
+                    }
+                    processed++;
+                }
+            }
+        }
+        logger.info("[Leagues] rollover " + lastWeek + ": processed=" + processed + " up=" + promoted + " down=" + demoted);
+        return { week: lastWeek, processed: processed, promoted: promoted, demoted: demoted };
+    }
+    SocialLeagues.weeklyLeagueTick = weeklyLeagueTick;
+    function register(initializer) {
+        initializer.registerRpc("ivx_league_get", rpcLeagueGet);
+    }
+    SocialLeagues.register = register;
+})(SocialLeagues || (SocialLeagues = {}));
+// maintenance.ts — ivx_social_maintenance_tick: the single cleanup job family
+// for the social layer (WORLD_CLASS_SOCIAL_FRIENDS_GROUPS_ARCHITECTURE.md
+// §19.7, gaps G-018 + B-005).
+//
+// WHY THIS EXISTS
+//   Nakama storage has no TTL. Without offline cleanup:
+//   - friend_challenges / friend_challenges_outbox rows accumulate forever
+//     ("lazy expiry sweep at read time" = anti-pattern AP-002).
+//   - rate_limits rows (including the B-009 per-pair keys, one row per user
+//     pair) grow unboundedly.
+//   - player_presence rows for churned users show "last seen 14 months ago"
+//     forever (B-005).
+//
+// HOW IT'S DRIVEN
+//   The JS runtime has NO cron scheduler. This RPC is invoked by a
+//   Kubernetes CronJob (intelli-verse-kube-infra/nakama/
+//   social-maintenance-cronjob.yaml) — the same delivery pattern as
+//   tournament-cron-*.yaml. concurrencyPolicy: Forbid on the CronJob is the
+//   concurrency guard; no storage leader-lock needed.
+//
+// STALENESS SOURCE
+//   Sweeps filter on the storage table's `update_time` column, NOT on JSON
+//   fields inside `value`. Every targeted row is rewritten on use
+//   (rate-limit buckets on every check, presence on every heartbeat,
+//   challenges on every lifecycle transition), so update_time is an honest
+//   "last touched" signal — and it avoids JSONB casts entirely, so a single
+//   malformed value can never abort a sweep.
+//
+// AUTH
+//   Same service-token contract as tournament crons: payload.service_token
+//   must equal TOURNAMENT_SERVICE_TOKEN (or BRAIN_COINS_SERVICE_TOKEN
+//   fallback) from ctx.env. Both are already wired into the prod runtime
+//   env — zero new secrets needed.
+var SocialMaintenance;
+(function (SocialMaintenance) {
+    // Per-collection retention windows (hours) — deliberately conservative.
+    // friend_challenges expire in ≤24h; 720h (30d) past last touch is
+    // unambiguously dead data while preserving a generous forensic window.
+    var SWEEPS = [
+        { collection: "friend_challenges", retentionHours: 720, reason: "expired/terminal challenges (G-018)" },
+        { collection: "friend_challenges_outbox", retentionHours: 720, reason: "sender-side challenge index (G-018)" },
+        { collection: "rate_limits", retentionHours: 24, reason: "transient cooldown/counter buckets incl. B-009 pair keys" },
+        { collection: "player_presence", retentionHours: 2160, reason: "stale presence, 90 days (B-005)" },
+        { collection: "ivx_presence_v2", retentionHours: 2160, reason: "stale per-game presence v2 rows (doc §8.2)" },
+        { collection: "ivx_friends_feed_events", retentionHours: 168, reason: "feed events, 7-day retention (doc §14A.4 / C-001 — no native TTL)" },
+        { collection: "ivx_groups_invite_codes", retentionHours: 2160, reason: "old invite codes; expiry/maxUses enforced at read, rows swept after 90 days" },
+        { collection: "ivx_nudge_log", retentionHours: 720, reason: "expiry-warning dedup markers; challenges are long gone after 30 days" },
+        { collection: "ivx_duo_quests", retentionHours: 720, reason: "finished/expired duo quests + user index rows (30 days)" },
+        { collection: "ivx_game_player_stats", retentionHours: 2160, reason: "weekly activity stats; rows untouched 90 days = churned player (ML-002)" },
+        { collection: "ivx_moderation_reports", retentionHours: 2160, reason: "report rows + dedup markers, 90-day forensic window (G-011)" },
+        { collection: "ivx_moderation_counters", retentionHours: 720, reason: "rolling 7-day report counters + reporter daily caps (G-011)" },
+        { collection: "ivx_moderation_flags", retentionHours: 2160, reason: "auto-flag rows; 90 days for ops review before sweep (G-011)" }
+    ];
+    var DEFAULT_MAX_ROWS_PER_COLLECTION = 1000;
+    var HARD_MAX_ROWS_PER_COLLECTION = 5000;
+    function requireServiceToken(ctx, data) {
+        var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) ||
+            (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+        return !!(expected && data && data.service_token === expected);
+    }
+    function rpcMaintenanceTick(ctx, logger, nk, payload) {
+        var data = {};
+        try {
+            data = payload ? JSON.parse(payload) : {};
+        }
+        catch (_) {
+            data = {};
+        }
+        if (!requireServiceToken(ctx, data)) {
+            return RpcHelpers.errorResponse("service-only", 401);
+        }
+        var maxRows = DEFAULT_MAX_ROWS_PER_COLLECTION;
+        if (typeof data.max_rows === "number" && data.max_rows > 0) {
+            maxRows = Math.min(Math.floor(data.max_rows), HARD_MAX_ROWS_PER_COLLECTION);
+        }
+        var dryRun = data.dry_run === true;
+        var results = {};
+        var totalDeleted = 0;
+        for (var i = 0; i < SWEEPS.length; i++) {
+            var sweep = SWEEPS[i];
+            // Each sweep is isolated — one broken collection must never abort the rest.
+            try {
+                if (dryRun) {
+                    var countRows = nk.sqlQuery("SELECT count(*) AS n FROM storage " +
+                        "WHERE collection = $1 AND update_time < now() - ($2 * INTERVAL '1 hour')", [sweep.collection, sweep.retentionHours]);
+                    var n = (countRows && countRows.length > 0) ? parseInt(String(countRows[0].n), 10) : 0;
+                    results[sweep.collection] = { wouldDelete: n, retentionHours: sweep.retentionHours };
+                }
+                else {
+                    // CockroachDB supports DELETE ... LIMIT; the cap bounds each tick's
+                    // transaction size. Remaining rows are picked up by the next tick.
+                    var res = nk.sqlExec("DELETE FROM storage " +
+                        "WHERE collection = $1 AND update_time < now() - ($2 * INTERVAL '1 hour') " +
+                        "LIMIT $3", [sweep.collection, sweep.retentionHours, maxRows]);
+                    var deleted = (res && typeof res.rowsAffected === "number") ? res.rowsAffected : 0;
+                    totalDeleted += deleted;
+                    results[sweep.collection] = { deleted: deleted, retentionHours: sweep.retentionHours, capped: deleted >= maxRows };
+                }
+            }
+            catch (e) {
+                results[sweep.collection] = { error: String(e && e.message || e) };
+                logger.warn("[SocialMaintenance] sweep failed for " + sweep.collection + ": " + (e && e.message || e));
+            }
+        }
+        // ── Nudge: async-challenge expiry warnings (Phantom guide Phase 4) ─────
+        // "Expires in 24h" push to participants of still-open challenges.
+        // Dedup: one conditional-create marker row per session in ivx_nudge_log —
+        // the hourly cadence re-scans, the marker guarantees exactly one warning.
+        var nudge = { scanned: 0, warned: 0 };
+        if (!dryRun) {
+            try {
+                nudge = runExpiryWarnings(ctx, logger, nk);
+            }
+            catch (ne) {
+                logger.warn("[SocialMaintenance] expiry warnings failed: " + (ne && ne.message));
+            }
+        }
+        // ── Duo Quests weekly pairing (idempotent per ISO week) ────────────────
+        var pairing = { skipped: true };
+        if (!dryRun) {
+            try {
+                if (typeof DuoQuests !== "undefined" && DuoQuests.weeklyPairingTick) {
+                    pairing = DuoQuests.weeklyPairingTick(ctx, logger, nk);
+                }
+            }
+            catch (pe) {
+                logger.warn("[SocialMaintenance] duo pairing failed: " + (pe && pe.message));
+            }
+        }
+        // ── League weekly rollover (Q-11 — idempotent per ISO week) ────────────
+        var league = { skipped: true };
+        if (!dryRun) {
+            try {
+                if (typeof SocialLeagues !== "undefined" && SocialLeagues.weeklyLeagueTick) {
+                    league = SocialLeagues.weeklyLeagueTick(ctx, logger, nk);
+                }
+            }
+            catch (le) {
+                logger.warn("[SocialMaintenance] league rollover failed: " + (le && le.message));
+            }
+        }
+        // ── Fan-out queue backstop drain (primary drain = per-minute CronJob) ──
+        var fanout = { sent: 0 };
+        if (!dryRun) {
+            try {
+                if (typeof FanoutQueue !== "undefined" && FanoutQueue.drain) {
+                    fanout = FanoutQueue.drain(ctx, logger, nk, 500);
+                }
+            }
+            catch (fe) {
+                logger.warn("[SocialMaintenance] fanout backstop failed: " + (fe && fe.message));
+            }
+        }
+        logger.info("[SocialMaintenance] tick complete: " + (dryRun ? "dry_run" : (totalDeleted + " rows deleted")));
+        return RpcHelpers.successResponse({
+            dryRun: dryRun,
+            totalDeleted: totalDeleted,
+            maxRowsPerCollection: maxRows,
+            collections: results,
+            expiryWarnings: nudge,
+            duoPairing: pairing,
+            leagueRollover: league,
+            fanoutBackstop: fanout
+        });
+    }
+    // ── Async-challenge expiry warnings ───────────────────────────────────────
+    // Warn creator (+opponent if joined) when a still-open challenge expires
+    // within 24h. Statuses: 0 WAITING, 1 OPPONENT_JOINED, 5 CREATOR_PLAYED
+    // (legacy_runtime.js ASYNC_STATUS_* constants).
+    var NUDGE_LOG_COLLECTION = "ivx_nudge_log";
+    function runExpiryWarnings(ctx, logger, nk) {
+        var scanned = 0, warned = 0;
+        var rows = [];
+        try {
+            rows = nk.sqlQuery("SELECT key, value FROM storage " +
+                "WHERE collection = 'async_challenges' " +
+                "  AND (value->>'status') IN ('0','1','5') " +
+                "  AND (value->>'expiresAt') > $1 " +
+                "  AND (value->>'expiresAt') < $2 " +
+                "LIMIT 200", [new Date().toISOString(), new Date(Date.now() + 24 * 3600 * 1000).toISOString()]);
+        }
+        catch (e) {
+            logger.warn("[SocialMaintenance] expiry scan SQL failed: " + (e && e.message));
+            return { scanned: 0, warned: 0 };
+        }
+        if (!rows)
+            rows = [];
+        for (var i = 0; i < rows.length; i++) {
+            var v = rows[i] && rows[i].value;
+            if (typeof v === "string") {
+                try {
+                    v = JSON.parse(v);
+                }
+                catch (_) {
+                    v = null;
+                }
+            }
+            if (!v || !v.sessionId)
+                continue;
+            scanned++;
+            // Dedup marker — conditional create; loser of any race just skips.
+            try {
+                nk.storageWrite([{
+                        collection: NUDGE_LOG_COLLECTION, key: "exp24_" + v.sessionId, userId: SYSTEM_USER_ID,
+                        value: { sessionId: v.sessionId, warnedAt: new Date().toISOString() },
+                        permissionRead: 0, permissionWrite: 0, version: "*"
+                    }]);
+            }
+            catch (_) {
+                continue;
+            } // already warned
+            var hoursLeft = Math.max(1, Math.round((Date.parse(v.expiresAt) - Date.now()) / 3600000));
+            var items = [];
+            var pushData = {
+                eventType: "async_challenge", screen: "phantom_arena",
+                type: "expiry_warning", sessionId: String(v.sessionId),
+                shareCode: String(v.shareCode || ""),
+                deepLink: v.shareCode ? ("quizverse://challenge/join/" + v.shareCode) : ""
+            };
+            if (v.creatorId) {
+                items.push({ targetUserId: v.creatorId, eventType: "async_challenge_expiry",
+                    titleKey: "ac_expiry_title", bodyKey: "ac_expiry_body",
+                    vars: { hours: String(hoursLeft) }, data: pushData });
+            }
+            if (v.opponentId) {
+                items.push({ targetUserId: v.opponentId, eventType: "async_challenge_expiry",
+                    titleKey: "ac_expiry_title", bodyKey: "ac_expiry_body",
+                    vars: { hours: String(hoursLeft) }, data: pushData });
+            }
+            if (items.length > 0 && typeof FanoutQueue !== "undefined" && FanoutQueue.enqueue) {
+                warned += FanoutQueue.enqueue(nk, logger, items);
+            }
+        }
+        return { scanned: scanned, warned: warned };
+    }
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    // ── G-012: GDPR cascade delete (doc §E.3) ──────────────────────────────
+    //
+    // Nakama's built-in account deletion wipes rows OWNED by the deleted user
+    // automatically. What it does NOT touch are social rows that merely
+    // REFERENCE the user while being owned by someone else or by the system:
+    //   - friend_invites rows stored under the OTHER user (key inv_{A}_{B})
+    //   - friend_challenges rows under recipients where deleted user is sender
+    //   - system-owned B-009 pair rate-limit rows (rl_fr_invite_pair_{a}_{b})
+    //   - user_blocks rows under other users (blocked_{other}_{deleted})
+    //   - friend_streaks pair rows
+    // All of these embed the userId in the storage KEY, so a key-pattern SQL
+    // sweep finds them without JSON parsing. Runs in the after-delete hook —
+    // best-effort per collection; failures are logged, and any survivor rows
+    // reference a user that no longer resolves (harmless until swept again).
+    var CASCADE_COLLECTIONS = [
+        "friend_invites",
+        "friend_challenges",
+        "friend_challenges_outbox",
+        "friend_streaks",
+        "rate_limits",
+        "user_blocks"
+    ];
+    function afterDeleteAccountCascade(ctx, logger, nk) {
+        var deletedId = ctx.userId;
+        if (!deletedId)
+            return;
+        var pattern = "%" + deletedId + "%";
+        var total = 0;
+        for (var i = 0; i < CASCADE_COLLECTIONS.length; i++) {
+            var coll = CASCADE_COLLECTIONS[i];
+            try {
+                var res = nk.sqlExec("DELETE FROM storage WHERE collection = $1 AND key LIKE $2 LIMIT 5000", [coll, pattern]);
+                total += (res && typeof res.rowsAffected === "number") ? res.rowsAffected : 0;
+            }
+            catch (e) {
+                logger.warn("[SocialMaintenance] GDPR cascade failed for " + coll + ": " + (e && e.message || e));
+            }
+        }
+        logger.info("[SocialMaintenance] GDPR cascade for " + deletedId + ": " + total + " referencing rows removed");
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_maintenance_tick", rpcMaintenanceTick);
+        try {
+            initializer.registerAfterDeleteAccount(afterDeleteAccountCascade);
+        }
+        catch (e) {
+            // Older runtimes without the hook: cascade is then covered only by the
+            // hourly tick sweeps — degraded but not broken.
+            // (registerAfterDeleteAccount exists in nakama-common for this server's
+            // pinned version; this guard is belt-and-braces for local dev images.)
+        }
+    }
+    SocialMaintenance.register = register;
+})(SocialMaintenance || (SocialMaintenance = {}));
+// onboarding_state.ts — ivx_social_onboarding_state (G-014, doc §E.4).
+//
+// THE COLD-START PROBLEM
+//   A new user's Social Zone is an empty list — the worst first impression a
+//   social feature can make. This RPC gives the client a server-authoritative
+//   answer to "what should this user see FIRST in the Social Zone?" based on
+//   the Cold-Start Ladder (§E.4):
+//     Stage 0: 0 friends    → "Find Friends" is the only CTA
+//     Stage 1: 1-2 friends  → suggestions strip + celebrate the first friend
+//     Stage 2: 3-9 friends  → friend leaderboard, social pressure kicks in
+//     Stage 3: 10+ friends  → full social zone
+//
+// Pure read: one nk.friendsList scan (same cost every friends RPC already
+// pays). No writes, no state. The client may cache the response until the
+// friend count changes (notification codes 2/5 invalidate).
+var SocialOnboardingState;
+(function (SocialOnboardingState) {
+    var STATE_FRIEND = 0;
+    var STATE_INVITE_RECEIVED = 2;
+    function rpcOnboardingState(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var friendCount = 0;
+            var pendingReceived = 0;
+            try {
+                var page = nk.friendsList(userId, 1000, undefined, undefined);
+                if (page && page.friends) {
+                    for (var i = 0; i < page.friends.length; i++) {
+                        var f = page.friends[i];
+                        if (!f)
+                            continue;
+                        var s = (f.state && typeof f.state === "object" && "value" in f.state) ? f.state.value : f.state;
+                        if (s === STATE_FRIEND)
+                            friendCount++;
+                        else if (s === STATE_INVITE_RECEIVED)
+                            pendingReceived++;
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("[SocialOnboarding] friendsList failed: " + (e && e.message));
+            }
+            var stage = 0;
+            if (friendCount >= 10)
+                stage = 3;
+            else if (friendCount >= 3)
+                stage = 2;
+            else if (friendCount >= 1)
+                stage = 1;
+            // Suggested actions, most important first. Pending incoming invites
+            // always outrank everything — accepting one is the cheapest possible
+            // path to the next stage.
+            var actions = [];
+            if (pendingReceived > 0) {
+                actions.push({ action: "review_pending_invites", priority: 1,
+                    cta: pendingReceived === 1 ? "You have a friend request waiting!" : ("You have " + pendingReceived + " friend requests waiting!") });
+            }
+            if (stage === 0) {
+                actions.push({ action: "find_friends", priority: 2, cta: "Find your first friend" });
+                actions.push({ action: "join_group", priority: 3, cta: "Join a group — you don't need friends to start" });
+            }
+            else if (stage === 1) {
+                actions.push({ action: "send_challenge", priority: 2, cta: "Challenge a friend to a quiz!" });
+                actions.push({ action: "find_friends", priority: 3, cta: "Find more friends" });
+            }
+            else if (stage === 2) {
+                actions.push({ action: "view_leaderboard", priority: 2, cta: "See where you rank among friends" });
+                actions.push({ action: "send_challenge", priority: 3, cta: "Challenge a friend to a quiz!" });
+            }
+            else {
+                actions.push({ action: "create_group", priority: 2, cta: "Start a group with your friends" });
+                actions.push({ action: "send_challenge", priority: 3, cta: "Challenge a friend to a quiz!" });
+            }
+            return RpcHelpers.successResponse({
+                friendCount: friendCount,
+                pendingReceived: pendingReceived,
+                stage: stage,
+                suggestedActions: actions
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to compute onboarding state");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_onboarding_state", rpcOnboardingState);
+    }
+    SocialOnboardingState.register = register;
+})(SocialOnboardingState || (SocialOnboardingState = {}));
+// player_stats.ts — per-game weekly activity stats (ML-002, doc §6.2 / §D.4).
+//
+// THE MISSING LINK THIS CLOSES: friends_list was designed to show
+// gameActivity ("xpThisWeek", "quizzesThisWeek") on every friend card —
+// Duolingo-style "XP this week, not lifetime" competition — but NOTHING ever
+// wrote those stats, so the field could only ever be empty (ML-004's sibling,
+// flagged in the doc's interlinking health table as a broken link).
+//
+// WRITER: recordQuizCompletion() — called from the server quiz submit flow
+// only (same trust boundary as duo credits: never client-claimed).
+// WEEKLY RESET: rows carry an ISO weekId; the first write of a new week
+// resets the counters in place. No cron needed — reset is lazy per user.
+//
+// STORAGE
+//   ivx_game_player_stats / {gameId}_{userId}   owner = user, permRead 2
+//   (public-read is safe and intended: these are the social-comparison
+//   numbers friends are SUPPOSED to see; nothing sensitive lives here.)
+//
+// READERS: friends_list.ts enriches friend cards via loadStatsMap (one
+// batched read); pressure summary and future league placement can reuse it.
+var SocialPlayerStats;
+(function (SocialPlayerStats) {
+    var COLLECTION = "ivx_game_player_stats";
+    function isoWeek(d) {
+        var t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        var dayNum = (t.getUTCDay() + 6) % 7;
+        t.setUTCDate(t.getUTCDate() - dayNum + 3);
+        var firstThursday = t.getTime();
+        t.setUTCMonth(0, 1);
+        if (t.getUTCDay() !== 4)
+            t.setUTCMonth(0, 1 + ((4 - t.getUTCDay()) + 7) % 7);
+        var week = 1 + Math.ceil((firstThursday - t.getTime()) / 604800000);
+        return d.getUTCFullYear() + "-W" + (week < 10 ? "0" + week : week);
+    }
+    function statKey(gameId, userId) {
+        return gameId + "_" + userId;
+    }
+    /**
+     * Record one completed quiz. OCC with one retry — a lost increment under
+     * pathological contention shows a friend 1 XP low on a card; acceptable.
+     * Never throws.
+     */
+    function recordQuizCompletion(nk, logger, userId, gameId, xpEarned, score) {
+        try {
+            if (!userId || !gameId)
+                return;
+            var week = isoWeek(new Date());
+            var key = statKey(gameId, userId);
+            for (var attempt = 0; attempt < 2; attempt++) {
+                var current = null;
+                var version = "";
+                try {
+                    var rows = nk.storageRead([{ collection: COLLECTION, key: key, userId: userId }]);
+                    if (rows && rows.length > 0 && rows[0] && rows[0].value) {
+                        current = rows[0].value;
+                        version = rows[0].version || "";
+                    }
+                }
+                catch (_) { }
+                var stats;
+                if (current && current.weekId === week) {
+                    stats = current;
+                    stats.xpThisWeek = (stats.xpThisWeek || 0) + Math.max(0, xpEarned || 0);
+                    stats.quizzesThisWeek = (stats.quizzesThisWeek || 0) + 1;
+                    stats.bestScoreThisWeek = Math.max(stats.bestScoreThisWeek || 0, score || 0);
+                }
+                else {
+                    // New week (or first ever write) — lazy reset.
+                    stats = {
+                        gameId: gameId, userId: userId, weekId: week,
+                        xpThisWeek: Math.max(0, xpEarned || 0),
+                        quizzesThisWeek: 1,
+                        bestScoreThisWeek: Math.max(0, score || 0),
+                        lifetimeQuizzes: ((current && current.lifetimeQuizzes) || 0)
+                    };
+                }
+                stats.lifetimeQuizzes = (stats.lifetimeQuizzes || 0) + 1;
+                stats.lastPlayedAt = new Date().toISOString();
+                var req = {
+                    collection: COLLECTION, key: key, userId: userId,
+                    value: stats, permissionRead: 2, permissionWrite: 0
+                };
+                if (version)
+                    req.version = version;
+                try {
+                    nk.storageWrite([req]);
+                    return;
+                }
+                catch (occ) {
+                    if (attempt === 0)
+                        continue; // version clash — retry once
+                }
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn)
+                logger.warn("[PlayerStats] record failed (non-fatal): " + (e && e.message));
+        }
+    }
+    SocialPlayerStats.recordQuizCompletion = recordQuizCompletion;
+    /**
+     * Batch-load stats for many users in ONE storageRead. Returns only rows
+     * from the CURRENT ISO week — a friend whose row is from last week simply
+     * hasn't played this week, and their card should show zeros, not stale XP.
+     */
+    function loadStatsMap(nk, gameId, userIds) {
+        var out = {};
+        if (!userIds || userIds.length === 0)
+            return out;
+        var week = isoWeek(new Date());
+        var reads = [];
+        for (var i = 0; i < userIds.length; i++) {
+            reads.push({ collection: COLLECTION, key: statKey(gameId, userIds[i]), userId: userIds[i] });
+        }
+        try {
+            var rows = nk.storageRead(reads);
+            if (rows) {
+                for (var r = 0; r < rows.length; r++) {
+                    var row = rows[r];
+                    if (!row || !row.value || !row.userId)
+                        continue;
+                    var v = row.value;
+                    if (v.weekId !== week)
+                        continue; // stale week → treat as no activity
+                    out[row.userId] = {
+                        xpThisWeek: v.xpThisWeek || 0,
+                        quizzesThisWeek: v.quizzesThisWeek || 0,
+                        bestScoreThisWeek: v.bestScoreThisWeek || 0,
+                        lastPlayedAt: v.lastPlayedAt || ""
+                    };
+                }
+            }
+        }
+        catch (_) { /* enrichment is optional context — empty map on failure */ }
+        return out;
+    }
+    SocialPlayerStats.loadStatsMap = loadStatsMap;
+})(SocialPlayerStats || (SocialPlayerStats = {}));
+// presence_v2.ts — per-game presence (doc §8.2, Phase 2 migration).
+//
+// WHAT CHANGES VS player_presence/status (the legacy single-key presence):
+//   - Storage key is {gameId}_{userId} in collection ivx_presence_v2, so a
+//     player's presence in QuizVerse is distinct from LastToLive ("is my
+//     friend in THIS game right now?").
+//   - Explicit heartbeat contract: client calls ivx_social_presence_set every
+//     60s while active + once with online:false on quit/background.
+//   - Online window is 150 SECONDS (doc C-007: two missed heartbeats +
+//     jitter; the legacy 5-minute window shows long-gone players as online).
+//   - sessionId + deviceType tracked for multi-device disambiguation.
+//   - ivx_social_presence_bulk_get replaces per-caller loadOnlineMap copies
+//     as the public batch-read surface (the shared FriendsPresenceShared
+//     helper remains for legacy readers during the transition).
+//
+// MIGRATION (dual-write): every v2 heartbeat ALSO writes the legacy
+// player_presence/status row in its exact legacy shape, so friends_list /
+// find_friends / find_nearby (which read via FriendsPresenceShared) keep
+// working unchanged until they migrate to bulk reads of v2. bulk_get reads
+// v2 first and falls back to the legacy row per-user when v2 is absent.
+//
+// RETENTION: stale v2 rows are swept by ivx_social_maintenance_tick
+// (90 days on update_time — see maintenance.ts SWEEPS).
+var SocialPresenceV2;
+(function (SocialPresenceV2) {
+    var COLLECTION_V2 = "ivx_presence_v2";
+    var LEGACY_COLLECTION = "player_presence";
+    var LEGACY_KEY = "status";
+    var ONLINE_WINDOW_MS = 150 * 1000; // doc §8.2 (corrected from 90s → 150s, C-007)
+    var MAX_BULK_USERS = 200;
+    var MAX_STATUS_LEN = 64;
+    // Minimal game registry (doc §5.3). The full storage-backed app registry
+    // (§19.3) replaces this when it ships; until then unknown ids fall back to
+    // "quizverse" instead of erroring so older clients can never brick presence.
+    var KNOWN_GAME_IDS = {
+        "quizverse": true, "lasttolive": true, "cricket": true
+    };
+    function resolveGameId(raw) {
+        var g = (typeof raw === "string" && raw) ? raw.toLowerCase() : "quizverse";
+        return KNOWN_GAME_IDS[g] ? g : "quizverse";
+    }
+    function v2Key(gameId, userId) {
+        return gameId + "_" + userId;
+    }
+    function collapse(value, nowMs) {
+        var out = { online: false, status: "", lastSeenMs: 0 };
+        if (!value)
+            return out;
+        var last = (typeof value.lastSeenMs === "number") ? value.lastSeenMs : 0;
+        out.lastSeenMs = last;
+        out.status = (typeof value.status === "string") ? value.status : "";
+        if (value.online === true && last > 0 && (nowMs - last) <= ONLINE_WINDOW_MS) {
+            out.online = true;
+        }
+        return out;
+    }
+    // ── RPC: ivx_social_presence_set ──────────────────────────────────────────
+    // Payload: { gameId?, online?: bool (default true), status?: string,
+    //            deviceType?: string, sessionId?: string, gameName?: string }
+    function rpcPresenceSet(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = resolveGameId(data.gameId);
+            var online = data.online !== false; // default true — heartbeat implies presence
+            var status = (typeof data.status === "string") ? data.status.substring(0, MAX_STATUS_LEN) : (online ? "browsing" : "");
+            var nowMs = Date.now();
+            var v2Value = {
+                userId: userId,
+                gameId: gameId,
+                online: online,
+                status: status,
+                lastSeenMs: nowMs,
+                sessionId: (typeof data.sessionId === "string") ? data.sessionId.substring(0, 64) : "",
+                deviceType: (typeof data.deviceType === "string") ? data.deviceType.substring(0, 32) : "",
+                updatedAt: nowMs
+            };
+            // Legacy mirror — EXACT shape rpcSetPlayerPresence writes today, so
+            // FriendsPresenceShared.loadOnlineMap keeps working during migration.
+            var legacyValue = {
+                online: online,
+                lastSeenMs: nowMs,
+                gameId: gameId,
+                gameName: (typeof data.gameName === "string") ? data.gameName : "",
+                updatedAt: Math.floor(nowMs / 1000)
+            };
+            nk.storageWrite([
+                {
+                    collection: COLLECTION_V2, key: v2Key(gameId, userId), userId: userId,
+                    value: v2Value, permissionRead: 2, permissionWrite: 0
+                },
+                {
+                    collection: LEGACY_COLLECTION, key: LEGACY_KEY, userId: userId,
+                    value: legacyValue, permissionRead: 2, permissionWrite: 0
+                }
+            ]);
+            return RpcHelpers.successResponse({
+                gameId: gameId, online: online, status: status,
+                lastSeenMs: nowMs, onlineWindowMs: ONLINE_WINDOW_MS,
+                heartbeatSeconds: 60
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to set presence");
+        }
+    }
+    // ── RPC: ivx_social_presence_bulk_get ─────────────────────────────────────
+    // Payload: { gameId?, userIds: string[] (max 200) }
+    // Response data: { presence: { [userId]: { online, status, lastSeenMs, source } } }
+    function rpcPresenceBulkGet(ctx, logger, nk, payload) {
+        try {
+            RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = resolveGameId(data.gameId);
+            var userIds = [];
+            if (data.userIds && Object.prototype.toString.call(data.userIds) === "[object Array]") {
+                for (var i = 0; i < data.userIds.length && userIds.length < MAX_BULK_USERS; i++) {
+                    if (typeof data.userIds[i] === "string" && data.userIds[i])
+                        userIds.push(data.userIds[i]);
+                }
+            }
+            if (userIds.length === 0) {
+                return RpcHelpers.errorResponse("userIds (non-empty array, max " + MAX_BULK_USERS + ") is required");
+            }
+            var nowMs = Date.now();
+            var out = {};
+            // Pass 1 — v2 rows (one batched read).
+            var v2Reads = [];
+            for (var a = 0; a < userIds.length; a++) {
+                v2Reads.push({ collection: COLLECTION_V2, key: v2Key(gameId, userIds[a]), userId: userIds[a] });
+            }
+            var missing = {};
+            for (var m = 0; m < userIds.length; m++)
+                missing[userIds[m]] = true;
+            try {
+                var v2Rows = nk.storageRead(v2Reads);
+                if (v2Rows) {
+                    for (var r = 0; r < v2Rows.length; r++) {
+                        var row = v2Rows[r];
+                        if (!row || !row.value || !row.userId)
+                            continue;
+                        var c = collapse(row.value, nowMs);
+                        out[row.userId] = { online: c.online, status: c.status, lastSeenMs: c.lastSeenMs, source: "v2" };
+                        delete missing[row.userId];
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("[PresenceV2] v2 bulk read failed: " + (e && e.message));
+            }
+            // Pass 2 — legacy fallback for users without a v2 row yet (one batched read).
+            var legacyIds = [];
+            for (var mk in missing) {
+                if (Object.prototype.hasOwnProperty.call(missing, mk))
+                    legacyIds.push(mk);
+            }
+            if (legacyIds.length > 0) {
+                var legReads = [];
+                for (var l = 0; l < legacyIds.length; l++) {
+                    legReads.push({ collection: LEGACY_COLLECTION, key: LEGACY_KEY, userId: legacyIds[l] });
+                }
+                try {
+                    var legRows = nk.storageRead(legReads);
+                    if (legRows) {
+                        for (var lr = 0; lr < legRows.length; lr++) {
+                            var lrow = legRows[lr];
+                            if (!lrow || !lrow.value || !lrow.userId)
+                                continue;
+                            var lc = collapse(lrow.value, nowMs);
+                            out[lrow.userId] = { online: lc.online, status: lc.status, lastSeenMs: lc.lastSeenMs, source: "legacy" };
+                        }
+                    }
+                }
+                catch (e2) {
+                    logger.warn("[PresenceV2] legacy fallback read failed: " + (e2 && e2.message));
+                }
+            }
+            // Users with no row anywhere: explicit offline (never omit — clients
+            // must not have to distinguish "missing key" from "offline").
+            for (var u = 0; u < userIds.length; u++) {
+                if (!out[userIds[u]]) {
+                    out[userIds[u]] = { online: false, status: "", lastSeenMs: 0, source: "none" };
+                }
+            }
+            return RpcHelpers.successResponse({
+                gameId: gameId,
+                onlineWindowMs: ONLINE_WINDOW_MS,
+                presence: out
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to read presence");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_presence_set", rpcPresenceSet);
+        initializer.registerRpc("ivx_social_presence_bulk_get", rpcPresenceBulkGet);
+    }
+    SocialPresenceV2.register = register;
+})(SocialPresenceV2 || (SocialPresenceV2 = {}));
+// pressure_summary.ts — REAL social pressure data (G-020 / Q-02).
+//
+// Unity's SocialPressureManager has shipped rendering MOCK friend activity
+// since launch (architecture doc §17.3). This module revives the useful
+// halves of the dead social_v2.js handlers (rpcGetRivalry / the
+// rpcFriendScoreAlert idea) into ONE hardened RPC that feeds that UI slot
+// real numbers:
+//
+//   ivx_social_pressure_summary → {
+//     friendsAheadOfMe: [{ userId, displayName, score, gapScore }...],
+//     friendsBehindMe, myScore, myRankInFriendList, totalFriendsRanked,
+//     rivalry?: { targetUserId, wins, losses, draws, streak }   (optional)
+//   }
+//
+// HARDENING VS THE DEAD CODE
+//   - social_v2's rpcFriendScoreAlert called leaderboardRecordsList once PER
+//     FRIEND (N round-trips). The API accepts an ownerIds ARRAY — this does
+//     ONE call for up to 100 friends.
+//   - Board id follows the live convention (src/legacy/leaderboards.ts):
+//     leaderboard_{gameId}_weekly, falling back to leaderboard_{gameId} when
+//     the weekly board doesn't exist. Weekly is the right psychology per
+//     Duolingo research (§3.2): "XP this week", not lifetime totals.
+//   - Rivalry read ported intact from rpcGetRivalry (same rivalries
+//     collection + key scheme, so any historical rows still resolve).
+var SocialPressureSummary;
+(function (SocialPressureSummary) {
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var STATE_FRIEND = 0;
+    var MAX_FRIENDS = 100;
+    var MAX_AHEAD = 10;
+    function readBoardScores(nk, logger, boardId, ownerIds) {
+        try {
+            var res = nk.leaderboardRecordsList(boardId, ownerIds, ownerIds.length, undefined, undefined);
+            var records = [];
+            if (res && res.ownerRecords)
+                records = res.ownerRecords;
+            else if (res && res.records)
+                records = res.records;
+            var out = {};
+            for (var i = 0; i < records.length; i++) {
+                var r = records[i];
+                if (r && r.ownerId)
+                    out[r.ownerId] = (typeof r.score === "number") ? r.score : parseInt(String(r.score || 0), 10);
+            }
+            return out;
+        }
+        catch (e) {
+            // Board may not exist for this game — caller tries the fallback id.
+            return null;
+        }
+    }
+    function rpcPressureSummary(ctx, logger, nk, payload) {
+        try {
+            var userId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            // 1. Confirmed friends with display names (single scan).
+            var friendIds = [];
+            var nameById = {};
+            try {
+                var page = nk.friendsList(userId, 1000, STATE_FRIEND, null);
+                if (page && page.friends) {
+                    for (var i = 0; i < page.friends.length && friendIds.length < MAX_FRIENDS; i++) {
+                        var fr = page.friends[i];
+                        if (fr && fr.user && fr.user.id) {
+                            friendIds.push(fr.user.id);
+                            nameById[fr.user.id] = fr.user.displayName || fr.user.username || "";
+                        }
+                    }
+                }
+            }
+            catch (fe) {
+                logger.warn("[PressureSummary] friendsList failed: " + (fe && fe.message));
+            }
+            if (friendIds.length === 0) {
+                return RpcHelpers.successResponse({
+                    friendsAheadOfMe: [], friendsBehindMe: 0, myScore: 0,
+                    myRankInFriendList: 0, totalFriendsRanked: 0, boardId: "", emptyReason: "no_friends"
+                });
+            }
+            // 2. One leaderboard read for me + all friends. Weekly board first
+            //    (the Duolingo-correct scope), main board as fallback.
+            var owners = friendIds.concat([userId]);
+            var boardId = "leaderboard_" + gameId + "_weekly";
+            var scores = readBoardScores(nk, logger, boardId, owners);
+            if (scores === null) {
+                boardId = "leaderboard_" + gameId;
+                scores = readBoardScores(nk, logger, boardId, owners);
+            }
+            if (scores === null)
+                scores = {};
+            var myScore = scores[userId] || 0;
+            // 3. Rank + ahead/behind. Friends with no record score 0 and are
+            //    counted as "behind" (they haven't played this week).
+            var ahead = [];
+            var behind = 0;
+            for (var f = 0; f < friendIds.length; f++) {
+                var fid = friendIds[f];
+                var fscore = scores[fid] || 0;
+                if (fscore > myScore) {
+                    ahead.push({
+                        userId: fid,
+                        displayName: nameById[fid] || "",
+                        score: fscore,
+                        gapScore: fscore - myScore
+                    });
+                }
+                else {
+                    behind++;
+                }
+            }
+            // Closest rivals first — "Maria passed you, 120 XP to get back ahead"
+            // is actionable; the friend 50,000 XP ahead is not (loss-aversion §E.6).
+            ahead.sort(function (a, b) { return a.gapScore - b.gapScore; });
+            if (ahead.length > MAX_AHEAD)
+                ahead = ahead.slice(0, MAX_AHEAD);
+            // 4. Optional head-to-head rivalry (ported from dead rpcGetRivalry —
+            //    same collection + key scheme so historical rows still resolve).
+            var rivalry = null;
+            if (typeof data.rivalUserId === "string" && data.rivalUserId) {
+                try {
+                    var pairKey = [userId, data.rivalUserId].sort().join(":");
+                    var rows = nk.storageRead([{
+                            collection: "rivalries", key: "rivalry:" + gameId + ":" + pairKey, userId: SYSTEM_USER
+                        }]);
+                    if (rows && rows.length > 0 && rows[0] && rows[0].value) {
+                        var rv = rows[0].value;
+                        rivalry = {
+                            targetUserId: data.rivalUserId,
+                            wins: (rv.player_a === userId) ? (rv.a_wins || 0) : (rv.b_wins || 0),
+                            losses: (rv.player_a === userId) ? (rv.b_wins || 0) : (rv.a_wins || 0),
+                            draws: rv.draws || 0,
+                            streak: rv.streak || 0,
+                            lastMatch: rv.last_match || null
+                        };
+                    }
+                }
+                catch (_) { /* optional — omit on failure */ }
+            }
+            return RpcHelpers.successResponse({
+                boardId: boardId,
+                myScore: myScore,
+                friendsAheadOfMe: ahead,
+                friendsBehindMe: behind,
+                myRankInFriendList: ahead.length + 1,
+                totalFriendsRanked: friendIds.length,
+                rivalry: rivalry
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to compute pressure summary");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_pressure_summary", rpcPressureSummary);
+    }
+    SocialPressureSummary.register = register;
+})(SocialPressureSummary || (SocialPressureSummary = {}));
+// reports.ts — user/content reporting (G-011, doc §E.3 "Report System —
+// Missing Entirely").
+//
+// Without this: toxic players can't be actioned without ad-hoc admin work,
+// spam groups surface in search forever, abusive challenges sit in inboxes.
+//
+// RPCs
+//   ivx_social_report        — session RPC: report a user/group/challenge/chat
+//   ivx_social_reports_list  — service-token: moderation queue for ops tooling
+//
+// PIPELINE (minimum-viable per the doc — flag for review, never auto-ban):
+//   1. Report row written (system-owned, immutable).
+//   2. Rolling 7-day counter per target incremented (OCC, retry once).
+//   3. Counter crossing REPORT_AUTO_FLAG_THRESHOLD (per-app registry
+//      moderation config, default 5) writes a review-flag row — ops tooling
+//      and the admin console query flagged targets from one collection.
+//
+// ABUSE-OF-ABUSE CONTROLS: 10 reports/reporter/day cap; duplicate report of
+// the same target by the same reporter within 7 days is idempotent (returns
+// the original, does not re-increment).
+//
+// RETENTION: reports 90d, counters/flags 90d (maintenance-tick sweeps).
+var SocialReports;
+(function (SocialReports) {
+    var REPORTS_COLLECTION = "ivx_moderation_reports";
+    var COUNTERS_COLLECTION = "ivx_moderation_counters";
+    var FLAGS_COLLECTION = "ivx_moderation_flags";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    var VALID_TARGET_TYPES = { user: true, group: true, challenge: true, chat: true };
+    var VALID_REASONS = {
+        spam: true, harassment: true, inappropriate_name: true, inappropriate_content: true,
+        cheating: true, impersonation: true, other: true
+    };
+    var MAX_DETAILS_LEN = 500;
+    var REPORTER_DAILY_CAP = 10;
+    var COUNTER_WINDOW_MS = 7 * 24 * 3600 * 1000;
+    var DEFAULT_FLAG_THRESHOLD = 5;
+    function pairDedupKey(reporterId, targetType, targetId) {
+        return "dedup_" + reporterId + "_" + targetType + "_" + targetId;
+    }
+    function rpcReport(ctx, logger, nk, payload) {
+        try {
+            var reporterId = RpcHelpers.requireUserId(ctx);
+            var data = RpcHelpers.parseRpcPayload(payload) || {};
+            var targetType = (typeof data.targetType === "string") ? data.targetType.toLowerCase() : "";
+            var targetId = (typeof data.targetId === "string") ? data.targetId : "";
+            var reason = (typeof data.reason === "string") ? data.reason.toLowerCase() : "";
+            var details = (typeof data.details === "string") ? data.details.substring(0, MAX_DETAILS_LEN) : "";
+            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            if (!VALID_TARGET_TYPES[targetType])
+                return RpcHelpers.errorResponse("targetType must be one of: user, group, challenge, chat");
+            if (!targetId)
+                return RpcHelpers.errorResponse("targetId is required");
+            if (!VALID_REASONS[reason])
+                return RpcHelpers.errorResponse("reason must be one of: spam, harassment, inappropriate_name, inappropriate_content, cheating, impersonation, other");
+            if (targetType === "user" && targetId === reporterId)
+                return RpcHelpers.errorResponse("You cannot report yourself");
+            // ── Reporter daily cap (report-bombing guard) ───────────────────────
+            var dayKey = "rl_reports_" + reporterId + "_" + new Date().toISOString().slice(0, 10);
+            var used = 0;
+            try {
+                var rlRows = nk.storageRead([{ collection: COUNTERS_COLLECTION, key: dayKey, userId: SYSTEM_USER }]);
+                if (rlRows && rlRows.length > 0 && rlRows[0] && rlRows[0].value)
+                    used = rlRows[0].value.count || 0;
+            }
+            catch (_) { }
+            if (used >= REPORTER_DAILY_CAP) {
+                return RpcHelpers.errorResponse("Daily report limit reached — thank you, our team is on it");
+            }
+            // ── Duplicate-report idempotency (same reporter → same target, 7d) ──
+            var dedupKey = pairDedupKey(reporterId, targetType, targetId);
+            try {
+                var dupRows = nk.storageRead([{ collection: REPORTS_COLLECTION, key: dedupKey, userId: SYSTEM_USER }]);
+                if (dupRows && dupRows.length > 0 && dupRows[0] && dupRows[0].value) {
+                    var prior = dupRows[0].value;
+                    if (Date.parse(prior.reportedAt || "") > Date.now() - COUNTER_WINDOW_MS) {
+                        return RpcHelpers.successResponse({ reportId: prior.reportId, alreadyReported: true });
+                    }
+                }
+            }
+            catch (_) { }
+            // ── Write the report (immutable row + dedup marker) ─────────────────
+            var reportId = "rpt_" + Date.now().toString(36) + "_" + Math.floor(Math.random() * 1679616).toString(36);
+            var report = {
+                reportId: reportId, gameId: gameId,
+                reporterId: reporterId,
+                targetType: targetType, targetId: targetId,
+                reason: reason, details: details,
+                status: "open", // open | reviewed | actioned | dismissed
+                reportedAt: new Date().toISOString()
+            };
+            nk.storageWrite([
+                { collection: REPORTS_COLLECTION, key: reportId, userId: SYSTEM_USER,
+                    value: report, permissionRead: 0, permissionWrite: 0 },
+                { collection: REPORTS_COLLECTION, key: dedupKey, userId: SYSTEM_USER,
+                    value: { reportId: reportId, reportedAt: report.reportedAt }, permissionRead: 0, permissionWrite: 0 },
+                { collection: COUNTERS_COLLECTION, key: dayKey, userId: SYSTEM_USER,
+                    value: { count: used + 1 }, permissionRead: 0, permissionWrite: 0 }
+            ]);
+            // ── Rolling 7-day target counter + auto-flag (OCC, retry once) ──────
+            var counterKey = targetType + "_" + targetId;
+            var total = 1;
+            for (var attempt = 0; attempt < 2; attempt++) {
+                var cur = null, version = "";
+                try {
+                    var cRows = nk.storageRead([{ collection: COUNTERS_COLLECTION, key: counterKey, userId: SYSTEM_USER }]);
+                    if (cRows && cRows.length > 0 && cRows[0] && cRows[0].value) {
+                        cur = cRows[0].value;
+                        version = cRows[0].version || "";
+                    }
+                }
+                catch (_) { }
+                var counter;
+                if (cur && typeof cur.windowStart === "number" && (Date.now() - cur.windowStart) < COUNTER_WINDOW_MS) {
+                    counter = cur;
+                    counter.count = (counter.count || 0) + 1;
+                }
+                else {
+                    counter = { targetType: targetType, targetId: targetId, count: 1, windowStart: Date.now() };
+                }
+                total = counter.count;
+                var wreq = { collection: COUNTERS_COLLECTION, key: counterKey, userId: SYSTEM_USER,
+                    value: counter, permissionRead: 0, permissionWrite: 0 };
+                if (version)
+                    wreq.version = version;
+                try {
+                    nk.storageWrite([wreq]);
+                    break;
+                }
+                catch (occ) {
+                    if (attempt === 1)
+                        break;
+                }
+            }
+            // Per-app threshold from the registry moderation config (default 5).
+            var threshold = DEFAULT_FLAG_THRESHOLD;
+            try {
+                if (typeof SocialAppRegistry !== "undefined" && SocialAppRegistry.resolveApp) {
+                    var app = SocialAppRegistry.resolveApp(nk, gameId);
+                    if (app && app.moderation && typeof app.moderation.reportAutoFlagThreshold === "number") {
+                        threshold = app.moderation.reportAutoFlagThreshold;
+                    }
+                }
+            }
+            catch (_) { }
+            var flagged = false;
+            if (total >= threshold) {
+                flagged = true;
+                try {
+                    nk.storageWrite([{
+                            collection: FLAGS_COLLECTION, key: counterKey, userId: SYSTEM_USER,
+                            value: { targetType: targetType, targetId: targetId, gameId: gameId,
+                                reportCount7d: total, flaggedAt: new Date().toISOString(), status: "pending_review" },
+                            permissionRead: 0, permissionWrite: 0
+                        }]);
+                    logger.warn("[Reports] AUTO-FLAGGED " + targetType + " " + targetId + " (" + total + " reports/7d)");
+                }
+                catch (_) { }
+            }
+            return RpcHelpers.successResponse({ reportId: reportId, received: true, flaggedForReview: flagged });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to submit report");
+        }
+    }
+    // ── Moderation queue read for ops tooling (service token) ────────────────
+    function rpcReportsList(ctx, logger, nk, payload) {
+        try {
+            var data = {};
+            try {
+                data = payload ? JSON.parse(payload) : {};
+            }
+            catch (_) { }
+            var expected = "" + ((ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) ||
+                (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+            if (!expected || data.service_token !== expected) {
+                return RpcHelpers.errorResponse("service-only", 401);
+            }
+            var flaggedOnly = data.flaggedOnly === true;
+            var limit = (typeof data.limit === "number" && data.limit > 0) ? Math.min(data.limit, 200) : 50;
+            var collection = flaggedOnly ? FLAGS_COLLECTION : REPORTS_COLLECTION;
+            var rows = nk.storageList(SYSTEM_USER, collection, limit, (typeof data.cursor === "string" && data.cursor) ? data.cursor : undefined);
+            var objs = (rows && rows.objects) ? rows.objects : [];
+            var items = [];
+            for (var i = 0; i < objs.length; i++) {
+                var v = objs[i] && objs[i].value;
+                // Skip dedup marker rows (they live in the same collection).
+                if (!v || (!flaggedOnly && !v.reportId))
+                    continue;
+                items.push(v);
+            }
+            return RpcHelpers.successResponse({
+                items: items, count: items.length,
+                nextCursor: (rows && rows.cursor) ? rows.cursor : ""
+            });
+        }
+        catch (e) {
+            return RpcHelpers.errorResponse((e && e.message) || "Failed to list reports");
+        }
+    }
+    function register(initializer) {
+        initializer.registerRpc("ivx_social_report", rpcReport);
+        initializer.registerRpc("ivx_social_reports_list", rpcReportsList);
+    }
+    SocialReports.register = register;
+})(SocialReports || (SocialReports = {}));
+// rpc_aliases.ts — Phase-3 RPC consolidation (doc §12 / Appendix C).
+//
+// Registers the canonical `ivx_social_*` names as wrappers over the existing
+// battle-tested handlers, translating every response into the UNIFIED
+// ENVELOPE (doc §6.1):
+//
+//   { success, data: {...}, meta: { gameId, timestamp, apiVersion } }
+//   { success: false, error, errorCode, meta: {...} }
+//
+// This kills the dual-envelope problem (TS modules returned nested
+// {success,data}, JS modules returned flat {success,...}) WITHOUT touching a
+// single legacy handler: old names keep answering with their exact legacy
+// shapes forever (Unity untouched — Phase 4 migrates at its own pace), new
+// names answer with the standard envelope.
+//
+// MECHANICS: the merged bundle hoists every module-JS handler (function
+// rpcFriendsSendInvite(...) { ... }) to global scope — postbuild only
+// prefixes legacy_runtime.js functions. Each alias resolves its handler by
+// bare global reference behind a typeof guard: if a handler is missing
+// (module dropped from a build), the alias returns a clean error instead of
+// crashing registration.
+var SocialRpcAliases;
+(function (SocialRpcAliases) {
+    var API_VERSION = 1;
+    // typeof-guarded accessors — evaluated at CALL time, so bundle load order
+    // can never break registration.
+    var ALIASES = [
+        { newId: "ivx_social_invite_send", handler: function () { return typeof rpcFriendsSendInvite !== "undefined" ? rpcFriendsSendInvite : null; } },
+        { newId: "ivx_social_invite_accept", handler: function () { return typeof rpcFriendsAcceptInvite !== "undefined" ? rpcFriendsAcceptInvite : null; } },
+        { newId: "ivx_social_invite_decline", handler: function () { return typeof rpcFriendsDeclineInvite !== "undefined" ? rpcFriendsDeclineInvite : null; } },
+        { newId: "ivx_social_invite_cancel", handler: function () { return typeof rpcFriendsCancelInvite !== "undefined" ? rpcFriendsCancelInvite : null; } },
+        { newId: "ivx_social_invites_pending", handler: function () { return typeof rpcFriendsListPendingInvites !== "undefined" ? rpcFriendsListPendingInvites : null; } },
+        { newId: "ivx_social_challenge_send", handler: function () { return typeof rpcSendFriendChallenge !== "undefined" ? rpcSendFriendChallenge : null; } },
+        { newId: "ivx_social_challenge_accept", handler: function () { return typeof rpcAcceptFriendChallenge !== "undefined" ? rpcAcceptFriendChallenge : null; } },
+        { newId: "ivx_social_challenge_decline", handler: function () { return typeof rpcDeclineFriendChallenge !== "undefined" ? rpcDeclineFriendChallenge : null; } },
+        { newId: "ivx_social_challenge_cancel", handler: function () { return typeof rpcCancelFriendChallenge !== "undefined" ? rpcCancelFriendChallenge : null; } },
+        { newId: "ivx_social_challenges_pending", handler: function () { return typeof rpcListPendingFriendChallenges !== "undefined" ? rpcListPendingFriendChallenges : null; } },
+        { newId: "ivx_social_spectate", handler: function () { return typeof rpcFriendsSpectate !== "undefined" ? rpcFriendsSpectate : null; } },
+        { newId: "ivx_social_streak_get", handler: function () { return typeof rpcFriendStreakGetState !== "undefined" ? rpcFriendStreakGetState : null; } },
+        { newId: "ivx_social_streak_record", handler: function () { return typeof rpcFriendStreakRecordContribution !== "undefined" ? rpcFriendStreakRecordContribution : null; } },
+        { newId: "ivx_social_streak_nudge", handler: function () { return typeof rpcFriendStreakSendNudge !== "undefined" ? rpcFriendStreakSendNudge : null; } },
+        { newId: "ivx_social_streak_broken_log", handler: function () { return typeof rpcFriendStreakGetBrokenLog !== "undefined" ? rpcFriendStreakGetBrokenLog : null; } },
+        { newId: "ivx_social_streak_repair", handler: function () { return typeof rpcFriendStreakRepair !== "undefined" ? rpcFriendStreakRepair : null; } },
+        { newId: "ivx_social_friends_online_count", handler: function () { return typeof rpcFriendsGetOnlineCount !== "undefined" ? rpcFriendsGetOnlineCount : null; } },
+        { newId: "ivx_social_battle_create", handler: function () { return typeof rpcFriendBattleCreate !== "undefined" ? rpcFriendBattleCreate : null; } },
+        { newId: "ivx_social_invite_with_reward", handler: function () { return typeof rpcFriendInviteWithReward !== "undefined" ? rpcFriendInviteWithReward : null; } },
+        { newId: "ivx_social_dm_send", handler: function () { return typeof rpcSendDirectMessage !== "undefined" ? rpcSendDirectMessage : null; } },
+        { newId: "ivx_social_dm_history", handler: function () { return typeof rpcGetDirectMessageHistory !== "undefined" ? rpcGetDirectMessageHistory : null; } },
+        { newId: "ivx_social_dm_mark_read", handler: function () { return typeof rpcMarkDirectMessagesRead !== "undefined" ? rpcMarkDirectMessagesRead : null; } }
+    ];
+    /**
+     * Translate a legacy response (flat `{success, ...fields}` OR nested
+     * `{success, data}` OR `{ok, ...}`) into the unified §6.1 envelope.
+     * Unknown/unparseable output is passed through inside data.raw so nothing
+     * is ever lost.
+     */
+    function toEnvelope(raw, gameId) {
+        var meta = { gameId: gameId || "quizverse", timestamp: new Date().toISOString(), apiVersion: API_VERSION };
+        var parsed = null;
+        try {
+            parsed = JSON.parse(raw);
+        }
+        catch (_) {
+            return JSON.stringify({ success: true, data: { raw: raw }, meta: meta });
+        }
+        if (parsed === null || typeof parsed !== "object") {
+            return JSON.stringify({ success: true, data: { value: parsed }, meta: meta });
+        }
+        var success = (parsed.success === true) || (parsed.ok === true) ||
+            (parsed.success === undefined && parsed.ok === undefined && !parsed.error);
+        if (!success) {
+            return JSON.stringify({
+                success: false,
+                error: parsed.error || parsed.message || "Request failed",
+                errorCode: parsed.errorCode || parsed.error_code || "unknown",
+                meta: meta
+            });
+        }
+        // Nested shape already? Keep its data. Flat shape? Lift all non-envelope
+        // fields into data.
+        var data;
+        if (parsed.data !== undefined && typeof parsed.data === "object") {
+            data = parsed.data;
+        }
+        else {
+            data = {};
+            for (var k in parsed) {
+                if (!Object.prototype.hasOwnProperty.call(parsed, k))
+                    continue;
+                if (k === "success" || k === "ok" || k === "error" || k === "errorCode")
+                    continue;
+                data[k] = parsed[k];
+            }
+        }
+        return JSON.stringify({ success: true, data: data, meta: meta });
+    }
+    function makeAlias(def) {
+        return function (ctx, logger, nk, payload) {
+            var gameId = "quizverse";
+            try {
+                var p = payload ? JSON.parse(payload) : {};
+                if (p && typeof p.gameId === "string" && p.gameId)
+                    gameId = p.gameId;
+            }
+            catch (_) { }
+            var fn = def.handler();
+            if (typeof fn !== "function") {
+                return JSON.stringify({
+                    success: false, error: "Handler unavailable", errorCode: "handler_missing",
+                    meta: { gameId: gameId, timestamp: new Date().toISOString(), apiVersion: API_VERSION }
+                });
+            }
+            var raw = "";
+            try {
+                raw = fn(ctx, logger, nk, payload);
+            }
+            catch (e) {
+                return JSON.stringify({
+                    success: false, error: (e && e.message) || "Internal error", errorCode: "internal",
+                    meta: { gameId: gameId, timestamp: new Date().toISOString(), apiVersion: API_VERSION }
+                });
+            }
+            return toEnvelope(raw, gameId);
+        };
+    }
+    function register(initializer) {
+        // NOTE: postbuild requires literal RPC id strings in registerRpc calls —
+        // a loop with variable ids would not survive the AST walker. Each alias
+        // is therefore registered with its literal id below.
+        initializer.registerRpc("ivx_social_invite_send", makeAlias(ALIASES[0]));
+        initializer.registerRpc("ivx_social_invite_accept", makeAlias(ALIASES[1]));
+        initializer.registerRpc("ivx_social_invite_decline", makeAlias(ALIASES[2]));
+        initializer.registerRpc("ivx_social_invite_cancel", makeAlias(ALIASES[3]));
+        initializer.registerRpc("ivx_social_invites_pending", makeAlias(ALIASES[4]));
+        initializer.registerRpc("ivx_social_challenge_send", makeAlias(ALIASES[5]));
+        initializer.registerRpc("ivx_social_challenge_accept", makeAlias(ALIASES[6]));
+        initializer.registerRpc("ivx_social_challenge_decline", makeAlias(ALIASES[7]));
+        initializer.registerRpc("ivx_social_challenge_cancel", makeAlias(ALIASES[8]));
+        initializer.registerRpc("ivx_social_challenges_pending", makeAlias(ALIASES[9]));
+        initializer.registerRpc("ivx_social_spectate", makeAlias(ALIASES[10]));
+        initializer.registerRpc("ivx_social_streak_get", makeAlias(ALIASES[11]));
+        initializer.registerRpc("ivx_social_streak_record", makeAlias(ALIASES[12]));
+        initializer.registerRpc("ivx_social_streak_nudge", makeAlias(ALIASES[13]));
+        initializer.registerRpc("ivx_social_streak_broken_log", makeAlias(ALIASES[14]));
+        initializer.registerRpc("ivx_social_streak_repair", makeAlias(ALIASES[15]));
+        initializer.registerRpc("ivx_social_friends_online_count", makeAlias(ALIASES[16]));
+        initializer.registerRpc("ivx_social_battle_create", makeAlias(ALIASES[17]));
+        initializer.registerRpc("ivx_social_invite_with_reward", makeAlias(ALIASES[18]));
+        initializer.registerRpc("ivx_social_dm_send", makeAlias(ALIASES[19]));
+        initializer.registerRpc("ivx_social_dm_history", makeAlias(ALIASES[20]));
+        initializer.registerRpc("ivx_social_dm_mark_read", makeAlias(ALIASES[21]));
+    }
+    SocialRpcAliases.register = register;
+})(SocialRpcAliases || (SocialRpcAliases = {}));
+// score_signing.ts — server-signed score tokens (G-013, doc §E.3 / AP-007).
+//
+// THE EXPLOIT THIS CLOSES: async/friend challenges accept a client-supplied
+// score. Any client can send { myScore: 999999 } — the server range-checks
+// but cannot know whether the score was EARNED. This module lets the quiz
+// completion RPC (the only place a score is truly known) mint a short-lived
+// HMAC token binding (userId, score, refId); consumers verify the token
+// before trusting the number.
+//
+// TOKEN FORMAT:  v1.<base64(json payload)>.<hex hmac-sha256>
+//   payload = { u: userId, s: score, r: refId (packId etc.), t: mintedAtMs }
+//   TTL: 15 minutes (a challenge is sent right after finishing the quiz).
+//
+// SECRET: env SCORE_SIGNING_SECRET, falling back to TOURNAMENT_SERVICE_TOKEN
+// (already present in the prod runtime env — zero new secret plumbing needed
+// on day one; move to a dedicated secret when convenient).
+//
+// ROLLOUT (doc §19.9 — flag-first): verification is enforced only when the
+// app registry feature "scoreSigning" is on for the app. Until then tokens
+// are minted (clients can start attaching them) but absence is tolerated —
+// no client-breaking flag-day.
+var ScoreSigning;
+(function (ScoreSigning) {
+    var TOKEN_TTL_MS = 15 * 60 * 1000;
+    function secret(ctx) {
+        return "" + ((ctx.env && ctx.env["SCORE_SIGNING_SECRET"]) ||
+            (ctx.env && ctx.env["TOURNAMENT_SERVICE_TOKEN"]) ||
+            (ctx.env && ctx.env["BRAIN_COINS_SERVICE_TOKEN"]) || "");
+    }
+    function toHex(buf) {
+        var bytes = new Uint8Array(buf);
+        var hex = "";
+        for (var i = 0; i < bytes.length; i++) {
+            var h = bytes[i].toString(16);
+            hex += (h.length === 1 ? "0" : "") + h;
+        }
+        return hex;
+    }
+    function hmacHex(nk, input, key) {
+        return toHex(nk.hmacSha256Hash(input, key));
+    }
+    // base64Decode returns an ArrayBuffer in this runtime; the payload is
+    // ASCII JSON so a byte-wise charCode rebuild is lossless.
+    function bufToString(buf) {
+        if (typeof buf === "string")
+            return buf;
+        var bytes = new Uint8Array(buf);
+        var out = "";
+        for (var i = 0; i < bytes.length; i++)
+            out += String.fromCharCode(bytes[i]);
+        return out;
+    }
+    /** Mint a token. Returns "" when no secret is configured (fail-open mint). */
+    function sign(ctx, nk, userId, score, refId) {
+        var key = secret(ctx);
+        if (!key)
+            return "";
+        try {
+            var body = JSON.stringify({ u: userId, s: score, r: refId || "", t: Date.now() });
+            var b64 = nk.base64Encode(body);
+            return "v1." + b64 + "." + hmacHex(nk, b64, key);
+        }
+        catch (_) {
+            return "";
+        }
+    }
+    ScoreSigning.sign = sign;
+    /** Verify a token against the expected user + claimed score. */
+    function verify(ctx, nk, token, expectedUserId, claimedScore) {
+        var fail = function (reason) { return { valid: false, reason: reason, score: 0, refId: "" }; };
+        var key = secret(ctx);
+        if (!key)
+            return fail("signing_not_configured");
+        if (!token || typeof token !== "string")
+            return fail("missing_token");
+        var parts = token.split(".");
+        if (parts.length !== 3 || parts[0] !== "v1")
+            return fail("malformed_token");
+        var expectedMac = hmacHex(nk, parts[1], key);
+        // Constant-time-ish compare (Goja strings; length check + full scan).
+        if (expectedMac.length !== parts[2].length)
+            return fail("bad_signature");
+        var diff = 0;
+        for (var i = 0; i < expectedMac.length; i++) {
+            diff |= expectedMac.charCodeAt(i) ^ parts[2].charCodeAt(i);
+        }
+        if (diff !== 0)
+            return fail("bad_signature");
+        var body;
+        try {
+            body = JSON.parse(bufToString(nk.base64Decode(parts[1])));
+        }
+        catch (_) {
+            return fail("bad_payload");
+        }
+        if (!body || body.u !== expectedUserId)
+            return fail("wrong_user");
+        if (typeof body.t !== "number" || (Date.now() - body.t) > TOKEN_TTL_MS)
+            return fail("token_expired");
+        if (typeof claimedScore === "number" && typeof body.s === "number" && body.s !== claimedScore)
+            return fail("score_mismatch");
+        return { valid: true, reason: "", score: body.s, refId: body.r || "" };
+    }
+    ScoreSigning.verify = verify;
+})(ScoreSigning || (ScoreSigning = {}));
 // =============================================================================
 // anticheat.ts — Server-side cheat detection for tournament submits
 //

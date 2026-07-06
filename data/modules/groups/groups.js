@@ -897,6 +897,74 @@ function groupActivityCollection(groupId) {
  * Get comprehensive group details including members, stats, activity, and current user's role.
  * This provides all data needed for the Group Detail UI screen.
  */
+/**
+ * G-010 (2026-07-06, doc §E.3): mutual-block filter for group activity.
+ * Returns the activity array with entries removed when their author is
+ * blocked by the viewer (Nakama friend graph state=3) OR has blocked the
+ * viewer (user_blocks reverse rows — one batched storageRead for all
+ * distinct authors). Fail-open: any lookup error returns the input
+ * unfiltered, because the activity feed must never break over a block check.
+ */
+function _grpFilterActivityByBlocks(nk, logger, viewerId, activity) {
+    if (!viewerId || !activity || activity.length === 0) return activity;
+    try {
+        // Distinct non-self authors in this page.
+        var authorSet = {};
+        for (var i = 0; i < activity.length; i++) {
+            var aid = activity[i] && activity[i].user_id;
+            if (aid && aid !== viewerId) authorSet[aid] = true;
+        }
+        var authors = [];
+        for (var a in authorSet) {
+            if (Object.prototype.hasOwnProperty.call(authorSet, a)) authors.push(a);
+        }
+        if (authors.length === 0) return activity;
+
+        var hidden = {};
+
+        // (a) Authors the viewer blocked — single friendsList scan, state=3.
+        try {
+            var page = nk.friendsList(viewerId, 1000, 3, null);
+            if (page && page.friends) {
+                for (var f = 0; f < page.friends.length; f++) {
+                    var fr = page.friends[f];
+                    if (fr && fr.user && authorSet[fr.user.id]) hidden[fr.user.id] = true;
+                }
+            }
+        } catch (_) { /* fail-open */ }
+
+        // (b) Authors who blocked the viewer — one batched read of the
+        // user_blocks reverse rows (key blocked_{author}_{viewer}, owner=author).
+        try {
+            var reads = [];
+            for (var r = 0; r < authors.length; r++) {
+                reads.push({
+                    collection: 'user_blocks',
+                    key:        'blocked_' + authors[r] + '_' + viewerId,
+                    userId:     authors[r]
+                });
+            }
+            var rows = nk.storageRead(reads);
+            if (rows) {
+                for (var w = 0; w < rows.length; w++) {
+                    if (rows[w] && rows[w].value && rows[w].userId) hidden[rows[w].userId] = true;
+                }
+            }
+        } catch (_) { /* fail-open */ }
+
+        var out = [];
+        for (var o = 0; o < activity.length; o++) {
+            var entry = activity[o];
+            if (entry && entry.user_id && hidden[entry.user_id]) continue;
+            out.push(entry);
+        }
+        return out;
+    } catch (err) {
+        if (logger && logger.warn) logger.warn('[Groups] block filter failed (fail-open): ' + (err.message || err));
+        return activity;
+    }
+}
+
 function rpcGetGroupDetails(ctx, logger, nk, payload) {
     try {
         if (!ctx.userId) {
@@ -1151,7 +1219,16 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
                         group_id: act.group_id || groupId
                     });
                 }
-                
+
+                // ── G-010 fix (2026-07-06, doc §E.3 "Block Propagation") ────
+                // Mutual block filter on the activity feed: hide entries
+                // authored by (a) users the VIEWER blocked (Nakama state=3)
+                // and (b) users who blocked the viewer (user_blocks reverse
+                // rows, batched in ONE storageRead). The member list is
+                // intentionally NOT filtered — an owner must still see (and
+                // be able to kick) a member they blocked (doc §E.3 table).
+                activity = _grpFilterActivityByBlocks(nk, logger, ctx.userId, activity);
+
                 // Sort by timestamp descending
                 activity.sort(function(a, b) {
                     var tsA = a.timestamp || "";

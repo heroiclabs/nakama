@@ -88,8 +88,30 @@ namespace LegacyGroups {
       var state = data.state;
       var cursor = data.cursor || "";
       var result = nk.userGroupsList(userId, limit, state, cursor);
+      var userGroups = result.userGroups || [];
+
+      // B-008 fix (2026-07-06, WORLD_CLASS_SOCIAL_FRIENDS_GROUPS_ARCHITECTURE.md
+      // §2.1/§7.2): optional server-side gameId filter. Previously every
+      // group (all games) was shipped to the client, which then filtered by
+      // metadata.gameId — wasted bandwidth and a cross-game data leak.
+      // Backward compatible: when the caller omits gameId, behaviour is
+      // byte-identical to the old implementation.
+      // NOTE on pagination: the filter runs on the current page, so a page
+      // can legitimately return fewer than `limit` groups while `cursor` is
+      // still set — clients must key "end of list" off cursor, not count.
+      var gameId = data.gameId;
+      if (gameId && typeof gameId === "string") {
+        var filtered: any[] = [];
+        for (var i = 0; i < userGroups.length; i++) {
+          var ug: any = userGroups[i];
+          var meta = (ug && ug.group && ug.group.metadata) || {};
+          if (meta.gameId === gameId) filtered.push(ug);
+        }
+        userGroups = filtered;
+      }
+
       return RpcHelpers.successResponse({
-        userGroups: result.userGroups || [],
+        userGroups: userGroups,
         cursor: result.cursor || ""
       });
     } catch (e: any) {

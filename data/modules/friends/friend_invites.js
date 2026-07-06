@@ -34,8 +34,11 @@
 //  4. Block check in BOTH directions (sender->target and target->sender)
 //  5. Already-friends short-circuit (returns success without re-creating)
 //  6. Existing-pending-invite short-circuit (returns success with same id)
-//  7. Per-user rate limit (1 invite send / 5 seconds; 1 accept-or-decline
-//     per invite is intrinsic via storage status check)
+//  7. Rate limits (B-009 hardened 2026-07-06): per-user burst guard
+//     (1 send / 5s) + per-PAIR cooldown (1 / 30s, normalized pair key,
+//     system-owned so both directions share the bucket) + hourly cap
+//     (20 sends / user / hour). Accept-or-decline is intrinsically
+//     limited via the storage status check.
 //  8. Cancel-invite RPC (sender can rescind an outgoing invite, also
 //     cleans up the Nakama INVITE_SENT relation)
 //  9. List-pending-invites RPC (returns BOTH incoming and outgoing custom
@@ -63,8 +66,18 @@
 // ─── Tunables ───────────────────────────────────────────────────────────────
 var FRIEND_INVITES_COLLECTION  = 'friend_invites';
 var FRIEND_INV_RATELIMIT_KEY   = 'fr_invite_send';
-var FRIEND_INV_RATELIMIT_MS    = 5000; // 5s between sends per user
+var FRIEND_INV_RATELIMIT_MS    = 5000; // 5s between sends per user (burst guard)
 var FRIEND_INV_MAX_MESSAGE_LEN = 280;  // tweet-length
+
+// B-009 fix (2026-07-06, WORLD_CLASS_SOCIAL_FRIENDS_GROUPS_ARCHITECTURE.md §10.1):
+// the per-user 5s cooldown above lets one user spam a single target with a
+// fresh invite every 5s forever. Add (a) a per-PAIR cooldown on a NORMALIZED
+// pair key — both directions share the same bucket, stored system-owned so
+// A→B and B→A read the same row — and (b) a global hourly send cap per user.
+var FRIEND_INV_PAIR_COOLDOWN_MS = 30000;        // 1 invite per pair per 30s
+var FRIEND_INV_HOURLY_MAX       = 20;           // max sends per user per hour
+var FRIEND_INV_HOURLY_WINDOW_MS = 60 * 60 * 1000;
+var FRIEND_INV_SYSTEM_USER      = '00000000-0000-0000-0000-000000000000';
 
 var INVITE_STATUS_PENDING   = 'pending';
 var INVITE_STATUS_ACCEPTED  = 'accepted';
@@ -224,6 +237,130 @@ function _fiCheckRateLimit(nk, userId, action, cooldownMs) {
     return { allowed: true };
 }
 
+// B-009: normalized pair key — min(a,b)_max(a,b) so both directions share
+// one rate-limit bucket (the same convention the challenge module uses).
+function _fiPairKey(a, b) {
+    return (a < b) ? (a + '_' + b) : (b + '_' + a);
+}
+
+/**
+ * B-009: per-pair cooldown. Stored SYSTEM-owned so that A→B and B→A hit the
+ * same row regardless of who sends. Fail-open on read errors (rate limiting
+ * must never hard-block invites when storage hiccups), same as _fiCheckRateLimit.
+ */
+function _fiCheckPairRateLimit(nk, userIdA, userIdB) {
+    var key = 'rl_fr_invite_pair_' + _fiPairKey(userIdA, userIdB);
+    var now = _fiNowMs();
+    try {
+        var rows = nk.storageRead([{ collection: 'rate_limits', key: key, userId: FRIEND_INV_SYSTEM_USER }]);
+        if (rows && rows.length > 0 && rows[0].value && rows[0].value.timestamp) {
+            var elapsed = now - rows[0].value.timestamp;
+            if (elapsed < FRIEND_INV_PAIR_COOLDOWN_MS) {
+                return { allowed: false, retryAfterMs: FRIEND_INV_PAIR_COOLDOWN_MS - elapsed };
+            }
+        }
+    } catch (_) { /* fail-open */ }
+    try {
+        nk.storageWrite([{
+            collection:      'rate_limits',
+            key:             key,
+            userId:          FRIEND_INV_SYSTEM_USER,
+            value:           { timestamp: now },
+            permissionRead:  0,
+            permissionWrite: 0
+        }]);
+    } catch (_) { /* non-critical */ }
+    return { allowed: true };
+}
+
+/**
+ * B-009: sliding-window hourly cap per sender. Counter row resets when the
+ * window expires. Increment happens on every ALLOWED attempt (before deeper
+ * validation, matching the doc's §6.3 flow order).
+ */
+function _fiCheckHourlyCap(nk, userId) {
+    var key = 'rl_fr_invite_hourly_' + userId;
+    var now = _fiNowMs();
+    var count = 0;
+    var windowStart = now;
+    try {
+        var rows = nk.storageRead([{ collection: 'rate_limits', key: key, userId: userId }]);
+        if (rows && rows.length > 0 && rows[0].value) {
+            var v = rows[0].value;
+            if (typeof v.windowStart === 'number' && (now - v.windowStart) < FRIEND_INV_HOURLY_WINDOW_MS) {
+                windowStart = v.windowStart;
+                count = (typeof v.count === 'number') ? v.count : 0;
+            }
+        }
+    } catch (_) { /* fail-open */ }
+    if (count >= FRIEND_INV_HOURLY_MAX) {
+        return { allowed: false, retryAfterMs: (windowStart + FRIEND_INV_HOURLY_WINDOW_MS) - now };
+    }
+    try {
+        nk.storageWrite([{
+            collection:      'rate_limits',
+            key:             key,
+            userId:          userId,
+            value:           { count: count + 1, windowStart: windowStart },
+            permissionRead:  0,
+            permissionWrite: 0
+        }]);
+    } catch (_) { /* non-critical */ }
+    return { allowed: true };
+}
+
+/**
+ * G-002 (2026-07-06, doc §E.1/§F.5): K-factor viral-loop instrumentation.
+ * Emits into the Satori event-capture pipeline (global namespace compiled
+ * from src/satori/event-capture). Unknown event names pass taxonomy
+ * validation with a warning unless strict mode is enabled. Best-effort —
+ * analytics must NEVER fail the parent RPC. Metadata values must be strings
+ * (Satori.CapturedEvent contract).
+ */
+function _fiEmitKFactorEvent(nk, logger, userId, eventName, metadata) {
+    try {
+        if (typeof SatoriEventCapture !== 'undefined' && SatoriEventCapture.captureEvent) {
+            var meta = {};
+            if (metadata) {
+                for (var k in metadata) {
+                    if (Object.prototype.hasOwnProperty.call(metadata, k) &&
+                        metadata[k] !== null && metadata[k] !== undefined) {
+                        meta[k] = String(metadata[k]);
+                    }
+                }
+            }
+            SatoriEventCapture.captureEvent(nk, logger, userId, {
+                name: eventName,
+                timestamp: Date.now(),
+                metadata: meta
+            });
+        }
+    } catch (e) {
+        if (logger && logger.warn) logger.warn('[FriendInvites] K-factor emit failed (non-fatal): ' + (e.message || e));
+    }
+}
+
+/**
+ * G-002 helper: whole days since an account was created. Accepts the
+ * createTime shapes the runtime returns (epoch seconds number or ISO string).
+ * Returns -1 when unknown.
+ */
+function _fiDaysSinceJoined(user) {
+    try {
+        if (!user || user.createTime === undefined || user.createTime === null) return -1;
+        var ms = 0;
+        if (typeof user.createTime === 'number') {
+            // Heuristic: epoch seconds vs epoch millis
+            ms = user.createTime > 100000000000 ? user.createTime : user.createTime * 1000;
+        } else {
+            var t = Date.parse(String(user.createTime));
+            if (isNaN(t)) return -1;
+            ms = t;
+        }
+        return Math.max(0, Math.floor((Date.now() - ms) / 86400000));
+    } catch (_) { return -1; }
+}
+
 function _fiUserDisplayName(nk, userId, fallback) {
     try {
         var users = nk.usersGetId([userId]);
@@ -315,13 +452,38 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
             { retryAfterMs: rl.retryAfterMs });
     }
 
+    // B-009: per-pair cooldown — a user can no longer spam ONE target with
+    // repeat invites; both directions (A→B, B→A) share the same bucket.
+    var prl = _fiCheckPairRateLimit(nk, fromUserId, targetUserId);
+    if (!prl.allowed) {
+        return _fiErr('Please wait before re-inviting this player', 'pair_rate_limited',
+            { retryAfterMs: prl.retryAfterMs });
+    }
+
+    // B-009: global hourly cap — bounds total invite fan-out per sender
+    // (anti-spam; also protects the K-factor metric from bot inflation).
+    var hrl = _fiCheckHourlyCap(nk, fromUserId);
+    if (!hrl.allowed) {
+        return _fiErr('Invite limit reached — try again later', 'rate_limited_hourly',
+            { retryAfterMs: hrl.retryAfterMs });
+    }
+
     // Verify target exists (cheap usersGetId — also gives us their username
     // to feed into nk.friendsAdd as the second arg, which Nakama uses when
     // the target is identified by username rather than id).
+    // G-002: the sender is fetched in the SAME batch (no extra round-trip)
+    // so the K-factor event can carry daysSinceSourceJoined.
     var targetUser = null;
+    var senderUser = null;
     try {
-        var users = nk.usersGetId([targetUserId]);
-        if (users && users.length > 0) targetUser = users[0];
+        var users = nk.usersGetId([targetUserId, fromUserId]);
+        if (users) {
+            for (var ui = 0; ui < users.length; ui++) {
+                if (!users[ui]) continue;
+                if (users[ui].userId === targetUserId) targetUser = users[ui];
+                else if (users[ui].userId === fromUserId) senderUser = users[ui];
+            }
+        }
     } catch (e) {
         logger.warn('[FriendInvites] usersGetId failed: ' + e.message);
     }
@@ -330,8 +492,17 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
     }
 
     // ── Block checks (both directions) ─────────────────────────────────────
-    // 1. Caller's own block list (from Nakama state=3)
-    var callerRel = _fiNakamaRelation(nk, fromUserId, targetUserId);
+    // 1. Caller's own block list (from Nakama state=3).
+    // G-002: use the full relation map (same single friendsList scan as the
+    // old _fiNakamaRelation call) so we also get the sender's confirmed
+    // friend count for the K-factor event.
+    var relMapRes = _fiBuildRelationMap(nk, fromUserId);
+    var callerRel = _fiRelationFromMap(relMapRes.map, targetUserId);
+    var senderFriendCount = 0;
+    for (var rk in relMapRes.map) {
+        if (Object.prototype.hasOwnProperty.call(relMapRes.map, rk) &&
+            relMapRes.map[rk] === FR_STATE_FRIEND) senderFriendCount++;
+    }
     if (callerRel === FR_STATE_BLOCKED) {
         return _fiErr('You have blocked this user. Unblock them first.', 'caller_blocked_target');
     }
@@ -374,7 +545,7 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
         var reciprocalId = _fiInviteId(targetUserId, fromUserId);
         var autoAcceptorName = _fiUserDisplayName(nk, fromUserId, ctx.username);
         try {
-            sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_ACCEPTED', targetUserId, {
+            sendFriendsNotification(ctx, nk, logger, 'FRIEND_REQUEST_ACCEPTED', targetUserId, {
                 inviteId:               reciprocalId,
                 acceptedBy:             fromUserId,
                 acceptedByUsername:     ctx.username || fromUserId,
@@ -467,7 +638,7 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
 
     // ── Notify the target with canonical Subject/Code/type contract ────────
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST', targetUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_REQUEST', targetUserId, {
             inviteId:        inviteId,
             fromUserId:      fromUserId,
             fromUsername:    inviteData.fromUsername,
@@ -512,6 +683,16 @@ function rpcFriendsSendInvite(ctx, logger, nk, payload) {
         logger.warn('[FriendInvites] device push (friend_request) failed (non-fatal): ' + (pushErr.message || pushErr));
     }
 
+    // G-002: K-factor instrumentation — invite_sent (doc §E.1/§F.5 schema).
+    _fiEmitKFactorEvent(nk, logger, fromUserId, 'invite_sent', {
+        sourceUserId:          fromUserId,
+        targetUserId:          targetUserId,
+        channel:               'in_app',
+        gameId:                FRIEND_PUSH_GAME_ID,
+        daysSinceSourceJoined: _fiDaysSinceJoined(senderUser),
+        sourceFriendCount:     senderFriendCount
+    });
+
     return _fiOk({
         inviteId:     inviteId,
         targetUserId: targetUserId,
@@ -549,6 +730,66 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     }
 
     if (!rows || rows.length === 0 || !rows[0].value) {
+        // ── B-007 root-cause fix (2026-07-06, doc §6.4) ─────────────────────
+        // No storage row — but the invite may still be REAL: legacy invites
+        // created via the native AddFriends path (or TTL-cleaned rows) exist
+        // only in Nakama's graph. The old behaviour ('invite_not_found')
+        // forced Unity into a 3-tier fallback whose tier 3 bypassed this RPC
+        // entirely (client.AddFriendsAsync), leaving rows forever 'pending'.
+        // New behaviour: derive the sender, and if the graph says
+        // INVITE_RECEIVED from them, accept HERE — single reliable server
+        // path, no client fallback needed.
+        var derivedFrom = (p.data || {}).fromUserId;
+        if (!derivedFrom) {
+            var m = /^inv_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})$/.exec(inviteId);
+            if (m && m[2].toLowerCase() === userId.toLowerCase()) derivedFrom = m[1];
+        }
+        if (derivedFrom && _fiUuidValid(derivedFrom)) {
+            var graphRel = _fiNakamaRelation(nk, userId, derivedFrom);
+            if (graphRel === FR_STATE_INVITE_RECEIVED) {
+                try {
+                    nk.friendsAdd(userId, ctx.username || userId, [derivedFrom], [], {});
+                } catch (gfe) {
+                    return _fiErr('Failed to accept invite: ' + (gfe.message || gfe), 'friends_add_failed');
+                }
+                // Materialise the row as accepted so history/UI stay coherent.
+                var nowIsoGf = _fiNowIso();
+                var gfName = _fiUserDisplayName(nk, derivedFrom, '');
+                try {
+                    nk.storageWrite([{
+                        collection: FRIEND_INVITES_COLLECTION,
+                        key:        inviteId,
+                        userId:     userId,
+                        value: {
+                            inviteId: inviteId, fromUserId: derivedFrom,
+                            fromUsername: '', fromDisplayName: gfName,
+                            targetUserId: userId, message: '',
+                            status: INVITE_STATUS_ACCEPTED,
+                            createdAt: nowIsoGf, updatedAt: nowIsoGf, acceptedAt: nowIsoGf,
+                            source: 'graph_fallback'
+                        },
+                        permissionRead: 1, permissionWrite: 0
+                    }]);
+                } catch (_) { /* row is bookkeeping — accept already succeeded */ }
+                try {
+                    sendFriendsNotification(ctx, nk, logger, 'FRIEND_REQUEST_ACCEPTED', derivedFrom, {
+                        inviteId: inviteId, acceptedBy: userId,
+                        acceptedByUsername: ctx.username || userId,
+                        acceptedByDisplayName: _fiUserDisplayName(nk, userId, ctx.username)
+                    }, userId);
+                } catch (_) {}
+                _fiEmitKFactorEvent(nk, logger, userId, 'invite_accepted', {
+                    sourceUserId: derivedFrom, targetUserId: userId,
+                    channel: 'in_app', gameId: FRIEND_PUSH_GAME_ID, inviteId: inviteId
+                });
+                logger.info('[FriendInvites] accept via graph fallback | acceptor=' + userId + ' | sender=' + derivedFrom);
+                return _fiOk({ inviteId: inviteId, friendUserId: derivedFrom,
+                               friendDisplayName: gfName, viaGraphFallback: true });
+            }
+            if (graphRel === FR_STATE_FRIEND) {
+                return _fiOk({ inviteId: inviteId, alreadyFriends: true, friendUserId: derivedFrom });
+            }
+        }
         return _fiErr('Friend invite not found', 'invite_not_found');
     }
 
@@ -636,7 +877,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     // Notify the original sender that their request was accepted.
     var acceptorName = _fiUserDisplayName(nk, userId, ctx.username);
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_ACCEPTED', invite.fromUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_REQUEST_ACCEPTED', invite.fromUserId, {
             inviteId:               inviteId,
             acceptedBy:             userId,
             acceptedByUsername:     ctx.username || userId,
@@ -678,6 +919,17 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
     }
 
     logger.info('[FriendInvites] accept_friend_invite OK | acceptor=' + userId + ' | sender=' + invite.fromUserId + ' | inviteId=' + inviteId);
+
+    // G-002: K-factor instrumentation — invite_accepted closes the loop
+    // opened by invite_sent (K = sends/DAU × acceptance rate, doc §F.5).
+    _fiEmitKFactorEvent(nk, logger, userId, 'invite_accepted', {
+        sourceUserId: invite.fromUserId,
+        targetUserId: userId,
+        channel:      'in_app',
+        gameId:       FRIEND_PUSH_GAME_ID,
+        inviteId:     inviteId
+    });
+
     return _fiOk({
         inviteId:           inviteId,
         friendUserId:       invite.fromUserId,
@@ -714,6 +966,27 @@ function rpcFriendsDeclineInvite(ctx, logger, nk, payload) {
     }
 
     if (!rows || rows.length === 0 || !rows[0].value) {
+        // B-007 sibling fix (2026-07-06, doc §6.4): graph fallback for
+        // declines of legacy/rowless invites — remove the INVITE_RECEIVED
+        // edge server-side instead of forcing the client to call the native
+        // DeleteFriends API (which left no decline record or notification).
+        var dDerivedFrom = (p.data || {}).fromUserId;
+        if (!dDerivedFrom) {
+            var dm = /^inv_([0-9a-fA-F-]{36})_([0-9a-fA-F-]{36})$/.exec(inviteId);
+            if (dm && dm[2].toLowerCase() === userId.toLowerCase()) dDerivedFrom = dm[1];
+        }
+        if (dDerivedFrom && _fiUuidValid(dDerivedFrom)) {
+            var dGraphRel = _fiNakamaRelation(nk, userId, dDerivedFrom);
+            if (dGraphRel === FR_STATE_INVITE_RECEIVED) {
+                try {
+                    nk.friendsDelete(userId, ctx.username || userId, [dDerivedFrom], []);
+                } catch (dgfe) {
+                    return _fiErr('Failed to decline invite: ' + (dgfe.message || dgfe), 'friends_delete_failed');
+                }
+                logger.info('[FriendInvites] decline via graph fallback | decliner=' + userId + ' | sender=' + dDerivedFrom);
+                return _fiOk({ inviteId: inviteId, declined: true, viaGraphFallback: true });
+            }
+        }
         return _fiErr('Friend invite not found', 'invite_not_found');
     }
 
@@ -764,7 +1037,7 @@ function rpcFriendsDeclineInvite(ctx, logger, nk, payload) {
     // notification (rather than silently dropping) so the sender's UI
     // can move the row out of "pending sent" without polling.
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_DECLINED', invite.fromUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_REQUEST_DECLINED', invite.fromUserId, {
             inviteId:   inviteId,
             declinedBy: userId
         }, userId);
@@ -857,7 +1130,7 @@ function rpcFriendsCancelInvite(ctx, logger, nk, payload) {
     // Optional: tell the target their pending request disappeared so their
     // UI can update without a refresh. Code is FRIEND_REQUEST_CANCELLED.
     try {
-        sendFriendsNotification(nk, logger, 'FRIEND_REQUEST_CANCELLED', targetUserId, {
+        sendFriendsNotification(ctx, nk, logger, 'FRIEND_REQUEST_CANCELLED', targetUserId, {
             inviteId:    inviteId,
             cancelledBy: userId
         }, userId);

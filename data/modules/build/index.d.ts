@@ -654,6 +654,17 @@ declare namespace IvxPresence {
     function rpcMarkMessageRead(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace FriendsPresenceShared {
+    /**
+     * Batch-read presence rows for the given users and collapse each into a
+     * boolean online flag. One nk.storageRead call regardless of list size.
+     * Presence is optional context — any read failure returns an empty map
+     * and must never fail the calling RPC.
+     */
+    function loadOnlineMap(nk: nkruntime.Nakama, userIds: string[]): {
+        [id: string]: boolean;
+    };
+}
 declare namespace QvAnalyticsCron {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -4217,6 +4228,145 @@ declare namespace WalletHelpers {
 declare namespace WebAdReward {
     function rpcWebAdReward(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialAppRegistry {
+    interface AppEntry {
+        appId: string;
+        appUuid: string;
+        status: string;
+        features: {
+            [k: string]: boolean;
+        };
+        limits: {
+            [k: string]: number;
+        };
+        branding: {
+            [k: string]: string;
+        };
+        [k: string]: any;
+    }
+    /**
+     * Resolve an appId to its full registry entry. Storage doc wins over the
+     * built-in seed field-by-field; unknown ids fall back to quizverse.
+     * One storage read per call (Goja VMs are pooled — no module-level cache,
+     * per AGENTS.md rule 4). Callers on hot paths should resolve once per RPC.
+     */
+    function resolveApp(nk: nkruntime.Nakama, rawAppId: any): AppEntry;
+    /** Convenience: is a feature enabled for this app? Missing key = seed default. */
+    function featureEnabled(nk: nkruntime.Nakama, appId: any, feature: string): boolean;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace DuoQuests {
+    function creditQuizCompletion(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string): void;
+    function weeklyPairingTick(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): any;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialEngagementExtras {
+    function creditGroupStreaks(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string): void;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace FanoutQueue {
+    interface FanoutItem {
+        targetUserId: string;
+        eventType: string;
+        titleKey: string;
+        bodyKey: string;
+        vars?: any;
+        data?: any;
+        inAppSubject?: string;
+        inAppContent?: any;
+        inAppCode?: number;
+    }
+    function enqueue(nk: nkruntime.Nakama, logger: nkruntime.Logger, items: FanoutItem[]): number;
+    function drain(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, maxRows?: number): any;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialFriendsFeed {
+    function writeEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, authorId: string, authorName: string, gameId: string, eventType: string, eventData: any, cta?: {
+        type: string;
+        label: string;
+        payload: any;
+    }): void;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialGroupLinks {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialGroupSearch {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialLeagues {
+    /** Weekly rollover — promotions/demotions for LAST week's pools. */
+    function weeklyLeagueTick(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): any;
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialMaintenance {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialOnboardingState {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialPlayerStats {
+    /**
+     * Record one completed quiz. OCC with one retry — a lost increment under
+     * pathological contention shows a friend 1 XP low on a card; acceptable.
+     * Never throws.
+     */
+    function recordQuizCompletion(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string, xpEarned: number, score: number): void;
+    /**
+     * Batch-load stats for many users in ONE storageRead. Returns only rows
+     * from the CURRENT ISO week — a friend whose row is from last week simply
+     * hasn't played this week, and their card should show zeros, not stale XP.
+     */
+    function loadStatsMap(nk: nkruntime.Nakama, gameId: string, userIds: string[]): {
+        [id: string]: any;
+    };
+}
+declare namespace SocialPresenceV2 {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialPressureSummary {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace SocialReports {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare var rpcFriendsSendInvite: any;
+declare var rpcFriendsAcceptInvite: any;
+declare var rpcFriendsDeclineInvite: any;
+declare var rpcFriendsCancelInvite: any;
+declare var rpcFriendsListPendingInvites: any;
+declare var rpcSendFriendChallenge: any;
+declare var rpcAcceptFriendChallenge: any;
+declare var rpcDeclineFriendChallenge: any;
+declare var rpcCancelFriendChallenge: any;
+declare var rpcListPendingFriendChallenges: any;
+declare var rpcFriendsSpectate: any;
+declare var rpcFriendStreakGetState: any;
+declare var rpcFriendStreakRecordContribution: any;
+declare var rpcFriendStreakSendNudge: any;
+declare var rpcFriendStreakGetBrokenLog: any;
+declare var rpcFriendStreakRepair: any;
+declare var rpcFriendsGetOnlineCount: any;
+declare var rpcFriendBattleCreate: any;
+declare var rpcFriendInviteWithReward: any;
+declare var rpcSendDirectMessage: any;
+declare var rpcGetDirectMessageHistory: any;
+declare var rpcMarkDirectMessagesRead: any;
+declare namespace SocialRpcAliases {
+    function register(initializer: nkruntime.Initializer): void;
+}
+declare namespace ScoreSigning {
+    /** Mint a token. Returns "" when no secret is configured (fail-open mint). */
+    function sign(ctx: nkruntime.Context, nk: nkruntime.Nakama, userId: string, score: number, refId: string): string;
+    interface VerifyResult {
+        valid: boolean;
+        reason: string;
+        score: number;
+        refId: string;
+    }
+    /** Verify a token against the expected user + claimed score. */
+    function verify(ctx: nkruntime.Context, nk: nkruntime.Nakama, token: any, expectedUserId: string, claimedScore: number): VerifyResult;
 }
 declare namespace TournamentAntiCheat {
     interface SubmitCheckInput {

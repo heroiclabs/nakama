@@ -109,50 +109,11 @@ namespace IntelliverseFriendsList {
    * once postbuild has merged everything; namespace boundaries are real.
    * Keeping these in sync is enforced by code review.
    */
+  // B-004 fix (2026-07-06): canonical implementation lives in
+  // FriendsPresenceShared (presence_shared.ts). This wrapper keeps every
+  // call site unchanged while eliminating the triple copy-paste.
   function loadOnlineMap(nk: nkruntime.Nakama, userIds: string[]): { [id: string]: boolean } {
-    var map: { [id: string]: boolean } = {};
-    if (!userIds || userIds.length === 0) return map;
-
-    var reads: nkruntime.StorageReadRequest[] = [];
-    for (var i = 0; i < userIds.length; i++) {
-      reads.push({
-        collection: PRESENCE_COLLECTION,
-        key:        PRESENCE_KEY,
-        userId:     userIds[i]
-      });
-    }
-
-    var rows: nkruntime.StorageObject[] | null = null;
-    try {
-      rows = nk.storageRead(reads);
-    } catch (e: any) {
-      // Presence is optional context — never fail the list because of it.
-      return map;
-    }
-    if (!rows) return map;
-
-    var nowMs = Date.now();
-    for (var r = 0; r < rows.length; r++) {
-      var row = rows[r];
-      if (!row || !row.value) continue;
-
-      var v: any = row.value;
-      var online = false;
-      if (v.online === true) {
-        var lastSeenMs = 0;
-        if (typeof v.lastSeenMs === "number")           lastSeenMs = v.lastSeenMs;
-        else if (typeof v.last_seen_ms === "number")    lastSeenMs = v.last_seen_ms;
-        else if (typeof v.lastSeen === "string") {
-          var t = Date.parse(v.lastSeen);
-          if (!isNaN(t)) lastSeenMs = t;
-        }
-        if (lastSeenMs === 0 || (nowMs - lastSeenMs) <= ONLINE_THRESHOLD_MS) {
-          online = true;
-        }
-      }
-      map[row.userId] = online;
-    }
-    return map;
+    return FriendsPresenceShared.loadOnlineMap(nk, userIds);
   }
 
   /**
@@ -234,10 +195,15 @@ namespace IntelliverseFriendsList {
    * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
    * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
    */
-  function flattenFriend(fr: any, online: boolean, country: string): any {
+  function flattenFriend(fr: any, online: boolean, country: string, gameActivity?: any): any {
     var u: any = fr.user || {};
     var state = unwrapState(fr.state);
     return {
+      // ML-002 fix (2026-07-06): per-friend weekly activity ("xpThisWeek",
+      // "quizzesThisWeek", "bestScoreThisWeek", "lastPlayedAt") from
+      // ivx_game_player_stats, written by the quiz submit flow. null =
+      // friend hasn't played this week; clients render zeros/dashes.
+      gameActivity:       gameActivity || null,
       userId:             u.id || "",
       username:           u.username || "",
       displayName:        u.displayName || u.display_name || u.username || "",
@@ -332,6 +298,14 @@ namespace IntelliverseFriendsList {
       myCountry = "";
     }
 
+    // ── Bulk-load weekly game activity (ML-002 — one batched read) ──────
+    var statsMap: { [id: string]: any } = {};
+    try {
+      if (typeof SocialPlayerStats !== "undefined" && SocialPlayerStats.loadStatsMap) {
+        statsMap = SocialPlayerStats.loadStatsMap(nk, "quizverse", ids);
+      }
+    } catch (_) { /* optional enrichment — cards degrade to no-activity */ }
+
     // ── Flatten ─────────────────────────────────────────────────────────
     var results: any[] = [];
     for (var j = 0; j < rawFriends.length; j++) {
@@ -339,7 +313,7 @@ namespace IntelliverseFriendsList {
       if (!fr || !fr.user || !fr.user.id) continue;
       var online = !!onlineMap[fr.user.id];
       var fcountry = countryMap[fr.user.id] || "";
-      results.push(flattenFriend(fr, online, fcountry));
+      results.push(flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null));
     }
 
     if (logger && logger.info) {
@@ -429,6 +403,12 @@ namespace IntelliverseFriendsList {
   // ── Public registration ────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("friends_list",        rpcFriendsList);
+    // Phase-3 canonical aliases (doc Appendix C): same handlers, new ivx_
+    // names. These keep the module's existing flat shape — the unified
+    // envelope for this cluster ships when the module migrates natively
+    // (its shape is already flat + presence-enriched, the Phase-4 target).
+    initializer.registerRpc("ivx_social_friends_list", rpcFriendsList);
     initializer.registerRpc("list_blocked_users",  rpcListBlockedUsers);
+    initializer.registerRpc("ivx_social_friends_blocked", rpcListBlockedUsers);
   }
 }
