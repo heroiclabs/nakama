@@ -3829,6 +3829,21 @@ declare namespace SatoriCreatorEvents {
 declare namespace SatoriLiveEvents {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SatoriWeeklyChampions {
+    /** Monday (UTC) of the week containing `ms` — the weekly leaderboard reset anchor. */
+    function weekKeyUtc(ms: number): string;
+    function recordPlay(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, username: string, region: string, score: number): void;
+    function register(initializer: nkruntime.Initializer): void;
+    /**
+     * Feed weekly totals / streaks / activity from the SCORE_SUBMITTED event
+     * that creator_event_submit already emits — deliberately NOT wired inside
+     * the Path B submit RPC so the existing gameplay flow stays untouched.
+     *
+     * Other modules (hiro leaderboards, legacy multi-game) also emit
+     * SCORE_SUBMITTED; the satori_creator_events lookup filters those out.
+     */
+    function registerEventHandlers(): void;
+}
 declare namespace SatoriMessages {
     function deliverMessage(nk: nkruntime.Nakama, userId: string, messageDef: Satori.MessageDefinition, gameId?: string): void;
     function deliverToAudience(nk: nkruntime.Nakama, logger: nkruntime.Logger, messageDef: Satori.MessageDefinition, audienceId: string, gameId?: string): number;

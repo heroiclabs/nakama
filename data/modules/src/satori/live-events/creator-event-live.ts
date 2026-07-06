@@ -1268,23 +1268,25 @@
     });
   }
 
-  function rpcEnd(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
-    var isAdmin = isAdminCtx(ctx, nk);
-    var data = RpcHelpers.parseRpcPayload(payload);
-    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+  interface FinalizeEndResult {
+    totalParticipants: number;
+    tierAssignments: { [userId: string]: string };
+    winnersPerTier: { [tier: string]: number };
+    prizeQueue: any;
+  }
 
-    var def = getEventDefinition(nk, data.eventId);
-    if (!def) return RpcHelpers.errorResponse("Event not found");
-    if (!isAdmin && def.creatorId !== userId) {
-      return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
-    }
-
-    if (def.status === "ended" || def.status === "distributed" || def.status === "cancelled") {
-      return RpcHelpers.errorResponse("Event already ended/cancelled");
-    }
-
-    var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
+  /**
+   * Shared end-of-event finalization: reads the event leaderboard, assigns
+   * prize tiers by rank, persists status="ended", emits EVENT_ENDED (recap
+   * pipeline trigger via SatoriWebhooks → n8n) and auto-queues gift-card
+   * prize fulfillments.
+   *
+   * Called by rpcEnd (manual creator/admin end) and rpcAutoEndSweep
+   * (zero-touch Path A auto-end). Caller must have already authorized and
+   * verified the event is not already ended/cancelled.
+   */
+  function finalizeEndedEvent(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, def: CreatorEventDefinition, endedBy: string): FinalizeEndResult {
+    var leaderboardId = LEADERBOARD_PREFIX + def.id;
     var allRecords: any[] = [];
     var cursor = "";
 
@@ -1336,9 +1338,9 @@
 
       try {
         var userStates = getUserStates(nk, record.ownerId);
-        if (userStates[data.eventId]) {
-          userStates[data.eventId].tierEarned = assignedTier || undefined;
-          userStates[data.eventId].rank = currentRank;
+        if (userStates[def.id]) {
+          userStates[def.id].tierEarned = assignedTier || undefined;
+          userStates[def.id].rank = currentRank;
           saveUserStates(nk, record.ownerId, userStates);
         }
       } catch (err: any) {
@@ -1350,8 +1352,8 @@
     def.endedAt = Math.floor(Date.now() / 1000);
     saveEventDefinition(nk, def);
 
-    logger.info("[CreatorEvent] Ended event %s — %d participants, %d tier assignments",
-      def.id, allRecords.length, Object.keys(tierAssignments).length);
+    logger.info("[CreatorEvent] Ended event %s (by %s) — %d participants, %d tier assignments",
+      def.id, endedBy, allRecords.length, Object.keys(tierAssignments).length);
 
     // Resolve usernames for winner + runners-up so downstream recap pipelines
     // (n8n → Content Factory event-recap) can produce a real highlight video
@@ -1439,6 +1441,7 @@
       prizePool: def.prizePool,
       giftCardPrizes: def.giftCardPrizes || null,
       endedAt: def.endedAt,
+      endedBy: endedBy,
       nextEvent: nextEvent,
       idempotencyKey: "event_ended_" + def.id,
     });
@@ -1454,13 +1457,109 @@
       logger.warn("[CreatorEvent] Prize auto-queue failed for event %s (non-fatal): %s", def.id, pqErr.message || String(pqErr));
     }
 
-    return RpcHelpers.successResponse({
-      success: true,
-      eventId: def.id,
+    return {
       totalParticipants: allRecords.length,
       tierAssignments: tierAssignments,
       winnersPerTier: winnersPerTier,
       prizeQueue: prizeQueueResult || undefined,
+    };
+  }
+
+  function rpcEnd(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var isAdmin = isAdminCtx(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+
+    var def = getEventDefinition(nk, data.eventId);
+    if (!def) return RpcHelpers.errorResponse("Event not found");
+    if (!isAdmin && def.creatorId !== userId) {
+      return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+    }
+
+    if (def.status === "ended" || def.status === "distributed" || def.status === "cancelled") {
+      return RpcHelpers.errorResponse("Event already ended/cancelled");
+    }
+
+    var endResult = finalizeEndedEvent(ctx, logger, nk, def, userId);
+
+    return RpcHelpers.successResponse({
+      success: true,
+      eventId: def.id,
+      totalParticipants: endResult.totalParticipants,
+      tierAssignments: endResult.tierAssignments,
+      winnersPerTier: endResult.winnersPerTier,
+      prizeQueue: endResult.prizeQueue,
+    });
+  }
+
+  /**
+   * creator_event_auto_end_sweep — system/admin only (n8n every-minute cron
+   * primary + k8s CronJob fallback).
+   *
+   * Path A zero-touch lifecycle: finds published events whose
+   * scheduledAt + duration has elapsed and finalizes them exactly like a
+   * manual creator_event_end — tier assignment, EVENT_ENDED webhook (recap
+   * pipeline), prize fulfillment queue. The EVENT_ENDED idempotencyKey
+   * ("event_ended_<id>") keeps downstream recap generation deduped even if a
+   * manual end races the sweep.
+   *
+   * Payload: { graceSec?: number, limit?: number }
+   *   graceSec — extra seconds past endAt before auto-ending (default 0)
+   *   limit    — max events finalized per sweep (default 25)
+   */
+  function rpcAutoEndSweep(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var graceSec = typeof data.graceSec === "number" ? Math.max(0, Math.floor(data.graceSec)) : 0;
+    var limit = typeof data.limit === "number" ? Math.max(1, Math.floor(data.limit)) : 25;
+
+    var now = serverNowSec();
+    var index = getEventsIndex(nk);
+    var scanned = 0;
+    var ended: any[] = [];
+    var failed: any[] = [];
+
+    for (var i = 0; i < index.eventIds.length; i++) {
+      if (ended.length >= limit) break;
+      var eventId = index.eventIds[i];
+      var def = getEventDefinition(nk, eventId);
+      if (!def) continue;
+      scanned++;
+
+      // Only persisted-"published" events run and auto-end. Draft/funded never
+      // started; ended/distributed/cancelled are terminal.
+      if ((def.status || "draft") !== "published") continue;
+
+      var endAt = (def.scheduledAt || 0) + Math.floor((def.duration || 30) * 60);
+      if (!def.scheduledAt || now <= endAt + graceSec) continue;
+
+      try {
+        var res = finalizeEndedEvent(ctx, logger, nk, def, "auto_end_sweep");
+        ended.push({
+          eventId: def.id,
+          title: def.title,
+          region: def.region,
+          totalParticipants: res.totalParticipants,
+        });
+      } catch (err: any) {
+        var msg = (err && err.message) ? err.message : String(err);
+        logger.error("[CreatorEvent] auto-end failed for event %s: %s", eventId, msg);
+        failed.push({ eventId: eventId, error: msg });
+      }
+    }
+
+    if (ended.length > 0) {
+      logger.info("[CreatorEvent] Auto-end sweep finalized %d event(s): %s",
+        ended.length, JSON.stringify(ended));
+    }
+
+    return RpcHelpers.successResponse({
+      now: now,
+      scanned: scanned,
+      endedCount: ended.length,
+      ended: ended,
+      failed: failed,
     });
   }
 
@@ -1560,6 +1659,7 @@
     initializer.registerRpc("creator_event_create", rpcCreate);
     initializer.registerRpc("creator_event_publish", rpcPublish);
     initializer.registerRpc("creator_event_end", rpcEnd);
+    initializer.registerRpc("creator_event_auto_end_sweep", rpcAutoEndSweep);
     initializer.registerRpc("creator_event_cancel", rpcCancel);
     initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
     initializer.registerRpc("creator_event_fund_pool", rpcFundPool);

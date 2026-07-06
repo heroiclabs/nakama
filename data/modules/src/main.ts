@@ -682,6 +682,9 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[Satori] Registering Video Feed RPCs...");
     SatoriVideoFeed.register(initializer);
 
+    logger.info("[Satori] Registering Weekly Champions RPCs...");
+    SatoriWeeklyChampions.register(initializer);
+
     logger.info("[Satori] Registering Messages RPCs...");
     SatoriMessages.register(initializer);
 
@@ -892,6 +895,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     SatoriMetrics.registerEventHandlers();
     HiroRewardBucket.registerEventHandlers();
     SatoriWebhooks.registerEventHandlers();
+    SatoriWeeklyChampions.registerEventHandlers();
     logger.info("[EventBus] Event handlers registered");
   } catch (err: any) {
     logger.error("[EventBus] Failed to register event handlers: " + (err.message || String(err)));
