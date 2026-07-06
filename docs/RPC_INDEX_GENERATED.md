@@ -6,8 +6,8 @@
 > `COMPLETE_RPC_REFERENCE.md` — but THIS file is the authoritative answer to
 > "does RPC X exist?" (see architecture doc §17.4 for why).
 
-**Generated:** 2026-07-06T16:02:08.645Z
-**Total registered RPC ids:** 1231
+**Generated:** 2026-07-06T16:20:40.649Z
+**Total registered RPC ids:** 1235
 
 ## `achievements_*` (4)
 
@@ -279,7 +279,7 @@
 - `create_quizverse_group`
 - `create_time_period_leaderboards`
 
-## `creator_*` (23)
+## `creator_*` (25)
 
 - `creator_event_auto_end_sweep`
 - `creator_event_can_play`
@@ -288,6 +288,7 @@
 - `creator_event_clock`
 - `creator_event_create`
 - `creator_event_end`
+- `creator_event_fulfillment_get`
 - `creator_event_fulfillment_settle`
 - `creator_event_fulfillments_list`
 - `creator_event_fund_pool`
@@ -301,6 +302,7 @@
 - `creator_event_rewards_get`
 - `creator_event_spa_claim`
 - `creator_event_spa_end_queue`
+- `creator_event_spa_save_delivery`
 - `creator_event_submit`
 - `creator_event_update_promo`
 - `creator_live_event_publish`
@@ -980,8 +982,9 @@
 - `quiz_submit_result`
 - `quiz_submit_result_v2`
 
-## `quizverse_*` (96)
+## `quizverse_*` (98)
 
+- `quizverse_abandon_pack`
 - `quizverse_admin_grant_item`
 - `quizverse_admin_stats`
 - `quizverse_ai_generate_questions`
@@ -993,6 +996,7 @@
 - `quizverse_blog_embed_create`
 - `quizverse_blog_embed_get`
 - `quizverse_blog_quiz_reward`
+- `quizverse_cache_refresh_tick`
 - `quizverse_chatbox_greeting`
 - `quizverse_chatbox_message`
 - `quizverse_claim_daily_reward`

@@ -5,7 +5,7 @@
   "scripts": {
     "check:rpc-literals": "node scripts/check-rpc-literals.js",
     "prebuild": "npm run check:rpc-literals",
-    "build": "npx tsc && node -e \"const fs=require('fs'),p=require('path');fs.readdirSync('.').filter(f=>f.endsWith('.lua')).forEach(f=>fs.copyFileSync(f,p.join('build',f)));\" && node postbuild.js && echo Build complete",
+    "build": "npx tsc && node scripts/seed-video-quiz-catalog.js && node -e \"const fs=require('fs'),p=require('path');fs.readdirSync('.').filter(f=>f.endsWith('.lua')).forEach(f=>fs.copyFileSync(f,p.join('build',f)));\" && node postbuild.js && echo Build complete",
     "build:watch": "npx tsc --watch",
     "docs:rpc-index": "node scripts/generate-rpc-index.js"
   },

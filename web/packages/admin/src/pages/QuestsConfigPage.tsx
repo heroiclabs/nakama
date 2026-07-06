@@ -30,10 +30,22 @@ import {
   CheckCircle2,
   Ban,
 } from "lucide-react";
-import { serverKeyAuth, hiro, satori, type Audience } from "@nakama/shared";
+import {
+  serverKeyAuth,
+  hiro,
+  satori,
+  questEngine,
+  type Audience,
+  type QuestEngineQuest,
+  type QuestEngineStep,
+  type QuestEngineConfig,
+} from "@nakama/shared";
 import { cn } from "@/lib/utils";
 
 const GLOBAL_CONFIG_SCOPE = "global";
+// Quest Engine stores config under a concrete gameId; events with no gameId
+// resolve to "default" (see quest_engine.ts resolveGameId).
+const QUEST_ENGINE_DEFAULT_GAME = "default";
 
 function rpcGameId(scope: string) {
   const trimmed = scope.trim();
@@ -830,10 +842,10 @@ function QuestRow({ quest, onEdit, onDuplicate, onDelete, onToggle, isDeleting }
 }
 
 /* ------------------------------------------------------------------ */
-/*  Page                                                               */
+/*  Hiro Challenges panel (legacy challenges config)                   */
 /* ------------------------------------------------------------------ */
 
-export function QuestsConfigPage() {
+function HiroChallengesPanel() {
   const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<QuestStatus>("all");
@@ -937,17 +949,12 @@ export function QuestsConfigPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Panel actions */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <Swords className="h-6 w-6 text-primary" />
-            Quest Configuration
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Design and manage quests and missions with objectives, rewards, mode linking, and audience targeting.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Legacy Hiro challenges config (<code className="rounded bg-muted px-1 py-0.5 text-xs">hiro_configs/challenges</code>).
+          Not read by the in-game Quest Engine — use the Game Quests tab for quests that appear in apps.
+        </p>
         <div className="flex items-center gap-2">
           <button
             onClick={() => refetch()}
@@ -1113,6 +1120,806 @@ export function QuestsConfigPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Quest Engine panel (in-game quests: qv_quest_config)               */
+/* ------------------------------------------------------------------ */
+
+const ENGINE_CATEGORIES = [
+  "daily",
+  "weekly",
+  "monthly",
+  "friend",
+  "onboarding",
+  "social",
+  "event",
+  "achievement",
+  "custom",
+] as const;
+
+function useQuestEngineConfig(engineGameId: string) {
+  return useQuery({
+    queryKey: ["questEngine", "config", engineGameId],
+    queryFn: () => questEngine.getQuestEngineConfig(engineGameId, serverKeyAuth()),
+    staleTime: 30_000,
+  });
+}
+
+function useSaveQuestEngineConfig(engineGameId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (config: QuestEngineConfig) =>
+      questEngine.saveQuestEngineConfig(engineGameId, config, serverKeyAuth()),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["questEngine", "config", engineGameId] }),
+  });
+}
+
+function formatEngineReward(q: QuestEngineQuest): string[] {
+  const parts: string[] = [];
+  const g = q.reward?.guaranteed;
+  if (g?.currencies) {
+    for (const [k, v] of Object.entries(g.currencies)) parts.push(`${v} ${k}`);
+  }
+  if (g?.items) {
+    for (const [k, v] of Object.entries(g.items)) parts.push(`${v}x ${k}`);
+  }
+  if (g?.energies) {
+    for (const [k, v] of Object.entries(g.energies)) parts.push(`${v} ${k} energy`);
+  }
+  return parts;
+}
+
+function engineResetLabel(sec?: number): string | null {
+  if (!sec) return null;
+  if (sec === 86400) return "Resets daily";
+  if (sec === 604800) return "Resets weekly";
+  return `Resets every ${Math.round(sec / 3600)}h`;
+}
+
+interface EngineStepDraft {
+  id: string;
+  description: string;
+  eventType: string;
+  requiredCount: string;
+}
+
+interface EngineQuestFormProps {
+  initial?: QuestEngineQuest;
+  onSubmit: (quest: QuestEngineQuest) => void;
+  onCancel: () => void;
+  isPending: boolean;
+  existingIds: string[];
+  knownEventTypes: string[];
+}
+
+function EngineQuestForm({ initial, onSubmit, onCancel, isPending, existingIds, knownEventTypes }: EngineQuestFormProps) {
+  const [id, setId] = useState(initial?.id ?? "");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [category, setCategory] = useState(initial?.category ?? "daily");
+  const [repeatable, setRepeatable] = useState(initial?.repeatable ?? true);
+  const [resetIntervalSec, setResetIntervalSec] = useState(
+    initial?.resetIntervalSec != null ? String(initial.resetIntervalSec) : "",
+  );
+  const [expiresAt, setExpiresAt] = useState(toDatetimeLocal(initial?.expiresAt));
+  const [prereqs, setPrereqs] = useState(initial?.prerequisiteIds?.join(", ") ?? "");
+  const [steps, setSteps] = useState<EngineStepDraft[]>(
+    initial?.steps?.length
+      ? initial.steps.map((s) => ({
+          id: s.id,
+          description: s.description ?? "",
+          eventType: s.eventType,
+          requiredCount: String(s.requiredCount ?? 1),
+        }))
+      : [{ id: "s1", description: "", eventType: "", requiredCount: "1" }],
+  );
+  const [currenciesJson, setCurrenciesJson] = useState(
+    initial?.reward?.guaranteed?.currencies
+      ? JSON.stringify(initial.reward.guaranteed.currencies, null, 2)
+      : '{\n  "coins": 50\n}',
+  );
+  const [currenciesError, setCurrenciesError] = useState("");
+
+  const idConflict = !initial && existingIds.includes(id.trim());
+
+  const updateStep = (idx: number, patch: Partial<EngineStepDraft>) => {
+    setSteps((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)));
+  };
+  const addStep = () => {
+    setSteps((prev) => [
+      ...prev,
+      { id: `s${prev.length + 1}`, description: "", eventType: "", requiredCount: "1" },
+    ]);
+  };
+  const removeStep = (idx: number) => {
+    setSteps((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== idx) : prev));
+  };
+
+  const builtQuest = useMemo((): QuestEngineQuest | null => {
+    let currencies: Record<string, number>;
+    try {
+      currencies = JSON.parse(currenciesJson) as Record<string, number>;
+      setCurrenciesError("");
+    } catch (e) {
+      setCurrenciesError((e as Error).message);
+      return null;
+    }
+    const builtSteps: QuestEngineStep[] = [];
+    for (const s of steps) {
+      const rc = parseInt(s.requiredCount, 10);
+      if (!s.eventType.trim() || isNaN(rc) || rc < 1) return null;
+      builtSteps.push({
+        id: s.id.trim() || `s${builtSteps.length + 1}`,
+        description: s.description.trim() || s.eventType.trim(),
+        eventType: s.eventType.trim(),
+        requiredCount: rc,
+      });
+    }
+    if (builtSteps.length === 0) return null;
+    const prereqList = prereqs.split(",").map((p) => p.trim()).filter(Boolean);
+    return {
+      ...(initial ?? {}),
+      id: id.trim(),
+      name: name.trim(),
+      description: description.trim() || undefined,
+      category: category || undefined,
+      steps: builtSteps,
+      reward: { guaranteed: { currencies } },
+      repeatable,
+      resetIntervalSec: resetIntervalSec ? parseInt(resetIntervalSec, 10) : undefined,
+      expiresAt: fromDatetimeLocal(expiresAt),
+      prerequisiteIds: prereqList.length > 0 ? prereqList : undefined,
+    };
+  }, [initial, id, name, description, category, steps, currenciesJson, repeatable, resetIntervalSec, expiresAt, prereqs]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id.trim() || !name.trim() || idConflict || !builtQuest) return;
+    onSubmit(builtQuest);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5 rounded-lg border border-border bg-card p-5">
+      <h3 className="text-sm font-semibold text-foreground">
+        {initial ? "Edit Game Quest" : "Create Game Quest"}
+      </h3>
+
+      {/* ID + Name */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Quest ID *</label>
+          <input
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+            disabled={!!initial}
+            placeholder="qv_daily_win2"
+            className={cn(
+              "w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50",
+              idConflict ? "border-destructive" : "border-border",
+            )}
+          />
+          {idConflict && <p className="text-xs text-destructive">A quest with this ID already exists.</p>}
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Display Name *</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Win 2 Quizzes"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
+      {/* Description */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground">Description</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={2}
+          placeholder="Win 2 quiz rounds today."
+          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+        />
+      </div>
+
+      {/* Category + repeat + reset */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Category</label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {ENGINE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground">
+            daily / weekly / monthly reset on calendar boundaries automatically.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Repeatable</label>
+          <div className="flex items-center gap-2 pt-1.5">
+            <button
+              type="button"
+              onClick={() => setRepeatable(!repeatable)}
+              className={cn(
+                "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
+                repeatable ? "bg-emerald-500" : "bg-zinc-600",
+              )}
+            >
+              <span
+                className={cn(
+                  "pointer-events-none block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform",
+                  repeatable ? "translate-x-4" : "translate-x-0.5",
+                )}
+              />
+            </button>
+            <span className="text-sm text-muted-foreground">
+              {repeatable ? "Repeats after reset" : "One-time"}
+            </span>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <Repeat className="h-3 w-3" />
+            Custom Reset (sec)
+          </label>
+          <input
+            type="number"
+            min="0"
+            value={resetIntervalSec}
+            onChange={(e) => setResetIntervalSec(e.target.value)}
+            placeholder="604800 = weekly (optional)"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
+      {/* Steps */}
+      <div className="space-y-2">
+        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          <Target className="h-3 w-3" />
+          Steps — progressed by analytics events *
+        </label>
+        {steps.map((s, idx) => (
+          <div key={idx} className="grid gap-2 sm:grid-cols-[1fr_5rem_1fr_2rem] items-start">
+            <div>
+              <input
+                value={s.eventType}
+                onChange={(e) => updateStep(idx, { eventType: e.target.value })}
+                placeholder="event type e.g. quiz_win"
+                list="qe-known-events"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+              />
+            </div>
+            <input
+              type="number"
+              min="1"
+              value={s.requiredCount}
+              onChange={(e) => updateStep(idx, { requiredCount: e.target.value })}
+              title="Required count"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <input
+              value={s.description}
+              onChange={(e) => updateStep(idx, { description: e.target.value })}
+              placeholder="Step description (optional)"
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={() => removeStep(idx)}
+              disabled={steps.length === 1}
+              title="Remove step"
+              className="mt-1.5 rounded-md p-1.5 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-30"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+        <datalist id="qe-known-events">
+          {knownEventTypes.map((ev) => (
+            <option key={ev} value={ev} />
+          ))}
+        </datalist>
+        <button
+          type="button"
+          onClick={addStep}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="h-3 w-3" />
+          Add step
+        </button>
+      </div>
+
+      {/* Reward currencies */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          <Gift className="h-3 w-3" />
+          Reward Currencies (JSON) — granted automatically on completion
+        </label>
+        <textarea
+          value={currenciesJson}
+          onChange={(e) => setCurrenciesJson(e.target.value)}
+          rows={4}
+          className={cn(
+            "w-full rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none",
+            currenciesError ? "border-destructive" : "border-border",
+          )}
+        />
+        {currenciesError && <p className="text-xs text-destructive">Invalid JSON: {currenciesError}</p>}
+      </div>
+
+      {/* Expiry + prerequisites */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Expires At</label>
+          <input
+            type="datetime-local"
+            value={expiresAt}
+            onChange={(e) => setExpiresAt(e.target.value)}
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Prerequisite Quest IDs</label>
+          <input
+            value={prereqs}
+            onChange={(e) => setPrereqs(e.target.value)}
+            placeholder="qv_onboarding_guild, qv_daily_play"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      </div>
+
+      {/* Submit */}
+      <div className="flex items-center gap-2 pt-2">
+        <button
+          type="submit"
+          disabled={isPending || !id.trim() || !name.trim() || idConflict || !builtQuest}
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Check className="h-3.5 w-3.5" />
+          )}
+          {initial ? "Update Quest" : "Create Quest"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+        >
+          <X className="h-3.5 w-3.5" />
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+interface EngineQuestRowProps {
+  quest: QuestEngineQuest;
+  onEdit: (q: QuestEngineQuest) => void;
+  onDuplicate: (q: QuestEngineQuest) => void;
+  onDelete: (q: QuestEngineQuest) => void;
+  isDeleting: boolean;
+}
+
+function EngineQuestRow({ quest, onEdit, onDuplicate, onDelete, isDeleting }: EngineQuestRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const rewards = formatEngineReward(quest);
+  const resetLabel = engineResetLabel(quest.resetIntervalSec);
+  const expired = quest.expiresAt ? Math.floor(Date.now() / 1000) > quest.expiresAt : false;
+
+  return (
+    <div className="group rounded-lg border border-border bg-card transition-colors hover:border-border/80">
+      <div className="flex items-start justify-between gap-4 p-4">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
+                expired ? statusBg("expired") : statusBg("active"),
+                expired ? statusColor("expired") : statusColor("active"),
+              )}
+            >
+              <StatusIcon status={expired ? "expired" : "active"} />
+              {expired ? "expired" : "active"}
+            </span>
+            {quest.category && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground capitalize">
+                {quest.category}
+              </span>
+            )}
+            {quest.repeatable && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-400">
+                <Repeat className="h-3 w-3" />
+                repeatable
+              </span>
+            )}
+            <h4 className="text-sm font-semibold text-foreground truncate">{quest.name}</h4>
+            <code className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
+              {quest.id}
+            </code>
+          </div>
+
+          {quest.description && (
+            <p className="text-xs text-muted-foreground line-clamp-1">{quest.description}</p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {quest.steps?.map((s) => (
+              <span key={s.id} className="inline-flex items-center gap-1">
+                <Zap className="h-3 w-3 text-sky-400" />
+                <code className="font-mono text-sky-400">{s.eventType}</code>
+                <span className="font-medium text-foreground">×{s.requiredCount}</span>
+              </span>
+            ))}
+            {resetLabel && (
+              <span className="inline-flex items-center gap-1 text-violet-400">
+                <Repeat className="h-3 w-3" />
+                {resetLabel}
+              </span>
+            )}
+            {rewards.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-emerald-400">
+                <Gift className="h-3 w-3" />
+                {rewards.join(", ")}
+              </span>
+            )}
+          </div>
+
+          {quest.prerequisiteIds && quest.prerequisiteIds.length > 0 && (
+            <span className="inline-flex items-center gap-1 text-xs text-amber-400">
+              <Timer className="h-3 w-3" />
+              requires: {quest.prerequisiteIds.join(", ")}
+            </span>
+          )}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            title="Details"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={() => onDuplicate(quest)}
+            title="Duplicate"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onEdit(quest)}
+            title="Edit"
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onDelete(quest)}
+            disabled={isDeleting}
+            title="Delete"
+            className="rounded-md p-1.5 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+          >
+            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-xs font-medium text-muted-foreground mb-1">Full Definition</p>
+          <pre className="rounded bg-muted p-2 text-xs font-mono text-foreground overflow-auto max-h-48">
+            {JSON.stringify(quest, null, 2)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuestEnginePanel() {
+  const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
+  const engineGameId = rpcGameId(gameScope) ?? QUEST_ENGINE_DEFAULT_GAME;
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<QuestEngineQuest | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<QuestEngineQuest | null>(null);
+
+  const { data: config, isLoading, isError, error, refetch } = useQuestEngineConfig(engineGameId);
+  const save = useSaveQuestEngineConfig(engineGameId);
+
+  const quests = useMemo(() => {
+    if (!config?.quests) return [];
+    return Object.entries(config.quests).map(([key, val]) => ({ ...val, id: val.id || key }));
+  }, [config]);
+
+  const knownEventTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const q of quests) for (const s of q.steps ?? []) if (s.eventType) set.add(s.eventType);
+    return Array.from(set).sort();
+  }, [quests]);
+
+  const existingCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const q of quests) if (q.category) set.add(q.category);
+    return Array.from(set).sort();
+  }, [quests]);
+
+  const filtered = useMemo(() => {
+    let list = quests;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (quest) =>
+          quest.name.toLowerCase().includes(q) ||
+          quest.id.toLowerCase().includes(q) ||
+          quest.description?.toLowerCase().includes(q) ||
+          quest.steps?.some((s) => s.eventType.toLowerCase().includes(q)),
+      );
+    }
+    if (categoryFilter) list = list.filter((q) => q.category === categoryFilter);
+    return list;
+  }, [quests, search, categoryFilter]);
+
+  const persist = useCallback(
+    (updated: QuestEngineQuest[], onDone?: () => void) => {
+      const map: Record<string, QuestEngineQuest> = {};
+      for (const q of updated) map[q.id] = q;
+      save.mutate({ quests: map }, { onSettled: onDone });
+    },
+    [save],
+  );
+
+  const handleSubmit = useCallback(
+    (quest: QuestEngineQuest) => {
+      persist([...quests.filter((q) => q.id !== quest.id), quest], () => {
+        setShowForm(false);
+        setEditing(null);
+      });
+    },
+    [quests, persist],
+  );
+
+  const handleDelete = useCallback(
+    (quest: QuestEngineQuest) => {
+      setDeletingId(quest.id);
+      persist(quests.filter((q) => q.id !== quest.id), () => {
+        setDeletingId(null);
+        setConfirmDelete(null);
+      });
+    },
+    [quests, persist],
+  );
+
+  const handleDuplicate = useCallback((quest: QuestEngineQuest) => {
+    setEditing({
+      ...quest,
+      id: `${quest.id}_copy_${Date.now().toString(36)}`,
+      name: `${quest.name} (Copy)`,
+    });
+    setShowForm(false);
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      {/* Panel header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Served to games via <code className="rounded bg-muted px-1 py-0.5 text-xs">quest_engine_get</code>.
+          Steps progress automatically from analytics events; rewards auto-grant on completion.
+          {" "}Scope: <code className="rounded bg-muted px-1 py-0.5 text-xs">{engineGameId}</code>
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refetch()}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
+            Refresh
+          </button>
+          <button
+            onClick={() => {
+              setEditing(null);
+              setShowForm(true);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Create Quest
+          </button>
+        </div>
+      </div>
+
+      {/* Form */}
+      {(showForm || editing) && (
+        <EngineQuestForm
+          initial={editing && !showForm ? editing : undefined}
+          onSubmit={handleSubmit}
+          onCancel={() => {
+            setShowForm(false);
+            setEditing(null);
+          }}
+          isPending={save.isPending}
+          existingIds={quests.map((q) => q.id)}
+          knownEventTypes={knownEventTypes}
+        />
+      )}
+
+      {/* Search + Filter */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search quests by name, ID, or event type..."
+            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        {existingCategories.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-4 w-4 text-muted-foreground" />
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="">All categories</option>
+              {existingCategories.map((c) => (
+                <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Delete confirmation */}
+      {confirmDelete && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-destructive" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">
+              Delete quest "{confirmDelete.name}"?
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Players will no longer see this quest. Existing progress state is kept but orphaned.
+            </p>
+          </div>
+          <button
+            onClick={() => handleDelete(confirmDelete)}
+            disabled={save.isPending}
+            className="inline-flex items-center gap-1 rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+          >
+            {save.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Delete
+          </button>
+          <button
+            onClick={() => setConfirmDelete(null)}
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Error */}
+      {isError && (
+        <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          Failed to load quest engine config: {(error as Error)?.message ?? "Unknown error"}
+        </div>
+      )}
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Loading quest engine configuration…
+        </div>
+      )}
+
+      {/* Empty */}
+      {!isLoading && !isError && filtered.length === 0 && (
+        <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
+          <Swords className="mx-auto mb-3 h-10 w-10 opacity-30" />
+          <p className="text-sm font-medium">
+            {quests.length === 0 ? "No game quests configured yet" : "No quests match your search"}
+          </p>
+          <p className="mt-1 text-xs">
+            {quests.length === 0
+              ? 'Click "Create Quest" to add the first quest players will see in-game.'
+              : "Try adjusting your search or filter."}
+          </p>
+        </div>
+      )}
+
+      {/* List */}
+      {!isLoading && filtered.length > 0 && (
+        <div className="space-y-3">
+          {filtered.map((quest) => (
+            <EngineQuestRow
+              key={quest.id}
+              quest={quest}
+              onEdit={(q) => {
+                setEditing(q);
+                setShowForm(false);
+              }}
+              onDuplicate={handleDuplicate}
+              onDelete={(q) => setConfirmDelete(q)}
+              isDeleting={deletingId === quest.id}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Page                                                               */
+/* ------------------------------------------------------------------ */
+
+export function QuestsConfigPage() {
+  const [engine, setEngine] = useState<"quest-engine" | "hiro">("quest-engine");
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <Swords className="h-6 w-6 text-primary" />
+          Quest Configuration
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Design and manage quests with event-driven steps, rewards, and automatic grants.
+        </p>
+      </div>
+
+      {/* Engine tabs */}
+      <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 w-fit">
+        <button
+          onClick={() => setEngine("quest-engine")}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+            engine === "quest-engine"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Game Quests (Quest Engine)
+        </button>
+        <button
+          onClick={() => setEngine("hiro")}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+            engine === "hiro"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          Hiro Challenges (legacy)
+        </button>
+      </div>
+
+      {engine === "quest-engine" ? <QuestEnginePanel /> : <HiroChallengesPanel />}
     </div>
   );
 }

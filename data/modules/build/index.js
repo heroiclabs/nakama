@@ -124,6 +124,24 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QvPrewarm] failed to register: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- QuizVerse topic-cache refresh (qv_cache_{topic}) ----
+    // quizverse_cache_refresh_tick: populates qv_cache_{topic} via QvQuestionCache.
+    // Modes: cold_start (anime/pokemon/movies bootstrap), all (6 h gate), topic (single).
+    // Post-deploy bootstrap: { "mode": "cold_start" }. Daily full refresh: { "mode": "all" }.
+    //
+    // NOT quizverse_refresh_server_cache — that is a separate legacy no-op registered from
+    // legacy_runtime.js (ack-only stub) and LegacyMultiGame.refreshServerCache (invalidates
+    // ConfigLoader in-memory config only). It does NOT read or write qv_cache_* storage.
+    // For question-cache ops use quizverse_cache_refresh_tick; never conflate the two names
+    // in runbooks, n8n workflows, or deploy scripts.
+    try {
+        QvCacheRefreshCron.register(initializer);
+        logger.info("[QvCacheRefresh] quizverse_cache_refresh_tick RPC registered");
+        QvCacheRefreshCron.bootOnInit(nk, logger, ctx.env || {});
+    }
+    catch (err) {
+        logger.error("[QvCacheRefresh] failed to register: " + (err && err.message ? err.message : String(err)));
+    }
     // quizverse_pack_cleanup_tick: daily job that sweeps expired/abandoned
     // qv_question_packs across all recently active users (30-day window).
     // Gate-limited to once per 24 h. Call from external scheduler (n8n / k8s).
@@ -8580,6 +8598,241 @@ var BlogEmbed;
     }
     BlogEmbed.register = register;
 })(BlogEmbed || (BlogEmbed = {}));
+// cache_refresh_cron.ts — Scheduled topic-cache refresh for QuizVerse question delivery.
+//
+// Populates qv_cache_{topic} via QvQuestionCache.refreshCache / refreshAllTopics.
+// Unlike quizverse_prewarm_tick (qv_readyqueue), this RPC fills the server-side
+// topic cache that get_questions reads on cache miss.
+//
+// RPC: quizverse_cache_refresh_tick
+// Auth: RpcHelpers.requireAdmin (IVX admin / http_key server-to-server)
+// Payload: { "mode": "cold_start" | "all" | "topic", "topic": "anime" }
+//
+// Modes:
+//   cold_start — refresh anime, pokemon, movies, dog, flags, countries, video_quiz with 2 s stagger (post-deploy bootstrap)
+//   all        — refreshAllTopics, gated to once per 6 h (qv_cache_refresh_state/last_full_run)
+//   topic      — single-topic refreshCache (no global gate)
+var QvCacheRefreshCron;
+(function (QvCacheRefreshCron) {
+    var LOG_PREFIX = "[QvCacheRefresh]";
+    var COLD_START_TOPICS = ["anime", "pokemon", "movies", "dog", "flags", "countries", "video_quiz"];
+    var FULL_REFRESH_GATE_MS = 6 * 3600000;
+    var COLD_STAGGER_MS = 2000;
+    var GATE_COL = "qv_cache_refresh_state";
+    var GATE_KEY = "last_full_run";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    function nowMs() { return Date.now(); }
+    function sleep(ms) {
+        var end = nowMs() + ms;
+        while (nowMs() < end) { /* spin — safe in admin/cron RPC only */ }
+    }
+    function formatLog(tag, fields) {
+        var parts = [LOG_PREFIX + tag];
+        for (var fk in fields) {
+            if (!fields.hasOwnProperty(fk))
+                continue;
+            var fv = fields[fk];
+            if (typeof fv === "boolean") {
+                parts.push(fk + "=" + (fv ? "true" : "false"));
+            }
+            else if (typeof fv === "number") {
+                parts.push(fk + "=" + String(fv));
+            }
+            else {
+                parts.push(fk + "=" + String(fv).replace(/\s+/g, "_"));
+            }
+        }
+        return parts.join(" ");
+    }
+    function acquireFullRefreshGate(nk) {
+        try {
+            var rows = nk.storageRead([{ collection: GATE_COL, key: GATE_KEY, userId: SYSTEM_USER }]);
+            var lastRun = (rows && rows.length > 0 && rows[0].value && rows[0].value.last_run_ms)
+                ? rows[0].value.last_run_ms : 0;
+            if (nowMs() - lastRun < FULL_REFRESH_GATE_MS)
+                return false;
+            nk.storageWrite([{
+                    collection: GATE_COL, key: GATE_KEY, userId: SYSTEM_USER,
+                    value: { last_run_ms: nowMs() },
+                    permissionRead: 0, permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (_e) {
+            return false;
+        }
+    }
+    function refreshOneTopic(nk, logger, env, topic) {
+        var t0 = nowMs();
+        var r = QvQuestionCache.refreshCache(nk, logger, env, topic);
+        var elapsed = nowMs() - t0;
+        logger.info(formatLog("[topic_result]", {
+            event: "cache_refresh_topic",
+            topic: topic,
+            ok: r.ok,
+            count: r.count,
+            error: r.error || "none",
+            elapsed_ms: elapsed
+        }));
+        return {
+            topic: topic,
+            ok: r.ok,
+            count: r.count,
+            error: r.error,
+            elapsed_ms: elapsed
+        };
+    }
+    function runModeColdStart(nk, logger, env) {
+        var results = [];
+        for (var i = 0; i < COLD_START_TOPICS.length; i++) {
+            if (i > 0)
+                sleep(COLD_STAGGER_MS);
+            results.push(refreshOneTopic(nk, logger, env, COLD_START_TOPICS[i]));
+        }
+        return results;
+    }
+    function runModeTopic(nk, logger, env, topic) {
+        return [refreshOneTopic(nk, logger, env, topic)];
+    }
+    function runModeAll(nk, logger, env) {
+        if (!acquireFullRefreshGate(nk)) {
+            return { gated: true, results: [] };
+        }
+        var raw = QvQuestionCache.refreshAllTopics(nk, logger, env);
+        var results = [];
+        for (var i = 0; i < raw.length; i++) {
+            results.push({
+                topic: raw[i].topic,
+                ok: raw[i].ok,
+                count: raw[i].count,
+                error: raw[i].error
+            });
+        }
+        return { gated: false, results: results };
+    }
+    function countSucceeded(results) {
+        var n = 0;
+        for (var i = 0; i < results.length; i++) {
+            if (results[i].ok)
+                n++;
+        }
+        return n;
+    }
+    function rpcCacheRefreshTick(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var req = {};
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (_pe) {
+            throw new Error(JSON.stringify({ code: 3, message: "invalid JSON payload" }));
+        }
+        var mode = (typeof req.mode === "string") ? req.mode.toLowerCase().trim() : "";
+        if (mode !== "cold_start" && mode !== "all" && mode !== "topic") {
+            throw new Error(JSON.stringify({ code: 3, message: "mode must be cold_start, all, or topic" }));
+        }
+        var topic = (typeof req.topic === "string") ? req.topic.toLowerCase().trim() : "";
+        if (mode === "topic" && !topic) {
+            throw new Error(JSON.stringify({ code: 3, message: "topic is required when mode=topic" }));
+        }
+        var env = ctx.env || {};
+        var started = nowMs();
+        var topicCount = mode === "cold_start" ? COLD_START_TOPICS.length : (mode === "topic" ? 1 : 0);
+        logger.info(formatLog("[tick_start]", {
+            event: "cache_refresh_tick_start",
+            mode: mode,
+            topic_count: topicCount,
+            topic: topic || "none"
+        }));
+        var results = [];
+        var gated = false;
+        if (mode === "cold_start") {
+            results = runModeColdStart(nk, logger, env);
+        }
+        else if (mode === "topic") {
+            results = runModeTopic(nk, logger, env, topic);
+        }
+        else {
+            var allRun = runModeAll(nk, logger, env);
+            gated = allRun.gated;
+            results = allRun.results;
+            if (gated) {
+                var elapsedGated = nowMs() - started;
+                logger.info(formatLog("[tick_done]", {
+                    event: "cache_refresh_tick_done",
+                    mode: mode,
+                    gated: true,
+                    succeeded: 0,
+                    failed: 0,
+                    elapsed_ms: elapsedGated
+                }));
+                return JSON.stringify({
+                    ok: true,
+                    skipped: true,
+                    mode: mode,
+                    reason: "within_full_refresh_gate",
+                    elapsed_ms: elapsedGated
+                });
+            }
+        }
+        var elapsedMs = nowMs() - started;
+        var succeeded = countSucceeded(results);
+        var failed = results.length - succeeded;
+        logger.info(formatLog("[tick_done]", {
+            event: "cache_refresh_tick_done",
+            mode: mode,
+            succeeded: succeeded,
+            failed: failed,
+            elapsed_ms: elapsedMs
+        }));
+        return JSON.stringify({
+            ok: true,
+            mode: mode,
+            results: results,
+            elapsed_ms: elapsedMs
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("quizverse_cache_refresh_tick", rpcCacheRefreshTick);
+    }
+    QvCacheRefreshCron.register = register;
+    /**
+     * InitModule boot hook: seed video_quiz catalog from the postbuild embed, then
+     * force-warm qv_cache_video_quiz. Safe to call on every deploy/restart.
+     */
+    function bootOnInit(nk, logger, env) {
+        try {
+            var seed = QvQuestionCache.ensureVideoQuizCatalogSeeded(nk, logger);
+            if (!seed.ok) {
+                logger.warn(formatLog("[boot_video_quiz]", {
+                    event: "video_quiz_catalog_seed_skipped",
+                    error: seed.error || "unknown"
+                }));
+                return;
+            }
+            var warm = QvQuestionCache.refreshCache(nk, logger, env, "video_quiz", true);
+            logger.info(formatLog("[boot_video_quiz]", {
+                event: "video_quiz_boot_complete",
+                seed_ok: seed.ok,
+                seed_skipped: !!seed.skipped,
+                version: seed.version || "none",
+                question_count: seed.question_count || 0,
+                cache_ok: warm.ok,
+                cache_count: warm.count,
+                cache_error: warm.error || "none"
+            }));
+        }
+        catch (err) {
+            logger.error(formatLog("[boot_video_quiz]", {
+                event: "video_quiz_boot_failed",
+                error: (err && err.message) ? err.message : String(err)
+            }));
+        }
+    }
+    QvCacheRefreshCron.bootOnInit = bootOnInit;
+    var _NOOP = { registerRpc: function () { } };
+    register(_NOOP);
+})(QvCacheRefreshCron || (QvCacheRefreshCron = {}));
 // QuizVerse — Context Resolver
 //
 // Provides a single resolveContext() helper that every QuizVerse RPC
@@ -8882,7 +9135,8 @@ var QuizVerseGenerator;
 //   qv_question_packs  user-owned    key={packId}  — full pack doc for scoring / review
 //
 // Request  → { topic, count?, lang?, game_id? }
-// Response → { ok, pack_id, topic, lang, lang_actual?, question_count, questions[], cache_expired }
+// Response → { ok, pack_id, topic, lang, lang_actual?, question_count, requested_count?,
+//              partial?, pool_size?, questions[], cache_expired }
 var QvGetQuestions;
 (function (QvGetQuestions) {
     // ── Storage collection names ───────────────────────────────────────────────
@@ -8894,12 +9148,14 @@ var QvGetQuestions;
     var COL_SEEN = "qv_seen";
     // ── Limits ─────────────────────────────────────────────────────────────────
     var RATE_WINDOW_MS = 60000; // 1-minute sliding window
-    var RATE_MAX = 5; // max requests per user per minute
+    var RATE_MAX_DEFAULT = 10000; // max requests per user per minute (override via QV_GET_QUESTIONS_RATE_MAX)
     var PACK_MAX = 3; // max concurrent active packs per user
     var INFLIGHT_TTL_MS = 1800000; // 30 minutes
+    var ABANDON_TTL_GETQUESTIONS_MS = 5 * 60 * 1000; // 5 min — purge unsubmitted packs per request
     var DEFAULT_COUNT = 10;
-    var MAX_COUNT = 20;
+    var MAX_COUNT = 100;
     var MIN_COUNT = 1;
+    var MAX_FULFILL_ATTEMPTS = 3;
     var SEEN_MAX = 500; // cap the seen-IDs array to keep storage lean
     var COL_READYQUEUE = "qv_readyqueue"; // pre-warmed per-user question pool
     var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — discard stale readyqueue entries
@@ -8912,7 +9168,20 @@ var QvGetQuestions;
         "guesspokemon": "pokemon",
         "guess_pokemon": "pokemon",
         "guessdog": "dog",
-        "guess_dog": "dog"
+        "guess_dog": "dog",
+        "flagquiz": "flags",
+        "newsquiz": "news",
+        "starwarsquiz": "starwars",
+        "disneyquiz": "disney",
+        "ghibli": "ghibli",
+        "iqrush": "iqrush",
+        "speedquiz": "speed_quiz",
+        "speed-quiz": "speed_quiz",
+        "truefalse": "true_false",
+        "true-false": "true_false",
+        "true_false_quiz": "true_false",
+        "videoquiz": "video_quiz",
+        "video-quiz": "video_quiz"
     };
     // ── Allowed game IDs (org2) ────────────────────────────────────────────────
     var ALLOWED_GAME_IDS = {
@@ -8955,6 +9224,120 @@ var QvGetQuestions;
             .replace(/^_|_$/g, "")
             .substring(0, 64);
     }
+    var CACHE_REFRESH_RETRY_SEC = 30;
+    var POOL_EXHAUSTED_RETRY_SEC = 30;
+    // Grafana/Loki-friendly log line: tag + flat key=value tokens (spaces → underscores in values).
+    function formatQvLog(tag, fields) {
+        var parts = [tag];
+        for (var fk in fields) {
+            if (!fields.hasOwnProperty(fk))
+                continue;
+            var fv = fields[fk];
+            if (typeof fv === "boolean") {
+                parts.push(fk + "=" + (fv ? "true" : "false"));
+            }
+            else if (typeof fv === "number") {
+                parts.push(fk + "=" + String(fv));
+            }
+            else {
+                parts.push(fk + "=" + String(fv).replace(/\s+/g, "_"));
+            }
+        }
+        return parts.join(" ");
+    }
+    function resolveRateMax(env) {
+        if (env && env["QV_GET_QUESTIONS_RATE_MAX"]) {
+            var parsed = parseInt(env["QV_GET_QUESTIONS_RATE_MAX"], 10);
+            if (!isNaN(parsed) && parsed >= 1)
+                return parsed;
+        }
+        return RATE_MAX_DEFAULT;
+    }
+    function topicProviderForLog(topic) {
+        var map = {
+            opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
+            cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
+            ghibli: "ghibli", disney: "disney", starwars: "swapi",
+            countries: "restcountries", flags: "restcountries",
+            space: "nasa", movies: "tmdb", sports: "sportsdb",
+            music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+            video_quiz: "catalog", ai: "claude"
+        };
+        return map[topic] || topic;
+    }
+    /**
+     * On cache miss: invoke refreshCache, always re-read, emit Grafana event= logs.
+     * Returns earlyReturn JSON when pool is still empty after refresh attempt.
+     */
+    function handleEmptyTopicCache(nk, logger, env, topic, traceId, coldStartApplied, userId) {
+        logger.warn(formatQvLog("[QvGetQ][GATE:cache_miss]", {
+            event: "cache_miss",
+            traceId: traceId,
+            topic: topic,
+            coldStart: coldStartApplied,
+            userId: userId,
+            rpc: "quizverse_get_questions"
+        }));
+        var t0 = nowMs();
+        var refreshResult = QvQuestionCache.refreshCache(nk, logger, env, topic);
+        var gated = refreshResult.ok && refreshResult.count === 0 && !refreshResult.error;
+        var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
+        var pool = cacheResult.questions;
+        var elapsedMs = nowMs() - t0;
+        var provider = topicProviderForLog(topic);
+        logger.info(formatQvLog("[QvGetQ][DEBUG:cache_refresh]", {
+            event: "cache_refresh",
+            traceId: traceId,
+            topic: topic,
+            ok: refreshResult.ok,
+            count: refreshResult.count,
+            gated: gated,
+            error: refreshResult.error || "none",
+            elapsed_ms: elapsedMs,
+            provider: provider
+        }));
+        if (pool.length > 0) {
+            logger.info(formatQvLog("[QvGetQ][GATE:cache_recovered]", {
+                event: "cache_recovered",
+                traceId: traceId,
+                topic: topic,
+                poolSize: pool.length,
+                elapsed_ms: elapsedMs
+            }));
+            return { pool: pool, cacheResult: cacheResult, earlyReturn: null };
+        }
+        var refreshErr = refreshResult.error || "none";
+        logger.warn(formatQvLog("[QvGetQ][GATE:cache_empty]", {
+            event: "cache_empty",
+            traceId: traceId,
+            topic: topic,
+            refresh_attempted: true,
+            refresh_error: refreshErr,
+            retry_after_seconds: CACHE_REFRESH_RETRY_SEC
+        }));
+        if (coldStartApplied) {
+            logger.error(formatQvLog("[QvGetQ][COLD_START_BLOCKED]", {
+                event: "cold_start_blocked",
+                traceId: traceId,
+                topic: topic,
+                error: refreshErr,
+                userId: userId
+            }));
+        }
+        return {
+            pool: [],
+            cacheResult: cacheResult,
+            earlyReturn: JSON.stringify({
+                ok: false,
+                error: "cache_empty",
+                topic: topic,
+                message: "No questions cached for this topic yet. Refresh was attempted — retry shortly.",
+                refresh_attempted: true,
+                refresh_error: refreshResult.error || null,
+                retry_after_seconds: CACHE_REFRESH_RETRY_SEC
+            })
+        };
+    }
     // Key format used by quizverse_seen.js: "global_{topic_slug}"
     function seenStorageKey(topic) {
         return slugify("global") + "_" + slugify(topic);
@@ -8963,8 +9346,8 @@ var QvGetQuestions;
     //
     // Sliding-window counter stored in qv_rate/{userId} (system-owned, no-read,
     // no-write from client).  Prunes timestamps older than RATE_WINDOW_MS,
-    // checks count ≤ RATE_MAX, then appends current timestamp and writes back.
-    function enforceRateLimit(nk, userId) {
+    // checks count ≤ rateMax, then appends current timestamp and writes back.
+    function enforceRateLimit(nk, userId, logger, logCtx, rateMax) {
         // User-owned storage (userId = actual user UUID) — system-owned (userId="")
         // is rejected by production Nakama JS runtime with "expects 'userId' value to be a valid id".
         var rows = nk.storageRead([{ collection: COL_RATE, key: "rl", userId: userId }]);
@@ -8976,9 +9359,17 @@ var QvGetQuestions;
             if (timestamps[i] > windowStart)
                 fresh.push(timestamps[i]);
         }
-        if (fresh.length >= RATE_MAX) {
+        if (fresh.length >= rateMax) {
             var retryInSec = Math.ceil((fresh[0] + RATE_WINDOW_MS - nowMs()) / 1000);
-            throw nakamaError("Rate limit exceeded: max " + RATE_MAX + " requests/min. Retry in " + retryInSec + "s.", 8 /* nkruntime.Codes.RESOURCE_EXHAUSTED */);
+            logger.warn(formatQvLog("[QvGetQ][GATE:rate_limited]", {
+                event: "rate_limited",
+                traceId: logCtx.traceId,
+                userId: userId,
+                topic: logCtx.topic,
+                window_count: fresh.length,
+                retry_in_sec: retryInSec
+            }));
+            throw nakamaError("Rate limit exceeded: max " + rateMax + " requests/min. Retry in " + retryInSec + "s.", 8 /* nkruntime.Codes.RESOURCE_EXHAUSTED */);
         }
         fresh.push(nowMs());
         nk.storageWrite([{
@@ -9094,6 +9485,15 @@ var QvGetQuestions;
         }
         return out;
     }
+    function filterToTextPool(pool) {
+        var out = [];
+        for (var ti = 0; ti < pool.length; ti++) {
+            var q = pool[ti];
+            if (!q || !q.has_media || !q.media || !q.media.url)
+                out.push(q);
+        }
+        return out;
+    }
     function filterAndPick(pool, seenIds, inflightIds, count) {
         // Build exclusion set
         var excluded = {};
@@ -9115,21 +9515,233 @@ var QvGetQuestions;
         }
         if (fresh.length >= count)
             return fresh.slice(0, count);
-        // --- Backfill from oldest-seen -------------------------------------------
+        // --- Backfill tiers until count or unique pool is consumed ---------------
         // Build a lookup of questions that ARE in the pool (some seen IDs may
         // have been evicted from the cache since they were first delivered).
         var poolById = {};
         for (var pb = 0; pb < pool.length; pb++)
             poolById[pool[pb].id] = pool[pb];
-        // Walk seenIds oldest-first; collect those still in pool
-        var backfill = [];
-        var needed = count - fresh.length;
-        for (var oi = 0; oi < seenIds.length && backfill.length < needed; oi++) {
-            var q = poolById[seenIds[oi]];
-            if (q)
-                backfill.push(q);
+        var pickedIds = {};
+        for (var pk = 0; pk < fresh.length; pk++) {
+            if (fresh[pk] && fresh[pk].id)
+                pickedIds[fresh[pk].id] = true;
         }
-        return fresh.concat(backfill);
+        // Tier 2: walk seenIds oldest-first; collect those still in pool, not picked
+        var tier2 = [];
+        var needed = count - fresh.length;
+        for (var oi = 0; oi < seenIds.length && tier2.length < needed; oi++) {
+            var sid = seenIds[oi];
+            if (pickedIds[sid])
+                continue;
+            var q2 = poolById[sid];
+            if (q2) {
+                tier2.push(q2);
+                pickedIds[sid] = true;
+            }
+        }
+        needed = count - fresh.length - tier2.length;
+        if (needed <= 0)
+            return fresh.concat(tier2).slice(0, count);
+        // Tier 3: any remaining pool question (covers inflight-reserved IDs)
+        var tier3 = [];
+        for (var ti = 0; ti < pool.length && tier3.length < needed; ti++) {
+            var pq = pool[ti];
+            if (!pq || !pq.id)
+                continue;
+            if (pickedIds[pq.id])
+                continue;
+            tier3.push(pq);
+            pickedIds[pq.id] = true;
+        }
+        return fresh.concat(tier2).concat(tier3).slice(0, count);
+    }
+    function collectInflightIdsForTopic(inflightPacks, topic) {
+        var ids = [];
+        for (var ip = 0; ip < inflightPacks.length; ip++) {
+            var pack = inflightPacks[ip];
+            if (pack.topic !== topic)
+                continue;
+            var qids = pack.question_ids;
+            if (Array.isArray(qids)) {
+                for (var qi = 0; qi < qids.length; qi++)
+                    ids.push(qids[qi]);
+            }
+        }
+        return ids;
+    }
+    function snapshotInflightStats(inflightPacks, topic) {
+        var total = 0;
+        var same = 0;
+        for (var i = 0; i < inflightPacks.length; i++) {
+            var qids = inflightPacks[i].question_ids;
+            if (!Array.isArray(qids))
+                continue;
+            total += qids.length;
+            if (inflightPacks[i].topic === topic)
+                same += qids.length;
+        }
+        return {
+            inflight_packs: inflightPacks.length,
+            inflight_ids_total: total,
+            inflight_ids_same_topic: same,
+            inflight_ids_other_topic: total - same
+        };
+    }
+    function countPickBreakdown(picked, seenIds) {
+        var seenSet = {};
+        for (var si = 0; si < seenIds.length; si++)
+            seenSet[seenIds[si]] = true;
+        var backfill = 0;
+        for (var pi = 0; pi < picked.length; pi++) {
+            if (seenSet[picked[pi].id])
+                backfill++;
+        }
+        return { freshCount: picked.length - backfill, backfillCount: backfill };
+    }
+    function rebuildLangPool(pool, lang, requireMedia, reqMediaType, excludeMedia) {
+        var langActual = lang;
+        var langPool = [];
+        if (lang !== "en") {
+            for (var lp = 0; lp < pool.length; lp++) {
+                if (pool[lp].lang === lang)
+                    langPool.push(pool[lp]);
+            }
+        }
+        if (langPool.length === 0) {
+            if (lang !== "en")
+                langActual = "en";
+            for (var ep = 0; ep < pool.length; ep++) {
+                if (!pool[ep].lang || pool[ep].lang === "en")
+                    langPool.push(pool[ep]);
+            }
+        }
+        if (langPool.length === 0)
+            langPool = pool;
+        if (requireMedia) {
+            var mediaPool = filterToMediaPool(langPool, reqMediaType);
+            if (mediaPool.length > 0)
+                langPool = mediaPool;
+        }
+        else if (excludeMedia) {
+            var textPool = filterToTextPool(langPool);
+            if (textPool.length > 0)
+                langPool = textPool;
+        }
+        return { langPool: langPool, langActual: langActual };
+    }
+    function evictUnsubmittedInflightForTopic(nk, logger, userId, topic) {
+        var deleted = 0;
+        try {
+            var result = nk.storageList(userId, COL_PACKS, 10, "");
+            if (!result || !Array.isArray(result.objects) || result.objects.length === 0)
+                return 0;
+            var toDelete = [];
+            for (var i = 0; i < result.objects.length; i++) {
+                var obj = result.objects[i];
+                if (!obj || !obj.value || !obj.key)
+                    continue;
+                var v = obj.value;
+                if (v.submitted === true)
+                    continue;
+                if (v.topic !== topic)
+                    continue;
+                toDelete.push({ collection: COL_PACKS, key: obj.key, userId: userId });
+                toDelete.push({ collection: COL_INFLT, key: obj.key, userId: userId });
+                deleted++;
+            }
+            if (toDelete.length > 0) {
+                nk.storageDelete(toDelete);
+                logger.info("[QvGetQ] self-heal evicted " + deleted + " unsubmitted packs topic=" + topic);
+            }
+        }
+        catch (_e) { /* non-fatal */ }
+        return deleted;
+    }
+    /**
+     * Retry picking until requestedCount is met or attempts are exhausted.
+     * Merges inflight eviction + forced cache refresh into one bounded loop.
+     */
+    function fulfillRequestedCount(nk, logger, env, userId, topic, lang, requireMedia, reqMediaType, excludeMedia, requestedCount, seenIds, inflightPacks, pool, langPool, langActual, cacheResult, picked, traceId) {
+        var cacheRefreshAttempted = false;
+        var inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
+        var fulfillAttempts = 0;
+        while (fulfillAttempts < MAX_FULFILL_ATTEMPTS && picked.length < requestedCount) {
+            fulfillAttempts++;
+            var poolBefore = pool.length;
+            var pickedBefore = picked.length;
+            var inflightEvicted = 0;
+            var refreshForced = false;
+            if (picked.length < requestedCount && inflightIds.length > 0) {
+                inflightEvicted = evictUnsubmittedInflightForTopic(nk, logger, userId, topic);
+                inflightPacks = listInflight(nk, userId);
+                inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
+                picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
+            }
+            if (picked.length < requestedCount) {
+                refreshForced = true;
+                cacheRefreshAttempted = true;
+                QvQuestionCache.refreshCache(nk, logger, env, topic, true);
+                cacheResult = QvQuestionCache.readCache(nk, logger, topic);
+                pool = cacheResult.questions;
+                var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType, excludeMedia);
+                langPool = rebuilt.langPool;
+                langActual = rebuilt.langActual;
+                picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
+            }
+            logger.info(formatQvLog("[QvGetQ][FULFILL:attempt]", {
+                event: "fulfill_attempt",
+                traceId: traceId,
+                topic: topic,
+                attempt: fulfillAttempts,
+                requested: requestedCount,
+                picked: picked.length,
+                pool_before: poolBefore,
+                pool_after: pool.length,
+                inflight_evicted: inflightEvicted,
+                refresh_forced: refreshForced
+            }));
+            if (picked.length >= requestedCount)
+                break;
+            if (pool.length <= poolBefore && picked.length <= pickedBefore)
+                break;
+        }
+        logger.info(formatQvLog("[QvGetQ][FULFILL:done]", {
+            event: "fulfill_done",
+            traceId: traceId,
+            topic: topic,
+            requested: requestedCount,
+            delivered: picked.length,
+            attempts_used: fulfillAttempts,
+            partial: picked.length < requestedCount,
+            served_from: "cache"
+        }));
+        return {
+            picked: picked,
+            pool: pool,
+            langPool: langPool,
+            langActual: langActual,
+            cacheResult: cacheResult,
+            inflightPacks: inflightPacks,
+            inflightIds: inflightIds,
+            cacheRefreshAttempted: cacheRefreshAttempted,
+            fulfillAttempts: fulfillAttempts
+        };
+    }
+    function determinePoolExhaustedReason(seenIds, inflightIds, langPool, count) {
+        if (langPool.length < count)
+            return "cache_thin";
+        if (inflightIds.length > 0 && seenIds.length === 0)
+            return "inflight_blocked";
+        return "all_seen";
+    }
+    function poolExhaustedMessage(reason) {
+        if (reason === "inflight_blocked") {
+            return "Questions reserved from a previous session. Retry shortly.";
+        }
+        if (reason === "cache_thin") {
+            return "Not enough questions cached yet. Retry shortly.";
+        }
+        return "All available questions for this topic have been seen. New questions are being fetched.";
     }
     // ── Opportunistic expired-pack cleanup (org5) ─────────────────────────────
     //
@@ -9155,6 +9767,74 @@ var QvGetQuestions;
                 nk.storageDelete(toDelete);
                 logger.info("[QvGetQ] cleaned " + toDelete.length + " expired packs for user=" + userId);
             }
+        }
+        catch (_e) { /* non-fatal */ }
+    }
+    // Shared delete path for unsubmitted packs — used by abandon RPC and opportunistic cleanup.
+    function deleteUnsubmittedPack(nk, userId, packId, logger) {
+        try {
+            var rows = nk.storageRead([{ collection: COL_PACKS, key: packId, userId: userId }]);
+            if (!rows || rows.length === 0 || !rows[0].value) {
+                return { deleted: false, reason: "not_found" };
+            }
+            var v = rows[0].value;
+            if (v.submitted === true) {
+                return { deleted: false, reason: "already_submitted" };
+            }
+            nk.storageDelete([
+                { collection: COL_PACKS, key: packId, userId: userId },
+                { collection: COL_INFLT, key: packId, userId: userId }
+            ]);
+            return { deleted: true };
+        }
+        catch (e) {
+            var errMsg = (e && e.message) ? e.message : String(e);
+            logger.warn("[QvAbandonPack] delete failed pack=" + packId + " err=" + errMsg);
+            return { deleted: false, reason: "error" };
+        }
+    }
+    // Deletes unsubmitted packs older than ABANDON_TTL_GETQUESTIONS_MS and their
+    // matching qv_inflight sentinels. Runs before listInflight so stale locks
+    // from abandoned ImageGuess sessions do not block the next request.
+    function cleanAbandonedPacksOpportunistic(nk, logger, userId, traceId) {
+        var t0 = nowMs();
+        var packsDeleted = 0;
+        try {
+            var result = nk.storageList(userId, COL_PACKS, 10, "");
+            if (!result || !Array.isArray(result.objects) || result.objects.length === 0) {
+                logger.info(formatQvLog("[QvGetQ][DEBUG:abandon_cleanup]", {
+                    event: "abandon_cleanup",
+                    traceId: traceId,
+                    userId: userId,
+                    packs_deleted: 0,
+                    inflight_deleted: 0,
+                    elapsed_ms: nowMs() - t0
+                }));
+                return;
+            }
+            var now = nowMs();
+            for (var i = 0; i < result.objects.length; i++) {
+                var obj = result.objects[i];
+                if (!obj || !obj.value || !obj.key)
+                    continue;
+                var v = obj.value;
+                var isAbandoned = v.submitted !== true &&
+                    typeof v.created_at_ms === "number" &&
+                    v.created_at_ms < now - ABANDON_TTL_GETQUESTIONS_MS;
+                if (isAbandoned) {
+                    var delResult = deleteUnsubmittedPack(nk, userId, obj.key, logger);
+                    if (delResult.deleted)
+                        packsDeleted++;
+                }
+            }
+            logger.info(formatQvLog("[QvGetQ][DEBUG:abandon_cleanup]", {
+                event: "abandon_cleanup",
+                traceId: traceId,
+                userId: userId,
+                packs_deleted: packsDeleted,
+                inflight_deleted: packsDeleted,
+                elapsed_ms: nowMs() - t0
+            }));
         }
         catch (_e) { /* non-fatal */ }
     }
@@ -9272,9 +9952,12 @@ var QvGetQuestions;
      *     topic:          string,
      *     lang:           string,      // requested lang
      *     lang_actual?:   string,      // only present when lang fell back to "en"
-     *     question_count: number,
-     *     questions:      Question[],  // pre-shuffled, A/B/C/D already assigned
-     *     cache_expired:  boolean      // hint: cache refresh may be due
+     *     question_count:  number,
+     *     requested_count: number,      // echo of input count
+     *     partial:         boolean,     // question_count < requested_count
+     *     pool_size:       number,      // cache pool size before pick
+     *     questions:       Question[],  // pre-shuffled, A/B/C/D already assigned
+     *     cache_expired:   boolean      // hint: cache refresh may be due
      *   }
      *
      * Output (soft error):
@@ -9316,10 +9999,13 @@ var QvGetQuestions;
         }
         var lang = (typeof req.lang === "string" && req.lang) ? req.lang.toLowerCase().trim() : "en";
         var requireMedia = req.has_media === true;
+        var excludeMedia = req.exclude_media === true;
         var reqMediaType = (typeof req.media_type === "string" && req.media_type)
             ? req.media_type.toLowerCase().trim() : "";
         if (!requireMedia && reqMediaType)
             requireMedia = true;
+        if (requireMedia)
+            excludeMedia = false;
         // ── game_id: validate against allowlist (org2) ─────────────────────────
         var rawGameId = (typeof req.game_id === "string" && req.game_id) ? req.game_id : "";
         var defaultGameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) ? ctx.env["DEFAULT_GAME_ID"] : "";
@@ -9352,16 +10038,17 @@ var QvGetQuestions;
         }
         // ── mode: "standard" | "personalized" (org3) ──────────────────────────
         var mode = (typeof req.mode === "string" && req.mode) ? req.mode : "standard";
+        var requestedTopic = topic;
+        var requestedCount = count;
         logger.info("[QvGetQ][REQ] traceId=" + traceId +
             " user=" + userId + " topic=" + topic +
             " count=" + count + " lang=" + lang + " gameId=" + gameId +
             " mode=" + mode + " country=" + countryCode);
         // ── 0a. Cold start protocol ─────────────────────────────────────────────
         //
-        // New players (total_sessions < 3) get a guided onboarding experience:
-        //   - Force topic to one of the universally-familiar starter topics
-        //     (anime → pokemon → movies, cycling by session number)
-        //   - Cap the pack at 5 easy questions so first sessions feel achievable
+        // New players (total_sessions < 3) get a guided onboarding experience when
+        // they request the session's guided topic (anime → pokemon → movies).
+        // Question count is honored; cold_start flag hints Unity to show onboarding UI.
         //
         // cold_start_done is set to true by submit_result after the 3rd session;
         // afterwards this block is a no-op (PlayerDNA.load returns cold_start_done=true).
@@ -9370,37 +10057,58 @@ var QvGetQuestions;
             var coldDna = PlayerDNA.load(nk, userId);
             var beh = coldDna.behavioral;
             if (!beh.cold_start_done && beh.total_sessions < 3) {
-                var COLD_TOPICS = ["anime", "pokemon", "movies"];
-                var forcedTopic = COLD_TOPICS[beh.total_sessions % COLD_TOPICS.length];
-                logger.info("[QvGetQ] cold-start user=" + userId +
-                    " sessions=" + beh.total_sessions +
-                    " overriding topic=" + topic + " → " + forcedTopic + " count=" + count + " → 5");
-                topic = forcedTopic;
-                count = 5;
-                coldStartApplied = true;
-                // Force standard mode so ready-queue / cache path is used (personalized path
-                // skips topic override and would call PlayerDNA again unnecessarily)
-                mode = "standard";
+                var forcedTopic = PlayerDNA.coldStartTopic(beh.total_sessions);
+                if (topic === forcedTopic) {
+                    coldStartApplied = true;
+                    mode = "standard";
+                    logger.info(formatQvLog("[QvGetQ][COLD_START:apply]", {
+                        event: "cold_start_apply",
+                        traceId: traceId,
+                        userId: userId,
+                        sessions: beh.total_sessions,
+                        requested_topic: requestedTopic,
+                        guided_topic: forcedTopic,
+                        requested_count: requestedCount,
+                        cold_start_done: beh.cold_start_done
+                    }));
+                }
+                else {
+                    logger.info(formatQvLog("[QvGetQ][COLD_START:skip]", {
+                        event: "cold_start_skip",
+                        traceId: traceId,
+                        userId: userId,
+                        sessions: beh.total_sessions,
+                        requested_topic: requestedTopic,
+                        guided_topic: forcedTopic,
+                        reason: "explicit_topic_mismatch",
+                        cold_start_done: beh.cold_start_done
+                    }));
+                }
             }
         }
         catch (_cse) { /* non-fatal: proceed with original topic */ }
-        // ── 0. Opportunistic expired-pack cleanup (org5) ────────────────────────
+        // ── 0. Opportunistic pack cleanup (org5) ────────────────────────────────
         cleanExpiredPacksOpportunistic(nk, logger, userId);
+        cleanAbandonedPacksOpportunistic(nk, logger, userId, traceId);
         // ── 1. Rate limit (Task 1b.1) ──────────────────────────────────────────
         logger.info("[QvGetQ][GATE:rate_check] traceId=" + traceId + " user=" + userId);
-        enforceRateLimit(nk, userId);
+        enforceRateLimit(nk, userId, logger, { traceId: traceId, topic: topic }, resolveRateMax(ctx.env));
         // ── 2. Pack limit — evict oldest if at cap (Task 1b.1) ─────────────────
         var inflightPacks = listInflight(nk, userId);
+        var inflightSnap = snapshotInflightStats(inflightPacks, topic);
+        logger.info(formatQvLog("[QvGetQ][DEBUG:inflight_snapshot]", {
+            event: "inflight_snapshot",
+            traceId: traceId,
+            userId: userId,
+            topic: topic,
+            inflight_packs: inflightSnap.inflight_packs,
+            inflight_ids_total: inflightSnap.inflight_ids_total,
+            inflight_ids_same_topic: inflightSnap.inflight_ids_same_topic,
+            inflight_ids_other_topic: inflightSnap.inflight_ids_other_topic
+        }));
         inflightPacks = enforcePacks(nk, logger, userId, inflightPacks);
-        // Collect all question IDs currently in any active session for this user
-        var inflightIds = [];
-        for (var ip = 0; ip < inflightPacks.length; ip++) {
-            var ids = inflightPacks[ip].question_ids;
-            if (Array.isArray(ids)) {
-                for (var qi = 0; qi < ids.length; qi++)
-                    inflightIds.push(ids[qi]);
-            }
-        }
+        // Collect question IDs reserved by active packs for this topic only
+        var inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
         // ── 3. Ready-queue fast path (prewarm hit) ─────────────────────────────
         //
         // Checks qv_readyqueue first — pre-filtered, per-user question pool
@@ -9446,6 +10154,8 @@ var QvGetQuestions;
                     mode: mode,
                     country_code: countryCode,
                     question_count: rqClientQs.length,
+                    requested_count: requestedCount,
+                    partial: rqClientQs.length < requestedCount,
                     questions: rqClientQs,
                     cache_expired: false,
                     served_from: "readyqueue"
@@ -9457,14 +10167,11 @@ var QvGetQuestions;
         var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
         var pool = cacheResult.questions;
         if (pool.length === 0) {
-            logger.warn("[QvGetQ][GATE:cache_empty] traceId=" + traceId + " topic=" + topic +
-                " cacheExpired=" + cacheResult.expired + " — pipeline may still be building");
-            return JSON.stringify({
-                ok: false,
-                error: "cache_empty",
-                topic: topic,
-                message: "No questions cached for this topic yet. The pipeline is building — retry in ~60s."
-            });
+            var emptyCache = handleEmptyTopicCache(nk, logger, ctx.env || {}, topic, traceId, coldStartApplied, userId);
+            pool = emptyCache.pool;
+            cacheResult = emptyCache.cacheResult;
+            if (emptyCache.earlyReturn)
+                return emptyCache.earlyReturn;
         }
         logger.info("[QvGetQ][GATE:cache_ok] traceId=" + traceId + " topic=" + topic +
             " poolSize=" + pool.length + " cacheExpired=" + cacheResult.expired);
@@ -9494,17 +10201,51 @@ var QvGetQuestions;
         // ── 4a. Media filter (ImageGuess / audio quiz modes) ────────────────────
         if (requireMedia) {
             var mediaPool = filterToMediaPool(langPool, reqMediaType);
+            if (mediaPool.length === 0 && langPool.length > 0) {
+                logger.warn(formatQvLog("[QvGetQ][GATE:stale_cache_media]", {
+                    event: "stale_cache_media_heal",
+                    traceId: traceId,
+                    topic: topic,
+                    langPool: langPool.length,
+                    media_type: reqMediaType || "any"
+                }));
+                QvQuestionCache.refreshCache(nk, logger, ctx.env || {}, topic, true);
+                cacheResult = QvQuestionCache.readCache(nk, logger, topic);
+                pool = cacheResult.questions;
+                var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType, excludeMedia);
+                langPool = rebuilt.langPool;
+                langActual = rebuilt.langActual;
+                mediaPool = filterToMediaPool(langPool, reqMediaType);
+                logger.info(formatQvLog("[QvGetQ][GATE:stale_cache_media_done]", {
+                    event: "stale_cache_media_heal_done",
+                    traceId: traceId,
+                    topic: topic,
+                    pool_after: pool.length,
+                    media_after: mediaPool.length
+                }));
+            }
             if (mediaPool.length === 0) {
-                logger.warn("[QvGetQ] no media questions topic=" + topic +
-                    " media_type=" + (reqMediaType || "any"));
+                logger.warn("[QvGetQ] no media questions topic=" + topic + " pool_size=" + pool.length +
+                    " langPool=" + langPool.length + " media_type=" + (reqMediaType || "any"));
                 return JSON.stringify({
                     ok: false,
                     error: "no_media_questions",
                     topic: topic,
-                    message: "No questions with media available for this topic."
+                    message: "No questions with media available for this topic.",
+                    pool_size: pool.length
                 });
             }
             langPool = mediaPool;
+        }
+        else if (excludeMedia) {
+            var textOnlyPool = filterToTextPool(langPool);
+            if (textOnlyPool.length > 0) {
+                langPool = textOnlyPool;
+            }
+            else if (langPool.length > 0) {
+                logger.warn("[QvGetQ] exclude_media but no text questions topic=" + topic +
+                    " langPool=" + langPool.length);
+            }
         }
         // ── 4b. Elo-range filter ────────────────────────────────────────────────
         //
@@ -9541,21 +10282,66 @@ var QvGetQuestions;
         }
         catch (_efe) { /* non-fatal */ }
         // ── 5. Read seen IDs + filter pool (Task 1b.2) ─────────────────────────
+        var poolSizeBeforePick = pool.length;
         var seenIds = readSeenIds(nk, userId, topic);
-        var picked = filterAndPick(langPool, seenIds, inflightIds, count);
+        var picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
+        var fulfillResult = fulfillRequestedCount(nk, logger, ctx.env || {}, userId, topic, lang, requireMedia, reqMediaType, excludeMedia, requestedCount, seenIds, inflightPacks, pool, langPool, langActual, cacheResult, picked, traceId);
+        picked = fulfillResult.picked;
+        pool = fulfillResult.pool;
+        langPool = fulfillResult.langPool;
+        langActual = fulfillResult.langActual;
+        cacheResult = fulfillResult.cacheResult;
+        inflightPacks = fulfillResult.inflightPacks;
+        inflightIds = fulfillResult.inflightIds;
+        var cacheRefreshAttempted = fulfillResult.cacheRefreshAttempted;
         if (picked.length === 0) {
-            logger.warn("[QvGetQ][GATE:pool_exhausted] traceId=" + traceId + " topic=" + topic +
-                " seen=" + seenIds.length + " langPool=" + langPool.length + " inflight=" + inflightIds.length);
+            var exhaustedReason = determinePoolExhaustedReason(seenIds, inflightIds, langPool, requestedCount);
+            var blockedQId = inflightIds.length > 0 ? inflightIds[0] : "";
+            logger.warn(formatQvLog("[QvGetQ][GATE:pool_exhausted]", {
+                event: "pool_exhausted",
+                traceId: traceId,
+                topic: topic,
+                reason: exhaustedReason,
+                seen: seenIds.length,
+                langPool: langPool.length,
+                inflight_same_topic: inflightIds.length,
+                blocked_q_id: blockedQId,
+                cache_refresh_attempted: cacheRefreshAttempted
+            }));
             return JSON.stringify({
                 ok: false,
                 error: "pool_exhausted",
+                reason: exhaustedReason,
                 topic: topic,
-                message: "All available questions for this topic have been seen. New questions are being fetched."
+                message: poolExhaustedMessage(exhaustedReason),
+                retry_after_seconds: POOL_EXHAUSTED_RETRY_SEC
             });
         }
-        logger.info("[QvGetQ][GATE:picked] traceId=" + traceId + " topic=" + topic +
-            " picked=" + picked.length + " from langPool=" + langPool.length +
-            " seen=" + seenIds.length + " inflightExcluded=" + inflightIds.length);
+        if (picked.length > 0 && picked.length < requestedCount) {
+            logger.warn(formatQvLog("[QvGetQ][FULFILL:exhausted]", {
+                event: "fulfill_exhausted",
+                traceId: traceId,
+                topic: topic,
+                requested: requestedCount,
+                delivered: picked.length,
+                pool_size: pool.length,
+                seen: seenIds.length,
+                inflight_same_topic: inflightIds.length
+            }));
+        }
+        var pickBreakdown = countPickBreakdown(picked, seenIds);
+        logger.info(formatQvLog("[QvGetQ][GATE:picked]", {
+            event: "picked",
+            traceId: traceId,
+            topic: topic,
+            picked: picked.length,
+            from_langPool: langPool.length,
+            seen: seenIds.length,
+            inflightExcluded: inflightIds.length,
+            fresh_count: pickBreakdown.freshCount,
+            backfill_count: pickBreakdown.backfillCount,
+            inflight_excluded_same_topic: inflightIds.length
+        }));
         // ── 5b. Personalized mix algorithm (org3) ──────────────────────────────
         //
         // When mode="personalized":
@@ -9644,7 +10430,10 @@ var QvGetQuestions;
         writePackStorage(nk, userId, packId, topic, lang, langActual, gameId, picked);
         logger.info("[QvGetQ][DONE] traceId=" + traceId +
             " pack=" + packId + " topic=" + topic +
-            " delivered=" + picked.length + "/" + count +
+            " requested_topic=" + requestedTopic +
+            " topic_mismatch=" + (topic !== requestedTopic ? "true" : "false") +
+            " delivered=" + picked.length + "/" + requestedCount +
+            " partial=" + (picked.length < requestedCount ? "true" : "false") +
             " pool=" + pool.length + " seen=" + seenIds.length +
             " inflight=" + inflightIds.length + " cache_expired=" + cacheResult.expired +
             " coldStart=" + coldStartApplied + " mode=" + mode);
@@ -9674,6 +10463,9 @@ var QvGetQuestions;
             mode: mode,
             country_code: countryCode,
             question_count: clientQs.length,
+            requested_count: requestedCount,
+            partial: clientQs.length < requestedCount,
+            pool_size: poolSizeBeforePick,
             questions: clientQs,
             cache_expired: cacheResult.expired // hint: client may show "refreshing…"
         };
@@ -9691,9 +10483,60 @@ var QvGetQuestions;
         catch (_pt) { /* non-fatal */ }
         return JSON.stringify(resp);
     }
+    /**
+     * quizverse_abandon_pack
+     *
+     * Immediately releases an unsubmitted question pack and its inflight sentinel.
+     * Idempotent — safe to call multiple times on the same pack_id.
+     *
+     * Input:  { pack_id: string } | { pack_ids: string[] }
+     * Output: { ok: true, abandoned: number, skipped: number, details: [...] }
+     */
+    function rpcAbandonPack(ctx, logger, nk, payload) {
+        var userId = ctx.userId || "";
+        if (!userId) {
+            throw nakamaError("authentication required", 16 /* nkruntime.Codes.UNAUTHENTICATED */);
+        }
+        var req = parseJson(payload);
+        var packIds = [];
+        if (req.pack_id) {
+            packIds.push(String(req.pack_id));
+        }
+        if (Array.isArray(req.pack_ids)) {
+            for (var pi = 0; pi < req.pack_ids.length; pi++) {
+                if (req.pack_ids[pi])
+                    packIds.push(String(req.pack_ids[pi]));
+            }
+        }
+        if (packIds.length === 0) {
+            throw nakamaError("pack_id or pack_ids required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
+        }
+        var abandoned = 0;
+        var skipped = 0;
+        var details = [];
+        for (var i = 0; i < packIds.length; i++) {
+            var packId = packIds[i];
+            var result = deleteUnsubmittedPack(nk, userId, packId, logger);
+            var reason = result.reason || (result.deleted ? "deleted" : "skipped");
+            details.push({ pack_id: packId, deleted: result.deleted, reason: reason });
+            logger.info(formatQvLog("[QvAbandonPack]", {
+                pack_id: packId,
+                abandoned: result.deleted ? 1 : 0,
+                reason: reason
+            }));
+            if (result.deleted) {
+                abandoned++;
+            }
+            else {
+                skipped++;
+            }
+        }
+        return JSON.stringify({ ok: true, abandoned: abandoned, skipped: skipped, details: details });
+    }
     // ── Registration ───────────────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("quizverse_get_questions", rpcGetQuestions);
+        initializer.registerRpc("quizverse_abandon_pack", rpcAbandonPack);
     }
     QvGetQuestions.register = register;
     // IIFE NOOP — required by postbuild.js to hoist __rpc_ assignments at
@@ -11575,8 +12418,8 @@ var QuizVerseMigration;
         cocktaildb: { name: "cocktaildb", method: "get", url: "https://www.thecocktaildb.com/api/json/v1/1/search.php?f=m", cacheTtlMs: 60 * 60 * 1000 },
         foodish: { name: "foodish", method: "get", url: "https://foodish-api.com/api/", cacheTtlMs: 5 * 60 * 1000 },
         nasa: { name: "nasa", method: "get", url: "https://images-api.nasa.gov/search?q={query}", cacheTtlMs: 60 * 60 * 1000 },
-        // restcountries v3.1 now REJECTS /all without an explicit ?fields= list (HTTP 400).
-        countries: { name: "countries", method: "get", url: "https://restcountries.com/v3.1/all?fields=name,flags,capital,region,subregion,population,cca2", cacheTtlMs: 24 * 60 * 60 * 1000 },
+        // RestCountries v5 — requires REST_COUNTRIES_API_KEY (Bearer auth, paginated list).
+        countries: { name: "countries", method: "get", url: "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100&offset=0", cacheTtlMs: 24 * 60 * 60 * 1000 },
         ghibli: { name: "ghibli", method: "get", url: "https://ghibliapi.vercel.app/films", cacheTtlMs: 24 * 60 * 60 * 1000 },
         disney: { name: "disney", method: "get", url: "https://api.disneyapi.dev/character", cacheTtlMs: 24 * 60 * 60 * 1000 },
         dog: { name: "dog", method: "get", url: "https://dog.ceo/api/breeds/image/random/50", cacheTtlMs: 60 * 60 * 1000 },
@@ -11608,6 +12451,44 @@ var QuizVerseMigration;
             paramStr = parts.join("&");
         }
         return provider + ":" + paramStr;
+    }
+    function fetchCountriesV5AllPages(nk, baseUrl, headers, logger) {
+        var allObjects = [];
+        var offset = 0;
+        var total = 0;
+        while (true) {
+            var pageUrl = baseUrl.replace(/offset=\d+/, "offset=" + offset);
+            if (pageUrl.indexOf("offset=") === -1)
+                pageUrl = pageUrl + (pageUrl.indexOf("?") === -1 ? "?" : "&") + "offset=" + offset;
+            var resp = nk.httpRequest(pageUrl, "get", headers, "");
+            if (resp.code < 200 || resp.code >= 300) {
+                throw new Error("upstream_http_" + resp.code);
+            }
+            var parsed;
+            try {
+                parsed = JSON.parse(resp.body);
+            }
+            catch (_) {
+                throw new Error("invalid_json");
+            }
+            if (parsed && parsed.success === false && parsed.errors) {
+                throw new Error("restcountries_v3_deprecated");
+            }
+            if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
+                throw new Error("unexpected_response_shape");
+            }
+            var meta = parsed.data.meta || {};
+            for (var i = 0; i < parsed.data.objects.length; i++)
+                allObjects.push(parsed.data.objects[i]);
+            total = meta.total || allObjects.length;
+            if (!meta.more)
+                break;
+            offset += 100;
+            if (offset > 1000)
+                break;
+        }
+        logger.info("[Migration/External] countries v5 fetched object_count=" + allObjects.length + " meta_total=" + total);
+        return { data: { objects: allObjects, meta: { total: total, count: allObjects.length, more: false } } };
     }
     function rpcFetchExternalQuiz(ctx, logger, nk, payload) {
         var userId = requireAuth(ctx);
@@ -11641,21 +12522,32 @@ var QuizVerseMigration;
         catch (_e) { }
         // Live fetch.
         var url = expandUrl(provider.url, req.params || {});
+        var headers = { "Accept": "application/json" };
+        if (provider.name === "countries") {
+            var rcKey = (ctx.env && ctx.env["REST_COUNTRIES_API_KEY"]) ? String(ctx.env["REST_COUNTRIES_API_KEY"]).trim() : "";
+            if (rcKey)
+                headers["Authorization"] = "Bearer " + rcKey;
+        }
         try {
-            var resp = nk.httpRequest(url, provider.method, { "Accept": "application/json" }, "");
-            if (resp.code < 200 || resp.code >= 300) {
-                logger.warn("[Migration/External] " + provider.name + " HTTP " + resp.code);
-                return JSON.stringify({
-                    ok: false, error: "upstream_http_" + resp.code,
-                    provider: provider.name, fallback_to_client: true
-                });
-            }
             var parsed;
-            try {
-                parsed = JSON.parse(resp.body);
+            if (provider.name === "countries") {
+                parsed = fetchCountriesV5AllPages(nk, url, headers, logger);
             }
-            catch (_) {
-                parsed = resp.body;
+            else {
+                var resp = nk.httpRequest(url, provider.method, headers, "");
+                if (resp.code < 200 || resp.code >= 300) {
+                    logger.warn("[Migration/External] " + provider.name + " HTTP " + resp.code);
+                    return JSON.stringify({
+                        ok: false, error: "upstream_http_" + resp.code,
+                        provider: provider.name, fallback_to_client: true
+                    });
+                }
+                try {
+                    parsed = JSON.parse(resp.body);
+                }
+                catch (_) {
+                    parsed = resp.body;
+                }
             }
             // Cache write (best-effort; permissionRead=2 = public so multi-user serves from one entry).
             try {
@@ -14054,9 +14946,10 @@ var QuizVerseProductMetrics;
 //             Catches providers that embed <br/>, <sup>, <em> etc. in content.
 //
 //   GATE 6 — duplicate question in pool
-//             Reject if normalized(question_text) already exists in seenTextSet.
-//             Prevents the same question from appearing twice in a topic's pool,
-//             e.g. when two providers both return "Who created Pikachu?".
+//             Reject if the question's copy key already exists in seenTextSet.
+//             Text questions: normalized(question_text).
+//             Media questions (has_media): provider_key, else media.url, else id.
+//             ImageGuess templates share one prompt; uniqueness is image + options.
 //
 // ── Usage pattern in question_cache.ts ───────────────────────────────────────
 //
@@ -14192,6 +15085,27 @@ var QvQualityGate;
     }
     QvQualityGate.normalizeForDedup = normalizeForDedup;
     /**
+     * Dedup key for GATE 6 and buildSeenTextSet.
+     * Media questions share template prompts — key on provider_key / media.url instead.
+     */
+    function questionDedupeKey(q) {
+        if (q && q.has_media === true) {
+            if (q.provider_key && typeof q.provider_key === "string") {
+                return normalizeForDedup("media_pk:" + q.provider_key);
+            }
+            if (q.media && q.media.url && typeof q.media.url === "string") {
+                return normalizeForDedup("media_url:" + q.media.url);
+            }
+            if (q.id && typeof q.id === "string") {
+                return normalizeForDedup("media_id:" + q.id);
+            }
+        }
+        var qText = (q && q.question_text && typeof q.question_text === "string")
+            ? q.question_text : "";
+        return normalizeForDedup(qText);
+    }
+    QvQualityGate.questionDedupeKey = questionDedupeKey;
+    /**
      * Decode HTML entities in question_text and every option text, in-place.
      * Also strips residual raw HTML tags and returns whether any stripping occurred.
      */
@@ -14247,8 +15161,8 @@ var QvQualityGate;
             return set;
         for (var i = 0; i < questions.length; i++) {
             var q = questions[i];
-            if (q && q.question_text) {
-                set[normalizeForDedup(q.question_text)] = true;
+            if (q) {
+                set[questionDedupeKey(q)] = true;
             }
         }
         return set;
@@ -14360,11 +15274,10 @@ var QvQualityGate;
         }
         // ══════════════════════════════════════════════════════════════════════
         // GATE 6 — duplicate question in pool
-        // Compare normalized question_text against the caller-supplied seen set.
-        // Catches cross-provider duplicates ("Who created Pikachu?" from two APIs).
+        // Text: normalized question_text. Media: provider_key / media.url / id.
         // ══════════════════════════════════════════════════════════════════════
-        var normalizedQ = normalizeForDedup(qText);
-        if (seenTextSet[normalizedQ]) {
+        var dedupeKey = questionDedupeKey(q);
+        if (seenTextSet[dedupeKey]) {
             return { valid: false, reject_reason: "duplicate_question_text" };
         }
         // ── All gates passed ──────────────────────────────────────────────────
@@ -14415,7 +15328,7 @@ var QvQualityGate;
                 continue;
             }
             // Gate passed: add to seen set to catch within-batch duplicates
-            seen[normalizeForDedup(q.question_text)] = true;
+            seen[questionDedupeKey(q)] = true;
             passed.push(q);
         }
         return {
@@ -14464,9 +15377,9 @@ var QvQualityGate;
 //
 // ── Providers ─────────────────────────────────────────────────────────────────
 //   No-auth (always available): OpenTDB, Jikan, PokeAPI, CocktailDB, MealDB,
-//     Dog CEO, Disney, Ghibli, SWAPI, RestCountries
-//   Key-gated (env var required): NASA, TMDB, TheSportsDB, Last.fm,
-//     GNews/Currents/MediaStack/NewsAPI
+//     Dog CEO, Disney, Ghibli, SWAPI
+//   Key-gated (env var required): RestCountries (v5), NASA, TMDB, TheSportsDB,
+//     Last.fm, GNews/Currents/MediaStack/NewsAPI
 //   S3-based (env S3_BASE_URL): daily, weekly
 //
 // ── postbuild note ────────────────────────────────────────────────────────────
@@ -14485,6 +15398,8 @@ var QvQuestionCache;
     // Per-topic cache TTL (ms)
     var TOPIC_TTL = {
         opentdb: 1 * 3600000,
+        speed_quiz: 1 * 3600000,
+        true_false: 1 * 3600000,
         movies: 2 * 3600000,
         music: 2 * 3600000,
         sports: 2 * 3600000,
@@ -14502,8 +15417,10 @@ var QvQuestionCache;
         flags: 7 * 24 * 3600000,
         daily: 24 * 3600000,
         weekly: 7 * 24 * 3600000,
+        video_quiz: 7 * 24 * 3600000,
         ai: 0 // never cached
     };
+    var COL_VIDEO_CATALOG = "qv_catalog_video_quiz";
     // ── Hardcoded fallback API keys ───────────────────────────────────────────
     //
     // These are the LAST-RESORT fallbacks used when a key is not present in
@@ -14527,6 +15444,8 @@ var QvQuestionCache;
     //   CURRENTS    → https://currentsapi.services/en/register  (1000/day)
     //   MEDIASTACK  → https://mediastack.com/signup/free  (500/month)
     //   NEWSAPI     → https://newsapi.org/register  (100/day)
+    //   GUARDIAN    → https://open-platform.theguardian.com/access/  (free dev key; "test" works)
+    //   SPACEFLIGHT → https://api.spaceflightnewsapi.net/v4/  (no key — open API, 100% images)
     //   NASA        → https://api.nasa.gov  (already defaults to DEMO_KEY)
     var FALLBACK_KEYS = {
         TMDB_API_KEY: "93ca6d6373e2584a56bfe144bee48280",
@@ -14535,7 +15454,8 @@ var QvQuestionCache;
         CURRENTS_API_KEY: "vJ7f8IPcf_vrhpwk2_-wqzVOpFCxHV26zMhKv4NPV_KiXb-r",
         MEDIASTACK_API_KEY: "ec6ef35b59624891e5604efb140adefb",
         NEWSAPI_API_KEY: "5cbc52d4e9e14df683ed965b04cbf6fb",
-        NASA_API_KEY: "DEMO_KEY" // safe public fallback (50 req/day)
+        GUARDIAN_API_KEY: "test", // Guardian developer tier — replace with production key when ready
+        NASA_API_KEY: "g2ofGlzt9YRi0pt2xHhLjCygLWdi6536mEGezmr9" // safe public fallback (50 req/day)
     };
     function envKey(env, key) {
         if (env && env[key] && String(env[key]).trim())
@@ -14625,12 +15545,13 @@ var QvQuestionCache;
     }
     function topicProvider(topic) {
         var map = {
-            opentdb: "opentdb", anime: "jikan", pokemon: "pokeapi",
+            opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
             cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
             ghibli: "ghibli", disney: "disney", starwars: "swapi",
             countries: "restcountries", flags: "restcountries",
             space: "nasa", movies: "tmdb", sports: "sportsdb",
-            music: "lastfm", news: "gnews", daily: "s3", weekly: "s3", ai: "claude"
+            music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+            video_quiz: "catalog", ai: "claude"
         };
         return map[topic] || topic;
     }
@@ -14736,7 +15657,10 @@ var QvQuestionCache;
         var bridge = {
             question_text: raw.question_text,
             options: bridgeOpts,
-            correct_option_ids: correctIds
+            correct_option_ids: correctIds,
+            has_media: raw.has_media,
+            provider_key: raw.provider_key,
+            media: raw.media
         };
         // Run gate (mutates bridge.question_text and bridge.options[].text)
         var result = QvQualityGate.validateQuestion(bridge, seenSet);
@@ -14841,16 +15765,19 @@ var QvQuestionCache;
     // Quality gate + shuffle happen in refreshCache().
     // ══════════════════════════════════════════════════════════════════════════
     // ── 1. OpenTDB ────────────────────────────────────────────────────────────
-    function fetchOpentdb(nk, logger) {
+    function fetchOpenTdbCategory(nk, logger, categoryId, amount, topicSlug, subtopic) {
         var results = [];
         // url3986 encoding — decode with decodeURIComponent
-        var data = httpGet(nk, "https://opentdb.com/api.php?amount=50&encode=url3986&type=multiple");
+        var url = "https://opentdb.com/api.php?amount=" + amount + "&category=" + categoryId + "&type=multiple";
+        var data = httpGet(nk, url);
         if (!data || !Array.isArray(data.results) || data.response_code !== 0) {
-            throw new Error("OpenTDB response_code=" + (data && data.response_code));
+            throw new Error("OpenTDB response_code=" + (data && data.response_code) + " category=" + categoryId);
         }
         for (var i = 0; i < data.results.length; i++) {
             var item = data.results[i];
             try {
+                if (item.type !== "multiple")
+                    continue;
                 var qText = decodeURIComponent(item.question || "");
                 var correct = decodeURIComponent(item.correct_answer || "");
                 var wrongs = [];
@@ -14867,24 +15794,152 @@ var QvQuestionCache;
                 for (var wi = 0; wi < wrongs.length; wi++)
                     opts.push({ text: wrongs[wi], is_correct: false });
                 var diff = item.difficulty === "hard" ? "hard" : item.difficulty === "easy" ? "easy" : "medium";
+                var meta = {};
+                if (subtopic)
+                    meta.subtopic = subtopic;
                 results.push({
                     provider_key: djb2(qText),
-                    topic: "opentdb",
+                    topic: topicSlug,
                     lang: "en",
                     question_text: qText,
-                    question_type: item.type === "boolean" ? "true_false" : "single_select",
+                    question_type: "single_select",
                     raw_options: opts,
                     has_media: false,
                     media: null,
                     explanation: decodeURIComponent(item.category || ""),
                     difficulty: diff,
                     provider: "opentdb",
-                    meta: {}
+                    meta: meta
                 });
             }
             catch (e) {
-                logger.debug("[QvQCache/opentdb] skip[" + i + "]: " + (e && e.message));
+                logger.debug("[QvQCache/opentdb] skip[" + i + "] cat=" + categoryId + ": " + (e && e.message));
             }
+        }
+        return results;
+    }
+    function fetchOpenTdbBoolean(nk, logger, categoryId, amount, topicSlug, subtopic) {
+        var results = [];
+        var url = "https://opentdb.com/api.php?amount=" + amount + "&category=" + categoryId + "&type=boolean";
+        var data = httpGet(nk, url);
+        if (!data || !Array.isArray(data.results) || data.response_code !== 0) {
+            throw new Error("OpenTDB boolean response_code=" + (data && data.response_code) + " category=" + categoryId);
+        }
+        for (var i = 0; i < data.results.length; i++) {
+            var item = data.results[i];
+            try {
+                if (item.type !== "boolean")
+                    continue;
+                var qText = decodeURIComponent(item.question || "");
+                var correct = decodeURIComponent(item.correct_answer || "");
+                var wrong = "";
+                if (Array.isArray(item.incorrect_answers) && item.incorrect_answers.length > 0) {
+                    wrong = decodeURIComponent(item.incorrect_answers[0] || "");
+                }
+                if (!qText || !correct || !wrong)
+                    continue;
+                var opts = [
+                    { text: correct, is_correct: true },
+                    { text: wrong, is_correct: false }
+                ];
+                var diff = item.difficulty === "hard" ? "hard" : item.difficulty === "easy" ? "easy" : "medium";
+                var meta = {};
+                if (subtopic)
+                    meta.subtopic = subtopic;
+                results.push({
+                    provider_key: djb2(qText),
+                    topic: topicSlug,
+                    lang: "en",
+                    question_text: qText,
+                    question_type: "true_false",
+                    raw_options: opts,
+                    has_media: false,
+                    media: null,
+                    explanation: decodeURIComponent(item.category || ""),
+                    difficulty: diff,
+                    provider: "opentdb",
+                    meta: meta
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/opentdb-boolean] skip[" + i + "] cat=" + categoryId + ": " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    function fetchGeoQuiz(nk, logger) {
+        return fetchOpenTdbCategory(nk, logger, 22, 50, "opentdb", "");
+    }
+    var SPEED_QUIZ_CATEGORY_POOL = [
+        { id: 17, key: "science_nature", label: "Science & Nature" },
+        { id: 18, key: "science_computers", label: "Science: Computers" },
+        { id: 19, key: "science_mathematics", label: "Science: Mathematics" },
+        { id: 20, key: "mythology", label: "Mythology" },
+        { id: 15, key: "video_games", label: "Video Games" },
+        { id: 27, key: "animals", label: "Animals" },
+        { id: 9, key: "general_knowledge", label: "General Knowledge" }
+    ];
+    function fetchSpeedQuiz(nk, logger) {
+        var picked = pick(SPEED_QUIZ_CATEGORY_POOL, 3);
+        var perCat = Math.ceil(50 / picked.length);
+        var results = [];
+        var pickedIds = [];
+        var pickedKeys = [];
+        for (var p = 0; p < picked.length; p++) {
+            var cat = picked[p];
+            pickedIds.push(cat.id);
+            pickedKeys.push(cat.key);
+            try {
+                var batch = fetchOpenTdbCategory(nk, logger, cat.id, perCat, "speed_quiz", cat.key);
+                for (var b = 0; b < batch.length; b++)
+                    results.push(batch[b]);
+            }
+            catch (e) {
+                logger.warn("[QvQCache/speed_quiz] category " + cat.id + " failed: " + (e && e.message));
+            }
+        }
+        logger.info("[QvQCache/speed_quiz] event=speed_quiz_fetch categories=" + pickedIds.join(",") +
+            " keys=" + pickedKeys.join(",") + " per_cat=" + perCat + " count=" + results.length);
+        if (results.length === 0) {
+            throw new Error("speed_quiz: all OpenTDB category fetches failed or returned 0 questions");
+        }
+        return results;
+    }
+    var TRUE_FALSE_CATEGORY_POOL = [
+        { id: 23, key: "history", label: "History" },
+        { id: 9, key: "general_knowledge", label: "General Knowledge" },
+        { id: 17, key: "science_nature", label: "Science & Nature" },
+        { id: 21, key: "sports", label: "Sports" },
+        { id: 22, key: "geography", label: "Geography" },
+        { id: 27, key: "animals", label: "Animals" },
+        { id: 10, key: "books", label: "Books" },
+        { id: 11, key: "film", label: "Film" },
+        { id: 12, key: "music", label: "Music" },
+        { id: 14, key: "television", label: "Television" }
+    ];
+    function fetchTrueFalseQuiz(nk, logger) {
+        var picked = pick(TRUE_FALSE_CATEGORY_POOL, 3);
+        var perCat = Math.ceil(50 / picked.length);
+        var results = [];
+        var pickedIds = [];
+        var pickedKeys = [];
+        for (var p = 0; p < picked.length; p++) {
+            var cat = picked[p];
+            pickedIds.push(cat.id);
+            pickedKeys.push(cat.key);
+            try {
+                var batch = fetchOpenTdbBoolean(nk, logger, cat.id, perCat, "true_false", cat.key);
+                for (var b = 0; b < batch.length; b++)
+                    results.push(batch[b]);
+            }
+            catch (e) {
+                logger.warn("[QvQCache/true_false] category " + cat.id + " failed: " + (e && e.message));
+            }
+        }
+        logger.info("[QvQCache/true_false] event=true_false_fetch categories=" + pickedIds.join(",") +
+            " keys=" + pickedKeys.join(",") + " per_cat=" + perCat + " count=" + results.length);
+        if (results.length === 0) {
+            throw new Error("true_false: all OpenTDB boolean category fetches failed or returned 0 questions");
         }
         return results;
     }
@@ -15005,7 +16060,7 @@ var QvQuestionCache;
         var listData = httpGet(nk, "https://pokeapi.co/api/v2/pokemon?limit=151&offset=0");
         if (!listData || !Array.isArray(listData.results))
             throw new Error("PokeAPI: no list");
-        var sample = pick(listData.results, 12); // 12 fetches to stay fast
+        var sample = pick(listData.results, 40);
         for (var pi = 0; pi < sample.length; pi++) {
             try {
                 var detail = httpGet(nk, sample[pi].url);
@@ -15052,7 +16107,7 @@ var QvQuestionCache;
     function fetchCocktaildb(nk, logger) {
         var results = [];
         var seen = {};
-        for (var ci = 0; ci < 20; ci++) {
+        for (var ci = 0; ci < 40; ci++) {
             try {
                 var data = httpGet(nk, "https://www.thecocktaildb.com/api/json/v1/1/random.php");
                 if (!data || !data.drinks || !data.drinks[0])
@@ -15096,7 +16151,7 @@ var QvQuestionCache;
     function fetchMealdb(nk, logger) {
         var results = [];
         var seen2 = {};
-        for (var mi = 0; mi < 20; mi++) {
+        for (var mi = 0; mi < 40; mi++) {
             try {
                 var data2 = httpGet(nk, "https://www.themealdb.com/api/json/v1/1/random.php");
                 if (!data2 || !data2.meals || !data2.meals[0])
@@ -15136,7 +16191,7 @@ var QvQuestionCache;
         return results;
     }
     // ── 6. Dog CEO ────────────────────────────────────────────────────────────
-    function fetchDogceo(nk, logger) {
+    function fetchDogceo(nk, env, logger) {
         var results = [];
         var breedsData = httpGet(nk, "https://dog.ceo/api/breeds/list/all");
         if (!breedsData || !breedsData.message)
@@ -15155,20 +16210,32 @@ var QvQuestionCache;
                 allBreeds.push(breed);
             }
         }
-        var selected = pick(allBreeds, 10);
+        var breedSample = 40;
+        if (env && env["QV_DOGCEO_BREED_SAMPLE"]) {
+            var parsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 40);
+            if (!isNaN(parsed) && parsed > 0)
+                breedSample = parsed;
+        }
+        var selected = pick(allBreeds, breedSample);
         for (var bi = 0; bi < selected.length; bi++) {
             var breedName = selected[bi];
             try {
                 var parts = breedName.indexOf(" ") !== -1 ? breedName.split(" ") : [breedName];
                 var breedKey = parts.length >= 2 ? parts[1] + "/" + parts[0] : parts[0];
                 var imgData = httpGet(nk, "https://dog.ceo/api/breed/" + breedKey + "/images/random");
-                if (!imgData || !imgData.message)
+                if (!imgData || !imgData.message) {
+                    logger.info("[QvQCache/dogceo] event=dogceo_breed_skip breed=" +
+                        breedName.replace(/\s+/g, "_") + " reason=no_image");
                     continue;
+                }
                 var exSet3 = {};
                 exSet3[breedName] = true;
                 var wb = pickExcluding(allBreeds, exSet3, 3);
-                if (wb.length < 3)
+                if (wb.length < 3) {
+                    logger.info("[QvQCache/dogceo] event=dogceo_breed_skip breed=" +
+                        breedName.replace(/\s+/g, "_") + " reason=insufficient_wrong_options");
                     continue;
+                }
                 var dOpts = [{ text: capitalize(breedName), is_correct: true }];
                 for (var wbi = 0; wbi < wb.length; wbi++)
                     dOpts.push({ text: capitalize(wb[wbi]), is_correct: false });
@@ -15186,7 +16253,9 @@ var QvQuestionCache;
                 });
             }
             catch (e) {
-                logger.debug("[QvQCache/dogceo] skip " + breedName + ": " + (e && e.message));
+                var skipReason = e && e.message ? String(e.message).replace(/\s+/g, "_") : "unknown";
+                logger.info("[QvQCache/dogceo] event=dogceo_breed_skip breed=" +
+                    breedName.replace(/\s+/g, "_") + " reason=" + skipReason);
             }
         }
         return results;
@@ -15197,52 +16266,66 @@ var QvQuestionCache;
         var data3 = httpGet(nk, "https://ghibliapi.vercel.app/films");
         if (!Array.isArray(data3))
             throw new Error("Ghibli API: no array");
-        var directorPool = [];
+        var titlePool = [];
         for (var gx2 = 0; gx2 < data3.length; gx2++) {
-            if (data3[gx2].director)
-                directorPool.push(data3[gx2].director);
+            if (data3[gx2].title)
+                titlePool.push(data3[gx2].title);
         }
-        var extraDirs = ["Akira Kurosawa", "Satoshi Kon", "Mamoru Hosoda", "Makoto Shinkai",
-            "Hideaki Anno", "Katsuhiro Otomo", "Yoshiyuki Tomino"];
-        var fullDirPool = directorPool.concat(extraDirs);
+        var withImage = 0;
+        var skipped = 0;
         for (var gi4 = 0; gi4 < data3.length; gi4++) {
             var film = data3[gi4];
             try {
-                var ftitle = film.title || "Unknown";
+                var ftitle = film.title || null;
+                var filmImage = film.movie_banner || null;
                 var fdirector = film.director || null;
                 var fyear = film.release_date || null;
-                if (!fdirector)
+                if (!ftitle || !filmImage) {
+                    skipped++;
                     continue;
-                var exDir = {};
-                exDir[fdirector] = true;
-                var wd = pickExcluding(fullDirPool, exDir, 3);
-                if (wd.length < 3)
+                }
+                withImage++;
+                var exTitle = {};
+                exTitle[ftitle] = true;
+                var wt = pickExcluding(titlePool, exTitle, 3);
+                if (wt.length < 3) {
+                    skipped++;
                     continue;
-                var gOpts2 = [{ text: fdirector, is_correct: true }];
-                for (var wdi = 0; wdi < wd.length; wdi++)
-                    gOpts2.push({ text: wd[wdi], is_correct: false });
+                }
+                var gOpts2 = [{ text: ftitle, is_correct: true }];
+                for (var wti = 0; wti < wt.length; wti++)
+                    gOpts2.push({ text: wt[wti], is_correct: false });
                 results.push({
-                    provider_key: "ghibli_dir_" + djb2(ftitle),
+                    provider_key: "ghibli_poster_" + (film.id || djb2(ftitle)),
                     topic: "ghibli", lang: "en",
-                    question_text: "Who directed the Studio Ghibli film \"" + ftitle + "\"?",
+                    question_text: "Which Studio Ghibli film is this?",
                     question_type: "single_select",
                     raw_options: gOpts2,
-                    has_media: false, media: null,
-                    explanation: "\"" + ftitle + "\" (" + (fyear || "?") + ") was directed by " + fdirector + " and produced by Studio Ghibli.",
+                    has_media: true,
+                    media: { type: "image", url: filmImage, thumbnail_url: filmImage, duration_seconds: null, mime_type: "image/jpeg" },
+                    explanation: "\"" + ftitle + "\" (" + (fyear || "?") + ") — directed by " + (fdirector || "unknown") + ".",
                     difficulty: "medium", provider: "ghibli",
                     meta: { title: ftitle, director: fdirector, year: fyear }
                 });
             }
             catch (e) {
+                skipped++;
                 logger.debug("[QvQCache/ghibli] skip: " + (e && e.message));
             }
         }
+        logger.info("[QvQCache/ghibli] event=ghibli_fetch_summary total_films=" + data3.length +
+            " with_image=" + withImage + " skipped=" + skipped + " emitted=" + results.length);
         return results;
+    }
+    function getRandomInt(min, max) {
+        // Use Math.floor to round down to the nearest whole number
+        return Math.floor(Math.random() * (max - min + 1)) + min;
     }
     // ── 8. Disney API ─────────────────────────────────────────────────────────
     function fetchDisney(nk, logger) {
         var results = [];
-        var data4 = httpGet(nk, "https://api.disneyapi.dev/character?pageSize=50&page=1");
+        // Random offset for Disney API pagination
+        var data4 = httpGet(nk, "https://api.disneyapi.dev/character?pageSize=50&page=" + getRandomInt(1, 50));
         if (!data4 || !Array.isArray(data4.data))
             throw new Error("Disney API: no data");
         var chars = data4.data;
@@ -15359,33 +16442,128 @@ var QvQuestionCache;
         }
         return results;
     }
-    // ── 10. RestCountries (Countries + Flags) ─────────────────────────────────
-    function fetchRestcountries(nk, logger) {
+    // ── 10. RestCountries v5 (Countries + Flags) — key-gated ─────────────────
+    function rcV5Str(obj, flatKey, nestedKeys) {
+        if (obj && obj[flatKey] !== undefined && obj[flatKey] !== null)
+            return String(obj[flatKey]);
+        var cur = obj;
+        for (var ni = 0; ni < nestedKeys.length; ni++) {
+            if (!cur)
+                return "";
+            cur = cur[nestedKeys[ni]];
+        }
+        return cur ? String(cur) : "";
+    }
+    function rcV5CommonName(country) {
+        return rcV5Str(country, "names.common", ["names", "common"]);
+    }
+    function rcV5Capital(country) {
+        if (country && country["capitals.name"])
+            return String(country["capitals.name"]);
+        if (country && country.capitals && country.capitals.length > 0) {
+            var cap = country.capitals[0];
+            if (typeof cap === "string")
+                return cap;
+            if (cap && cap.name)
+                return String(cap.name);
+        }
+        return "";
+    }
+    function rcV5Alpha2(country) {
+        return rcV5Str(country, "codes.alpha_2", ["codes", "alpha_2"]);
+    }
+    function rcV5Region(country) {
+        var region = rcV5Str(country, "region", ["region"]);
+        return region || "Unknown";
+    }
+    function rcV5FlagPng(country, alpha2) {
+        var url = rcV5Str(country, "flag.url_png", ["flag", "url_png"]);
+        if (url)
+            return url;
+        if (alpha2)
+            return "https://flags.restcountries.com/v5/w320/" + alpha2.toLowerCase() + ".png";
+        return null;
+    }
+    function fetchRestcountries(nk, env, logger, topic) {
         var results = [];
-        var data6 = httpGet(nk, "https://restcountries.com/v3.1/all?fields=name,capital,region,flags,population");
-        if (!Array.isArray(data6))
-            throw new Error("RestCountries: no array");
+        var apiKey = envKey(env, "REST_COUNTRIES_API_KEY");
+        var keyPresent = !!apiKey;
+        logger.info("[QvQCache/restcountries] event=provider_v5_fetch_start topic=" + topic +
+            " key_present=" + (keyPresent ? "true" : "false") +
+            " host=api.restcountries.com limit=100 paginated=true");
+        if (!apiKey)
+            throw new Error("missing_api_key");
+        var authHeaders = { "Authorization": "Bearer " + apiKey };
+        var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
+        var objects = [];
+        var offset = 0;
+        var pagesFetched = 0;
+        while (true) {
+            var pageUrl = baseUrl + "&offset=" + offset;
+            var parsed;
+            try {
+                parsed = httpGet(nk, pageUrl, authHeaders);
+            }
+            catch (he) {
+                var hmsg = he && he.message ? he.message : String(he);
+                if (hmsg.indexOf("HTTP 401") !== -1)
+                    throw new Error("http_401");
+                if (hmsg.indexOf("HTTP 403") !== -1)
+                    throw new Error("http_403");
+                throw he;
+            }
+            if (parsed && parsed.success === false && parsed.errors) {
+                throw new Error("restcountries_v3_deprecated");
+            }
+            if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
+                throw new Error("unexpected_response_shape");
+            }
+            var pageObjects = parsed.data.objects;
+            var meta = parsed.data.meta || {};
+            pagesFetched++;
+            logger.info("[QvQCache/restcountries] event=provider_v5_page_done topic=" + topic +
+                " offset=" + offset +
+                " page_count=" + pageObjects.length +
+                " meta_total=" + (meta.total ? meta.total : 0) +
+                " meta_more=" + (meta.more ? "true" : "false"));
+            for (var pi = 0; pi < pageObjects.length; pi++)
+                objects.push(pageObjects[pi]);
+            if (!meta.more)
+                break;
+            offset += 100;
+            if (offset > 1000)
+                break;
+        }
+        logger.info("[QvQCache/restcountries] event=provider_v5_fetch_done topic=" + topic +
+            " object_count=" + objects.length +
+            " pages_fetched=" + pagesFetched);
+        if (objects.length === 0)
+            throw new Error("provider_returned_zero");
         var withCap = [];
-        for (var rc = 0; rc < data6.length; rc++) {
-            if (data6[rc].capital && data6[rc].capital.length > 0 && data6[rc].name && data6[rc].name.common) {
-                withCap.push(data6[rc]);
+        for (var rc = 0; rc < objects.length; rc++) {
+            if (rcV5CommonName(objects[rc]) && rcV5Capital(objects[rc])) {
+                withCap.push(objects[rc]);
             }
         }
         var allCaps = [];
         var allCNames = [];
         for (var rc2 = 0; rc2 < withCap.length; rc2++) {
-            if (withCap[rc2].capital[0])
-                allCaps.push(withCap[rc2].capital[0]);
-            allCNames.push(withCap[rc2].name.common);
+            var capName = rcV5Capital(withCap[rc2]);
+            if (capName)
+                allCaps.push(capName);
+            allCNames.push(rcV5CommonName(withCap[rc2]));
         }
+        var flagRawCount = 0;
+        var capRawCount = 0;
         var sample2 = pick(withCap, 40);
         for (var ci3 = 0; ci3 < sample2.length; ci3++) {
             var country = sample2[ci3];
             try {
-                var cname2 = country.name.common;
-                var capital = country.capital[0];
-                var region = country.region || "Unknown";
-                var flagPng = (country.flags && country.flags.png) ? country.flags.png : null;
+                var cname2 = rcV5CommonName(country);
+                var capital = rcV5Capital(country);
+                var region = rcV5Region(country);
+                var alpha2 = rcV5Alpha2(country);
+                var flagPng = rcV5FlagPng(country, alpha2);
                 // Capital question
                 var exCap = {};
                 exCap[capital] = true;
@@ -15406,6 +16584,7 @@ var QvQuestionCache;
                         difficulty: "medium", provider: "restcountries",
                         meta: { name: cname2, capital: capital, region: region }
                     });
+                    capRawCount++;
                 }
                 // Flag question (topic = "flags")
                 if (flagPng) {
@@ -15428,20 +16607,25 @@ var QvQuestionCache;
                             difficulty: "medium", provider: "restcountries",
                             meta: { name: cname2, capital: capital, region: region }
                         });
+                        flagRawCount++;
                     }
                 }
             }
             catch (e) {
-                logger.debug("[QvQCache/restcountries] skip " + (country && country.name && country.name.common) + ": " + (e && e.message));
+                logger.debug("[QvQCache/restcountries] skip " + rcV5CommonName(country) + ": " + (e && e.message));
             }
         }
+        logger.info("[QvQCache/restcountries] event=provider_v5_raw_built topic=" + topic +
+            " countries_sampled=" + sample2.length +
+            " raw_flags=" + flagRawCount +
+            " raw_countries=" + capRawCount);
         return results;
     }
     // ── 11. NASA APOD (Space) — key-gated; falls back to DEMO_KEY ─────────────
     function fetchNasa(nk, env, logger) {
         var results = [];
         var apiKey = envKey(env, "NASA_API_KEY") || "DEMO_KEY";
-        var data7 = httpGet(nk, "https://api.nasa.gov/planetary/apod?api_key=" + apiKey + "&count=20&thumbs=true");
+        var data7 = httpGet(nk, "https://api.nasa.gov/planetary/apod?api_key=" + apiKey + "&count=50&thumbs=true");
         if (!Array.isArray(data7))
             throw new Error("NASA APOD: expected array");
         for (var ni = 0; ni < data7.length; ni++) {
@@ -15539,6 +16723,9 @@ var QvQuestionCache;
             { id: "4424", name: "NFL" },
             { id: "4346", name: "NHL" }
         ];
+        var totalTeams = 0;
+        var withBadge = 0;
+        var skipped = 0;
         for (var li = 0; li < leagues.length; li++) {
             var league = leagues[li];
             try {
@@ -15546,42 +16733,48 @@ var QvQuestionCache;
                 if (!sdata || !Array.isArray(sdata.teams))
                     continue;
                 var teams = sdata.teams.slice(0, 20);
-                var stadiums = [];
+                var teamPool = [];
                 for (var sx = 0; sx < teams.length; sx++) {
-                    if (teams[sx].strStadium)
-                        stadiums.push(teams[sx].strStadium);
+                    if (teams[sx].strTeam)
+                        teamPool.push(teams[sx].strTeam);
                 }
                 for (var ti2 = 0; ti2 < teams.length; ti2++) {
                     var team = teams[ti2];
+                    totalTeams++;
                     try {
-                        var tname = team.strTeam || "Unknown";
-                        var stadium = team.strStadium || null;
-                        var tbadge = team.strTeamBadge || null;
+                        var tname = team.strTeam || null;
+                        var tbadge = team.strFanart1 || team.strBadge || null;
                         var tfounded = team.intFormedYear || null;
-                        if (!stadium)
+                        if (!tname || !tbadge) {
+                            skipped++;
                             continue;
-                        var exStad = {};
-                        exStad[stadium] = true;
-                        var ws2 = pickExcluding(stadiums, exStad, 3);
-                        if (ws2.length < 3)
+                        }
+                        withBadge++;
+                        var exTeam = {};
+                        exTeam[tname] = true;
+                        var ws2 = pickExcluding(teamPool, exTeam, 3);
+                        if (ws2.length < 3) {
+                            skipped++;
                             continue;
-                        var stOpts = [{ text: stadium, is_correct: true }];
+                        }
+                        var stOpts = [{ text: tname, is_correct: true }];
                         for (var wsi2 = 0; wsi2 < ws2.length; wsi2++)
                             stOpts.push({ text: ws2[wsi2], is_correct: false });
                         results.push({
-                            provider_key: "sdb_stad_" + (team.idTeam || djb2(tname)),
+                            provider_key: "sdb_badge_" + (team.idTeam || djb2(tname)),
                             topic: "sports", lang: "en",
-                            question_text: "What is the home stadium of " + tname + "?",
+                            question_text: "Who is this athlete/team?",
                             question_type: "single_select",
                             raw_options: stOpts,
-                            has_media: !!tbadge,
-                            media: tbadge ? { type: "image", url: tbadge, thumbnail_url: null, duration_seconds: null, mime_type: "image/png" } : null,
-                            explanation: tname + " (" + league.name + ") plays at " + stadium + (tfounded ? ", founded in " + tfounded : "") + ".",
+                            has_media: true,
+                            media: { type: "image", url: tbadge, thumbnail_url: tbadge, duration_seconds: null, mime_type: "image/png" },
+                            explanation: tname + " (" + league.name + ")" + (tfounded ? ", founded in " + tfounded : "") + ".",
                             difficulty: "medium", provider: "sportsdb",
-                            meta: {}
+                            meta: { team: tname, league: league.name }
                         });
                     }
                     catch (e) {
+                        skipped++;
                         logger.debug("[QvQCache/sdb] skip team: " + (e && e.message));
                     }
                 }
@@ -15590,6 +16783,8 @@ var QvQuestionCache;
                 logger.debug("[QvQCache/sdb] skip league " + league.name + ": " + (e && e.message));
             }
         }
+        logger.info("[QvQCache/sdb] event=sports_fetch_summary total_teams=" + totalTeams +
+            " with_badge=" + withBadge + " skipped=" + skipped + " emitted=" + results.length);
         return results;
     }
     // ── 14. Last.fm (Music) — requires LASTFM_API_KEY ─────────────────────────
@@ -15644,7 +16839,68 @@ var QvQuestionCache;
         }
         return results;
     }
-    // ── 15. News — GNews → Currents → MediaStack → NewsAPI failover chain ──────
+    // ── 15. News — keyed APIs + Guardian + Spaceflight News (open) ─────────────
+    function newsArticleImage(art) {
+        if (!art)
+            return null;
+        if (art.image && String(art.image).trim())
+            return String(art.image).trim();
+        if (art.urlToImage && String(art.urlToImage).trim())
+            return String(art.urlToImage).trim();
+        if (art.image_url && String(art.image_url).trim())
+            return String(art.image_url).trim();
+        if (art.fields && art.fields.thumbnail && String(art.fields.thumbnail).trim()) {
+            return String(art.fields.thumbnail).trim();
+        }
+        return null;
+    }
+    function appendGuardianArticles(nk, logger, articles, apiKey) {
+        if (!apiKey)
+            return;
+        try {
+            var gdata = httpGet(nk, "https://content.guardianapis.com/search?show-fields=thumbnail,trailText&page-size=20&order-by=newest&api-key=" + apiKey);
+            if (!gdata || !gdata.response || !Array.isArray(gdata.response.results))
+                return;
+            var gr = gdata.response.results;
+            for (var gi = 0; gi < gr.length; gi++) {
+                var item = gr[gi];
+                if (!item.webTitle)
+                    continue;
+                articles.push({
+                    title: item.webTitle,
+                    description: (item.fields && item.fields.trailText) ? item.fields.trailText : "",
+                    image: (item.fields && item.fields.thumbnail) ? item.fields.thumbnail : null,
+                    source: { name: "The Guardian" },
+                    provider: "guardian"
+                });
+            }
+        }
+        catch (e) {
+            logger.warn("[QvQCache/news] Guardian: " + (e && e.message));
+        }
+    }
+    function appendSpaceflightArticles(nk, logger, articles) {
+        try {
+            var sf = httpGet(nk, "https://api.spaceflightnewsapi.net/v4/articles/?limit=20");
+            if (!sf || !Array.isArray(sf.results))
+                return;
+            for (var si = 0; si < sf.results.length; si++) {
+                var item = sf.results[si];
+                if (!item.title)
+                    continue;
+                articles.push({
+                    title: item.title,
+                    description: item.summary || "",
+                    image: item.image_url || null,
+                    source: { name: item.news_site || "Spaceflight News" },
+                    provider: "spaceflightnews"
+                });
+            }
+        }
+        catch (e) {
+            logger.warn("[QvQCache/news] SpaceflightNews: " + (e && e.message));
+        }
+    }
     function fetchNews(nk, env, logger) {
         var results = [];
         var articles = [];
@@ -15652,37 +16908,19 @@ var QvQuestionCache;
         var curKey = envKey(env, "CURRENTS_API_KEY");
         var msKey = envKey(env, "MEDIASTACK_API_KEY");
         var naKey = envKey(env, "NEWSAPI_API_KEY");
-        if (gnKey) {
+        var guKey = envKey(env, "GUARDIAN_API_KEY");
+        if (msKey) {
             try {
-                var gd = httpGet(nk, "https://gnews.io/api/v4/top-headlines?token=" + gnKey + "&lang=en&max=10");
-                if (gd && gd.articles)
-                    articles = articles.concat(gd.articles);
-            }
-            catch (e) {
-                logger.warn("[QvQCache/news] GNews: " + (e && e.message));
-            }
-        }
-        if (curKey && articles.length < 10) {
-            try {
-                var cd = httpGet(nk, "https://api.currentsapi.services/v1/latest-news?apiKey=" + curKey + "&language=en");
-                if (cd && Array.isArray(cd.news)) {
-                    for (var cni = 0; cni < cd.news.length; cni++) {
-                        var cn = cd.news[cni];
-                        articles.push({ title: cn.title, description: cn.description, source: { name: cn.author || "Currents" } });
-                    }
-                }
-            }
-            catch (e) {
-                logger.warn("[QvQCache/news] Currents: " + (e && e.message));
-            }
-        }
-        if (msKey && articles.length < 10) {
-            try {
-                var md = httpGet(nk, "http://api.mediastack.com/v1/news?access_key=" + msKey + "&languages=en&limit=10");
+                var md = httpGet(nk, "http://api.mediastack.com/v1/news?access_key=" + msKey + "&languages=en&limit=50");
                 if (md && Array.isArray(md.data)) {
                     for (var mni = 0; mni < md.data.length; mni++) {
                         var mn = md.data[mni];
-                        articles.push({ title: mn.title, description: mn.description, source: { name: mn.source || "MediaStack" } });
+                        articles.push({
+                            title: mn.title, description: mn.description || "",
+                            image: mn.image || null,
+                            source: { name: mn.source || "MediaStack" },
+                            provider: "mediastack"
+                        });
                     }
                 }
             }
@@ -15690,48 +16928,280 @@ var QvQuestionCache;
                 logger.warn("[QvQCache/news] MediaStack: " + (e && e.message));
             }
         }
-        if (naKey && articles.length < 10) {
+        if (gnKey) {
             try {
-                var nd = httpGet(nk, "https://newsapi.org/v2/top-headlines?apiKey=" + naKey + "&language=en&pageSize=10");
-                if (nd && Array.isArray(nd.articles))
-                    articles = articles.concat(nd.articles);
+                var gd = httpGet(nk, "https://gnews.io/api/v4/top-headlines?token=" + gnKey + "&lang=en&max=50");
+                if (gd && gd.articles) {
+                    for (var gni = 0; gni < gd.articles.length; gni++) {
+                        var ga = gd.articles[gni];
+                        articles.push({
+                            title: ga.title, description: ga.description || "",
+                            image: ga.image || null,
+                            source: ga.source || { name: "GNews" },
+                            provider: "gnews"
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("[QvQCache/news] GNews: " + (e && e.message));
+            }
+        }
+        if (curKey) {
+            try {
+                var cd = httpGet(nk, "https://api.currentsapi.services/v1/latest-news?apiKey=" + curKey + "&language=en");
+                if (cd && Array.isArray(cd.news)) {
+                    for (var cni = 0; cni < cd.news.length; cni++) {
+                        var cn = cd.news[cni];
+                        articles.push({
+                            title: cn.title, description: cn.description || "",
+                            image: cn.image || null,
+                            source: { name: cn.author || "Currents" },
+                            provider: "currents"
+                        });
+                    }
+                }
+            }
+            catch (e) {
+                logger.warn("[QvQCache/news] Currents: " + (e && e.message));
+            }
+        }
+        if (naKey) {
+            try {
+                var nd = httpGet(nk, "https://newsapi.org/v2/top-headlines?apiKey=" + naKey + "&language=en&pageSize=50");
+                if (nd && Array.isArray(nd.articles)) {
+                    for (var nai = 0; nai < nd.articles.length; nai++) {
+                        var na = nd.articles[nai];
+                        articles.push({
+                            title: na.title, description: na.description || "",
+                            image: na.urlToImage || null,
+                            source: na.source || { name: "NewsAPI" },
+                            provider: "newsapi"
+                        });
+                    }
+                }
             }
             catch (e) {
                 logger.warn("[QvQCache/news] NewsAPI: " + (e && e.message));
             }
         }
-        if (articles.length === 0)
-            throw new Error("All news providers failed or not configured (set at least one of GNEWS_API_KEY, CURRENTS_API_KEY, MEDIASTACK_API_KEY, NEWSAPI_API_KEY)");
+        // Open fallbacks — no paid keys required; guarantee image+headline coverage
+        appendGuardianArticles(nk, logger, articles, guKey);
+        appendSpaceflightArticles(nk, logger, articles);
+        if (articles.length === 0) {
+            throw new Error("All news providers failed (GNews, Currents, MediaStack, NewsAPI, Guardian, Spaceflight News API)");
+        }
+        var headlinePool = [];
+        for (var hpi = 0; hpi < articles.length; hpi++) {
+            var ht = (articles[hpi].title || "").trim();
+            if (ht.length >= 20)
+                headlinePool.push(ht);
+        }
+        var withImage = 0;
+        var skipped = 0;
         for (var ni2 = 0; ni2 < articles.length; ni2++) {
             var art = articles[ni2];
             try {
                 var headline = (art.title || "").trim();
                 var desc = art.description || "";
                 var srcName = art.source && art.source.name ? art.source.name : "News";
-                if (!headline || headline.length < 20)
+                var imgUrl = newsArticleImage(art);
+                var artProvider = art.provider || "gnews";
+                if (!headline || headline.length < 20 || !imgUrl) {
+                    skipped++;
+                    continue;
+                }
+                withImage++;
+                var exHead = {};
+                exHead[headline] = true;
+                var wh = pickExcluding(headlinePool, exHead, 3);
+                if (wh.length < 3) {
+                    skipped++;
+                    continue;
+                }
+                var hlShort = headline.length > 120 ? headline.substring(0, 117) + "..." : headline;
+                var nOpts = [{ text: hlShort, is_correct: true }];
+                for (var whi = 0; whi < wh.length; whi++) {
+                    var wrongHl = wh[whi];
+                    nOpts.push({
+                        text: wrongHl.length > 120 ? wrongHl.substring(0, 117) + "..." : wrongHl,
+                        is_correct: false
+                    });
+                }
+                results.push({
+                    provider_key: "news_img_" + djb2(headline),
+                    topic: "news", lang: "en",
+                    question_text: "What is shown in this news image?",
+                    question_type: "single_select",
+                    raw_options: nOpts,
+                    has_media: true,
+                    media: { type: "image", url: imgUrl, thumbnail_url: imgUrl, duration_seconds: null, mime_type: "image/jpeg" },
+                    explanation: "This headline is from " + srcName + ". " + desc.substring(0, 150),
+                    difficulty: "medium", provider: artProvider,
+                    meta: { headline: headline, source: srcName }
+                });
+            }
+            catch (e) {
+                skipped++;
+                logger.debug("[QvQCache/news] skip: " + (e && e.message));
+            }
+        }
+        logger.info("[QvQCache/news] event=news_fetch_summary total_articles=" + articles.length +
+            " with_image=" + withImage + " skipped=" + skipped + " emitted=" + results.length);
+        if (results.length === 0) {
+            throw new Error("No news articles with images — total_articles=" + articles.length + " with_image=" + withImage);
+        }
+        return results;
+    }
+    // ── 16. Video Quiz catalog (Nakama storage, seeded from build embed) ───────
+    /**
+     * Idempotent seed: writes qv_catalog_video_quiz/catalog_{lang} + meta when the
+     * bundled version differs from storage. Reads globalThis.__QV_VIDEO_QUIZ_CATALOG__
+     * injected by postbuild.js at deploy time.
+     */
+    function ensureVideoQuizCatalogSeeded(nk, logger) {
+        var bundle = null;
+        try {
+            var g = globalThis.__QV_VIDEO_QUIZ_CATALOG__;
+            if (g && typeof g === "object")
+                bundle = g;
+        }
+        catch (_ge) { }
+        if (!bundle || !bundle.version || !bundle.langs || typeof bundle.langs !== "object") {
+            logger.warn("[QvQCache/video_quiz] catalog bundle missing or empty — postbuild embed absent?");
+            return { ok: false, error: "catalog_bundle_missing" };
+        }
+        var needsWrite = false;
+        try {
+            var metaRows = nk.storageRead([{
+                    collection: COL_VIDEO_CATALOG, key: "meta", userId: Constants.SYSTEM_USER_ID
+                }]);
+            if (!metaRows || metaRows.length === 0 || !metaRows[0].value) {
+                needsWrite = true;
+            }
+            else {
+                var storedVersion = metaRows[0].value.version || "";
+                if (storedVersion !== bundle.version)
+                    needsWrite = true;
+            }
+        }
+        catch (_re) {
+            needsWrite = true;
+        }
+        if (!needsWrite) {
+            logger.info("[QvQCache/video_quiz] catalog already seeded version=" + bundle.version);
+            return { ok: true, version: bundle.version, skipped: true };
+        }
+        var totalCount = 0;
+        var langCount = 0;
+        var writes = [];
+        var langKeys = Object.keys(bundle.langs);
+        for (var li = 0; li < langKeys.length; li++) {
+            var lang = langKeys[li];
+            var questions = bundle.langs[lang];
+            if (!Array.isArray(questions) || questions.length === 0)
+                continue;
+            totalCount += questions.length;
+            langCount++;
+            writes.push({
+                collection: COL_VIDEO_CATALOG,
+                key: "catalog_" + lang,
+                userId: Constants.SYSTEM_USER_ID,
+                value: {
+                    topic: "video_quiz",
+                    lang: lang,
+                    version: bundle.version,
+                    questions: questions
+                },
+                permissionRead: 1,
+                permissionWrite: 0
+            });
+        }
+        if (langCount === 0) {
+            logger.warn("[QvQCache/video_quiz] catalog bundle has no lang entries");
+            return { ok: false, error: "catalog_no_langs" };
+        }
+        writes.push({
+            collection: COL_VIDEO_CATALOG,
+            key: "meta",
+            userId: Constants.SYSTEM_USER_ID,
+            value: {
+                version: bundle.version,
+                seeded_at_ms: nowMs(),
+                question_count: totalCount,
+                source: bundle.source || "FallbackQuestions_csv"
+            },
+            permissionRead: 1,
+            permissionWrite: 0
+        });
+        nk.storageWrite(writes);
+        logger.info("[QvQCache/video_quiz] seeded catalog version=" + bundle.version +
+            " questions=" + totalCount + " langs=" + langCount);
+        return { ok: true, version: bundle.version, question_count: totalCount };
+    }
+    QvQuestionCache.ensureVideoQuizCatalogSeeded = ensureVideoQuizCatalogSeeded;
+    function fetchVideoQuiz(nk, env, logger) {
+        var seedResult = ensureVideoQuizCatalogSeeded(nk, logger);
+        if (!seedResult.ok) {
+            throw new Error("video_quiz: catalog not seeded — " + (seedResult.error || "unknown"));
+        }
+        var lang = "en";
+        var rows = nk.storageRead([{
+                collection: COL_VIDEO_CATALOG, key: "catalog_" + lang, userId: Constants.SYSTEM_USER_ID
+            }]);
+        if (!rows || rows.length === 0 || !rows[0].value || !Array.isArray(rows[0].value.questions)) {
+            throw new Error("video_quiz: catalog_" + lang + " missing or empty");
+        }
+        var catalogQs = rows[0].value.questions;
+        var results = [];
+        for (var vi = 0; vi < catalogQs.length; vi++) {
+            var cq = catalogQs[vi];
+            try {
+                if (!cq.has_media || !cq.media || cq.media.type !== "video")
+                    continue;
+                if (!cq.media.url || String(cq.media.url).trim().length === 0)
+                    continue;
+                if (!cq.question_text || !Array.isArray(cq.options) || cq.options.length < 2)
+                    continue;
+                if (!Array.isArray(cq.correct_option_ids) || cq.correct_option_ids.length === 0)
+                    continue;
+                var rOpts = [];
+                for (var oi = 0; oi < cq.options.length; oi++) {
+                    var opt = cq.options[oi];
+                    if (!opt || !opt.text)
+                        continue;
+                    var optId = opt.id || LETTERS[oi];
+                    var isC = cq.correct_option_ids.indexOf(optId) !== -1;
+                    rOpts.push({ text: String(opt.text), is_correct: isC });
+                }
+                if (rOpts.filter(function (o) { return o.is_correct; }).length === 0)
                     continue;
                 results.push({
-                    provider_key: "news_" + djb2(headline),
-                    topic: "news", lang: "en",
-                    question_text: "Is this a real news headline: \"" + headline.substring(0, 120) + "\"?",
-                    question_type: "true_false",
-                    raw_options: [
-                        { text: "True — this is a real headline", is_correct: true },
-                        { text: "False — this is a fake headline", is_correct: false }
-                    ],
-                    has_media: false, media: null,
-                    explanation: "This headline is from " + srcName + ". " + desc.substring(0, 150),
-                    difficulty: "easy", provider: "gnews",
+                    provider_key: cq.id || djb2(cq.question_text),
+                    topic: "video_quiz",
+                    lang: lang,
+                    question_text: cq.question_text,
+                    question_type: "single_select",
+                    raw_options: rOpts,
+                    has_media: true,
+                    media: cq.media,
+                    explanation: cq.explanation || "",
+                    difficulty: cq.difficulty || "medium",
+                    provider: "catalog",
                     meta: {}
                 });
             }
             catch (e) {
-                logger.debug("[QvQCache/news] skip: " + (e && e.message));
+                logger.debug("[QvQCache/video_quiz] skip[" + vi + "]: " + (e && e.message));
             }
         }
+        if (results.length === 0) {
+            throw new Error("video_quiz: zero valid questions after validation");
+        }
+        logger.info("[QvQCache/video_quiz] loaded " + results.length + " questions from catalog_" + lang);
         return results;
     }
-    // ── 16. S3 (daily / weekly) ───────────────────────────────────────────────
+    // ── 17. S3 (daily / weekly) ───────────────────────────────────────────────
     function fetchS3(nk, env, logger, topic) {
         var results = [];
         var base = (env && env.S3_BASE_URL) ? env.S3_BASE_URL : "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
@@ -15792,21 +17262,23 @@ var QvQuestionCache;
     // ── Provider router ────────────────────────────────────────────────────────
     function fetchForTopic(nk, env, logger, topic) {
         switch (topic) {
-            case "opentdb": return fetchOpentdb(nk, logger);
+            case "geography": return fetchGeoQuiz(nk, logger);
+            case "speed_quiz": return fetchSpeedQuiz(nk, logger);
+            case "true_false": return fetchTrueFalseQuiz(nk, logger);
             case "anime": return fetchJikan(nk, logger);
             case "pokemon": return fetchPokeapi(nk, logger);
             case "cocktail": return fetchCocktaildb(nk, logger);
             case "food": return fetchMealdb(nk, logger);
-            case "dog": return fetchDogceo(nk, logger);
+            case "dog": return fetchDogceo(nk, env, logger);
             case "ghibli": return fetchGhibli(nk, logger);
             case "disney": return fetchDisney(nk, logger);
             case "starwars": return fetchSwapi(nk, logger);
             case "countries": {
-                var all = fetchRestcountries(nk, logger);
+                var all = fetchRestcountries(nk, env, logger, "countries");
                 return all.filter(function (q) { return q.topic === "countries"; });
             }
             case "flags": {
-                var all2 = fetchRestcountries(nk, logger);
+                var all2 = fetchRestcountries(nk, env, logger, "flags");
                 return all2.filter(function (q) { return q.topic === "flags"; });
             }
             case "space": return fetchNasa(nk, env, logger);
@@ -15816,6 +17288,7 @@ var QvQuestionCache;
             case "news": return fetchNews(nk, env, logger);
             case "daily":
             case "weekly": return fetchS3(nk, env, logger, topic);
+            case "video_quiz": return fetchVideoQuiz(nk, env, logger);
             case "ai": throw new Error("ai topic is generated on-demand — never cached");
             default: throw new Error("Unknown topic: " + topic);
         }
@@ -15935,23 +17408,26 @@ var QvQuestionCache;
      * Steps: circuit-check → fetch → validate+decode → shuffle+assign → enrich → store.
      * Falls back silently (keeps stale cache) on any error; records failure in circuit breaker.
      */
-    function refreshCache(nk, logger, env, topic) {
+    function refreshCache(nk, logger, env, topic, force) {
         if (topic === "ai")
             return { ok: false, topic: topic, count: 0, error: "ai topic is never cached" };
         var ttlMs = TOPIC_TTL[topic] !== undefined ? TOPIC_TTL[topic] : 24 * 3600000;
         var provider = topicProvider(topic);
         if (circuitIsOpen(nk, provider)) {
             var cbMsg = "circuit open for provider=" + provider + " — skipping refresh";
-            logger.warn("[QvQCache/" + topic + "] " + cbMsg);
+            logger.warn("[QvQCache/" + topic + "] " + cbMsg +
+                " event=circuit_open provider=" + provider + " topic=" + topic);
             return { ok: false, topic: topic, count: 0, error: cbMsg };
         }
-        if (!tryAcquireRefreshGate(nk, topic)) {
-            logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed");
+        if (!force && !tryAcquireRefreshGate(nk, topic)) {
+            logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed" +
+                " event=provider_refresh_gated topic=" + topic);
             return { ok: true, topic: topic, count: 0 };
         }
         try {
             // ── Fetch ─────────────────────────────────────────────────────────────
-            logger.info("[QvQCache/" + topic + "] fetching from " + provider + "…");
+            logger.info("[QvQCache/" + topic + "] fetching from " + provider + "…" +
+                " event=provider_fetch_start topic=" + topic + " provider=" + provider);
             var rawList = fetchForTopic(nk, env, logger, topic);
             logger.info("[QvQCache/" + topic + "] fetched " + rawList.length + " raw questions");
             if (rawList.length === 0)
@@ -15970,11 +17446,21 @@ var QvQuestionCache;
                     continue;
                 }
                 // Gate passed — add to seen set to catch within-batch duplicates
-                seenSet[QvQualityGate.normalizeForDedup(rawList[qi].question_text)] = true;
+                seenSet[QvQualityGate.questionDedupeKey(rawList[qi])] = true;
                 passed.push(rawList[qi]);
             }
             logger.info("[QvQCache/" + topic + "] gate: " + passed.length + "/" + rawList.length +
                 " passed (rejected=" + rejected + ", top_reason=" + topRejectReason + ")");
+            if (topic === "dog") {
+                var dogBreedSample = 40;
+                if (env && env["QV_DOGCEO_BREED_SAMPLE"]) {
+                    var dogSampleParsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 10);
+                    if (!isNaN(dogSampleParsed) && dogSampleParsed > 0)
+                        dogBreedSample = dogSampleParsed;
+                }
+                logger.info("[QvQCache/dog] event=provider_gate_summary topic=dog raw_count=" + rawList.length +
+                    " passed_count=" + passed.length + " breed_sample=" + dogBreedSample + " provider=dogceo");
+            }
             if (passed.length === 0)
                 throw new Error("All questions rejected by quality gate. top_reason=" + topRejectReason);
             // ── Shuffle + A/B/C/D + Template Enrich ──────────────────────────────
@@ -15999,14 +17485,16 @@ var QvQuestionCache;
             };
             writeCache(nk, logger, topic, capped, provider, qStats, ttlMs);
             recordSuccess(nk, provider);
-            logger.info("[QvQCache/" + topic + "] refresh complete — " + capped.length + " stored, TTL=" + (ttlMs / 3600000).toFixed(1) + "h");
+            logger.info("[QvQCache/" + topic + "] refresh complete — " + capped.length + " stored, TTL=" + (ttlMs / 3600000).toFixed(1) + "h" +
+                " event=provider_refresh_done topic=" + topic + " count=" + capped.length + " provider=" + provider);
             return { ok: true, topic: topic, count: capped.length };
         }
         catch (err) {
             var errMsg = err && err.message ? err.message : String(err);
             // Existing cached data (stale or not) is intentionally NOT overwritten —
             // Unity clients keep serving from the last good cache until next refresh.
-            logger.error("[QvQCache/" + topic + "] refresh FAILED — keeping stale cache: " + errMsg);
+            logger.error("[QvQCache/" + topic + "] refresh FAILED — keeping stale cache: " + errMsg +
+                " event=provider_refresh_failed topic=" + topic + " error=" + errMsg.replace(/\s+/g, "_"));
             recordFailure(nk, provider, errMsg);
             return { ok: false, topic: topic, count: 0, error: errMsg };
         }
@@ -16022,7 +17510,7 @@ var QvQuestionCache;
         try {
             var rows = nk.storageRead([{ collection: COL_CACHE + topic, key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" }]);
             if (!rows || rows.length === 0 || !rows[0].value) {
-                logger.info("[QvQCache/" + topic + "] cache miss");
+                logger.info("[QvQCache/" + topic + "] cache miss event=provider_cache_miss topic=" + topic);
                 return { questions: [], expired: true, cached_at_ms: 0 };
             }
             var page0 = rows[0].value;
@@ -16145,8 +17633,10 @@ var QvRemoteConfig;
     var COL_CONFIG = "qv_config";
     var COL_CACHE_PREFIX = "qv_cache_"; // qv_cache_{topic}
     var COL_CIRCUIT_BREAKER = "qv_circuit_breakers";
+    var COL_REFRESH_GATE = "qv_cache_refresh_gate";
     var COL_STATS = "qv_stats"; // aggregate rollup (Phase 1b)
     var KEY_GLOBAL = "global";
+    var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
     // S3 base for default topic icon URLs. Overridable per-topic in the stored doc.
     var S3_ICONS_BASE = "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/topic-icons/";
     // ── Domain constants ──────────────────────────────────────────────────────
@@ -16154,7 +17644,8 @@ var QvRemoteConfig;
     var KNOWN_TOPICS = [
         "anime", "pokemon", "movies", "sports", "countries", "flags",
         "space", "music", "disney", "ghibli", "starwars", "food",
-        "cocktail", "dog", "news", "opentdb", "ai", "daily", "weekly"
+        "cocktail", "dog", "news", "opentdb", "speed_quiz", "true_false",
+        "video_quiz", "ai", "daily", "weekly"
     ];
     // Every external API provider the cache layer calls. Sync with question_cache.ts.
     var KNOWN_PROVIDERS = [
@@ -16162,11 +17653,51 @@ var QvRemoteConfig;
         "lastfm", "deezer", "gnews", "currents",
         "mediastack", "newsapi", "opentdb", "disney",
         "ghibli", "swapi", "thesportsdb", "cocktaildb",
-        "themealdb", "foodfacts", "dogceo", "restcountries"
+        "themealdb", "foodfacts", "dogceo", "restcountries",
+        "catalog"
     ];
     // Cache is considered "near expiry" when ≤ 10 min remain.
     // Ops gets a warning window before questions run dry.
     var STALE_WARNING_MS = 10 * 60 * 1000;
+    // Per-topic refresh dedupe gate — sync with question_cache.ts REFRESH_GATE_MS.
+    var REFRESH_GATE_MS = 30 * 1000;
+    // Topic → primary provider — sync with question_cache.ts topicProvider().
+    function topicProvider(topic) {
+        var map = {
+            opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
+            cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
+            ghibli: "ghibli", disney: "disney", starwars: "swapi",
+            countries: "restcountries", flags: "restcountries",
+            space: "nasa", movies: "tmdb", sports: "thesportsdb",
+            music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+            video_quiz: "catalog", ai: "claude"
+        };
+        return map[topic] || topic;
+    }
+    function cacheActionHint(topic) {
+        return "POST quizverse_cache_refresh_tick { \"mode\": \"topic\", \"topic\": \"" + topic + "\" }";
+    }
+    function circuitStateForProvider(provider, circuitByKey, now) {
+        var v = circuitByKey[provider];
+        if (!v)
+            return "no_data";
+        var state = v.state || "unknown";
+        var openUntilMs = v.open_until_ms || 0;
+        if (state === "open" && openUntilMs > 0 && openUntilMs <= now)
+            return "half_open";
+        return state;
+    }
+    function buildTopicCacheMeta(topic, gateByTopic, circuitByKey, now) {
+        var provider = topicProvider(topic);
+        var lastGateMs = gateByTopic[topic] || 0;
+        return {
+            provider: provider,
+            circuit_state: circuitStateForProvider(provider, circuitByKey, now),
+            last_refresh_gate_ms: lastGateMs,
+            refresh_gate_active: lastGateMs > 0 && (now - lastGateMs) < REFRESH_GATE_MS,
+            action_hint: cacheActionHint(topic)
+        };
+    }
     // ── Shared helpers ────────────────────────────────────────────────────────
     function nakamaError(msg, code) {
         return { message: msg, code: code };
@@ -16191,25 +17722,28 @@ var QvRemoteConfig;
     // ══════════════════════════════════════════════════════════════════════════
     function buildDefaultTopics() {
         return [
-            { id: "anime", label: "Anime", icon_url: S3_ICONS_BASE + "anime.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 1, max_count: 20 },
-            { id: "pokemon", label: "Pokémon", icon_url: S3_ICONS_BASE + "pokemon.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 2, max_count: 20 },
-            { id: "movies", label: "Movies", icon_url: S3_ICONS_BASE + "movies.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 3, max_count: 20 },
-            { id: "sports", label: "Sports", icon_url: S3_ICONS_BASE + "sports.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 4, max_count: 20 },
-            { id: "countries", label: "Countries", icon_url: S3_ICONS_BASE + "countries.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 5, max_count: 20 },
-            { id: "flags", label: "Flags", icon_url: S3_ICONS_BASE + "flags.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 6, max_count: 20 },
-            { id: "space", label: "Space", icon_url: S3_ICONS_BASE + "space.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 7, max_count: 10 },
-            { id: "music", label: "Music", icon_url: S3_ICONS_BASE + "music.png", has_media: true, media_type: "audio", enabled: true, is_new: false, badge: null, sort_order: 8, max_count: 15 },
-            { id: "disney", label: "Disney", icon_url: S3_ICONS_BASE + "disney.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 9, max_count: 20 },
-            { id: "ghibli", label: "Studio Ghibli", icon_url: S3_ICONS_BASE + "ghibli.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 10, max_count: 20 },
-            { id: "starwars", label: "Star Wars", icon_url: S3_ICONS_BASE + "starwars.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 11, max_count: 20 },
-            { id: "food", label: "Food", icon_url: S3_ICONS_BASE + "food.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 12, max_count: 20 },
-            { id: "cocktail", label: "Cocktails", icon_url: S3_ICONS_BASE + "cocktail.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 13, max_count: 20 },
-            { id: "dog", label: "Dogs", icon_url: S3_ICONS_BASE + "dog.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 14, max_count: 20 },
-            { id: "news", label: "News", icon_url: S3_ICONS_BASE + "news.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 15, max_count: 10 },
-            { id: "opentdb", label: "General Trivia", icon_url: S3_ICONS_BASE + "general.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 16, max_count: 20 },
-            { id: "ai", label: "AI Quiz", icon_url: S3_ICONS_BASE + "ai.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 17, max_count: 10 },
-            { id: "daily", label: "Daily Quiz", icon_url: S3_ICONS_BASE + "daily.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 18, max_count: 10 },
-            { id: "weekly", label: "Weekly Quiz", icon_url: S3_ICONS_BASE + "weekly.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 19, max_count: 10 }
+            { id: "anime", label: "Anime", icon_url: S3_ICONS_BASE + "anime.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 1, max_count: 30 },
+            { id: "pokemon", label: "Pokémon", icon_url: S3_ICONS_BASE + "pokemon.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 2, max_count: 30 },
+            { id: "movies", label: "Movies", icon_url: S3_ICONS_BASE + "movies.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 3, max_count: 30 },
+            { id: "sports", label: "Sports", icon_url: S3_ICONS_BASE + "sports.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 4, max_count: 30 },
+            { id: "countries", label: "Countries", icon_url: S3_ICONS_BASE + "countries.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 5, max_count: 30 },
+            { id: "flags", label: "Flags", icon_url: S3_ICONS_BASE + "flags.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 6, max_count: 30 },
+            { id: "space", label: "Space", icon_url: S3_ICONS_BASE + "space.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 7, max_count: 30 },
+            { id: "music", label: "Music", icon_url: S3_ICONS_BASE + "music.png", has_media: true, media_type: "audio", enabled: true, is_new: false, badge: null, sort_order: 8, max_count: 30 },
+            { id: "disney", label: "Disney", icon_url: S3_ICONS_BASE + "disney.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 9, max_count: 30 },
+            { id: "ghibli", label: "Studio Ghibli", icon_url: S3_ICONS_BASE + "ghibli.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 10, max_count: 30 },
+            { id: "starwars", label: "Star Wars", icon_url: S3_ICONS_BASE + "starwars.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 11, max_count: 30 },
+            { id: "food", label: "Food", icon_url: S3_ICONS_BASE + "food.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 12, max_count: 30 },
+            { id: "cocktail", label: "Cocktails", icon_url: S3_ICONS_BASE + "cocktail.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 13, max_count: 30 },
+            { id: "dog", label: "Dogs", icon_url: S3_ICONS_BASE + "dog.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 14, max_count: 30 },
+            { id: "news", label: "News", icon_url: S3_ICONS_BASE + "news.png", has_media: true, media_type: "image", enabled: true, is_new: false, badge: null, sort_order: 15, max_count: 30 },
+            { id: "opentdb", label: "General Trivia", icon_url: S3_ICONS_BASE + "general.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 16, max_count: 30 },
+            { id: "speed_quiz", label: "Speed Quiz", icon_url: S3_ICONS_BASE + "general.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 20, max_count: 30 },
+            { id: "true_false", label: "True / False", icon_url: S3_ICONS_BASE + "general.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 21, max_count: 30 },
+            { id: "video_quiz", label: "Video Quiz", icon_url: S3_ICONS_BASE + "general.png", has_media: true, media_type: "video", enabled: true, is_new: false, badge: null, sort_order: 22, max_count: 30 },
+            { id: "ai", label: "AI Quiz", icon_url: S3_ICONS_BASE + "ai.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 17, max_count: 30 },
+            { id: "daily", label: "Daily Quiz", icon_url: S3_ICONS_BASE + "daily.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 18, max_count: 30 },
+            { id: "weekly", label: "Weekly Quiz", icon_url: S3_ICONS_BASE + "weekly.png", has_media: false, media_type: null, enabled: true, is_new: false, badge: null, sort_order: 19, max_count: 30 }
         ];
     }
     function buildDefaultSupportedLangs() {
@@ -16230,6 +17764,9 @@ var QvRemoteConfig;
             dog: ["en"],
             news: ["en", "es", "fr", "de", "pt", "it"],
             opentdb: ["en"],
+            speed_quiz: ["en"],
+            true_false: ["en"],
+            video_quiz: ["en"],
             ai: ["en", "hi", "es", "fr", "de", "ja", "ko", "pt", "ar", "ru", "id"],
             daily: ["en"],
             weekly: ["en"]
@@ -16431,23 +17968,52 @@ var QvRemoteConfig;
         var missingCount = 0;
         var probe = [];
         for (var i = 0; i < KNOWN_TOPICS.length; i++) {
-            probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: "00000000-0000-0000-0000-000000000000" });
+            probe.push({ collection: COL_CACHE_PREFIX + KNOWN_TOPICS[i], key: "pool_0", userId: SYSTEM_USER });
+            probe.push({ collection: COL_REFRESH_GATE, key: KNOWN_TOPICS[i], userId: SYSTEM_USER });
+        }
+        var circuitProbe = [];
+        for (var ci = 0; ci < KNOWN_PROVIDERS.length; ci++) {
+            circuitProbe.push({ collection: COL_CIRCUIT_BREAKER, key: KNOWN_PROVIDERS[ci], userId: SYSTEM_USER });
         }
         try {
             var rows = nk.storageRead(probe);
+            var circuitRows = nk.storageRead(circuitProbe);
             var byCol = {};
+            var gateByTopic = {};
             if (rows) {
                 for (var ri = 0; ri < rows.length; ri++) {
                     var r = rows[ri];
-                    if (r && r.value)
+                    if (!r || !r.value)
+                        continue;
+                    if (r.collection === COL_REFRESH_GATE) {
+                        gateByTopic[r.key] = r.value.last_refresh_ms || 0;
+                    }
+                    else {
                         byCol[r.collection] = r;
+                    }
+                }
+            }
+            var circuitByKey = {};
+            if (circuitRows) {
+                for (var cri = 0; cri < circuitRows.length; cri++) {
+                    var cr = circuitRows[cri];
+                    if (cr && cr.value)
+                        circuitByKey[cr.key] = cr.value;
                 }
             }
             for (var ti = 0; ti < KNOWN_TOPICS.length; ti++) {
                 var topic = KNOWN_TOPICS[ti];
                 var row = byCol[COL_CACHE_PREFIX + topic];
+                var meta = buildTopicCacheMeta(topic, gateByTopic, circuitByKey, now);
                 if (!row || !row.value) {
-                    topics[topic] = { present: false };
+                    topics[topic] = {
+                        present: false,
+                        provider: meta.provider,
+                        circuit_state: meta.circuit_state,
+                        last_refresh_gate_ms: meta.last_refresh_gate_ms,
+                        refresh_gate_active: meta.refresh_gate_active,
+                        action_hint: meta.action_hint
+                    };
                     missingCount++;
                     continue;
                 }
@@ -16478,6 +18044,11 @@ var QvRemoteConfig;
                     stale_reason: isExpired ? "expired" : isNearExpiry ? "near_expiry" : null,
                     providers_used: v.providers_used || [],
                     lang_breakdown: v.lang_breakdown || {},
+                    provider: meta.provider,
+                    circuit_state: meta.circuit_state,
+                    last_refresh_gate_ms: meta.last_refresh_gate_ms,
+                    refresh_gate_active: meta.refresh_gate_active,
+                    action_hint: meta.action_hint,
                     quality_gate: {
                         total_processed: qg.total_processed || 0,
                         passed: qg.passed || 0,
@@ -20888,17 +22459,15 @@ var AdminConsole;
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+        var eventIdFilter = data.eventId || data.event_id || "";
+        if (eventIdFilter)
+            eventIdFilter = String(eventIdFilter);
         var limit = Math.min(200, Math.max(1, Number(data.limit) || 100));
-        var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
-        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
-        var rows = [];
-        var objs = (res && res.objects) || [];
-        for (var i = 0; i < objs.length; i++) {
-            var v = objs[i].value || {};
-            if (statusFilter && v.status !== statusFilter)
-                continue;
-            rows.push({
-                key: objs[i].key,
+        var offset = Math.max(0, Number(data.offset) || 0);
+        var storageCursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : "";
+        function mapFulfillmentRow(key, v) {
+            return {
+                key: key,
                 userId: v.userId || "",
                 eventId: v.eventId || "",
                 eventTitle: v.eventTitle || "",
@@ -20912,7 +22481,56 @@ var AdminConsole;
                 settledAt: v.settledAt || 0,
                 voucher: v.voucher || null,
                 error: v.error || "",
+            };
+        }
+        function rowMatchesFilters(v) {
+            if (statusFilter && v.status !== statusFilter)
+                return false;
+            if (eventIdFilter && String(v.eventId || "") !== eventIdFilter)
+                return false;
+            return true;
+        }
+        // Default admin view: scan the full queue (capped), sort newest-first.
+        // storageList returns keys alphabetically — a single page hides events whose
+        // keys sort after the first ~200 rows (e.g. fc64c27e-…).
+        if (!storageCursor) {
+            var allRows = [];
+            var scanCursor = undefined;
+            var pages = 0;
+            var maxPages = 50;
+            do {
+                var page = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", 100, scanCursor);
+                var pageObjs = (page && page.objects) || [];
+                for (var pi = 0; pi < pageObjs.length; pi++) {
+                    var pv = pageObjs[pi].value || {};
+                    if (!rowMatchesFilters(pv))
+                        continue;
+                    allRows.push(mapFulfillmentRow(pageObjs[pi].key, pv));
+                }
+                scanCursor = (page && page.cursor) ? String(page.cursor) : "";
+                pages++;
+            } while (scanCursor && pages < maxPages);
+            allRows.sort(function (a, b) {
+                return (b.queuedAt || 0) - (a.queuedAt || 0);
             });
+            var total = allRows.length;
+            var pageRows = allRows.slice(offset, offset + limit);
+            var nextOffset = offset + pageRows.length;
+            return RpcHelpers.successResponse({
+                fulfillments: pageRows,
+                total: total,
+                cursor: nextOffset < total ? String(nextOffset) : "",
+            });
+        }
+        // Legacy storage cursor passthrough (offset cursors handled above).
+        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, storageCursor);
+        var rows = [];
+        var objs = (res && res.objects) || [];
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value || {};
+            if (!rowMatchesFilters(v))
+                continue;
+            rows.push(mapFulfillmentRow(objs[i].key, v));
         }
         return RpcHelpers.successResponse({
             fulfillments: rows,
@@ -57288,8 +58906,10 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
         initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+        initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
         initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
         initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
+        initializer.registerRpc("creator_event_fulfillment_get", rpcFulfillmentGet);
         initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
     }
     SatoriCreatorEvents.register = register;
@@ -57362,6 +58982,40 @@ var SatoriCreatorEvents;
         if (rank === 3)
             return "silver";
         return "bronze";
+    }
+    var SPA_DELIVERY_COLLECTION = "creator_event_delivery";
+    function parseDeliveryEmailFromPayload(data) {
+        if (typeof data.email !== "string")
+            return "";
+        var em = data.email.trim();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+            return em;
+        return "";
+    }
+    function readDeliveryPref(nk, userId, eventId) {
+        var pref = Storage.readJson(nk, SPA_DELIVERY_COLLECTION, eventId, userId);
+        if (!pref || typeof pref.email !== "string")
+            return null;
+        var em = pref.email.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+            return null;
+        return {
+            email: em,
+            playerName: typeof pref.playerName === "string" ? pref.playerName.trim().slice(0, 120) : "",
+        };
+    }
+    function patchFulfillmentEmailIfEmpty(nk, logger, eventId, userId, email) {
+        if (!email)
+            return;
+        var fKey = eventId + ":" + userId;
+        var existing = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+        if (!existing)
+            return;
+        if (existing.email && String(existing.email).trim())
+            return;
+        existing.email = email;
+        Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+        logger.info("[CreatorEvent SPA] Patched fulfillment email: event=%s user=%s", eventId, userId);
     }
     /**
      * Rank every player in an event from `event_answers` and queue a
@@ -57447,6 +59101,15 @@ var SatoriCreatorEvents;
                 logger.warn("[computeAndQueueWinners] Failed to batch-fetch account emails: %s", emailErr.message || String(emailErr));
             }
         }
+        // Player-submitted delivery emails (saved on results screen before event end)
+        // override empty Nakama account emails for device-authenticated winners.
+        for (var di = 0; di < allWinnerIds.length; di++) {
+            var du = allWinnerIds[di];
+            var savedPref = readDeliveryPref(nk, du, eventId);
+            if (savedPref && savedPref.email) {
+                emailByUserId[du] = savedPref.email;
+            }
+        }
         for (var r = 0; r < allAnswers.length; r++) {
             var rank = r + 1;
             var tier = findTierForRank(tiers, rank);
@@ -57456,6 +59119,11 @@ var SatoriCreatorEvents;
             var fKey = eventId + ":" + winnerId;
             var existing = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
             if (existing) {
+                var patchEmail = emailByUserId[winnerId] || "";
+                if (patchEmail && !(existing.email && String(existing.email).trim())) {
+                    existing.email = patchEmail;
+                    Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+                }
                 skipped++;
                 continue;
             }
@@ -57518,6 +59186,57 @@ var SatoriCreatorEvents;
         var result = computeAndQueueWinners(nk, logger, def, data.eventId);
         logger.info("[SpaEndQueue] event=%s ranked=%d queued=%d skipped=%d xut=%d", data.eventId, result.ranked, result.queued, result.skippedExisting, result.xutWinners);
         return RpcHelpers.successResponse({ eventId: data.eventId, prizeQueue: result });
+    }
+    /**
+     * Persist a player's prize-delivery email before the event ends.
+     * The SPA results screen collects email while the quiz is still live;
+     * without this, the address lived only in localStorage and was lost if
+     * the player never reopened the app after the event closed.
+     */
+    function rpcSpaSaveDelivery(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        if (!data.creatorId)
+            return RpcHelpers.errorResponse("creatorId required (the event creator's userId)");
+        var eventId = String(data.eventId);
+        var creatorId = String(data.creatorId);
+        var deliveryEmail = parseDeliveryEmailFromPayload(data);
+        if (!deliveryEmail)
+            return RpcHelpers.errorResponse("Valid email required");
+        var defRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+        if (!defRecords || defRecords.length === 0 || !defRecords[0].value) {
+            return RpcHelpers.errorResponse("Event not found in SPA storage");
+        }
+        var myRecords = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
+        if (!myRecords || myRecords.length === 0 || !myRecords[0].value) {
+            return RpcHelpers.errorResponse("You did not participate in this event");
+        }
+        var deliveryName = "";
+        if (typeof data.playerName === "string") {
+            deliveryName = data.playerName.trim().slice(0, 120);
+        }
+        var nowSec = Math.floor(Date.now() / 1000);
+        try {
+            Storage.writeJson(nk, SPA_DELIVERY_COLLECTION, eventId, userId, {
+                email: deliveryEmail,
+                playerName: deliveryName,
+                savedAt: nowSec,
+                eventId: eventId,
+            });
+        }
+        catch (werr) {
+            return RpcHelpers.errorResponse("Failed to save delivery email: " + (werr.message || String(werr)));
+        }
+        patchFulfillmentEmailIfEmpty(nk, logger, eventId, userId, deliveryEmail);
+        logger.info("[CreatorEvent SPA] Saved delivery email: user=%s event=%s", userId, eventId);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: eventId,
+            email: deliveryEmail,
+            savedAt: nowSec,
+        });
     }
     function rpcSpaClaim(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -57650,11 +59369,18 @@ var SatoriCreatorEvents;
         }
         // Parse delivery email early — the fulfillment queue record needs it so
         // the admin voucher pipeline knows where to send the gift card code.
-        var deliveryEmail = "";
-        if (typeof data.email === "string") {
-            var em = data.email.trim();
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
-                deliveryEmail = em;
+        var deliveryEmail = parseDeliveryEmailFromPayload(data);
+        var deliveryName = "";
+        if (typeof data.playerName === "string") {
+            deliveryName = data.playerName.trim().slice(0, 120);
+        }
+        if (!deliveryEmail) {
+            var savedPref = readDeliveryPref(nk, userId, eventId);
+            if (savedPref) {
+                deliveryEmail = savedPref.email;
+                if (!deliveryName && savedPref.playerName)
+                    deliveryName = savedPref.playerName;
+            }
         }
         // 7. Pick tier + compute reward
         var tier = findTierForRank(def.giftCardPrizes && def.giftCardPrizes.tiers, myRank);
@@ -57719,10 +59445,6 @@ var SatoriCreatorEvents;
             logger.warn("[CreatorEvent SPA] failed to write claim record: %s", cerr.message || String(cerr));
         }
         // 9. Best-effort SES email (deliveryEmail parsed above, before step 7)
-        var deliveryName = "";
-        if (typeof data.playerName === "string") {
-            deliveryName = data.playerName.trim().slice(0, 120);
-        }
         var emailRequested = !!deliveryEmail;
         var emailSent = false;
         var emailError = "";
@@ -57816,6 +59538,7 @@ var SatoriCreatorEvents;
     //  Reloadly:
     //
     //    creator_event_fulfillments_list   → list queue (filter by status)
+    //    creator_event_fulfillment_get     → direct read by eventId + userId key
     //    creator_event_fulfillment_settle  → mark fulfilled/failed + mirror
     //                                        voucher status onto the player's
     //                                        claim record for the SPA UI
@@ -57845,27 +59568,47 @@ var SatoriCreatorEvents;
             var v = objs[i].value || {};
             if (statusFilter && v.status !== statusFilter)
                 continue;
-            rows.push({
-                key: objs[i].key,
-                userId: v.userId || "",
-                eventId: v.eventId || "",
-                eventTitle: v.eventTitle || "",
-                rank: v.rank || 0,
-                giftCard: v.giftCard || null,
-                status: v.status || "pending",
-                region: v.region || "",
-                email: v.email || "",
-                source: v.source || "",
-                queuedAt: v.queuedAt || v.claimedAt || 0,
-                settledAt: v.settledAt || 0,
-                voucher: v.voucher || null,
-                error: v.error || "",
-            });
+            rows.push(mapFulfillmentRow(objs[i].key, v));
         }
         return RpcHelpers.successResponse({
             fulfillments: rows,
             cursor: (res && res.cursor) || "",
         });
+    }
+    function mapFulfillmentRow(key, v) {
+        return {
+            key: key,
+            userId: v.userId || "",
+            eventId: v.eventId || "",
+            eventTitle: v.eventTitle || "",
+            rank: v.rank || 0,
+            giftCard: v.giftCard || null,
+            status: v.status || "pending",
+            region: v.region || "",
+            email: v.email || "",
+            source: v.source || "",
+            queuedAt: v.queuedAt || v.claimedAt || 0,
+            settledAt: v.settledAt || 0,
+            voucher: v.voucher || null,
+            error: v.error || "",
+        };
+    }
+    function rpcFulfillmentGet(ctx, logger, nk, payload) {
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!isFulfillServiceCaller(ctx, data)) {
+            return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+        }
+        if (!data.eventId || !data.userId) {
+            return RpcHelpers.errorResponse("eventId and userId required");
+        }
+        var eventId = String(data.eventId);
+        var targetUserId = String(data.userId);
+        var fKey = eventId + ":" + targetUserId;
+        var rec = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+        if (!rec) {
+            return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+        }
+        return RpcHelpers.successResponse(mapFulfillmentRow(fKey, rec));
     }
     function rpcFulfillmentSettle(ctx, logger, nk, payload) {
         var data = RpcHelpers.parseRpcPayload(payload);

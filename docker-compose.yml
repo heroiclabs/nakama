@@ -52,13 +52,15 @@ services:
           SATORI_URL SATORI_API_KEY_NAME SATORI_API_KEY SATORI_SIGNING_KEY SATORI_HTTP_TIMEOUT_MS
           AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_REGION AWS_S3_BUCKET AWS_PRESIGNED_URL_EXPIRY S3_BASE_URL
           GNEWS_API_KEY CURRENTS_API_KEY MEDIASTACK_API_KEY NEWSAPI_API_KEY
-          LASTFM_API_KEY TMDB_API_KEY NASA_API_KEY
+          LASTFM_API_KEY TMDB_API_KEY NASA_API_KEY REST_COUNTRIES_API_KEY
           IVX_SYSTEM_USER_ID
           PUSH_REGISTER_URL PUSH_SEND_URL DEFAULT_FCM_PROJECT_ID
           SLACK_OPS_WEBHOOK_URL
           DISCORD_QV_OPS_WEBHOOK_URL DISCORD_NAKAMA_WEBHOOK_URL
           IVX_AI_SVC_BASE_URL IVX_INSIGHTS_SHARED_SECRET IVX_INSIGHTS_BUCKET_MS
           QUIZVERSE_N8N_BASE_URL QUIZVERSE_ADMIN_API_TOKEN
+          QV_DOGCEO_BREED_SAMPLE
+          QV_GET_QUESTIONS_RATE_MAX
         "
         RUNTIME_ENV_FLAGS=""
         for k in $$RUNTIME_ENV_KEYS; do
@@ -153,6 +155,8 @@ services:
       - TMDB_API_KEY=${TMDB_API_KEY:-}
       # Space (NASA APOD). Defaults to "DEMO_KEY" (50 req/day). Get own at api.nasa.gov.
       - NASA_API_KEY=${NASA_API_KEY:-DEMO_KEY}
+      # Countries / Flags (RestCountries v5). Free key at https://restcountries.com/sign-up
+      - REST_COUNTRIES_API_KEY=${REST_COUNTRIES_API_KEY:-}
       # S3 base URL override (defaults to intelli-verse-x-media bucket in code)
       - S3_BASE_URL=${S3_BASE_URL:-}
       # Admin gate for quizverse_admin_stats RPC (must match a real Nakama userId)

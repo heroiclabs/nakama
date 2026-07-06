@@ -23,6 +23,7 @@ const BUILD_FILE  = path.join(__dirname, 'build', 'index.js');
 const LEGACY_FILE = path.join(__dirname, 'legacy_runtime.js');
 const OUTPUT_FILE = path.join(__dirname, 'index.js');
 const MODULES_DIR = __dirname;
+const VIDEO_CATALOG_FILE = path.join(__dirname, 'build', 'video_quiz_catalog.json');
 
 const EXCLUDE_FILES = new Set([
   'index.js', 'postbuild.js', 'legacy_runtime.js',
@@ -891,6 +892,28 @@ sections.push('// Generated: ' + new Date().toISOString());
 sections.push('// RPC Count: ' + rpcEntries.length);
 sections.push('// ============================================================');
 sections.push('');
+
+// --- Video Quiz catalog (build/video_quiz_catalog.json → Goja global) ---
+// ensureVideoQuizCatalogSeeded reads globalThis.__QV_VIDEO_QUIZ_CATALOG__ at InitModule.
+var videoCatalogEmbed = '';
+if (fs.existsSync(VIDEO_CATALOG_FILE)) {
+  try {
+    var catalogRaw = fs.readFileSync(VIDEO_CATALOG_FILE, 'utf8');
+    var catalogJson = JSON.parse(catalogRaw);
+    videoCatalogEmbed = 'globalThis.__QV_VIDEO_QUIZ_CATALOG__ = ' + JSON.stringify(catalogJson) + ';';
+    var enCatalogCount = (catalogJson.langs && catalogJson.langs.en) ? catalogJson.langs.en.length : 0;
+    console.log('[postbuild] Embedded video quiz catalog (' + enCatalogCount + ' en questions, version ' + (catalogJson.version || '?') + ')');
+  } catch (catalogErr) {
+    console.warn('[postbuild] WARN: failed to embed video_quiz_catalog.json: ' + (catalogErr && catalogErr.message ? catalogErr.message : String(catalogErr)));
+  }
+} else {
+  console.log('[postbuild] No build/video_quiz_catalog.json — skipping __QV_VIDEO_QUIZ_CATALOG__ embed');
+}
+if (videoCatalogEmbed) {
+  sections.push('// --- Video Quiz catalog (seed-video-quiz-catalog.js) ---');
+  sections.push(videoCatalogEmbed);
+  sections.push('');
+}
 sections.push('// --- CommonJS Compatibility Shim (Goja runtime) ---');
 sections.push('var module = typeof module !== "undefined" ? module : { exports: {} };');
 sections.push('var exports = typeof exports !== "undefined" ? exports : module.exports;');

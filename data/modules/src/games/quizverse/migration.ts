@@ -584,8 +584,8 @@ namespace QuizVerseMigration {
     cocktaildb:  { name: "cocktaildb",  method: "get", url: "https://www.thecocktaildb.com/api/json/v1/1/search.php?f=m",cacheTtlMs: 60 * 60 * 1000 },
     foodish:     { name: "foodish",     method: "get", url: "https://foodish-api.com/api/",                          cacheTtlMs: 5 * 60 * 1000 },
     nasa:        { name: "nasa",        method: "get", url: "https://images-api.nasa.gov/search?q={query}",          cacheTtlMs: 60 * 60 * 1000 },
-    // restcountries v3.1 now REJECTS /all without an explicit ?fields= list (HTTP 400).
-    countries:   { name: "countries",   method: "get", url: "https://restcountries.com/v3.1/all?fields=name,flags,capital,region,subregion,population,cca2", cacheTtlMs: 24 * 60 * 60 * 1000 },
+    // RestCountries v5 — requires REST_COUNTRIES_API_KEY (Bearer auth, paginated list).
+    countries:   { name: "countries",   method: "get", url: "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100&offset=0", cacheTtlMs: 24 * 60 * 60 * 1000 },
     ghibli:      { name: "ghibli",      method: "get", url: "https://ghibliapi.vercel.app/films",                    cacheTtlMs: 24 * 60 * 60 * 1000 },
     disney:      { name: "disney",      method: "get", url: "https://api.disneyapi.dev/character",                   cacheTtlMs: 24 * 60 * 60 * 1000 },
     dog:         { name: "dog",         method: "get", url: "https://dog.ceo/api/breeds/image/random/50",             cacheTtlMs: 60 * 60 * 1000 },
@@ -617,6 +617,41 @@ namespace QuizVerseMigration {
       paramStr = parts.join("&");
     }
     return provider + ":" + paramStr;
+  }
+
+  function fetchCountriesV5AllPages(
+    nk: nkruntime.Nakama,
+    baseUrl: string,
+    headers: { [key: string]: string },
+    logger: nkruntime.Logger
+  ): any {
+    var allObjects: any[] = [];
+    var offset = 0;
+    var total = 0;
+    while (true) {
+      var pageUrl = baseUrl.replace(/offset=\d+/, "offset=" + offset);
+      if (pageUrl.indexOf("offset=") === -1) pageUrl = pageUrl + (pageUrl.indexOf("?") === -1 ? "?" : "&") + "offset=" + offset;
+      var resp = nk.httpRequest(pageUrl, "get", headers, "");
+      if (resp.code < 200 || resp.code >= 300) {
+        throw new Error("upstream_http_" + resp.code);
+      }
+      var parsed: any;
+      try { parsed = JSON.parse(resp.body); } catch (_) { throw new Error("invalid_json"); }
+      if (parsed && parsed.success === false && parsed.errors) {
+        throw new Error("restcountries_v3_deprecated");
+      }
+      if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
+        throw new Error("unexpected_response_shape");
+      }
+      var meta: any = parsed.data.meta || {};
+      for (var i = 0; i < parsed.data.objects.length; i++) allObjects.push(parsed.data.objects[i]);
+      total = meta.total || allObjects.length;
+      if (!meta.more) break;
+      offset += 100;
+      if (offset > 1000) break;
+    }
+    logger.info("[Migration/External] countries v5 fetched object_count=" + allObjects.length + " meta_total=" + total);
+    return { data: { objects: allObjects, meta: { total: total, count: allObjects.length, more: false } } };
   }
 
   function rpcFetchExternalQuiz(
@@ -661,17 +696,26 @@ namespace QuizVerseMigration {
 
     // Live fetch.
     var url = expandUrl(provider.url, req.params || {});
+    var headers: { [key: string]: string } = { "Accept": "application/json" };
+    if (provider.name === "countries") {
+      var rcKey = (ctx.env && ctx.env["REST_COUNTRIES_API_KEY"]) ? String(ctx.env["REST_COUNTRIES_API_KEY"]).trim() : "";
+      if (rcKey) headers["Authorization"] = "Bearer " + rcKey;
+    }
     try {
-      var resp = nk.httpRequest(url, provider.method, { "Accept": "application/json" }, "");
-      if (resp.code < 200 || resp.code >= 300) {
-        logger.warn("[Migration/External] " + provider.name + " HTTP " + resp.code);
-        return JSON.stringify({
-          ok: false, error: "upstream_http_" + resp.code,
-          provider: provider.name, fallback_to_client: true
-        });
-      }
       var parsed: any;
-      try { parsed = JSON.parse(resp.body); } catch (_) { parsed = resp.body; }
+      if (provider.name === "countries") {
+        parsed = fetchCountriesV5AllPages(nk, url, headers, logger);
+      } else {
+        var resp = nk.httpRequest(url, provider.method, headers, "");
+        if (resp.code < 200 || resp.code >= 300) {
+          logger.warn("[Migration/External] " + provider.name + " HTTP " + resp.code);
+          return JSON.stringify({
+            ok: false, error: "upstream_http_" + resp.code,
+            provider: provider.name, fallback_to_client: true
+          });
+        }
+        try { parsed = JSON.parse(resp.body); } catch (_) { parsed = resp.body; }
+      }
 
       // Cache write (best-effort; permissionRead=2 = public so multi-user serves from one entry).
       try {
