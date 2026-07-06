@@ -783,12 +783,15 @@ export function getTimeline(
 
 /* ── Reports (saved queries) ──────────────────────────────────────── */
 
-export type ReportType = "funnel" | "retention" | "metric" | "timeline";
+export type ReportType = "onboarding";
+/** Older saved reports — no longer runnable from the admin UI. */
+export type LegacyReportType = "funnel" | "retention" | "metric" | "timeline";
+export type SavedReportType = ReportType | LegacyReportType;
 
 export interface SavedReport {
   id: string;
   name: string;
-  type: ReportType;
+  type: SavedReportType;
   description?: string;
   params: Record<string, unknown>;
   createdAt: number;

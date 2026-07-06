@@ -5,6 +5,7 @@ export * as hiro from "./hiro";
 export * as satori from "./satori";
 export * as quizverse from "./quizverse";
 export * as analytics from "./analytics";
+export * as onboarding from "./onboarding";
 export type {
   AnalyticsDashboardResult,
   AnalyticsDashboardParams,
@@ -48,6 +49,8 @@ export type {
   TimelineActivity,
   SavedReport,
   ReportType,
+  LegacyReportType,
+  SavedReportType,
   MetricDefinition,
   MetricSeries,
   MetricSeriesPoint,
@@ -90,4 +93,18 @@ export type {
   BeehiivSnapshot,
   UsersSnapshot,
 } from "./quizverse";
+export type {
+  OnboardingFunnelAnalyticsParams,
+  OnboardingFunnelAnalyticsResult,
+  OnboardingScreenFunnelStep,
+  OnboardingDropoffHotspot,
+  OnboardingFunnelSummary,
+  OnboardingPaywallStats,
+  OnboardingWelcomeThemeAB,
+  OnboardingWelcomeThemeVariant,
+  OnboardingEventSignals,
+  OnboardingPathwayRow,
+  OnboardingPrePathway,
+  OnboardingUserRow,
+} from "./onboarding";
 export * from "./types";

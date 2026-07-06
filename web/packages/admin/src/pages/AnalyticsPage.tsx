@@ -356,8 +356,8 @@ const SIDEBAR_SHORTCUTS = [
     href: "/event-debugger",
   },
   {
-    label: "Reports",
-    description: "Saved funnel & retention reports",
+    label: "Onboarding Reports",
+    description: "Web onboarding funnel from ob_* events (same as analytics.html)",
     icon: BarChart3,
     href: "/reports",
   },

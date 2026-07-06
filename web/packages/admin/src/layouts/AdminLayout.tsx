@@ -82,7 +82,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Insights",
     items: [
       { label: "Metrics", to: "/metrics", icon: Gauge },
-      { label: "Reports", to: "/reports", icon: FileBarChart },
+      { label: "Onboarding Reports", to: "/reports", icon: FileBarChart },
       { label: "Analytics", to: "/analytics", icon: BarChart3 },
     ],
   },
