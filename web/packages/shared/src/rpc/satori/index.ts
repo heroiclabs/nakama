@@ -488,8 +488,8 @@ export function toggleSatoriDirect(enabled: boolean, opts: RpcOptions) {
   return callRpc("satori_direct_toggle", { enabled }, opts);
 }
 
-export function getMetrics(opts: RpcOptions) {
-  return satoriRpc("metrics", "get", {}, opts);
+export function getMetrics(opts: RpcOptions, gameId?: string) {
+  return satoriRpc("metrics", "get", { game_id: gameId }, opts);
 }
 
 export function setMetricAlert(

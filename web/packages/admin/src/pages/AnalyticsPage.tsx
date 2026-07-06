@@ -11,7 +11,7 @@ import {
 import type { RpcOptions, NakamaUser } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 import { useIframeAuth } from "@/lib/useIframeAuth";
-import { useActiveApp, toAppSlug } from "@/hooks/useScopedGame";
+import { useActiveApp, useScopedGameId, toAppSlug } from "@/hooks/useScopedGame";
 import {
   BarChart3,
   Activity,
@@ -264,10 +264,11 @@ function useServerAuth(): RpcOptions {
 
 function useMetrics() {
   const opts = useServerAuth();
+  const gameId = useScopedGameId();
   return useQuery({
-    queryKey: ["analytics", "metrics"],
+    queryKey: ["analytics", "metrics", gameId ?? "global"],
     queryFn: () =>
-      satori.getMetrics(opts) as Promise<{
+      satori.getMetrics(opts, gameId) as Promise<{
         metrics?: MetricEntry[];
         raw?: string;
       }>,
@@ -776,7 +777,7 @@ function CohortsTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading
           title="Cohort Analysis"
-          description="Analyze player registration and activity patterns"
+          description="Analyze player registration and activity patterns — platform-wide (Nakama accounts are shared across apps, not per-app)"
         />
         <div className="flex gap-1 rounded-md border border-border bg-background p-0.5">
           <button
@@ -1501,12 +1502,20 @@ function InsightList({
 export function AnalyticsPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   const qc = useQueryClient();
+  const { appId, label } = useActiveApp();
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
+            {appId && (
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                {label}
+              </span>
+            )}
+          </div>
           <p className="text-muted-foreground">
             Metrics, data lake, and cohort analysis
           </p>

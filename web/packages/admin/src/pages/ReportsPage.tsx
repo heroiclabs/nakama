@@ -20,7 +20,7 @@ import {
   type SavedReport,
   type OnboardingFunnelAnalyticsParams,
 } from "@nakama/shared";
-import { useScopedGameId } from "@/hooks/useScopedGame";
+import { useScopedGameId, useActiveApp } from "@/hooks/useScopedGame";
 import { OnboardingReportDashboard } from "@/components/onboarding/OnboardingReportDashboard";
 import { cn } from "@/lib/utils";
 
@@ -402,6 +402,10 @@ function useReports(gameId: string | undefined) {
 export function ReportsPage() {
   const qc = useQueryClient();
   const gameId = useScopedGameId();
+  const { slug, label } = useActiveApp();
+  // ob_* onboarding events come from the QuizVerse web funnel only — they are
+  // not game-tagged, so the report data only represents QuizVerse.
+  const onboardingAvailable = !gameId || slug === "quizverse";
   const reports = useReports(gameId);
   const [showForm, setShowForm] = useState(false);
   const counterRef = useRef(0);
@@ -457,7 +461,14 @@ export function ReportsPage() {
         </div>
       </div>
 
-      <LiveOnboardingReport gameId={gameId} />
+      {onboardingAvailable ? (
+        <LiveOnboardingReport gameId={gameId} />
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          Onboarding funnel events (<code className="rounded bg-muted px-1 text-xs">ob_*</code>) are only captured for the
+          QuizVerse web onboarding — there is no onboarding data for {label}. Switch to QuizVerse or All Apps to view it.
+        </div>
+      )}
 
       <section>
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Saved reports</h3>
