@@ -58,7 +58,9 @@ namespace QvQuestionCache {
 
   // Per-topic cache TTL (ms)
   var TOPIC_TTL: { [t: string]: number } = {
-    opentdb:   1  * 3600000,
+    opentdb:     1  * 3600000,
+    speed_quiz:  1  * 3600000,
+    true_false:  1  * 3600000,
     movies:    2  * 3600000,
     music:     2  * 3600000,
     sports:    2  * 3600000,
@@ -74,10 +76,13 @@ namespace QvQuestionCache {
     starwars:  72 * 3600000,
     countries: 7  * 24 * 3600000,
     flags:     7  * 24 * 3600000,
-    daily:     24 * 3600000,
-    weekly:    7  * 24 * 3600000,
-    ai:        0   // never cached
+    daily:       24 * 3600000,
+    weekly:      7  * 24 * 3600000,
+    video_quiz:  7  * 24 * 3600000,
+    ai:          0   // never cached
   };
+
+  var COL_VIDEO_CATALOG = "qv_catalog_video_quiz";
 
   // ── Hardcoded fallback API keys ───────────────────────────────────────────
   //
@@ -253,12 +258,13 @@ namespace QvQuestionCache {
 
   function topicProvider(topic: string): string {
     var map: { [t: string]: string } = {
-      opentdb: "opentdb", anime: "jikan", pokemon: "pokeapi",
+      opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
       cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
       ghibli: "ghibli", disney: "disney", starwars: "swapi",
       countries: "restcountries", flags: "restcountries",
       space: "nasa", movies: "tmdb", sports: "sportsdb",
-      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3", ai: "claude"
+      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+      video_quiz: "catalog", ai: "claude"
     };
     return map[topic] || topic;
   }
@@ -474,16 +480,26 @@ namespace QvQuestionCache {
   // ══════════════════════════════════════════════════════════════════════════
 
   // ── 1. OpenTDB ────────────────────────────────────────────────────────────
-  function fetchOpentdb(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+
+  function fetchOpenTdbCategory(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    categoryId: number,
+    amount: number,
+    topicSlug: string,
+    subtopic: string
+  ): RawQuestion[] {
     var results: RawQuestion[] = [];
     // url3986 encoding — decode with decodeURIComponent
-    var data = httpGet(nk, "https://opentdb.com/api.php?amount=50&category=22&type=multiple");
+    var url = "https://opentdb.com/api.php?amount=" + amount + "&category=" + categoryId + "&type=multiple";
+    var data = httpGet(nk, url);
     if (!data || !Array.isArray(data.results) || data.response_code !== 0) {
-      throw new Error("OpenTDB response_code=" + (data && data.response_code));
+      throw new Error("OpenTDB response_code=" + (data && data.response_code) + " category=" + categoryId);
     }
     for (var i = 0; i < data.results.length; i++) {
       var item: any = data.results[i];
       try {
+        if (item.type !== "multiple") continue;
         var qText = decodeURIComponent(item.question || "");
         var correct = decodeURIComponent(item.correct_answer || "");
         var wrongs: string[] = [];
@@ -497,21 +513,155 @@ namespace QvQuestionCache {
         var opts: RawOpt[] = [{ text: correct, is_correct: true }];
         for (var wi = 0; wi < wrongs.length; wi++) opts.push({ text: wrongs[wi], is_correct: false });
         var diff = item.difficulty === "hard" ? "hard" : item.difficulty === "easy" ? "easy" : "medium";
+        var meta: any = {};
+        if (subtopic) meta.subtopic = subtopic;
         results.push({
           provider_key:  djb2(qText),
-          topic:         "opentdb",
+          topic:         topicSlug,
           lang:          "en",
           question_text: qText,
-          question_type: item.type === "boolean" ? "true_false" : "single_select",
+          question_type: "single_select",
           raw_options:   opts,
           has_media:     false,
           media:         null,
           explanation:   decodeURIComponent(item.category || ""),
           difficulty:    diff,
           provider:      "opentdb",
-          meta:          {}
+          meta:          meta
         });
-      } catch (e: any) { logger.debug("[QvQCache/opentdb] skip[" + i + "]: " + (e && e.message)); }
+      } catch (e: any) { logger.debug("[QvQCache/opentdb] skip[" + i + "] cat=" + categoryId + ": " + (e && e.message)); }
+    }
+    return results;
+  }
+
+  function fetchOpenTdbBoolean(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    categoryId: number,
+    amount: number,
+    topicSlug: string,
+    subtopic: string
+  ): RawQuestion[] {
+    var results: RawQuestion[] = [];
+    var url = "https://opentdb.com/api.php?amount=" + amount + "&category=" + categoryId + "&type=boolean";
+    var data = httpGet(nk, url);
+    if (!data || !Array.isArray(data.results) || data.response_code !== 0) {
+      throw new Error("OpenTDB boolean response_code=" + (data && data.response_code) + " category=" + categoryId);
+    }
+    for (var i = 0; i < data.results.length; i++) {
+      var item: any = data.results[i];
+      try {
+        if (item.type !== "boolean") continue;
+        var qText = decodeURIComponent(item.question || "");
+        var correct = decodeURIComponent(item.correct_answer || "");
+        var wrong = "";
+        if (Array.isArray(item.incorrect_answers) && item.incorrect_answers.length > 0) {
+          wrong = decodeURIComponent(item.incorrect_answers[0] || "");
+        }
+        if (!qText || !correct || !wrong) continue;
+        var opts: RawOpt[] = [
+          { text: correct, is_correct: true },
+          { text: wrong,    is_correct: false }
+        ];
+        var diff = item.difficulty === "hard" ? "hard" : item.difficulty === "easy" ? "easy" : "medium";
+        var meta: any = {};
+        if (subtopic) meta.subtopic = subtopic;
+        results.push({
+          provider_key:  djb2(qText),
+          topic:         topicSlug,
+          lang:          "en",
+          question_text: qText,
+          question_type: "true_false",
+          raw_options:   opts,
+          has_media:     false,
+          media:         null,
+          explanation:   decodeURIComponent(item.category || ""),
+          difficulty:    diff,
+          provider:      "opentdb",
+          meta:          meta
+        });
+      } catch (e: any) { logger.debug("[QvQCache/opentdb-boolean] skip[" + i + "] cat=" + categoryId + ": " + (e && e.message)); }
+    }
+    return results;
+  }
+
+  function fetchGeoQuiz(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+    return fetchOpenTdbCategory(nk, logger, 22, 50, "opentdb", "");
+  }
+
+  var SPEED_QUIZ_CATEGORY_POOL: { id: number; key: string; label: string }[] = [
+    { id: 17, key: "science_nature",      label: "Science & Nature" },
+    { id: 18, key: "science_computers",   label: "Science: Computers" },
+    { id: 19, key: "science_mathematics", label: "Science: Mathematics" },
+    { id: 20, key: "mythology",           label: "Mythology" },
+    { id: 15, key: "video_games",         label: "Video Games" },
+    { id: 27, key: "animals",             label: "Animals" },
+    { id: 9,  key: "general_knowledge",   label: "General Knowledge" }
+  ];
+
+  function fetchSpeedQuiz(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+    var picked = pick(SPEED_QUIZ_CATEGORY_POOL, 3);
+    var perCat = Math.ceil(50 / picked.length);
+    var results: RawQuestion[] = [];
+    var pickedIds: number[] = [];
+    var pickedKeys: string[] = [];
+    for (var p = 0; p < picked.length; p++) {
+      var cat = picked[p];
+      pickedIds.push(cat.id);
+      pickedKeys.push(cat.key);
+      try {
+        var batch = fetchOpenTdbCategory(nk, logger, cat.id, perCat, "speed_quiz", cat.key);
+        for (var b = 0; b < batch.length; b++) results.push(batch[b]);
+      } catch (e: any) {
+        logger.warn("[QvQCache/speed_quiz] category " + cat.id + " failed: " + (e && e.message));
+      }
+    }
+    logger.info(
+      "[QvQCache/speed_quiz] event=speed_quiz_fetch categories=" + pickedIds.join(",") +
+      " keys=" + pickedKeys.join(",") + " per_cat=" + perCat + " count=" + results.length
+    );
+    if (results.length === 0) {
+      throw new Error("speed_quiz: all OpenTDB category fetches failed or returned 0 questions");
+    }
+    return results;
+  }
+
+  var TRUE_FALSE_CATEGORY_POOL: { id: number; key: string; label: string }[] = [
+    { id: 23, key: "history",           label: "History" },
+    { id: 9,  key: "general_knowledge", label: "General Knowledge" },
+    { id: 17, key: "science_nature",    label: "Science & Nature" },
+    { id: 21, key: "sports",            label: "Sports" },
+    { id: 22, key: "geography",         label: "Geography" },
+    { id: 27, key: "animals",           label: "Animals" },
+    { id: 10, key: "books",             label: "Books" },
+    { id: 11, key: "film",              label: "Film" },
+    { id: 12, key: "music",             label: "Music" },
+    { id: 14, key: "television",        label: "Television" }
+  ];
+
+  function fetchTrueFalseQuiz(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+    var picked = pick(TRUE_FALSE_CATEGORY_POOL, 3);
+    var perCat = Math.ceil(50 / picked.length);
+    var results: RawQuestion[] = [];
+    var pickedIds: number[] = [];
+    var pickedKeys: string[] = [];
+    for (var p = 0; p < picked.length; p++) {
+      var cat = picked[p];
+      pickedIds.push(cat.id);
+      pickedKeys.push(cat.key);
+      try {
+        var batch = fetchOpenTdbBoolean(nk, logger, cat.id, perCat, "true_false", cat.key);
+        for (var b = 0; b < batch.length; b++) results.push(batch[b]);
+      } catch (e: any) {
+        logger.warn("[QvQCache/true_false] category " + cat.id + " failed: " + (e && e.message));
+      }
+    }
+    logger.info(
+      "[QvQCache/true_false] event=true_false_fetch categories=" + pickedIds.join(",") +
+      " keys=" + pickedKeys.join(",") + " per_cat=" + perCat + " count=" + results.length
+    );
+    if (results.length === 0) {
+      throw new Error("true_false: all OpenTDB boolean category fetches failed or returned 0 questions");
     }
     return results;
   }
@@ -1536,7 +1686,168 @@ namespace QvQuestionCache {
     return results;
   }
 
-  // ── 16. S3 (daily / weekly) ───────────────────────────────────────────────
+  // ── 16. Video Quiz catalog (Nakama storage, seeded from build embed) ───────
+
+  /**
+   * Idempotent seed: writes qv_catalog_video_quiz/catalog_{lang} + meta when the
+   * bundled version differs from storage. Reads globalThis.__QV_VIDEO_QUIZ_CATALOG__
+   * injected by postbuild.js at deploy time.
+   */
+  export function ensureVideoQuizCatalogSeeded(
+    nk:     nkruntime.Nakama,
+    logger: nkruntime.Logger
+  ): { ok: boolean; version?: string; question_count?: number; skipped?: boolean; error?: string } {
+    var bundle: any = null;
+    try {
+      var g = (globalThis as any).__QV_VIDEO_QUIZ_CATALOG__;
+      if (g && typeof g === "object") bundle = g;
+    } catch (_ge) {}
+
+    if (!bundle || !bundle.version || !bundle.langs || typeof bundle.langs !== "object") {
+      logger.warn("[QvQCache/video_quiz] catalog bundle missing or empty — postbuild embed absent?");
+      return { ok: false, error: "catalog_bundle_missing" };
+    }
+
+    var needsWrite = false;
+    try {
+      var metaRows = nk.storageRead([{
+        collection: COL_VIDEO_CATALOG, key: "meta", userId: Constants.SYSTEM_USER_ID
+      }]);
+      if (!metaRows || metaRows.length === 0 || !metaRows[0].value) {
+        needsWrite = true;
+      } else {
+        var storedVersion: string = metaRows[0].value.version || "";
+        if (storedVersion !== bundle.version) needsWrite = true;
+      }
+    } catch (_re) {
+      needsWrite = true;
+    }
+
+    if (!needsWrite) {
+      logger.info("[QvQCache/video_quiz] catalog already seeded version=" + bundle.version);
+      return { ok: true, version: bundle.version, skipped: true };
+    }
+
+    var totalCount = 0;
+    var langCount  = 0;
+    var writes: nkruntime.StorageWriteRequest[] = [];
+    var langKeys   = Object.keys(bundle.langs);
+
+    for (var li = 0; li < langKeys.length; li++) {
+      var lang = langKeys[li];
+      var questions: any = bundle.langs[lang];
+      if (!Array.isArray(questions) || questions.length === 0) continue;
+      totalCount += questions.length;
+      langCount++;
+      writes.push({
+        collection:      COL_VIDEO_CATALOG,
+        key:             "catalog_" + lang,
+        userId:          Constants.SYSTEM_USER_ID,
+        value: {
+          topic:     "video_quiz",
+          lang:      lang,
+          version:   bundle.version,
+          questions: questions
+        },
+        permissionRead:  1,
+        permissionWrite: 0
+      });
+    }
+
+    if (langCount === 0) {
+      logger.warn("[QvQCache/video_quiz] catalog bundle has no lang entries");
+      return { ok: false, error: "catalog_no_langs" };
+    }
+
+    writes.push({
+      collection: COL_VIDEO_CATALOG,
+      key:        "meta",
+      userId:     Constants.SYSTEM_USER_ID,
+      value: {
+        version:        bundle.version,
+        seeded_at_ms:   nowMs(),
+        question_count: totalCount,
+        source:         bundle.source || "FallbackQuestions_csv"
+      },
+      permissionRead:  1,
+      permissionWrite: 0
+    });
+
+    nk.storageWrite(writes);
+    logger.info(
+      "[QvQCache/video_quiz] seeded catalog version=" + bundle.version +
+      " questions=" + totalCount + " langs=" + langCount
+    );
+    return { ok: true, version: bundle.version, question_count: totalCount };
+  }
+
+  function fetchVideoQuiz(
+    nk:     nkruntime.Nakama,
+    env:    any,
+    logger: nkruntime.Logger
+  ): RawQuestion[] {
+    var seedResult = ensureVideoQuizCatalogSeeded(nk, logger);
+    if (!seedResult.ok) {
+      throw new Error("video_quiz: catalog not seeded — " + (seedResult.error || "unknown"));
+    }
+
+    var lang = "en";
+    var rows = nk.storageRead([{
+      collection: COL_VIDEO_CATALOG, key: "catalog_" + lang, userId: Constants.SYSTEM_USER_ID
+    }]);
+    if (!rows || rows.length === 0 || !rows[0].value || !Array.isArray(rows[0].value.questions)) {
+      throw new Error("video_quiz: catalog_" + lang + " missing or empty");
+    }
+
+    var catalogQs: any[] = rows[0].value.questions;
+    var results: RawQuestion[] = [];
+
+    for (var vi = 0; vi < catalogQs.length; vi++) {
+      var cq: any = catalogQs[vi];
+      try {
+        if (!cq.has_media || !cq.media || cq.media.type !== "video") continue;
+        if (!cq.media.url || String(cq.media.url).trim().length === 0) continue;
+        if (!cq.question_text || !Array.isArray(cq.options) || cq.options.length < 2) continue;
+        if (!Array.isArray(cq.correct_option_ids) || cq.correct_option_ids.length === 0) continue;
+
+        var rOpts: RawOpt[] = [];
+        for (var oi = 0; oi < cq.options.length; oi++) {
+          var opt: any = cq.options[oi];
+          if (!opt || !opt.text) continue;
+          var optId = opt.id || LETTERS[oi];
+          var isC   = cq.correct_option_ids.indexOf(optId) !== -1;
+          rOpts.push({ text: String(opt.text), is_correct: isC });
+        }
+        if (rOpts.filter(function(o) { return o.is_correct; }).length === 0) continue;
+
+        results.push({
+          provider_key:  cq.id || djb2(cq.question_text),
+          topic:         "video_quiz",
+          lang:          lang,
+          question_text: cq.question_text,
+          question_type: "single_select",
+          raw_options:   rOpts,
+          has_media:     true,
+          media:         cq.media,
+          explanation:   cq.explanation || "",
+          difficulty:    cq.difficulty || "medium",
+          provider:      "catalog",
+          meta:          {}
+        });
+      } catch (e: any) {
+        logger.debug("[QvQCache/video_quiz] skip[" + vi + "]: " + (e && e.message));
+      }
+    }
+
+    if (results.length === 0) {
+      throw new Error("video_quiz: zero valid questions after validation");
+    }
+
+    logger.info("[QvQCache/video_quiz] loaded " + results.length + " questions from catalog_" + lang);
+    return results;
+  }
+
+  // ── 17. S3 (daily / weekly) ───────────────────────────────────────────────
   function fetchS3(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger, topic: string): RawQuestion[] {
     var results: RawQuestion[] = [];
     var base = (env && env.S3_BASE_URL) ? env.S3_BASE_URL : "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com";
@@ -1592,7 +1903,9 @@ namespace QvQuestionCache {
 
   function fetchForTopic(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger, topic: string): RawQuestion[] {
     switch (topic) {
-      case "geography":   return fetchOpentdb(nk, logger);
+      case "geography":   return fetchGeoQuiz(nk, logger);
+      case "speed_quiz":  return fetchSpeedQuiz(nk, logger);
+      case "true_false":  return fetchTrueFalseQuiz(nk, logger);
       case "anime":     return fetchJikan(nk, logger);
       case "pokemon":   return fetchPokeapi(nk, logger);
       case "cocktail":  return fetchCocktaildb(nk, logger);
@@ -1616,6 +1929,7 @@ namespace QvQuestionCache {
       case "news":     return fetchNews(nk, env, logger);
       case "daily":
       case "weekly":   return fetchS3(nk, env, logger, topic);
+      case "video_quiz": return fetchVideoQuiz(nk, env, logger);
       case "ai":       throw new Error("ai topic is generated on-demand — never cached");
       default:         throw new Error("Unknown topic: " + topic);
     }

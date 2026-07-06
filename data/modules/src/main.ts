@@ -145,6 +145,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
   try {
     QvCacheRefreshCron.register(initializer);
     logger.info("[QvCacheRefresh] quizverse_cache_refresh_tick RPC registered");
+    QvCacheRefreshCron.bootOnInit(nk, logger, ctx.env || {});
   } catch (err: any) {
     logger.error("[QvCacheRefresh] failed to register: " + (err && err.message ? err.message : String(err)));
   }

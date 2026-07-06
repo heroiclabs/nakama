@@ -62,7 +62,8 @@ namespace QvRemoteConfig {
   var KNOWN_TOPICS = [
     "anime", "pokemon", "movies",   "sports", "countries", "flags",
     "space", "music",   "disney",   "ghibli", "starwars",  "food",
-    "cocktail", "dog",  "news",     "opentdb","ai",        "daily", "weekly"
+    "cocktail", "dog",  "news",     "opentdb","speed_quiz","true_false",
+    "video_quiz", "ai", "daily", "weekly"
   ];
 
   // Every external API provider the cache layer calls. Sync with question_cache.ts.
@@ -71,7 +72,8 @@ namespace QvRemoteConfig {
     "lastfm",      "deezer",     "gnews",      "currents",
     "mediastack",  "newsapi",    "opentdb",    "disney",
     "ghibli",      "swapi",      "thesportsdb","cocktaildb",
-    "themealdb",   "foodfacts",  "dogceo",     "restcountries"
+    "themealdb",   "foodfacts",  "dogceo",     "restcountries",
+    "catalog"
   ];
 
   // Cache is considered "near expiry" when ≤ 10 min remain.
@@ -84,12 +86,13 @@ namespace QvRemoteConfig {
   // Topic → primary provider — sync with question_cache.ts topicProvider().
   function topicProvider(topic: string): string {
     var map: { [t: string]: string } = {
-      opentdb: "opentdb", anime: "jikan", pokemon: "pokeapi",
+      opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
       cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
       ghibli: "ghibli", disney: "disney", starwars: "swapi",
       countries: "restcountries", flags: "restcountries",
       space: "nasa", movies: "tmdb", sports: "thesportsdb",
-      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3", ai: "claude"
+      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+      video_quiz: "catalog", ai: "claude"
     };
     return map[topic] || topic;
   }
@@ -156,25 +159,28 @@ namespace QvRemoteConfig {
 
   function buildDefaultTopics(): any[] {
     return [
-      { id: "anime",     label: "Anime",         icon_url: S3_ICONS_BASE + "anime.png",     has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 1,  max_count: 20 },
-      { id: "pokemon",   label: "Pokémon",        icon_url: S3_ICONS_BASE + "pokemon.png",   has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 2,  max_count: 20 },
-      { id: "movies",    label: "Movies",         icon_url: S3_ICONS_BASE + "movies.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 3,  max_count: 20 },
-      { id: "sports",    label: "Sports",         icon_url: S3_ICONS_BASE + "sports.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 4,  max_count: 20 },
-      { id: "countries", label: "Countries",      icon_url: S3_ICONS_BASE + "countries.png", has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 5,  max_count: 20 },
-      { id: "flags",     label: "Flags",          icon_url: S3_ICONS_BASE + "flags.png",     has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 6,  max_count: 20 },
-      { id: "space",     label: "Space",          icon_url: S3_ICONS_BASE + "space.png",     has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 7,  max_count: 10 },
-      { id: "music",     label: "Music",          icon_url: S3_ICONS_BASE + "music.png",     has_media: true,  media_type: "audio", enabled: true,  is_new: false, badge: null, sort_order: 8,  max_count: 15 },
-      { id: "disney",    label: "Disney",         icon_url: S3_ICONS_BASE + "disney.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 9,  max_count: 20 },
-      { id: "ghibli",    label: "Studio Ghibli",  icon_url: S3_ICONS_BASE + "ghibli.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 10, max_count: 20 },
-      { id: "starwars",  label: "Star Wars",      icon_url: S3_ICONS_BASE + "starwars.png",  has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 11, max_count: 20 },
-      { id: "food",      label: "Food",           icon_url: S3_ICONS_BASE + "food.png",      has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 12, max_count: 20 },
-      { id: "cocktail",  label: "Cocktails",      icon_url: S3_ICONS_BASE + "cocktail.png",  has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 13, max_count: 20 },
-      { id: "dog",       label: "Dogs",           icon_url: S3_ICONS_BASE + "dog.png",       has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 14, max_count: 20 },
-      { id: "news",      label: "News",           icon_url: S3_ICONS_BASE + "news.png",      has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 15, max_count: 10 },
-      { id: "opentdb",   label: "General Trivia", icon_url: S3_ICONS_BASE + "general.png",   has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 16, max_count: 20 },
-      { id: "ai",        label: "AI Quiz",        icon_url: S3_ICONS_BASE + "ai.png",        has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 17, max_count: 10 },
-      { id: "daily",     label: "Daily Quiz",     icon_url: S3_ICONS_BASE + "daily.png",     has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 18, max_count: 10 },
-      { id: "weekly",    label: "Weekly Quiz",    icon_url: S3_ICONS_BASE + "weekly.png",    has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 19, max_count: 10 }
+      { id: "anime",     label: "Anime",         icon_url: S3_ICONS_BASE + "anime.png",     has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 1,  max_count: 30 },
+      { id: "pokemon",   label: "Pokémon",        icon_url: S3_ICONS_BASE + "pokemon.png",   has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 2,  max_count: 30 },
+      { id: "movies",    label: "Movies",         icon_url: S3_ICONS_BASE + "movies.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 3,  max_count: 30 },
+      { id: "sports",    label: "Sports",         icon_url: S3_ICONS_BASE + "sports.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 4,  max_count: 30 },
+      { id: "countries", label: "Countries",      icon_url: S3_ICONS_BASE + "countries.png", has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 5,  max_count: 30 },
+      { id: "flags",     label: "Flags",          icon_url: S3_ICONS_BASE + "flags.png",     has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 6,  max_count: 30 },
+      { id: "space",     label: "Space",          icon_url: S3_ICONS_BASE + "space.png",     has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 7,  max_count: 30 },
+      { id: "music",     label: "Music",          icon_url: S3_ICONS_BASE + "music.png",     has_media: true,  media_type: "audio", enabled: true,  is_new: false, badge: null, sort_order: 8,  max_count: 30 },
+      { id: "disney",    label: "Disney",         icon_url: S3_ICONS_BASE + "disney.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 9,  max_count: 30 },
+      { id: "ghibli",    label: "Studio Ghibli",  icon_url: S3_ICONS_BASE + "ghibli.png",    has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 10, max_count: 30 },
+      { id: "starwars",  label: "Star Wars",      icon_url: S3_ICONS_BASE + "starwars.png",  has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 11, max_count: 30 },
+      { id: "food",      label: "Food",           icon_url: S3_ICONS_BASE + "food.png",      has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 12, max_count: 30 },
+      { id: "cocktail",  label: "Cocktails",      icon_url: S3_ICONS_BASE + "cocktail.png",  has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 13, max_count: 30 },
+      { id: "dog",       label: "Dogs",           icon_url: S3_ICONS_BASE + "dog.png",       has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 14, max_count: 30 },
+      { id: "news",      label: "News",           icon_url: S3_ICONS_BASE + "news.png",      has_media: true,  media_type: "image", enabled: true,  is_new: false, badge: null, sort_order: 15, max_count: 30 },
+      { id: "opentdb",   label: "General Trivia", icon_url: S3_ICONS_BASE + "general.png",   has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 16, max_count: 30 },
+      { id: "speed_quiz", label: "Speed Quiz",    icon_url: S3_ICONS_BASE + "general.png",   has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 20, max_count: 30 },
+      { id: "true_false", label: "True / False",  icon_url: S3_ICONS_BASE + "general.png",   has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 21, max_count: 30 },
+      { id: "video_quiz", label: "Video Quiz",    icon_url: S3_ICONS_BASE + "general.png",   has_media: true,  media_type: "video", enabled: true,  is_new: false, badge: null, sort_order: 22, max_count: 30 },
+      { id: "ai",        label: "AI Quiz",        icon_url: S3_ICONS_BASE + "ai.png",        has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 17, max_count: 30 },
+      { id: "daily",     label: "Daily Quiz",     icon_url: S3_ICONS_BASE + "daily.png",     has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 18, max_count: 30 },
+      { id: "weekly",    label: "Weekly Quiz",    icon_url: S3_ICONS_BASE + "weekly.png",    has_media: false, media_type: null,    enabled: true,  is_new: false, badge: null, sort_order: 19, max_count: 30 }
     ];
   }
 
@@ -195,7 +201,10 @@ namespace QvRemoteConfig {
       cocktail:  ["en"],
       dog:       ["en"],
       news:      ["en", "es", "fr", "de", "pt", "it"],
-      opentdb:   ["en"],
+      opentdb:     ["en"],
+      speed_quiz:  ["en"],
+      true_false:  ["en"],
+      video_quiz:  ["en"],
       ai:        ["en", "hi", "es", "fr", "de", "ja", "ko", "pt", "ar", "ru", "id"],
       daily:     ["en"],
       weekly:    ["en"]

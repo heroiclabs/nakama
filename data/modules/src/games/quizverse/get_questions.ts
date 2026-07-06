@@ -56,7 +56,14 @@ namespace QvGetQuestions {
     "starwarsquiz":   "starwars",
     "disneyquiz":     "disney",
     "ghibli":         "ghibli",
-    "iqrush":         "iqrush"
+    "iqrush":         "iqrush",
+    "speedquiz":      "speed_quiz",
+    "speed-quiz":     "speed_quiz",
+    "truefalse":      "true_false",
+    "true-false":     "true_false",
+    "true_false_quiz":"true_false",
+    "videoquiz":      "video_quiz",
+    "video-quiz":     "video_quiz"
   };
 
   // ── Allowed game IDs (org2) ────────────────────────────────────────────────
@@ -134,12 +141,13 @@ namespace QvGetQuestions {
 
   function topicProviderForLog(topic: string): string {
     var map: { [t: string]: string } = {
-      opentdb: "opentdb", anime: "jikan", pokemon: "pokeapi",
+      opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
       cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
       ghibli: "ghibli", disney: "disney", starwars: "swapi",
       countries: "restcountries", flags: "restcountries",
       space: "nasa", movies: "tmdb", sports: "sportsdb",
-      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3", ai: "claude"
+      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+      video_quiz: "catalog", ai: "claude"
     };
     return map[topic] || topic;
   }

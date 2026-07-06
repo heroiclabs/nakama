@@ -9,14 +9,14 @@
 // Payload: { "mode": "cold_start" | "all" | "topic", "topic": "anime" }
 //
 // Modes:
-//   cold_start — refresh anime, pokemon, movies, dog, flags, countries with 2 s stagger (post-deploy bootstrap)
+//   cold_start — refresh anime, pokemon, movies, dog, flags, countries, video_quiz with 2 s stagger (post-deploy bootstrap)
 //   all        — refreshAllTopics, gated to once per 6 h (qv_cache_refresh_state/last_full_run)
 //   topic      — single-topic refreshCache (no global gate)
 
 namespace QvCacheRefreshCron {
 
   var LOG_PREFIX           = "[QvCacheRefresh]";
-  var COLD_START_TOPICS    = ["anime", "pokemon", "movies", "dog", "flags", "countries"];
+  var COLD_START_TOPICS    = ["anime", "pokemon", "movies", "dog", "flags", "countries", "video_quiz"];
   var FULL_REFRESH_GATE_MS = 6 * 3600000;
   var COLD_STAGGER_MS      = 2000;
   var GATE_COL             = "qv_cache_refresh_state";
@@ -226,6 +226,43 @@ namespace QvCacheRefreshCron {
 
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("quizverse_cache_refresh_tick", rpcCacheRefreshTick);
+  }
+
+  /**
+   * InitModule boot hook: seed video_quiz catalog from the postbuild embed, then
+   * force-warm qv_cache_video_quiz. Safe to call on every deploy/restart.
+   */
+  export function bootOnInit(
+    nk:     nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    env:    { [k: string]: string }
+  ): void {
+    try {
+      var seed = QvQuestionCache.ensureVideoQuizCatalogSeeded(nk, logger);
+      if (!seed.ok) {
+        logger.warn(formatLog("[boot_video_quiz]", {
+          event: "video_quiz_catalog_seed_skipped",
+          error: seed.error || "unknown"
+        }));
+        return;
+      }
+      var warm = QvQuestionCache.refreshCache(nk, logger, env, "video_quiz", true);
+      logger.info(formatLog("[boot_video_quiz]", {
+        event:          "video_quiz_boot_complete",
+        seed_ok:        seed.ok,
+        seed_skipped:   !!seed.skipped,
+        version:        seed.version || "none",
+        question_count: seed.question_count || 0,
+        cache_ok:       warm.ok,
+        cache_count:    warm.count,
+        cache_error:    warm.error || "none"
+      }));
+    } catch (err: any) {
+      logger.error(formatLog("[boot_video_quiz]", {
+        event: "video_quiz_boot_failed",
+        error: (err && err.message) ? err.message : String(err)
+      }));
+    }
   }
 
   var _NOOP: any = { registerRpc: function() {} };
