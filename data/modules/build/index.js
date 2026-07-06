@@ -58530,11 +58530,9 @@ var SatoriMetrics;
     SatoriMetrics.registerEventHandlers = registerEventHandlers;
 })(SatoriMetrics || (SatoriMetrics = {}));
 // ---------------------------------------------------------------------------
-// Satori Reports — saved/reusable report definitions. Mirrors Satori Cloud's
-// "Reports" surface: an admin saves a named query (a funnel, retention,
-// metric, or timeline view with its parameters) and re-runs it later. The
-// definition is stored here; the admin UI executes it by calling the existing
-// funnel / retention / metric / timeline RPCs with the saved params.
+// Satori Reports — saved onboarding report definitions for the admin dashboard.
+// Each report stores filter params (days, pathway, platform, etc.); the UI
+// re-runs it via onboarding_funnel_analytics (qv_onboarding_events / ob_*).
 //
 // Definitions live in satori_configs/"reports" per game
 // ({ reports: { [id]: def } }). Admin-only.
@@ -58562,7 +58560,7 @@ var SatoriReports;
         var gameId = RpcHelpers.gameId(data);
         return RpcHelpers.successResponse({ reports: toList(getReports(nk, gameId)), game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
-    var VALID_TYPES = { funnel: true, retention: true, metric: true, timeline: true };
+    var VALID_TYPES = { onboarding: true };
     // satori_reports_save — Payload: { id?, name, type, description?, params, game_id? }
     function rpcSave(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -58570,7 +58568,7 @@ var SatoriReports;
         if (!data.name)
             return RpcHelpers.errorResponse("name required");
         if (!data.type || !VALID_TYPES[data.type])
-            return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
+            return RpcHelpers.errorResponse("type must be onboarding");
         var gameId = RpcHelpers.gameId(data);
         var reports = getReports(nk, gameId);
         var now = Math.floor(Date.now() / 1000);
