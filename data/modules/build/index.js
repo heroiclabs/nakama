@@ -22405,17 +22405,15 @@ var AdminConsole;
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+        var eventIdFilter = data.eventId || data.event_id || "";
+        if (eventIdFilter)
+            eventIdFilter = String(eventIdFilter);
         var limit = Math.min(200, Math.max(1, Number(data.limit) || 100));
-        var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
-        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, cursor);
-        var rows = [];
-        var objs = (res && res.objects) || [];
-        for (var i = 0; i < objs.length; i++) {
-            var v = objs[i].value || {};
-            if (statusFilter && v.status !== statusFilter)
-                continue;
-            rows.push({
-                key: objs[i].key,
+        var offset = Math.max(0, Number(data.offset) || 0);
+        var storageCursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : "";
+        function mapFulfillmentRow(key, v) {
+            return {
+                key: key,
                 userId: v.userId || "",
                 eventId: v.eventId || "",
                 eventTitle: v.eventTitle || "",
@@ -22429,7 +22427,56 @@ var AdminConsole;
                 settledAt: v.settledAt || 0,
                 voucher: v.voucher || null,
                 error: v.error || "",
+            };
+        }
+        function rowMatchesFilters(v) {
+            if (statusFilter && v.status !== statusFilter)
+                return false;
+            if (eventIdFilter && String(v.eventId || "") !== eventIdFilter)
+                return false;
+            return true;
+        }
+        // Default admin view: scan the full queue (capped), sort newest-first.
+        // storageList returns keys alphabetically — a single page hides events whose
+        // keys sort after the first ~200 rows (e.g. fc64c27e-…).
+        if (!storageCursor) {
+            var allRows = [];
+            var scanCursor = undefined;
+            var pages = 0;
+            var maxPages = 50;
+            do {
+                var page = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", 100, scanCursor);
+                var pageObjs = (page && page.objects) || [];
+                for (var pi = 0; pi < pageObjs.length; pi++) {
+                    var pv = pageObjs[pi].value || {};
+                    if (!rowMatchesFilters(pv))
+                        continue;
+                    allRows.push(mapFulfillmentRow(pageObjs[pi].key, pv));
+                }
+                scanCursor = (page && page.cursor) ? String(page.cursor) : "";
+                pages++;
+            } while (scanCursor && pages < maxPages);
+            allRows.sort(function (a, b) {
+                return (b.queuedAt || 0) - (a.queuedAt || 0);
             });
+            var total = allRows.length;
+            var pageRows = allRows.slice(offset, offset + limit);
+            var nextOffset = offset + pageRows.length;
+            return RpcHelpers.successResponse({
+                fulfillments: pageRows,
+                total: total,
+                cursor: nextOffset < total ? String(nextOffset) : "",
+            });
+        }
+        // Legacy storage cursor passthrough (offset cursors handled above).
+        var res = nk.storageList(Constants.SYSTEM_USER_ID, "prize_fulfillments", limit, storageCursor);
+        var rows = [];
+        var objs = (res && res.objects) || [];
+        for (var i = 0; i < objs.length; i++) {
+            var v = objs[i].value || {};
+            if (!rowMatchesFilters(v))
+                continue;
+            rows.push(mapFulfillmentRow(objs[i].key, v));
         }
         return RpcHelpers.successResponse({
             fulfillments: rows,
