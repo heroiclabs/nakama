@@ -3,12 +3,10 @@ All notable changes to this project are documented below.
 
 The format is based on [keep a changelog](http://keepachangelog.com) and this project uses [semantic versioning](http://semver.org).
 
-## [Unreleased]
-
-## [3.39.1] - 2026-06-26
+## [Unreleased 3.39.X]
 ### Backports
 - #2514: Database and Console route extension points
-
+- #2522: (WIP) Avoid display name search if search term is an UUID
 
 ## [3.39.0] - 2026-05-20
 ### Added
