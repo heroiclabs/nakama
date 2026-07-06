@@ -39,6 +39,23 @@ namespace SatoriMessages {
     };
     inbox.messages.push(msg);
     saveUserMessages(nk, userId, inbox, gameId);
+
+    // Bridge to Nakama built-in notifications so the message surfaces in the
+    // game clients' Notification Center (Unity reads list_notification_inbox /
+    // the realtime socket, neither of which sees satori_messages storage).
+    // Code 110 is unmapped in the client NOTIFICATION_CODE_MAP, so it renders
+    // as event_type "system". Best-effort: the satori inbox write above is
+    // the source of truth.
+    try {
+      nk.notificationSend(
+        userId,
+        messageDef.title,
+        { title: messageDef.title, body: messageDef.body || "", messageDefId: messageDef.id, hasReward: !!messageDef.reward },
+        110,
+        "",
+        true
+      );
+    } catch (_e) { /* notification is a best-effort mirror */ }
   }
 
   export function deliverToAudience(nk: nkruntime.Nakama, logger: nkruntime.Logger, messageDef: Satori.MessageDefinition, audienceId: string, gameId?: string): number {
@@ -114,6 +131,14 @@ namespace SatoriMessages {
       var scheduledDelivered = 0;
       if (def.audienceId) {
         scheduledDelivered = deliverToAudience(nk, logger, def, def.audienceId, gameId);
+      } else {
+        // No audience filter = "all players": same random-sample delivery as
+        // the immediate-send path, so scheduled broadcasts actually go out.
+        var sampled = nk.usersGetRandom(100);
+        for (var si = 0; si < sampled.length; si++) {
+          deliverMessage(nk, sampled[si].userId, def, gameId);
+          scheduledDelivered++;
+        }
       }
 
       // Mark message as sent in definitions

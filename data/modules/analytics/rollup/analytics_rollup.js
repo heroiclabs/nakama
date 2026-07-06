@@ -28,6 +28,23 @@
 // Feature flag: ROLLUP_ENABLED="false" disables all RPCs (returns 503). Default: enabled.
 
 var AR_SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+
+/** Rollup IAP revenue — delegates to analytics.js helpers when co-loaded. */
+function arExtractIapRevenueUsd(data, ev) {
+    if (typeof analyticsExtractIapRevenueUsd === "function") {
+        return analyticsExtractIapRevenueUsd(data, ev);
+    }
+    if (typeof analyticsIsSandboxIap === "function" && analyticsIsSandboxIap(data, ev)) return 0;
+    var rev = parseFloat(data.revenue_usd || data.price_usd || data.revenueUsd || data.priceUsd || 0);
+    return (isFinite(rev) && rev > 0) ? rev : 0;
+}
+
+function arIsSandboxIap(data, ev) {
+    if (typeof analyticsIsSandboxIap === "function") return analyticsIsSandboxIap(data, ev);
+    if (!data) return false;
+    return data.is_sandbox === true || data.isSandbox === true ||
+        String(data.environment || "").toLowerCase() === "sandbox";
+}
 var AR_ADMIN_USERS_COLLECTION = "admin_users";
 var AR_ROLLUP_COLLECTION = "analytics_rollup_daily";
 var AR_LIVE_COLLECTION = "analytics_live_daily";
@@ -766,11 +783,15 @@ function arComputeRollup(events, gameId, dateStr, newUsersSet) {
         // ever turned off. Track product_id breakdown for the Revenue
         // panel's top-products card.
         if (eventName === "iap_purchased" || eventName === "purchase_completed") {
-            iapCount++;
-            var price = parseFloat(data.price_usd || data.priceUsd || data.revenue_usd || data.revenueUsd || data.amount_usd || data.amountUsd || data.price || data.amount || data.value || 0);
-            if (isFinite(price) && price > 0) revenueUsd += price;
+            var iapRev = arExtractIapRevenueUsd(data, ev);
+            if (!arIsSandboxIap(data, ev)) {
+                if (iapRev > 0) {
+                    iapCount++;
+                    revenueUsd += iapRev;
+                }
+            }
             var prodId = data.product_id || data.productId;
-            if (prodId) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
+            if (prodId && iapRev > 0) productPurchases[prodId] = (productPurchases[prodId] || 0) + 1;
         }
         // Fix SR-9: AR_EVENT_ALIASES already ran above so "purchase_started" and
         // "iap_started" are now "iap_clicked" by the time we reach here.
@@ -1199,8 +1220,8 @@ function arComputeModesDaily(events, gameId, dateStr) {
                 b.total_correct++;
             }
         } else if (name === "iap_purchased" || name === "purchase_completed") {
-            var price = parseFloat(data.price_usd || data.priceUsd || data.revenue_usd || data.revenueUsd || data.amount_usd || data.amountUsd || data.price || data.amount || data.value || 0);
-            if (isFinite(price) && price > 0) b.revenue_usd += price;
+            var modeRev = arExtractIapRevenueUsd(data, ev);
+            if (modeRev > 0) b.revenue_usd += modeRev;
         } else if (name === "ad_impression" || name === "ad_shown") {
             b.ad_impressions++;
         }
@@ -2310,8 +2331,8 @@ function arComputeOfferPerformance(events, gameId, dateStr) {
             case "offer_clicked":         b.clicked++;         break;
             case "offer_purchased":
                 b.purchased++;
-                var rev = parseFloat(d.price_usd || d.price || d.revenue_usd || 0);
-                if (isFinite(rev) && rev > 0) b.revenue_usd += rev;
+                var offerRev = arExtractIapRevenueUsd(d, ev);
+                if (offerRev > 0) b.revenue_usd += offerRev;
                 break;
             case "offer_dismissed":       b.dismissed++;       break;
             case "offer_cooldown_blocked":b.cooldown_blocked++;break;

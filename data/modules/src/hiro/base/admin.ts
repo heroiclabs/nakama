@@ -1849,7 +1849,7 @@ namespace AdminConsole {
       var derivedStatus = (scheduleAt && scheduleAt > now) ? "scheduled" : "draft";
       // Honour the persisted status (e.g. "sent") but guard against "scheduled"
       // with no actual scheduleAt — that was the "all players, no schedule" bug.
-      var persistedStatus = def.status;
+      var persistedStatus = def.status === "delivered" ? "sent" : def.status;
       var finalStatus = (persistedStatus && !(persistedStatus === "scheduled" && !scheduleAt))
         ? persistedStatus
         : derivedStatus;
@@ -2030,16 +2030,33 @@ namespace AdminConsole {
       createdAt: (definitions[messageId] && definitions[messageId].createdAt) || now,
       updatedAt: now
     };
-    definitions[messageId] = messageDef;
-
-    var key = saveScopedSatoriConfig(nk, "messages", gameId, definitions);
     var delivered = 0;
-    if (audienceId && (!scheduleAt || scheduleAt <= now)) {
-      delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId, gameId);
-      messageDef.status = "delivered";
+    var sendNow = !scheduleAt || scheduleAt <= now;
+    if (sendNow) {
+      if (audienceId) {
+        delivered = SatoriMessages.deliverToAudience(nk, logger, messageDef, audienceId, gameId);
+      } else {
+        // "All players (no filter)": deliver to a random sample of up to 100 users,
+        // mirroring satori_messages_broadcast. Without this the message was saved
+        // as "draft" and never left the config store.
+        var allUsers = nk.usersGetRandom(100);
+        for (var ui = 0; ui < allUsers.length; ui++) {
+          SatoriMessages.deliverMessage(nk, allUsers[ui].userId, messageDef, gameId);
+          delivered++;
+        }
+      }
+      messageDef.status = "sent";
+      messageDef.deliveredCount = delivered;
+      messageDef.sentAt = now;
       messageDef.deliveredAt = now;
-      saveScopedSatoriConfig(nk, "messages", gameId, definitions);
     }
+
+    // Persist ONCE, after delivery. A second storageWrite to the same key in
+    // the same RPC invocation is rejected by Nakama's version check (observed
+    // on prod: "Storage write rejected - version check failed"), which was
+    // leaving immediate sends stuck at status=draft.
+    definitions[messageId] = messageDef;
+    var key = saveScopedSatoriConfig(nk, "messages", gameId, definitions);
     logAdminAudit(nk, ctx, "satori_message_broadcast", { id: messageId, audienceId: audienceId, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { scheduled: !!scheduleAt, delivered: delivered });
     return RpcHelpers.successResponse({ scheduled: !!(scheduleAt && scheduleAt > now), delivered: delivered, messageId: messageId });
   }

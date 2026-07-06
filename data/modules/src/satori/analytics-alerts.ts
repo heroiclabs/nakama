@@ -969,16 +969,26 @@ namespace AnalyticsAlerts {
     nk: nkruntime.Nakama,
     _payload: string,
   ): string {
+    // Nakama runs a pool of JS VMs; module-level state set in InitModule's VM
+    // is not visible in RPC-serving VMs. Lazily re-init from ctx.env so the
+    // webhook is available regardless of which VM serves the request (same
+    // pattern as InsightsAggregator.rpcTick).
+    if (!webhookUrl) {
+      init(ctx, logger);
+    }
     var res = runSchedulerTick(nk, logger);
     return JSON.stringify({ success: true, data: res });
   }
 
   function rpcStatus(
-    _ctx: nkruntime.Context,
-    _logger: nkruntime.Logger,
+    ctx: nkruntime.Context,
+    logger: nkruntime.Logger,
     nk: nkruntime.Nakama,
     _payload: string,
   ): string {
+    if (!webhookUrl) {
+      init(ctx, logger);
+    }
     var lastPosted = getLastPostedSlot(nk);
     var nextSlotStart = lastClosedSlotStart(SUMMARY_INTERVAL_MS, Date.now());
     return JSON.stringify({

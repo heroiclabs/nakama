@@ -528,6 +528,43 @@ var IN_APP_ACTIVE_TOUCH_EVENTS = {
     iap_purchased: true
 };
 
+/**
+ * True when an iap_purchased event must NOT contribute to revenue_usd.
+ * Defense-in-depth: Unity should set is_sandbox; server also catches editor
+ * installs, RC/n8n environment=sandbox, and Unity editor platform strings.
+ */
+function analyticsIsSandboxIap(ed, ev) {
+    if (!ed) ed = {};
+    if (ed.is_sandbox === true || ed.isSandbox === true) return true;
+    if (ed.sandbox === true) return true;
+
+    var env = String(ed.environment || ed.Environment || "").toLowerCase();
+    if (env === "sandbox") return true;
+
+    var installSrc = String(ed.install_source || ed.installSource || "").toLowerCase();
+    if (installSrc === "editor" || installSrc.indexOf("editor") >= 0) return true;
+
+    var plat = String((ed.platform || ed.Platform) || (ev && ev.platform) || "").toLowerCase();
+    if (plat.indexOf("editor") >= 0) return true;
+    if (plat === "windowseditor" || plat === "osxeditor" || plat === "linuxeditor" ||
+        plat === "iphoneplayer" || plat === "androidemulator") return true;
+
+    var store = String(ed.store || ed.Store || "").toLowerCase();
+    if (store === "sandbox" || store === "fake" || store === "fakestore" || store === "test") return true;
+
+    return false;
+}
+
+/**
+ * USD revenue for dashboard rollups. Never treat local-currency price/amount as USD.
+ */
+function analyticsExtractIapRevenueUsd(ed, ev) {
+    if (analyticsIsSandboxIap(ed, ev)) return 0;
+    var rev = parseFloat(ed.revenue_usd || ed.price_usd || ed.revenueUsd || ed.priceUsd || 0);
+    if (isFinite(rev) && rev > 0) return rev;
+    return 0;
+}
+
 function liveCountersUpdate(nk, ev) {
     var dateStr = new Date(ev.unixTimestamp * 1000).toISOString().slice(0, 10);
     var col = "analytics_live_daily";
@@ -555,7 +592,7 @@ function liveCountersUpdate(nk, ev) {
     // and without requiring a nightly rollup.
     var metrics = null;
     if (en === "iap_purchased") {
-        var rev = parseFloat(ed.revenue_usd || ed.price_usd || ed.price || ed.amount || 0) || 0;
+        var rev = analyticsExtractIapRevenueUsd(ed, ev);
         if (rev > 0) metrics = { revenue_usd: rev };
     } else if (en === "ad_revenue") {
         var adRev = parseFloat(ed.revenue_usd || ed.revenueUSD || 0) || 0;

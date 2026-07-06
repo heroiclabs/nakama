@@ -1140,6 +1140,16 @@ namespace LegacyPush {
     // the daily quiz once per owning account (prod audit 2026-07-03: 96 shared
     // endpoints → ~174 duplicate deliveries/day). The cron passes one shared
     // set per run; an ARN already pushed this run is skipped for later users.
+    // When every device this user owns was already pushed this run (via another
+    // account on the same phone), we must still report success so the cron
+    // records this user's day-marker: returning false left the co-owner account
+    // unmarked, and the NEXT cron run re-sent to the same phone through it —
+    // the in-run dedup merely postponed the duplicate by one run (observed
+    // 2026-07-03: dupe pairs 20 min apart, one per consecutive run). The device
+    // HAS the notification; that is the semantic the marker tracks. We do NOT
+    // return early: the per-ACCOUNT in-app inbox entry below must still be
+    // written for this account.
+    var dedupSuppressedAll = false;
     if (opts.dedupArns) {
       var unseen: any[] = [];
       for (var di = 0; di < deliverable.length; di++) {
@@ -1151,7 +1161,7 @@ namespace LegacyPush {
         unseen.push(deliverable[di]);
       }
       deliverable = unseen;
-      if (deliverable.length === 0) return false;
+      dedupSuppressedAll = deliverable.length === 0;
     }
 
     var sent = 0;
@@ -1201,14 +1211,19 @@ namespace LegacyPush {
 
     // Scheduled-push delivery observability — same signal as the on-demand path
     // so the cron silently dropping to 0 device-sends raises a Discord alert.
-    try {
-      var locDead = 0;
-      for (var ldk in localDead) { if (localDead.hasOwnProperty(ldk) && localDead[ldk]) locDead++; }
-      PushAlerts.ensureConfigured(ctx, logger);
-      PushAlerts.recordOutcome(nk, logger, "cron", tokensData.tokens.length, sent, locDead, localCodes);
-    } catch (_) {}
+    // Skip when the in-run dedup suppressed every device: counting those as
+    // attempted-but-not-delivered would inflate the failure rate and trip the
+    // delivery-failure alert for what is intentional suppression, not failure.
+    if (!dedupSuppressedAll) {
+      try {
+        var locDead = 0;
+        for (var ldk in localDead) { if (localDead.hasOwnProperty(ldk) && localDead[ldk]) locDead++; }
+        PushAlerts.ensureConfigured(ctx, logger);
+        PushAlerts.recordOutcome(nk, logger, "cron", tokensData.tokens.length, sent, locDead, localCodes);
+      } catch (_) {}
+    }
 
-    return sent > 0;
+    return sent > 0 || dedupSuppressedAll;
   }
 
   // Provider-only push used by the chat failed-push retry queue. Unlike
@@ -1548,6 +1563,8 @@ namespace LegacyPush {
 
     var sent = 0, gated = 0, scanned = 0, eligible = 0, alreadyDone = 0, localeSkipped = 0;
     var truncated = false;
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1569,7 +1586,7 @@ namespace LegacyPush {
         }
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "survey_invite",
           "survey_invite_title", "survey_invite_body", {},
-          { skipQuietHours: skipQuiet, data: { screen: "survey", url: surveyUrl } });
+          { skipQuietHours: skipQuiet, data: { screen: "survey", url: surveyUrl }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) { recordMarker(nk, u, "survey_invite", campaign); sent++; } else { gated++; }
       }
       if (truncated) break;
@@ -1612,18 +1629,28 @@ namespace LegacyPush {
 
     var todayKey = todayDateKey();
     var sent = 0, gated = 0, scanned = 0;
+    var byLocale: { [l: string]: { sent: number; gated: number } } = {};
+    var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     var batch = 100, offset = 0;
+    // Cross-account device dedup within this run (same phone under multiple accounts).
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
+    // Fixed per-day marker: at most ONE weekly-quiz push per user per day, no matter
+    // how many types change or across how many hourly runs the changes are detected.
+    // (The old key included changedTypes.join("_"), so each run that detected a
+    // different changed type produced a fresh key and re-pushed the same users.)
+    var dayMarkerKey = "weekly_quiz";
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
       if (!users || users.length === 0) break;
       for (var i = 0; i < users.length; i++) {
         scanned++;
         var u = users[i];
-        var h = getUserLocalHour(nk, u);
-        if (h < 10 || h >= 20) { gated++; continue; }           // weekly window 10:00–20:00 local
-        var dayMarkerKey = "weekly_quiz_" + changedTypes.join("_");
-        if (hasMarker(nk, u, dayMarkerKey, todayKey)) { gated++; continue; }
         var locale = getUserLocale(nk, u);
+        if (!byLocale[locale]) byLocale[locale] = { sent: 0, gated: 0 };
+        var h = getUserLocalHour(nk, u);
+        if (h < 10 || h >= 20) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }  // weekly window 10:00–20:00 local
+        if (hasMarker(nk, u, dayMarkerKey, todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
         // Push one notification mentioning whichever changed type has copy in user's locale (first match).
         var pushedForType: string | null = null;
         for (var c = 0; c < changedTypes.length; c++) {
@@ -1634,13 +1661,25 @@ namespace LegacyPush {
         var typeLabel = changedByType[pushedForType][locale] || changedByType[pushedForType]["en"] || pushedForType;
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "weekly_quiz",
           "weekly_quiz_title", "weekly_quiz_body", { type: typeLabel },
-          { data: { screen: "weekly_quiz", type: pushedForType } });
-        if (ok) { recordMarker(nk, u, dayMarkerKey, todayKey); sent++; } else { gated++; }
+          { data: { screen: "weekly_quiz", type: pushedForType }, dedupArns: runDedupArns, dedupStats: runDedupStats });
+        if (ok) { recordMarker(nk, u, dayMarkerKey, todayKey); sent++; byLocale[locale].sent++; }
+        else {
+          gated++; byLocale[locale].gated++;
+          if (!LegacyPush.userHasPushTokens(nk, u)) { gateReasons.noToken++; } else { gateReasons.sendFailed++; }
+        }
       }
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes });
+    // Weekly cron never reported to Discord before — sends were invisible next to
+    // the daily/premium "Sent 0" reports. Post only on runs that detected changes
+    // (it runs hourly; a no-change report every hour would be noise).
+    PushAlerts.postCronReport(nk, logger, {
+      cronName: "weekly_quiz", dateKey: todayKey, topic: changedTypes.join(", "),
+      scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons,
+      dedupedDevices: runDedupStats.skippedDevices
+    });
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes, dedupedDevices: runDedupStats.skippedDevices });
   }
 
   // ─── 3. Idle win-back cron (24–48 h since last session) ────────────────────
@@ -1651,6 +1690,8 @@ namespace LegacyPush {
     var nowMs = Date.now();
     var minIdleMs = 24 * 3600 * 1000;
     var maxIdleMs = 48 * 3600 * 1000;
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1675,13 +1716,21 @@ namespace LegacyPush {
         var days = Math.floor(idle / (24 * 3600 * 1000)) || 1;
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "idle_winback",
           "idle_winback_title", "idle_winback_body", { days: days },
-          { data: { screen: "home" } });
+          { data: { screen: "home" }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) { recordMarker(nk, u, "idle_winback", todayKey); sent++; } else { gated++; }
       }
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned });
+    // Report only runs that actually delivered something — this cron fires every
+    // 30 min and a "0 sent, all gated" embed each time would drown the channel.
+    if (sent > 0 || runDedupStats.skippedDevices > 0) {
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "idle_winback", dateKey: todayKey, scanned: scanned, sent: sent,
+        gated: gated, byLocale: {}, dedupedDevices: runDedupStats.skippedDevices
+      });
+    }
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dedupedDevices: runDedupStats.skippedDevices });
   }
 
   // ─── 4. Streak warning cron (18:00–21:00 local; user has streak ≥ 2) ────────
@@ -1689,6 +1738,8 @@ namespace LegacyPush {
     if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
     var todayKey = todayDateKey();
     var sent = 0, gated = 0, scanned = 0;
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1717,13 +1768,19 @@ namespace LegacyPush {
         } catch (_) {}
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "streak_warning",
           "streak_warning_title", "streak_warning_body", { streak: streak },
-          { data: { screen: "daily_quiz" } });
+          { data: { screen: "daily_quiz" }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) { recordMarker(nk, u, "streak_warning", todayKey); sent++; } else { gated++; }
       }
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned });
+    if (sent > 0 || runDedupStats.skippedDevices > 0) {
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "streak_warning", dateKey: todayKey, scanned: scanned, sent: sent,
+        gated: gated, byLocale: {}, dedupedDevices: runDedupStats.skippedDevices
+      });
+    }
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dedupedDevices: runDedupStats.skippedDevices });
   }
 
   // ─── 5. Motivation cron (idle 3–7 days, once every 3 days) ─────────────────
@@ -1734,6 +1791,8 @@ namespace LegacyPush {
     var nowMs = Date.now();
     var minIdleMs = 3 * 24 * 3600 * 1000;
     var maxIdleMs = 7 * 24 * 3600 * 1000;
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listOptedInUsers(nk, batch, offset);
@@ -1761,7 +1820,7 @@ namespace LegacyPush {
         if (idle < minIdleMs || idle > maxIdleMs) { gated++; continue; }
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "motivation",
           "motivation_title", "motivation_body", {},
-          { data: { screen: "home" } });
+          { data: { screen: "home" }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) {
           recordMarker(nk, u, "motivation_last_at", new Date().toISOString());
           sent++;
@@ -1770,7 +1829,13 @@ namespace LegacyPush {
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned });
+    if (sent > 0 || runDedupStats.skippedDevices > 0) {
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "motivation", dateKey: todayKey, scanned: scanned, sent: sent,
+        gated: gated, byLocale: {}, dedupedDevices: runDedupStats.skippedDevices
+      });
+    }
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dedupedDevices: runDedupStats.skippedDevices });
   }
 
   // ─── 6. Friend request push (event-driven; called inline from invite RPC) ──
@@ -1874,6 +1939,8 @@ namespace LegacyPush {
   function rpcNotifCronReminders(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
     var sent = 0, gated = 0, dueScanned = 0, usersScanned = 0;
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listUsersWithReminders(nk, batch, offset);
@@ -1895,14 +1962,20 @@ namespace LegacyPush {
           if (hasMarker(nk, u, markerKey, parts.dateKey)) { gated++; continue; }
           var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "study_reminder",
             "reminder_title", "reminder_body", { text: rem.text || "Time to study" },
-            { skipQuietHours: true, data: { screen: "reminders", reminderId: String(rem.id || "") } });
+            { skipQuietHours: true, data: { screen: "reminders", reminderId: String(rem.id || "") }, dedupArns: runDedupArns, dedupStats: runDedupStats });
           if (ok) { recordMarker(nk, u, markerKey, parts.dateKey); sent++; } else { gated++; }
         }
       }
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, due_scanned: dueScanned, users_scanned: usersScanned });
+    if (sent > 0 || runDedupStats.skippedDevices > 0) {
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "reminders", dateKey: todayDateKey(), scanned: usersScanned, sent: sent,
+        gated: gated, byLocale: {}, dedupedDevices: runDedupStats.skippedDevices
+      });
+    }
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, due_scanned: dueScanned, users_scanned: usersScanned, dedupedDevices: runDedupStats.skippedDevices });
   }
 
   // ─── 9. Spaced-repetition review nudge cron (server-scheduled) ─────────────
@@ -1945,6 +2018,8 @@ namespace LegacyPush {
     if (ctx.userId) return RpcHelpers.errorResponse("Admin only");
     var sent = 0, gated = 0, usersScanned = 0;
     var nowMs = Date.now();
+    var runDedupArns: { [arn: string]: boolean } = {};
+    var runDedupStats = { skippedDevices: 0 };
     var batch = 100, offset = 0;
     while (true) {
       var users = listUsersWithReview(nk, batch, offset);
@@ -1968,13 +2043,19 @@ namespace LegacyPush {
         if (due <= 0) { gated++; continue; }
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "review_due",
           "review_due_title", "review_due_body", { count: due },
-          { skipQuietHours: true, data: { screen: "review", due: String(due) } });
+          { skipQuietHours: true, data: { screen: "review", due: String(due) }, dedupArns: runDedupArns, dedupStats: runDedupStats });
         if (ok) { recordMarker(nk, u, "review_due", parts.dateKey); sent++; } else { gated++; }
       }
       offset += batch;
       if (users.length < batch) break;
     }
-    return RpcHelpers.successResponse({ sent: sent, gated: gated, users_scanned: usersScanned });
+    if (sent > 0 || runDedupStats.skippedDevices > 0) {
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "review_due", dateKey: todayDateKey(), scanned: usersScanned, sent: sent,
+        gated: gated, byLocale: {}, dedupedDevices: runDedupStats.skippedDevices
+      });
+    }
+    return RpcHelpers.successResponse({ sent: sent, gated: gated, users_scanned: usersScanned, dedupedDevices: runDedupStats.skippedDevices });
   }
 
   // Internal aliases so the in-process scheduler match can invoke each cron

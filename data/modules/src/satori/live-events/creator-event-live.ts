@@ -1564,6 +1564,7 @@
     initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
     initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
     initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+    initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
     initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
     initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
   }
@@ -1828,6 +1829,44 @@
     logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d",
       eventId, ranked, queued, skipped, xutWinners);
     return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
+  }
+
+  /**
+   * SPA event-end hook: rank all players and queue gift-card fulfillments
+   * immediately when the creator ends an event.
+   *
+   * The SPA stores events in the creator-OWNED `live_events` collection and
+   * ends them with a direct storage write, so the system-collection rpcEnd
+   * path never runs for SPA events — historically winners were only queued
+   * when a player self-claimed or an admin ran the backfill. The SPA calls
+   * this right after its end-write; idempotent via computeAndQueueWinners'
+   * per-(event,user) existing-row skip.
+   */
+  function rpcSpaEndQueue(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+
+    // The caller must own the event record (i.e. be the creator).
+    var recs: nkruntime.StorageObject[] = [];
+    try {
+      recs = nk.storageRead([{ collection: "live_events", key: data.eventId, userId: userId }]);
+    } catch (rerr: any) {
+      return RpcHelpers.errorResponse("Event read failed: " + (rerr.message || String(rerr)));
+    }
+    if (!recs || recs.length === 0 || !recs[0].value) {
+      return RpcHelpers.errorResponse("Event not found or not owned by you");
+    }
+    var def: any = recs[0].value;
+    if (!def.id) def.id = data.eventId;
+    if (def.status !== "ended") {
+      return RpcHelpers.errorResponse("Event is not ended yet (status: " + (def.status || "unknown") + ")");
+    }
+
+    var result = computeAndQueueWinners(nk, logger, def, data.eventId);
+    logger.info("[SpaEndQueue] event=%s ranked=%d queued=%d skipped=%d xut=%d",
+      data.eventId, result.ranked, result.queued, result.skippedExisting, result.xutWinners);
+    return RpcHelpers.successResponse({ eventId: data.eventId, prizeQueue: result });
   }
 
   function rpcSpaClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {

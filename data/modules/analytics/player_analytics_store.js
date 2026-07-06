@@ -428,9 +428,16 @@ function gpaUpsertEvent(nk, logger, ev) {
         if (evName === "iap_purchased") {
             doc.money.iap_count = (doc.money.iap_count || 0) + 1;
             doc.money.last_iap_utc = ev.unixTimestamp || nowUtc;
-            var priceVal = parseFloat(ed.price || ed.revenue_usd || 0);
-            if (priceVal > 0 && priceVal < 100000) {
-                doc.money.spend_usd = (doc.money.spend_usd || 0) + priceVal;
+            var sandboxIap = (typeof analyticsIsSandboxIap === "function")
+                ? analyticsIsSandboxIap(ed, ev)
+                : (ed.is_sandbox === true || ed.isSandbox === true);
+            if (!sandboxIap) {
+                var priceVal = (typeof analyticsExtractIapRevenueUsd === "function")
+                    ? analyticsExtractIapRevenueUsd(ed, ev)
+                    : parseFloat(ed.revenue_usd || ed.price_usd || 0);
+                if (priceVal > 0 && priceVal < 100000) {
+                    doc.money.spend_usd = (doc.money.spend_usd || 0) + priceVal;
+                }
             }
             // Tier upgrade based on total spend
             var spend = doc.money.spend_usd || 0;
