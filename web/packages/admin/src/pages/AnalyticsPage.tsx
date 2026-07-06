@@ -370,7 +370,7 @@ const SIDEBAR_SHORTCUTS = [
   },
 ] as const;
 
-function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
+function OverviewTab() {
   const navigate = useNavigate();
 
   return (
@@ -407,24 +407,6 @@ function OverviewTab({ onTabChange }: { onTabChange: (tab: TabKey) => void }) {
               <p className="text-sm font-medium">{s.label}</p>
               <p className="text-xs text-muted-foreground">{s.description}</p>
             </div>
-          </button>
-        ))}
-      </div>
-
-      {/* Row 2 — advanced tabs within this page */}
-      <SectionHeading
-        title="Advanced Analytics"
-        description="Deeper analytics available on this page"
-      />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {TABS.filter((t) => t.key !== "overview").map((t) => (
-          <button
-            key={t.key}
-            className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent"
-            onClick={() => onTabChange(t.key)}
-          >
-            <t.icon className="h-5 w-5 text-primary" />
-            <p className="text-sm font-medium">{t.label}</p>
           </button>
         ))}
       </div>
@@ -1550,7 +1532,7 @@ export function AnalyticsPage() {
       </div>
 
       {/* Tab content */}
-      {tab === "overview" && <OverviewTab onTabChange={setTab} />}
+      {tab === "overview" && <OverviewTab />}
       {tab === "dashboard" && <StandaloneDashboardTab />}
 
       {tab === "metrics" && <MetricsTab />}
