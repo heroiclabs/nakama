@@ -386,7 +386,11 @@ namespace AdminConsole {
     var canonId = adminCanonicalGameId(nk, gameId);
     var key = adminConfigKey(system, canonId);
     var config = Storage.readSystemJson<any>(nk, collection, key);
-    if ((!config || objectCount(config) === 0) && canonId) {
+    // Bare (unscoped) keys are the ORIGINAL app's (QuizVerse's) legacy data.
+    // Only that app may inherit them when its scoped doc is missing — for any
+    // other app the scoped view must stay empty instead of showing another
+    // app's flags / experiments / events / messages as its own.
+    if ((!config || objectCount(config) === 0) && canonId && ConfigLoader.isLegacyBareKeyOwner(nk, canonId)) {
       config = Storage.readSystemJson<any>(nk, collection, system);
     }
     if (!config || objectCount(config) === 0) config = defaultValue;
