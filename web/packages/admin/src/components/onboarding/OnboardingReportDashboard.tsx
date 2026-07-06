@@ -1,25 +1,24 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownRight,
   ChevronDown,
   ChevronUp,
-  Search,
 } from "lucide-react";
 import {
   ResponsiveContainer,
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   Tooltip,
   CartesianGrid,
-  Cell,
   Legend,
 } from "recharts";
 import type {
   OnboardingFunnelAnalyticsResult,
-  OnboardingUserRow,
   OnboardingWelcomeThemeAB,
   OnboardingEventSignals,
 } from "@nakama/shared";
@@ -39,43 +38,61 @@ function fmt(n: number | null | undefined): string {
   return n.toLocaleString();
 }
 
-function fmtDurationMs(ms: number | null | undefined): string {
-  if (!ms || ms <= 0) return "—";
-  const sec = Math.round(ms / 1000);
-  if (sec < 60) return `${sec}s`;
-  const min = Math.floor(sec / 60);
-  const rem = sec % 60;
-  if (min < 60) return `${min}m ${rem}s`;
-  return `${Math.floor(min / 60)}h ${min % 60}m`;
-}
+const CHART_ANIMATION = {
+  isAnimationActive: true,
+  animationDuration: 1400,
+  animationEasing: "ease-out" as const,
+};
 
-function fmtRelative(ts: number | null | undefined): string {
-  if (!ts) return "—";
-  const d = new Date(ts);
-  const diff = Date.now() - d.getTime();
-  if (diff < 3600000) return `${Math.max(1, Math.round(diff / 60000))}m ago`;
-  if (diff < 86400000) return `${Math.round(diff / 3600000)}h ago`;
-  return d.toLocaleDateString();
-}
+function AnimatedAreaChart({
+  data,
+  dataKey = "value",
+  labelKey = "label",
+  colorHsl = "263 70% 60%",
+  height = 240,
+  valueLabel = "Users",
+}: {
+  data: Array<Record<string, string | number>>;
+  dataKey?: string;
+  labelKey?: string;
+  colorHsl?: string;
+  height?: number;
+  valueLabel?: string;
+}) {
+  const gradId = useId().replace(/:/g, "");
 
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
-    completed: "Done",
-    returned_to_app: "Returned",
-    dropped: "Dropped",
-    at_paywall: "At paywall",
-    subscribed: "Subscribed",
-    pre_register: "Guest",
-  };
-  return map[status] || status || "—";
-}
-
-function statusClass(status: string): string {
-  if (status === "completed" || status === "subscribed") return "bg-emerald-500/15 text-emerald-500";
-  if (status === "returned_to_app") return "bg-cyan-500/15 text-cyan-400";
-  if (status === "at_paywall") return "bg-amber-500/15 text-amber-500";
-  if (status === "dropped") return "bg-destructive/15 text-destructive";
-  return "bg-muted text-muted-foreground";
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 10, right: 8, left: -16, bottom: 0 }}>
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={`hsl(${colorHsl})`} stopOpacity={0.5} />
+            <stop offset="100%" stopColor={`hsl(${colorHsl})`} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 28% 17%)" vertical={false} />
+        <XAxis
+          dataKey={labelKey}
+          tick={CHART_AXIS}
+          interval="preserveStartEnd"
+          minTickGap={24}
+        />
+        <YAxis tick={CHART_AXIS} allowDecimals={false} />
+        <Tooltip
+          contentStyle={CHART_TOOLTIP}
+          formatter={(value: number) => [fmt(value), valueLabel]}
+        />
+        <Area
+          type="monotone"
+          dataKey={dataKey}
+          stroke={`hsl(${colorHsl})`}
+          strokeWidth={2}
+          fill={`url(#${gradId})`}
+          {...CHART_ANIMATION}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
 }
 
 function Section({
@@ -219,112 +236,29 @@ function EventSignalsPanel({ signals }: { signals?: OnboardingEventSignals }) {
   );
 }
 
-function UsersTable({ users, usersTotal }: { users: OnboardingUserRow[]; usersTotal?: number }) {
-  const [q, setQ] = useState("");
-  const [sortKey, setSortKey] = useState<keyof OnboardingUserRow>("lastTs");
-  const [sortDir, setSortDir] = useState<-1 | 1>(-1);
-
-  const filtered = useMemo(() => {
-    let list = users.slice();
-    const needle = q.trim().toLowerCase();
-    if (needle) {
-      list = list.filter((u) =>
-        (u.nakamaUserId || "").toLowerCase().includes(needle) ||
-        (u.guestId || "").toLowerCase().includes(needle) ||
-        (u.lastScreenLabel || u.lastScreen || "").toLowerCase().includes(needle),
-      );
-    }
-    list.sort((a, b) => {
-      const av = a[sortKey];
-      const bv = b[sortKey];
-      if (typeof av === "number" && typeof bv === "number") return (av - bv) * sortDir;
-      return String(av || "").localeCompare(String(bv || "")) * sortDir;
-    });
-    return list;
-  }, [users, q, sortKey, sortDir]);
-
-  function toggleSort(key: keyof OnboardingUserRow) {
-    if (sortKey === key) setSortDir((d) => (d === -1 ? 1 : -1));
-    else { setSortKey(key); setSortDir(-1); }
-  }
-
-  const SortBtn = ({ col, label }: { col: keyof OnboardingUserRow; label: string }) => (
-    <button type="button" onClick={() => toggleSort(col)} className="inline-flex items-center gap-1 hover:text-foreground">
-      {label}
-      {sortKey === col && (sortDir === -1 ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />)}
-    </button>
-  );
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">
-          {filtered.length} of {users.length} shown{usersTotal != null ? ` · ${usersTotal} total in funnel` : ""}
-        </p>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search user / screen…"
-            className="h-8 w-56 rounded-md border border-border bg-background pl-8 pr-3 text-xs outline-none focus:border-primary"
-          />
-        </div>
-      </div>
-      <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[900px] text-left text-xs">
-          <thead className="border-b border-border bg-muted/30 text-muted-foreground">
-            <tr>
-              <th className="px-3 py-2 font-medium"><SortBtn col="lastTs" label="Last active" /></th>
-              <th className="px-3 py-2 font-medium">Nakama ID</th>
-              <th className="px-3 py-2 font-medium">Guest ID</th>
-              <th className="px-3 py-2 font-medium">Pathway</th>
-              <th className="px-3 py-2 font-medium">Platform</th>
-              <th className="px-3 py-2 font-medium">Last screen</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium text-right"><SortBtn col="durationMs" label="Duration" /></th>
-              <th className="px-3 py-2 font-medium text-right"><SortBtn col="eventCount" label="Events" /></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">No users match.</td></tr>
-            ) : filtered.map((u) => (
-              <tr key={`${u.nakamaUserId}-${u.guestId}`} className="border-b border-border/60 last:border-0">
-                <td className="px-3 py-2 text-muted-foreground">{fmtRelative(u.lastTs)}</td>
-                <td className="px-3 py-2 font-mono text-[10px]">{u.nakamaUserId ? `${u.nakamaUserId.slice(0, 8)}…` : "—"}</td>
-                <td className="px-3 py-2 font-mono text-[10px]">{u.guestId ? `${u.guestId.slice(0, 8)}…` : "—"}</td>
-                <td className="px-3 py-2 capitalize">{u.pathway || "—"}</td>
-                <td className="px-3 py-2">{u.platform || "—"}</td>
-                <td className="px-3 py-2">{u.lastScreenLabel || u.lastScreen || "—"}</td>
-                <td className="px-3 py-2">
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", statusClass(u.status))}>
-                    {statusLabel(u.status)}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums">{fmtDurationMs(u.durationMs)}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{fmt(u.eventCount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 export function OnboardingReportDashboard({ data }: { data: OnboardingFunnelAnalyticsResult }) {
   const summary = data.summary;
   const paywall = data.paywall;
 
   const screenChartData = useMemo(
     () => data.screenFunnel.map((s) => ({
-      name: s.label || s.screen,
-      users: s.users,
+      label: s.label || s.screen,
+      value: s.users,
       pct: s.pctOfStart,
       fill: s.topDropRank === 1 ? "hsl(0 72% 51%)" : s.topDropRank === 2 ? "hsl(25 95% 53%)" : s.topDropRank === 3 ? "hsl(45 93% 47%)" : "hsl(263 70% 60%)",
     })),
     [data.screenFunnel],
+  );
+
+  const paywallFunnelData = useMemo(
+    () => [
+      { label: "Started", value: summary.started },
+      { label: "Paywall", value: paywall.seen },
+      { label: "Subscribed", value: paywall.subscribed },
+      { label: "Trial", value: paywall.trialStarts },
+      { label: "Completed", value: summary.completed },
+    ],
+    [summary.started, summary.completed, paywall.seen, paywall.subscribed, paywall.trialStarts],
   );
 
   const dropoffChartData = useMemo(
@@ -385,36 +319,75 @@ export function OnboardingReportDashboard({ data }: { data: OnboardingFunnelAnal
         )}
       </div>
 
-      <Section
-        title="Screen funnel — step by step"
-        description="Users who reached each onboarding screen (ob_screen_seen). Top 3 drop screens highlighted in red/amber."
-      >
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-3">
+          <h3 className="text-sm font-semibold">Onboarding funnel overview</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Users at each screen — smooth curve shows drop-off through the flow.
+          </p>
+        </div>
         {screenChartData.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No onboarding events in this period.</p>
+          <p className="py-16 text-center text-sm text-muted-foreground">No onboarding events in this period.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={Math.max(220, screenChartData.length * 36)}>
-            <BarChart data={screenChartData} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(215 28% 17%)" horizontal={false} />
-              <XAxis type="number" tick={CHART_AXIS} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={130} tick={CHART_AXIS} />
-              <Tooltip
-                contentStyle={CHART_TOOLTIP}
-                formatter={(value: number, name: string) => [fmt(value), name === "users" ? "Users" : name]}
-              />
-              <Bar dataKey="users" name="Users" radius={[0, 4, 4, 0]}>
-                {screenChartData.map((row, i) => (
-                  <Cell key={i} fill={row.fill} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <AnimatedAreaChart
+            data={screenChartData}
+            colorHsl="263 70% 60%"
+            height={260}
+            valueLabel="Users"
+          />
         )}
-      </Section>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Section
+          title="Conversion funnel"
+          description="Started → paywall → subscribe/trial → completed."
+          defaultOpen={false}
+        >
+          <AnimatedAreaChart
+            data={paywallFunnelData}
+            colorHsl="142 71% 45%"
+            height={220}
+            valueLabel="Users"
+          />
+        </Section>
+
+        <Section
+          title="Screen funnel — step by step"
+          description="Same data as overview; top 3 drop screens highlighted below."
+          defaultOpen={false}
+        >
+          {screenChartData.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No onboarding events in this period.</p>
+          ) : (
+            <>
+              <AnimatedAreaChart
+                data={screenChartData}
+                colorHsl="217 91% 60%"
+                height={220}
+                valueLabel="Users"
+              />
+              <div className="mt-4 space-y-2">
+                {screenChartData.map((row) => (
+                  <div key={row.label} className="flex items-center justify-between text-xs">
+                    <span className="truncate pr-2 text-muted-foreground">{row.label}</span>
+                    <span className="shrink-0 tabular-nums">
+                      <strong>{fmt(row.value)}</strong>
+                      <span className="ml-2 text-muted-foreground">{row.pct}%</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Section>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Section
           title="Drop-off hotspots"
           description="Screens where users abandoned onboarding. Returned-to-app users are excluded."
+          defaultOpen={false}
         >
           {dropoffChartData.length === 0 ? (
             <p className="text-sm text-muted-foreground">No drop-off data yet.</p>
@@ -431,14 +404,14 @@ export function OnboardingReportDashboard({ data }: { data: OnboardingFunnelAnal
                   <XAxis type="number" hide allowDecimals={false} />
                   <YAxis type="category" dataKey="name" width={120} tick={CHART_AXIS} />
                   <Tooltip contentStyle={CHART_TOOLTIP} formatter={(v: number) => [fmt(v), "Stuck users"]} />
-                  <Bar dataKey="users" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="users" fill="hsl(0 72% 51%)" radius={[0, 4, 4, 0]} {...CHART_ANIMATION} />
                 </BarChart>
               </ResponsiveContainer>
             </>
           )}
         </Section>
 
-        <Section title="Pathway breakdown" description="Completion by Scholar / Warrior / Explorer / Creator.">
+        <Section title="Pathway breakdown" description="Completion by Scholar / Warrior / Explorer / Creator." defaultOpen={false}>
           {pathwayChartData.length === 0 && !(data.prePathway && data.prePathway.users > 0) ? (
             <p className="text-sm text-muted-foreground">No pathway data.</p>
           ) : (
@@ -451,8 +424,8 @@ export function OnboardingReportDashboard({ data }: { data: OnboardingFunnelAnal
                     <YAxis tick={CHART_AXIS} allowDecimals={false} />
                     <Tooltip contentStyle={CHART_TOOLTIP} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="users" name="Users" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="completed" name="Completed" fill="hsl(142 71% 45%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="users" name="Users" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} {...CHART_ANIMATION} />
+                    <Bar dataKey="completed" name="Completed" fill="hsl(142 71% 45%)" radius={[4, 4, 0, 0]} {...CHART_ANIMATION} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -467,7 +440,7 @@ export function OnboardingReportDashboard({ data }: { data: OnboardingFunnelAnal
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section title="Paywall A/B — hard vs soft" description="Variant from userSnapshot.paywallVariant. Conversion = subscribe + trial.">
+        <Section title="Paywall A/B — hard vs soft" description="Variant from userSnapshot.paywallVariant. Conversion = subscribe + trial." defaultOpen={false}>
           {paywallAbData.length === 0 || (paywallAbData[0].seen === 0 && paywallAbData[1].seen === 0) ? (
             <p className="text-sm text-muted-foreground">No paywall A/B data yet.</p>
           ) : (
@@ -478,14 +451,14 @@ export function OnboardingReportDashboard({ data }: { data: OnboardingFunnelAnal
                 <YAxis tick={CHART_AXIS} allowDecimals={false} />
                 <Tooltip contentStyle={CHART_TOOLTIP} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="seen" name="Paywall seen" fill="hsl(263 70% 60%)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="converted" name="Converted" fill="hsl(142 71% 45%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="seen" name="Paywall seen" fill="hsl(263 70% 60%)" radius={[4, 4, 0, 0]} {...CHART_ANIMATION} />
+                <Bar dataKey="converted" name="Converted" fill="hsl(142 71% 45%)" radius={[4, 4, 0, 0]} {...CHART_ANIMATION} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </Section>
 
-        <Section title="Welcome theme A/B" description="v1 (dark) vs lavender — from ob_welcome_seen / welcome_theme.">
+        <Section title="Welcome theme A/B" description="v1 (dark) vs lavender — from ob_welcome_seen / welcome_theme." defaultOpen={false}>
           {!themeAb || (themeAb.v1.users === 0 && themeAb.lavender.users === 0) ? (
             <p className="text-sm text-muted-foreground">No welcome theme A/B data yet.</p>
           ) : (
@@ -503,16 +476,8 @@ export function OnboardingReportDashboard({ data }: { data: OnboardingFunnelAnal
         </Section>
       </div>
 
-      <Section title="Event signals" description="Unique users who fired each ob_* event in the selected range.">
+      <Section title="Event signals" description="Unique users who fired each ob_* event in the selected range." defaultOpen={false}>
         <EventSignalsPanel signals={data.eventSignals} />
-      </Section>
-
-      <Section title="User journeys" description="Per-user funnel status — same table as analytics.html (up to user_limit rows).">
-        {!data.users || data.users.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No users in this range.</p>
-        ) : (
-          <UsersTable users={data.users} usersTotal={data.usersTotal} />
-        )}
       </Section>
 
       <p className="text-[11px] text-muted-foreground">
