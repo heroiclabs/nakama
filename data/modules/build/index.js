@@ -51397,6 +51397,10 @@ var QuestEngine;
                 resetQuestProgress(progress, now);
                 stateModified = true;
             }
+            // Hidden (surprise) quests stay invisible until the player completes
+            // them organically — after that they're revealed as a completed entry.
+            if (qConfig.hidden && !progress.completedAt)
+                continue;
             var unlocked = isQuestUnlocked(qConfig, state);
             var stepsOut = [];
             for (var s = 0; s < qConfig.steps.length; s++) {
@@ -51415,6 +51419,7 @@ var QuestEngine;
                 description: qConfig.description || null,
                 category: qConfig.category || null,
                 unlocked: unlocked,
+                hidden: !!qConfig.hidden,
                 steps: stepsOut,
                 startedAt: progress.startedAt,
                 completedAt: progress.completedAt,

@@ -1202,6 +1202,7 @@ function EngineQuestForm({ initial, onSubmit, onCancel, isPending, existingIds, 
   const [description, setDescription] = useState(initial?.description ?? "");
   const [category, setCategory] = useState(initial?.category ?? "daily");
   const [repeatable, setRepeatable] = useState(initial?.repeatable ?? true);
+  const [hidden, setHidden] = useState(initial?.hidden ?? false);
   const [resetIntervalSec, setResetIntervalSec] = useState(
     initial?.resetIntervalSec != null ? String(initial.resetIntervalSec) : "",
   );
@@ -1270,11 +1271,12 @@ function EngineQuestForm({ initial, onSubmit, onCancel, isPending, existingIds, 
       steps: builtSteps,
       reward: { guaranteed: { currencies } },
       repeatable,
+      hidden: hidden || undefined,
       resetIntervalSec: resetIntervalSec ? parseInt(resetIntervalSec, 10) : undefined,
       expiresAt: fromDatetimeLocal(expiresAt),
       prerequisiteIds: prereqList.length > 0 ? prereqList : undefined,
     };
-  }, [initial, id, name, description, category, steps, currenciesJson, repeatable, resetIntervalSec, expiresAt, prereqs]);
+  }, [initial, id, name, description, category, steps, currenciesJson, repeatable, hidden, resetIntervalSec, expiresAt, prereqs]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1380,6 +1382,36 @@ function EngineQuestForm({ initial, onSubmit, onCancel, isPending, existingIds, 
             placeholder="604800 = weekly (optional)"
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
+        </div>
+      </div>
+
+      {/* Hidden (surprise reward) */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          <Eye className="h-3 w-3" />
+          Hidden — surprise reward
+        </label>
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setHidden(!hidden)}
+            className={cn(
+              "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
+              hidden ? "bg-violet-500" : "bg-zinc-600",
+            )}
+          >
+            <span
+              className={cn(
+                "pointer-events-none block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform",
+                hidden ? "translate-x-4" : "translate-x-0.5",
+              )}
+            />
+          </button>
+          <span className="text-sm text-muted-foreground">
+            {hidden
+              ? "Players never see this quest — it progresses silently and the reward auto-grants on completion."
+              : "Visible in the app's quest list."}
+          </span>
         </div>
       </div>
 
@@ -1545,6 +1577,12 @@ function EngineQuestRow({ quest, onEdit, onDuplicate, onDelete, isDeleting }: En
               <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-xs font-medium text-violet-400">
                 <Repeat className="h-3 w-3" />
                 repeatable
+              </span>
+            )}
+            {quest.hidden && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-500/10 px-2 py-0.5 text-xs font-medium text-fuchsia-400">
+                <Eye className="h-3 w-3" />
+                hidden
               </span>
             )}
             <h4 className="text-sm font-semibold text-foreground truncate">{quest.name}</h4>

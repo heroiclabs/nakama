@@ -23,6 +23,11 @@ namespace QuestEngine {
     prerequisiteIds?: string[];
     repeatable?: boolean;
     resetIntervalSec?: number;
+    // Surprise reward: quest is invisible to the player until completed.
+    // Events still progress it server-side and the reward auto-grants;
+    // once completed it is revealed in quest_engine_get (with hidden: true)
+    // so the client can explain where the reward came from.
+    hidden?: boolean;
     additionalProperties?: { [key: string]: string };
   }
 
@@ -286,6 +291,10 @@ namespace QuestEngine {
         stateModified = true;
       }
 
+      // Hidden (surprise) quests stay invisible until the player completes
+      // them organically — after that they're revealed as a completed entry.
+      if (qConfig.hidden && !progress.completedAt) continue;
+
       var unlocked = isQuestUnlocked(qConfig, state);
 
       var stepsOut: any[] = [];
@@ -306,6 +315,7 @@ namespace QuestEngine {
         description: qConfig.description || null,
         category: qConfig.category || null,
         unlocked: unlocked,
+        hidden: !!qConfig.hidden,
         steps: stepsOut,
         startedAt: progress.startedAt,
         completedAt: progress.completedAt,
