@@ -144,6 +144,10 @@ namespace SatoriDashboard {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     var gameId = RpcHelpers.gameId(data);
+    // When a specific app is selected, platform-wide sources (satori_debugger
+    // ring, roll_onboarding, users table) must NOT leak into the view — they
+    // carry no game tag, so under e.g. Cricket VR they'd show QuizVerse data.
+    var scoped = !!(gameId && gameId !== "all" && gameId !== "global");
 
     var now = Date.now();
     var buf = Storage.readSystemJson<{ events: RingEvent[] }>(nk, RING_COLLECTION, RING_KEY);
@@ -202,12 +206,12 @@ namespace SatoriDashboard {
 
     var timeline: { hourMs: number; count: number }[] = [];
     for (var h = 0; h < 24; h++) {
-      timeline.push({ hourMs: now - (23 - h) * HOUR, count: buckets[h] });
+      timeline.push({ hourMs: now - (23 - h) * HOUR, count: scoped ? 0 : buckets[h] });
     }
 
-    var topCountries = topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
-    var topCities = topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
-    var topEvents = topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
+    var topCountries = scoped ? [] : topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
+    var topCities = scoped ? [] : topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
+    var topEvents = scoped ? [] : topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
 
     // ── Real game telemetry overlay (legacy analytics pipeline) ───────────────
     // The satori_events ring only sees the web SDK. The actual game DAU / event
@@ -228,8 +232,9 @@ namespace SatoriDashboard {
     // The legacy pipeline aggregates by_country but NOT by_city, and the ring
     // buffer rarely carries city. Fall back to the registered user base: derive
     // top cities from the `location` field on the users table (e.g.
-    // "Jaipur, Rajasthan, India" → "Jaipur").
-    if (topCities.length === 0) topCities = topCitiesFromAccounts(nk);
+    // "Jaipur, Rajasthan, India" → "Jaipur"). Accounts are platform-wide, so
+    // only for the combined view.
+    if (topCities.length === 0 && !scoped) topCities = topCitiesFromAccounts(nk);
 
     var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
     if (legacyEvents.length > 0) topEvents = legacyEvents;
@@ -238,7 +243,11 @@ namespace SatoriDashboard {
     // onboarding_events_batch (web funnel). Replaces the satori_debugger ring
     // for dashboard KPI cards (ring only powers timeline + debugger tail).
     var inAppActive = ActiveRolling.countWindows(nk, "in_app", gameId, now);
-    var onboardingActive = ActiveRolling.countWindows(nk, "onboarding", undefined, now);
+    // Onboarding-web touches carry no game tag (single roll_onboarding doc for
+    // the whole platform), so they only belong to the combined view.
+    var onboardingActive = scoped
+      ? { active5m: 0, active1h: 0, active24h: 0 }
+      : ActiveRolling.countWindows(nk, "onboarding", undefined, now);
     var totalActive = ActiveRolling.mergeCounts(inAppActive, onboardingActive);
     var inApp24h = Math.max(inAppActive.active24h, dauToday);
     // 24h total = sum of the two displayed rows (onboarding + in-app w/ DAU floor).
@@ -263,7 +272,7 @@ namespace SatoriDashboard {
       activeUsers5m: totalActive.active5m,
       activeUsers1h: totalActive.active1h,
       activeUsers24h: total24h,
-      eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
+      eventsLast24h: eventsToday > 0 ? eventsToday : (scoped ? 0 : events24h),
       // Real daily truth from the analytics pipeline (matches analytics.htm).
       dauToday: dauToday,
       eventsToday: eventsToday,
