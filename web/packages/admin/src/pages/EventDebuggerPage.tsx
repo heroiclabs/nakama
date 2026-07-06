@@ -468,6 +468,10 @@ export function EventDebuggerPage() {
             Watch captured Satori events live and register unknown names in the
             taxonomy — no Satori Cloud needed.
           </p>
+          <p className="mt-1 text-xs text-yellow-600 dark:text-yellow-400">
+            Platform-wide tail: captured events are not game-tagged, so this
+            stream is the same for every app.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {mode === "tail" && (

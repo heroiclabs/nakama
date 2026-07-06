@@ -40,6 +40,14 @@ var HARDCODED_XAI_KEY       = ''; // ← paste xai-...     here (optional)
 var QWEN3_DEFAULT_BASE_URL = 'http://vllm-coder-pro.content-factory.svc.cluster.local:8000';
 var QWEN3_DEFAULT_MODEL    = 'Qwen/Qwen3-7B-Instruct';
 
+// Timeout for the qwen3/OpenAI-compatible HTTP call. The default nk.httpRequest
+// timeout (5s) is too tight when QWEN3_BASE_URL points at the LiteLLM gateway
+// and the self-hosted tier is cold: the request is then served by an external
+// fallback (OpenRouter Qwen) which can take 5-15s for a 350-token completion.
+// A timed-out ctx here cascades into "context canceled" storage-write bursts
+// (core_storage.go:601, prod incident 2026-07-04 / bead na-6sx).
+var QWEN3_HTTP_TIMEOUT_MS = 20000;
+
 var LLM_PROVIDERS = {
     openai: {
         url: 'https://api.openai.com/v1/chat/completions',
@@ -144,9 +152,16 @@ function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
         } else if (provider.name === 'qwen3') {
             var qUrl   = resolveQwen3BaseUrl(ctx) + '/v1/chat/completions';
             var qModel = resolveQwen3Model(ctx);
-            response = nk.httpRequest(qUrl, 'post', {
-                'Content-Type': 'application/json'
-            }, JSON.stringify({
+            // QWEN3_API_KEY is optional: a raw in-cluster vLLM endpoint is
+            // keyless, but the LiteLLM gateway (the durable endpoint after the
+            // voice tier went scale-to-zero — bead na-6sx) requires a bearer
+            // key. Sourced from runtime.env like QWEN3_BASE_URL/QWEN3_MODEL.
+            var qHeaders = { 'Content-Type': 'application/json' };
+            var qKey = (ctx && ctx.env && ctx.env['QWEN3_API_KEY']) || '';
+            if (qKey) {
+                qHeaders['Authorization'] = 'Bearer ' + qKey;
+            }
+            response = nk.httpRequest(qUrl, 'post', qHeaders, JSON.stringify({
                 model: qModel,
                 max_tokens: maxTokens,
                 messages: [
@@ -154,7 +169,7 @@ function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
                     { role: 'user', content: userMessage }
                 ],
                 chat_template_kwargs: { enable_thinking: false }
-            }));
+            }), QWEN3_HTTP_TIMEOUT_MS);
         } else {
             response = nk.httpRequest(provider.config.url, 'post', {
                 'Content-Type': 'application/json',

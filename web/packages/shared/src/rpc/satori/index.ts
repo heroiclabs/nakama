@@ -488,8 +488,8 @@ export function toggleSatoriDirect(enabled: boolean, opts: RpcOptions) {
   return callRpc("satori_direct_toggle", { enabled }, opts);
 }
 
-export function getMetrics(opts: RpcOptions) {
-  return satoriRpc("metrics", "get", {}, opts);
+export function getMetrics(opts: RpcOptions, gameId?: string) {
+  return satoriRpc("metrics", "get", { game_id: gameId }, opts);
 }
 
 export function setMetricAlert(
@@ -783,12 +783,15 @@ export function getTimeline(
 
 /* ── Reports (saved queries) ──────────────────────────────────────── */
 
-export type ReportType = "funnel" | "retention" | "metric" | "timeline";
+export type ReportType = "onboarding";
+/** Older saved reports — no longer runnable from the admin UI. */
+export type LegacyReportType = "funnel" | "retention" | "metric" | "timeline";
+export type SavedReportType = ReportType | LegacyReportType;
 
 export interface SavedReport {
   id: string;
   name: string;
-  type: ReportType;
+  type: SavedReportType;
   description?: string;
   params: Record<string, unknown>;
   createdAt: number;

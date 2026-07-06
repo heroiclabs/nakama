@@ -1,9 +1,7 @@
 // ---------------------------------------------------------------------------
-// Satori Reports — saved/reusable report definitions. Mirrors Satori Cloud's
-// "Reports" surface: an admin saves a named query (a funnel, retention,
-// metric, or timeline view with its parameters) and re-runs it later. The
-// definition is stored here; the admin UI executes it by calling the existing
-// funnel / retention / metric / timeline RPCs with the saved params.
+// Satori Reports — saved onboarding report definitions for the admin dashboard.
+// Each report stores filter params (days, pathway, platform, etc.); the UI
+// re-runs it via onboarding_funnel_analytics (qv_onboarding_events / ob_*).
 //
 // Definitions live in satori_configs/"reports" per game
 // ({ reports: { [id]: def } }). Admin-only.
@@ -13,7 +11,7 @@ namespace SatoriReports {
   interface ReportDef {
     id: string;
     name: string;
-    type: string;            // "funnel" | "retention" | "metric" | "timeline"
+    type: string;            // "onboarding" (legacy: funnel|retention|metric|timeline)
     description?: string;
     params: { [key: string]: any };
     createdAt: number;
@@ -44,14 +42,14 @@ namespace SatoriReports {
     return RpcHelpers.successResponse({ reports: toList(getReports(nk, gameId)), game_id: gameId || Constants.DEFAULT_GAME_ID });
   }
 
-  var VALID_TYPES: { [t: string]: boolean } = { funnel: true, retention: true, metric: true, timeline: true };
+  var VALID_TYPES: { [t: string]: boolean } = { onboarding: true };
 
   // satori_reports_save — Payload: { id?, name, type, description?, params, game_id? }
   function rpcSave(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.name) return RpcHelpers.errorResponse("name required");
-    if (!data.type || !VALID_TYPES[data.type]) return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
+    if (!data.type || !VALID_TYPES[data.type]) return RpcHelpers.errorResponse("type must be onboarding");
     var gameId = RpcHelpers.gameId(data);
 
     var reports = getReports(nk, gameId);

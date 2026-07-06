@@ -1,0 +1,263 @@
+# CodeBuild -> GitHub Actions migration (2026-07-05).
+# Replaces: CodePipeline intelliverse-nakama + CodeBuild intelliverse-nakama-build.
+# Faithful port of buildspec.yml (same repo): immutable tag, dashboard secret
+# patch, pre-push smoke test, multi-arch push, digest-pinned rollout with
+# auto-rollback, analytics backfill, conditional admin-console build.
+# Rollback: set DetectChanges=true on the CodePipeline source stage.
+name: Build & Deploy to EKS
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "970547373533"
+  ECR_REGISTRY: 970547373533.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: intelliverse-nakama
+  EKS_CLUSTER_NAME: ai-cart-auto-cluster
+  K8S_NAMESPACE: aicart
+  K8S_DEPLOYMENT: intelliverse-nakama
+  K8S_CONTAINER: intelliverse-nakama
+  LLM_PROVIDER: openai
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # needed for the web/-changed diff (admin console step)
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up QEMU (arm64)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure kubectl for EKS
+        run: |
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "$EKS_CLUSTER_NAME"
+          kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}' || true
+
+      - name: Compute image tags
+        run: |
+          COMMIT_HASH=$(echo "$GITHUB_SHA" | cut -c 1-7)
+          if [ -z "$COMMIT_HASH" ]; then COMMIT_HASH="nogit"; fi
+          SERVER_VERSION="3.0.0"
+          IMAGE_VERSION="${SERVER_VERSION}-${COMMIT_HASH}-gha${GITHUB_RUN_NUMBER}"
+          REPOSITORY_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}"
+          echo "IMAGE_VERSION=$IMAGE_VERSION" >> "$GITHUB_ENV"
+          echo "REPOSITORY_URI=$REPOSITORY_URI" >> "$GITHUB_ENV"
+          echo "IMAGE_VERSION=$IMAGE_VERSION  REPOSITORY_URI=$REPOSITORY_URI"
+
+      - name: Patch dashboard serverKey/bootstrapSecret from nakama-secret
+        run: |
+          RUNTIME_HTTP_KEY=$(kubectl get secret nakama-secret -n "$K8S_NAMESPACE" \
+            -o jsonpath='{.data.http_key}' 2>/dev/null | base64 -d 2>/dev/null || true)
+          if [ -z "$RUNTIME_HTTP_KEY" ]; then
+            echo "WARN: secret/nakama-secret http_key not found - falling back to 'defaultkey'"
+            RUNTIME_HTTP_KEY="defaultkey"
+          fi
+          RUNTIME_DASHBOARD_SECRET=$(kubectl get secret nakama-secret -n "$K8S_NAMESPACE" \
+            -o jsonpath='{.data.dashboard_secret}' 2>/dev/null | base64 -d 2>/dev/null || true)
+          if [ -z "$RUNTIME_DASHBOARD_SECRET" ]; then
+            echo "WARN: nakama-secret/dashboard_secret not found - using hardcoded fallback"
+            RUNTIME_DASHBOARD_SECRET="2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8"
+          fi
+          echo "::add-mask::$RUNTIME_HTTP_KEY"
+          echo "::add-mask::$RUNTIME_DASHBOARD_SECRET"
+          echo "RUNTIME_HTTP_KEY=$RUNTIME_HTTP_KEY" >> "$GITHUB_ENV"
+          echo "RUNTIME_DASHBOARD_SECRET=$RUNTIME_DASHBOARD_SECRET" >> "$GITHUB_ENV"
+          if [ -f web/analytics-dashboard/index.html ]; then
+            BEFORE=$(grep -c "serverKey: 'defaultkey'" web/analytics-dashboard/index.html || true)
+            sed -i "s|serverKey: 'defaultkey'|serverKey: '${RUNTIME_HTTP_KEY}'|g" web/analytics-dashboard/index.html
+            AFTER=$(grep -c "serverKey: '${RUNTIME_HTTP_KEY}'" web/analytics-dashboard/index.html || true)
+            echo "serverKey occurrences before=$BEFORE after=$AFTER"
+            if [ "$BEFORE" -eq 0 ] || [ "$AFTER" -eq 0 ]; then
+              echo "FATAL: dashboard serverKey patch failed"; exit 1
+            fi
+            BOOT_BEFORE=$(grep -c "bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8'" web/analytics-dashboard/index.html || true)
+            sed -i "s|bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8'|bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'|g" web/analytics-dashboard/index.html
+            BOOT_AFTER=$(grep -c "bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'" web/analytics-dashboard/index.html || true)
+            echo "bootstrapSecret occurrences before=$BOOT_BEFORE after=$BOOT_AFTER"
+            if [ "$BOOT_BEFORE" -eq 0 ] || [ "$BOOT_AFTER" -eq 0 ]; then
+              echo "FATAL: dashboard bootstrapSecret patch failed"; exit 1
+            fi
+          else
+            echo "WARN: web/analytics-dashboard/index.html missing - overlay will be a no-op"
+          fi
+
+      - name: Build amd64 image + pre-push smoke test
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --platform linux/amd64 \
+            --load \
+            -f Dockerfile.production \
+            --build-arg IMAGE_VERSION="$IMAGE_VERSION" \
+            --build-arg GIT_SHA="$GITHUB_SHA" \
+            -t "${REPOSITORY_URI}:${IMAGE_VERSION}" \
+            -t "${REPOSITORY_URI}:latest" \
+            .
+          docker images --digests "${REPOSITORY_URI}" | head -5
+          echo "=== Pre-push smoke test (JS runtime health) ==="
+          chmod +x scripts/smoke-test-js-runtime.sh
+          ./scripts/smoke-test-js-runtime.sh image "${REPOSITORY_URI}:${IMAGE_VERSION}"
+
+      - name: Build + push multi-arch (amd64+arm64)
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --provenance=false \
+            -f Dockerfile.production \
+            --build-arg IMAGE_VERSION="$IMAGE_VERSION" \
+            --build-arg GIT_SHA="$GITHUB_SHA" \
+            -t "${REPOSITORY_URI}:${IMAGE_VERSION}" \
+            -t "${REPOSITORY_URI}:latest" \
+            --push \
+            .
+
+      - name: Deploy (digest-pinned, env inject, auto-rollback)
+        run: |
+          set -euo pipefail
+          IMAGE_DIGEST=$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_VERSION" \
+            --query 'imageDetails[0].imageDigest' --output text)
+          echo "IMAGE_DIGEST=$IMAGE_DIGEST"
+          PREVIOUS_IMAGE=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}')
+          echo "PREVIOUS_IMAGE=$PREVIOUS_IMAGE"
+
+          # Runtime keys from SSM (was CodeBuild env parameter-store block)
+          getp() { aws ssm get-parameter --name "$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true; }
+          OPENAI_API_KEY=$(getp /nakama/OPENAI_API_KEY)
+          TMDB_API_KEY=$(getp /nakama/TMDB_API_KEY)
+          LASTFM_API_KEY=$(getp /nakama/LASTFM_API_KEY)
+          GNEWS_API_KEY=$(getp /nakama/GNEWS_API_KEY)
+          CURRENTS_API_KEY=$(getp /nakama/CURRENTS_API_KEY)
+          MEDIASTACK_API_KEY=$(getp /nakama/MEDIASTACK_API_KEY)
+          NEWSAPI_API_KEY=$(getp /nakama/NEWSAPI_API_KEY)
+          NASA_API_KEY=$(getp /nakama/NASA_API_KEY)
+          XAI_API_KEY=""
+
+          echo "=== Patching rollout strategy (progressDeadline=900s, maxSurge=4) ==="
+          kubectl patch deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" \
+            --type=merge \
+            --patch='{"spec":{"progressDeadlineSeconds":900,"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":4,"maxUnavailable":0}}}}'
+
+          echo "=== Injecting runtime secrets into deployment env (before image update) ==="
+          INJECT_ARGS=""
+          [ -n "$OPENAI_API_KEY" ]     && INJECT_ARGS="$INJECT_ARGS OPENAI_API_KEY=$OPENAI_API_KEY"
+          [ -n "$XAI_API_KEY" ]        && INJECT_ARGS="$INJECT_ARGS XAI_API_KEY=$XAI_API_KEY"
+          [ -n "$LLM_PROVIDER" ]       && INJECT_ARGS="$INJECT_ARGS LLM_PROVIDER=$LLM_PROVIDER"
+          [ -n "$TMDB_API_KEY" ]       && INJECT_ARGS="$INJECT_ARGS TMDB_API_KEY=$TMDB_API_KEY"
+          [ -n "$LASTFM_API_KEY" ]     && INJECT_ARGS="$INJECT_ARGS LASTFM_API_KEY=$LASTFM_API_KEY"
+          [ -n "$GNEWS_API_KEY" ]      && INJECT_ARGS="$INJECT_ARGS GNEWS_API_KEY=$GNEWS_API_KEY"
+          [ -n "$CURRENTS_API_KEY" ]   && INJECT_ARGS="$INJECT_ARGS CURRENTS_API_KEY=$CURRENTS_API_KEY"
+          [ -n "$MEDIASTACK_API_KEY" ] && INJECT_ARGS="$INJECT_ARGS MEDIASTACK_API_KEY=$MEDIASTACK_API_KEY"
+          [ -n "$NEWSAPI_API_KEY" ]    && INJECT_ARGS="$INJECT_ARGS NEWSAPI_API_KEY=$NEWSAPI_API_KEY"
+          [ -n "$NASA_API_KEY" ]       && INJECT_ARGS="$INJECT_ARGS NASA_API_KEY=$NASA_API_KEY"
+          INJECT_ARGS="$INJECT_ARGS DASHBOARD_SECRET=$RUNTIME_DASHBOARD_SECRET ROLLUP_ENABLED=true DASHBOARD_PREFER_ROLLUPS=true"
+          kubectl set env deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" $INJECT_ARGS
+
+          echo "=== Rolling deployment to ${IMAGE_VERSION} (digest pinned) ==="
+          kubectl set image deployment/"$K8S_DEPLOYMENT" \
+            "$K8S_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}" -n "$K8S_NAMESPACE"
+
+          echo "=== Post-rollout JS runtime smoke test ==="
+          set +e
+          ./scripts/smoke-test-js-runtime.sh cluster "$K8S_NAMESPACE" "$K8S_DEPLOYMENT"
+          SMOKE_RC=$?
+          set -e
+          if [ "$SMOKE_RC" -ne 0 ]; then
+            echo "Post-rollout smoke test FAILED - auto-rolling back to $PREVIOUS_IMAGE"
+            if [ -n "$PREVIOUS_IMAGE" ] && [ "$PREVIOUS_IMAGE" != "${REPOSITORY_URI}@${IMAGE_DIGEST}" ]; then
+              kubectl set image deployment/"$K8S_DEPLOYMENT" \
+                "$K8S_CONTAINER=$PREVIOUS_IMAGE" -n "$K8S_NAMESPACE"
+            else
+              kubectl rollout undo deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE"
+            fi
+            set +e
+            kubectl rollout status deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=12m
+            set -e
+            if [ "$SMOKE_RC" -eq 3 ]; then
+              echo "Rolled back after CNI pod-IP exhaustion - non-fatal."
+            else
+              echo "Rolled back. Failing the run."
+              exit 1
+            fi
+          fi
+          LIVE_IMAGE=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}')
+          echo "LIVE_IMAGE=$LIVE_IMAGE"
+          kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
+
+      - name: Analytics bootstrap backfill (non-fatal)
+        continue-on-error: true
+        run: |
+          NAKAMA_EXTERNAL_URL="https://nakama-rest.intelli-verse-x.ai"
+          BACKFILL_FROM=$(date -u -d "30 days ago" +%Y-%m-%d)
+          BACKFILL_TO=$(date -u -d "yesterday" +%Y-%m-%d)
+          echo "Backfilling $BACKFILL_FROM to $BACKFILL_TO"
+          BF_STATUS=$(curl -s -o /tmp/backfill.json -w "%{http_code}" \
+            -X POST "${NAKAMA_EXTERNAL_URL}/v2/rpc/analytics_rollup_backfill?http_key=${RUNTIME_HTTP_KEY}&unwrap=true" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"${BACKFILL_FROM}\",\"to\":\"${BACKFILL_TO}\",\"dashboard_secret\":\"${RUNTIME_DASHBOARD_SECRET}\"}" \
+            --max-time 1800 --retry 3 --retry-delay 30 --retry-connrefused \
+            || echo "000")
+          echo "Backfill HTTP status=${BF_STATUS}"
+          head -c 500 /tmp/backfill.json 2>/dev/null; echo ""
+
+      - name: Admin console deploy (only when web/ changed, non-fatal)
+        continue-on-error: true
+        run: |
+          ADMIN_REPO="${ECR_REGISTRY}/nakama-admin-dashboard"
+          ADMIN_TAG="${IMAGE_VERSION}"
+          WEB_CHANGED="unknown"
+          if git rev-parse "${GITHUB_SHA}~1" >/dev/null 2>&1; then
+            if git diff --name-only "${GITHUB_SHA}~1" "${GITHUB_SHA}" | grep -q '^web/'; then
+              WEB_CHANGED="yes"
+            else
+              WEB_CHANGED="no"
+            fi
+          fi
+          echo "web/ changed: ${WEB_CHANGED}"
+          if [ "${WEB_CHANGED}" = "no" ]; then
+            echo "No web/ changes - skipping console rebuild."
+            exit 0
+          fi
+          if docker buildx build --platform linux/amd64,linux/arm64 --provenance=false \
+               -f web/packages/admin/Dockerfile \
+               -t "${ADMIN_REPO}:${ADMIN_TAG}" -t "${ADMIN_REPO}:latest" --push web; then
+            ADMIN_DIGEST=$(aws ecr describe-images --repository-name nakama-admin-dashboard \
+              --image-ids imageTag="${ADMIN_TAG}" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)
+            if [ -n "${ADMIN_DIGEST}" ] && [ "${ADMIN_DIGEST}" != "None" ]; then
+              kubectl set image deployment/nakama-admin-dashboard admin-dashboard="${ADMIN_REPO}@${ADMIN_DIGEST}" -n "$K8S_NAMESPACE"
+              kubectl rollout status deployment/nakama-admin-dashboard -n "$K8S_NAMESPACE" --timeout=180s
+              echo "console rolled to ${ADMIN_TAG}"
+            else
+              echo "WARN: could not resolve console digest - skipping rollout."
+            fi
+          else
+            echo "WARN: console build failed - leaving current console image in place."
+          fi

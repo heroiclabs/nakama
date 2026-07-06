@@ -11,7 +11,7 @@ import {
 import type { RpcOptions, NakamaUser } from "@nakama/shared";
 import { cn } from "@/lib/utils";
 import { useIframeAuth } from "@/lib/useIframeAuth";
-import { useActiveApp, toAppSlug } from "@/hooks/useScopedGame";
+import { useActiveApp, useScopedGameId, toAppSlug } from "@/hooks/useScopedGame";
 import {
   BarChart3,
   Activity,
@@ -264,10 +264,11 @@ function useServerAuth(): RpcOptions {
 
 function useMetrics() {
   const opts = useServerAuth();
+  const gameId = useScopedGameId();
   return useQuery({
-    queryKey: ["analytics", "metrics"],
+    queryKey: ["analytics", "metrics", gameId ?? "global"],
     queryFn: () =>
-      satori.getMetrics(opts) as Promise<{
+      satori.getMetrics(opts, gameId) as Promise<{
         metrics?: MetricEntry[];
         raw?: string;
       }>,
@@ -356,8 +357,8 @@ const SIDEBAR_SHORTCUTS = [
     href: "/event-debugger",
   },
   {
-    label: "Reports",
-    description: "Saved funnel & retention reports",
+    label: "Onboarding Reports",
+    description: "Web onboarding funnel from ob_* events (same as analytics.html)",
     icon: BarChart3,
     href: "/reports",
   },
@@ -722,8 +723,13 @@ function CohortsTab() {
     if (!accounts.data?.users) return [];
     const map = new Map<string, NakamaUser[]>();
     for (const u of accounts.data.users) {
-      const d = new Date(u.create_time);
-      const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      // admin_accounts_list returns ConsoleAccount rows: timestamps live on
+      // the nested `user` object, not the top level.
+      const created = (u as any).user?.create_time ?? u.create_time;
+      const d = new Date(created);
+      const label = isNaN(d.getTime())
+        ? "Unknown"
+        : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const arr = map.get(label) ?? [];
       arr.push(u);
       map.set(label, arr);
@@ -749,7 +755,9 @@ function CohortsTab() {
       users: [],
     }));
     for (const u of accounts.data.users) {
-      const diff = now - new Date(u.update_time).getTime();
+      const updated = (u as any).user?.update_time ?? u.update_time;
+      const ts = new Date(updated).getTime();
+      const diff = isNaN(ts) ? Infinity : now - ts;
       for (let i = 0; i < buckets.length; i++) {
         if (diff < buckets[i].max) {
           result[i].count++;
@@ -769,7 +777,7 @@ function CohortsTab() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading
           title="Cohort Analysis"
-          description="Analyze player registration and activity patterns"
+          description="Analyze player registration and activity patterns — platform-wide (Nakama accounts are shared across apps, not per-app)"
         />
         <div className="flex gap-1 rounded-md border border-border bg-background p-0.5">
           <button
@@ -1225,7 +1233,7 @@ function GameIntelligenceTab() {
         intelligenceRpc,
         { game_id: gameSlug || "quizverse", hours: 24, days: 7, sample_players: 25 },
         serverKeyAuth(),
-      ),
+      ).then(unwrapRpc),
     retry: 1,
   });
 
@@ -1494,12 +1502,20 @@ function InsightList({
 export function AnalyticsPage() {
   const [tab, setTab] = useState<TabKey>("overview");
   const qc = useQueryClient();
+  const { appId, label } = useActiveApp();
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-bold tracking-tight">Analytics</h2>
+            {appId && (
+              <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                {label}
+              </span>
+            )}
+          </div>
           <p className="text-muted-foreground">
             Metrics, data lake, and cohort analysis
           </p>

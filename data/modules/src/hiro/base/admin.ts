@@ -386,7 +386,11 @@ namespace AdminConsole {
     var canonId = adminCanonicalGameId(nk, gameId);
     var key = adminConfigKey(system, canonId);
     var config = Storage.readSystemJson<any>(nk, collection, key);
-    if ((!config || objectCount(config) === 0) && canonId) {
+    // Bare (unscoped) keys are the ORIGINAL app's (QuizVerse's) legacy data.
+    // Only that app may inherit them when its scoped doc is missing — for any
+    // other app the scoped view must stay empty instead of showing another
+    // app's flags / experiments / events / messages as its own.
+    if ((!config || objectCount(config) === 0) && canonId && ConfigLoader.isLegacyBareKeyOwner(nk, canonId)) {
       config = Storage.readSystemJson<any>(nk, collection, system);
     }
     if (!config || objectCount(config) === 0) config = defaultValue;
@@ -405,7 +409,7 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required (e.g. economy, inventory, achievements)");
 
-    var gameId = adminGameId(data);
+    var gameId = adminCanonicalGameId(nk, adminGameId(data));
     var key = adminConfigKey(data.system, gameId);
     var inherited = false;
     var config = Storage.readSystemJson<any>(nk, Constants.HIRO_CONFIGS_COLLECTION, key);
@@ -429,7 +433,7 @@ namespace AdminConsole {
     var config = configFromPayload(data);
     if (!data.system || config === undefined) return RpcHelpers.errorResponse("system and config required");
 
-    var gameId = adminGameId(data);
+    var gameId = adminCanonicalGameId(nk, adminGameId(data));
     var key = adminConfigKey(data.system, gameId);
     ConfigLoader.saveConfig(nk, key, config);
     logAdminAudit(nk, ctx, "hiro_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
@@ -441,7 +445,7 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required");
 
-    var gameId = adminGameId(data);
+    var gameId = adminCanonicalGameId(nk, adminGameId(data));
     var key = adminConfigKey(data.system, gameId);
     Storage.deleteRecord(nk, Constants.HIRO_CONFIGS_COLLECTION, key, Constants.SYSTEM_USER_ID);
     ConfigLoader.invalidateCache(key);
@@ -456,7 +460,7 @@ namespace AdminConsole {
     var data = RpcHelpers.parseRpcPayload(payload);
     if (!data.system) return RpcHelpers.errorResponse("system required (e.g. flags, experiments, audiences, live_events, messages, metrics)");
 
-    var gameId = adminGameId(data);
+    var gameId = adminCanonicalGameId(nk, adminGameId(data));
     var key = adminConfigKey(data.system, gameId);
     var inherited = false;
     var config = Storage.readSystemJson<any>(nk, Constants.SATORI_CONFIGS_COLLECTION, key);
@@ -480,7 +484,7 @@ namespace AdminConsole {
     var config = configFromPayload(data);
     if (!data.system || config === undefined) return RpcHelpers.errorResponse("system and config required");
 
-    var gameId = adminGameId(data);
+    var gameId = adminCanonicalGameId(nk, adminGameId(data));
     var key = adminConfigKey(data.system, gameId);
     ConfigLoader.saveSatoriConfig(nk, key, config);
     logAdminAudit(nk, ctx, "satori_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });

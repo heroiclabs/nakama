@@ -611,6 +611,8 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriCreatorEvents.register(initializer);
         logger.info("[Satori] Registering Video Feed RPCs...");
         SatoriVideoFeed.register(initializer);
+        logger.info("[Satori] Registering Weekly Champions RPCs...");
+        SatoriWeeklyChampions.register(initializer);
         logger.info("[Satori] Registering Messages RPCs...");
         SatoriMessages.register(initializer);
         logger.info("[Satori] Registering Metrics RPCs...");
@@ -802,6 +804,7 @@ function InitModule(ctx, logger, nk, initializer) {
         SatoriMetrics.registerEventHandlers();
         HiroRewardBucket.registerEventHandlers();
         SatoriWebhooks.registerEventHandlers();
+        SatoriWeeklyChampions.registerEventHandlers();
         logger.info("[EventBus] Event handlers registered");
     }
     catch (err) {
@@ -18753,7 +18756,11 @@ var AdminConsole;
         var canonId = adminCanonicalGameId(nk, gameId);
         var key = adminConfigKey(system, canonId);
         var config = Storage.readSystemJson(nk, collection, key);
-        if ((!config || objectCount(config) === 0) && canonId) {
+        // Bare (unscoped) keys are the ORIGINAL app's (QuizVerse's) legacy data.
+        // Only that app may inherit them when its scoped doc is missing — for any
+        // other app the scoped view must stay empty instead of showing another
+        // app's flags / experiments / events / messages as its own.
+        if ((!config || objectCount(config) === 0) && canonId && ConfigLoader.isLegacyBareKeyOwner(nk, canonId)) {
             config = Storage.readSystemJson(nk, collection, system);
         }
         if (!config || objectCount(config) === 0)
@@ -18771,7 +18778,7 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required (e.g. economy, inventory, achievements)");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         var inherited = false;
         var config = Storage.readSystemJson(nk, Constants.HIRO_CONFIGS_COLLECTION, key);
@@ -18795,7 +18802,7 @@ var AdminConsole;
         var config = configFromPayload(data);
         if (!data.system || config === undefined)
             return RpcHelpers.errorResponse("system and config required");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         ConfigLoader.saveConfig(nk, key, config);
         logAdminAudit(nk, ctx, "hiro_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
@@ -18806,7 +18813,7 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         Storage.deleteRecord(nk, Constants.HIRO_CONFIGS_COLLECTION, key, Constants.SYSTEM_USER_ID);
         ConfigLoader.invalidateCache(key);
@@ -18819,7 +18826,7 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required (e.g. flags, experiments, audiences, live_events, messages, metrics)");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         var inherited = false;
         var config = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, key);
@@ -18843,7 +18850,7 @@ var AdminConsole;
         var config = configFromPayload(data);
         if (!data.system || config === undefined)
             return RpcHelpers.errorResponse("system and config required");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         ConfigLoader.saveSatoriConfig(nk, key, config);
         logAdminAudit(nk, ctx, "satori_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
@@ -53067,6 +53074,13 @@ var SatoriDashboard;
         RpcHelpers.requireAdmin(ctx, nk);
         var data = RpcHelpers.parseRpcPayload(payload);
         var gameId = RpcHelpers.gameId(data);
+        // When a specific app is selected, platform-wide sources (satori_debugger
+        // ring, roll_onboarding, users table) must NOT leak into the view — they
+        // carry no game tag, so under e.g. Cricket VR they'd show QuizVerse data.
+        // Exception: the legacy bare-key owner (QuizVerse) — those unscoped stores
+        // ARE its data, so its scoped view keeps them.
+        var scoped = !!(gameId && gameId !== "all" && gameId !== "global")
+            && !ConfigLoader.isLegacyBareKeyOwner(nk, gameId);
         var now = Date.now();
         var buf = Storage.readSystemJson(nk, RING_COLLECTION, RING_KEY);
         var events = (buf && buf.events) || [];
@@ -53124,11 +53138,11 @@ var SatoriDashboard;
             cityCounts[ci] = distinctCount(cityUsers[ci]);
         var timeline = [];
         for (var h = 0; h < 24; h++) {
-            timeline.push({ hourMs: now - (23 - h) * HOUR, count: buckets[h] });
+            timeline.push({ hourMs: now - (23 - h) * HOUR, count: scoped ? 0 : buckets[h] });
         }
-        var topCountries = topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
-        var topCities = topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
-        var topEvents = topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
+        var topCountries = scoped ? [] : topN(countryCounts, 8).map(function (r) { return { country: r.key, users: r.count }; });
+        var topCities = scoped ? [] : topN(cityCounts, 8).map(function (r) { return { city: r.key, users: r.count }; });
+        var topEvents = scoped ? [] : topN(eventNameCounts, 8).map(function (r) { return { name: r.key, count: r.count }; });
         // ── Real game telemetry overlay (legacy analytics pipeline) ───────────────
         // The satori_events ring only sees the web SDK. The actual game DAU / event
         // volume / geo lives in the legacy per-day aggregate. Overlay it so the IVX
@@ -53147,8 +53161,9 @@ var SatoriDashboard;
         // The legacy pipeline aggregates by_country but NOT by_city, and the ring
         // buffer rarely carries city. Fall back to the registered user base: derive
         // top cities from the `location` field on the users table (e.g.
-        // "Jaipur, Rajasthan, India" → "Jaipur").
-        if (topCities.length === 0)
+        // "Jaipur, Rajasthan, India" → "Jaipur"). Accounts are platform-wide, so
+        // only for the combined view.
+        if (topCities.length === 0 && !scoped)
             topCities = topCitiesFromAccounts(nk);
         var legacyEvents = topN(legacyToday.byName, 8).map(function (r) { return { name: r.key, count: r.count }; });
         if (legacyEvents.length > 0)
@@ -53157,7 +53172,11 @@ var SatoriDashboard;
         // onboarding_events_batch (web funnel). Replaces the satori_debugger ring
         // for dashboard KPI cards (ring only powers timeline + debugger tail).
         var inAppActive = ActiveRolling.countWindows(nk, "in_app", gameId, now);
-        var onboardingActive = ActiveRolling.countWindows(nk, "onboarding", undefined, now);
+        // Onboarding-web touches carry no game tag (single roll_onboarding doc for
+        // the whole platform), so they only belong to the combined view.
+        var onboardingActive = scoped
+            ? { active5m: 0, active1h: 0, active24h: 0 }
+            : ActiveRolling.countWindows(nk, "onboarding", undefined, now);
         var totalActive = ActiveRolling.mergeCounts(inAppActive, onboardingActive);
         var inApp24h = Math.max(inAppActive.active24h, dauToday);
         // 24h total = sum of the two displayed rows (onboarding + in-app w/ DAU floor).
@@ -53181,12 +53200,12 @@ var SatoriDashboard;
             activeUsers5m: totalActive.active5m,
             activeUsers1h: totalActive.active1h,
             activeUsers24h: total24h,
-            eventsLast24h: eventsToday > 0 ? eventsToday : events24h,
+            eventsLast24h: eventsToday > 0 ? eventsToday : (scoped ? 0 : events24h),
             // Real daily truth from the analytics pipeline (matches analytics.htm).
             dauToday: dauToday,
             eventsToday: eventsToday,
             revenueToday: revenueToday,
-            ringBufferSize: events.length,
+            ringBufferSize: scoped ? 0 : events.length,
             timeline: timeline,
             topCountries: topCountries,
             topCities: topCities,
@@ -55520,40 +55539,32 @@ var LegacyAnalytics;
     }
     // Read the analytics_dau + analytics_live_daily aggregate docs for one date.
     // gameId "all" / undefined maps to the platform-wide aggregate keys.
-    // If a game-scoped key exists it is preferred; if it is absent (first time a
-    // per-game aggregate has not been written yet) we transparently fall back to
-    // the platform-wide key so Timeline / Dashboard never show a blank chart.
+    // A game-scoped request ONLY reads its own scoped key — it never falls back
+    // to the platform-wide aggregate. A missing scoped doc means that game had
+    // no activity that day, so we correctly return zeros/empty rather than
+    // showing another game's (or the whole platform's) numbers under this
+    // game's name.
     function readDay(nk, dateStr, gameId) {
         var sys = Constants.SYSTEM_USER_ID;
         var out = emptyDay(dateStr);
         var rollupRevenue = -1; // <0 = no rollup doc for this day
         var rollupPurchases = 0;
-        // Build the read list. For game-scoped requests include both the scoped key
-        // and the platform-wide fallback key — we pick the scoped one when present,
-        // otherwise silently use the platform-wide aggregate.
-        var useGameScope = !isPlatform(gameId);
         var reads = [
             { collection: DAU_COLLECTION, key: dauKeyOf(dateStr, gameId), userId: sys },
             { collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, gameId), userId: sys },
             { collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, gameId), userId: sys }
         ];
-        if (useGameScope) {
-            reads.push({ collection: DAU_COLLECTION, key: dauKeyOf(dateStr, undefined), userId: sys });
-            reads.push({ collection: LIVE_COLLECTION, key: liveKeyOf(dateStr, undefined), userId: sys });
-            reads.push({ collection: ROLLUP_COLLECTION, key: rollupKeyOf(dateStr, undefined), userId: sys });
-        }
         try {
             var rawRecs = nk.storageRead(reads);
-            // Index records by key so we can resolve scoped-vs-platform preference.
+            // Index records by key (inline to avoid ES5 block-function error).
             var byKey = {};
             for (var ri = 0; ri < rawRecs.length; ri++) {
                 if (rawRecs[ri] && rawRecs[ri].value)
                     byKey[rawRecs[ri].key] = rawRecs[ri];
             }
-            // Prefer scoped key, fall back to platform-wide (inline to avoid ES5 block-function error).
-            var dauRec = byKey[dauKeyOf(dateStr, gameId)] || (useGameScope ? byKey[dauKeyOf(dateStr, undefined)] : null);
-            var liveRec = byKey[liveKeyOf(dateStr, gameId)] || (useGameScope ? byKey[liveKeyOf(dateStr, undefined)] : null);
-            var rollupRec = byKey[rollupKeyOf(dateStr, gameId)] || (useGameScope ? byKey[rollupKeyOf(dateStr, undefined)] : null);
+            var dauRec = byKey[dauKeyOf(dateStr, gameId)] || null;
+            var liveRec = byKey[liveKeyOf(dateStr, gameId)] || null;
+            var rollupRec = byKey[rollupKeyOf(dateStr, gameId)] || null;
             var recs = [];
             if (dauRec)
                 recs.push(dauRec);
@@ -56728,22 +56739,18 @@ var SatoriCreatorEvents;
             deepLinkUrl: def.deepLinkUrl || "",
         });
     }
-    function rpcEnd(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var isAdmin = isAdminCtx(ctx, nk);
-        var data = RpcHelpers.parseRpcPayload(payload);
-        if (!data.eventId)
-            return RpcHelpers.errorResponse("eventId required");
-        var def = getEventDefinition(nk, data.eventId);
-        if (!def)
-            return RpcHelpers.errorResponse("Event not found");
-        if (!isAdmin && def.creatorId !== userId) {
-            return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
-        }
-        if (def.status === "ended" || def.status === "distributed" || def.status === "cancelled") {
-            return RpcHelpers.errorResponse("Event already ended/cancelled");
-        }
-        var leaderboardId = LEADERBOARD_PREFIX + data.eventId;
+    /**
+     * Shared end-of-event finalization: reads the event leaderboard, assigns
+     * prize tiers by rank, persists status="ended", emits EVENT_ENDED (recap
+     * pipeline trigger via SatoriWebhooks → n8n) and auto-queues gift-card
+     * prize fulfillments.
+     *
+     * Called by rpcEnd (manual creator/admin end) and rpcAutoEndSweep
+     * (zero-touch Path A auto-end). Caller must have already authorized and
+     * verified the event is not already ended/cancelled.
+     */
+    function finalizeEndedEvent(ctx, logger, nk, def, endedBy) {
+        var leaderboardId = LEADERBOARD_PREFIX + def.id;
         var allRecords = [];
         var cursor = "";
         do {
@@ -56788,9 +56795,9 @@ var SatoriCreatorEvents;
             }
             try {
                 var userStates = getUserStates(nk, record.ownerId);
-                if (userStates[data.eventId]) {
-                    userStates[data.eventId].tierEarned = assignedTier || undefined;
-                    userStates[data.eventId].rank = currentRank;
+                if (userStates[def.id]) {
+                    userStates[def.id].tierEarned = assignedTier || undefined;
+                    userStates[def.id].rank = currentRank;
                     saveUserStates(nk, record.ownerId, userStates);
                 }
             }
@@ -56801,7 +56808,7 @@ var SatoriCreatorEvents;
         def.status = "ended";
         def.endedAt = Math.floor(Date.now() / 1000);
         saveEventDefinition(nk, def);
-        logger.info("[CreatorEvent] Ended event %s — %d participants, %d tier assignments", def.id, allRecords.length, Object.keys(tierAssignments).length);
+        logger.info("[CreatorEvent] Ended event %s (by %s) — %d participants, %d tier assignments", def.id, endedBy, allRecords.length, Object.keys(tierAssignments).length);
         // Resolve usernames for winner + runners-up so downstream recap pipelines
         // (n8n → Content Factory event-recap) can produce a real highlight video
         // without having to do their own lookup.
@@ -56896,6 +56903,7 @@ var SatoriCreatorEvents;
             prizePool: def.prizePool,
             giftCardPrizes: def.giftCardPrizes || null,
             endedAt: def.endedAt,
+            endedBy: endedBy,
             nextEvent: nextEvent,
             idempotencyKey: "event_ended_" + def.id,
         });
@@ -56909,13 +56917,102 @@ var SatoriCreatorEvents;
         catch (pqErr) {
             logger.warn("[CreatorEvent] Prize auto-queue failed for event %s (non-fatal): %s", def.id, pqErr.message || String(pqErr));
         }
-        return RpcHelpers.successResponse({
-            success: true,
-            eventId: def.id,
+        return {
             totalParticipants: allRecords.length,
             tierAssignments: tierAssignments,
             winnersPerTier: winnersPerTier,
             prizeQueue: prizeQueueResult || undefined,
+        };
+    }
+    function rpcEnd(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var isAdmin = isAdminCtx(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var def = getEventDefinition(nk, data.eventId);
+        if (!def)
+            return RpcHelpers.errorResponse("Event not found");
+        if (!isAdmin && def.creatorId !== userId) {
+            return RpcHelpers.errorResponse("Not authorized — must be event creator or admin");
+        }
+        if (def.status === "ended" || def.status === "distributed" || def.status === "cancelled") {
+            return RpcHelpers.errorResponse("Event already ended/cancelled");
+        }
+        var endResult = finalizeEndedEvent(ctx, logger, nk, def, userId);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: def.id,
+            totalParticipants: endResult.totalParticipants,
+            tierAssignments: endResult.tierAssignments,
+            winnersPerTier: endResult.winnersPerTier,
+            prizeQueue: endResult.prizeQueue,
+        });
+    }
+    /**
+     * creator_event_auto_end_sweep — system/admin only (n8n every-minute cron
+     * primary + k8s CronJob fallback).
+     *
+     * Path A zero-touch lifecycle: finds published events whose
+     * scheduledAt + duration has elapsed and finalizes them exactly like a
+     * manual creator_event_end — tier assignment, EVENT_ENDED webhook (recap
+     * pipeline), prize fulfillment queue. The EVENT_ENDED idempotencyKey
+     * ("event_ended_<id>") keeps downstream recap generation deduped even if a
+     * manual end races the sweep.
+     *
+     * Payload: { graceSec?: number, limit?: number }
+     *   graceSec — extra seconds past endAt before auto-ending (default 0)
+     *   limit    — max events finalized per sweep (default 25)
+     */
+    function rpcAutoEndSweep(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var graceSec = typeof data.graceSec === "number" ? Math.max(0, Math.floor(data.graceSec)) : 0;
+        var limit = typeof data.limit === "number" ? Math.max(1, Math.floor(data.limit)) : 25;
+        var now = serverNowSec();
+        var index = getEventsIndex(nk);
+        var scanned = 0;
+        var ended = [];
+        var failed = [];
+        for (var i = 0; i < index.eventIds.length; i++) {
+            if (ended.length >= limit)
+                break;
+            var eventId = index.eventIds[i];
+            var def = getEventDefinition(nk, eventId);
+            if (!def)
+                continue;
+            scanned++;
+            // Only persisted-"published" events run and auto-end. Draft/funded never
+            // started; ended/distributed/cancelled are terminal.
+            if ((def.status || "draft") !== "published")
+                continue;
+            var endAt = (def.scheduledAt || 0) + Math.floor((def.duration || 30) * 60);
+            if (!def.scheduledAt || now <= endAt + graceSec)
+                continue;
+            try {
+                var res = finalizeEndedEvent(ctx, logger, nk, def, "auto_end_sweep");
+                ended.push({
+                    eventId: def.id,
+                    title: def.title,
+                    region: def.region,
+                    totalParticipants: res.totalParticipants,
+                });
+            }
+            catch (err) {
+                var msg = (err && err.message) ? err.message : String(err);
+                logger.error("[CreatorEvent] auto-end failed for event %s: %s", eventId, msg);
+                failed.push({ eventId: eventId, error: msg });
+            }
+        }
+        if (ended.length > 0) {
+            logger.info("[CreatorEvent] Auto-end sweep finalized %d event(s): %s", ended.length, JSON.stringify(ended));
+        }
+        return RpcHelpers.successResponse({
+            now: now,
+            scanned: scanned,
+            endedCount: ended.length,
+            ended: ended,
+            failed: failed,
         });
     }
     /**
@@ -57004,6 +57101,7 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_create", rpcCreate);
         initializer.registerRpc("creator_event_publish", rpcPublish);
         initializer.registerRpc("creator_event_end", rpcEnd);
+        initializer.registerRpc("creator_event_auto_end_sweep", rpcAutoEndSweep);
         initializer.registerRpc("creator_event_cancel", rpcCancel);
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
@@ -57857,6 +57955,627 @@ var SatoriLiveEvents;
     }
     SatoriLiveEvents.register = register;
 })(SatoriLiveEvents || (SatoriLiveEvents = {}));
+var SatoriWeeklyChampions;
+(function (SatoriWeeklyChampions) {
+    // ============================================================
+    //  QuizVerse Weekly Champions (Path A — automated live events)
+    // ============================================================
+    //
+    //  Every Sunday an n8n cron calls `weekly_champions_calculate` per region.
+    //  Winners are computed from three server-side data sources plus one
+    //  externally-supplied award:
+    //
+    //    Champion / Runner-Ups  → leaderboard `weekly_total_score_<region>`
+    //                             (INCREMENTAL, resets Monday 00:00 UTC —
+    //                             fed by creator_event_submit via recordPlay)
+    //    Streak King            → storage `player_streaks` (per-user record,
+    //                             updated on every submit)
+    //    Lucky Draw             → storage `daily_activity` (per-user per-week
+    //                             record; qualification: played 5+ days)
+    //    Top Guesser            → passed in the calculate payload by n8n
+    //                             (Content Factory scans Part 1 YouTube
+    //                             comments; Nakama has no YouTube access)
+    //
+    //  Gift-card awards are queued as `prize_fulfillments` rows (same queue the
+    //  creator-event claim/backfill flow uses, source="weekly_champions") and
+    //  the Top-20 XUT bonus is credited directly. The whole calculation is
+    //  idempotent per (weekKey, region).
+    var COLLECTION = "weekly_champions";
+    var STREAKS_COLLECTION = "player_streaks";
+    var ACTIVITY_COLLECTION = "daily_activity";
+    var LB_PREFIX = "weekly_total_score_";
+    var LB_RESET_MONDAY_UTC = "0 0 * * 1";
+    var TOP20_XUT_BONUS = 1000;
+    var LUCKY_DRAW_MIN_DAYS = 5;
+    // ---- Time helpers ----
+    function dayKeyUtc(ms) {
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    function addDays(dayKey, delta) {
+        var d = new Date(dayKey + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() + delta);
+        return d.toISOString().slice(0, 10);
+    }
+    /** Monday (UTC) of the week containing `ms` — the weekly leaderboard reset anchor. */
+    function weekKeyUtc(ms) {
+        var d = new Date(ms);
+        var dow = d.getUTCDay(); // 0=Sun..6=Sat
+        var deltaToMonday = dow === 0 ? -6 : 1 - dow;
+        d.setUTCDate(d.getUTCDate() + deltaToMonday);
+        return d.toISOString().slice(0, 10);
+    }
+    SatoriWeeklyChampions.weekKeyUtc = weekKeyUtc;
+    function normalizeRegion(region) {
+        var r = String(region || "global").toLowerCase();
+        if (r !== "india" && r !== "usa" && r !== "global")
+            r = "global";
+        return r;
+    }
+    function leaderboardId(region) {
+        return LB_PREFIX + normalizeRegion(region);
+    }
+    var _lbEnsured = {};
+    function ensureWeeklyLeaderboard(nk, logger, region) {
+        var id = leaderboardId(region);
+        if (_lbEnsured[id])
+            return id;
+        try {
+            nk.leaderboardCreate(id, true, "descending" /* nkruntime.SortOrder.DESCENDING */, "increment" /* nkruntime.Operator.INCREMENTAL */, LB_RESET_MONDAY_UTC, { scope: "weekly_champions", region: normalizeRegion(region) });
+            _lbEnsured[id] = true;
+        }
+        catch (err) {
+            var msg = (err && err.message) ? err.message : String(err);
+            if (/exist/i.test(msg)) {
+                _lbEnsured[id] = true;
+            }
+            else {
+                logger.warn("[WeeklyChampions] leaderboardCreate failed for %s: %s", id, msg);
+            }
+        }
+        return id;
+    }
+    // ============================================================
+    //  recordPlay — called from creator_event_submit (best-effort)
+    // ============================================================
+    function recordPlay(nk, logger, userId, username, region, score) {
+        var nowMs = Date.now();
+        var nowSec = Math.floor(nowMs / 1000);
+        var today = dayKeyUtc(nowMs);
+        var week = weekKeyUtc(nowMs);
+        // 1. Weekly total-score leaderboard (regional + global rollup)
+        var points = Math.max(0, Math.floor(score));
+        var boards = [ensureWeeklyLeaderboard(nk, logger, region)];
+        if (normalizeRegion(region) !== "global")
+            boards.push(ensureWeeklyLeaderboard(nk, logger, "global"));
+        for (var bi = 0; bi < boards.length; bi++) {
+            try {
+                nk.leaderboardRecordWrite(boards[bi], userId, username || "", points, 0);
+            }
+            catch (lbErr) {
+                logger.warn("[WeeklyChampions] weekly leaderboard write failed (%s): %s", boards[bi], lbErr.message || String(lbErr));
+            }
+        }
+        // 2. Streak record
+        try {
+            var streak = Storage.readJson(nk, STREAKS_COLLECTION, "streak", userId);
+            if (!streak)
+                streak = { current: 0, longest: 0, lastDayKey: "", updatedAt: 0 };
+            if (streak.lastDayKey !== today) {
+                if (streak.lastDayKey === addDays(today, -1)) {
+                    streak.current = (streak.current || 0) + 1;
+                }
+                else {
+                    streak.current = 1;
+                }
+                if (streak.current > (streak.longest || 0))
+                    streak.longest = streak.current;
+                streak.lastDayKey = today;
+                streak.updatedAt = nowSec;
+                Storage.writeJson(nk, STREAKS_COLLECTION, "streak", userId, streak, 2, 0);
+            }
+        }
+        catch (stErr) {
+            logger.warn("[WeeklyChampions] streak update failed for %s: %s", userId, stErr.message || String(stErr));
+        }
+        // 3. Weekly activity record (Lucky Draw qualification)
+        try {
+            var activityKey = "week_" + week;
+            var activity = Storage.readJson(nk, ACTIVITY_COLLECTION, activityKey, userId);
+            if (!activity || activity.weekKey !== week) {
+                activity = { weekKey: week, days: {}, count: 0, updatedAt: 0 };
+            }
+            if (!activity.days[today]) {
+                activity.days[today] = true;
+                activity.count = Object.keys(activity.days).length;
+                activity.updatedAt = nowSec;
+                Storage.writeJson(nk, ACTIVITY_COLLECTION, activityKey, userId, activity, 2, 0);
+            }
+        }
+        catch (actErr) {
+            logger.warn("[WeeklyChampions] activity update failed for %s: %s", userId, actErr.message || String(actErr));
+        }
+    }
+    SatoriWeeklyChampions.recordPlay = recordPlay;
+    // ============================================================
+    //  Default prize presets (from the v5.0 consolidated plan)
+    // ============================================================
+    function defaultPrizes(region) {
+        if (normalizeRegion(region) === "india") {
+            return {
+                champion: { prize: "Flipkart ₹2,000", brand: "flipkart", value: 2000, currency: "INR", fulfillment: "gyftr" },
+                runner_up_1: { prize: "Swiggy ONE 3-month ₹1,500", brand: "swiggy", value: 1500, currency: "INR", fulfillment: "gyftr" },
+                runner_up_2: { prize: "Myntra ₹1,000", brand: "myntra", value: 1000, currency: "INR", fulfillment: "gyftr" },
+                top_guesser: { prize: "BookMyShow ₹750", brand: "bookmyshow", value: 750, currency: "INR", fulfillment: "gyftr" },
+                streak_king: { prize: "Hotstar Premium 3-month ₹500", brand: "hotstar", value: 500, currency: "INR", fulfillment: "gyftr" },
+                lucky_draw: { prize: "PhonePe ₹250 cashback", brand: "phonepe", value: 250, currency: "INR", fulfillment: "gyftr" },
+            };
+        }
+        // USA defaults double as the global preset.
+        return {
+            champion: { prize: "Amazon US $30", brand: "amazon_us", value: 30, currency: "USD", fulfillment: "tremendous" },
+            runner_up_1: { prize: "Uber Eats $20", brand: "uber_eats", value: 20, currency: "USD", fulfillment: "tremendous" },
+            runner_up_2: { prize: "Spotify Premium 3-month $15", brand: "spotify", value: 15, currency: "USD", fulfillment: "tremendous" },
+            top_guesser: { prize: "Netflix $15", brand: "netflix", value: 15, currency: "USD", fulfillment: "tremendous" },
+            streak_king: { prize: "Chipotle $10", brand: "chipotle", value: 10, currency: "USD", fulfillment: "tremendous" },
+            lucky_draw: { prize: "Starbucks $10", brand: "starbucks", value: 10, currency: "USD", fulfillment: "tremendous" },
+        };
+    }
+    // ---- Storage helpers ----
+    function recordKey(weekKey, region) {
+        return "week_" + weekKey + "_" + normalizeRegion(region);
+    }
+    function getRecord(nk, weekKey, region) {
+        return Storage.readSystemJson(nk, COLLECTION, recordKey(weekKey, region));
+    }
+    function saveRecord(nk, record) {
+        Storage.writeSystemJson(nk, COLLECTION, recordKey(record.weekKey, record.region), record);
+    }
+    // ---- Winner discovery ----
+    function scanStreakKing(nk, logger, weekKey) {
+        // Eligible: streak still alive this week (lastDayKey within the target week).
+        var weekDays = {};
+        for (var i = 0; i < 7; i++)
+            weekDays[addDays(weekKey, i)] = true;
+        var best = null;
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, STREAKS_COLLECTION, 100, cursor);
+            }
+            catch (err) {
+                logger.warn("[WeeklyChampions] player_streaks list failed: %s", err.message || String(err));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var oi = 0; oi < objs.length; oi++) {
+                var o = objs[oi];
+                var v = o && o.value;
+                if (!v || !o.userId)
+                    continue;
+                if (!weekDays[v.lastDayKey || ""])
+                    continue;
+                var current = v.current || 0;
+                if (!best || current > best.streak) {
+                    best = { userId: o.userId, streak: current };
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < 20);
+        return best;
+    }
+    function scanLuckyDraw(nk, logger, weekKey, minDays, excludeUserIds) {
+        var activityKey = "week_" + weekKey;
+        var eligible = [];
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, ACTIVITY_COLLECTION, 100, cursor);
+            }
+            catch (err) {
+                logger.warn("[WeeklyChampions] daily_activity list failed: %s", err.message || String(err));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var oi = 0; oi < objs.length; oi++) {
+                var o = objs[oi];
+                if (!o || o.key !== activityKey || !o.userId)
+                    continue;
+                var v = o.value;
+                if (!v || (v.count || 0) < minDays)
+                    continue;
+                if (excludeUserIds[o.userId])
+                    continue;
+                eligible.push({ userId: o.userId, days: v.count || 0 });
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < 20);
+        if (eligible.length === 0)
+            return null;
+        var pick = eligible[Math.floor(Math.random() * eligible.length)];
+        return { userId: pick.userId, days: pick.days, poolSize: eligible.length };
+    }
+    function resolveUsernames(nk, logger, userIds) {
+        var out = {};
+        var unique = [];
+        var seen = {};
+        for (var i = 0; i < userIds.length; i++) {
+            var uid = userIds[i];
+            if (uid && !seen[uid]) {
+                seen[uid] = true;
+                unique.push(uid);
+            }
+        }
+        if (unique.length === 0)
+            return out;
+        try {
+            var accts = nk.accountsGetId(unique);
+            for (var ai = 0; ai < accts.length; ai++) {
+                var u = accts[ai] && accts[ai].user;
+                if (u && u.id)
+                    out[u.id] = u.username || "";
+            }
+        }
+        catch (err) {
+            logger.warn("[WeeklyChampions] username resolve failed: %s", err.message || String(err));
+        }
+        return out;
+    }
+    function queueGiftCardFulfillment(nk, logger, weekKey, region, winner, email) {
+        var fKey = "weekly_" + weekKey + "_" + normalizeRegion(region) + ":" + winner.award + ":" + winner.userId;
+        var existing = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+        if (!existing) {
+            Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+                userId: winner.userId,
+                eventId: "weekly_champions_" + weekKey + "_" + normalizeRegion(region),
+                rank: 0,
+                award: winner.award,
+                giftCard: winner.prize,
+                status: "pending",
+                queuedAt: Math.floor(Date.now() / 1000),
+                eventTitle: "Weekly Champions " + weekKey + " (" + normalizeRegion(region) + ")",
+                region: normalizeRegion(region),
+                source: "weekly_champions",
+                email: email || "",
+            });
+            logger.info("[WeeklyChampions] queued fulfillment %s (%s → %s)", fKey, winner.award, winner.prize.prize);
+        }
+        return fKey;
+    }
+    function notifyWinner(nk, logger, winner, weekKey) {
+        try {
+            nk.notificationsSend([{
+                    userId: winner.userId,
+                    code: 1002,
+                    subject: "🏆 You're a QuizVerse Weekly Champion!",
+                    content: {
+                        type: "weekly_champions_award",
+                        award: winner.award,
+                        prize: winner.prize.prize,
+                        weekKey: weekKey,
+                        body: "You won " + winner.prize.prize + " (" + winner.award.replace(/_/g, " ") + ")! Open QuizVerse to claim.",
+                    },
+                    persistent: true,
+                }]);
+        }
+        catch (err) {
+            logger.warn("[WeeklyChampions] winner notification failed for %s: %s", winner.userId, err.message || String(err));
+        }
+    }
+    // ============================================================
+    //  RPCs
+    // ============================================================
+    /**
+     * weekly_champions_calculate — system/admin only (n8n Sunday cron).
+     *
+     * Payload:
+     *   {
+     *     region: "india" | "usa" | "global",
+     *     weekKey?: "YYYY-MM-DD",              // Monday anchor; defaults to current week
+     *     topGuesser?: { userId?, youtubeHandle?, count? },  // from Content Factory comment scan
+     *     minLuckyDrawDays?: number,           // default 5
+     *     force?: boolean                       // recalculate even if a record exists
+     *   }
+     */
+    function rpcCalculate(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var region = normalizeRegion(data.region);
+        var weekKey = data.weekKey ? String(data.weekKey) : weekKeyUtc(Date.now());
+        var minDays = typeof data.minLuckyDrawDays === "number" ? Math.max(1, Math.floor(data.minLuckyDrawDays)) : LUCKY_DRAW_MIN_DAYS;
+        var existing = getRecord(nk, weekKey, region);
+        if (existing && !data.force) {
+            return RpcHelpers.successResponse({ alreadyCalculated: true, record: existing });
+        }
+        var prizes = defaultPrizes(region);
+        var winners = [];
+        var takenUserIds = {};
+        // --- Champion + Runner-Ups from the weekly leaderboard ---
+        var lbId = leaderboardId(region);
+        var records = [];
+        try {
+            var lbResult = nk.leaderboardRecordsList(lbId, [], 20, "");
+            records = (lbResult && lbResult.records) || [];
+        }
+        catch (lbErr) {
+            logger.warn("[WeeklyChampions] leaderboard %s read failed (no plays this week?): %s", lbId, lbErr.message || String(lbErr));
+        }
+        var lbAwards = ["champion", "runner_up_1", "runner_up_2"];
+        for (var r = 0; r < records.length && r < lbAwards.length; r++) {
+            var rec = records[r];
+            if (!rec || !rec.ownerId)
+                continue;
+            winners.push({
+                award: lbAwards[r],
+                userId: rec.ownerId,
+                username: rec.username || "",
+                metric: rec.score || 0,
+                prize: prizes[lbAwards[r]],
+            });
+            takenUserIds[rec.ownerId] = true;
+        }
+        // --- Top Guesser (supplied by Content Factory via n8n) ---
+        if (data.topGuesser && (data.topGuesser.userId || data.topGuesser.youtubeHandle)) {
+            winners.push({
+                award: "top_guesser",
+                userId: String(data.topGuesser.userId || ""),
+                username: "",
+                metric: Math.floor(Number(data.topGuesser.count || 0)),
+                prize: prizes["top_guesser"],
+                youtubeHandle: data.topGuesser.youtubeHandle ? String(data.topGuesser.youtubeHandle) : undefined,
+            });
+            if (data.topGuesser.userId)
+                takenUserIds[String(data.topGuesser.userId)] = true;
+        }
+        // --- Streak King ---
+        var streakKing = scanStreakKing(nk, logger, weekKey);
+        if (streakKing) {
+            winners.push({
+                award: "streak_king",
+                userId: streakKing.userId,
+                username: "",
+                metric: streakKing.streak,
+                prize: prizes["streak_king"],
+            });
+            takenUserIds[streakKing.userId] = true;
+        }
+        // --- Lucky Draw (random among 5+ day players, excluding other winners) ---
+        var lucky = scanLuckyDraw(nk, logger, weekKey, minDays, takenUserIds);
+        if (lucky) {
+            winners.push({
+                award: "lucky_draw",
+                userId: lucky.userId,
+                username: "",
+                metric: lucky.days,
+                prize: prizes["lucky_draw"],
+            });
+            takenUserIds[lucky.userId] = true;
+        }
+        // --- Resolve usernames + emails in one batch ---
+        var winnerIds = [];
+        for (var wi = 0; wi < winners.length; wi++) {
+            if (winners[wi].userId)
+                winnerIds.push(winners[wi].userId);
+        }
+        var usernames = resolveUsernames(nk, logger, winnerIds);
+        var emailByUserId = {};
+        if (winnerIds.length > 0) {
+            try {
+                var accts = nk.accountsGetId(winnerIds);
+                for (var ei = 0; ei < accts.length; ei++) {
+                    var acct = accts[ei];
+                    var auid = acct && acct.user && acct.user.id;
+                    if (auid)
+                        emailByUserId[auid] = acct.email || "";
+                }
+            }
+            catch (_e) { }
+        }
+        for (var ui = 0; ui < winners.length; ui++) {
+            if (!winners[ui].username && winners[ui].userId) {
+                winners[ui].username = usernames[winners[ui].userId] || "";
+            }
+        }
+        // --- Queue gift-card fulfillments + notify winners ---
+        for (var qi = 0; qi < winners.length; qi++) {
+            var w = winners[qi];
+            if (!w.userId || !w.prize)
+                continue;
+            w.fulfillmentKey = queueGiftCardFulfillment(nk, logger, weekKey, region, w, emailByUserId[w.userId] || "");
+            notifyWinner(nk, logger, w, weekKey);
+        }
+        // --- Top-20 XUT bonus (direct wallet credit, idempotent via record) ---
+        var top20Ids = [];
+        var priorTop20 = {};
+        if (existing && existing.top20XutUserIds) {
+            for (var pi = 0; pi < existing.top20XutUserIds.length; pi++)
+                priorTop20[existing.top20XutUserIds[pi]] = true;
+        }
+        for (var ti = 0; ti < records.length && ti < 20; ti++) {
+            var trec = records[ti];
+            if (!trec || !trec.ownerId)
+                continue;
+            top20Ids.push(trec.ownerId);
+            if (priorTop20[trec.ownerId])
+                continue; // already credited on a prior run
+            try {
+                nk.walletUpdate(trec.ownerId, { xut: TOP20_XUT_BONUS }, { reason: "weekly_champions_top20:" + weekKey + ":" + region }, false);
+            }
+            catch (wErr) {
+                logger.warn("[WeeklyChampions] top-20 XUT grant failed for %s: %s", trec.ownerId, wErr.message || String(wErr));
+            }
+        }
+        var record = {
+            weekKey: weekKey,
+            region: region,
+            calculatedAt: Math.floor(Date.now() / 1000),
+            winners: winners,
+            top20XutUserIds: top20Ids,
+            status: "calculated",
+        };
+        saveRecord(nk, record);
+        logger.info("[WeeklyChampions] calculated %s/%s — %d winners, %d top-20 XUT grants", weekKey, region, winners.length, top20Ids.length);
+        return RpcHelpers.successResponse({ record: record });
+    }
+    /** weekly_champions_results — any authenticated user; returns the winners board + caller's awards. */
+    function rpcResults(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var region = normalizeRegion(data.region);
+        var weekKey = data.weekKey ? String(data.weekKey) : weekKeyUtc(Date.now());
+        var record = getRecord(nk, weekKey, region);
+        // Convenience: if this week isn't calculated yet, fall back to last week's board.
+        if (!record && !data.weekKey) {
+            var lastWeek = addDays(weekKey, -7);
+            record = getRecord(nk, lastWeek, region);
+            if (record)
+                weekKey = lastWeek;
+        }
+        if (!record) {
+            return RpcHelpers.successResponse({ weekKey: weekKey, region: region, calculated: false, winners: [] });
+        }
+        var myAwards = [];
+        for (var i = 0; i < record.winners.length; i++) {
+            if (record.winners[i].userId === userId)
+                myAwards.push(record.winners[i]);
+        }
+        return RpcHelpers.successResponse({
+            weekKey: record.weekKey,
+            region: record.region,
+            calculated: true,
+            calculatedAt: record.calculatedAt,
+            winners: record.winners,
+            myAwards: myAwards,
+        });
+    }
+    /**
+     * weekly_champions_claim — winner claims their award.
+     * Gift-card awards return the pending fulfillment reference (operator approves →
+     * GyfTR/Tremendous code lands in the player's reward record, same as event prizes).
+     */
+    function rpcClaim(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        var region = normalizeRegion(data.region);
+        var weekKey = data.weekKey ? String(data.weekKey) : weekKeyUtc(Date.now());
+        var record = getRecord(nk, weekKey, region);
+        if (!record && !data.weekKey) {
+            var lastWeek = addDays(weekKey, -7);
+            record = getRecord(nk, lastWeek, region);
+            if (record)
+                weekKey = lastWeek;
+        }
+        if (!record)
+            return RpcHelpers.errorResponse("Weekly champions not calculated yet for this week");
+        var myAwards = [];
+        for (var i = 0; i < record.winners.length; i++) {
+            if (record.winners[i].userId === userId)
+                myAwards.push(record.winners[i]);
+        }
+        if (myAwards.length === 0)
+            return RpcHelpers.errorResponse("No weekly champions award for this user");
+        var claimKey = "claim_" + weekKey + "_" + region;
+        var prior = Storage.readJson(nk, COLLECTION, claimKey, userId);
+        if (prior) {
+            return RpcHelpers.successResponse({ alreadyClaimed: true, claimedAt: prior.claimedAt, awards: myAwards });
+        }
+        var claimed = [];
+        for (var ai = 0; ai < myAwards.length; ai++) {
+            var award = myAwards[ai];
+            var isXut = (award.prize.currency || "").toUpperCase() === "XUT" || award.prize.fulfillment === "nakama";
+            if (isXut) {
+                try {
+                    nk.walletUpdate(userId, { xut: award.prize.value }, { reason: "weekly_champions_claim:" + weekKey + ":" + award.award }, false);
+                    claimed.push({ award: award.award, xutGranted: award.prize.value });
+                }
+                catch (wErr) {
+                    logger.warn("[WeeklyChampions] XUT claim grant failed for %s: %s", userId, wErr.message || String(wErr));
+                }
+            }
+            else {
+                claimed.push({
+                    award: award.award,
+                    giftCard: award.prize,
+                    fulfillmentKey: award.fulfillmentKey || "",
+                    status: "pending_fulfillment",
+                });
+            }
+        }
+        var nowSec = Math.floor(Date.now() / 1000);
+        Storage.writeJson(nk, COLLECTION, claimKey, userId, { claimedAt: nowSec, awards: claimed }, 2, 0);
+        return RpcHelpers.successResponse({
+            weekKey: weekKey,
+            region: region,
+            claimedAt: nowSec,
+            awards: claimed,
+        });
+    }
+    /** weekly_champions_my_streak — lightweight read for the streak UI + retention hooks. */
+    function rpcMyStreak(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var streak = Storage.readJson(nk, STREAKS_COLLECTION, "streak", userId);
+        var nowMs = Date.now();
+        var today = dayKeyUtc(nowMs);
+        var current = 0;
+        var longest = 0;
+        var playedToday = false;
+        if (streak) {
+            longest = streak.longest || 0;
+            playedToday = streak.lastDayKey === today;
+            // A streak is only "alive" if the last play was today or yesterday.
+            if (streak.lastDayKey === today || streak.lastDayKey === addDays(today, -1)) {
+                current = streak.current || 0;
+            }
+        }
+        var week = weekKeyUtc(nowMs);
+        var activity = Storage.readJson(nk, ACTIVITY_COLLECTION, "week_" + week, userId);
+        return RpcHelpers.successResponse({
+            current: current,
+            longest: longest,
+            playedToday: playedToday,
+            daysThisWeek: activity ? activity.count || 0 : 0,
+            luckyDrawQualified: !!(activity && (activity.count || 0) >= LUCKY_DRAW_MIN_DAYS),
+        });
+    }
+    function register(initializer) {
+        initializer.registerRpc("weekly_champions_calculate", rpcCalculate);
+        initializer.registerRpc("weekly_champions_results", rpcResults);
+        initializer.registerRpc("weekly_champions_claim", rpcClaim);
+        initializer.registerRpc("weekly_champions_my_streak", rpcMyStreak);
+    }
+    SatoriWeeklyChampions.register = register;
+    /**
+     * Feed weekly totals / streaks / activity from the SCORE_SUBMITTED event
+     * that creator_event_submit already emits — deliberately NOT wired inside
+     * the Path B submit RPC so the existing gameplay flow stays untouched.
+     *
+     * Other modules (hiro leaderboards, legacy multi-game) also emit
+     * SCORE_SUBMITTED; the satori_creator_events lookup filters those out.
+     */
+    function registerEventHandlers() {
+        EventBus.on(EventBus.Events.SCORE_SUBMITTED, function (nk, logger, ctx, data) {
+            try {
+                if (!data || !data.userId || !data.eventId)
+                    return;
+                if (typeof data.score !== "number")
+                    return;
+                var def = Storage.readSystemJson(nk, "satori_creator_events", String(data.eventId));
+                if (!def || !def.id)
+                    return; // not a creator live event submission
+                recordPlay(nk, logger, String(data.userId), (ctx && ctx.username) || "", def.region || "global", data.score);
+            }
+            catch (err) {
+                logger.warn("[WeeklyChampions] SCORE_SUBMITTED handler failed: %s", (err && err.message) || String(err));
+            }
+        });
+    }
+    SatoriWeeklyChampions.registerEventHandlers = registerEventHandlers;
+})(SatoriWeeklyChampions || (SatoriWeeklyChampions = {}));
 var SatoriMessages;
 (function (SatoriMessages) {
     function getMessageDefinitions(nk, gameId) {
@@ -58173,6 +58892,23 @@ var SatoriMetrics;
         }
         return null;
     }
+    // Fallback source for config-defined metrics: the legacy analytics pipeline.
+    //
+    // Game clients report telemetry via analytics_log_event (which feeds
+    // analytics_live_daily.by_name per-day counters) — NOT via the satori_event
+    // capture path that SatoriMetrics.processEvent listens on. So a metric
+    // defined on a real gameplay event (question_answered,
+    // media_question_completed, session_start, …) never accumulates capture
+    // state and sits at 0 forever, even though the event fires hundreds of
+    // times a day. When the capture path has no buckets for a count metric we
+    // read the same per-day counters the legacy_* builtins use. Count only:
+    // by_name stores plain counters, so sum/avg/min/max/unique can't be derived.
+    function canDeriveFromLegacy(def) {
+        return !!(def && def.eventName && def.aggregation === "count");
+    }
+    function legacyCountForDay(day, eventName) {
+        return (day.byName && day.byName[eventName]) || 0;
+    }
     function builtinValue(day, field) {
         switch (field) {
             case "dau": return day.dau;
@@ -58272,13 +59008,16 @@ var SatoriMetrics;
         var definitions = getMetricDefinitions(nk, gameId);
         var results = [];
         var now = Math.floor(Date.now() / 1000);
+        var todayForFallback = null;
         var metricIds = data.metricIds || Object.keys(definitions);
         for (var i = 0; i < metricIds.length; i++) {
             var metricId = metricIds[i];
             var state = getMetricState(nk, metricId, gameId);
             var latestBucket = "all";
             var latestTime = 0;
+            var hasBuckets = false;
             for (var bk in state.buckets) {
+                hasBuckets = true;
                 var bkTime = parseInt(bk) || 0;
                 if (bkTime > latestTime) {
                     latestTime = bkTime;
@@ -58286,9 +59025,20 @@ var SatoriMetrics;
                 }
             }
             var bucket = state.buckets[latestBucket];
+            var value = bucket ? bucket.value : 0;
+            // No capture-path state → derive today's value from the legacy
+            // analytics per-day event counters (the pipeline the game actually
+            // reports through).
+            var defn = definitions[metricId];
+            if (!hasBuckets && canDeriveFromLegacy(defn)) {
+                if (!todayForFallback) {
+                    todayForFallback = LegacyAnalytics.readDay(nk, LegacyAnalytics.dateStrOf(Date.now()), gameId);
+                }
+                value = legacyCountForDay(todayForFallback, defn.eventName);
+            }
             results.push({
                 metricId: metricId,
-                value: bucket ? bucket.value : 0,
+                value: value,
                 computedAt: now
             });
         }
@@ -58395,10 +59145,27 @@ var SatoriMetrics;
         points.sort(function (a, b) { return a.bucketSec - b.bucketSec; });
         if (points.length > limit)
             points = points.slice(points.length - limit);
+        // No capture-path buckets → derive a daily series from the legacy
+        // analytics per-day event counters (same source as the legacy_* builtins).
+        var basis = "capture";
+        if (points.length === 0 && canDeriveFromLegacy(def)) {
+            basis = "legacy_by_name";
+            var fbDays = Math.min(Math.max(parseInt(data.days, 10) || 30, 3), 60);
+            var fbRange = LegacyAnalytics.readRange(nk, Date.now(), fbDays, gameId);
+            for (var fd = 0; fd < fbRange.length; fd++) {
+                var cnt = legacyCountForDay(fbRange[fd], def.eventName);
+                points.push({
+                    bucketSec: Math.floor(new Date(fbRange[fd].date + "T00:00:00Z").getTime() / 1000),
+                    value: cnt,
+                    count: cnt
+                });
+            }
+        }
         return RpcHelpers.successResponse({
             metricId: data.metricId,
             definition: def || null,
-            windowed: !!(def && def.windowSec),
+            windowed: !!(def && def.windowSec) || basis === "legacy_by_name",
+            basis: basis,
             points: points
         });
     }
@@ -58481,11 +59248,9 @@ var SatoriMetrics;
     SatoriMetrics.registerEventHandlers = registerEventHandlers;
 })(SatoriMetrics || (SatoriMetrics = {}));
 // ---------------------------------------------------------------------------
-// Satori Reports — saved/reusable report definitions. Mirrors Satori Cloud's
-// "Reports" surface: an admin saves a named query (a funnel, retention,
-// metric, or timeline view with its parameters) and re-runs it later. The
-// definition is stored here; the admin UI executes it by calling the existing
-// funnel / retention / metric / timeline RPCs with the saved params.
+// Satori Reports — saved onboarding report definitions for the admin dashboard.
+// Each report stores filter params (days, pathway, platform, etc.); the UI
+// re-runs it via onboarding_funnel_analytics (qv_onboarding_events / ob_*).
 //
 // Definitions live in satori_configs/"reports" per game
 // ({ reports: { [id]: def } }). Admin-only.
@@ -58513,7 +59278,7 @@ var SatoriReports;
         var gameId = RpcHelpers.gameId(data);
         return RpcHelpers.successResponse({ reports: toList(getReports(nk, gameId)), game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
-    var VALID_TYPES = { funnel: true, retention: true, metric: true, timeline: true };
+    var VALID_TYPES = { onboarding: true };
     // satori_reports_save — Payload: { id?, name, type, description?, params, game_id? }
     function rpcSave(ctx, logger, nk, payload) {
         RpcHelpers.requireAdmin(ctx, nk);
@@ -58521,7 +59286,7 @@ var SatoriReports;
         if (!data.name)
             return RpcHelpers.errorResponse("name required");
         if (!data.type || !VALID_TYPES[data.type])
-            return RpcHelpers.errorResponse("type must be one of funnel|retention|metric|timeline");
+            return RpcHelpers.errorResponse("type must be onboarding");
         var gameId = RpcHelpers.gameId(data);
         var reports = getReports(nk, gameId);
         var now = Math.floor(Date.now() / 1000);
@@ -59649,6 +60414,24 @@ var ConfigLoader;
         catch (_e) { /* fall through to raw */ }
         return gameId;
     }
+    // Bare (unscoped) config keys are the legacy home of the ORIGINAL app's data —
+    // QuizVerse predates multi-tenancy, so "experiments", "live_events",
+    // "messages", "flags", … without a game prefix are ITS configs. Only that app
+    // may fall back to the bare key when its scoped doc is missing; every other
+    // game must stay strict, otherwise the console (and worse, the game client)
+    // would surface another app's experiments / events / messages as its own.
+    var LEGACY_BARE_KEY_OWNER = "quizverse";
+    function mayFallBackToBareKey(canonicalId) {
+        return !!canonicalId && String(canonicalId).toLowerCase() === LEGACY_BARE_KEY_OWNER;
+    }
+    /** True when gameId resolves to the app that owns the legacy bare-key data
+     *  (and the other unscopable legacy stores: onboarding rolling actives,
+     *  satori_debugger ring). Used by read surfaces to decide whether platform
+     *  legacy sources may represent this app. */
+    function isLegacyBareKeyOwner(nk, gameId) {
+        return mayFallBackToBareKey(canonicalGameId(nk, gameId));
+    }
+    ConfigLoader.isLegacyBareKeyOwner = isLegacyBareKeyOwner;
     function loadConfig(nk, configKey, defaultValue) {
         var now = Date.now();
         var cached = configCache[configKey];
@@ -59664,9 +60447,10 @@ var ConfigLoader;
     }
     ConfigLoader.loadConfig = loadConfig;
     function loadConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
+        var canonical = canonicalGameId(nk, gameId);
+        var scopedKey = Constants.gameKey(canonical, configKey);
         var data = loadConfig(nk, scopedKey, defaultValue);
-        if (scopedKey !== configKey && data === defaultValue) {
+        if (scopedKey !== configKey && data === defaultValue && mayFallBackToBareKey(canonical)) {
             return loadConfig(nk, configKey, defaultValue);
         }
         return data;
@@ -59688,9 +60472,10 @@ var ConfigLoader;
     }
     ConfigLoader.loadSatoriConfig = loadSatoriConfig;
     function loadSatoriConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
+        var canonical = canonicalGameId(nk, gameId);
+        var scopedKey = Constants.gameKey(canonical, configKey);
         var data = loadSatoriConfig(nk, scopedKey, defaultValue);
-        if (scopedKey !== configKey && data === defaultValue) {
+        if (scopedKey !== configKey && data === defaultValue && mayFallBackToBareKey(canonical)) {
             return loadSatoriConfig(nk, configKey, defaultValue);
         }
         return data;

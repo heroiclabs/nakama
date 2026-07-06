@@ -9,21 +9,19 @@ import {
   Check,
   Trash2,
   Play,
-  Filter,
-  UserCheck,
-  Gauge,
-  CalendarRange,
+  Route,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 import {
   serverKeyAuth,
   satori,
+  onboarding,
   type SavedReport,
-  type ReportType,
-  type FunnelResult,
-  type RetentionResult,
+  type OnboardingFunnelAnalyticsParams,
 } from "@nakama/shared";
-import { useScopedGameId } from "@/hooks/useScopedGame";
+import { useScopedGameId, useActiveApp } from "@/hooks/useScopedGame";
+import { OnboardingReportDashboard } from "@/components/onboarding/OnboardingReportDashboard";
 import { cn } from "@/lib/utils";
 
 /* ── Toast ─────────────────────────────────────────────────────────── */
@@ -64,20 +62,213 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
   );
 }
 
-const TYPE_META: Record<ReportType, { icon: React.ElementType; label: string; color: string }> = {
-  funnel: { icon: Filter, label: "Funnel", color: "text-violet-500" },
-  retention: { icon: UserCheck, label: "Retention", color: "text-blue-500" },
-  metric: { icon: Gauge, label: "Metric", color: "text-emerald-500" },
-  timeline: { icon: CalendarRange, label: "Timeline", color: "text-amber-500" },
-};
+/* ── Params / filters ─────────────────────────────────────────────── */
 
-function useReports(gameId: string | undefined) {
-  return useQuery({
-    queryKey: ["admin", "reports", gameId ?? "global"],
-    queryFn: () => satori.listReports(serverKeyAuth(), gameId),
-    select: (d) => d.reports ?? [],
+export interface OnboardingReportParams {
+  days: number;
+  pathway?: string;
+  platform?: string;
+  status?: string;
+  welcome_theme?: string;
+  user_limit?: number;
+}
+
+const DAY_OPTIONS = [7, 14, 30, 60, 90] as const;
+
+const PATHWAY_OPTIONS = [
+  { value: "", label: "All pathways" },
+  { value: "warrior", label: "Warrior" },
+  { value: "scholar", label: "Scholar" },
+  { value: "explorer", label: "Explorer" },
+  { value: "creator", label: "Creator" },
+];
+
+const PLATFORM_OPTIONS = [
+  { value: "", label: "All platforms" },
+  { value: "unity_webview", label: "Unity WebView" },
+  { value: "ios_web", label: "iOS web" },
+  { value: "android_web", label: "Android web" },
+  { value: "desktop_web", label: "Desktop web" },
+];
+
+const STATUS_OPTIONS = [
+  { value: "", label: "All statuses" },
+  { value: "completed", label: "Onboarding done" },
+  { value: "returned_to_app", label: "Returned to app" },
+  { value: "dropped", label: "Dropped" },
+  { value: "at_paywall", label: "At paywall" },
+  { value: "subscribed", label: "Subscribed" },
+  { value: "pre_register", label: "Guest (no account)" },
+];
+
+const THEME_OPTIONS = [
+  { value: "", label: "All themes" },
+  { value: "v1", label: "v1 (dark)" },
+  { value: "lavender", label: "Lavender" },
+];
+
+function paramsToRpcPayload(params: OnboardingReportParams, gameId?: string): OnboardingFunnelAnalyticsParams {
+  const body: OnboardingFunnelAnalyticsParams = {
+    days: params.days || 30,
+    user_limit: params.user_limit ?? 500,
+  };
+  if (params.pathway) body.pathway = params.pathway;
+  if (params.platform) body.platform = params.platform;
+  if (params.status) body.status = params.status;
+  if (params.welcome_theme) body.welcome_theme = params.welcome_theme;
+  if (gameId) body.game_id = gameId;
+  return body;
+}
+
+function paramsFromSaved(raw: Record<string, unknown>): OnboardingReportParams {
+  return {
+    days: Number(raw.days) || 30,
+    pathway: raw.pathway ? String(raw.pathway) : "",
+    platform: raw.platform ? String(raw.platform) : "",
+    status: raw.status ? String(raw.status) : "",
+    welcome_theme: raw.welcome_theme ? String(raw.welcome_theme) : "",
+    user_limit: raw.user_limit ? Number(raw.user_limit) : 500,
+  };
+}
+
+function filterSummary(params: OnboardingReportParams): string {
+  const parts = [`${params.days}d`];
+  if (params.pathway) parts.push(params.pathway);
+  if (params.platform) parts.push(params.platform);
+  if (params.status) parts.push(params.status);
+  if (params.welcome_theme) parts.push(params.welcome_theme);
+  return parts.join(" · ");
+}
+
+function isLegacyReport(report: SavedReport): boolean {
+  return report.type !== "onboarding";
+}
+
+/* ── Filter fields ────────────────────────────────────────────────── */
+
+function OnboardingFilterFields({
+  params,
+  onChange,
+}: {
+  params: OnboardingReportParams;
+  onChange: (next: OnboardingReportParams) => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="block text-sm">
+        <span className="mb-1.5 block font-medium">Date range</span>
+        <select
+          value={params.days}
+          onChange={(e) => onChange({ ...params, days: Number(e.target.value) })}
+          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+        >
+          {DAY_OPTIONS.map((d) => (
+            <option key={d} value={d}>Last {d} days</option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1.5 block font-medium">Pathway</span>
+        <select
+          value={params.pathway ?? ""}
+          onChange={(e) => onChange({ ...params, pathway: e.target.value })}
+          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+        >
+          {PATHWAY_OPTIONS.map((o) => (
+            <option key={o.value || "all"} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1.5 block font-medium">Platform</span>
+        <select
+          value={params.platform ?? ""}
+          onChange={(e) => onChange({ ...params, platform: e.target.value })}
+          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+        >
+          {PLATFORM_OPTIONS.map((o) => (
+            <option key={o.value || "all"} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm">
+        <span className="mb-1.5 block font-medium">Status</span>
+        <select
+          value={params.status ?? ""}
+          onChange={(e) => onChange({ ...params, status: e.target.value })}
+          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.value || "all"} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-sm sm:col-span-2">
+        <span className="mb-1.5 block font-medium">Welcome theme (A/B)</span>
+        <select
+          value={params.welcome_theme ?? ""}
+          onChange={(e) => onChange({ ...params, welcome_theme: e.target.value })}
+          className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+        >
+          {THEME_OPTIONS.map((o) => (
+            <option key={o.value || "all"} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+/* ── Live default report ──────────────────────────────────────────── */
+
+function LiveOnboardingReport({ gameId }: { gameId: string | undefined }) {
+  const [params, setParams] = useState<OnboardingReportParams>({ days: 30 });
+  const live = useQuery({
+    queryKey: ["admin", "onboarding-report-live", params, gameId],
+    queryFn: () =>
+      onboarding.getOnboardingFunnelAnalytics(
+        paramsToRpcPayload(params, gameId),
+        serverKeyAuth(),
+      ),
     retry: 1,
   });
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">Web onboarding (live)</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Same data as analytics.html Funnel → Web Onboarding (Live). Uses <code className="rounded bg-muted px-1 text-xs">ob_*</code> events from Nakama storage.
+          </p>
+        </div>
+        <button
+          onClick={() => live.refetch()}
+          disabled={live.isFetching}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium text-muted-foreground hover:bg-accent disabled:opacity-50"
+        >
+          <RefreshCw className={cn("h-4 w-4", live.isFetching && "animate-spin")} />
+          Refresh
+        </button>
+      </div>
+
+      <OnboardingFilterFields params={params} onChange={setParams} />
+
+      <div className="mt-4">
+        {live.isLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {live.isError && (
+          <p className="text-sm text-destructive">
+            Failed to load onboarding report: {live.error instanceof Error ? live.error.message : "error"}
+          </p>
+        )}
+        {live.data && <OnboardingReportDashboard data={live.data} />}
+      </div>
+    </section>
+  );
 }
 
 /* ── Builder ──────────────────────────────────────────────────────── */
@@ -85,116 +276,55 @@ function useReports(gameId: string | undefined) {
 function ReportForm({ onClose, onToast, gameId }: { onClose: () => void; onToast: (msg: string, v: ToastVariant) => void; gameId: string | undefined }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  const [type, setType] = useState<ReportType>("funnel");
   const [description, setDescription] = useState("");
-  const [steps, setSteps] = useState("");
-  const [windowHours, setWindowHours] = useState("24");
-  const [days, setDays] = useState("14");
-  const [metricId, setMetricId] = useState("");
-  const [validationError, setValidationError] = useState("");
+  const [params, setParams] = useState<OnboardingReportParams>({ days: 30 });
 
   const save = useMutation({
-    mutationFn: () => {
-      setValidationError("");
-      let params: Record<string, unknown> = {};
-      if (type === "funnel") {
-        const parsedSteps = steps.split(",").map((s) => s.trim()).filter(Boolean);
-        if (parsedSteps.length < 2) {
-          setValidationError("Funnel requires at least 2 steps.");
-          throw new Error("validation");
-        }
-        params = { steps: parsedSteps, window_hours: parseInt(windowHours, 10) || 24 };
-      } else if (type === "retention" || type === "timeline") {
-        params = { days: parseInt(days, 10) || 14 };
-      } else if (type === "metric") {
-        if (!metricId.trim()) {
-          setValidationError("Metric ID is required.");
-          throw new Error("validation");
-        }
-        params = { metricId: metricId.trim() };
-      }
-      return satori.saveReport({ name: name.trim(), type, description: description.trim(), params, game_id: gameId }, serverKeyAuth());
-    },
+    mutationFn: () =>
+      satori.saveReport(
+        {
+          name: name.trim(),
+          type: "onboarding",
+          description: description.trim(),
+          params: params as unknown as Record<string, unknown>,
+          game_id: gameId,
+        },
+        serverKeyAuth(),
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "reports", gameId ?? "global"] });
-      onToast("Report saved", "success");
+      onToast("Onboarding report saved", "success");
       onClose();
     },
-    onError: (err) => {
-      if ((err as Error).message !== "validation") {
-        onToast("Failed to save report", "error");
-      }
-    },
+    onError: () => onToast("Failed to save report", "error"),
   });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-      <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl">
+      <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-border bg-card p-6 shadow-xl">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">New Report</h3>
+          <h3 className="text-lg font-semibold">Save onboarding report</h3>
           <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"><X className="h-5 w-5" /></button>
         </div>
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium">Report name</label>
-            <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Onboarding funnel — weekly" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Type</label>
-            <div className="grid grid-cols-4 gap-2">
-              {(Object.keys(TYPE_META) as ReportType[]).map((t) => {
-                const M = TYPE_META[t];
-                return (
-                  <button key={t} type="button" onClick={() => setType(t)} className={cn("flex flex-col items-center gap-1 rounded-md border p-2 text-xs", type === t ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:bg-accent")}>
-                    <M.icon className="h-4 w-4" />
-                    {M.label}
-                  </button>
-                );
-              })}
-            </div>
+            <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Onboarding — lavender theme, 30d" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium">Description <span className="font-normal text-muted-foreground">(optional)</span></label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+            <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Weekly lavender A/B check" className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
           </div>
-
-          {/* Type-specific params */}
-          {type === "funnel" && (
-            <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Steps <span className="font-normal text-muted-foreground">(event names, in order)</span></label>
-                <input value={steps} onChange={(e) => setSteps(e.target.value)} placeholder="app_open, quiz_start, quiz_complete" className="h-10 w-full rounded-md border border-border bg-background px-3 font-mono text-sm outline-none focus:border-primary" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Window (hours)</label>
-                <input value={windowHours} onChange={(e) => setWindowHours(e.target.value)} className="h-10 w-32 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
-              </div>
-            </div>
-          )}
-          {(type === "retention" || type === "timeline") && (
-            <div className="rounded-md border border-border bg-muted/20 p-3">
-              <label className="mb-1.5 block text-sm font-medium">Days</label>
-              <input value={days} onChange={(e) => setDays(e.target.value)} className="h-10 w-32 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
-            </div>
-          )}
-          {type === "metric" && (
-            <div className="rounded-md border border-border bg-muted/20 p-3">
-              <label className="mb-1.5 block text-sm font-medium">Metric ID</label>
-              <input value={metricId} onChange={(e) => setMetricId(e.target.value)} placeholder="dau" className="h-10 w-full rounded-md border border-border bg-background px-3 font-mono text-sm outline-none focus:border-primary" />
-            </div>
-          )}
+          <div className="rounded-md border border-border bg-muted/20 p-3">
+            <p className="mb-3 text-xs text-muted-foreground">Filters saved with this report — re-run anytime from the list below.</p>
+            <OnboardingFilterFields params={params} onChange={setParams} />
+          </div>
         </div>
-        {validationError && (
-          <p className="mt-3 flex items-center gap-2 text-xs text-destructive">
-            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            {validationError}
-          </p>
-        )}
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={onClose} className="inline-flex h-9 items-center rounded-md border border-border bg-card px-4 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground">Cancel</button>
           <button type="submit" disabled={!name.trim() || save.isPending} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
             {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Save Report
+            Save report
           </button>
         </div>
       </form>
@@ -202,38 +332,36 @@ function ReportForm({ onClose, onToast, gameId }: { onClose: () => void; onToast
   );
 }
 
-/* ── Runner ───────────────────────────────────────────────────────── */
-
-function pct(v: number | null | undefined): string {
-  if (v === null || v === undefined) return "—";
-  return `${(v * 100).toFixed(1)}%`;
-}
+/* ── Saved report runner ──────────────────────────────────────────── */
 
 function ReportResult({ report, gameId }: { report: SavedReport; gameId: string | undefined }) {
   const [lastRunAt, setLastRunAt] = useState<number | null>(null);
+  const legacy = isLegacyReport(report);
+
   const run = useQuery({
     queryKey: ["admin", "report-run", report.id, gameId],
     enabled: false,
     retry: 0,
     queryFn: async () => {
-      const opts = serverKeyAuth();
-      const p = report.params as Record<string, unknown>;
-      const scope = gameId ? { game_id: gameId } : {};
-      if (report.type === "funnel") {
-        return { kind: "funnel" as const, data: await satori.computeFunnel({ steps: p.steps as string[], window_hours: p.window_hours as number, ...scope }, opts) };
-      }
-      if (report.type === "retention") {
-        return { kind: "retention" as const, data: await satori.computeRetention({ days: p.days as number, ...scope }, opts) };
-      }
-      if (report.type === "metric") {
-        return { kind: "metric" as const, data: await satori.getMetricSeries({ metricId: p.metricId as string, ...scope }, opts) };
-      }
-      return { kind: "timeline" as const, data: await satori.getTimeline({ days: p.days as number, ...scope }, opts) };
+      const p = paramsFromSaved(report.params as Record<string, unknown>);
+      return onboarding.getOnboardingFunnelAnalytics(
+        paramsToRpcPayload(p, gameId),
+        serverKeyAuth(),
+      );
     },
   });
 
+  if (legacy) {
+    return (
+      <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+        Legacy report type ({report.type}) — no longer supported. Delete and save a new onboarding report.
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 border-t border-border pt-3">
+      <p className="mb-2 text-[11px] text-muted-foreground">{filterSummary(paramsFromSaved(report.params as Record<string, unknown>))}</p>
       <div className="flex items-center gap-3">
         <button
           onClick={() => { run.refetch(); setLastRunAt(Date.now()); }}
@@ -251,68 +379,22 @@ function ReportResult({ report, gameId }: { report: SavedReport; gameId: string 
       </div>
 
       {run.isError && <p className="mt-2 text-xs text-destructive">Failed: {run.error instanceof Error ? run.error.message : "error"}</p>}
-
-      {run.data?.kind === "funnel" && (() => {
-        const r = run.data.data as FunnelResult & { basis?: string };
-        const isEventVolume = r.basis === "event_volume";
-        return (
-          <div className="mt-3 space-y-1.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-xs text-muted-foreground">{r.entered} entered · {r.completed} completed · <span className="font-semibold text-foreground">{pct(r.overallConversion)}</span> overall</p>
-              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                isEventVolume
-                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-              )}>
-                {isEventVolume ? "event volume" : "distinct users"}
-              </span>
-            </div>
-            {isEventVolume && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                Event counts, not unique users — one user doing 3 quizzes counts as 3. Steps can exceed 100%.
-              </p>
-            )}
-            {r.steps.map((s, i) => (
-              <div key={i} className="space-y-1">
-                <div className="flex justify-between text-xs"><span className="font-mono">{s.name}</span><span className="tabular-nums text-muted-foreground">{s.users} · {pct(s.conversionFromStart)}</span></div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${Math.min((s.conversionFromStart || 0) * 100, 100)}%` }} /></div>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {run.data?.kind === "retention" && (() => {
-        const r = run.data.data as RetentionResult;
-        const avg = (key: "d1Rate" | "d3Rate" | "d7Rate") => {
-          const vals = r.cohorts.map((c) => c[key]).filter((v): v is number => v !== null);
-          return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-        };
-        return (
-          <div className="mt-3 flex gap-4 text-xs">
-            <div><span className="text-muted-foreground">D1</span> <span className="font-semibold">{pct(avg("d1Rate"))}</span></div>
-            <div><span className="text-muted-foreground">D3</span> <span className="font-semibold">{pct(avg("d3Rate"))}</span></div>
-            <div><span className="text-muted-foreground">D7</span> <span className="font-semibold">{pct(avg("d7Rate"))}</span></div>
-            <div className="text-muted-foreground">· {r.totalUsers} users · {r.cohorts.length} cohorts</div>
-          </div>
-        );
-      })()}
-
-      {run.data?.kind === "metric" && (() => {
-        const r = run.data.data;
-        const latest = r.points[r.points.length - 1];
-        return <p className="mt-3 text-sm">Latest: <span className="text-2xl font-bold tabular-nums">{latest ? latest.value : "—"}</span> <span className="text-xs text-muted-foreground">({r.points.length} points)</span></p>;
-      })()}
-
-      {run.data?.kind === "timeline" && (() => {
-        const r = run.data.data;
-        const peak = r.dau.reduce((m, d) => Math.max(m, d.users), 0);
-        const total = r.dau.reduce((s, d) => s + d.events, 0);
-        return <p className="mt-3 text-xs text-muted-foreground">Peak DAU <span className="font-semibold text-foreground">{peak}</span> · {total} events · {r.activities.length} activities over {r.days} days</p>;
-      })()}
+      {run.data && (
+        <div className="mt-4">
+          <OnboardingReportDashboard data={run.data} />
+        </div>
+      )}
     </div>
   );
+}
+
+function useReports(gameId: string | undefined) {
+  return useQuery({
+    queryKey: ["admin", "reports", gameId ?? "global"],
+    queryFn: () => satori.listReports(serverKeyAuth(), gameId),
+    select: (d) => d.reports ?? [],
+    retry: 1,
+  });
 }
 
 /* ── Page ─────────────────────────────────────────────────────────── */
@@ -320,6 +402,10 @@ function ReportResult({ report, gameId }: { report: SavedReport; gameId: string 
 export function ReportsPage() {
   const qc = useQueryClient();
   const gameId = useScopedGameId();
+  const { slug, label } = useActiveApp();
+  // ob_* onboarding events come from the QuizVerse web funnel only — they are
+  // not game-tagged, so the report data only represents QuizVerse.
+  const onboardingAvailable = !gameId || slug === "quizverse";
   const reports = useReports(gameId);
   const [showForm, setShowForm] = useState(false);
   const counterRef = useRef(0);
@@ -344,20 +430,24 @@ export function ReportsPage() {
   });
 
   const list = reports.data ?? [];
+  const savedOnboarding = list.filter((r) => !isLegacyReport(r));
+  const legacyReports = list.filter(isLegacyReport);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold tracking-tight">Reports</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Onboarding Reports</h2>
             {gameId && (
               <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
                 {gameId}
               </span>
             )}
           </div>
-          <p className="text-muted-foreground">Saved funnel, retention, metric, and timeline queries you can re-run.</p>
+          <p className="text-muted-foreground">
+            Web onboarding funnel from Nakama <code className="rounded bg-muted px-1 text-xs">ob_*</code> events — same source as analytics.html. Save filter presets to re-run later.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => reports.refetch()} disabled={reports.isFetching} className="inline-flex h-9 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50">
@@ -366,31 +456,40 @@ export function ReportsPage() {
           </button>
           <button onClick={() => setShowForm(true)} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             <Plus className="h-4 w-4" />
-            New Report
+            Save report
           </button>
         </div>
       </div>
 
-      {reports.isLoading ? (
-        <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
-      ) : list.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border p-16 text-center">
-          <FileBarChart className="mx-auto h-10 w-10 text-muted-foreground/40" />
-          <p className="mt-3 text-sm font-medium text-muted-foreground">No saved reports</p>
-          <p className="mt-1 text-xs text-muted-foreground/60">Save a funnel, retention, metric, or timeline query to re-run it anytime.</p>
-        </div>
+      {onboardingAvailable ? (
+        <LiveOnboardingReport gameId={gameId} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {list.map((r) => {
-            const M = TYPE_META[r.type];
-            return (
+        <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          Onboarding funnel events (<code className="rounded bg-muted px-1 text-xs">ob_*</code>) are only captured for the
+          QuizVerse web onboarding — there is no onboarding data for {label}. Switch to QuizVerse or All Apps to view it.
+        </div>
+      )}
+
+      <section>
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Saved reports</h3>
+        {reports.isLoading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>
+        ) : savedOnboarding.length === 0 && legacyReports.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border p-10 text-center">
+            <FileBarChart className="mx-auto h-9 w-9 text-muted-foreground/40" />
+            <p className="mt-3 text-sm font-medium text-muted-foreground">No saved onboarding reports yet</p>
+            <p className="mt-1 text-xs text-muted-foreground/60">Use filters above, then click Save report to store a preset you can re-run.</p>
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {savedOnboarding.map((r) => (
               <div key={r.id} className="rounded-xl border border-border bg-card p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
-                    <div className="rounded-lg bg-muted p-2"><M.icon className={cn("h-4 w-4", M.color)} /></div>
+                    <div className="rounded-lg bg-muted p-2"><Route className="h-4 w-4 text-violet-500" /></div>
                     <div>
                       <p className="font-semibold">{r.name}</p>
-                      <p className="text-xs text-muted-foreground">{M.label}{r.description ? ` · ${r.description}` : ""}</p>
+                      <p className="text-xs text-muted-foreground">Onboarding{r.description ? ` · ${r.description}` : ""}</p>
                     </div>
                   </div>
                   <button
@@ -403,10 +502,31 @@ export function ReportsPage() {
                 </div>
                 <ReportResult report={r} gameId={gameId} />
               </div>
-            );
-          })}
-        </div>
-      )}
+            ))}
+            {legacyReports.map((r) => (
+              <div key={r.id} className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-lg bg-muted p-2"><Users className="h-4 w-4 text-amber-500" /></div>
+                    <div>
+                      <p className="font-semibold">{r.name}</p>
+                      <p className="text-xs text-muted-foreground">Legacy · {r.type}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => openConfirm(`Delete legacy report "${r.name}"?`, () => del.mutate(r.id))}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <ReportResult report={r} gameId={gameId} />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {showForm && <ReportForm onClose={() => setShowForm(false)} onToast={showToast} gameId={gameId} />}
 
