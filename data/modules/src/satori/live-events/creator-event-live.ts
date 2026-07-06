@@ -1664,6 +1664,7 @@
     initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
     initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
     initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+    initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
     initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
     initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
     initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
@@ -1805,6 +1806,49 @@
     return "bronze";
   }
 
+  var SPA_DELIVERY_COLLECTION = "creator_event_delivery";
+
+  function parseDeliveryEmailFromPayload(data: any): string {
+    if (typeof data.email !== "string") return "";
+    var em = (data.email as string).trim();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return em;
+    return "";
+  }
+
+  function readDeliveryPref(
+    nk: nkruntime.Nakama,
+    userId: string,
+    eventId: string,
+  ): { email: string; playerName: string } | null {
+    var pref = Storage.readJson<{ email?: string; playerName?: string }>(
+      nk, SPA_DELIVERY_COLLECTION, eventId, userId
+    );
+    if (!pref || typeof pref.email !== "string") return null;
+    var em = pref.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return null;
+    return {
+      email: em,
+      playerName: typeof pref.playerName === "string" ? pref.playerName.trim().slice(0, 120) : "",
+    };
+  }
+
+  function patchFulfillmentEmailIfEmpty(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    userId: string,
+    email: string,
+  ): void {
+    if (!email) return;
+    var fKey = eventId + ":" + userId;
+    var existing = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+    if (!existing) return;
+    if (existing.email && String(existing.email).trim()) return;
+    existing.email = email;
+    Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+    logger.info("[CreatorEvent SPA] Patched fulfillment email: event=%s user=%s", eventId, userId);
+  }
+
   /**
    * Rank every player in an event from `event_answers` and queue a
    * `prize_fulfillments` record for each gift-card prize-tier winner — WITHOUT
@@ -1894,6 +1938,16 @@
       }
     }
 
+    // Player-submitted delivery emails (saved on results screen before event end)
+    // override empty Nakama account emails for device-authenticated winners.
+    for (var di = 0; di < allWinnerIds.length; di++) {
+      var du = allWinnerIds[di];
+      var savedPref = readDeliveryPref(nk, du, eventId);
+      if (savedPref && savedPref.email) {
+        emailByUserId[du] = savedPref.email;
+      }
+    }
+
     for (var r = 0; r < allAnswers.length; r++) {
       var rank = r + 1;
       var tier = findTierForRank(tiers, rank);
@@ -1903,7 +1957,15 @@
       var fKey = eventId + ":" + winnerId;
 
       var existing = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
-      if (existing) { skipped++; continue; }
+      if (existing) {
+        var patchEmail = emailByUserId[winnerId] || "";
+        if (patchEmail && !(existing.email && String(existing.email).trim())) {
+          existing.email = patchEmail;
+          Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+        }
+        skipped++;
+        continue;
+      }
 
       var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
       if (isXut) {
@@ -1967,6 +2029,61 @@
     logger.info("[SpaEndQueue] event=%s ranked=%d queued=%d skipped=%d xut=%d",
       data.eventId, result.ranked, result.queued, result.skippedExisting, result.xutWinners);
     return RpcHelpers.successResponse({ eventId: data.eventId, prizeQueue: result });
+  }
+
+  /**
+   * Persist a player's prize-delivery email before the event ends.
+   * The SPA results screen collects email while the quiz is still live;
+   * without this, the address lived only in localStorage and was lost if
+   * the player never reopened the app after the event closed.
+   */
+  function rpcSpaSaveDelivery(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+    if (!data.creatorId) return RpcHelpers.errorResponse("creatorId required (the event creator's userId)");
+
+    var eventId = String(data.eventId);
+    var creatorId = String(data.creatorId);
+    var deliveryEmail = parseDeliveryEmailFromPayload(data);
+    if (!deliveryEmail) return RpcHelpers.errorResponse("Valid email required");
+
+    var defRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+    if (!defRecords || defRecords.length === 0 || !defRecords[0].value) {
+      return RpcHelpers.errorResponse("Event not found in SPA storage");
+    }
+
+    var myRecords = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
+    if (!myRecords || myRecords.length === 0 || !myRecords[0].value) {
+      return RpcHelpers.errorResponse("You did not participate in this event");
+    }
+
+    var deliveryName = "";
+    if (typeof data.playerName === "string") {
+      deliveryName = (data.playerName as string).trim().slice(0, 120);
+    }
+
+    var nowSec = Math.floor(Date.now() / 1000);
+    try {
+      Storage.writeJson(nk, SPA_DELIVERY_COLLECTION, eventId, userId, {
+        email: deliveryEmail,
+        playerName: deliveryName,
+        savedAt: nowSec,
+        eventId: eventId,
+      });
+    } catch (werr: any) {
+      return RpcHelpers.errorResponse("Failed to save delivery email: " + (werr.message || String(werr)));
+    }
+
+    patchFulfillmentEmailIfEmpty(nk, logger, eventId, userId, deliveryEmail);
+    logger.info("[CreatorEvent SPA] Saved delivery email: user=%s event=%s", userId, eventId);
+
+    return RpcHelpers.successResponse({
+      success: true,
+      eventId: eventId,
+      email: deliveryEmail,
+      savedAt: nowSec,
+    });
   }
 
   function rpcSpaClaim(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
@@ -2101,10 +2218,17 @@
 
     // Parse delivery email early — the fulfillment queue record needs it so
     // the admin voucher pipeline knows where to send the gift card code.
-    var deliveryEmail = "";
-    if (typeof data.email === "string") {
-      var em = (data.email as string).trim();
-      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) deliveryEmail = em;
+    var deliveryEmail = parseDeliveryEmailFromPayload(data);
+    var deliveryName = "";
+    if (typeof data.playerName === "string") {
+      deliveryName = (data.playerName as string).trim().slice(0, 120);
+    }
+    if (!deliveryEmail) {
+      var savedPref = readDeliveryPref(nk, userId, eventId);
+      if (savedPref) {
+        deliveryEmail = savedPref.email;
+        if (!deliveryName && savedPref.playerName) deliveryName = savedPref.playerName;
+      }
     }
 
     // 7. Pick tier + compute reward
@@ -2170,11 +2294,6 @@
     }
 
     // 9. Best-effort SES email (deliveryEmail parsed above, before step 7)
-    var deliveryName = "";
-    if (typeof data.playerName === "string") {
-      deliveryName = (data.playerName as string).trim().slice(0, 120);
-    }
-
     var emailRequested = !!deliveryEmail;
     var emailSent = false;
     var emailError = "";

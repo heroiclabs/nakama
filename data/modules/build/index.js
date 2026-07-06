@@ -57106,6 +57106,7 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
         initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+        initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
         initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
         initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
         initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
@@ -57180,6 +57181,40 @@ var SatoriCreatorEvents;
         if (rank === 3)
             return "silver";
         return "bronze";
+    }
+    var SPA_DELIVERY_COLLECTION = "creator_event_delivery";
+    function parseDeliveryEmailFromPayload(data) {
+        if (typeof data.email !== "string")
+            return "";
+        var em = data.email.trim();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+            return em;
+        return "";
+    }
+    function readDeliveryPref(nk, userId, eventId) {
+        var pref = Storage.readJson(nk, SPA_DELIVERY_COLLECTION, eventId, userId);
+        if (!pref || typeof pref.email !== "string")
+            return null;
+        var em = pref.email.trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+            return null;
+        return {
+            email: em,
+            playerName: typeof pref.playerName === "string" ? pref.playerName.trim().slice(0, 120) : "",
+        };
+    }
+    function patchFulfillmentEmailIfEmpty(nk, logger, eventId, userId, email) {
+        if (!email)
+            return;
+        var fKey = eventId + ":" + userId;
+        var existing = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
+        if (!existing)
+            return;
+        if (existing.email && String(existing.email).trim())
+            return;
+        existing.email = email;
+        Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+        logger.info("[CreatorEvent SPA] Patched fulfillment email: event=%s user=%s", eventId, userId);
     }
     /**
      * Rank every player in an event from `event_answers` and queue a
@@ -57265,6 +57300,15 @@ var SatoriCreatorEvents;
                 logger.warn("[computeAndQueueWinners] Failed to batch-fetch account emails: %s", emailErr.message || String(emailErr));
             }
         }
+        // Player-submitted delivery emails (saved on results screen before event end)
+        // override empty Nakama account emails for device-authenticated winners.
+        for (var di = 0; di < allWinnerIds.length; di++) {
+            var du = allWinnerIds[di];
+            var savedPref = readDeliveryPref(nk, du, eventId);
+            if (savedPref && savedPref.email) {
+                emailByUserId[du] = savedPref.email;
+            }
+        }
         for (var r = 0; r < allAnswers.length; r++) {
             var rank = r + 1;
             var tier = findTierForRank(tiers, rank);
@@ -57274,6 +57318,11 @@ var SatoriCreatorEvents;
             var fKey = eventId + ":" + winnerId;
             var existing = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
             if (existing) {
+                var patchEmail = emailByUserId[winnerId] || "";
+                if (patchEmail && !(existing.email && String(existing.email).trim())) {
+                    existing.email = patchEmail;
+                    Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+                }
                 skipped++;
                 continue;
             }
@@ -57336,6 +57385,57 @@ var SatoriCreatorEvents;
         var result = computeAndQueueWinners(nk, logger, def, data.eventId);
         logger.info("[SpaEndQueue] event=%s ranked=%d queued=%d skipped=%d xut=%d", data.eventId, result.ranked, result.queued, result.skippedExisting, result.xutWinners);
         return RpcHelpers.successResponse({ eventId: data.eventId, prizeQueue: result });
+    }
+    /**
+     * Persist a player's prize-delivery email before the event ends.
+     * The SPA results screen collects email while the quiz is still live;
+     * without this, the address lived only in localStorage and was lost if
+     * the player never reopened the app after the event closed.
+     */
+    function rpcSpaSaveDelivery(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        if (!data.creatorId)
+            return RpcHelpers.errorResponse("creatorId required (the event creator's userId)");
+        var eventId = String(data.eventId);
+        var creatorId = String(data.creatorId);
+        var deliveryEmail = parseDeliveryEmailFromPayload(data);
+        if (!deliveryEmail)
+            return RpcHelpers.errorResponse("Valid email required");
+        var defRecords = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+        if (!defRecords || defRecords.length === 0 || !defRecords[0].value) {
+            return RpcHelpers.errorResponse("Event not found in SPA storage");
+        }
+        var myRecords = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
+        if (!myRecords || myRecords.length === 0 || !myRecords[0].value) {
+            return RpcHelpers.errorResponse("You did not participate in this event");
+        }
+        var deliveryName = "";
+        if (typeof data.playerName === "string") {
+            deliveryName = data.playerName.trim().slice(0, 120);
+        }
+        var nowSec = Math.floor(Date.now() / 1000);
+        try {
+            Storage.writeJson(nk, SPA_DELIVERY_COLLECTION, eventId, userId, {
+                email: deliveryEmail,
+                playerName: deliveryName,
+                savedAt: nowSec,
+                eventId: eventId,
+            });
+        }
+        catch (werr) {
+            return RpcHelpers.errorResponse("Failed to save delivery email: " + (werr.message || String(werr)));
+        }
+        patchFulfillmentEmailIfEmpty(nk, logger, eventId, userId, deliveryEmail);
+        logger.info("[CreatorEvent SPA] Saved delivery email: user=%s event=%s", userId, eventId);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: eventId,
+            email: deliveryEmail,
+            savedAt: nowSec,
+        });
     }
     function rpcSpaClaim(ctx, logger, nk, payload) {
         var userId = RpcHelpers.requireUserId(ctx);
@@ -57468,11 +57568,18 @@ var SatoriCreatorEvents;
         }
         // Parse delivery email early — the fulfillment queue record needs it so
         // the admin voucher pipeline knows where to send the gift card code.
-        var deliveryEmail = "";
-        if (typeof data.email === "string") {
-            var em = data.email.trim();
-            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
-                deliveryEmail = em;
+        var deliveryEmail = parseDeliveryEmailFromPayload(data);
+        var deliveryName = "";
+        if (typeof data.playerName === "string") {
+            deliveryName = data.playerName.trim().slice(0, 120);
+        }
+        if (!deliveryEmail) {
+            var savedPref = readDeliveryPref(nk, userId, eventId);
+            if (savedPref) {
+                deliveryEmail = savedPref.email;
+                if (!deliveryName && savedPref.playerName)
+                    deliveryName = savedPref.playerName;
+            }
         }
         // 7. Pick tier + compute reward
         var tier = findTierForRank(def.giftCardPrizes && def.giftCardPrizes.tiers, myRank);
@@ -57537,10 +57644,6 @@ var SatoriCreatorEvents;
             logger.warn("[CreatorEvent SPA] failed to write claim record: %s", cerr.message || String(cerr));
         }
         // 9. Best-effort SES email (deliveryEmail parsed above, before step 7)
-        var deliveryName = "";
-        if (typeof data.playerName === "string") {
-            deliveryName = data.playerName.trim().slice(0, 120);
-        }
         var emailRequested = !!deliveryEmail;
         var emailSent = false;
         var emailError = "";
