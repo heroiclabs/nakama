@@ -16,6 +16,26 @@ namespace ConfigLoader {
     return gameId;
   }
 
+  // Bare (unscoped) config keys are the legacy home of the ORIGINAL app's data —
+  // QuizVerse predates multi-tenancy, so "experiments", "live_events",
+  // "messages", "flags", … without a game prefix are ITS configs. Only that app
+  // may fall back to the bare key when its scoped doc is missing; every other
+  // game must stay strict, otherwise the console (and worse, the game client)
+  // would surface another app's experiments / events / messages as its own.
+  var LEGACY_BARE_KEY_OWNER = "quizverse";
+
+  function mayFallBackToBareKey(canonicalId: string | undefined): boolean {
+    return !!canonicalId && String(canonicalId).toLowerCase() === LEGACY_BARE_KEY_OWNER;
+  }
+
+  /** True when gameId resolves to the app that owns the legacy bare-key data
+   *  (and the other unscopable legacy stores: onboarding rolling actives,
+   *  satori_debugger ring). Used by read surfaces to decide whether platform
+   *  legacy sources may represent this app. */
+  export function isLegacyBareKeyOwner(nk: nkruntime.Nakama, gameId: string | undefined): boolean {
+    return mayFallBackToBareKey(canonicalGameId(nk, gameId));
+  }
+
   export function loadConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T {
     var now = Date.now();
     var cached = configCache[configKey];
@@ -32,9 +52,10 @@ namespace ConfigLoader {
   }
 
   export function loadConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T {
-    var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
+    var canonical = canonicalGameId(nk, gameId);
+    var scopedKey = Constants.gameKey(canonical, configKey);
     var data = loadConfig<T>(nk, scopedKey, defaultValue);
-    if (scopedKey !== configKey && data === defaultValue) {
+    if (scopedKey !== configKey && data === defaultValue && mayFallBackToBareKey(canonical)) {
       return loadConfig<T>(nk, configKey, defaultValue);
     }
     return data;
@@ -57,9 +78,10 @@ namespace ConfigLoader {
   }
 
   export function loadSatoriConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T {
-    var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
+    var canonical = canonicalGameId(nk, gameId);
+    var scopedKey = Constants.gameKey(canonical, configKey);
     var data = loadSatoriConfig<T>(nk, scopedKey, defaultValue);
-    if (scopedKey !== configKey && data === defaultValue) {
+    if (scopedKey !== configKey && data === defaultValue && mayFallBackToBareKey(canonical)) {
       return loadSatoriConfig<T>(nk, configKey, defaultValue);
     }
     return data;

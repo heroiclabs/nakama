@@ -147,7 +147,10 @@ namespace SatoriDashboard {
     // When a specific app is selected, platform-wide sources (satori_debugger
     // ring, roll_onboarding, users table) must NOT leak into the view — they
     // carry no game tag, so under e.g. Cricket VR they'd show QuizVerse data.
-    var scoped = !!(gameId && gameId !== "all" && gameId !== "global");
+    // Exception: the legacy bare-key owner (QuizVerse) — those unscoped stores
+    // ARE its data, so its scoped view keeps them.
+    var scoped = !!(gameId && gameId !== "all" && gameId !== "global")
+      && !ConfigLoader.isLegacyBareKeyOwner(nk, gameId);
 
     var now = Date.now();
     var buf = Storage.readSystemJson<{ events: RingEvent[] }>(nk, RING_COLLECTION, RING_KEY);
@@ -277,7 +280,7 @@ namespace SatoriDashboard {
       dauToday: dauToday,
       eventsToday: eventsToday,
       revenueToday: revenueToday,
-      ringBufferSize: events.length,
+      ringBufferSize: scoped ? 0 : events.length,
       timeline: timeline,
       topCountries: topCountries,
       topCities: topCities,

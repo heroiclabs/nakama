@@ -3912,6 +3912,11 @@ declare namespace AdRevenueEvent {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace ConfigLoader {
+    /** True when gameId resolves to the app that owns the legacy bare-key data
+     *  (and the other unscopable legacy stores: onboarding rolling actives,
+     *  satori_debugger ring). Used by read surfaces to decide whether platform
+     *  legacy sources may represent this app. */
+    function isLegacyBareKeyOwner(nk: nkruntime.Nakama, gameId: string | undefined): boolean;
     function loadConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T;
     function loadConfigForGame<T>(nk: nkruntime.Nakama, configKey: string, gameId: string | undefined, defaultValue: T): T;
     function loadSatoriConfig<T>(nk: nkruntime.Nakama, configKey: string, defaultValue: T): T;

@@ -53070,7 +53070,10 @@ var SatoriDashboard;
         // When a specific app is selected, platform-wide sources (satori_debugger
         // ring, roll_onboarding, users table) must NOT leak into the view — they
         // carry no game tag, so under e.g. Cricket VR they'd show QuizVerse data.
-        var scoped = !!(gameId && gameId !== "all" && gameId !== "global");
+        // Exception: the legacy bare-key owner (QuizVerse) — those unscoped stores
+        // ARE its data, so its scoped view keeps them.
+        var scoped = !!(gameId && gameId !== "all" && gameId !== "global")
+            && !ConfigLoader.isLegacyBareKeyOwner(nk, gameId);
         var now = Date.now();
         var buf = Storage.readSystemJson(nk, RING_COLLECTION, RING_KEY);
         var events = (buf && buf.events) || [];
@@ -53195,7 +53198,7 @@ var SatoriDashboard;
             dauToday: dauToday,
             eventsToday: eventsToday,
             revenueToday: revenueToday,
-            ringBufferSize: events.length,
+            ringBufferSize: scoped ? 0 : events.length,
             timeline: timeline,
             topCountries: topCountries,
             topCities: topCities,
@@ -59696,6 +59699,24 @@ var ConfigLoader;
         catch (_e) { /* fall through to raw */ }
         return gameId;
     }
+    // Bare (unscoped) config keys are the legacy home of the ORIGINAL app's data —
+    // QuizVerse predates multi-tenancy, so "experiments", "live_events",
+    // "messages", "flags", … without a game prefix are ITS configs. Only that app
+    // may fall back to the bare key when its scoped doc is missing; every other
+    // game must stay strict, otherwise the console (and worse, the game client)
+    // would surface another app's experiments / events / messages as its own.
+    var LEGACY_BARE_KEY_OWNER = "quizverse";
+    function mayFallBackToBareKey(canonicalId) {
+        return !!canonicalId && String(canonicalId).toLowerCase() === LEGACY_BARE_KEY_OWNER;
+    }
+    /** True when gameId resolves to the app that owns the legacy bare-key data
+     *  (and the other unscopable legacy stores: onboarding rolling actives,
+     *  satori_debugger ring). Used by read surfaces to decide whether platform
+     *  legacy sources may represent this app. */
+    function isLegacyBareKeyOwner(nk, gameId) {
+        return mayFallBackToBareKey(canonicalGameId(nk, gameId));
+    }
+    ConfigLoader.isLegacyBareKeyOwner = isLegacyBareKeyOwner;
     function loadConfig(nk, configKey, defaultValue) {
         var now = Date.now();
         var cached = configCache[configKey];
@@ -59711,9 +59732,10 @@ var ConfigLoader;
     }
     ConfigLoader.loadConfig = loadConfig;
     function loadConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
+        var canonical = canonicalGameId(nk, gameId);
+        var scopedKey = Constants.gameKey(canonical, configKey);
         var data = loadConfig(nk, scopedKey, defaultValue);
-        if (scopedKey !== configKey && data === defaultValue) {
+        if (scopedKey !== configKey && data === defaultValue && mayFallBackToBareKey(canonical)) {
             return loadConfig(nk, configKey, defaultValue);
         }
         return data;
@@ -59735,9 +59757,10 @@ var ConfigLoader;
     }
     ConfigLoader.loadSatoriConfig = loadSatoriConfig;
     function loadSatoriConfigForGame(nk, configKey, gameId, defaultValue) {
-        var scopedKey = Constants.gameKey(canonicalGameId(nk, gameId), configKey);
+        var canonical = canonicalGameId(nk, gameId);
+        var scopedKey = Constants.gameKey(canonical, configKey);
         var data = loadSatoriConfig(nk, scopedKey, defaultValue);
-        if (scopedKey !== configKey && data === defaultValue) {
+        if (scopedKey !== configKey && data === defaultValue && mayFallBackToBareKey(canonical)) {
             return loadSatoriConfig(nk, configKey, defaultValue);
         }
         return data;

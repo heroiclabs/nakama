@@ -1480,9 +1480,14 @@ export function DashboardPage() {
     retry: 1,
     staleTime: 60_000,
   });
+  const activeApp = selectedAppId ? appList?.find((a) => a.id === selectedAppId) : undefined;
   const activeAppName = selectedAppId
-    ? (appList?.find((a) => a.id === selectedAppId)?.title ?? `${selectedAppId.slice(0, 8)}…`)
+    ? (activeApp?.title ?? `${selectedAppId.slice(0, 8)}…`)
     : "All Apps (combined)";
+  // Growth Marketing sources (GSC / GA4 / newsletter / signups) are QuizVerse
+  // web properties — the tab only makes sense for QuizVerse or the combined view.
+  const growthAvailable =
+    !selectedAppId || (activeApp?.slug ?? "").toLowerCase() === "quizverse";
   const health = useHealth();
   const summary = useSummary(selectedAppId);
   const gameMetrics = useGameMetrics(metricsDays, selectedAppId);
@@ -1596,11 +1601,13 @@ export function DashboardPage() {
 
       {/* Tab switcher */}
       <div className="flex items-center gap-1 border-b border-border">
-        {([
-          ["status", "Status"],
-          ["metrics", "Game Metrics"],
-          ["growth", "Growth Marketing"],
-        ] as const).map(([key, label]) => (
+        {(
+          [
+            ["status", "Status"],
+            ["metrics", "Game Metrics"],
+            ...(growthAvailable ? ([["growth", "Growth Marketing"]] as const) : []),
+          ] as readonly (readonly [DashboardTab, string])[]
+        ).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setTab(key)}
@@ -1646,8 +1653,13 @@ export function DashboardPage() {
           eventFilter={eventFilter}
           onEventFilterChange={setEventFilter}
         />
-      ) : (
+      ) : growthAvailable ? (
         <GrowthTelemetryPanel />
+      ) : (
+        <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          Growth Marketing data (GSC, GA4, newsletter, signups) is only tracked for QuizVerse.
+          Switch to QuizVerse or All Apps to view it.
+        </div>
       )}
     </div>
   );
