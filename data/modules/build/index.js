@@ -18775,7 +18775,7 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required (e.g. economy, inventory, achievements)");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         var inherited = false;
         var config = Storage.readSystemJson(nk, Constants.HIRO_CONFIGS_COLLECTION, key);
@@ -18799,7 +18799,7 @@ var AdminConsole;
         var config = configFromPayload(data);
         if (!data.system || config === undefined)
             return RpcHelpers.errorResponse("system and config required");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         ConfigLoader.saveConfig(nk, key, config);
         logAdminAudit(nk, ctx, "hiro_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
@@ -18810,7 +18810,7 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         Storage.deleteRecord(nk, Constants.HIRO_CONFIGS_COLLECTION, key, Constants.SYSTEM_USER_ID);
         ConfigLoader.invalidateCache(key);
@@ -18823,7 +18823,7 @@ var AdminConsole;
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.system)
             return RpcHelpers.errorResponse("system required (e.g. flags, experiments, audiences, live_events, messages, metrics)");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         var inherited = false;
         var config = Storage.readSystemJson(nk, Constants.SATORI_CONFIGS_COLLECTION, key);
@@ -18847,7 +18847,7 @@ var AdminConsole;
         var config = configFromPayload(data);
         if (!data.system || config === undefined)
             return RpcHelpers.errorResponse("system and config required");
-        var gameId = adminGameId(data);
+        var gameId = adminCanonicalGameId(nk, adminGameId(data));
         var key = adminConfigKey(data.system, gameId);
         ConfigLoader.saveSatoriConfig(nk, key, config);
         logAdminAudit(nk, ctx, "satori_config_set", { system: data.system, gameId: gameId || Constants.DEFAULT_GAME_ID, key: key }, { source: "admin_console" });
