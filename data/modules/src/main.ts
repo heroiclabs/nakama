@@ -132,6 +132,24 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QvPrewarm] failed to register: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- QuizVerse topic-cache refresh (qv_cache_{topic}) ----
+  // quizverse_cache_refresh_tick: populates qv_cache_{topic} via QvQuestionCache.
+  // Modes: cold_start (anime/pokemon/movies bootstrap), all (6 h gate), topic (single).
+  // Post-deploy bootstrap: { "mode": "cold_start" }. Daily full refresh: { "mode": "all" }.
+  //
+  // NOT quizverse_refresh_server_cache — that is a separate legacy no-op registered from
+  // legacy_runtime.js (ack-only stub) and LegacyMultiGame.refreshServerCache (invalidates
+  // ConfigLoader in-memory config only). It does NOT read or write qv_cache_* storage.
+  // For question-cache ops use quizverse_cache_refresh_tick; never conflate the two names
+  // in runbooks, n8n workflows, or deploy scripts.
+  try {
+    QvCacheRefreshCron.register(initializer);
+    logger.info("[QvCacheRefresh] quizverse_cache_refresh_tick RPC registered");
+    QvCacheRefreshCron.bootOnInit(nk, logger, ctx.env || {});
+  } catch (err: any) {
+    logger.error("[QvCacheRefresh] failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
   // quizverse_pack_cleanup_tick: daily job that sweeps expired/abandoned
   // qv_question_packs across all recently active users (30-day window).
   // Gate-limited to once per 24 h. Call from external scheduler (n8n / k8s).
