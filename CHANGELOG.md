@@ -6,6 +6,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ## [Unreleased]
 ### Added
 - Improve logic in Apple JWS receipts validation.
+- Skip unnecessary display name search in the console account listing under certain conditions.
 ### Fixed
 - Fix an issue where group admin account deletion could leave orphaned group edges.
 - Fix In-App Purchase validation persist parameter handling for Apple JWS receipts.
