@@ -6,6 +6,13 @@ export * as satori from "./satori";
 export * as quizverse from "./quizverse";
 export * as analytics from "./analytics";
 export * as onboarding from "./onboarding";
+export * as questEngine from "./quest-engine";
+export type {
+  QuestEngineStep,
+  QuestEngineReward,
+  QuestEngineQuest,
+  QuestEngineConfig,
+} from "./quest-engine";
 export type {
   AnalyticsDashboardResult,
   AnalyticsDashboardParams,
