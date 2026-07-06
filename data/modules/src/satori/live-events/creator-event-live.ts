@@ -1667,6 +1667,7 @@
     initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
     initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
     initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
+    initializer.registerRpc("creator_event_fulfillment_get", rpcFulfillmentGet);
     initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
   }
 
@@ -2387,6 +2388,7 @@
   //  Reloadly:
   //
   //    creator_event_fulfillments_list   → list queue (filter by status)
+  //    creator_event_fulfillment_get     → direct read by eventId + userId key
   //    creator_event_fulfillment_settle  → mark fulfilled/failed + mirror
   //                                        voucher status onto the player's
   //                                        claim record for the SPA UI
@@ -2417,27 +2419,49 @@
     for (var i = 0; i < objs.length; i++) {
       var v: any = objs[i].value || {};
       if (statusFilter && v.status !== statusFilter) continue;
-      rows.push({
-        key: objs[i].key,
-        userId: v.userId || "",
-        eventId: v.eventId || "",
-        eventTitle: v.eventTitle || "",
-        rank: v.rank || 0,
-        giftCard: v.giftCard || null,
-        status: v.status || "pending",
-        region: v.region || "",
-        email: v.email || "",
-        source: v.source || "",
-        queuedAt: v.queuedAt || v.claimedAt || 0,
-        settledAt: v.settledAt || 0,
-        voucher: v.voucher || null,
-        error: v.error || "",
-      });
+      rows.push(mapFulfillmentRow(objs[i].key, v));
     }
     return RpcHelpers.successResponse({
       fulfillments: rows,
       cursor: (res && res.cursor) || "",
     });
+  }
+
+  function mapFulfillmentRow(key: string, v: any): any {
+    return {
+      key: key,
+      userId: v.userId || "",
+      eventId: v.eventId || "",
+      eventTitle: v.eventTitle || "",
+      rank: v.rank || 0,
+      giftCard: v.giftCard || null,
+      status: v.status || "pending",
+      region: v.region || "",
+      email: v.email || "",
+      source: v.source || "",
+      queuedAt: v.queuedAt || v.claimedAt || 0,
+      settledAt: v.settledAt || 0,
+      voucher: v.voucher || null,
+      error: v.error || "",
+    };
+  }
+
+  function rpcFulfillmentGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!isFulfillServiceCaller(ctx, data)) {
+      return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
+    }
+    if (!data.eventId || !data.userId) {
+      return RpcHelpers.errorResponse("eventId and userId required");
+    }
+    var eventId = String(data.eventId);
+    var targetUserId = String(data.userId);
+    var fKey = eventId + ":" + targetUserId;
+    var rec = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+    if (!rec) {
+      return RpcHelpers.errorResponse("Fulfillment record not found: " + fKey);
+    }
+    return RpcHelpers.successResponse(mapFulfillmentRow(fKey, rec));
   }
 
   function rpcFulfillmentSettle(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
