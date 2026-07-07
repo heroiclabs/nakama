@@ -974,25 +974,40 @@ namespace AdminConsole {
 
   // ---- Wallet Direct Operations ----
 
+  function adminUserId(data: any): string {
+    return String(data.userId || data.user_id || "").trim();
+  }
+
+  // The bare (unscoped) wallet is the legacy owner's wallet — fold a
+  // "quizverse" scope (any alias) down to the bare path so admin grants land
+  // where the QuizVerse game actually reads.
+  function walletGameId(nk: nkruntime.Nakama, data: any): string {
+    var gameId = adminGameId(data);
+    if (gameId && ConfigLoader.isLegacyBareKeyOwner(nk, gameId)) return "";
+    return gameId;
+  }
+
   function rpcWalletView(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
-    if (!data.userId) return RpcHelpers.errorResponse("userId required");
+    var userId = adminUserId(data);
+    if (!userId) return RpcHelpers.errorResponse("userId required");
 
-    var gameId = adminGameId(data);
+    var gameId = walletGameId(nk, data);
     var wallet = gameId
-      ? WalletHelpers.getGameWallet(nk, data.userId, gameId)
-      : Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId);
-    return RpcHelpers.successResponse({ userId: data.userId, wallet: wallet || {} });
+      ? WalletHelpers.getGameWallet(nk, userId, gameId)
+      : Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", userId);
+    return RpcHelpers.successResponse({ userId: userId, wallet: wallet || {} });
   }
 
   function rpcWalletGrant(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
-    if (!data.userId || !data.currencies) return RpcHelpers.errorResponse("userId and currencies required (e.g. { userId: '...', currencies: { coins: 100, gems: 5 } })");
+    var userId = adminUserId(data);
+    if (!userId || !data.currencies) return RpcHelpers.errorResponse("userId and currencies required (e.g. { userId: '...', currencies: { coins: 100, gems: 5 } })");
 
-    var gameId = adminGameId(data);
-    var wallet = gameId ? WalletHelpers.getGameWallet(nk, data.userId, gameId) : (Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId) || {});
+    var gameId = walletGameId(nk, data);
+    var wallet = gameId ? WalletHelpers.getGameWallet(nk, userId, gameId) : (Storage.readJson<any>(nk, Constants.WALLETS_COLLECTION, "wallet", userId) || {});
     for (var currency in data.currencies) {
       if (gameId) {
         wallet.currencies[currency] = (wallet.currencies[currency] || 0) + data.currencies[currency];
@@ -1001,19 +1016,35 @@ namespace AdminConsole {
       }
     }
     if (gameId) WalletHelpers.saveGameWallet(nk, wallet);
-    else Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", data.userId, wallet);
+    else Storage.writeJson(nk, Constants.WALLETS_COLLECTION, "wallet", userId, wallet);
 
-    EventBus.emit(nk, logger, ctx, "wallet_updated", { userId: data.userId, wallet: wallet, granted: data.currencies });
-    logAdminAudit(nk, ctx, "admin_wallet_grant", { userId: data.userId, gameId: gameId || Constants.DEFAULT_GAME_ID }, { currencies: data.currencies });
-    return RpcHelpers.successResponse({ userId: data.userId, wallet: wallet });
+    // The console (Economy / Players pages) displays the NATIVE Nakama wallet,
+    // so mirror bare-scope grants there too; otherwise admin grants look like
+    // no-ops in the UI even though the storage wallet changed.
+    var nativeUpdated = false;
+    var nativeError = "";
+    if (!gameId) {
+      try {
+        nk.walletUpdate(userId, data.currencies, { source: "admin_wallet_grant" }, true);
+        nativeUpdated = true;
+      } catch (e: any) {
+        nativeError = String(e && e.message ? e.message : e);
+        logger.warn("[AdminWallet] native walletUpdate failed for %s: %s", userId, nativeError);
+      }
+    }
+
+    EventBus.emit(nk, logger, ctx, "wallet_updated", { userId: userId, wallet: wallet, granted: data.currencies });
+    logAdminAudit(nk, ctx, "admin_wallet_grant", { userId: userId, gameId: gameId || Constants.DEFAULT_GAME_ID }, { currencies: data.currencies });
+    return RpcHelpers.successResponse({ userId: userId, wallet: wallet, nativeUpdated: nativeUpdated, nativeError: nativeError || undefined });
   }
 
   function rpcWalletReset(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     RpcHelpers.requireAdmin(ctx, nk);
     var data = RpcHelpers.parseRpcPayload(payload);
+    data.userId = adminUserId(data);
     if (!data.userId) return RpcHelpers.errorResponse("userId required");
 
-    var gameId = adminGameId(data);
+    var gameId = walletGameId(nk, data);
     var defaults = data.defaults || {};
     if (gameId) {
       WalletHelpers.saveGameWallet(nk, {
