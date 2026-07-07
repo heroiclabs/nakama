@@ -1135,6 +1135,7 @@ declare namespace HiroEnergy {
 }
 declare namespace HiroEventLeaderboards {
     function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.EventLeaderboardConfig;
+    function eventLeaderboardId(nk: nkruntime.Nakama, gameId: string | undefined, eventId: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace HiroIncentives {
