@@ -46,7 +46,9 @@
     else if (rank === 3) keys.push("3rd");
     else if (rank === 4) keys.push("4th");
     else if (rank === 5) keys.push("5th");
-    else if (rank >= 6 && rank <= 10) keys.push("6_10");
+    else if (rank === 6) keys.push("6th", "6_10");
+    else if (rank === 7) keys.push("7th", "6_10");
+    else if (rank === 8) keys.push("8th", "6_10");
     if (rank > 3 && rank <= 10) keys.push("top_10");
     if (rank > 10) keys.push("all");
     return keys;
@@ -1468,7 +1470,7 @@
       idempotencyKey: "event_ended_" + def.id,
     });
 
-    var prizeQueueResult: { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } | null = null;
+    var prizeQueueResult: { ranked: number; queued: number; skippedExisting: number; xutWinners: number; xutCredited: number; tiersConfigured: boolean } | null = null;
     try {
       prizeQueueResult = computeAndQueueWinners(nk, logger, def, def.id);
       if (prizeQueueResult.queued > 0) {
@@ -1763,12 +1765,12 @@
   //    4. Picks the matching gift-card / XUT tier from
   //       `giftCardPrizes.tiers` (rank → '1st' | '2nd' | '3rd' |
   //       'top_10' | 'all').
-  //    5. Grants XUT directly via nk.walletUpdate when the tier is
-  //       Nakama-fulfilled, or queues a `prize_fulfillments` record
-  //       for the gift-card pipeline (gyftr / tremendous).
-  //    6. Best-effort POST to quests-api SES endpoint
+  //    5. XUT/coin tiers are auto-credited at event end (computeAndQueueWinners).
+  //       Claim reads the audit record; retries only if auto-credit failed.
+  //    6. Gift-card tiers queue a `prize_fulfillments` record for admin approval.
+  //    7. Best-effort POST to quests-api SES endpoint
   //       (/api/live-events/email/prize-delivery) for inbox confirmation.
-  //    7. Idempotent — a per-(event,user) `creator_event_claims`
+  //    8. Idempotent — a per-(event,user) `creator_event_claims`
   //       record blocks double-claim.
   //
   //  Payload:
@@ -2099,6 +2101,41 @@
     return null;
   }
 
+  function isXutFulfillmentTier(tier: SpaEventTier | null): boolean {
+    if (!tier) return false;
+    return (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+  }
+
+  function spaEventCoinAmountForRank(tier: SpaEventTier | null, rank: number): number {
+    if (!isXutFulfillmentTier(tier)) return 0;
+    if (rank === 6) return 75;
+    if (rank === 7) return 50;
+    if (rank === 8) return 25;
+    if (rank === 9 || rank === 10) return 0;
+    return Math.max(0, Math.floor((tier && tier.value) || 0));
+  }
+
+  function creditSpaEventCoinPrize(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    winnerId: string,
+    amount: number,
+    eventId: string,
+    rank: number,
+  ): { credited: number; balanceAfter: number; error: string } {
+    var amt = Math.max(0, Math.floor(amount || 0));
+    if (amt <= 0) return { credited: 0, balanceAfter: 0, error: "" };
+    var result = LegacyWallet.addGlobalWalletCurrency(nk, winnerId, amt);
+    if (result.success) {
+      logger.info("[CreatorEvent SPA] Auto-credited %d coins to %s for event %s rank=%d balanceAfter=%d",
+        amt, winnerId, eventId, rank, result.newBalance);
+      return { credited: amt, balanceAfter: result.newBalance, error: "" };
+    }
+    logger.error("[CreatorEvent SPA] Auto-credit FAILED for %s event %s rank=%d: %s",
+      winnerId, eventId, rank, result.error || "unknown");
+    return { credited: 0, balanceAfter: result.newBalance || 0, error: result.error || "wallet credit failed" };
+  }
+
   function spaGiftCardTier(rank: number): string {
     // Map server rank → quests-api SES "tier" enum (cosmetic for the email).
     if (rank === 1) return "platinum";
@@ -2160,9 +2197,9 @@
    * Safety:
    *  - Idempotent: skips any (event,user) that already has a fulfillment record
    *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
-   *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
-   *    with the idempotent self-claim flow to avoid double-crediting; we only
-   *    count them for reporting.
+   *  - XUT / Nakama-fulfilled tiers are credited here at event end via the global
+   *    wallet (same storage path as wallet_update_game_wallet). An audit row is
+   *    written to prize_fulfillments with source auto_winner_xut.
    *  - Records are queued as `pending`; an operator still manually approves each
    *    one before any real gift card is minted, so a mis-rank is human-reviewable.
    */
@@ -2171,7 +2208,7 @@
     logger: nkruntime.Logger,
     def: any,
     eventId: string,
-  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } {
+  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; xutCredited: number; tiersConfigured: boolean } {
     var tiers: SpaEventTier[] | undefined =
       def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
 
@@ -2180,13 +2217,14 @@
 
     var ranked = allAnswers.length;
     if (!tiers || tiers.length === 0) {
-      return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, tiersConfigured: false };
+      return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, xutCredited: 0, tiersConfigured: false };
     }
 
     var nowSec = Math.floor(Date.now() / 1000);
     var queued = 0;
     var skipped = 0;
     var xutWinners = 0;
+    var xutCredited = 0;
 
     // Pre-fetch emails for all ranked players in one batch call.
     var emailByUserId: { [uid: string]: string } = {};
@@ -2236,19 +2274,60 @@
       var fKey = eventId + ":" + winnerId;
 
       var existing = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+      var isXut = isXutFulfillmentTier(tier);
+
       if (existing) {
         var patchEmail = emailByUserId[winnerId] || "";
         if (patchEmail && !(existing.email && String(existing.email).trim())) {
           existing.email = patchEmail;
           Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
         }
+        if (isXut) {
+          xutWinners++;
+          if (existing.source === "auto_winner_xut" && existing.status === "fulfilled") {
+            skipped++;
+            continue;
+          }
+          if (existing.source === "auto_winner_xut" && existing.status === "failed") {
+            var retryAmt = spaEventCoinAmountForRank(tier, rank);
+            var retryCredit = creditSpaEventCoinPrize(nk, logger, winnerId, retryAmt, eventId, rank);
+            existing.status = retryCredit.credited > 0 ? "fulfilled" : "failed";
+            existing.xutGranted = retryCredit.credited;
+            existing.fulfilledAt = retryCredit.credited > 0 ? nowSec : existing.fulfilledAt;
+            existing.walletBalanceAfter = retryCredit.balanceAfter;
+            existing.walletError = retryCredit.error || "";
+            Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+            if (retryCredit.credited > 0) xutCredited++;
+            continue;
+          }
+        }
         skipped++;
         continue;
       }
 
-      var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
       if (isXut) {
         xutWinners++;
+        var xutAmount = spaEventCoinAmountForRank(tier, rank);
+        if (xutAmount <= 0) continue;
+
+        var credit = creditSpaEventCoinPrize(nk, logger, winnerId, xutAmount, eventId, rank);
+        Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+          userId: winnerId,
+          eventId: eventId,
+          rank: rank,
+          giftCard: tier,
+          status: credit.credited > 0 ? "fulfilled" : "failed",
+          queuedAt: nowSec,
+          fulfilledAt: credit.credited > 0 ? nowSec : undefined,
+          eventTitle: (def && def.title) || "",
+          region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+          source: "auto_winner_xut",
+          email: emailByUserId[winnerId] || "",
+          xutGranted: credit.credited,
+          walletBalanceAfter: credit.balanceAfter,
+          walletError: credit.error || "",
+        });
+        if (credit.credited > 0) xutCredited++;
         continue;
       }
 
@@ -2267,9 +2346,9 @@
       queued++;
     }
 
-    logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d",
-      eventId, ranked, queued, skipped, xutWinners);
-    return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
+    logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d credited=%d",
+      eventId, ranked, queued, skipped, xutWinners, xutCredited);
+    return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, xutCredited: xutCredited, tiersConfigured: true };
   }
 
   function validateSpaJoinWindow(def: CreatorEventDefinition, nowSec: number): string {
@@ -2470,7 +2549,7 @@
     ev: any,
     version: string,
     endedBy: string,
-  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } {
+  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; xutCredited: number; tiersConfigured: boolean } {
     var nowSec = Math.floor(Date.now() / 1000);
     ev.status = "ended";
     ev.endedAt = nowSec;
@@ -2732,21 +2811,40 @@
     var giftCard: SpaEventTier | null = null;
 
     if (tier) {
-      var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+      var isXut = isXutFulfillmentTier(tier);
       if (isXut) {
-        xutGranted = Math.max(0, Math.floor(tier.value || 0));
-        if (xutGranted > 0) {
-          try {
-            nk.walletUpdate(userId, { xut: xutGranted }, {
-              reason: "spa_event_prize:" + eventId,
-              tier: tier.rank,
-              rank: myRank,
-            }, true);
-            logger.info("[CreatorEvent SPA] Granted %d XUT to %s for event %s rank=%d", xutGranted, userId, eventId, myRank);
-          } catch (werr: any) {
-            logger.error("[CreatorEvent SPA] walletUpdate FAILED for %s: %s", userId, werr.message || String(werr));
-            xutGranted = 0;
-          }
+        var fKey = eventId + ":" + userId;
+        var priorFulfillment = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+        if (priorFulfillment && priorFulfillment.source === "auto_winner_xut" && priorFulfillment.status === "fulfilled") {
+          xutGranted = Math.max(0, Math.floor(priorFulfillment.xutGranted || tier.value || 0));
+        } else if (priorFulfillment && priorFulfillment.source === "auto_winner_xut" && priorFulfillment.status === "failed") {
+          var retryCredit = creditSpaEventCoinPrize(nk, logger, userId, spaEventCoinAmountForRank(tier, myRank), eventId, myRank);
+          xutGranted = retryCredit.credited;
+          priorFulfillment.status = retryCredit.credited > 0 ? "fulfilled" : "failed";
+          priorFulfillment.xutGranted = retryCredit.credited;
+          priorFulfillment.fulfilledAt = retryCredit.credited > 0 ? nowSec : priorFulfillment.fulfilledAt;
+          priorFulfillment.walletBalanceAfter = retryCredit.balanceAfter;
+          priorFulfillment.walletError = retryCredit.error || "";
+          Storage.writeSystemJson(nk, "prize_fulfillments", fKey, priorFulfillment);
+        } else if (!priorFulfillment) {
+          var claimCredit = creditSpaEventCoinPrize(nk, logger, userId, spaEventCoinAmountForRank(tier, myRank), eventId, myRank);
+          xutGranted = claimCredit.credited;
+          Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+            userId: userId,
+            eventId: eventId,
+            rank: myRank,
+            giftCard: tier,
+            status: claimCredit.credited > 0 ? "fulfilled" : "failed",
+            queuedAt: nowSec,
+            fulfilledAt: claimCredit.credited > 0 ? nowSec : undefined,
+            eventTitle: def.title || "",
+            region: def.region || (def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+            source: "auto_winner_xut",
+            email: deliveryEmail || "",
+            xutGranted: claimCredit.credited,
+            walletBalanceAfter: claimCredit.balanceAfter,
+            walletError: claimCredit.error || "",
+          });
         }
       } else {
         giftCard = tier;
