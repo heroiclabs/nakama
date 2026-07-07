@@ -348,6 +348,17 @@ function InitModule(ctx, logger, nk, initializer) {
             SocialMaintenance.register(initializer);
             SocialMaintenance.registerHooks(initializer); // GDPR after-delete-account cascade (needs real initializer)
         }
+        // ── Group membership cap (beforeJoinGroup hook, hooks-only module) ─────
+        // Server-authoritative counterpart of the Unity client's MaxJoinedGroups
+        // check. Hooks need a real initializer, so this registers here in
+        // InitModule — same contract as SocialMaintenance.registerHooks above.
+        if (typeof SocialGroupLimits !== "undefined" && typeof SocialGroupLimits.registerHooks === "function") {
+            logger.info("[SocialGroupLimits] Registering beforeJoinGroup membership cap...");
+            SocialGroupLimits.registerHooks(initializer);
+        }
+        else {
+            logger.warn("[SocialGroupLimits] module missing from bundle — group cap is client-side only.");
+        }
         // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
         logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");
         SocialOnboardingState.register(initializer);
@@ -37587,6 +37598,21 @@ var LegacyPush;
         var byLocale = {};
         var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var quizMissedAll = false;
+        // Per-run memo of the premium quiz per base language. The old code called
+        // fetchPremiumDailyQuizForToday PER USER inside the loop — every in-window
+        // user cost up to 2 S3 GETs, and on a missing-file day every user re-hit the
+        // same 404. One fetch per language per run is the correct amortization
+        // (null is memoized too, so a 404 is paid once per language, not per user).
+        var quizByLang = {};
+        var quizFetched = {};
+        function premiumQuizForLocale(locale) {
+            var base = String(locale || "en").split("-")[0].toLowerCase();
+            if (!quizFetched[base]) {
+                quizFetched[base] = true;
+                quizByLang[base] = fetchPremiumDailyQuizForToday(nk, logger, locale);
+            }
+            return quizByLang[base];
+        }
         // Shared per-run device set — see rpcNotifCronDailyQuiz for rationale.
         var runDedupArns = {};
         var runDedupStats = { skippedDevices: 0 };
@@ -37618,7 +37644,7 @@ var LegacyPush;
                     byLocale[locale].gated++;
                     continue;
                 }
-                var quiz = fetchPremiumDailyQuizForToday(nk, logger, locale);
+                var quiz = premiumQuizForLocale(locale);
                 if (!quiz) {
                     gated++;
                     byLocale[locale].gated++;
@@ -37647,16 +37673,45 @@ var LegacyPush;
             if (users.length < batch)
                 break;
         }
-        // Fetch English quiz for report topic label (best-effort, ignore failure)
-        var engQuiz = fetchPremiumDailyQuizForToday(nk, logger, "en");
+        // Fetch English quiz for report topic label (reuses the per-run memo)
+        var engQuiz = premiumQuizForLocale("en");
         var reportTopic = engQuiz ? pickQuizTopic(engQuiz, "en") : undefined;
-        PushAlerts.postCronReport(nk, logger, {
-            cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
-            scanned: scanned, sent: sent, gated: gated,
-            noQuiz: quizMissedAll && sent === 0,
-            byLocale: byLocale, gateReasons: gateReasons,
-            dedupedDevices: runDedupStats.skippedDevices
-        });
+        // Report discipline: this cron runs every 30 minutes, but the old code
+        // posted a Discord report on EVERY invocation — 48 near-identical reports
+        // a day, including a repeated "no quiz" alert while content was missing.
+        // Now: a no-quiz alert fires at most ONCE per day (tracked in the same
+        // notif_cron_state collection the daily cron uses), and normal reports
+        // post only on runs that actually delivered pushes.
+        var isNoQuiz = quizMissedAll && sent === 0;
+        var shouldReport = sent > 0;
+        if (isNoQuiz) {
+            var PQ_STATE_KEY = "premium_daily_quiz_noquiz_reported";
+            var alreadyReported = false;
+            try {
+                var st = nk.storageRead([{ collection: DQ_CURSOR_COLLECTION, key: PQ_STATE_KEY, userId: Constants.SYSTEM_USER_ID }]);
+                alreadyReported = !!(st && st.length > 0 && st[0].value && st[0].value.dateKey === todayKey);
+            }
+            catch (_) { }
+            if (!alreadyReported) {
+                shouldReport = true;
+                try {
+                    nk.storageWrite([{
+                            collection: DQ_CURSOR_COLLECTION, key: PQ_STATE_KEY, userId: Constants.SYSTEM_USER_ID,
+                            value: { dateKey: todayKey }, permissionRead: 0, permissionWrite: 0
+                        }]);
+                }
+                catch (_) { }
+            }
+        }
+        if (shouldReport) {
+            PushAlerts.postCronReport(nk, logger, {
+                cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
+                scanned: scanned, sent: sent, gated: gated,
+                noQuiz: isNoQuiz,
+                byLocale: byLocale, gateReasons: gateReasons,
+                dedupedDevices: runDedupStats.skippedDevices
+            });
+        }
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
     }
     function runPremiumDailyQuizCron(ctx, logger, nk, payload) {
@@ -66143,6 +66198,61 @@ var SocialFriendsFeed;
     }
     SocialFriendsFeed.register = register;
 })(SocialFriendsFeed || (SocialFriendsFeed = {}));
+// group_limits.ts — server-side cap on concurrent group memberships.
+//
+// The Unity client blocks joins past the limit for instant feedback
+// (GroupsNakamaService.MaxJoinedGroups), but client checks are bypassable —
+// this beforeJoinGroup hook is the authoritative gate. Keep the two constants
+// in sync when changing the limit.
+//
+// POSTBUILD CONTRACT: hooks register via registerHooks() called from main.ts
+// InitModule with a REAL initializer — never from a register() body, which
+// postbuild.js auto-invokes at IIFE scope where initializer is undefined
+// (that exact bug shipped 2026-07 in SocialMaintenance; see maintenance.ts).
+var SocialGroupLimits;
+(function (SocialGroupLimits) {
+    SocialGroupLimits.MAX_JOINED_GROUPS = 10;
+    function registerHooks(initializer) {
+        try {
+            initializer.registerBeforeJoinGroup(beforeJoinGroupLimit);
+        }
+        catch (e) {
+            // Older runtimes without the hook: limit is then enforced client-side
+            // only — degraded but not broken.
+        }
+    }
+    SocialGroupLimits.registerHooks = registerHooks;
+    function beforeJoinGroupLimit(ctx, logger, nk, data) {
+        var userId = ctx.userId;
+        if (!userId)
+            return data;
+        var activeCount = 0;
+        try {
+            // States: 0 superadmin, 1 admin, 2 member, 3 join-request-pending.
+            // Pending requests don't count against the cap — they may be declined.
+            var res = nk.userGroupsList(userId, 100);
+            var userGroups = (res && res.userGroups) || [];
+            for (var i = 0; i < userGroups.length; i++) {
+                var ug = userGroups[i];
+                if (ug && typeof ug.state === "number" && ug.state <= 2)
+                    activeCount++;
+            }
+        }
+        catch (e) {
+            // Fail-open: a listing error must never block legitimate joins.
+            logger.warn("[SocialGroupLimits] userGroupsList failed for " + userId +
+                ": " + (e && e.message || e) + " — allowing join.");
+            return data;
+        }
+        if (activeCount >= SocialGroupLimits.MAX_JOINED_GROUPS) {
+            logger.info("[SocialGroupLimits] join blocked for " + userId +
+                ": already in " + activeCount + " groups (max " + SocialGroupLimits.MAX_JOINED_GROUPS + ")");
+            throw new Error("You can join up to " + SocialGroupLimits.MAX_JOINED_GROUPS +
+                " groups. Leave one first.");
+        }
+        return data;
+    }
+})(SocialGroupLimits || (SocialGroupLimits = {}));
 // group_links.ts — shareable group invite codes (doc §7.3, §E.2; Q-05 —
 // flagged the highest-K-factor item in the quick-win backlog).
 //

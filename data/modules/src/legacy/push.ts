@@ -1656,6 +1656,21 @@ namespace LegacyPush {
     var byLocale: { [l: string]: { sent: number; gated: number } } = {};
     var gateReasons: PushAlerts.GateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
     var quizMissedAll = false;
+    // Per-run memo of the premium quiz per base language. The old code called
+    // fetchPremiumDailyQuizForToday PER USER inside the loop — every in-window
+    // user cost up to 2 S3 GETs, and on a missing-file day every user re-hit the
+    // same 404. One fetch per language per run is the correct amortization
+    // (null is memoized too, so a 404 is paid once per language, not per user).
+    var quizByLang: { [lang: string]: any } = {};
+    var quizFetched: { [lang: string]: boolean } = {};
+    function premiumQuizForLocale(locale: string): any {
+      var base = String(locale || "en").split("-")[0].toLowerCase();
+      if (!quizFetched[base]) {
+        quizFetched[base] = true;
+        quizByLang[base] = fetchPremiumDailyQuizForToday(nk, logger, locale);
+      }
+      return quizByLang[base];
+    }
     // Shared per-run device set — see rpcNotifCronDailyQuiz for rationale.
     var runDedupArns: { [arn: string]: boolean } = {};
     var runDedupStats = { skippedDevices: 0 };
@@ -1675,7 +1690,7 @@ namespace LegacyPush {
         // felt like spam. Evening is the natural "second touch" of the day.
         if (h < 17 || h >= 21) { gated++; gateReasons.quietHours++; byLocale[locale].gated++; continue; }
         if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) { gated++; gateReasons.alreadySent++; byLocale[locale].gated++; continue; }
-        var quiz = fetchPremiumDailyQuizForToday(nk, logger, locale);
+        var quiz = premiumQuizForLocale(locale);
         if (!quiz) { gated++; byLocale[locale].gated++; quizMissedAll = true; continue; }
         var topic = pickQuizTopic(quiz, locale);
         var ok = sendLocalizedPushToUser(ctx, logger, nk, u, "daily_premium_quiz",
@@ -1694,16 +1709,44 @@ namespace LegacyPush {
       offset += batch;
       if (users.length < batch) break;
     }
-    // Fetch English quiz for report topic label (best-effort, ignore failure)
-    var engQuiz = fetchPremiumDailyQuizForToday(nk, logger, "en");
+    // Fetch English quiz for report topic label (reuses the per-run memo)
+    var engQuiz = premiumQuizForLocale("en");
     var reportTopic = engQuiz ? pickQuizTopic(engQuiz, "en") : undefined;
-    PushAlerts.postCronReport(nk, logger, {
-      cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
-      scanned: scanned, sent: sent, gated: gated,
-      noQuiz: quizMissedAll && sent === 0,
-      byLocale: byLocale, gateReasons: gateReasons,
-      dedupedDevices: runDedupStats.skippedDevices
-    });
+
+    // Report discipline: this cron runs every 30 minutes, but the old code
+    // posted a Discord report on EVERY invocation — 48 near-identical reports
+    // a day, including a repeated "no quiz" alert while content was missing.
+    // Now: a no-quiz alert fires at most ONCE per day (tracked in the same
+    // notif_cron_state collection the daily cron uses), and normal reports
+    // post only on runs that actually delivered pushes.
+    var isNoQuiz = quizMissedAll && sent === 0;
+    var shouldReport = sent > 0;
+    if (isNoQuiz) {
+      var PQ_STATE_KEY = "premium_daily_quiz_noquiz_reported";
+      var alreadyReported = false;
+      try {
+        var st = nk.storageRead([{ collection: DQ_CURSOR_COLLECTION, key: PQ_STATE_KEY, userId: Constants.SYSTEM_USER_ID }]);
+        alreadyReported = !!(st && st.length > 0 && st[0].value && (st[0].value as any).dateKey === todayKey);
+      } catch (_) {}
+      if (!alreadyReported) {
+        shouldReport = true;
+        try {
+          nk.storageWrite([{
+            collection: DQ_CURSOR_COLLECTION, key: PQ_STATE_KEY, userId: Constants.SYSTEM_USER_ID,
+            value: { dateKey: todayKey } as any, permissionRead: 0, permissionWrite: 0
+          }]);
+        } catch (_) {}
+      }
+    }
+    if (shouldReport) {
+      PushAlerts.postCronReport(nk, logger, {
+        cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
+        scanned: scanned, sent: sent, gated: gated,
+        noQuiz: isNoQuiz,
+        byLocale: byLocale, gateReasons: gateReasons,
+        dedupedDevices: runDedupStats.skippedDevices
+      });
+    }
     return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, dateKey: todayKey });
   }
 

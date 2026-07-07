@@ -4320,6 +4320,10 @@ declare namespace SocialFriendsFeed {
     }): void;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace SocialGroupLimits {
+    const MAX_JOINED_GROUPS = 10;
+    function registerHooks(initializer: nkruntime.Initializer): void;
+}
 declare namespace SocialGroupLinks {
     function register(initializer: nkruntime.Initializer): void;
 }

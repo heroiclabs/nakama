@@ -377,6 +377,17 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       SocialMaintenance.registerHooks(initializer); // GDPR after-delete-account cascade (needs real initializer)
     }
 
+    // ── Group membership cap (beforeJoinGroup hook, hooks-only module) ─────
+    // Server-authoritative counterpart of the Unity client's MaxJoinedGroups
+    // check. Hooks need a real initializer, so this registers here in
+    // InitModule — same contract as SocialMaintenance.registerHooks above.
+    if (typeof SocialGroupLimits !== "undefined" && typeof SocialGroupLimits.registerHooks === "function") {
+      logger.info("[SocialGroupLimits] Registering beforeJoinGroup membership cap...");
+      SocialGroupLimits.registerHooks(initializer);
+    } else {
+      logger.warn("[SocialGroupLimits] module missing from bundle — group cap is client-side only.");
+    }
+
     // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
     logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");
     SocialOnboardingState.register(initializer);
