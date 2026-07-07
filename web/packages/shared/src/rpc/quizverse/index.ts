@@ -183,6 +183,12 @@ export interface PrizeFulfillment {
   email: string;
   source: string;
   queuedAt: number;
+  /** Nakama storage create_time (seconds) — stable sort key for admin list */
+  createTime?: number;
+  /** Preferred admin sort key: createTime || queuedAt */
+  sortAt?: number;
+  /** When delivery email was patched onto an empty fulfillment row */
+  emailPatchedAt?: number;
   settledAt: number;
   voucher: FulfillmentVoucher | null;
   error: string;
@@ -212,10 +218,11 @@ export function listPrizeFulfillments(
   status?: FulfillmentStatus,
   limit?: number,
   cursor?: string,
+  eventId?: string,
 ): Promise<PrizeFulfillmentsResult> {
   return callRpc(
     "admin_prize_fulfillments_list",
-    { status, limit, cursor },
+    { status, limit, cursor, eventId: eventId || undefined },
     opts,
   ).then((value) => unwrapData<PrizeFulfillmentsResult>(value));
 }

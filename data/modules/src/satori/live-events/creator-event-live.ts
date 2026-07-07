@@ -46,7 +46,9 @@
     else if (rank === 3) keys.push("3rd");
     else if (rank === 4) keys.push("4th");
     else if (rank === 5) keys.push("5th");
-    else if (rank >= 6 && rank <= 10) keys.push("6_10");
+    else if (rank === 6) keys.push("6th", "6_10");
+    else if (rank === 7) keys.push("7th", "6_10");
+    else if (rank === 8) keys.push("8th", "6_10");
     if (rank > 3 && rank <= 10) keys.push("top_10");
     if (rank > 10) keys.push("all");
     return keys;
@@ -713,6 +715,8 @@
       logger.warn("[CreatorEvent] Duplicate/failed answer write for user=%s event=%s: %s", userId, eventId, writeErr.message || String(writeErr));
       return RpcHelpers.errorResponse("You have already completed this event.");
     }
+
+    writeSpaAnswerIndexEntry(nk, logger, eventId, userId, scoreResult.score, nowMs);
 
     var leaderboardId = LEADERBOARD_PREFIX + eventId;
 
@@ -1466,7 +1470,7 @@
       idempotencyKey: "event_ended_" + def.id,
     });
 
-    var prizeQueueResult: { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } | null = null;
+    var prizeQueueResult: { ranked: number; queued: number; skippedExisting: number; xutWinners: number; xutCredited: number; tiersConfigured: boolean } | null = null;
     try {
       prizeQueueResult = computeAndQueueWinners(nk, logger, def, def.id);
       if (prizeQueueResult.queued > 0) {
@@ -1687,6 +1691,7 @@
     initializer.registerRpc("creator_event_spa_join", rpcSpaJoin);
     initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
     initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
+    initializer.registerRpc("creator_event_spa_auto_end_sweep", rpcSpaAutoEndSweep);
     initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
     initializer.registerRpc("creator_event_fulfillment_get", rpcFulfillmentGet);
     initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
@@ -1760,12 +1765,12 @@
   //    4. Picks the matching gift-card / XUT tier from
   //       `giftCardPrizes.tiers` (rank → '1st' | '2nd' | '3rd' |
   //       'top_10' | 'all').
-  //    5. Grants XUT directly via nk.walletUpdate when the tier is
-  //       Nakama-fulfilled, or queues a `prize_fulfillments` record
-  //       for the gift-card pipeline (gyftr / tremendous).
-  //    6. Best-effort POST to quests-api SES endpoint
+  //    5. XUT/coin tiers are auto-credited at event end (computeAndQueueWinners).
+  //       Claim reads the audit record; retries only if auto-credit failed.
+  //    6. Gift-card tiers queue a `prize_fulfillments` record for admin approval.
+  //    7. Best-effort POST to quests-api SES endpoint
   //       (/api/live-events/email/prize-delivery) for inbox confirmation.
-  //    7. Idempotent — a per-(event,user) `creator_event_claims`
+  //    8. Idempotent — a per-(event,user) `creator_event_claims`
   //       record blocks double-claim.
   //
   //  Payload:
@@ -1823,8 +1828,143 @@
 
   var SPA_PARTICIPANTS_COLLECTION = "event_participants";
   var SPA_ANSWERS_COLLECTION = "event_answers";
+  var SPA_ANSWER_INDEX_COLLECTION = "event_answer_index";
   var SPA_ANSWER_SCAN_MAX_PAGES = 10;
   var SPA_PARTICIPANT_SCAN_MAX_PAGES = 50;
+
+  function spaAnswerIndexKey(eventId: string, userId: string): string {
+    return eventId + ":" + userId;
+  }
+
+  function writeSpaAnswerIndexEntry(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    userId: string,
+    score: number,
+    submitMs: number,
+  ): void {
+    try {
+      Storage.writeSystemJson(nk, SPA_ANSWER_INDEX_COLLECTION, spaAnswerIndexKey(eventId, userId), {
+        userId: userId,
+        eventId: eventId,
+        score: score,
+        submitMs: submitMs,
+      });
+    } catch (idxErr: any) {
+      logger.warn("[CreatorEvent SPA] answer index write failed event=%s user=%s: %s",
+        eventId, userId, idxErr.message || String(idxErr));
+    }
+  }
+
+  function readSpaAnswerIndexEntry(
+    nk: nkruntime.Nakama,
+    eventId: string,
+    userId: string,
+  ): SpaRankingRow | null {
+    var iv = Storage.readSystemJson<{ userId?: string; score?: number; submitMs?: number }>(
+      nk, SPA_ANSWER_INDEX_COLLECTION, spaAnswerIndexKey(eventId, userId)
+    );
+    if (!iv || !iv.userId) return null;
+    return {
+      userId: iv.userId,
+      score: typeof iv.score === "number" ? iv.score : 0,
+      submitMs: typeof iv.submitMs === "number" ? iv.submitMs : 0,
+    };
+  }
+
+  function answerRowFromStorageValue(uid: string, v: SpaEventAnswer | null): SpaRankingRow | null {
+    if (!v || !uid) return null;
+    return {
+      userId: uid,
+      score: typeof v.score === "number" ? v.score : 0,
+      submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
+    };
+  }
+
+  function mergeRankingRow(
+    byUser: { [uid: string]: SpaRankingRow },
+    row: SpaRankingRow | null,
+  ): boolean {
+    if (!row || !row.userId) return false;
+    var existing = byUser[row.userId];
+    if (!existing || row.score > existing.score ||
+        (row.score === existing.score && row.submitMs < (existing.submitMs || 0))) {
+      byUser[row.userId] = row;
+      return true;
+    }
+    return false;
+  }
+
+  /** Legacy global scan — fallback for events created before the answer index existed. */
+  function collectSpaAnswersLegacyScan(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    byUser: { [uid: string]: SpaRankingRow },
+  ): number {
+    var answerCount = 0;
+    var cursor = "";
+    var pages = 0;
+
+    do {
+      var page: any;
+      try {
+        page = nk.storageList(null, SPA_ANSWERS_COLLECTION, 100, cursor);
+      } catch (lerr: any) {
+        logger.warn("[collectSpaAnswersLegacyScan] event_answers list failed: %s", lerr.message || String(lerr));
+        break;
+      }
+      var objs = (page && page.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        var o = objs[i];
+        var v = o.value as SpaEventAnswer;
+        if (!o || o.key !== eventId) continue;
+        if (!v || v.eventId !== eventId) continue;
+        answerCount++;
+        var uid = o.userId;
+        if (!uid) continue;
+        mergeRankingRow(byUser, answerRowFromStorageValue(uid, v));
+      }
+      cursor = (page && page.cursor) || "";
+      pages++;
+    } while (cursor && pages < SPA_ANSWER_SCAN_MAX_PAGES);
+
+    return answerCount;
+  }
+
+  /**
+   * O(participants) targeted reads: index entry per player, then direct
+   * event_answers read as fallback. Avoids scanning the global collection.
+   */
+  function collectSpaAnswersTargeted(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    participantUserIds: string[],
+    byUser: { [uid: string]: SpaRankingRow },
+  ): number {
+    var answerCount = 0;
+    var seen: { [uid: string]: boolean } = {};
+
+    for (var pi = 0; pi < participantUserIds.length; pi++) {
+      var uid = participantUserIds[pi];
+      if (!uid || seen[uid]) continue;
+      seen[uid] = true;
+
+      var indexed = readSpaAnswerIndexEntry(nk, eventId, uid);
+      if (indexed) {
+        if (mergeRankingRow(byUser, indexed)) answerCount++;
+        continue;
+      }
+
+      var direct = readCompletedAnswer(nk, eventId, uid) as SpaEventAnswer | null;
+      var row = answerRowFromStorageValue(uid, direct);
+      if (row && mergeRankingRow(byUser, row)) answerCount++;
+    }
+
+    return answerCount;
+  }
 
   /** List joined players for one SPA event (key === eventId in event_participants). */
   function listSpaEventParticipants(
@@ -1832,8 +1972,8 @@
     logger: nkruntime.Logger,
     eventId: string,
     maxPages: number
-  ): { userId: string; joinedAtSec: number }[] {
-    var participants: { userId: string; joinedAtSec: number }[] = [];
+  ): { userId: string; joinedAtSec: number; playerEmail: string }[] {
+    var participants: { userId: string; joinedAtSec: number; playerEmail: string }[] = [];
     var seen: { [uid: string]: boolean } = {};
     var cursor = "";
     var pages = 0;
@@ -1854,9 +1994,17 @@
         if (!uid || seen[uid]) continue;
         seen[uid] = true;
         var joinedAtSec = 0;
+        var playerEmail = "";
         var pv = o.value as any;
         if (pv && typeof pv.joinedAt === "number") joinedAtSec = pv.joinedAt;
-        participants.push({ userId: uid, joinedAtSec: joinedAtSec });
+        if (pv) {
+          var emRaw = pv.playerEmail || pv.email || "";
+          if (typeof emRaw === "string") {
+            var emTrim = emRaw.trim();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emTrim)) playerEmail = emTrim;
+          }
+        }
+        participants.push({ userId: uid, joinedAtSec: joinedAtSec, playerEmail: playerEmail });
       }
       cursor = (page && page.cursor) || "";
       pages++;
@@ -1877,51 +2025,39 @@
     opts?: { ensureUserId?: string; ensureAnswer?: SpaEventAnswer | null }
   ): SpaEventRankingResult {
     var byUser: { [uid: string]: SpaRankingRow } = {};
-    var answerCount = 0;
-    var cursor = "";
-    var pages = 0;
+    var participants = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+    var participantUserIds: string[] = [];
+    for (var pIdx = 0; pIdx < participants.length; pIdx++) {
+      if (participants[pIdx].userId) participantUserIds.push(participants[pIdx].userId);
+    }
 
-    do {
-      var page: any;
-      try {
-        page = nk.storageList(null, SPA_ANSWERS_COLLECTION, 100, cursor);
-      } catch (lerr: any) {
-        logger.warn("[collectSpaEventRankings] event_answers list failed: %s", lerr.message || String(lerr));
-        break;
-      }
-      var objs = (page && page.objects) || [];
-      for (var i = 0; i < objs.length; i++) {
-        var o = objs[i];
-        var v = o.value as SpaEventAnswer;
-        if (!o || o.key !== eventId) continue;
-        if (!v || v.eventId !== eventId) continue;
-        answerCount++;
-        var uid = o.userId;
-        if (!uid) continue;
-        var score = typeof v.score === "number" ? v.score : 0;
-        var submitMs = typeof v.submitMs === "number" ? v.submitMs : 0;
-        var existing = byUser[uid];
-        if (!existing || score > existing.score ||
-            (score === existing.score && submitMs < (existing.submitMs || 0))) {
-          byUser[uid] = { userId: uid, score: score, submitMs: submitMs };
-        }
-      }
-      cursor = (page && page.cursor) || "";
-      pages++;
-    } while (cursor && pages < SPA_ANSWER_SCAN_MAX_PAGES);
+    var answerCount = collectSpaAnswersTargeted(nk, logger, eventId, participantUserIds, byUser);
 
     var ensureUid = opts && opts.ensureUserId;
     var ensureAnswer = opts && opts.ensureAnswer;
-    if (ensureUid && ensureAnswer && !byUser[ensureUid]) {
-      answerCount++;
-      byUser[ensureUid] = {
-        userId: ensureUid,
-        score: typeof ensureAnswer.score === "number" ? ensureAnswer.score : 0,
-        submitMs: typeof ensureAnswer.submitMs === "number" ? ensureAnswer.submitMs : 0,
-      };
+    if (ensureUid && ensureAnswer) {
+      if (mergeRankingRow(byUser, answerRowFromStorageValue(ensureUid, ensureAnswer))) {
+        answerCount++;
+      }
+    } else if (ensureUid && !byUser[ensureUid]) {
+      var ensuredIndexed = readSpaAnswerIndexEntry(nk, eventId, ensureUid);
+      if (ensuredIndexed && mergeRankingRow(byUser, ensuredIndexed)) {
+        answerCount++;
+      } else {
+        var ensuredDirect = readCompletedAnswer(nk, eventId, ensureUid) as SpaEventAnswer | null;
+        if (mergeRankingRow(byUser, answerRowFromStorageValue(ensureUid, ensuredDirect))) {
+          answerCount++;
+        }
+      }
     }
 
-    var participants = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+    if (answerCount === 0) {
+      answerCount = collectSpaAnswersLegacyScan(nk, logger, eventId, byUser);
+      if (answerCount > 0) {
+        logger.info("[collectSpaEventRankings] event=%s used legacy global answer scan (%d rows)", eventId, answerCount);
+      }
+    }
+
     var backfilledCount = 0;
     for (var pi = 0; pi < participants.length; pi++) {
       var p = participants[pi];
@@ -1940,7 +2076,7 @@
       return (a.submitMs || 0) - (b.submitMs || 0);
     });
 
-    if (backfilledCount > 0) {
+    if (backfilledCount > 0 || answerCount > 0) {
       logger.info("[collectSpaEventRankings] event=%s answers=%d participants=%d backfilled=%d ranked=%d",
         eventId, answerCount, participants.length, backfilledCount, rankings.length);
     }
@@ -1963,6 +2099,41 @@
       }
     }
     return null;
+  }
+
+  function isXutFulfillmentTier(tier: SpaEventTier | null): boolean {
+    if (!tier) return false;
+    return (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+  }
+
+  function spaEventCoinAmountForRank(tier: SpaEventTier | null, rank: number): number {
+    if (!isXutFulfillmentTier(tier)) return 0;
+    if (rank === 6) return 75;
+    if (rank === 7) return 50;
+    if (rank === 8) return 25;
+    if (rank === 9 || rank === 10) return 0;
+    return Math.max(0, Math.floor((tier && tier.value) || 0));
+  }
+
+  function creditSpaEventCoinPrize(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    winnerId: string,
+    amount: number,
+    eventId: string,
+    rank: number,
+  ): { credited: number; balanceAfter: number; error: string } {
+    var amt = Math.max(0, Math.floor(amount || 0));
+    if (amt <= 0) return { credited: 0, balanceAfter: 0, error: "" };
+    var result = LegacyWallet.addGlobalWalletCurrency(nk, winnerId, amt);
+    if (result.success) {
+      logger.info("[CreatorEvent SPA] Auto-credited %d coins to %s for event %s rank=%d balanceAfter=%d",
+        amt, winnerId, eventId, rank, result.newBalance);
+      return { credited: amt, balanceAfter: result.newBalance, error: "" };
+    }
+    logger.error("[CreatorEvent SPA] Auto-credit FAILED for %s event %s rank=%d: %s",
+      winnerId, eventId, rank, result.error || "unknown");
+    return { credited: 0, balanceAfter: result.newBalance || 0, error: result.error || "wallet credit failed" };
   }
 
   function spaGiftCardTier(rank: number): string {
@@ -1999,6 +2170,18 @@
     };
   }
 
+  function applyFulfillmentEmailPatch(existing: any, email: string): boolean {
+    if (!existing || !email) return false;
+    if (existing.email && String(existing.email).trim()) return false;
+    var originalQueuedAt = existing.queuedAt;
+    existing.email = email;
+    existing.emailPatchedAt = Math.floor(Date.now() / 1000);
+    if (originalQueuedAt !== undefined && originalQueuedAt !== null) {
+      existing.queuedAt = originalQueuedAt;
+    }
+    return true;
+  }
+
   function patchFulfillmentEmailIfEmpty(
     nk: nkruntime.Nakama,
     logger: nkruntime.Logger,
@@ -2010,10 +2193,15 @@
     var fKey = eventId + ":" + userId;
     var existing = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
     if (!existing) return;
-    if (existing.email && String(existing.email).trim()) return;
-    existing.email = email;
+    if (!applyFulfillmentEmailPatch(existing, email)) return;
     Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
     logger.info("[CreatorEvent SPA] Patched fulfillment email: event=%s user=%s", eventId, userId);
+  }
+
+  function fulfillmentStorageCreateTimeSec(storageObj: any): number {
+    if (!storageObj) return 0;
+    var ct = Number(storageObj.createTime || 0);
+    return ct > 0 ? ct : 0;
   }
 
   /**
@@ -2026,9 +2214,9 @@
    * Safety:
    *  - Idempotent: skips any (event,user) that already has a fulfillment record
    *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
-   *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
-   *    with the idempotent self-claim flow to avoid double-crediting; we only
-   *    count them for reporting.
+   *  - XUT / Nakama-fulfilled tiers are credited here at event end via the global
+   *    wallet (same storage path as wallet_update_game_wallet). An audit row is
+   *    written to prize_fulfillments with source auto_winner_xut.
    *  - Records are queued as `pending`; an operator still manually approves each
    *    one before any real gift card is minted, so a mis-rank is human-reviewable.
    */
@@ -2037,7 +2225,7 @@
     logger: nkruntime.Logger,
     def: any,
     eventId: string,
-  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } {
+  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; xutCredited: number; tiersConfigured: boolean } {
     var tiers: SpaEventTier[] | undefined =
       def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
 
@@ -2046,13 +2234,14 @@
 
     var ranked = allAnswers.length;
     if (!tiers || tiers.length === 0) {
-      return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, tiersConfigured: false };
+      return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, xutCredited: 0, tiersConfigured: false };
     }
 
     var nowSec = Math.floor(Date.now() / 1000);
     var queued = 0;
     var skipped = 0;
     var xutWinners = 0;
+    var xutCredited = 0;
 
     // Pre-fetch emails for all ranked players in one batch call.
     var emailByUserId: { [uid: string]: string } = {};
@@ -2075,13 +2264,21 @@
       }
     }
 
-    // Player-submitted delivery emails (saved on results screen before event end)
-    // override empty Nakama account emails for device-authenticated winners.
+    // Player-submitted delivery emails (lobby / results screen) override empty
+    // Nakama account emails for device-authenticated winners.
     for (var di = 0; di < allWinnerIds.length; di++) {
       var du = allWinnerIds[di];
       var savedPref = readDeliveryPref(nk, du, eventId);
       if (savedPref && savedPref.email) {
         emailByUserId[du] = savedPref.email;
+      }
+    }
+
+    var joinedPlayers = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+    for (var je = 0; je < joinedPlayers.length; je++) {
+      var jp = joinedPlayers[je];
+      if (jp.userId && jp.playerEmail && !emailByUserId[jp.userId]) {
+        emailByUserId[jp.userId] = jp.playerEmail;
       }
     }
 
@@ -2094,19 +2291,59 @@
       var fKey = eventId + ":" + winnerId;
 
       var existing = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+      var isXut = isXutFulfillmentTier(tier);
+
       if (existing) {
         var patchEmail = emailByUserId[winnerId] || "";
-        if (patchEmail && !(existing.email && String(existing.email).trim())) {
-          existing.email = patchEmail;
+        if (applyFulfillmentEmailPatch(existing, patchEmail)) {
           Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+        }
+        if (isXut) {
+          xutWinners++;
+          if (existing.source === "auto_winner_xut" && existing.status === "fulfilled") {
+            skipped++;
+            continue;
+          }
+          if (existing.source === "auto_winner_xut" && existing.status === "failed") {
+            var retryAmt = spaEventCoinAmountForRank(tier, rank);
+            var retryCredit = creditSpaEventCoinPrize(nk, logger, winnerId, retryAmt, eventId, rank);
+            existing.status = retryCredit.credited > 0 ? "fulfilled" : "failed";
+            existing.xutGranted = retryCredit.credited;
+            existing.fulfilledAt = retryCredit.credited > 0 ? nowSec : existing.fulfilledAt;
+            existing.walletBalanceAfter = retryCredit.balanceAfter;
+            existing.walletError = retryCredit.error || "";
+            Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
+            if (retryCredit.credited > 0) xutCredited++;
+            continue;
+          }
         }
         skipped++;
         continue;
       }
 
-      var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
       if (isXut) {
         xutWinners++;
+        var xutAmount = spaEventCoinAmountForRank(tier, rank);
+        if (xutAmount <= 0) continue;
+
+        var credit = creditSpaEventCoinPrize(nk, logger, winnerId, xutAmount, eventId, rank);
+        Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+          userId: winnerId,
+          eventId: eventId,
+          rank: rank,
+          giftCard: tier,
+          status: credit.credited > 0 ? "fulfilled" : "failed",
+          queuedAt: nowSec,
+          fulfilledAt: credit.credited > 0 ? nowSec : undefined,
+          eventTitle: (def && def.title) || "",
+          region: (def && def.region) || (def && def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+          source: "auto_winner_xut",
+          email: emailByUserId[winnerId] || "",
+          xutGranted: credit.credited,
+          walletBalanceAfter: credit.balanceAfter,
+          walletError: credit.error || "",
+        });
+        if (credit.credited > 0) xutCredited++;
         continue;
       }
 
@@ -2125,9 +2362,9 @@
       queued++;
     }
 
-    logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d",
-      eventId, ranked, queued, skipped, xutWinners);
-    return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
+    logger.info("[computeAndQueueWinners] event=%s ranked=%d queued=%d skipped=%d xut=%d credited=%d",
+      eventId, ranked, queued, skipped, xutWinners, xutCredited);
+    return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, xutCredited: xutCredited, tiersConfigured: true };
   }
 
   function validateSpaJoinWindow(def: CreatorEventDefinition, nowSec: number): string {
@@ -2304,6 +2541,145 @@
     return RpcHelpers.successResponse({ eventId: data.eventId, prizeQueue: result });
   }
 
+  function spaEventStorageEndAtSec(ev: any): number {
+    var scheduledAt = Math.floor(numericValue(ev && ev.scheduledAt, 0));
+    var durationMin = numericValue(ev && ev.duration, 30);
+    if (scheduledAt <= 0 || durationMin <= 0) return 0;
+    return scheduledAt + Math.floor(durationMin * 60);
+  }
+
+  function shouldSpaAutoEnd(ev: any, nowSec: number, graceSec: number): boolean {
+    if (!ev) return false;
+    var status = (ev.status || "published").toString().toLowerCase();
+    if (status === "ended" || status === "cancelled" || status === "draft" || status === "funded") return false;
+    var endAt = spaEventStorageEndAtSec(ev);
+    if (endAt <= 0) return false;
+    return nowSec > endAt + graceSec;
+  }
+
+  function finalizeSpaAutoEndedEvent(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    creatorId: string,
+    ev: any,
+    version: string,
+    endedBy: string,
+  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; xutCredited: number; tiersConfigured: boolean } {
+    var nowSec = Math.floor(Date.now() / 1000);
+    ev.status = "ended";
+    ev.endedAt = nowSec;
+    if (!ev.id) ev.id = eventId;
+    nk.storageWrite([{
+      collection: "live_events",
+      key: eventId,
+      userId: creatorId,
+      value: ev,
+      permissionRead: 2 as nkruntime.ReadPermissionValues,
+      permissionWrite: 1 as nkruntime.WritePermissionValues,
+      version: version,
+    }]);
+    var prizeQueue = computeAndQueueWinners(nk, logger, ev, eventId);
+    logger.info("[CreatorEvent SPA] Auto-ended event=%s by=%s ranked=%d queued=%d",
+      eventId, endedBy, prizeQueue.ranked, prizeQueue.queued);
+    return prizeQueue;
+  }
+
+  /**
+   * creator_event_spa_auto_end_sweep — system/admin only (n8n cron alongside
+   * creator_event_auto_end_sweep).
+   *
+   * SPA events live in creator-owned `live_events` storage; the module-path
+   * auto-end sweep only reads `satori_creator_events`. This sweep ends expired
+   * SPA events and calls computeAndQueueWinners so prizes queue even when the
+   * creator never clicks End in the web UI.
+   *
+   * Payload: { graceSec?: number, limit?: number }
+   */
+  function rpcSpaAutoEndSweep(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var graceSec = typeof data.graceSec === "number" ? Math.max(0, Math.floor(data.graceSec)) : 0;
+    var limit = typeof data.limit === "number" ? Math.max(1, Math.floor(data.limit)) : 25;
+
+    var now = serverNowSec();
+    var cursor = "";
+    var pages = 0;
+    var maxPages = 20;
+    var scanned = 0;
+    var ended: any[] = [];
+    var failed: any[] = [];
+
+    do {
+      var res: any;
+      try {
+        res = nk.storageList(null, "live_events", 100, cursor);
+      } catch (listErr: any) {
+        return RpcHelpers.errorResponse("live_events list failed: " + (listErr.message || String(listErr)));
+      }
+      var objs = (res && res.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        if (ended.length >= limit) break;
+        var obj = objs[i];
+        if (!obj || !obj.value) continue;
+        scanned++;
+
+        var ev: any = obj.value;
+        var eventId = String(ev.id || obj.key || "");
+        var creatorId = String(ev.creatorId || obj.userId || (obj as any).user_id || "");
+        if (!eventId || !creatorId) continue;
+        if (!shouldSpaAutoEnd(ev, now, graceSec)) continue;
+
+        try {
+          var prizeQueue = finalizeSpaAutoEndedEvent(nk, logger, eventId, creatorId, ev, obj.version || "", "spa_auto_end_sweep");
+          ended.push({
+            eventId: eventId,
+            title: ev.title || "",
+            creatorId: creatorId,
+            ranked: prizeQueue.ranked,
+            queued: prizeQueue.queued,
+          });
+        } catch (err: any) {
+          var msg = (err && err.message) ? err.message : String(err);
+          logger.error("[CreatorEvent SPA] auto-end failed for event %s: %s", eventId, msg);
+          try {
+            var reread = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+            if (reread && reread.length > 0 && reread[0].value &&
+              String(reread[0].value.status || "").toLowerCase() === "ended") {
+              var recovered = computeAndQueueWinners(nk, logger, reread[0].value, eventId);
+              ended.push({
+                eventId: eventId,
+                title: reread[0].value.title || "",
+                creatorId: creatorId,
+                ranked: recovered.ranked,
+                queued: recovered.queued,
+                recovered: true,
+              });
+              continue;
+            }
+          } catch (_recoverErr: any) {
+            // fall through to failed
+          }
+          failed.push({ eventId: eventId, error: msg });
+        }
+      }
+      cursor = (res && res.cursor) || "";
+      pages++;
+    } while (cursor && ended.length < limit && pages < maxPages);
+
+    if (ended.length > 0) {
+      logger.info("[CreatorEvent SPA] Auto-end sweep finalized %d event(s)", ended.length);
+    }
+
+    return RpcHelpers.successResponse({
+      now: now,
+      scanned: scanned,
+      endedCount: ended.length,
+      ended: ended,
+      failed: failed,
+    });
+  }
+
   /**
    * Persist a player's prize-delivery email before the event ends.
    * The SPA results screen collects email while the quiz is still live;
@@ -2326,9 +2702,11 @@
       return RpcHelpers.errorResponse("Event not found in SPA storage");
     }
 
+    var joined = Storage.readJson<{ joinedAt?: number }>(nk, "event_participants", eventId, userId);
     var myRecords = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
-    if (!myRecords || myRecords.length === 0 || !myRecords[0].value) {
-      return RpcHelpers.errorResponse("You did not participate in this event");
+    var hasAnswer = myRecords && myRecords.length > 0 && myRecords[0].value;
+    if (!joined && !hasAnswer) {
+      return RpcHelpers.errorResponse("You did not join this event");
     }
 
     var deliveryName = "";
@@ -2449,21 +2827,40 @@
     var giftCard: SpaEventTier | null = null;
 
     if (tier) {
-      var isXut = (tier.currency || "").toUpperCase() === "XUT" || (tier.fulfillment || "") === "nakama";
+      var isXut = isXutFulfillmentTier(tier);
       if (isXut) {
-        xutGranted = Math.max(0, Math.floor(tier.value || 0));
-        if (xutGranted > 0) {
-          try {
-            nk.walletUpdate(userId, { xut: xutGranted }, {
-              reason: "spa_event_prize:" + eventId,
-              tier: tier.rank,
-              rank: myRank,
-            }, true);
-            logger.info("[CreatorEvent SPA] Granted %d XUT to %s for event %s rank=%d", xutGranted, userId, eventId, myRank);
-          } catch (werr: any) {
-            logger.error("[CreatorEvent SPA] walletUpdate FAILED for %s: %s", userId, werr.message || String(werr));
-            xutGranted = 0;
-          }
+        var fKey = eventId + ":" + userId;
+        var priorFulfillment = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
+        if (priorFulfillment && priorFulfillment.source === "auto_winner_xut" && priorFulfillment.status === "fulfilled") {
+          xutGranted = Math.max(0, Math.floor(priorFulfillment.xutGranted || tier.value || 0));
+        } else if (priorFulfillment && priorFulfillment.source === "auto_winner_xut" && priorFulfillment.status === "failed") {
+          var retryCredit = creditSpaEventCoinPrize(nk, logger, userId, spaEventCoinAmountForRank(tier, myRank), eventId, myRank);
+          xutGranted = retryCredit.credited;
+          priorFulfillment.status = retryCredit.credited > 0 ? "fulfilled" : "failed";
+          priorFulfillment.xutGranted = retryCredit.credited;
+          priorFulfillment.fulfilledAt = retryCredit.credited > 0 ? nowSec : priorFulfillment.fulfilledAt;
+          priorFulfillment.walletBalanceAfter = retryCredit.balanceAfter;
+          priorFulfillment.walletError = retryCredit.error || "";
+          Storage.writeSystemJson(nk, "prize_fulfillments", fKey, priorFulfillment);
+        } else if (!priorFulfillment) {
+          var claimCredit = creditSpaEventCoinPrize(nk, logger, userId, spaEventCoinAmountForRank(tier, myRank), eventId, myRank);
+          xutGranted = claimCredit.credited;
+          Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
+            userId: userId,
+            eventId: eventId,
+            rank: myRank,
+            giftCard: tier,
+            status: claimCredit.credited > 0 ? "fulfilled" : "failed",
+            queuedAt: nowSec,
+            fulfilledAt: claimCredit.credited > 0 ? nowSec : undefined,
+            eventTitle: def.title || "",
+            region: def.region || (def.giftCardPrizes && def.giftCardPrizes.region) || "global",
+            source: "auto_winner_xut",
+            email: deliveryEmail || "",
+            xutGranted: claimCredit.credited,
+            walletBalanceAfter: claimCredit.balanceAfter,
+            walletError: claimCredit.error || "",
+          });
         }
       } else {
         giftCard = tier;
@@ -2618,6 +3015,7 @@
       return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
     }
     var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+    var eventIdFilter = typeof data.eventId === "string" ? String(data.eventId) : (typeof data.event_id === "string" ? String(data.event_id) : "");
     var limit = Math.min(100, Math.max(1, Number(data.limit) || 100));
     var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
 
@@ -2627,7 +3025,8 @@
     for (var i = 0; i < objs.length; i++) {
       var v: any = objs[i].value || {};
       if (statusFilter && v.status !== statusFilter) continue;
-      rows.push(mapFulfillmentRow(objs[i].key, v));
+      if (eventIdFilter && String(v.eventId || "") !== eventIdFilter) continue;
+      rows.push(mapFulfillmentRow(objs[i].key, v, objs[i]));
     }
     return RpcHelpers.successResponse({
       fulfillments: rows,
@@ -2635,7 +3034,10 @@
     });
   }
 
-  function mapFulfillmentRow(key: string, v: any): any {
+  function mapFulfillmentRow(key: string, v: any, storageObj?: any): any {
+    var createTime = fulfillmentStorageCreateTimeSec(storageObj);
+    var queuedAt = v.queuedAt || v.claimedAt || 0;
+    var sortAt = createTime || queuedAt;
     return {
       key: key,
       userId: v.userId || "",
@@ -2647,7 +3049,10 @@
       region: v.region || "",
       email: v.email || "",
       source: v.source || "",
-      queuedAt: v.queuedAt || v.claimedAt || 0,
+      queuedAt: queuedAt,
+      createTime: createTime,
+      sortAt: sortAt,
+      emailPatchedAt: v.emailPatchedAt || 0,
       settledAt: v.settledAt || 0,
       voucher: v.voucher || null,
       error: v.error || "",
