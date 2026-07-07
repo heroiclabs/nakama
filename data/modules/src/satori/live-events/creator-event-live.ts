@@ -1689,6 +1689,7 @@
     initializer.registerRpc("creator_event_spa_join", rpcSpaJoin);
     initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
     initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
+    initializer.registerRpc("creator_event_spa_auto_end_sweep", rpcSpaAutoEndSweep);
     initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
     initializer.registerRpc("creator_event_fulfillment_get", rpcFulfillmentGet);
     initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
@@ -2427,6 +2428,145 @@
     logger.info("[SpaEndQueue] event=%s ranked=%d queued=%d skipped=%d xut=%d",
       data.eventId, result.ranked, result.queued, result.skippedExisting, result.xutWinners);
     return RpcHelpers.successResponse({ eventId: data.eventId, prizeQueue: result });
+  }
+
+  function spaEventStorageEndAtSec(ev: any): number {
+    var scheduledAt = Math.floor(numericValue(ev && ev.scheduledAt, 0));
+    var durationMin = numericValue(ev && ev.duration, 30);
+    if (scheduledAt <= 0 || durationMin <= 0) return 0;
+    return scheduledAt + Math.floor(durationMin * 60);
+  }
+
+  function shouldSpaAutoEnd(ev: any, nowSec: number, graceSec: number): boolean {
+    if (!ev) return false;
+    var status = (ev.status || "published").toString().toLowerCase();
+    if (status === "ended" || status === "cancelled" || status === "draft" || status === "funded") return false;
+    var endAt = spaEventStorageEndAtSec(ev);
+    if (endAt <= 0) return false;
+    return nowSec > endAt + graceSec;
+  }
+
+  function finalizeSpaAutoEndedEvent(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    creatorId: string,
+    ev: any,
+    version: string,
+    endedBy: string,
+  ): { ranked: number; queued: number; skippedExisting: number; xutWinners: number; tiersConfigured: boolean } {
+    var nowSec = Math.floor(Date.now() / 1000);
+    ev.status = "ended";
+    ev.endedAt = nowSec;
+    if (!ev.id) ev.id = eventId;
+    nk.storageWrite([{
+      collection: "live_events",
+      key: eventId,
+      userId: creatorId,
+      value: ev,
+      permissionRead: 2 as nkruntime.ReadPermissionValues,
+      permissionWrite: 1 as nkruntime.WritePermissionValues,
+      version: version,
+    }]);
+    var prizeQueue = computeAndQueueWinners(nk, logger, ev, eventId);
+    logger.info("[CreatorEvent SPA] Auto-ended event=%s by=%s ranked=%d queued=%d",
+      eventId, endedBy, prizeQueue.ranked, prizeQueue.queued);
+    return prizeQueue;
+  }
+
+  /**
+   * creator_event_spa_auto_end_sweep — system/admin only (n8n cron alongside
+   * creator_event_auto_end_sweep).
+   *
+   * SPA events live in creator-owned `live_events` storage; the module-path
+   * auto-end sweep only reads `satori_creator_events`. This sweep ends expired
+   * SPA events and calls computeAndQueueWinners so prizes queue even when the
+   * creator never clicks End in the web UI.
+   *
+   * Payload: { graceSec?: number, limit?: number }
+   */
+  function rpcSpaAutoEndSweep(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    RpcHelpers.requireAdmin(ctx, nk);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    var graceSec = typeof data.graceSec === "number" ? Math.max(0, Math.floor(data.graceSec)) : 0;
+    var limit = typeof data.limit === "number" ? Math.max(1, Math.floor(data.limit)) : 25;
+
+    var now = serverNowSec();
+    var cursor = "";
+    var pages = 0;
+    var maxPages = 20;
+    var scanned = 0;
+    var ended: any[] = [];
+    var failed: any[] = [];
+
+    do {
+      var res: any;
+      try {
+        res = nk.storageList(null, "live_events", 100, cursor);
+      } catch (listErr: any) {
+        return RpcHelpers.errorResponse("live_events list failed: " + (listErr.message || String(listErr)));
+      }
+      var objs = (res && res.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        if (ended.length >= limit) break;
+        var obj = objs[i];
+        if (!obj || !obj.value) continue;
+        scanned++;
+
+        var ev: any = obj.value;
+        var eventId = String(ev.id || obj.key || "");
+        var creatorId = String(ev.creatorId || obj.userId || (obj as any).user_id || "");
+        if (!eventId || !creatorId) continue;
+        if (!shouldSpaAutoEnd(ev, now, graceSec)) continue;
+
+        try {
+          var prizeQueue = finalizeSpaAutoEndedEvent(nk, logger, eventId, creatorId, ev, obj.version || "", "spa_auto_end_sweep");
+          ended.push({
+            eventId: eventId,
+            title: ev.title || "",
+            creatorId: creatorId,
+            ranked: prizeQueue.ranked,
+            queued: prizeQueue.queued,
+          });
+        } catch (err: any) {
+          var msg = (err && err.message) ? err.message : String(err);
+          logger.error("[CreatorEvent SPA] auto-end failed for event %s: %s", eventId, msg);
+          try {
+            var reread = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+            if (reread && reread.length > 0 && reread[0].value &&
+              String(reread[0].value.status || "").toLowerCase() === "ended") {
+              var recovered = computeAndQueueWinners(nk, logger, reread[0].value, eventId);
+              ended.push({
+                eventId: eventId,
+                title: reread[0].value.title || "",
+                creatorId: creatorId,
+                ranked: recovered.ranked,
+                queued: recovered.queued,
+                recovered: true,
+              });
+              continue;
+            }
+          } catch (_recoverErr: any) {
+            // fall through to failed
+          }
+          failed.push({ eventId: eventId, error: msg });
+        }
+      }
+      cursor = (res && res.cursor) || "";
+      pages++;
+    } while (cursor && ended.length < limit && pages < maxPages);
+
+    if (ended.length > 0) {
+      logger.info("[CreatorEvent SPA] Auto-end sweep finalized %d event(s)", ended.length);
+    }
+
+    return RpcHelpers.successResponse({
+      now: now,
+      scanned: scanned,
+      endedCount: ended.length,
+      ended: ended,
+      failed: failed,
+    });
   }
 
   /**
