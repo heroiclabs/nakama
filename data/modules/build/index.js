@@ -335,6 +335,7 @@ function InitModule(ctx, logger, nk, initializer) {
         // so it gets latency/error instrumentation like every other RPC.
         logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
         SocialMaintenance.register(initializer);
+        SocialMaintenance.registerHooks(initializer); // GDPR after-delete-account cascade (needs real initializer)
         // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
         logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");
         SocialOnboardingState.register(initializer);
@@ -67161,8 +67162,22 @@ var SocialMaintenance;
         }
         logger.info("[SocialMaintenance] GDPR cascade for " + deletedId + ": " + total + " referencing rows removed");
     }
+    // register() must contain ONLY registerRpc calls. postbuild.js rewrites
+    // them into __rpc_* stub assignments and auto-invokes register() at IIFE
+    // scope so the stub is populated in EVERY pooled Goja VM. Any other
+    // initializer.<x>() call in the body makes postbuild skip the auto-invoke
+    // (initializer is undefined at IIFE time), leaving the stub unpopulated in
+    // pooled VMs → "JavaScript runtime function invalid" / HTTP 500 on every
+    // invocation. That exact bug shipped 2026-07 when the GDPR hook lived here;
+    // the hook now registers via registerHooks() from main.ts InitModule.
     function register(initializer) {
         initializer.registerRpc("ivx_social_maintenance_tick", rpcMaintenanceTick);
+    }
+    SocialMaintenance.register = register;
+    // Hook registration needs a REAL initializer, so it can only run inside
+    // InitModule (main.ts calls this right after register()). Hooks don't have
+    // the VM-pool stub problem — Nakama resolves them differently from RPCs.
+    function registerHooks(initializer) {
         try {
             initializer.registerAfterDeleteAccount(afterDeleteAccountCascade);
         }
@@ -67173,7 +67188,7 @@ var SocialMaintenance;
             // pinned version; this guard is belt-and-braces for local dev images.)
         }
     }
-    SocialMaintenance.register = register;
+    SocialMaintenance.registerHooks = registerHooks;
 })(SocialMaintenance || (SocialMaintenance = {}));
 // onboarding_state.ts — ivx_social_onboarding_state (G-014, doc §E.4).
 //

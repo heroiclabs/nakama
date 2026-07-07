@@ -413,8 +413,22 @@ namespace SocialMaintenance {
     logger.info("[SocialMaintenance] GDPR cascade for " + deletedId + ": " + total + " referencing rows removed");
   }
 
+  // register() must contain ONLY registerRpc calls. postbuild.js rewrites
+  // them into __rpc_* stub assignments and auto-invokes register() at IIFE
+  // scope so the stub is populated in EVERY pooled Goja VM. Any other
+  // initializer.<x>() call in the body makes postbuild skip the auto-invoke
+  // (initializer is undefined at IIFE time), leaving the stub unpopulated in
+  // pooled VMs → "JavaScript runtime function invalid" / HTTP 500 on every
+  // invocation. That exact bug shipped 2026-07 when the GDPR hook lived here;
+  // the hook now registers via registerHooks() from main.ts InitModule.
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("ivx_social_maintenance_tick", rpcMaintenanceTick);
+  }
+
+  // Hook registration needs a REAL initializer, so it can only run inside
+  // InitModule (main.ts calls this right after register()). Hooks don't have
+  // the VM-pool stub problem — Nakama resolves them differently from RPCs.
+  export function registerHooks(initializer: nkruntime.Initializer): void {
     try {
       initializer.registerAfterDeleteAccount(afterDeleteAccountCascade as any);
     } catch (e: any) {
