@@ -73,6 +73,35 @@ namespace LegacyWallet {
     Storage.writeJson(nk, Constants.WALLETS_COLLECTION, key, userId, wallet);
   }
 
+  /**
+   * Server-side credit for another user's global/XUT balance.
+   * Mirrors wallet_update_game_wallet with currency "global"/"xut" and operation "add".
+   */
+  export function addGlobalWalletCurrency(
+    nk: nkruntime.Nakama,
+    userId: string,
+    amount: number
+  ): { success: boolean; newBalance: number; error?: string } {
+    var amt = Math.floor(Number(amount || 0));
+    if (!userId || amt <= 0) {
+      return { success: false, newBalance: 0, error: "invalid userId or amount" };
+    }
+    try {
+      var globalWallet = getGlobalWallet(nk, userId);
+      var globalKeys = ["global", "xut"];
+      for (var gi = 0; gi < globalKeys.length; gi++) {
+        var gk = globalKeys[gi];
+        if (globalWallet.currencies[gk] === undefined) globalWallet.currencies[gk] = 0;
+        globalWallet.currencies[gk] += amt;
+      }
+      saveGlobalWallet(nk, userId, globalWallet);
+      var newBalance = globalWallet.currencies.global || globalWallet.currencies.xut || 0;
+      return { success: true, newBalance: newBalance };
+    } catch (e: any) {
+      return { success: false, newBalance: 0, error: e.message || String(e) };
+    }
+  }
+
   // ---- RPC implementations ----
 
   export function rpcGetUserWallet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
