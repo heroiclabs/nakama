@@ -1673,6 +1673,15 @@ declare namespace LegacyUserMgmtSync {
     }): SyncResult;
 }
 declare namespace LegacyWallet {
+    /**
+     * Server-side credit for another user's global/XUT balance.
+     * Mirrors wallet_update_game_wallet with currency "global"/"xut" and operation "add".
+     */
+    function addGlobalWalletCurrency(nk: nkruntime.Nakama, userId: string, amount: number): {
+        success: boolean;
+        newBalance: number;
+        error?: string;
+    };
     function rpcGetUserWallet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcLinkWalletToGame(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcGetWalletRegistry(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
@@ -3854,9 +3863,9 @@ declare namespace SatoriCreatorEvents {
      * Safety:
      *  - Idempotent: skips any (event,user) that already has a fulfillment record
      *    (incl. ones written by the self-claim flow), so re-runs never duplicate.
-     *  - XUT / Nakama-fulfilled tiers are NOT credited here — wallet grants stay
-     *    with the idempotent self-claim flow to avoid double-crediting; we only
-     *    count them for reporting.
+     *  - XUT / Nakama-fulfilled tiers are credited here at event end via the global
+     *    wallet (same storage path as wallet_update_game_wallet). An audit row is
+     *    written to prize_fulfillments with source auto_winner_xut.
      *  - Records are queued as `pending`; an operator still manually approves each
      *    one before any real gift card is minted, so a mis-rank is human-reviewable.
      */
@@ -3865,6 +3874,7 @@ declare namespace SatoriCreatorEvents {
         queued: number;
         skippedExisting: number;
         xutWinners: number;
+        xutCredited: number;
         tiersConfigured: boolean;
     };
 }
