@@ -1970,8 +1970,8 @@
     logger: nkruntime.Logger,
     eventId: string,
     maxPages: number
-  ): { userId: string; joinedAtSec: number }[] {
-    var participants: { userId: string; joinedAtSec: number }[] = [];
+  ): { userId: string; joinedAtSec: number; playerEmail: string }[] {
+    var participants: { userId: string; joinedAtSec: number; playerEmail: string }[] = [];
     var seen: { [uid: string]: boolean } = {};
     var cursor = "";
     var pages = 0;
@@ -1992,9 +1992,17 @@
         if (!uid || seen[uid]) continue;
         seen[uid] = true;
         var joinedAtSec = 0;
+        var playerEmail = "";
         var pv = o.value as any;
         if (pv && typeof pv.joinedAt === "number") joinedAtSec = pv.joinedAt;
-        participants.push({ userId: uid, joinedAtSec: joinedAtSec });
+        if (pv) {
+          var emRaw = pv.playerEmail || pv.email || "";
+          if (typeof emRaw === "string") {
+            var emTrim = emRaw.trim();
+            if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emTrim)) playerEmail = emTrim;
+          }
+        }
+        participants.push({ userId: uid, joinedAtSec: joinedAtSec, playerEmail: playerEmail });
       }
       cursor = (page && page.cursor) || "";
       pages++;
@@ -2201,13 +2209,21 @@
       }
     }
 
-    // Player-submitted delivery emails (saved on results screen before event end)
-    // override empty Nakama account emails for device-authenticated winners.
+    // Player-submitted delivery emails (lobby / results screen) override empty
+    // Nakama account emails for device-authenticated winners.
     for (var di = 0; di < allWinnerIds.length; di++) {
       var du = allWinnerIds[di];
       var savedPref = readDeliveryPref(nk, du, eventId);
       if (savedPref && savedPref.email) {
         emailByUserId[du] = savedPref.email;
+      }
+    }
+
+    var joinedPlayers = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+    for (var je = 0; je < joinedPlayers.length; je++) {
+      var jp = joinedPlayers[je];
+      if (jp.userId && jp.playerEmail && !emailByUserId[jp.userId]) {
+        emailByUserId[jp.userId] = jp.playerEmail;
       }
     }
 
@@ -2591,9 +2607,11 @@
       return RpcHelpers.errorResponse("Event not found in SPA storage");
     }
 
+    var joined = Storage.readJson<{ joinedAt?: number }>(nk, "event_participants", eventId, userId);
     var myRecords = nk.storageRead([{ collection: "event_answers", key: eventId, userId: userId }]);
-    if (!myRecords || myRecords.length === 0 || !myRecords[0].value) {
-      return RpcHelpers.errorResponse("You did not participate in this event");
+    var hasAnswer = myRecords && myRecords.length > 0 && myRecords[0].value;
+    if (!joined && !hasAnswer) {
+      return RpcHelpers.errorResponse("You did not join this event");
     }
 
     var deliveryName = "";
@@ -2883,6 +2901,7 @@
       return RpcHelpers.errorResponse("Unauthorized — valid service_token required");
     }
     var statusFilter = typeof data.status === "string" ? String(data.status) : "";
+    var eventIdFilter = typeof data.eventId === "string" ? String(data.eventId) : (typeof data.event_id === "string" ? String(data.event_id) : "");
     var limit = Math.min(100, Math.max(1, Number(data.limit) || 100));
     var cursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : undefined;
 
@@ -2892,6 +2911,7 @@
     for (var i = 0; i < objs.length; i++) {
       var v: any = objs[i].value || {};
       if (statusFilter && v.status !== statusFilter) continue;
+      if (eventIdFilter && String(v.eventId || "") !== eventIdFilter) continue;
       rows.push(mapFulfillmentRow(objs[i].key, v));
     }
     return RpcHelpers.successResponse({
