@@ -75,14 +75,17 @@ function prizeLabel(f: PrizeFulfillment): string {
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
-function useFulfillments(status: StatusFilter) {
+function useFulfillments(status: StatusFilter, eventId: string) {
+  const eventIdTrimmed = eventId.trim();
   return useQuery({
-    queryKey: ["quizverse", "prize_fulfillments", status],
+    queryKey: ["quizverse", "prize_fulfillments", status, eventIdTrimmed],
     queryFn: () =>
       quizverse.listPrizeFulfillments(
         serverKeyAuth(),
         status === "all" ? undefined : status,
         200,
+        undefined,
+        eventIdTrimmed || undefined,
       ),
     select: (data) => data?.fulfillments ?? [],
     staleTime: 15_000,
@@ -162,9 +165,14 @@ function ApprovePanel({ fulfillment, onSubmit, onCancel, isPending }: ApprovePan
           />
         </div>
       </div>
-      {!emailValid && (
+      {!fulfillment.email && (
+        <p className="text-xs font-medium text-red-400">
+          This player has no registered email. You must enter their address below before sending.
+        </p>
+      )}
+      {!emailValid && fulfillment.email && (
         <p className="text-xs text-amber-400">
-          Enter the winner's email — the voucher is delivered there. This record has no email on file.
+          Enter the winner's email — the voucher is delivered there.
         </p>
       )}
       <div className="flex items-center gap-2 pt-1">
@@ -249,12 +257,17 @@ function FulfillmentRow({
               <User className="h-3 w-3" />
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{f.userId}</code>
             </span>
-            {f.email && (
+            {f.email ? (
               <span className="inline-flex items-center gap-1">
                 <Mail className="h-3 w-3" />
                 {f.email}
               </span>
-            )}
+            ) : f.status === "pending" ? (
+              <span className="inline-flex items-center gap-1 text-xs text-amber-400">
+                <AlertTriangle className="h-3 w-3" />
+                No email on file
+              </span>
+            ) : null}
             {f.region && (
               <span className="inline-flex items-center gap-1">
                 <Globe2 className="h-3 w-3" />
@@ -265,6 +278,11 @@ function FulfillmentRow({
               <Clock className="h-3 w-3" />
               queued {formatTs(f.queuedAt)}
             </span>
+            {f.eventId && (
+              <span className="inline-flex items-center gap-1">
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{f.eventId}</code>
+              </span>
+            )}
           </div>
 
           {f.status === "fulfilled" && f.voucher && (
@@ -322,11 +340,12 @@ function FulfillmentRow({
 
 export function PrizesPage() {
   const [status, setStatus] = useState<StatusFilter>("pending");
+  const [eventIdFilter, setEventIdFilter] = useState("");
   const [search, setSearch] = useState("");
   const [approvingKey, setApprovingKey] = useState<string | null>(null);
   const [settlingKey, setSettlingKey] = useState<string | null>(null);
 
-  const { data: fulfillments = [], isLoading, isError, error, refetch } = useFulfillments(status);
+  const { data: fulfillments = [], isLoading, isError, error, refetch } = useFulfillments(status, eventIdFilter);
   const settle = useSettle();
   const autoFulfill = useAutoFulfill();
 
@@ -456,16 +475,42 @@ export function PrizesPage() {
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by event, player ID, or email..."
-          className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        />
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={eventIdFilter}
+            onChange={(e) => setEventIdFilter(e.target.value)}
+            placeholder="Filter by event ID (exact match)..."
+            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+        <div className="relative flex-1">
+          <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search title, player ID, or email..."
+            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
       </div>
+      {eventIdFilter.trim() && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            Event: <code className="font-mono">{eventIdFilter.trim()}</code>
+            <button
+              type="button"
+              onClick={() => setEventIdFilter("")}
+              className="ml-1 rounded-full p-0.5 hover:bg-primary/20"
+              title="Clear event filter"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Error */}
       {isError && (
@@ -488,7 +533,11 @@ export function PrizesPage() {
         <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
           <Gift className="mx-auto mb-3 h-10 w-10 opacity-30" />
           <p className="text-sm font-medium">
-            {fulfillments.length === 0 ? "No prizes in this queue" : "No prizes match your search"}
+            {fulfillments.length === 0
+              ? eventIdFilter.trim()
+                ? "No prizes for this event"
+                : "No prizes in this queue"
+              : "No prizes match your search"}
           </p>
           <p className="mt-1 text-xs">
             Gift-card wins from live events appear here for approval.

@@ -212,10 +212,11 @@ export function listPrizeFulfillments(
   status?: FulfillmentStatus,
   limit?: number,
   cursor?: string,
+  eventId?: string,
 ): Promise<PrizeFulfillmentsResult> {
   return callRpc(
     "admin_prize_fulfillments_list",
-    { status, limit, cursor },
+    { status, limit, cursor, eventId: eventId || undefined },
     opts,
   ).then((value) => unwrapData<PrizeFulfillmentsResult>(value));
 }
