@@ -2626,7 +2626,16 @@ namespace AdminConsole {
     var offset = Math.max(0, Number(data.offset) || 0);
     var storageCursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : "";
 
-    function mapFulfillmentRow(key: string, v: any): any {
+    function prizeFulfillmentStorageCreateTimeSec(storageObj: any): number {
+      if (!storageObj) return 0;
+      var ct = Number(storageObj.createTime || 0);
+      return ct > 0 ? ct : 0;
+    }
+
+    function mapFulfillmentRow(key: string, v: any, storageObj?: any): any {
+      var createTime = prizeFulfillmentStorageCreateTimeSec(storageObj);
+      var queuedAt = v.queuedAt || v.claimedAt || 0;
+      var sortAt = createTime || queuedAt;
       return {
         key: key,
         userId: v.userId || "",
@@ -2638,7 +2647,10 @@ namespace AdminConsole {
         region: v.region || "",
         email: v.email || "",
         source: v.source || "",
-        queuedAt: v.queuedAt || v.claimedAt || 0,
+        queuedAt: queuedAt,
+        createTime: createTime,
+        sortAt: sortAt,
+        emailPatchedAt: v.emailPatchedAt || 0,
         settledAt: v.settledAt || 0,
         voucher: v.voucher || null,
         error: v.error || "",
@@ -2665,14 +2677,14 @@ namespace AdminConsole {
         for (var pi = 0; pi < pageObjs.length; pi++) {
           var pv: any = pageObjs[pi].value || {};
           if (!rowMatchesFilters(pv)) continue;
-          allRows.push(mapFulfillmentRow(pageObjs[pi].key, pv));
+          allRows.push(mapFulfillmentRow(pageObjs[pi].key, pv, pageObjs[pi]));
         }
         scanCursor = (page && page.cursor) ? String(page.cursor) : "";
         pages++;
       } while (scanCursor && pages < maxPages);
 
       allRows.sort(function (a: any, b: any) {
-        return (b.queuedAt || 0) - (a.queuedAt || 0);
+        return (b.sortAt || 0) - (a.sortAt || 0);
       });
 
       var total = allRows.length;
@@ -2692,7 +2704,7 @@ namespace AdminConsole {
     for (var i = 0; i < objs.length; i++) {
       var v: any = objs[i].value || {};
       if (!rowMatchesFilters(v)) continue;
-      rows.push(mapFulfillmentRow(objs[i].key, v));
+      rows.push(mapFulfillmentRow(objs[i].key, v, objs[i]));
     }
     return RpcHelpers.successResponse({
       fulfillments: rows,
@@ -2828,7 +2840,10 @@ namespace AdminConsole {
         var entry = needEmail[ni];
         var foundEmail = emailMap[entry.userId] || "";
         if (!foundEmail) { skippedNoAccount++; continue; }
-        var updated = Object.assign({}, entry.value, { email: foundEmail });
+        var updated = Object.assign({}, entry.value, {
+          email: foundEmail,
+          emailPatchedAt: Math.floor(Date.now() / 1000),
+        });
         try {
           Storage.writeSystemJson(nk, "prize_fulfillments", entry.key, updated);
           patched++;
