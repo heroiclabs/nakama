@@ -57988,7 +57988,7 @@ var SatoriCreatorEvents;
             return 12;
         return 18;
     }
-    function findLiveEventDefinition(nk, logger, eventId, creatorId) {
+    function findLiveEventStorageRecord(nk, logger, eventId, creatorId) {
         var seen = {};
         var owners = [];
         if (creatorId)
@@ -58002,7 +58002,11 @@ var SatoriCreatorEvents;
             try {
                 var records = nk.storageRead([{ collection: "live_events", key: eventId, userId: owner }]);
                 if (records && records.length > 0 && records[0].value) {
-                    return records[0].value;
+                    return {
+                        def: records[0].value,
+                        creatorId: owner,
+                        version: records[0].version || "",
+                    };
                 }
             }
             catch (readErr) {
@@ -58017,7 +58021,12 @@ var SatoriCreatorEvents;
                 for (var i = 0; i < objects.length; i++) {
                     var obj = objects[i];
                     if (obj && obj.key === eventId && obj.value) {
-                        return obj.value;
+                        var objOwner = (obj.userId || obj.user_id || "").toString();
+                        return {
+                            def: obj.value,
+                            creatorId: objOwner,
+                            version: obj.version || "",
+                        };
                     }
                 }
                 cursor = result.cursor || "";
@@ -58030,6 +58039,10 @@ var SatoriCreatorEvents;
             }
         }
         return null;
+    }
+    function findLiveEventDefinition(nk, logger, eventId, creatorId) {
+        var located = findLiveEventStorageRecord(nk, logger, eventId, creatorId);
+        return located ? located.def : null;
     }
     function loadSubmitEventDefinition(nk, logger, data, eventId) {
         var def = getEventDefinition(nk, eventId);
@@ -59209,6 +59222,7 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
         initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+        initializer.registerRpc("creator_event_spa_join", rpcSpaJoin);
         initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
         initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
         initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
@@ -59541,6 +59555,135 @@ var SatoriCreatorEvents;
         return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
     }
     SatoriCreatorEvents.computeAndQueueWinners = computeAndQueueWinners;
+    function validateSpaJoinWindow(def, nowSec) {
+        var status = (def.status || "published").toString().toLowerCase();
+        if (status === "cancelled" || status === "draft")
+            return "Event is not accepting participants";
+        if (status === "ended" || status === "distributed")
+            return "Event has ended";
+        var startAt = Math.floor(numericValue(def.scheduledAt, 0));
+        var durationMin = numericValue(def.duration, 30);
+        if (startAt > 0 && durationMin > 0) {
+            var endAt = startAt + Math.floor(durationMin * 60);
+            if (nowSec >= endAt)
+                return "Event has ended";
+        }
+        return "";
+    }
+    function parsePlayerEmailFromPayload(data) {
+        var candidates = [data.email, data.playerEmail, data.player_email];
+        for (var i = 0; i < candidates.length; i++) {
+            if (typeof candidates[i] === "string") {
+                var em = candidates[i].trim();
+                if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+                    return em;
+            }
+        }
+        return "";
+    }
+    function incrementSpaParticipantCount(nk, logger, creatorId, eventId, delta) {
+        var attempts = 0;
+        var maxAttempts = 3;
+        while (attempts < maxAttempts) {
+            attempts++;
+            try {
+                var recs = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+                if (!recs || recs.length === 0 || !recs[0].value)
+                    return -1;
+                var evDef = recs[0].value;
+                var current = Math.max(0, Math.floor(numericValue(evDef.participantCount, 0)));
+                evDef.participantCount = current + delta;
+                nk.storageWrite([{
+                        collection: "live_events",
+                        key: eventId,
+                        userId: creatorId,
+                        value: evDef,
+                        permissionRead: 2,
+                        permissionWrite: 1,
+                        version: recs[0].version,
+                    }]);
+                return evDef.participantCount;
+            }
+            catch (pcErr) {
+                if (attempts >= maxAttempts) {
+                    logger.warn("[CreatorEvent] participantCount increment failed for event %s: %s", eventId, pcErr.message || String(pcErr));
+                    return -1;
+                }
+            }
+        }
+        return -1;
+    }
+    /**
+     * Server-authoritative SPA join: writes event_participants and increments
+     * live_events.participantCount (Gap 2). The SPA hybrid router previously
+     * wrote participants via client storage only, leaving participantCount at 0.
+     */
+    function rpcSpaJoin(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var eventId = String(data.eventId);
+        var located = findLiveEventStorageRecord(nk, logger, eventId, data.creatorId || data.creator_id);
+        if (!located || !located.creatorId)
+            return RpcHelpers.errorResponse("Event not found");
+        var def = located.def;
+        var creatorId = located.creatorId;
+        var nowSec = Math.floor(Date.now() / 1000);
+        var windowErr = validateSpaJoinWindow(def, nowSec);
+        if (windowErr)
+            return RpcHelpers.errorResponse(windowErr);
+        var existing = Storage.readJson(nk, "event_participants", eventId, userId);
+        if (existing && existing.joinedAt) {
+            var existingCount = Math.max(0, Math.floor(numericValue(def.participantCount, 0)));
+            return RpcHelpers.successResponse({
+                success: true,
+                eventId: eventId,
+                joinedAt: existing.joinedAt,
+                participantCount: existingCount,
+                alreadyJoined: true,
+            });
+        }
+        var playerName = "";
+        if (typeof data.playerName === "string") {
+            playerName = data.playerName.trim().slice(0, 120);
+        }
+        else if (typeof data.displayName === "string") {
+            playerName = data.displayName.trim().slice(0, 120);
+        }
+        var playerEmail = parsePlayerEmailFromPayload(data);
+        var deviceId = "";
+        if (typeof data.deviceId === "string")
+            deviceId = data.deviceId.trim().slice(0, 120);
+        else if (typeof data.device_id === "string")
+            deviceId = data.device_id.trim().slice(0, 120);
+        var participantRecord = {
+            eventId: eventId,
+            playerId: userId,
+            joinedAt: nowSec,
+            deviceId: deviceId,
+            playerName: playerName,
+            playerEmail: playerEmail,
+            email: playerEmail,
+        };
+        try {
+            Storage.writeJson(nk, "event_participants", eventId, userId, participantRecord, 2, 1);
+        }
+        catch (joinErr) {
+            return RpcHelpers.errorResponse("Failed to join event: " + (joinErr.message || String(joinErr)));
+        }
+        var newCount = incrementSpaParticipantCount(nk, logger, creatorId, eventId, 1);
+        if (newCount < 0) {
+            newCount = Math.max(0, Math.floor(numericValue(def.participantCount, 0))) + 1;
+        }
+        logger.info("[CreatorEvent SPA] Joined user=%s event=%s count=%d", userId, eventId, newCount);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: eventId,
+            joinedAt: nowSec,
+            participantCount: newCount,
+        });
+    }
     /**
      * SPA event-end hook: rank all players and queue gift-card fulfillments
      * immediately when the creator ends an event.
