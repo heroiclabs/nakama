@@ -1110,6 +1110,10 @@ declare namespace HiroBase {
     export function register(initializer: nkruntime.Initializer): void;
     export {};
 }
+declare namespace BattlePassEngine {
+    function processEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, eventType: string, value: number): void;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace HiroChallenges {
     function getConfig(nk: nkruntime.Nakama, gameId?: string): Hiro.ChallengesConfig;
     function register(initializer: nkruntime.Initializer): void;

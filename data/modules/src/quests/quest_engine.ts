@@ -485,6 +485,18 @@ namespace QuestEngine {
       saveUserState(nk, userId, gameId, state);
     }
 
+    // ── Battle pass XP hook ──────────────────────────────────────────────────
+    // The same gameplay events that progress quests also accrue battle pass XP
+    // (both the record_event RPC and the EventBus bridge funnel through here).
+    // Isolated so a battle pass failure never breaks quest processing.
+    try {
+      if (typeof BattlePassEngine !== "undefined" && BattlePassEngine.processEvent) {
+        BattlePassEngine.processEvent(nk, logger, ctx, userId, gameId, eventType, value);
+      }
+    } catch (bpErr: any) {
+      logger.warn("[QuestEngine] BattlePass hook failed: " + (bpErr && bpErr.message ? bpErr.message : String(bpErr)));
+    }
+
     return { updatedCount: updatedCount, updatedQuests: updatedQuests };
   }
 
