@@ -23,27 +23,33 @@
 // currency displayed in the reward popup and granted to the wallet).
 // `tokens` is kept for legacy compatibility but is NOT granted to the wallet.
 // The client reads `reward.game` for the coin amount shown in the toast.
+// RCA fix (client/server reward mismatch): `game` (the coins actually granted to
+// the wallet) was a flat 50/day, contradicting BOTH the balanced-economy design
+// doc above (Day 1: 40 … Day 7: 200, weekly total 660) AND the client's canonical
+// display table (IVXDailyRewardsManager.DAILY_REWARD_COINS = 40,50,65,80,100,125,200).
+// The popup promised the ramp while the wallet received 50. `game` now follows the
+// documented ramp, so display == grant on every day.
 var REWARD_CONFIGS = {
     // Default rewards for any game - BALANCED FOR ENGAGEMENT + MONETIZATION
     "default": [
-        { day: 1, game: 50, xp: 50, tokens: 40, description: "Welcome Back!" },
+        { day: 1, game: 40, xp: 50, tokens: 40, description: "Welcome Back!" },
         { day: 2, game: 50, xp: 75, tokens: 50, description: "Day 2 Reward" },
-        { day: 3, game: 50, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
-        { day: 4, game: 50, xp: 150, tokens: 80, description: "Halfway There!" },
-        { day: 5, game: 50, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
-        { day: 6, game: 50, xp: 275, tokens: 125, description: "Almost There!" },
-        { day: 7, game: 50, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
+        { day: 3, game: 65, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
+        { day: 4, game: 80, xp: 150, tokens: 80, description: "Halfway There!" },
+        { day: 5, game: 100, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
+        { day: 6, game: 125, xp: 275, tokens: 125, description: "Almost There!" },
+        { day: 7, game: 200, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
     ],
 
     // QuizVerse specific - CORRECT GAME ID
     "126bf539-dae2-4bcf-964d-316c0fa1f92b": [
-        { day: 1, game: 50, xp: 50, tokens: 40, description: "Welcome Back!" },
+        { day: 1, game: 40, xp: 50, tokens: 40, description: "Welcome Back!" },
         { day: 2, game: 50, xp: 75, tokens: 50, description: "Day 2 Reward" },
-        { day: 3, game: 50, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
-        { day: 4, game: 50, xp: 150, tokens: 80, description: "Halfway There!" },
-        { day: 5, game: 50, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
-        { day: 6, game: 50, xp: 275, tokens: 125, description: "Almost There!" },
-        { day: 7, game: 50, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
+        { day: 3, game: 65, xp: 100, tokens: 65, description: "Power-Up Unlocked! 💪" },
+        { day: 4, game: 80, xp: 150, tokens: 80, description: "Halfway There!" },
+        { day: 5, game: 100, xp: 200, tokens: 100, multiplier: "2x XP", description: "Day 5 Bonus! 🔥" },
+        { day: 6, game: 125, xp: 275, tokens: 125, description: "Almost There!" },
+        { day: 7, game: 200, xp: 400, tokens: 200, nft: "weekly_badge", description: "🎉 Weekly Champion!" }
     ]
 };
 
@@ -232,6 +238,47 @@ function saveStreakData(nk, logger, userId, gameId, data) {
 }
 
 /**
+ * OCC support (double-claim fix): raw read that also returns the storage object
+ * version, so the claim path can do a CONDITIONAL write. utils.readStorage
+ * discards the version, which forced blind writes — two concurrent
+ * daily_rewards_claim calls (double-tap, two devices, client retry) both passed
+ * canClaimToday and both granted the wallet.
+ */
+function readStreakRawWithVersion(nk, userId, gameId) {
+    var key = utils.makeGameStorageKey("user_daily_streak", userId, gameId);
+    var objects = nk.storageRead([{ collection: "daily_streaks", key: key, userId: userId }]);
+    if (objects && objects.length > 0 && objects[0].value) {
+        return { value: objects[0].value, version: objects[0].version };
+    }
+    // "*" = Nakama conditional create: write succeeds only if the key does not exist yet.
+    return { value: null, version: "*" };
+}
+
+/**
+ * Conditional write — succeeds only if the record still has the version we read.
+ * Returns false on version conflict (a concurrent claim won the race).
+ */
+function saveStreakDataVersioned(nk, logger, userId, gameId, data, version) {
+    var key = utils.makeGameStorageKey("user_daily_streak", userId, gameId);
+    try {
+        nk.storageWrite([{
+            collection: "daily_streaks",
+            key: key,
+            userId: userId,
+            value: data,
+            version: version,
+            permissionRead: 1,
+            permissionWrite: 0
+        }]);
+        return true;
+    } catch (err) {
+        utils.logWarn(logger, "[DailyRewards] Versioned write rejected for " + userId +
+            " (concurrent claim?): " + err.message);
+        return false;
+    }
+}
+
+/**
  * Check if user can claim reward today
  * @param {object} streakData - Current streak data
  * @returns {object} { canClaim: boolean, reason: string }
@@ -374,91 +421,105 @@ function rpcDailyRewardsGetStatus(ctx, logger, nk, payload) {
  * @param {string} payload - JSON payload with { gameId: "uuid" }
  * @returns {string} JSON response
  */
-function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
-    utils.logInfo(logger, "RPC daily_rewards_claim called");
-    
-    var parsed = utils.safeJsonParse(payload);
-    if (!parsed.success) {
-        return utils.handleError(ctx, null, "Invalid JSON payload");
-    }
-    
-    var data = parsed.data;
-    var validation = utils.validatePayload(data, ['gameId']);
-    if (!validation.valid) {
-        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
-    }
-    
-    var gameId = data.gameId;
-    if (!utils.isValidUUID(gameId)) {
-        return utils.handleError(ctx, null, "Invalid gameId UUID format");
-    }
-    
-    var userId = ctx.userId;
-    if (!userId) {
-        return utils.handleError(ctx, null, "User not authenticated");
-    }
-    
-    // Get current streak data
+/**
+ * DAILY PROGRESSION PLATFORM — single claim core.
+ *
+ * This is the ONLY implementation of "claim today's daily reward" in the entire
+ * backend. Every claim RPC (canonical `daily_rewards_claim`, the consolidated
+ * `daily_progress_claim`, and the legacy Arcade `quizverse_claim_daily_reward`)
+ * MUST delegate here. Do not fork this logic.
+ *
+ * Returns:
+ *   { ok: true,  streakData, reward, walletGranted }
+ *   { ok: false, error, reason }
+ */
+function performDailyClaim(nk, logger, userId, gameId) {
+    // Get current streak data (runs migration/reconcile side-effects up front so
+    // the versioned read below sees a settled record).
     var streakData = getStreakData(nk, logger, userId, gameId);
     streakData = updateStreakStatus(nk, logger, userId, gameId, streakData);
-    
-    // Check if can claim
+
+    // Fast pre-check (cheap rejection before the OCC loop).
     var claimCheck = canClaimToday(streakData);
     if (!claimCheck.canClaim) {
-        return JSON.stringify({
-            success: false,
-            error: "Cannot claim reward: " + claimCheck.reason,
-            canClaimToday: false
-        });
+        return { ok: false, error: "Cannot claim reward: " + claimCheck.reason, reason: claimCheck.reason };
     }
-    
-    // Reset streak when gap spans more than one UTC day or exceeds 48h grace
-    // (matches LegacyDailyRewards dayDiff > 1 rule before increment).
-    var lastClaimTs = streakData.lastClaimTimestamp;
-    if (lastClaimTs > 0) {
-        var lastDate = getUtcDateStringFromUnix(lastClaimTs);
-        var today = getTodayUtcDateString();
-        var lastDayStart = getUtcDayStartUnixFromDateString(lastDate);
-        var todayDayStart = getUtcDayStartUnixFromDateString(today);
-        var dayDiff = Math.floor((todayDayStart - lastDayStart) / 86400);
-        if (dayDiff > 1 || !utils.isWithinHours(lastClaimTs, utils.getUnixTimestamp(), 48)) {
-            streakData.currentStreak = 0;
+
+    // ── ATOMIC CLAIM (OCC / double-claim fix) ────────────────────────────────
+    // The old path did read → check → walletUpdate → blind write. Two concurrent
+    // claims (double-tap, second device, client retry after timeout) both passed
+    // the check and BOTH granted coins. Now: re-read WITH the storage version,
+    // re-verify eligibility on that exact snapshot, mutate, and commit with a
+    // CONDITIONAL write. If a concurrent claim committed first, the write fails,
+    // we re-read, see lastClaim == today, and reject with "already claimed" —
+    // making retries idempotent and duplicate grants impossible.
+    var reward = null;
+    var committed = false;
+    for (var attempt = 0; attempt < 2 && !committed; attempt++) {
+        var raw = readStreakRawWithVersion(nk, userId, gameId);
+        // Fall back to the settled copy when the record does not exist yet
+        // (version "*" makes the write a conditional create).
+        var claimState = raw.value || streakData;
+        if (typeof claimState.bestStreak !== "number") claimState.bestStreak = claimState.currentStreak || 0;
+        if (!claimState.claimHistory) claimState.claimHistory = [];
+
+        var recheck = canClaimToday(claimState);
+        if (!recheck.canClaim) {
+            return { ok: false, error: "Cannot claim reward: " + recheck.reason, reason: recheck.reason };
         }
-    }
 
-    // Update streak
-    streakData.currentStreak += 1;
-    streakData.lastClaimTimestamp = utils.getUnixTimestamp();
-    streakData.totalClaims += 1;
-    streakData.updatedAt = utils.getCurrentTimestamp();
-
-    // QVBF_51: track lifetime best streak for the dashboard "Best Streak" card
-    if (streakData.currentStreak > (streakData.bestStreak || 0)) {
-        streakData.bestStreak = streakData.currentStreak;
-    }
-
-    // QVBF_51: append claim date (UTC YYYY-MM-DD) for the activity heatmap.
-    // Capped at 90 entries (~3 months) to keep the storage record small.
-    var claimDate = new Date(streakData.lastClaimTimestamp * 1000);
-    var claimDateStr = claimDate.getUTCFullYear() + "-" +
-        (claimDate.getUTCMonth() + 1 < 10 ? "0" : "") + (claimDate.getUTCMonth() + 1) + "-" +
-        (claimDate.getUTCDate() < 10 ? "0" : "") + claimDate.getUTCDate();
-    if (!streakData.claimHistory) streakData.claimHistory = [];
-    if (streakData.claimHistory[streakData.claimHistory.length - 1] !== claimDateStr) {
-        streakData.claimHistory.push(claimDateStr);
-        while (streakData.claimHistory.length > 90) {
-            streakData.claimHistory.shift();
+        // Reset streak when gap spans more than one UTC day or exceeds 48h grace
+        // (matches LegacyDailyRewards dayDiff > 1 rule before increment).
+        var lastClaimTs = claimState.lastClaimTimestamp || 0;
+        if (lastClaimTs > 0) {
+            var lastDate = getUtcDateStringFromUnix(lastClaimTs);
+            var today = getTodayUtcDateString();
+            var lastDayStart = getUtcDayStartUnixFromDateString(lastDate);
+            var todayDayStart = getUtcDayStartUnixFromDateString(today);
+            var dayDiff = Math.floor((todayDayStart - lastDayStart) / 86400);
+            if (dayDiff > 1 || !utils.isWithinHours(lastClaimTs, utils.getUnixTimestamp(), 48)) {
+                claimState.currentStreak = 0;
+            }
         }
+
+        // Update streak
+        claimState.currentStreak = (claimState.currentStreak || 0) + 1;
+        claimState.lastClaimTimestamp = utils.getUnixTimestamp();
+        claimState.totalClaims = (claimState.totalClaims || 0) + 1;
+        claimState.updatedAt = utils.getCurrentTimestamp();
+
+        // QVBF_51: track lifetime best streak for the dashboard "Best Streak" card
+        if (claimState.currentStreak > (claimState.bestStreak || 0)) {
+            claimState.bestStreak = claimState.currentStreak;
+        }
+
+        // QVBF_51: append claim date (UTC YYYY-MM-DD) for the activity heatmap.
+        // Capped at 90 entries (~3 months) to keep the storage record small.
+        var claimDate = new Date(claimState.lastClaimTimestamp * 1000);
+        var claimDateStr = claimDate.getUTCFullYear() + "-" +
+            (claimDate.getUTCMonth() + 1 < 10 ? "0" : "") + (claimDate.getUTCMonth() + 1) + "-" +
+            (claimDate.getUTCDate() < 10 ? "0" : "") + claimDate.getUTCDate();
+        if (claimState.claimHistory[claimState.claimHistory.length - 1] !== claimDateStr) {
+            claimState.claimHistory.push(claimDateStr);
+            while (claimState.claimHistory.length > 90) {
+                claimState.claimHistory.shift();
+            }
+        }
+
+        reward = getRewardForDay(gameId, claimState.currentStreak);
+
+        if (saveStreakDataVersioned(nk, logger, userId, gameId, claimState, raw.version)) {
+            committed = true;
+            streakData = claimState;
+        }
+        // On conflict: loop re-reads the fresh record; the recheck above then
+        // returns "already_claimed_today" if the concurrent claim was today's.
     }
-    
-    // Get reward for current day
-    var reward = getRewardForDay(gameId, streakData.currentStreak);
-    
-    // Save updated streak
-    if (!saveStreakData(nk, logger, userId, gameId, streakData)) {
-        return utils.handleError(ctx, null, "Failed to save streak data");
+
+    if (!committed) {
+        return { ok: false, error: "Failed to save streak data (concurrent update)", reason: "concurrent_update" };
     }
-    
+
     // Log reward claim for transaction history
     var transactionKey = "transaction_log_" + userId + "_" + utils.getUnixTimestamp();
     var transactionData = {
@@ -470,9 +531,9 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
         timestamp: utils.getCurrentTimestamp()
     };
     utils.writeStorage(nk, logger, "transaction_logs", transactionKey, userId, transactionData);
-    
+
     utils.logInfo(logger, "User " + userId + " claimed day " + streakData.currentStreak + " reward for game " + gameId);
-    
+
     // QVBF_166: Grant `game` (coins) to the wallet using the `game` currency key.
     // Previously mapped tokens→coins which was wrong when `game` and `tokens` differ.
     var walletChanges = {};
@@ -487,19 +548,62 @@ function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
         }
     }
 
+    return { ok: true, streakData: streakData, reward: reward, walletGranted: walletChanges };
+}
+
+/**
+ * RPC: Claim daily reward (LEGACY-COMPATIBLE WRAPPER).
+ * Thin shell over performDailyClaim — keeps the response shape shipped clients
+ * expect. New clients should use `daily_progress_claim` (daily_progress.js),
+ * which returns the full progression state in the same round-trip.
+ * @param {string} payload - JSON payload with { gameId: "uuid" }
+ */
+function rpcDailyRewardsClaim(ctx, logger, nk, payload) {
+    utils.logInfo(logger, "RPC daily_rewards_claim called");
+
+    var parsed = utils.safeJsonParse(payload);
+    if (!parsed.success) {
+        return utils.handleError(ctx, null, "Invalid JSON payload");
+    }
+
+    var data = parsed.data;
+    var validation = utils.validatePayload(data, ['gameId']);
+    if (!validation.valid) {
+        return utils.handleError(ctx, null, "Missing required fields: " + validation.missing.join(", "));
+    }
+
+    var gameId = data.gameId;
+    if (!utils.isValidUUID(gameId)) {
+        return utils.handleError(ctx, null, "Invalid gameId UUID format");
+    }
+
+    var userId = ctx.userId;
+    if (!userId) {
+        return utils.handleError(ctx, null, "User not authenticated");
+    }
+
+    var result = performDailyClaim(nk, logger, userId, gameId);
+    if (!result.ok) {
+        return JSON.stringify({
+            success: false,
+            error: result.error,
+            canClaimToday: false
+        });
+    }
+
     // QVBF_166: emit both `streak`/`newStreak` so C# DailyRewardClaim
     // [JsonProperty("streak")] → newStreak deserializes the correct value.
     return JSON.stringify({
         success: true,
         userId: userId,
         gameId: gameId,
-        streak: streakData.currentStreak,        // canonical — C# [JsonProperty("streak")] → newStreak
-        newStreak: streakData.currentStreak,     // legacy alias
-        currentStreak: streakData.currentStreak, // extra alias for safety
-        bestStreak: streakData.bestStreak || 0,  // QVBF_51: lifetime best
-        totalClaims: streakData.totalClaims,
-        reward: reward,
-        walletGranted: walletChanges,
+        streak: result.streakData.currentStreak,        // canonical — C# [JsonProperty("streak")] → newStreak
+        newStreak: result.streakData.currentStreak,     // legacy alias
+        currentStreak: result.streakData.currentStreak, // extra alias for safety
+        bestStreak: result.streakData.bestStreak || 0,  // QVBF_51: lifetime best
+        totalClaims: result.streakData.totalClaims,
+        reward: result.reward,
+        walletGranted: result.walletGranted,
         claimedAt: utils.getCurrentTimestamp()
     });
 }

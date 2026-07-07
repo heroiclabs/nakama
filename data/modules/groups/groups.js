@@ -1089,7 +1089,12 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
                         rawMembers.push({
                             userId: rawId,
                             username: gu.user.username || ("user_" + j),
-                            displayName: gu.user.displayName || gu.user.username || ("user_" + j),
+                            // Account-level display name only. The metadata-level
+                            // displayName (written by update_player_metadata) is
+                            // merged below from the batched usersGetId read —
+                            // falling straight through to username here leaked
+                            // auto-generated blobs like "nMAQcYVUPC" into the UI.
+                            accountDisplayName: gu.user.displayName || "",
                             avatarUrl: gu.user.avatarUrl || "",
                             role: typeof gu.state === "number" ? gu.state : GROUP_ROLES.MEMBER,
                             online: gu.user.online === true,
@@ -1099,12 +1104,14 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
                         if (rawId) memberIds.push(rawId);
                     }
 
-                    // Batch-resolve player level from account metadata. groupUsersList
-                    // sometimes omits metadata, so a single usersGetId fills the gap.
-                    // Level is the only real per-player stat QuizVerse tracks; wins /
-                    // trophies do not exist per player, so they are intentionally
-                    // NOT returned (the client renders a level-only chip).
+                    // Batch-resolve player level AND profile display name from
+                    // account metadata. groupUsersList sometimes omits metadata,
+                    // so a single usersGetId fills the gap. Level is the only real
+                    // per-player stat QuizVerse tracks; wins / trophies do not
+                    // exist per player, so they are intentionally NOT returned
+                    // (the client renders a level-only chip).
                     var levelById = {};
+                    var displayNameById = {};
                     if (memberIds.length > 0) {
                         try {
                             var memberUsers = nk.usersGetId(memberIds);
@@ -1118,7 +1125,13 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
                                             ? (typeof u.metadata === "string" ? JSON.parse(u.metadata) : u.metadata)
                                             : {};
                                         lvl = Math.max(1, parseInt(md.level, 10) || 1);
+                                        if (md.displayName && typeof md.displayName === "string" && md.displayName.trim()) {
+                                            displayNameById[u.userId] = md.displayName.trim();
+                                        }
                                     } catch (_) { lvl = 1; }
+                                    if (!displayNameById[u.userId] && u.displayName) {
+                                        displayNameById[u.userId] = u.displayName;
+                                    }
                                     levelById[u.userId] = lvl;
                                 }
                             }
@@ -1141,10 +1154,16 @@ function rpcGetGroupDetails(ctx, logger, nk, payload) {
                             } catch (_) { memberLevel = 1; }
                         }
 
+                        // Precedence: account display_name → metadata displayName
+                        // (profile name set in-game) → username as last resort.
+                        var resolvedName = rm.accountDisplayName
+                            || displayNameById[rm.userId]
+                            || rm.username;
+
                         members.push({
                             userId: rm.userId,
                             username: rm.username,
-                            displayName: rm.displayName,
+                            displayName: resolvedName,
                             avatarUrl: rm.avatarUrl,
                             role: rm.role,
                             roleName: getRoleName(rm.role),

@@ -101,20 +101,37 @@ namespace LegacyMultiGame {
     return { success: true, message: "Matchmaking handled by client" };
   }
 
+  // DAILY PROGRESSION PLATFORM — ambient declarations for the canonical core
+  // implemented in data/modules/daily_rewards/*.js. All content is merged into
+  // one Goja scope by postbuild.js, so these resolve at runtime; the `declare`
+  // keyword makes them compile-time-only (no duplicate emitted code).
+  declare function performDailyClaim(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string): any;
+  declare function getStreakData(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, gameId: string): any;
+  declare function dpResolveGameId(data: any): string;
+
+  /**
+   * LEGACY-COMPATIBLE WRAPPER — {prefix}claim_daily_reward (e.g.
+   * quizverse_claim_daily_reward). This used to be a FOURTH independent
+   * daily-reward implementation: own storage (daily_rewards/daily_{gId}_{uid}),
+   * own streak formula (hard reset after day 7, no 48h grace), own reward math
+   * (streak*10), and a different wallet system (WalletHelpers storage wallet vs
+   * nk.walletUpdate). The same user could hold four disagreeing streaks.
+   * It now delegates to performDailyClaim — the single OCC/idempotent claim
+   * core — while preserving this endpoint's historical response shape.
+   */
   function claimDailyReward(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, data: any, userId: string, gId: string): any {
-    var key = "daily_" + gId + "_" + userId;
-    var state = Storage.readJson<any>(nk, "daily_rewards", key, userId) || { lastClaimDate: "", streak: 0 };
-    var today = new Date().toISOString().slice(0, 10);
-    if (state.lastClaimDate === today) return { alreadyClaimed: true, streak: state.streak };
+    var gameId = dpResolveGameId({ gameId: gId });
+    var result = performDailyClaim(nk, logger, userId, gameId);
 
-    state.streak = state.lastClaimDate ? state.streak + 1 : 1;
-    if (state.streak > 7) state.streak = 1;
-    state.lastClaimDate = today;
+    if (!result.ok) {
+      if (result.reason === "already_claimed_today") {
+        var current = getStreakData(nk, logger, userId, gameId);
+        return { alreadyClaimed: true, streak: (current && current.currentStreak) || 0 };
+      }
+      throw new Error(result.error || "Daily reward claim failed");
+    }
 
-    var rewardAmount = state.streak * 10;
-    WalletHelpers.addCurrency(nk, logger, ctx, userId, gId, "game", rewardAmount);
-    Storage.writeJson(nk, "daily_rewards", key, userId, state);
-    return { streak: state.streak, reward: rewardAmount };
+    return { streak: result.streakData.currentStreak, reward: (result.reward && result.reward.game) || 0 };
   }
 
   // ⚠ DEAD CODE — superseded by src/friends/find_friends.ts ⚠

@@ -45,8 +45,18 @@ function getCalendarConfig(gameId) {
 }
 
 /**
- * RPC: daily_reward_get_calendar
- * Returns the full 30-day reward calendar with claimed/unclaimed status per day.
+ * RPC: daily_reward_get_calendar (LEGACY-COMPATIBLE WRAPPER)
+ *
+ * DAILY PROGRESSION PLATFORM consolidation: this handler previously duplicated
+ * streak resolution with TWO hand-rolled storage-key guesses (both wrong vs the
+ * canonical utils.makeGameStorageKey layout) and its own claim-eligibility
+ * check using LOCAL server timezone (setHours) instead of the platform's UTC
+ * day window — so the calendar could disagree with daily_rewards_get_status
+ * around midnight. It now delegates to the canonical state functions
+ * (getStreakData / updateStreakStatus / canClaimToday in daily_rewards.js) and
+ * the shared calendar builder (buildDailyRewardCalendarView in
+ * daily_progress.js). Response shape unchanged for shipped clients.
+ * New clients should use daily_progress_check instead.
  */
 function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
     logger.info('[DailyRewardCalendar] daily_reward_get_calendar called');
@@ -57,147 +67,32 @@ function rpcDailyRewardGetCalendar(ctx, logger, nk, payload) {
         }
 
         var data = JSON.parse(payload || '{}');
-        var gameId = data.game_id || data.gameId || 'default';
+        var gameId = dpResolveGameId(data);
         var userId = ctx.userId;
 
-        // Get the player's current streak data from the daily_streaks collection
-        var streakData = null;
-        try {
-            var streakKey = gameId + '_user_daily_streak_' + userId;
-            var records = nk.storageRead([{
-                collection: 'daily_streaks',
-                key: streakKey,
-                userId: userId
-            }]);
-            if (records && records.length > 0) {
-                streakData = records[0].value;
-            }
-        } catch (e) {
-            logger.warn('[DailyRewardCalendar] Could not read streak data: ' + e.message);
-        }
+        var streakData = getStreakData(nk, logger, userId, gameId);
+        streakData = updateStreakStatus(nk, logger, userId, gameId, streakData);
 
-        // Also try the alternate key pattern
-        if (!streakData) {
-            try {
-                var altKey = 'user_daily_streak_' + userId + '_' + gameId;
-                var altRecords = nk.storageRead([{
-                    collection: 'daily_streaks',
-                    key: altKey,
-                    userId: userId
-                }]);
-                if (altRecords && altRecords.length > 0) {
-                    streakData = altRecords[0].value;
-                }
-            } catch (e) { /* no streak yet */ }
-        }
-
-        var currentStreak = streakData ? (streakData.currentStreak || 0) : 0;
-        var lastClaimTimestamp = streakData ? (streakData.lastClaimTimestamp || 0) : 0;
-        var totalClaims = streakData ? (streakData.totalClaims || 0) : 0;
-
-        // Check if they can claim today
-        var canClaimToday = true;
-        if (lastClaimTimestamp > 0) {
-            var lastClaimDate = new Date(lastClaimTimestamp * 1000);
-            var today = new Date();
-            lastClaimDate.setHours(0, 0, 0, 0);
-            today.setHours(0, 0, 0, 0);
-            if (lastClaimDate.getTime() === today.getTime()) {
-                canClaimToday = false;
-            }
-            // Check streak break (>48h)
-            var nowUnix = Math.floor(Date.now() / 1000);
-            if ((nowUnix - lastClaimTimestamp) > 48 * 3600) {
-                currentStreak = 0;
-            }
-        }
-
-        // Build 30-day calendar
-        var config = getCalendarConfig(gameId);
-        var calendar = [];
-        var totalTokens = 0;
-        var totalXp = 0;
-
-        for (var day = 1; day <= 30; day++) {
-            var dayConfig = null;
-            for (var c = 0; c < config.length; c++) {
-                if (config[c].day === day) {
-                    dayConfig = config[c];
-                    break;
-                }
-            }
-
-            if (!dayConfig) {
-                // Fallback: cycle week 1 rewards with scaling
-                var weekDay = ((day - 1) % 7);
-                dayConfig = config[weekDay] || config[0];
-                var weekNum = Math.floor((day - 1) / 7) + 1;
-                dayConfig = {
-                    day: day,
-                    xp: Math.round(dayConfig.xp * (1 + (weekNum - 1) * 0.15)),
-                    tokens: Math.round(dayConfig.tokens * (1 + (weekNum - 1) * 0.15)),
-                    name: dayConfig.name,
-                    tier: dayConfig.tier,
-                    icon: dayConfig.icon
-                };
-            }
-
-            totalTokens += dayConfig.tokens || 0;
-            totalXp += dayConfig.xp || 0;
-
-            var status = 'locked';
-            if (day <= currentStreak) {
-                status = 'claimed';
-            } else if (day === currentStreak + 1 && canClaimToday) {
-                status = 'available';
-            } else if (day === currentStreak + 1 && !canClaimToday) {
-                status = 'claimed_today';
-            }
-
-            calendar.push({
-                day: day,
-                name: dayConfig.name,
-                tier: dayConfig.tier || 'common',
-                icon: dayConfig.icon || 'coin_stack',
-                rewards: {
-                    xp: dayConfig.xp || 0,
-                    tokens: dayConfig.tokens || 0,
-                    multiplier: dayConfig.multiplier || null,
-                    bonus: dayConfig.bonus || null
-                },
-                status: status
-            });
-        }
-
-        // Milestones summary
-        var milestones = [];
-        for (var m = 0; m < config.length; m++) {
-            if (config[m].tier === 'rare' || config[m].tier === 'epic' || config[m].tier === 'legendary') {
-                milestones.push({
-                    day: config[m].day,
-                    name: config[m].name,
-                    tier: config[m].tier,
-                    reached: config[m].day <= currentStreak
-                });
-            }
-        }
+        var claimCheck = canClaimToday(streakData);
+        var currentStreak = streakData.currentStreak || 0;
+        var view = buildDailyRewardCalendarView(gameId, currentStreak, claimCheck.canClaim);
 
         return JSON.stringify({
             success: true,
             user_id: userId,
             game_id: gameId,
             current_streak: currentStreak,
-            total_claims: totalClaims,
-            can_claim_today: canClaimToday,
-            calendar: calendar,
-            milestones: milestones,
+            total_claims: streakData.totalClaims || 0,
+            can_claim_today: claimCheck.canClaim,
+            calendar: view.calendar,
+            milestones: view.milestones,
             totals: {
-                total_tokens_30_days: totalTokens,
-                total_xp_30_days: totalXp,
+                total_tokens_30_days: view.totalTokens30,
+                total_xp_30_days: view.totalXp30,
                 claimed_tokens: 0,
                 claimed_xp: 0
             },
-            streak_status: currentStreak === 0 ? 'new' : (canClaimToday ? 'active' : 'claimed_today'),
+            streak_status: currentStreak === 0 ? 'new' : (claimCheck.canClaim ? 'active' : 'claimed_today'),
             next_milestone: null
         });
 

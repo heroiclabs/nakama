@@ -12904,78 +12904,47 @@ function lasttoliveJoinOrCreateMatch(context, logger, nk, payload) {
 // ============================================================================
 
 /**
- * RPC: quizverse_claim_daily_reward
- * Claim daily reward
+ * RPC: quizverse_claim_daily_reward (LEGACY-COMPATIBLE WRAPPER)
+ *
+ * DAILY PROGRESSION PLATFORM consolidation: this handler used to be a fully
+ * PARALLEL daily-reward system — its own storage ({gameID}_daily_rewards /
+ * daily_{userId}), its own streak formula (exact-yesterday string compare, no
+ * 48h grace), its own reward math (100 + 10·streak), and NO wallet grant. The
+ * same user therefore had two different "daily streaks" depending on which
+ * screen claimed (Arcade vs main Daily Rewards), and both could be claimed on
+ * the same day.
+ *
+ * It now delegates to performDailyClaim (daily_rewards.js) — the single OCC/
+ * idempotent claim core over the canonical daily_streaks record — and maps the
+ * result back to the legacy {success, data:{rewardAmount, streak, nextReward}}
+ * envelope the shipped Arcade client expects. New clients should call
+ * daily_progress_claim instead.
  */
 function quizverseClaimDailyReward(context, logger, nk, payload) {
     try {
-        var data = parseAndValidateGamePayload(payload, ["gameID"]);
-        var userId = getUserId(data, context);
-
-        var collection = getCollection(data.gameID, "daily_rewards");
-        var key = "daily_" + userId;
-
-        var now = new Date();
-        var today = now.toISOString().split('T')[0];
-
-        // Read reward state
-        var rewardState = { lastClaim: null, streak: 0 };
-        try {
-            var records = nk.storageRead([{
-                collection: collection,
-                key: key,
-                userId: userId
-            }]);
-            if (records && records.length > 0 && records[0].value) {
-                rewardState = records[0].value;
-            }
-        } catch (err) {
-            logger.debug("No existing reward state found");
+        var data = {};
+        try { data = JSON.parse(payload || "{}") || {}; } catch (e) { data = {}; }
+        var userId = context.userId;
+        if (!userId) {
+            return JSON.stringify({ success: false, error: "User not authenticated" });
         }
 
-        // Check if already claimed today
-        if (rewardState.lastClaim === today) {
-            return JSON.stringify({
-                success: false,
-                error: "Daily reward already claimed today"
-            });
+        var gameId = dpResolveGameId(data);
+        var result = performDailyClaim(nk, logger, userId, gameId);
+
+        if (!result.ok) {
+            return JSON.stringify({ success: false, error: result.error });
         }
 
-        // Calculate streak
-        var yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        var yesterdayStr = yesterday.toISOString().split('T')[0];
-
-        if (rewardState.lastClaim === yesterdayStr) {
-            rewardState.streak += 1;
-        } else {
-            rewardState.streak = 1;
-        }
-
-        rewardState.lastClaim = today;
-
-        // Calculate reward amount (increases with streak)
-        var baseReward = 100;
-        var rewardAmount = baseReward + (rewardState.streak - 1) * 10;
-
-        // Write reward state
-        nk.storageWrite([{
-            collection: collection,
-            key: key,
-            userId: userId,
-            value: rewardState,
-            permissionRead: 1,
-            permissionWrite: 0
-        }]);
-
-        logger.info("[" + data.gameID + "] User " + userId + " claimed daily reward. Streak: " + rewardState.streak);
+        var nextReward = getRewardForDay(gameId, result.streakData.currentStreak + 1);
+        logger.info("[" + gameId + "] User " + userId + " claimed daily reward via legacy arcade RPC. Streak: " + result.streakData.currentStreak);
 
         return JSON.stringify({
             success: true,
             data: {
-                rewardAmount: rewardAmount,
-                streak: rewardState.streak,
-                nextReward: baseReward + rewardState.streak * 10
+                rewardAmount: (result.reward && result.reward.game) || 0,
+                streak: result.streakData.currentStreak,
+                nextReward: (nextReward && nextReward.game) || 0
             }
         });
 
