@@ -493,10 +493,9 @@ function WalletsTab({
       currency: string;
       amount: number;
     }) => {
-      return hiro.hiroRpc(
-        "economy",
-        "grant",
-        { currencies: { [currency]: amount }, user_id: userId, gameId: rpcGameId(gameScope) },
+      return callRpc(
+        "admin_wallet_grant",
+        { userId, currencies: { [currency]: amount }, game_id: rpcGameId(gameScope) },
         serverKeyAuth(),
       );
     },
@@ -529,10 +528,9 @@ function WalletsTab({
       currency: string;
       amount: number;
     }) => {
-      return hiro.hiroRpc(
-        "economy",
-        "grant",
-        { currencies: { [currency]: -amount }, user_id: userId, gameId: rpcGameId(gameScope) },
+      return callRpc(
+        "admin_wallet_grant",
+        { userId, currencies: { [currency]: -amount }, game_id: rpcGameId(gameScope) },
         serverKeyAuth(),
       );
     },
