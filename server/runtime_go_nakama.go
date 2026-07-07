@@ -3383,10 +3383,6 @@ func (n *RuntimeGoNakamaModule) PurchaseValidateFacebookInstant(ctx context.Cont
 // @return validation(*api.ValidatePurchaseResponse) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeGoNakamaModule) PurchaseValidateSamsung(ctx context.Context, userID, purchaseId string, persist bool) (*api.ValidatePurchaseResponse, error) {
-	if n.config.GetIAP().Samsung.ServiceAccountID == "" || n.config.GetIAP().Samsung.PrivateKey == "" || n.config.GetIAP().Samsung.PackageName == "" {
-		return nil, errors.New("samsung IAP is not configured")
-	}
-
 	uid, err := uuid.FromString(userID)
 	if err != nil {
 		return nil, errors.New("user ID must be a valid id string")

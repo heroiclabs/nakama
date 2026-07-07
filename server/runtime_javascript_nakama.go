@@ -6538,10 +6538,6 @@ func (n *RuntimeJavascriptNakamaModule) purchaseValidateFacebookInstant(r *goja.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeJavascriptNakamaModule) purchaseValidateSamsung(r *goja.Runtime) func(goja.FunctionCall) goja.Value {
 	return func(f goja.FunctionCall) goja.Value {
-		if n.config.GetIAP().Samsung.ServiceAccountID == "" || n.config.GetIAP().Samsung.PrivateKey == "" || n.config.GetIAP().Samsung.PackageName == "" {
-			panic(r.NewGoError(errors.New("samsung IAP is not configured")))
-		}
-
 		userID := getJsString(r, f.Argument(0))
 		if userID == "" {
 			panic(r.NewTypeError("expects a user ID string"))

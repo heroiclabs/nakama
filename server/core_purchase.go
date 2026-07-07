@@ -496,11 +496,12 @@ func ValidatePurchaseFacebookInstant(ctx context.Context, logger *zap.Logger, db
 }
 
 func ValidatePurchaseSamsung(ctx context.Context, logger *zap.Logger, db *sql.DB, userID uuid.UUID, config *IAPSamsungConfig, purchaseId string, persist bool) (*api.ValidatePurchaseResponse, error) {
-	if config.ServiceAccountID == "" || config.PrivateKey == "" || config.PackageName == "" {
-		return nil, status.Error(codes.FailedPrecondition, "Samsung IAP is not configured.")
+	packageName := ""
+	if config != nil {
+		packageName = config.GetPackageName()
 	}
 
-	orderResp, raw, err := iap.ValidateReceiptSamsung(ctx, httpc, config.ServiceAccountID, config.PrivateKey, config.PackageName, purchaseId)
+	orderResp, raw, err := iap.ValidateReceiptSamsung(ctx, httpc, packageName, purchaseId)
 	if err != nil {
 		if err != context.Canceled {
 			var vErr *iap.ValidationError

@@ -1376,7 +1376,10 @@ func (cfg *IAPConfig) GetFacebookInstant() runtime.IAPFacebookInstantConfig {
 	return cfg.FacebookInstant
 }
 
-func (cfg *IAPConfig) GetSamsung() *IAPSamsungConfig {
+func (cfg *IAPConfig) GetSamsung() runtime.IAPSamsungConfig {
+	if cfg.Samsung == nil {
+		return &IAPSamsungConfig{}
+	}
 	return cfg.Samsung
 }
 
@@ -1573,14 +1576,12 @@ func (i IAPFacebookInstantConfig) GetAppSecret() string {
 }
 
 type IAPSamsungConfig struct {
-	ServiceAccountID string `yaml:"service_account_id" json:"service_account_id" usage:"Samsung IAP service account ID from Seller Portal > Assistance > API Service."`
-	PrivateKey       string `yaml:"private_key" json:"private_key" usage:"Samsung IAP service account private key PEM downloaded when the service account was created."`
-	PackageName      string `yaml:"package_name" json:"package_name" usage:"The application package name registered in Galaxy Store."`
+	PackageName string `yaml:"package_name" json:"package_name" usage:"Optional. When set, receipt packageName must match."`
 }
 
-func (i IAPSamsungConfig) GetServiceAccountID() string { return i.ServiceAccountID }
-func (i IAPSamsungConfig) GetPrivateKey() string         { return i.PrivateKey }
-func (i IAPSamsungConfig) GetPackageName() string      { return i.PackageName }
+func (i *IAPSamsungConfig) GetPackageName() string { return i.PackageName }
+
+var _ runtime.IAPSamsungConfig = (*IAPSamsungConfig)(nil)
 
 var _ runtime.GoogleAuthConfig = (*GoogleAuthConfig)(nil)
 

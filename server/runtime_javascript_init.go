@@ -371,11 +371,16 @@ func (im *RuntimeJavascriptInitModule) getConfig(r *goja.Runtime) func(goja.Func
 
 		iapFacebookInstantCfg := r.NewObject()
 		_ = iapFacebookInstantCfg.Set("app_secret", rnc.GetIAP().GetFacebookInstant().GetAppSecret())
+
+		iapSamsungCfg := r.NewObject()
+		_ = iapSamsungCfg.Set("package_name", rnc.GetIAP().GetSamsung().GetPackageName())
+
 		iapCfg := r.NewObject()
 		_ = iapCfg.Set("apple", iapAppleCfg)
 		_ = iapCfg.Set("google", iapGoogleCfg)
 		_ = iapCfg.Set("huawei", iapHuaweiCfg)
 		_ = iapCfg.Set("facebook_instant", iapFacebookInstantCfg)
+		_ = iapCfg.Set("samsung", iapSamsungCfg)
 		_ = cfgObj.Set("iap", iapCfg)
 
 		googleAuthCfg := r.NewObject()

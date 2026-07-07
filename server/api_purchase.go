@@ -282,10 +282,6 @@ func (s *ApiServer) ValidatePurchaseSamsung(ctx context.Context, in *api.Validat
 		}
 	}
 
-	if s.config.GetIAP().Samsung.ServiceAccountID == "" || s.config.GetIAP().Samsung.PrivateKey == "" || s.config.GetIAP().Samsung.PackageName == "" {
-		return nil, status.Error(codes.FailedPrecondition, "Samsung IAP is not configured.")
-	}
-
 	if len(in.PurchaseId) < 1 {
 		return nil, status.Error(codes.InvalidArgument, "Purchase ID cannot be empty.")
 	}

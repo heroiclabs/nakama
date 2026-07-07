@@ -8230,11 +8230,6 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFacebookInstant(l *lua.LState) 
 // @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
 // @return error(error) An optional error value if an error occurred.
 func (n *RuntimeLuaNakamaModule) purchaseValidateSamsung(l *lua.LState) int {
-	if n.config.GetIAP().Samsung.ServiceAccountID == "" || n.config.GetIAP().Samsung.PrivateKey == "" || n.config.GetIAP().Samsung.PackageName == "" {
-		l.RaiseError("Samsung IAP is not configured.")
-		return 0
-	}
-
 	userID := l.CheckString(1)
 	if userID == "" {
 		l.ArgError(1, "expects user id")
@@ -11503,11 +11498,16 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 
 	iapFacebookInstantCfg := l.CreateTable(0, 1)
 	iapFacebookInstantCfg.RawSetString("app_secret", lua.LString(rnc.GetIAP().GetFacebookInstant().GetAppSecret()))
-	iapCfg := l.CreateTable(0, 4)
+
+	iapSamsungCfg := l.CreateTable(0, 1)
+	iapSamsungCfg.RawSetString("package_name", lua.LString(rnc.GetIAP().GetSamsung().GetPackageName()))
+
+	iapCfg := l.CreateTable(0, 5)
 	iapCfg.RawSetString("apple", iapAppleCfg)
 	iapCfg.RawSetString("google", iapGoogleCfg)
 	iapCfg.RawSetString("huawei", iapHuaweiCfg)
 	iapCfg.RawSetString("facebook_instant", iapFacebookInstantCfg)
+	iapCfg.RawSetString("samsung", iapSamsungCfg)
 	cfgObj.RawSetString("iap", iapCfg)
 
 	googleAuthCfg := l.CreateTable(0, 1)
