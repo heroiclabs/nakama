@@ -59263,6 +59263,127 @@ var SatoriCreatorEvents;
                 "Earn more XUT or pick a different funding method.");
         }
     }
+    var SPA_PARTICIPANTS_COLLECTION = "event_participants";
+    var SPA_ANSWERS_COLLECTION = "event_answers";
+    var SPA_ANSWER_SCAN_MAX_PAGES = 10;
+    var SPA_PARTICIPANT_SCAN_MAX_PAGES = 50;
+    /** List joined players for one SPA event (key === eventId in event_participants). */
+    function listSpaEventParticipants(nk, logger, eventId, maxPages) {
+        var participants = [];
+        var seen = {};
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, SPA_PARTICIPANTS_COLLECTION, 100, cursor);
+            }
+            catch (err) {
+                logger.warn("[CreatorEvent SPA] participants storageList failed: %s", err.message || String(err));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                if (!o || o.key !== eventId)
+                    continue;
+                var uid = o.userId;
+                if (!uid || seen[uid])
+                    continue;
+                seen[uid] = true;
+                var joinedAtSec = 0;
+                var pv = o.value;
+                if (pv && typeof pv.joinedAt === "number")
+                    joinedAtSec = pv.joinedAt;
+                participants.push({ userId: uid, joinedAtSec: joinedAtSec });
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < maxPages);
+        return participants;
+    }
+    /**
+     * Canonical SPA ranking: event_answers for this event, plus event_participants
+     * who never submitted (score 0, tie-break by joinedAt). Shared by prize
+     * auto-queue and spa_claim so ranks stay consistent.
+     */
+    function collectSpaEventRankings(nk, logger, eventId, opts) {
+        var byUser = {};
+        var answerCount = 0;
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, SPA_ANSWERS_COLLECTION, 100, cursor);
+            }
+            catch (lerr) {
+                logger.warn("[collectSpaEventRankings] event_answers list failed: %s", lerr.message || String(lerr));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                var v = o.value;
+                if (!o || o.key !== eventId)
+                    continue;
+                if (!v || v.eventId !== eventId)
+                    continue;
+                answerCount++;
+                var uid = o.userId;
+                if (!uid)
+                    continue;
+                var score = typeof v.score === "number" ? v.score : 0;
+                var submitMs = typeof v.submitMs === "number" ? v.submitMs : 0;
+                var existing = byUser[uid];
+                if (!existing || score > existing.score ||
+                    (score === existing.score && submitMs < (existing.submitMs || 0))) {
+                    byUser[uid] = { userId: uid, score: score, submitMs: submitMs };
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < SPA_ANSWER_SCAN_MAX_PAGES);
+        var ensureUid = opts && opts.ensureUserId;
+        var ensureAnswer = opts && opts.ensureAnswer;
+        if (ensureUid && ensureAnswer && !byUser[ensureUid]) {
+            answerCount++;
+            byUser[ensureUid] = {
+                userId: ensureUid,
+                score: typeof ensureAnswer.score === "number" ? ensureAnswer.score : 0,
+                submitMs: typeof ensureAnswer.submitMs === "number" ? ensureAnswer.submitMs : 0,
+            };
+        }
+        var participants = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+        var backfilledCount = 0;
+        for (var pi = 0; pi < participants.length; pi++) {
+            var p = participants[pi];
+            if (!p.userId || byUser[p.userId])
+                continue;
+            backfilledCount++;
+            var joinMs = p.joinedAtSec > 0 ? p.joinedAtSec * 1000 : 2147483647000;
+            byUser[p.userId] = { userId: p.userId, score: 0, submitMs: joinMs };
+        }
+        var rankings = [];
+        for (var uidKey in byUser) {
+            if (byUser.hasOwnProperty(uidKey))
+                rankings.push(byUser[uidKey]);
+        }
+        rankings.sort(function (a, b) {
+            if (a.score !== b.score)
+                return b.score - a.score;
+            return (a.submitMs || 0) - (b.submitMs || 0);
+        });
+        if (backfilledCount > 0) {
+            logger.info("[collectSpaEventRankings] event=%s answers=%d participants=%d backfilled=%d ranked=%d", eventId, answerCount, participants.length, backfilledCount, rankings.length);
+        }
+        return {
+            rankings: rankings,
+            answerCount: answerCount,
+            participantCount: participants.length,
+            backfilledCount: backfilledCount,
+        };
+    }
     function findTierForRank(tiers, rank) {
         if (!tiers || tiers.length === 0)
             return null;
@@ -59338,41 +59459,8 @@ var SatoriCreatorEvents;
      */
     function computeAndQueueWinners(nk, logger, def, eventId) {
         var tiers = def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
-        // Rank all players (score desc, submit-time asc) — mirrors the self-claim flow.
-        var allAnswers = [];
-        var cursor = "";
-        var pages = 0;
-        do {
-            var page;
-            try {
-                page = nk.storageList(null, "event_answers", 100, cursor);
-            }
-            catch (lerr) {
-                logger.warn("[computeAndQueueWinners] event_answers list failed: %s", lerr.message || String(lerr));
-                break;
-            }
-            var objs = (page && page.objects) || [];
-            for (var i = 0; i < objs.length; i++) {
-                var o = objs[i];
-                var v = o.value;
-                if (!o || o.key !== eventId)
-                    continue;
-                if (!v || v.eventId !== eventId)
-                    continue;
-                allAnswers.push({
-                    userId: o.userId,
-                    score: typeof v.score === "number" ? v.score : 0,
-                    submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
-                });
-            }
-            cursor = (page && page.cursor) || "";
-            pages++;
-        } while (cursor && pages < 10);
-        allAnswers.sort(function (a, b) {
-            if (a.score !== b.score)
-                return b.score - a.score;
-            return (a.submitMs || 0) - (b.submitMs || 0);
-        });
+        var rankingResult = collectSpaEventRankings(nk, logger, eventId);
+        var allAnswers = rankingResult.rankings;
         var ranked = allAnswers.length;
         if (!tiers || tiers.length === 0) {
             return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, tiersConfigured: false };
@@ -59574,92 +59662,22 @@ var SatoriCreatorEvents;
             return RpcHelpers.errorResponse("You did not participate in this event");
         }
         var myAnswer = myRecords[0].value;
-        // 5. List all answers across players (paginated, capped at 5 pages × 100 = 500)
-        var allAnswers = [];
-        var cursor = "";
-        var pages = 0;
-        do {
-            var page;
-            try {
-                page = nk.storageList(null, "event_answers", 100, cursor);
-            }
-            catch (lerr) {
-                logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
-                break;
-            }
-            var objs = (page && page.objects) || [];
-            for (var i = 0; i < objs.length; i++) {
-                var o = objs[i];
-                var v = o.value;
-                if (!o || o.key !== eventId)
-                    continue;
-                if (!v || v.eventId !== eventId)
-                    continue;
-                allAnswers.push({
-                    userId: o.userId,
-                    score: typeof v.score === "number" ? v.score : 0,
-                    submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
-                });
-            }
-            cursor = (page && page.cursor) || "";
-            pages++;
-        } while (cursor && pages < 5);
-        // 5b. storageList can lag behind storageRead — always include caller's own answer
-        var selfInList = false;
-        for (var sj = 0; sj < allAnswers.length; sj++) {
-            if (allAnswers[sj].userId === userId) {
-                selfInList = true;
-                break;
-            }
-        }
-        if (!selfInList && myAnswer) {
-            allAnswers.push({
-                userId: userId,
-                score: typeof myAnswer.score === "number" ? myAnswer.score : 0,
-                submitMs: typeof myAnswer.submitMs === "number" ? myAnswer.submitMs : 0,
-            });
-        }
-        // 5c. Premature-claim guard — the same storageList lag that 5b works
-        // around for the caller ALSO hides other players' answers right after
-        // the event ends. Ranking against that incomplete list hands a rank-1
-        // prize to whoever claims first (real bug: player ranked #2 on the
-        // final leaderboard claimed a #1-tier prize). While inside a short
-        // grace window after the end, require the answer list to cover the
-        // joined participant count; otherwise return the rank-sync error so
-        // the client's pending-retry flow claims again once the list settles.
+        var rankingResult = collectSpaEventRankings(nk, logger, eventId, {
+            ensureUserId: userId,
+            ensureAnswer: myAnswer,
+        });
+        var allAnswers = rankingResult.rankings;
+        // Premature-claim guard — storageList can lag right after event end.
+        // After participant backfill, only hold when participant rows are still
+        // not fully visible (participantCount > ranked list length).
         var CLAIM_GRACE_SEC = 120;
         if (nowSec < endAt + CLAIM_GRACE_SEC) {
-            var participantCount = 0;
-            var pCursor = "";
-            var pPages = 0;
-            do {
-                var pPage;
-                try {
-                    pPage = nk.storageList(null, "event_participants", 100, pCursor);
-                }
-                catch (perr) {
-                    logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
-                    break;
-                }
-                var pObjs = (pPage && pPage.objects) || [];
-                for (var pi = 0; pi < pObjs.length; pi++) {
-                    if (pObjs[pi] && pObjs[pi].key === eventId)
-                        participantCount++;
-                }
-                pCursor = (pPage && pPage.cursor) || "";
-                pPages++;
-            } while (pCursor && pPages < 5);
-            if (participantCount > allAnswers.length) {
-                logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (grace window)", userId, eventId, participantCount, allAnswers.length);
+            if (rankingResult.participantCount > rankingResult.answerCount &&
+                rankingResult.participantCount > allAnswers.length) {
+                logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (%d ranked, grace window)", userId, eventId, rankingResult.participantCount, rankingResult.answerCount, allAnswers.length);
                 return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
             }
         }
-        // 6. Sort: score desc, submit-time asc (ties broken by speed)
-        allAnswers.sort(function (a, b) {
-            if (a.score !== b.score)
-                return b.score - a.score;
-            return (a.submitMs || 0) - (b.submitMs || 0);
-        });
         var myRank = 0;
         for (var ri = 0; ri < allAnswers.length; ri++) {
             if (allAnswers[ri].userId === userId) {
@@ -66640,7 +66658,15 @@ var SocialMaintenance;
         { collection: "ivx_game_player_stats", retentionHours: 2160, reason: "weekly activity stats; rows untouched 90 days = churned player (ML-002)" },
         { collection: "ivx_moderation_reports", retentionHours: 2160, reason: "report rows + dedup markers, 90-day forensic window (G-011)" },
         { collection: "ivx_moderation_counters", retentionHours: 720, reason: "rolling 7-day report counters + reporter daily caps (G-011)" },
-        { collection: "ivx_moderation_flags", retentionHours: 2160, reason: "auto-flag rows; 90 days for ops review before sweep (G-011)" }
+        { collection: "ivx_moderation_flags", retentionHours: 2160, reason: "auto-flag rows; 90 days for ops review before sweep (G-011)" },
+        // Phantom Arena async challenge collections (Gap 5 / 2026-07-07 hardening pass).
+        // Challenges expire in max 7 days (ASYNC_CHALLENGE_EXPIRY_HOURS=168). Any row
+        // untouched for 30 days (720h) is unambiguously in a terminal state — sweeping
+        // by update_time avoids JSON parsing entirely and handles corrupt blobs safely.
+        { collection: "async_challenges", retentionHours: 720, reason: "expired/terminal sessions; 7d window → safe to sweep after 30d by update_time" },
+        { collection: "async_challenge_index", retentionHours: 720, reason: "opponent lookup index rows; expire with parent challenge" },
+        { collection: "async_idempotency", retentionHours: 720, reason: "submit idempotency keys; challenge gone after 30d → dedup useless" },
+        { collection: "async_challenge_stats", retentionHours: 4320, reason: "player career stats, 180d — kept intentionally long for leaderboard history" }
     ];
     var DEFAULT_MAX_ROWS_PER_COLLECTION = 1000;
     var HARD_MAX_ROWS_PER_COLLECTION = 5000;
@@ -66706,6 +66732,20 @@ var SocialMaintenance;
                 logger.warn("[SocialMaintenance] expiry warnings failed: " + (ne && ne.message));
             }
         }
+        // ── Nudge: 48h inactivity re-engagement (Phantom guide Phase 4) ────────
+        // Nudges participants of open challenges (status 1/5) when neither side has
+        // updated the session for 48h — the "silent room" mid-session problem.
+        // Separate dedup key (inact48_*) so a session can receive both an inactivity
+        // nudge and a 24h expiry warning (different urgency levels, different timing).
+        var inactivity = { scanned: 0, nudged: 0 };
+        if (!dryRun) {
+            try {
+                inactivity = runInactivityNudges(ctx, logger, nk);
+            }
+            catch (ie) {
+                logger.warn("[SocialMaintenance] inactivity nudges failed: " + (ie && ie.message));
+            }
+        }
         // ── Duo Quests weekly pairing (idempotent per ISO week) ────────────────
         var pairing = { skipped: true };
         if (!dryRun) {
@@ -66749,6 +66789,7 @@ var SocialMaintenance;
             maxRowsPerCollection: maxRows,
             collections: results,
             expiryWarnings: nudge,
+            inactivityNudges: inactivity,
             duoPairing: pairing,
             leagueRollover: league,
             fanoutBackstop: fanout
@@ -66823,6 +66864,118 @@ var SocialMaintenance;
             }
         }
         return { scanned: scanned, warned: warned };
+    }
+    // ── 48h inactivity nudge (Phantom guide Phase 4 / 2026-07-07) ───────────
+    // Scan for still-open challenges where NEITHER party has touched the session
+    // for ≥48h. Uses `update_time` (the storage table's last-write timestamp)
+    // as the staleness signal — this is the same field the collection sweeps use,
+    // requires no JSONB parsing, and is honest because every state transition
+    // rewrites the row (join, submit, rematch all update the session value).
+    //
+    // Status legend (legacy_runtime.js ASYNC_STATUS_* constants):
+    //   1 = OPPONENT_JOINED — opponent joined, nobody has submitted scores yet
+    //   5 = CREATOR_PLAYED  — creator submitted before anyone joined; waiting for opponent
+    //
+    // Push routing:
+    //   status=5 → nudge opponentId (creator already played, opponent is inactive)
+    //   status=1 → nudge BOTH participants (join happened but no scores in 48h)
+    //
+    // The separate dedup key `inact48_{sessionId}` (distinct from `exp24_{sessionId}`)
+    // means a session can correctly receive both an inactivity nudge AND a 24h expiry
+    // warning — they represent different urgency levels at different points in time.
+    function runInactivityNudges(ctx, logger, nk) {
+        var scanned = 0, nudged = 0;
+        var rows = [];
+        try {
+            rows = nk.sqlQuery("SELECT key, value FROM storage " +
+                "WHERE collection = 'async_challenges' " +
+                "  AND (value->>'status') IN ('1','5') " +
+                "  AND update_time < now() - INTERVAL '48 hours' " +
+                "  AND (value->>'expiresAt') > $1 " +
+                "LIMIT 200", [new Date().toISOString()]);
+        }
+        catch (e) {
+            logger.warn("[SocialMaintenance] inactivity scan SQL failed: " + (e && e.message));
+            return { scanned: 0, nudged: 0 };
+        }
+        if (!rows)
+            rows = [];
+        for (var i = 0; i < rows.length; i++) {
+            var v = rows[i] && rows[i].value;
+            if (typeof v === "string") {
+                try {
+                    v = JSON.parse(v);
+                }
+                catch (_) {
+                    v = null;
+                }
+            }
+            if (!v || !v.sessionId)
+                continue;
+            scanned++;
+            // Dedup — one nudge per session lifetime (conditional-create; write fails if key exists).
+            try {
+                nk.storageWrite([{
+                        collection: NUDGE_LOG_COLLECTION, key: "inact48_" + v.sessionId, userId: SYSTEM_USER_ID,
+                        value: { sessionId: v.sessionId, nudgedAt: new Date().toISOString() },
+                        permissionRead: 0, permissionWrite: 0, version: "*"
+                    }]);
+            }
+            catch (_) {
+                continue;
+            } // already nudged this session
+            var status = parseInt(String(v.status), 10);
+            var pushData = {
+                eventType: "async_challenge_inactivity",
+                screen: "phantom_arena",
+                type: "inactivity",
+                sessionId: String(v.sessionId),
+                shareCode: String(v.shareCode || ""),
+                deepLink: v.shareCode ? ("quizverse://challenge/join/" + v.shareCode) : "",
+                action_category: "async_challenge"
+            };
+            var items = [];
+            if (status === 5) {
+                // Creator played, opponent hasn't joined/played — nudge opponent.
+                if (v.opponentId) {
+                    items.push({
+                        targetUserId: v.opponentId,
+                        eventType: "async_challenge_inactivity",
+                        titleKey: "ac_inactivity_opp_title",
+                        bodyKey: "ac_inactivity_opp_body",
+                        vars: { name: String(v.creatorName || "Someone") },
+                        data: pushData
+                    });
+                }
+            }
+            else if (status === 1) {
+                // Opponent joined but no scores yet — nudge both sides.
+                if (v.creatorId) {
+                    items.push({
+                        targetUserId: v.creatorId,
+                        eventType: "async_challenge_inactivity",
+                        titleKey: "ac_inactivity_title",
+                        bodyKey: "ac_inactivity_body",
+                        vars: { name: String(v.opponentName || v.opponentId || "Your opponent") },
+                        data: pushData
+                    });
+                }
+                if (v.opponentId) {
+                    items.push({
+                        targetUserId: v.opponentId,
+                        eventType: "async_challenge_inactivity",
+                        titleKey: "ac_inactivity_title",
+                        bodyKey: "ac_inactivity_body",
+                        vars: { name: String(v.creatorName || "Your challenger") },
+                        data: pushData
+                    });
+                }
+            }
+            if (items.length > 0 && typeof FanoutQueue !== "undefined" && FanoutQueue.enqueue) {
+                nudged += FanoutQueue.enqueue(nk, logger, items);
+            }
+        }
+        return { scanned: scanned, nudged: nudged };
     }
     var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
     // ── G-012: GDPR cascade delete (doc §E.3) ──────────────────────────────

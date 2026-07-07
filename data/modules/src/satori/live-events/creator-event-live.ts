@@ -1787,6 +1787,151 @@
     elapsedSec?: number;
   }
 
+  interface SpaRankingRow {
+    userId: string;
+    score: number;
+    submitMs: number;
+  }
+
+  interface SpaEventRankingResult {
+    rankings: SpaRankingRow[];
+    answerCount: number;
+    participantCount: number;
+    backfilledCount: number;
+  }
+
+  var SPA_PARTICIPANTS_COLLECTION = "event_participants";
+  var SPA_ANSWERS_COLLECTION = "event_answers";
+  var SPA_ANSWER_SCAN_MAX_PAGES = 10;
+  var SPA_PARTICIPANT_SCAN_MAX_PAGES = 50;
+
+  /** List joined players for one SPA event (key === eventId in event_participants). */
+  function listSpaEventParticipants(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    maxPages: number
+  ): { userId: string; joinedAtSec: number }[] {
+    var participants: { userId: string; joinedAtSec: number }[] = [];
+    var seen: { [uid: string]: boolean } = {};
+    var cursor = "";
+    var pages = 0;
+
+    do {
+      var page: any;
+      try {
+        page = nk.storageList(null, SPA_PARTICIPANTS_COLLECTION, 100, cursor);
+      } catch (err: any) {
+        logger.warn("[CreatorEvent SPA] participants storageList failed: %s", err.message || String(err));
+        break;
+      }
+      var objs = (page && page.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        var o = objs[i];
+        if (!o || o.key !== eventId) continue;
+        var uid = o.userId;
+        if (!uid || seen[uid]) continue;
+        seen[uid] = true;
+        var joinedAtSec = 0;
+        var pv = o.value as any;
+        if (pv && typeof pv.joinedAt === "number") joinedAtSec = pv.joinedAt;
+        participants.push({ userId: uid, joinedAtSec: joinedAtSec });
+      }
+      cursor = (page && page.cursor) || "";
+      pages++;
+    } while (cursor && pages < maxPages);
+
+    return participants;
+  }
+
+  /**
+   * Canonical SPA ranking: event_answers for this event, plus event_participants
+   * who never submitted (score 0, tie-break by joinedAt). Shared by prize
+   * auto-queue and spa_claim so ranks stay consistent.
+   */
+  function collectSpaEventRankings(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    eventId: string,
+    opts?: { ensureUserId?: string; ensureAnswer?: SpaEventAnswer | null }
+  ): SpaEventRankingResult {
+    var byUser: { [uid: string]: SpaRankingRow } = {};
+    var answerCount = 0;
+    var cursor = "";
+    var pages = 0;
+
+    do {
+      var page: any;
+      try {
+        page = nk.storageList(null, SPA_ANSWERS_COLLECTION, 100, cursor);
+      } catch (lerr: any) {
+        logger.warn("[collectSpaEventRankings] event_answers list failed: %s", lerr.message || String(lerr));
+        break;
+      }
+      var objs = (page && page.objects) || [];
+      for (var i = 0; i < objs.length; i++) {
+        var o = objs[i];
+        var v = o.value as SpaEventAnswer;
+        if (!o || o.key !== eventId) continue;
+        if (!v || v.eventId !== eventId) continue;
+        answerCount++;
+        var uid = o.userId;
+        if (!uid) continue;
+        var score = typeof v.score === "number" ? v.score : 0;
+        var submitMs = typeof v.submitMs === "number" ? v.submitMs : 0;
+        var existing = byUser[uid];
+        if (!existing || score > existing.score ||
+            (score === existing.score && submitMs < (existing.submitMs || 0))) {
+          byUser[uid] = { userId: uid, score: score, submitMs: submitMs };
+        }
+      }
+      cursor = (page && page.cursor) || "";
+      pages++;
+    } while (cursor && pages < SPA_ANSWER_SCAN_MAX_PAGES);
+
+    var ensureUid = opts && opts.ensureUserId;
+    var ensureAnswer = opts && opts.ensureAnswer;
+    if (ensureUid && ensureAnswer && !byUser[ensureUid]) {
+      answerCount++;
+      byUser[ensureUid] = {
+        userId: ensureUid,
+        score: typeof ensureAnswer.score === "number" ? ensureAnswer.score : 0,
+        submitMs: typeof ensureAnswer.submitMs === "number" ? ensureAnswer.submitMs : 0,
+      };
+    }
+
+    var participants = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+    var backfilledCount = 0;
+    for (var pi = 0; pi < participants.length; pi++) {
+      var p = participants[pi];
+      if (!p.userId || byUser[p.userId]) continue;
+      backfilledCount++;
+      var joinMs = p.joinedAtSec > 0 ? p.joinedAtSec * 1000 : 2147483647000;
+      byUser[p.userId] = { userId: p.userId, score: 0, submitMs: joinMs };
+    }
+
+    var rankings: SpaRankingRow[] = [];
+    for (var uidKey in byUser) {
+      if (byUser.hasOwnProperty(uidKey)) rankings.push(byUser[uidKey]);
+    }
+    rankings.sort(function (a, b) {
+      if (a.score !== b.score) return b.score - a.score;
+      return (a.submitMs || 0) - (b.submitMs || 0);
+    });
+
+    if (backfilledCount > 0) {
+      logger.info("[collectSpaEventRankings] event=%s answers=%d participants=%d backfilled=%d ranked=%d",
+        eventId, answerCount, participants.length, backfilledCount, rankings.length);
+    }
+
+    return {
+      rankings: rankings,
+      answerCount: answerCount,
+      participantCount: participants.length,
+      backfilledCount: backfilledCount,
+    };
+  }
+
   function findTierForRank(tiers: SpaEventTier[] | undefined, rank: number): SpaEventTier | null {
     if (!tiers || tiers.length === 0) return null;
     var keys = tierLookupKeysForRank(rank);
@@ -1875,38 +2020,8 @@
     var tiers: SpaEventTier[] | undefined =
       def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
 
-    // Rank all players (score desc, submit-time asc) — mirrors the self-claim flow.
-    var allAnswers: { userId: string; score: number; submitMs: number }[] = [];
-    var cursor = "";
-    var pages = 0;
-    do {
-      var page: any;
-      try {
-        page = nk.storageList(null, "event_answers", 100, cursor);
-      } catch (lerr: any) {
-        logger.warn("[computeAndQueueWinners] event_answers list failed: %s", lerr.message || String(lerr));
-        break;
-      }
-      var objs = (page && page.objects) || [];
-      for (var i = 0; i < objs.length; i++) {
-        var o = objs[i];
-        var v = o.value as SpaEventAnswer;
-        if (!o || o.key !== eventId) continue;
-        if (!v || v.eventId !== eventId) continue;
-        allAnswers.push({
-          userId: o.userId,
-          score: typeof v.score === "number" ? v.score : 0,
-          submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
-        });
-      }
-      cursor = (page && page.cursor) || "";
-      pages++;
-    } while (cursor && pages < 10);
-
-    allAnswers.sort(function (a, b) {
-      if (a.score !== b.score) return b.score - a.score;
-      return (a.submitMs || 0) - (b.submitMs || 0);
-    });
+    var rankingResult = collectSpaEventRankings(nk, logger, eventId);
+    var allAnswers = rankingResult.rankings;
 
     var ranked = allAnswers.length;
     if (!tiers || tiers.length === 0) {
@@ -2126,88 +2241,24 @@
     }
     var myAnswer = myRecords[0].value as SpaEventAnswer;
 
-    // 5. List all answers across players (paginated, capped at 5 pages × 100 = 500)
-    var allAnswers: { userId: string; score: number; submitMs: number }[] = [];
-    var cursor = "";
-    var pages = 0;
-    do {
-      var page: any;
-      try {
-        page = nk.storageList(null, "event_answers", 100, cursor);
-      } catch (lerr: any) {
-        logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
-        break;
-      }
-      var objs = (page && page.objects) || [];
-      for (var i = 0; i < objs.length; i++) {
-        var o = objs[i];
-        var v = o.value as SpaEventAnswer;
-        if (!o || o.key !== eventId) continue;
-        if (!v || v.eventId !== eventId) continue;
-        allAnswers.push({
-          userId: o.userId,
-          score: typeof v.score === "number" ? v.score : 0,
-          submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
-        });
-      }
-      cursor = (page && page.cursor) || "";
-      pages++;
-    } while (cursor && pages < 5);
+    var rankingResult = collectSpaEventRankings(nk, logger, eventId, {
+      ensureUserId: userId,
+      ensureAnswer: myAnswer,
+    });
+    var allAnswers = rankingResult.rankings;
 
-    // 5b. storageList can lag behind storageRead — always include caller's own answer
-    var selfInList = false;
-    for (var sj = 0; sj < allAnswers.length; sj++) {
-      if (allAnswers[sj].userId === userId) { selfInList = true; break; }
-    }
-    if (!selfInList && myAnswer) {
-      allAnswers.push({
-        userId: userId,
-        score: typeof myAnswer.score === "number" ? myAnswer.score : 0,
-        submitMs: typeof myAnswer.submitMs === "number" ? myAnswer.submitMs : 0,
-      });
-    }
-
-    // 5c. Premature-claim guard — the same storageList lag that 5b works
-    // around for the caller ALSO hides other players' answers right after
-    // the event ends. Ranking against that incomplete list hands a rank-1
-    // prize to whoever claims first (real bug: player ranked #2 on the
-    // final leaderboard claimed a #1-tier prize). While inside a short
-    // grace window after the end, require the answer list to cover the
-    // joined participant count; otherwise return the rank-sync error so
-    // the client's pending-retry flow claims again once the list settles.
+    // Premature-claim guard — storageList can lag right after event end.
+    // After participant backfill, only hold when participant rows are still
+    // not fully visible (participantCount > ranked list length).
     var CLAIM_GRACE_SEC = 120;
     if (nowSec < endAt + CLAIM_GRACE_SEC) {
-      var participantCount = 0;
-      var pCursor = "";
-      var pPages = 0;
-      do {
-        var pPage: any;
-        try {
-          pPage = nk.storageList(null, "event_participants", 100, pCursor);
-        } catch (perr: any) {
-          logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
-          break;
-        }
-        var pObjs = (pPage && pPage.objects) || [];
-        for (var pi = 0; pi < pObjs.length; pi++) {
-          if (pObjs[pi] && pObjs[pi].key === eventId) participantCount++;
-        }
-        pCursor = (pPage && pPage.cursor) || "";
-        pPages++;
-      } while (pCursor && pPages < 5);
-
-      if (participantCount > allAnswers.length) {
-        logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (grace window)",
-          userId, eventId, participantCount, allAnswers.length);
+      if (rankingResult.participantCount > rankingResult.answerCount &&
+          rankingResult.participantCount > allAnswers.length) {
+        logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (%d ranked, grace window)",
+          userId, eventId, rankingResult.participantCount, rankingResult.answerCount, allAnswers.length);
         return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
       }
     }
-
-    // 6. Sort: score desc, submit-time asc (ties broken by speed)
-    allAnswers.sort(function (a, b) {
-      if (a.score !== b.score) return b.score - a.score;
-      return (a.submitMs || 0) - (b.submitMs || 0);
-    });
 
     var myRank = 0;
     for (var ri = 0; ri < allAnswers.length; ri++) {
