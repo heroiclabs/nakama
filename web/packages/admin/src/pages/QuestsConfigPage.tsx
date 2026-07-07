@@ -1202,6 +1202,7 @@ function EngineQuestForm({ initial, onSubmit, onCancel, isPending, existingIds, 
   const [description, setDescription] = useState(initial?.description ?? "");
   const [category, setCategory] = useState(initial?.category ?? "daily");
   const [repeatable, setRepeatable] = useState(initial?.repeatable ?? true);
+  const [hidden, setHidden] = useState(initial?.hidden ?? false);
   const [resetIntervalSec, setResetIntervalSec] = useState(
     initial?.resetIntervalSec != null ? String(initial.resetIntervalSec) : "",
   );
@@ -1270,11 +1271,12 @@ function EngineQuestForm({ initial, onSubmit, onCancel, isPending, existingIds, 
       steps: builtSteps,
       reward: { guaranteed: { currencies } },
       repeatable,
+      hidden: hidden || undefined,
       resetIntervalSec: resetIntervalSec ? parseInt(resetIntervalSec, 10) : undefined,
       expiresAt: fromDatetimeLocal(expiresAt),
       prerequisiteIds: prereqList.length > 0 ? prereqList : undefined,
     };
-  }, [initial, id, name, description, category, steps, currenciesJson, repeatable, resetIntervalSec, expiresAt, prereqs]);
+  }, [initial, id, name, description, category, steps, currenciesJson, repeatable, hidden, resetIntervalSec, expiresAt, prereqs]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1380,6 +1382,36 @@ function EngineQuestForm({ initial, onSubmit, onCancel, isPending, existingIds, 
             placeholder="604800 = weekly (optional)"
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
+        </div>
+      </div>
+
+      {/* Hidden (surprise reward) */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+          <Eye className="h-3 w-3" />
+          Hidden — surprise reward
+        </label>
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => setHidden(!hidden)}
+            className={cn(
+              "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
+              hidden ? "bg-violet-500" : "bg-zinc-600",
+            )}
+          >
+            <span
+              className={cn(
+                "pointer-events-none block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform",
+                hidden ? "translate-x-4" : "translate-x-0.5",
+              )}
+            />
+          </button>
+          <span className="text-sm text-muted-foreground">
+            {hidden
+              ? "Players never see this quest — it progresses silently and the reward auto-grants on completion."
+              : "Visible in the app's quest list."}
+          </span>
         </div>
       </div>
 
@@ -1547,6 +1579,12 @@ function EngineQuestRow({ quest, onEdit, onDuplicate, onDelete, isDeleting }: En
                 repeatable
               </span>
             )}
+            {quest.hidden && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-500/10 px-2 py-0.5 text-xs font-medium text-fuchsia-400">
+                <Eye className="h-3 w-3" />
+                hidden
+              </span>
+            )}
             <h4 className="text-sm font-semibold text-foreground truncate">{quest.name}</h4>
             <code className="text-xs text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">
               {quest.id}
@@ -1641,6 +1679,9 @@ function QuestEnginePanel() {
   const [editing, setEditing] = useState<QuestEngineQuest | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<QuestEngineQuest | null>(null);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkJson, setBulkJson] = useState("");
+  const [bulkError, setBulkError] = useState("");
 
   const { data: config, isLoading, isError, error, refetch } = useQuestEngineConfig(engineGameId);
   const save = useSaveQuestEngineConfig(engineGameId);
@@ -1717,6 +1758,47 @@ function QuestEnginePanel() {
     setShowForm(false);
   }, []);
 
+  const openBulkEditor = useCallback(() => {
+    const map: Record<string, QuestEngineQuest> = {};
+    for (const q of quests) map[q.id] = q;
+    setBulkJson(JSON.stringify(map, null, 2));
+    setBulkError("");
+    setShowBulk(true);
+    setShowForm(false);
+    setEditing(null);
+  }, [quests]);
+
+  const handleBulkSave = useCallback(() => {
+    let parsed: Record<string, QuestEngineQuest>;
+    try {
+      parsed = JSON.parse(bulkJson) as Record<string, QuestEngineQuest>;
+    } catch (e) {
+      setBulkError(`Invalid JSON: ${(e as Error).message}`);
+      return;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setBulkError("Top level must be an object keyed by quest id: { \"quest_id\": { ... } }");
+      return;
+    }
+    for (const [key, q] of Object.entries(parsed)) {
+      if (!q || typeof q !== "object") { setBulkError(`"${key}" must be a quest object.`); return; }
+      q.id = q.id || key;
+      if (!q.name) { setBulkError(`"${key}" is missing a name.`); return; }
+      if (!Array.isArray(q.steps) || q.steps.length === 0) { setBulkError(`"${key}" needs at least one step.`); return; }
+      for (const s of q.steps) {
+        if (!s.eventType) { setBulkError(`"${key}" has a step without an eventType.`); return; }
+        if (!s.requiredCount || s.requiredCount < 1) { setBulkError(`"${key}" has a step without a valid requiredCount.`); return; }
+        s.id = s.id || "s1";
+        s.description = s.description || s.eventType;
+      }
+    }
+    setBulkError("");
+    save.mutate({ quests: parsed }, {
+      onSuccess: () => setShowBulk(false),
+      onError: (e) => setBulkError((e as Error).message),
+    });
+  }, [bulkJson, save]);
+
   return (
     <div className="space-y-6">
       {/* Panel header */}
@@ -1736,9 +1818,18 @@ function QuestEnginePanel() {
             Refresh
           </button>
           <button
+            onClick={openBulkEditor}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Bulk JSON
+          </button>
+          <button
             onClick={() => {
               setEditing(null);
               setShowForm(true);
+              setShowBulk(false);
             }}
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
@@ -1747,6 +1838,47 @@ function QuestEnginePanel() {
           </button>
         </div>
       </div>
+
+      {/* Bulk JSON editor */}
+      {showBulk && (
+        <div className="space-y-3 rounded-lg border border-border bg-card p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">Bulk Edit — Full Quest Config (JSON)</h3>
+            <p className="text-xs text-muted-foreground">
+              Saving replaces the <em>entire</em> config for scope{" "}
+              <code className="rounded bg-muted px-1 py-0.5">{engineGameId}</code>. Apps see changes on their next fetch.
+            </p>
+          </div>
+          <textarea
+            value={bulkJson}
+            onChange={(e) => setBulkJson(e.target.value)}
+            rows={22}
+            spellCheck={false}
+            className={cn(
+              "w-full rounded-md border bg-background px-3 py-2 font-mono text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-y",
+              bulkError ? "border-destructive" : "border-border",
+            )}
+          />
+          {bulkError && <p className="text-xs text-destructive">{bulkError}</p>}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleBulkSave}
+              disabled={save.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+              Save All Quests
+            </button>
+            <button
+              onClick={() => setShowBulk(false)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Form */}
       {(showForm || editing) && (

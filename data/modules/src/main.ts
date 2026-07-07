@@ -473,6 +473,12 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[PersonalizedQuests] Registering quizverse_get_personalized_quests...");
     PersonalizedQuests.register(initializer);
     logger.info("[PersonalizedQuests] DNA-personalized quest selection active");
+
+    // Register Battle Pass engine — consumes dashboard-configured seasons
+    // (incentives config) and accrues XP from the same quest event pipeline
+    logger.info("[BattlePassEngine] Registering battlepass_get / record_event / unlock_premium RPCs...");
+    BattlePassEngine.register(initializer);
+    logger.info("[BattlePassEngine] 3 RPCs registered successfully");
   } catch (err: any) {
     logger.error("[QuestEngine] Failed to register: " + (err && err.message ? err.message : String(err)));
   }

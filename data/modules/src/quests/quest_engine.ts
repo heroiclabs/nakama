@@ -23,6 +23,11 @@ namespace QuestEngine {
     prerequisiteIds?: string[];
     repeatable?: boolean;
     resetIntervalSec?: number;
+    // Surprise reward: quest is invisible to the player until completed.
+    // Events still progress it server-side and the reward auto-grants;
+    // once completed it is revealed in quest_engine_get (with hidden: true)
+    // so the client can explain where the reward came from.
+    hidden?: boolean;
     additionalProperties?: { [key: string]: string };
   }
 
@@ -286,6 +291,10 @@ namespace QuestEngine {
         stateModified = true;
       }
 
+      // Hidden (surprise) quests stay invisible until the player completes
+      // them organically — after that they're revealed as a completed entry.
+      if (qConfig.hidden && !progress.completedAt) continue;
+
       var unlocked = isQuestUnlocked(qConfig, state);
 
       var stepsOut: any[] = [];
@@ -306,6 +315,7 @@ namespace QuestEngine {
         description: qConfig.description || null,
         category: qConfig.category || null,
         unlocked: unlocked,
+        hidden: !!qConfig.hidden,
         steps: stepsOut,
         startedAt: progress.startedAt,
         completedAt: progress.completedAt,
@@ -473,6 +483,18 @@ namespace QuestEngine {
     // Only write again if at least one claimedAt was actually set in Phase 3
     if (anyClaimedAt) {
       saveUserState(nk, userId, gameId, state);
+    }
+
+    // ── Battle pass XP hook ──────────────────────────────────────────────────
+    // The same gameplay events that progress quests also accrue battle pass XP
+    // (both the record_event RPC and the EventBus bridge funnel through here).
+    // Isolated so a battle pass failure never breaks quest processing.
+    try {
+      if (typeof BattlePassEngine !== "undefined" && BattlePassEngine.processEvent) {
+        BattlePassEngine.processEvent(nk, logger, ctx, userId, gameId, eventType, value);
+      }
+    } catch (bpErr: any) {
+      logger.warn("[QuestEngine] BattlePass hook failed: " + (bpErr && bpErr.message ? bpErr.message : String(bpErr)));
     }
 
     return { updatedCount: updatedCount, updatedQuests: updatedQuests };

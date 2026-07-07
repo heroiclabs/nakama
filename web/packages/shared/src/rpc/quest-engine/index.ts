@@ -33,6 +33,8 @@ export interface QuestEngineQuest {
   prerequisiteIds?: string[];
   repeatable?: boolean;
   resetIntervalSec?: number;
+  /** Surprise reward: invisible to players until completed; reward auto-grants. */
+  hidden?: boolean;
   additionalProperties?: Record<string, string>;
   [key: string]: unknown;
 }
