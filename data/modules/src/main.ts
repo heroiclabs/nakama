@@ -364,6 +364,7 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     // so it gets latency/error instrumentation like every other RPC.
     logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
     SocialMaintenance.register(initializer);
+    SocialMaintenance.registerHooks(initializer); // GDPR after-delete-account cascade (needs real initializer)
 
     // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
     logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");
