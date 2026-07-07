@@ -278,6 +278,11 @@ function FulfillmentRow({
               <Clock className="h-3 w-3" />
               queued {formatTs(f.queuedAt)}
             </span>
+            {f.emailPatchedAt ? (
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                email saved {formatTs(f.emailPatchedAt)}
+              </span>
+            ) : null}
             {f.eventId && (
               <span className="inline-flex items-center gap-1">
                 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{f.eventId}</code>
@@ -361,7 +366,7 @@ export function PrizesPage() {
           f.email?.toLowerCase().includes(q),
       );
     }
-    return [...list].sort((a, b) => (b.queuedAt || 0) - (a.queuedAt || 0));
+    return [...list].sort((a, b) => (b.sortAt || b.queuedAt || 0) - (a.sortAt || a.queuedAt || 0));
   }, [fulfillments, search]);
 
   const counts = useMemo(() => {

@@ -2170,6 +2170,18 @@
     };
   }
 
+  function applyFulfillmentEmailPatch(existing: any, email: string): boolean {
+    if (!existing || !email) return false;
+    if (existing.email && String(existing.email).trim()) return false;
+    var originalQueuedAt = existing.queuedAt;
+    existing.email = email;
+    existing.emailPatchedAt = Math.floor(Date.now() / 1000);
+    if (originalQueuedAt !== undefined && originalQueuedAt !== null) {
+      existing.queuedAt = originalQueuedAt;
+    }
+    return true;
+  }
+
   function patchFulfillmentEmailIfEmpty(
     nk: nkruntime.Nakama,
     logger: nkruntime.Logger,
@@ -2181,10 +2193,15 @@
     var fKey = eventId + ":" + userId;
     var existing = Storage.readSystemJson<any>(nk, "prize_fulfillments", fKey);
     if (!existing) return;
-    if (existing.email && String(existing.email).trim()) return;
-    existing.email = email;
+    if (!applyFulfillmentEmailPatch(existing, email)) return;
     Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
     logger.info("[CreatorEvent SPA] Patched fulfillment email: event=%s user=%s", eventId, userId);
+  }
+
+  function fulfillmentStorageCreateTimeSec(storageObj: any): number {
+    if (!storageObj) return 0;
+    var ct = Number(storageObj.createTime || 0);
+    return ct > 0 ? ct : 0;
   }
 
   /**
@@ -2278,8 +2295,7 @@
 
       if (existing) {
         var patchEmail = emailByUserId[winnerId] || "";
-        if (patchEmail && !(existing.email && String(existing.email).trim())) {
-          existing.email = patchEmail;
+        if (applyFulfillmentEmailPatch(existing, patchEmail)) {
           Storage.writeSystemJson(nk, "prize_fulfillments", fKey, existing);
         }
         if (isXut) {
@@ -3010,7 +3026,7 @@
       var v: any = objs[i].value || {};
       if (statusFilter && v.status !== statusFilter) continue;
       if (eventIdFilter && String(v.eventId || "") !== eventIdFilter) continue;
-      rows.push(mapFulfillmentRow(objs[i].key, v));
+      rows.push(mapFulfillmentRow(objs[i].key, v, objs[i]));
     }
     return RpcHelpers.successResponse({
       fulfillments: rows,
@@ -3018,7 +3034,10 @@
     });
   }
 
-  function mapFulfillmentRow(key: string, v: any): any {
+  function mapFulfillmentRow(key: string, v: any, storageObj?: any): any {
+    var createTime = fulfillmentStorageCreateTimeSec(storageObj);
+    var queuedAt = v.queuedAt || v.claimedAt || 0;
+    var sortAt = createTime || queuedAt;
     return {
       key: key,
       userId: v.userId || "",
@@ -3030,7 +3049,10 @@
       region: v.region || "",
       email: v.email || "",
       source: v.source || "",
-      queuedAt: v.queuedAt || v.claimedAt || 0,
+      queuedAt: queuedAt,
+      createTime: createTime,
+      sortAt: sortAt,
+      emailPatchedAt: v.emailPatchedAt || 0,
       settledAt: v.settledAt || 0,
       voucher: v.voucher || null,
       error: v.error || "",
