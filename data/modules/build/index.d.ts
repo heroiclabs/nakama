@@ -4333,6 +4333,7 @@ declare namespace SocialLeagues {
 }
 declare namespace SocialMaintenance {
     function register(initializer: nkruntime.Initializer): void;
+    function registerHooks(initializer: nkruntime.Initializer): void;
 }
 declare namespace SocialOnboardingState {
     function register(initializer: nkruntime.Initializer): void;

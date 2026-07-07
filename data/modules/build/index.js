@@ -333,8 +333,21 @@ function InitModule(ctx, logger, nk, initializer) {
         // Sweeps expired challenges, stale rate-limit buckets (incl. the B-009
         // per-pair keys) and dead presence rows. Mounted after AnalyticsAlerts.init
         // so it gets latency/error instrumentation like every other RPC.
-        logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
-        SocialMaintenance.register(initializer);
+        // GUARD: If the module fails to compile (e.g., SYSTEM_USER_ID hoisting
+        // issue or tsconfig exclusion), fail FAST with a clear FATAL log
+        // instead of silently letting the legacy bridge register a broken stub
+        // that returns HTTP 500 "JavaScript runtime function invalid".
+        if (typeof SocialMaintenance === "undefined" || typeof SocialMaintenance.register !== "function") {
+            logger.error("[FATAL] SocialMaintenance module is undefined or missing register() — " +
+                "the TypeScript build did NOT include data/modules/src/social/maintenance.ts. " +
+                "The ivx_social_maintenance_tick RPC will fall through to the legacy bridge " +
+                "and produce HTTP 500. Rebuild the bundle and verify the file is in the tsconfig include list.");
+        }
+        else {
+            logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
+            SocialMaintenance.register(initializer);
+            SocialMaintenance.registerHooks(initializer); // GDPR after-delete-account cascade (needs real initializer)
+        }
         // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
         logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");
         SocialOnboardingState.register(initializer);
@@ -57988,7 +58001,7 @@ var SatoriCreatorEvents;
             return 12;
         return 18;
     }
-    function findLiveEventDefinition(nk, logger, eventId, creatorId) {
+    function findLiveEventStorageRecord(nk, logger, eventId, creatorId) {
         var seen = {};
         var owners = [];
         if (creatorId)
@@ -58002,7 +58015,11 @@ var SatoriCreatorEvents;
             try {
                 var records = nk.storageRead([{ collection: "live_events", key: eventId, userId: owner }]);
                 if (records && records.length > 0 && records[0].value) {
-                    return records[0].value;
+                    return {
+                        def: records[0].value,
+                        creatorId: owner,
+                        version: records[0].version || "",
+                    };
                 }
             }
             catch (readErr) {
@@ -58017,7 +58034,12 @@ var SatoriCreatorEvents;
                 for (var i = 0; i < objects.length; i++) {
                     var obj = objects[i];
                     if (obj && obj.key === eventId && obj.value) {
-                        return obj.value;
+                        var objOwner = (obj.userId || obj.user_id || "").toString();
+                        return {
+                            def: obj.value,
+                            creatorId: objOwner,
+                            version: obj.version || "",
+                        };
                     }
                 }
                 cursor = result.cursor || "";
@@ -58030,6 +58052,10 @@ var SatoriCreatorEvents;
             }
         }
         return null;
+    }
+    function findLiveEventDefinition(nk, logger, eventId, creatorId) {
+        var located = findLiveEventStorageRecord(nk, logger, eventId, creatorId);
+        return located ? located.def : null;
     }
     function loadSubmitEventDefinition(nk, logger, data, eventId) {
         var def = getEventDefinition(nk, eventId);
@@ -59209,6 +59235,7 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_update_promo", rpcUpdatePromo);
         initializer.registerRpc("creator_event_fund_pool", rpcFundPool);
         initializer.registerRpc("creator_event_spa_claim", rpcSpaClaim);
+        initializer.registerRpc("creator_event_spa_join", rpcSpaJoin);
         initializer.registerRpc("creator_event_spa_save_delivery", rpcSpaSaveDelivery);
         initializer.registerRpc("creator_event_spa_end_queue", rpcSpaEndQueue);
         initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
@@ -59262,6 +59289,127 @@ var SatoriCreatorEvents;
             return RpcHelpers.errorResponse("Insufficient XUT balance to fund prize pool (" + amount + " XUT needed). " +
                 "Earn more XUT or pick a different funding method.");
         }
+    }
+    var SPA_PARTICIPANTS_COLLECTION = "event_participants";
+    var SPA_ANSWERS_COLLECTION = "event_answers";
+    var SPA_ANSWER_SCAN_MAX_PAGES = 10;
+    var SPA_PARTICIPANT_SCAN_MAX_PAGES = 50;
+    /** List joined players for one SPA event (key === eventId in event_participants). */
+    function listSpaEventParticipants(nk, logger, eventId, maxPages) {
+        var participants = [];
+        var seen = {};
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, SPA_PARTICIPANTS_COLLECTION, 100, cursor);
+            }
+            catch (err) {
+                logger.warn("[CreatorEvent SPA] participants storageList failed: %s", err.message || String(err));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                if (!o || o.key !== eventId)
+                    continue;
+                var uid = o.userId;
+                if (!uid || seen[uid])
+                    continue;
+                seen[uid] = true;
+                var joinedAtSec = 0;
+                var pv = o.value;
+                if (pv && typeof pv.joinedAt === "number")
+                    joinedAtSec = pv.joinedAt;
+                participants.push({ userId: uid, joinedAtSec: joinedAtSec });
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < maxPages);
+        return participants;
+    }
+    /**
+     * Canonical SPA ranking: event_answers for this event, plus event_participants
+     * who never submitted (score 0, tie-break by joinedAt). Shared by prize
+     * auto-queue and spa_claim so ranks stay consistent.
+     */
+    function collectSpaEventRankings(nk, logger, eventId, opts) {
+        var byUser = {};
+        var answerCount = 0;
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, SPA_ANSWERS_COLLECTION, 100, cursor);
+            }
+            catch (lerr) {
+                logger.warn("[collectSpaEventRankings] event_answers list failed: %s", lerr.message || String(lerr));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                var v = o.value;
+                if (!o || o.key !== eventId)
+                    continue;
+                if (!v || v.eventId !== eventId)
+                    continue;
+                answerCount++;
+                var uid = o.userId;
+                if (!uid)
+                    continue;
+                var score = typeof v.score === "number" ? v.score : 0;
+                var submitMs = typeof v.submitMs === "number" ? v.submitMs : 0;
+                var existing = byUser[uid];
+                if (!existing || score > existing.score ||
+                    (score === existing.score && submitMs < (existing.submitMs || 0))) {
+                    byUser[uid] = { userId: uid, score: score, submitMs: submitMs };
+                }
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < SPA_ANSWER_SCAN_MAX_PAGES);
+        var ensureUid = opts && opts.ensureUserId;
+        var ensureAnswer = opts && opts.ensureAnswer;
+        if (ensureUid && ensureAnswer && !byUser[ensureUid]) {
+            answerCount++;
+            byUser[ensureUid] = {
+                userId: ensureUid,
+                score: typeof ensureAnswer.score === "number" ? ensureAnswer.score : 0,
+                submitMs: typeof ensureAnswer.submitMs === "number" ? ensureAnswer.submitMs : 0,
+            };
+        }
+        var participants = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+        var backfilledCount = 0;
+        for (var pi = 0; pi < participants.length; pi++) {
+            var p = participants[pi];
+            if (!p.userId || byUser[p.userId])
+                continue;
+            backfilledCount++;
+            var joinMs = p.joinedAtSec > 0 ? p.joinedAtSec * 1000 : 2147483647000;
+            byUser[p.userId] = { userId: p.userId, score: 0, submitMs: joinMs };
+        }
+        var rankings = [];
+        for (var uidKey in byUser) {
+            if (byUser.hasOwnProperty(uidKey))
+                rankings.push(byUser[uidKey]);
+        }
+        rankings.sort(function (a, b) {
+            if (a.score !== b.score)
+                return b.score - a.score;
+            return (a.submitMs || 0) - (b.submitMs || 0);
+        });
+        if (backfilledCount > 0) {
+            logger.info("[collectSpaEventRankings] event=%s answers=%d participants=%d backfilled=%d ranked=%d", eventId, answerCount, participants.length, backfilledCount, rankings.length);
+        }
+        return {
+            rankings: rankings,
+            answerCount: answerCount,
+            participantCount: participants.length,
+            backfilledCount: backfilledCount,
+        };
     }
     function findTierForRank(tiers, rank) {
         if (!tiers || tiers.length === 0)
@@ -59338,41 +59486,8 @@ var SatoriCreatorEvents;
      */
     function computeAndQueueWinners(nk, logger, def, eventId) {
         var tiers = def && def.giftCardPrizes && def.giftCardPrizes.tiers ? def.giftCardPrizes.tiers : undefined;
-        // Rank all players (score desc, submit-time asc) — mirrors the self-claim flow.
-        var allAnswers = [];
-        var cursor = "";
-        var pages = 0;
-        do {
-            var page;
-            try {
-                page = nk.storageList(null, "event_answers", 100, cursor);
-            }
-            catch (lerr) {
-                logger.warn("[computeAndQueueWinners] event_answers list failed: %s", lerr.message || String(lerr));
-                break;
-            }
-            var objs = (page && page.objects) || [];
-            for (var i = 0; i < objs.length; i++) {
-                var o = objs[i];
-                var v = o.value;
-                if (!o || o.key !== eventId)
-                    continue;
-                if (!v || v.eventId !== eventId)
-                    continue;
-                allAnswers.push({
-                    userId: o.userId,
-                    score: typeof v.score === "number" ? v.score : 0,
-                    submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
-                });
-            }
-            cursor = (page && page.cursor) || "";
-            pages++;
-        } while (cursor && pages < 10);
-        allAnswers.sort(function (a, b) {
-            if (a.score !== b.score)
-                return b.score - a.score;
-            return (a.submitMs || 0) - (b.submitMs || 0);
-        });
+        var rankingResult = collectSpaEventRankings(nk, logger, eventId);
+        var allAnswers = rankingResult.rankings;
         var ranked = allAnswers.length;
         if (!tiers || tiers.length === 0) {
             return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, tiersConfigured: false };
@@ -59453,6 +59568,135 @@ var SatoriCreatorEvents;
         return { ranked: ranked, queued: queued, skippedExisting: skipped, xutWinners: xutWinners, tiersConfigured: true };
     }
     SatoriCreatorEvents.computeAndQueueWinners = computeAndQueueWinners;
+    function validateSpaJoinWindow(def, nowSec) {
+        var status = (def.status || "published").toString().toLowerCase();
+        if (status === "cancelled" || status === "draft")
+            return "Event is not accepting participants";
+        if (status === "ended" || status === "distributed")
+            return "Event has ended";
+        var startAt = Math.floor(numericValue(def.scheduledAt, 0));
+        var durationMin = numericValue(def.duration, 30);
+        if (startAt > 0 && durationMin > 0) {
+            var endAt = startAt + Math.floor(durationMin * 60);
+            if (nowSec >= endAt)
+                return "Event has ended";
+        }
+        return "";
+    }
+    function parsePlayerEmailFromPayload(data) {
+        var candidates = [data.email, data.playerEmail, data.player_email];
+        for (var i = 0; i < candidates.length; i++) {
+            if (typeof candidates[i] === "string") {
+                var em = candidates[i].trim();
+                if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))
+                    return em;
+            }
+        }
+        return "";
+    }
+    function incrementSpaParticipantCount(nk, logger, creatorId, eventId, delta) {
+        var attempts = 0;
+        var maxAttempts = 3;
+        while (attempts < maxAttempts) {
+            attempts++;
+            try {
+                var recs = nk.storageRead([{ collection: "live_events", key: eventId, userId: creatorId }]);
+                if (!recs || recs.length === 0 || !recs[0].value)
+                    return -1;
+                var evDef = recs[0].value;
+                var current = Math.max(0, Math.floor(numericValue(evDef.participantCount, 0)));
+                evDef.participantCount = current + delta;
+                nk.storageWrite([{
+                        collection: "live_events",
+                        key: eventId,
+                        userId: creatorId,
+                        value: evDef,
+                        permissionRead: 2,
+                        permissionWrite: 1,
+                        version: recs[0].version,
+                    }]);
+                return evDef.participantCount;
+            }
+            catch (pcErr) {
+                if (attempts >= maxAttempts) {
+                    logger.warn("[CreatorEvent] participantCount increment failed for event %s: %s", eventId, pcErr.message || String(pcErr));
+                    return -1;
+                }
+            }
+        }
+        return -1;
+    }
+    /**
+     * Server-authoritative SPA join: writes event_participants and increments
+     * live_events.participantCount (Gap 2). The SPA hybrid router previously
+     * wrote participants via client storage only, leaving participantCount at 0.
+     */
+    function rpcSpaJoin(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.eventId)
+            return RpcHelpers.errorResponse("eventId required");
+        var eventId = String(data.eventId);
+        var located = findLiveEventStorageRecord(nk, logger, eventId, data.creatorId || data.creator_id);
+        if (!located || !located.creatorId)
+            return RpcHelpers.errorResponse("Event not found");
+        var def = located.def;
+        var creatorId = located.creatorId;
+        var nowSec = Math.floor(Date.now() / 1000);
+        var windowErr = validateSpaJoinWindow(def, nowSec);
+        if (windowErr)
+            return RpcHelpers.errorResponse(windowErr);
+        var existing = Storage.readJson(nk, "event_participants", eventId, userId);
+        if (existing && existing.joinedAt) {
+            var existingCount = Math.max(0, Math.floor(numericValue(def.participantCount, 0)));
+            return RpcHelpers.successResponse({
+                success: true,
+                eventId: eventId,
+                joinedAt: existing.joinedAt,
+                participantCount: existingCount,
+                alreadyJoined: true,
+            });
+        }
+        var playerName = "";
+        if (typeof data.playerName === "string") {
+            playerName = data.playerName.trim().slice(0, 120);
+        }
+        else if (typeof data.displayName === "string") {
+            playerName = data.displayName.trim().slice(0, 120);
+        }
+        var playerEmail = parsePlayerEmailFromPayload(data);
+        var deviceId = "";
+        if (typeof data.deviceId === "string")
+            deviceId = data.deviceId.trim().slice(0, 120);
+        else if (typeof data.device_id === "string")
+            deviceId = data.device_id.trim().slice(0, 120);
+        var participantRecord = {
+            eventId: eventId,
+            playerId: userId,
+            joinedAt: nowSec,
+            deviceId: deviceId,
+            playerName: playerName,
+            playerEmail: playerEmail,
+            email: playerEmail,
+        };
+        try {
+            Storage.writeJson(nk, "event_participants", eventId, userId, participantRecord, 2, 1);
+        }
+        catch (joinErr) {
+            return RpcHelpers.errorResponse("Failed to join event: " + (joinErr.message || String(joinErr)));
+        }
+        var newCount = incrementSpaParticipantCount(nk, logger, creatorId, eventId, 1);
+        if (newCount < 0) {
+            newCount = Math.max(0, Math.floor(numericValue(def.participantCount, 0))) + 1;
+        }
+        logger.info("[CreatorEvent SPA] Joined user=%s event=%s count=%d", userId, eventId, newCount);
+        return RpcHelpers.successResponse({
+            success: true,
+            eventId: eventId,
+            joinedAt: nowSec,
+            participantCount: newCount,
+        });
+    }
     /**
      * SPA event-end hook: rank all players and queue gift-card fulfillments
      * immediately when the creator ends an event.
@@ -59574,92 +59818,22 @@ var SatoriCreatorEvents;
             return RpcHelpers.errorResponse("You did not participate in this event");
         }
         var myAnswer = myRecords[0].value;
-        // 5. List all answers across players (paginated, capped at 5 pages × 100 = 500)
-        var allAnswers = [];
-        var cursor = "";
-        var pages = 0;
-        do {
-            var page;
-            try {
-                page = nk.storageList(null, "event_answers", 100, cursor);
-            }
-            catch (lerr) {
-                logger.warn("[CreatorEvent SPA] storageList failed: %s", lerr.message || String(lerr));
-                break;
-            }
-            var objs = (page && page.objects) || [];
-            for (var i = 0; i < objs.length; i++) {
-                var o = objs[i];
-                var v = o.value;
-                if (!o || o.key !== eventId)
-                    continue;
-                if (!v || v.eventId !== eventId)
-                    continue;
-                allAnswers.push({
-                    userId: o.userId,
-                    score: typeof v.score === "number" ? v.score : 0,
-                    submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
-                });
-            }
-            cursor = (page && page.cursor) || "";
-            pages++;
-        } while (cursor && pages < 5);
-        // 5b. storageList can lag behind storageRead — always include caller's own answer
-        var selfInList = false;
-        for (var sj = 0; sj < allAnswers.length; sj++) {
-            if (allAnswers[sj].userId === userId) {
-                selfInList = true;
-                break;
-            }
-        }
-        if (!selfInList && myAnswer) {
-            allAnswers.push({
-                userId: userId,
-                score: typeof myAnswer.score === "number" ? myAnswer.score : 0,
-                submitMs: typeof myAnswer.submitMs === "number" ? myAnswer.submitMs : 0,
-            });
-        }
-        // 5c. Premature-claim guard — the same storageList lag that 5b works
-        // around for the caller ALSO hides other players' answers right after
-        // the event ends. Ranking against that incomplete list hands a rank-1
-        // prize to whoever claims first (real bug: player ranked #2 on the
-        // final leaderboard claimed a #1-tier prize). While inside a short
-        // grace window after the end, require the answer list to cover the
-        // joined participant count; otherwise return the rank-sync error so
-        // the client's pending-retry flow claims again once the list settles.
+        var rankingResult = collectSpaEventRankings(nk, logger, eventId, {
+            ensureUserId: userId,
+            ensureAnswer: myAnswer,
+        });
+        var allAnswers = rankingResult.rankings;
+        // Premature-claim guard — storageList can lag right after event end.
+        // After participant backfill, only hold when participant rows are still
+        // not fully visible (participantCount > ranked list length).
         var CLAIM_GRACE_SEC = 120;
         if (nowSec < endAt + CLAIM_GRACE_SEC) {
-            var participantCount = 0;
-            var pCursor = "";
-            var pPages = 0;
-            do {
-                var pPage;
-                try {
-                    pPage = nk.storageList(null, "event_participants", 100, pCursor);
-                }
-                catch (perr) {
-                    logger.warn("[CreatorEvent SPA] participants storageList failed: %s", perr.message || String(perr));
-                    break;
-                }
-                var pObjs = (pPage && pPage.objects) || [];
-                for (var pi = 0; pi < pObjs.length; pi++) {
-                    if (pObjs[pi] && pObjs[pi].key === eventId)
-                        participantCount++;
-                }
-                pCursor = (pPage && pPage.cursor) || "";
-                pPages++;
-            } while (pCursor && pPages < 5);
-            if (participantCount > allAnswers.length) {
-                logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (grace window)", userId, eventId, participantCount, allAnswers.length);
+            if (rankingResult.participantCount > rankingResult.answerCount &&
+                rankingResult.participantCount > allAnswers.length) {
+                logger.info("[CreatorEvent SPA] Claim held for %s on %s: %d participants vs %d answers visible (%d ranked, grace window)", userId, eventId, rankingResult.participantCount, rankingResult.answerCount, allAnswers.length);
                 return RpcHelpers.errorResponse("Your score is still syncing to the final leaderboard. Your answers were received — please wait a moment and try again.");
             }
         }
-        // 6. Sort: score desc, submit-time asc (ties broken by speed)
-        allAnswers.sort(function (a, b) {
-            if (a.score !== b.score)
-                return b.score - a.score;
-            return (a.submitMs || 0) - (b.submitMs || 0);
-        });
         var myRank = 0;
         for (var ri = 0; ri < allAnswers.length; ri++) {
             if (allAnswers[ri].userId === userId) {
@@ -66624,6 +66798,11 @@ var SocialLeagues;
 //   env — zero new secrets needed.
 var SocialMaintenance;
 (function (SocialMaintenance) {
+    // ── Shared constants — defined FIRST so every function below can reference them
+    // safely regardless of hoisting rules.  (The original file had this at the
+    // bottom, which breaks some bundlers.)
+    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    var NUDGE_LOG_COLLECTION = "ivx_nudge_log";
     // Per-collection retention windows (hours) — deliberately conservative.
     // friend_challenges expire in ≤24h; 720h (30d) past last touch is
     // unambiguously dead data while preserving a generous forensic window.
@@ -66686,8 +66865,10 @@ var SocialMaintenance;
                     results[sweep.collection] = { wouldDelete: n, retentionHours: sweep.retentionHours };
                 }
                 else {
-                    // PostgreSQL (RDS) does not support DELETE...LIMIT. ctid subquery
-                    // caps the batch size per tick. The next tick picks up remaining rows.
+                    // PostgreSQL (RDS) does not support DELETE...LIMIT directly.
+                    // Use a ctid subquery to cap the batch size per tick. ctid is the
+                    // physical row pointer — stable within a single statement and safe
+                    // for this pattern. The next tick picks up any remaining rows.
                     var res = nk.sqlExec("DELETE FROM storage WHERE ctid IN (" +
                         "  SELECT ctid FROM storage" +
                         "  WHERE collection = $1 AND update_time < now() - ($2 * INTERVAL '1 hour')" +
@@ -66783,7 +66964,8 @@ var SocialMaintenance;
     // Warn creator (+opponent if joined) when a still-open challenge expires
     // within 24h. Statuses: 0 WAITING, 1 OPPONENT_JOINED, 5 CREATOR_PLAYED
     // (legacy_runtime.js ASYNC_STATUS_* constants).
-    var NUDGE_LOG_COLLECTION = "ivx_nudge_log";
+    // NUDGE_LOG_COLLECTION is declared with the shared constants at the top of
+    // the namespace.
     function runExpiryWarnings(ctx, logger, nk) {
         var scanned = 0, warned = 0;
         var rows = [];
@@ -66961,7 +67143,6 @@ var SocialMaintenance;
         }
         return { scanned: scanned, nudged: nudged };
     }
-    var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
     // ── G-012: GDPR cascade delete (doc §E.3) ──────────────────────────────
     //
     // Nakama's built-in account deletion wipes rows OWNED by the deleted user
@@ -67004,8 +67185,22 @@ var SocialMaintenance;
         }
         logger.info("[SocialMaintenance] GDPR cascade for " + deletedId + ": " + total + " referencing rows removed");
     }
+    // register() must contain ONLY registerRpc calls. postbuild.js rewrites
+    // them into __rpc_* stub assignments and auto-invokes register() at IIFE
+    // scope so the stub is populated in EVERY pooled Goja VM. Any other
+    // initializer.<x>() call in the body makes postbuild skip the auto-invoke
+    // (initializer is undefined at IIFE time), leaving the stub unpopulated in
+    // pooled VMs → "JavaScript runtime function invalid" / HTTP 500 on every
+    // invocation. That exact bug shipped 2026-07 when the GDPR hook lived here;
+    // the hook now registers via registerHooks() from main.ts InitModule.
     function register(initializer) {
         initializer.registerRpc("ivx_social_maintenance_tick", rpcMaintenanceTick);
+    }
+    SocialMaintenance.register = register;
+    // Hook registration needs a REAL initializer, so it can only run inside
+    // InitModule (main.ts calls this right after register()). Hooks don't have
+    // the VM-pool stub problem — Nakama resolves them differently from RPCs.
+    function registerHooks(initializer) {
         try {
             initializer.registerAfterDeleteAccount(afterDeleteAccountCascade);
         }
@@ -67016,7 +67211,7 @@ var SocialMaintenance;
             // pinned version; this guard is belt-and-braces for local dev images.)
         }
     }
-    SocialMaintenance.register = register;
+    SocialMaintenance.registerHooks = registerHooks;
 })(SocialMaintenance || (SocialMaintenance = {}));
 // onboarding_state.ts — ivx_social_onboarding_state (G-014, doc §E.4).
 //
