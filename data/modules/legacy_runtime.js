@@ -19080,10 +19080,14 @@ function asyncChallengeSendNotification(ctx, nk, userId, subject, content, data,
         if (!ctx || !data || typeof LegacyPush === 'undefined' || !LegacyPush.sendLocalizedPushToUser) return;
         var t = data.type;
         var pushData = {
-            eventType: 'async_challenge',
-            screen:    'phantom_arena',
-            type:      String(t || ''),
-            sessionId: String(data.sessionId || '')
+            eventType:       'async_challenge',
+            screen:          'phantom_arena',
+            type:            String(t || ''),
+            sessionId:       String(data.sessionId || ''),
+            // iOS UNNotificationCategory identifier (AsyncChallengePushCategoryRegistrar.CategoryId).
+            // Firebase's APNs bridge maps this to the aps.category field so iOS presents
+            // "Play Now" / "Remind Me Later" action buttons on the lock screen.
+            action_category: 'async_challenge'
         };
         if (data.shareCode) {
             pushData.shareCode = String(data.shareCode);
@@ -21640,11 +21644,23 @@ function rpcAsyncChallengeStoreQuestions(ctx, logger, nk, payload) {
         // Don't overwrite if already stored (idempotency guard)
         if (session.questions && session.questions.length > 0) {
             logger.debug('[AsyncChallenge] Questions already stored for session: ' + sessionId);
-            return JSON.stringify({ success: true, message: 'Questions already stored', data: { count: session.questions.length } });
+            return JSON.stringify({ success: true, message: 'Questions already stored', data: { count: session.questions.length, schemaVersion: (session.questionsSchema && session.questionsSchema.schemaVersion) || 1 } });
         }
 
-        // Store questions in session
+        // Store questions in session.
+        // questionsSchema is a parallel metadata blob (Gap 8 / cross-platform parity fix):
+        //   schemaVersion 1 = legacy plain array (no schema tag, Unity compact q/o/c/e)
+        //   schemaVersion 2 = tagged blob with explicit format field (2026-07-07+)
+        // Existing clients ignore questionsSchema; new clients use it to select a parser.
+        // The `format` field defaults to 'compact' (Unity shorthand); web sends 'verbose'
+        // when it submits questions in question/options/correctIndex/explanation form.
         session.questions = questions;
+        session.questionsSchema = {
+            schemaVersion: 2,
+            format:        request.format || request.Format || 'compact',
+            storedAt:      new Date().toISOString(),
+            count:         questions.length
+        };
 
         nk.storageWrite([{
             collection: COLLECTION_ASYNC_CHALLENGES,
