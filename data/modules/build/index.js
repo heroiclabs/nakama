@@ -58323,6 +58323,7 @@ var SatoriCreatorEvents;
             logger.warn("[CreatorEvent] Duplicate/failed answer write for user=%s event=%s: %s", userId, eventId, writeErr.message || String(writeErr));
             return RpcHelpers.errorResponse("You have already completed this event.");
         }
+        writeSpaAnswerIndexEntry(nk, logger, eventId, userId, scoreResult.score, nowMs);
         var leaderboardId = LEADERBOARD_PREFIX + eventId;
         try {
             var lbUsername = String(data.playerName || data.displayName || data.player_name || ctx.username || "").trim();
@@ -59292,8 +59293,113 @@ var SatoriCreatorEvents;
     }
     var SPA_PARTICIPANTS_COLLECTION = "event_participants";
     var SPA_ANSWERS_COLLECTION = "event_answers";
+    var SPA_ANSWER_INDEX_COLLECTION = "event_answer_index";
     var SPA_ANSWER_SCAN_MAX_PAGES = 10;
     var SPA_PARTICIPANT_SCAN_MAX_PAGES = 50;
+    function spaAnswerIndexKey(eventId, userId) {
+        return eventId + ":" + userId;
+    }
+    function writeSpaAnswerIndexEntry(nk, logger, eventId, userId, score, submitMs) {
+        try {
+            Storage.writeSystemJson(nk, SPA_ANSWER_INDEX_COLLECTION, spaAnswerIndexKey(eventId, userId), {
+                userId: userId,
+                eventId: eventId,
+                score: score,
+                submitMs: submitMs,
+            });
+        }
+        catch (idxErr) {
+            logger.warn("[CreatorEvent SPA] answer index write failed event=%s user=%s: %s", eventId, userId, idxErr.message || String(idxErr));
+        }
+    }
+    function readSpaAnswerIndexEntry(nk, eventId, userId) {
+        var iv = Storage.readSystemJson(nk, SPA_ANSWER_INDEX_COLLECTION, spaAnswerIndexKey(eventId, userId));
+        if (!iv || !iv.userId)
+            return null;
+        return {
+            userId: iv.userId,
+            score: typeof iv.score === "number" ? iv.score : 0,
+            submitMs: typeof iv.submitMs === "number" ? iv.submitMs : 0,
+        };
+    }
+    function answerRowFromStorageValue(uid, v) {
+        if (!v || !uid)
+            return null;
+        return {
+            userId: uid,
+            score: typeof v.score === "number" ? v.score : 0,
+            submitMs: typeof v.submitMs === "number" ? v.submitMs : 0,
+        };
+    }
+    function mergeRankingRow(byUser, row) {
+        if (!row || !row.userId)
+            return false;
+        var existing = byUser[row.userId];
+        if (!existing || row.score > existing.score ||
+            (row.score === existing.score && row.submitMs < (existing.submitMs || 0))) {
+            byUser[row.userId] = row;
+            return true;
+        }
+        return false;
+    }
+    /** Legacy global scan — fallback for events created before the answer index existed. */
+    function collectSpaAnswersLegacyScan(nk, logger, eventId, byUser) {
+        var answerCount = 0;
+        var cursor = "";
+        var pages = 0;
+        do {
+            var page;
+            try {
+                page = nk.storageList(null, SPA_ANSWERS_COLLECTION, 100, cursor);
+            }
+            catch (lerr) {
+                logger.warn("[collectSpaAnswersLegacyScan] event_answers list failed: %s", lerr.message || String(lerr));
+                break;
+            }
+            var objs = (page && page.objects) || [];
+            for (var i = 0; i < objs.length; i++) {
+                var o = objs[i];
+                var v = o.value;
+                if (!o || o.key !== eventId)
+                    continue;
+                if (!v || v.eventId !== eventId)
+                    continue;
+                answerCount++;
+                var uid = o.userId;
+                if (!uid)
+                    continue;
+                mergeRankingRow(byUser, answerRowFromStorageValue(uid, v));
+            }
+            cursor = (page && page.cursor) || "";
+            pages++;
+        } while (cursor && pages < SPA_ANSWER_SCAN_MAX_PAGES);
+        return answerCount;
+    }
+    /**
+     * O(participants) targeted reads: index entry per player, then direct
+     * event_answers read as fallback. Avoids scanning the global collection.
+     */
+    function collectSpaAnswersTargeted(nk, logger, eventId, participantUserIds, byUser) {
+        var answerCount = 0;
+        var seen = {};
+        for (var pi = 0; pi < participantUserIds.length; pi++) {
+            var uid = participantUserIds[pi];
+            if (!uid || seen[uid])
+                continue;
+            seen[uid] = true;
+            var indexed = readSpaAnswerIndexEntry(nk, eventId, uid);
+            if (indexed) {
+                if (mergeRankingRow(byUser, indexed))
+                    answerCount++;
+                continue;
+            }
+            var direct = readCompletedAnswer(nk, eventId, uid);
+            var row = answerRowFromStorageValue(uid, direct);
+            if (row && mergeRankingRow(byUser, row))
+                answerCount++;
+        }
+        return answerCount;
+    }
     /** List joined players for one SPA event (key === eventId in event_participants). */
     function listSpaEventParticipants(nk, logger, eventId, maxPages) {
         var participants = [];
@@ -59336,52 +59442,38 @@ var SatoriCreatorEvents;
      */
     function collectSpaEventRankings(nk, logger, eventId, opts) {
         var byUser = {};
-        var answerCount = 0;
-        var cursor = "";
-        var pages = 0;
-        do {
-            var page;
-            try {
-                page = nk.storageList(null, SPA_ANSWERS_COLLECTION, 100, cursor);
-            }
-            catch (lerr) {
-                logger.warn("[collectSpaEventRankings] event_answers list failed: %s", lerr.message || String(lerr));
-                break;
-            }
-            var objs = (page && page.objects) || [];
-            for (var i = 0; i < objs.length; i++) {
-                var o = objs[i];
-                var v = o.value;
-                if (!o || o.key !== eventId)
-                    continue;
-                if (!v || v.eventId !== eventId)
-                    continue;
-                answerCount++;
-                var uid = o.userId;
-                if (!uid)
-                    continue;
-                var score = typeof v.score === "number" ? v.score : 0;
-                var submitMs = typeof v.submitMs === "number" ? v.submitMs : 0;
-                var existing = byUser[uid];
-                if (!existing || score > existing.score ||
-                    (score === existing.score && submitMs < (existing.submitMs || 0))) {
-                    byUser[uid] = { userId: uid, score: score, submitMs: submitMs };
-                }
-            }
-            cursor = (page && page.cursor) || "";
-            pages++;
-        } while (cursor && pages < SPA_ANSWER_SCAN_MAX_PAGES);
+        var participants = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+        var participantUserIds = [];
+        for (var pIdx = 0; pIdx < participants.length; pIdx++) {
+            if (participants[pIdx].userId)
+                participantUserIds.push(participants[pIdx].userId);
+        }
+        var answerCount = collectSpaAnswersTargeted(nk, logger, eventId, participantUserIds, byUser);
         var ensureUid = opts && opts.ensureUserId;
         var ensureAnswer = opts && opts.ensureAnswer;
-        if (ensureUid && ensureAnswer && !byUser[ensureUid]) {
-            answerCount++;
-            byUser[ensureUid] = {
-                userId: ensureUid,
-                score: typeof ensureAnswer.score === "number" ? ensureAnswer.score : 0,
-                submitMs: typeof ensureAnswer.submitMs === "number" ? ensureAnswer.submitMs : 0,
-            };
+        if (ensureUid && ensureAnswer) {
+            if (mergeRankingRow(byUser, answerRowFromStorageValue(ensureUid, ensureAnswer))) {
+                answerCount++;
+            }
         }
-        var participants = listSpaEventParticipants(nk, logger, eventId, SPA_PARTICIPANT_SCAN_MAX_PAGES);
+        else if (ensureUid && !byUser[ensureUid]) {
+            var ensuredIndexed = readSpaAnswerIndexEntry(nk, eventId, ensureUid);
+            if (ensuredIndexed && mergeRankingRow(byUser, ensuredIndexed)) {
+                answerCount++;
+            }
+            else {
+                var ensuredDirect = readCompletedAnswer(nk, eventId, ensureUid);
+                if (mergeRankingRow(byUser, answerRowFromStorageValue(ensureUid, ensuredDirect))) {
+                    answerCount++;
+                }
+            }
+        }
+        if (answerCount === 0) {
+            answerCount = collectSpaAnswersLegacyScan(nk, logger, eventId, byUser);
+            if (answerCount > 0) {
+                logger.info("[collectSpaEventRankings] event=%s used legacy global answer scan (%d rows)", eventId, answerCount);
+            }
+        }
         var backfilledCount = 0;
         for (var pi = 0; pi < participants.length; pi++) {
             var p = participants[pi];
@@ -59401,7 +59493,7 @@ var SatoriCreatorEvents;
                 return b.score - a.score;
             return (a.submitMs || 0) - (b.submitMs || 0);
         });
-        if (backfilledCount > 0) {
+        if (backfilledCount > 0 || answerCount > 0) {
             logger.info("[collectSpaEventRankings] event=%s answers=%d participants=%d backfilled=%d ranked=%d", eventId, answerCount, participants.length, backfilledCount, rankings.length);
         }
         return {
