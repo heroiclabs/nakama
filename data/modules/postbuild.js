@@ -118,6 +118,15 @@ function discoverModuleFiles(dir, baseDir) {
 var moduleFiles = discoverModuleFiles(MODULES_DIR, MODULES_DIR);
 var modulesContent = '';
 var moduleCount = 0;
+// Modules whose own InitModule was renamed to __ModuleInit_<n>. Each of these
+// MUST be invoked from the generated InitModule wrapper (section 5c) — RPC
+// registration survives without them (stub scan handles that), but one-time
+// side effects (storage seeding, leaderboard creation, alias handler setup)
+// only exist inside these bodies. Root cause of the "badge system dead in
+// production" outage: seedBadgesOnStartup() lived in badges/badges.js's
+// InitModule, which was renamed but never called, so definitions_quizverse
+// was never written and every badge RPC silently no-opped.
+var moduleInits = [];
 
 for (var mi = 0; mi < moduleFiles.length; mi++) {
   var mf = moduleFiles[mi];
@@ -126,7 +135,11 @@ for (var mi = 0; mi < moduleFiles.length; mi++) {
   if (!isNakamaCompatible(mc, mf.rel)) continue;
 
   mc = mc.replace(/^"use strict";\r?\n?/, '');
+  var hadInitModule = /function\s+InitModule\s*\(/.test(mc);
   mc = mc.replace(/function\s+InitModule\s*\(/g, 'function __ModuleInit_' + moduleCount + '(');
+  if (hadInitModule) {
+    moduleInits.push({ fn: '__ModuleInit_' + moduleCount, rel: mf.rel.replace(/\\/g, '/') });
+  }
   mc = stripNodePatterns(mc);
 
   modulesContent += '\n// --- Module: ' + mf.rel + ' ---\n';
@@ -134,7 +147,7 @@ for (var mi = 0; mi < moduleFiles.length; mi++) {
   modulesContent += '\n';
   moduleCount++;
 }
-console.log('[postbuild] Loaded ' + moduleCount + ' separate module files (' + modulesContent.length + ' bytes)');
+console.log('[postbuild] Loaded ' + moduleCount + ' separate module files (' + modulesContent.length + ' bytes), ' + moduleInits.length + ' with their own InitModule');
 moduleFiles.forEach(function(mf) { console.log('[postbuild]   -> ' + mf.rel); });
 
 // ── 0.4. Resolve top-level function-name collisions ──────────────
@@ -367,9 +380,12 @@ var tsOwnedRpcIds = {};
 (function scanBuildForTsRpcs() {
   // Require a real RPC id: at least one [a-zA-Z0-9_], no whitespace, and
   // reject the literal "..." which appears in our own docstring comment.
+  // Scan a comment-stripped copy (offsets preserved) so registerRpc examples
+  // inside doc comments can never produce phantom TS-owned ids.
   var re = /initializer\.registerRpc\(\s*["']([a-zA-Z0-9_][a-zA-Z0-9_\-]*)["']/g;
   var m;
-  while ((m = re.exec(buildContent)) !== null) {
+  var scanSrc = stripCommentsPreserveOffsets(buildContent);
+  while ((m = re.exec(scanSrc)) !== null) {
     tsOwnedRpcIds[m[1]] = true;
   }
 })();
@@ -399,7 +415,13 @@ if (dynamicResult.rpcs.length > 0) {
 function scanForRpcs(content) {
   rpcPattern.lastIndex = 0;
   var m;
-  while ((m = rpcPattern.exec(content)) !== null) {
+  // Scan comment-stripped copies so registerRpc examples inside doc comments
+  // (e.g. `initializer.registerRpc("...", handler)` / `registerRpc("id", ...)`)
+  // can't produce bogus entries like __rpc____ / __rpc_id. The replacement
+  // step (section 3) still runs against the ORIGINAL content, so real code
+  // is transformed exactly as before — comments simply stay comments.
+  var scanSrc = stripCommentsPreserveOffsets(content);
+  while ((m = rpcPattern.exec(scanSrc)) !== null) {
     var id = m[1];
     if (!seenIds.has(id)) {
       seenIds.add(id);
@@ -763,6 +785,34 @@ var registrationLines = rpcEntries.map(function(e) {
   return '  try { initializer.registerRpc("' + e.id + '", ' + e.varName + '); } catch(e) {}';
 }).join('\n');
 
+// ─── 5a-bis. Module init invocations ──────────────────────────────
+//
+// Section 0.2 renames every discovered module's `InitModule` to
+// `__ModuleInit_<n>` so the concatenated bundle has no duplicate
+// declarations — but until 2026-07 NOTHING ever invoked them. RPC
+// registration happened to survive (the stub scan + global replay cover
+// it), which masked the breakage: any module whose InitModule performed
+// real one-time work (badge/collectable seeding, cricket leaderboard
+// creation, offer-engine seeding, deprecated-alias handler binding) was
+// silently inert in production. Badge symptom: seedBadgesOnStartup()
+// never ran → `definitions_quizverse` storage record never written →
+// badges_get_all / badges_check_event returned success with empty
+// results for every user, forever, with zero errors logged.
+//
+// Each invocation is isolated in its own try/catch so one module's
+// failure can neither abort the remaining inits nor the RPC/match
+// registration below. Handlers inside these bodies were already
+// rewritten to guarded `__rpc_X = __rpc_X || h` assignments, so
+// re-running them after the global-scope replay is a no-op — only the
+// genuine side effects execute.
+var moduleInitInvocationLines = moduleInits.map(function(mi2) {
+  return [
+    '  try { ' + mi2.fn + '(ctx, logger, nk, initializer); } catch(__miErr) {',
+    '    try { logger.error("[Postbuild] Module init failed (' + mi2.rel + '): " + (__miErr && __miErr.message ? __miErr.message : String(__miErr))); } catch(_) {}',
+    '  }'
+  ].join('\n');
+}).join('\n');
+
 // ─── 5b. Match handler registration ──────────────────────────────
 //
 // Nakama's Goja runtime walks InitModule's body AST for every
@@ -873,6 +923,12 @@ var newInitModule = [
   '  } catch(__origErr) {',
   '    try { logger.error("[Postbuild] __OriginalInitModule threw — RPC registration will proceed from cached __rpc_* stubs. Error: " + (__origErr && __origErr.message ? __origErr.message : String(__origErr))); } catch(_) {}',
   '  }',
+  '  // --- Module init invocations (see section 5a-bis in postbuild.js) ---',
+  '  // Runs the renamed per-module InitModule bodies (__ModuleInit_N) so their',
+  '  // one-time side effects (badge seeding etc.) actually execute. Guarded',
+  '  // stub assignments inside them are idempotent no-ops at this point.',
+  moduleInitInvocationLines,
+  '  logger.info("[Postbuild] Invoked ' + moduleInits.length + ' module init functions (__ModuleInit_N)");',
   '  // --- RPC alias overrides (post-Hiro, pre-registration) ---',
   aliasOverrideLines,
   registrationLines,
@@ -971,6 +1027,30 @@ if (allStubAssignments.length > 0) {
 sections.push(newInitModule);
 
 var output = sections.join('\n');
+
+// ── 6c. Self-check: every __ModuleInit_N defined must be invoked ──
+//
+// Guards against the exact regression fixed in 2026-07: module InitModule
+// bodies being renamed but never called, silently killing their one-time
+// side effects (badge seeding outage). Fails the build loudly on mismatch.
+(function verifyModuleInitInvocations() {
+  var defined = new Set();
+  var invoked = new Set();
+  var dm2;
+  var defRe2 = /^function __ModuleInit_(\d+)\(/gm;
+  while ((dm2 = defRe2.exec(output)) !== null) defined.add(dm2[1]);
+  var invRe2 = /__ModuleInit_(\d+)\(ctx, logger, nk, initializer\);/g;
+  while ((dm2 = invRe2.exec(output)) !== null) invoked.add(dm2[1]);
+  var missing = [];
+  defined.forEach(function(n) { if (!invoked.has(n)) missing.push('__ModuleInit_' + n); });
+  if (missing.length > 0) {
+    console.error('[postbuild] FATAL: ' + missing.length + ' module init function(s) defined but never invoked: ' + missing.join(', '));
+    console.error('[postbuild] Their one-time side effects (seeding etc.) would be silently dead in production. Aborting build.');
+    process.exit(1);
+  }
+  console.log('[postbuild] Self-check OK: all ' + defined.size + ' __ModuleInit_N functions are invoked from InitModule');
+})();
+
 fs.writeFileSync(OUTPUT_FILE, output, 'utf8');
 
 // ── 7. Summary ───────────────────────────────────────────────────

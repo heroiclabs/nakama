@@ -91,6 +91,9 @@ function _sdkDeprecatedAlias(aliasName, target) {
         try {
             logger.warn('[SdkAliases] DEPRECATED alias ' + aliasName + ' called (user=' + (ctx && ctx.userId) + ')');
         } catch (_) {}
+        if (typeof target !== 'function') {
+            return JSON.stringify({ success: false, error: 'alias_target_unavailable:' + aliasName });
+        }
         return target(ctx, logger, nk, payload);
     };
 }
@@ -108,7 +111,10 @@ function InitModule(ctx, logger, nk, initializer) {
     _dep_hiro_friends_remove           = _sdkDeprecatedAlias("hiro_friends_remove", __rpc_friends_remove);
     _dep_hiro_friends_block            = _sdkDeprecatedAlias("hiro_friends_block", __rpc_friends_block);
     _dep_hiro_friend_quests_get_active = _sdkDeprecatedAlias("hiro_friend_quests_get_active", __rpc_friend_quest_get_state);
-    _dep_hiro_friend_quests_contribute = _sdkDeprecatedAlias("hiro_friend_quests_contribute", __rpc_friend_quest_record_progress);
+    // Bound to the Hiro friend-quests bridge handler. The previous target,
+    // __rpc_friend_quest_record_progress, no longer exists as a declared stub —
+    // referencing it threw a ReferenceError that aborted the rest of this init.
+    _dep_hiro_friend_quests_contribute = _sdkDeprecatedAlias("hiro_friend_quests_contribute", __rpc_hiro_friend_quests_contribute);
     _dep_hiro_friend_battles_challenge = _sdkDeprecatedAlias("hiro_friend_battles_challenge", __rpc_friend_battle_create);
     _dep_hiro_friends_add              = _sdkDeprecatedAlias("hiro_friends_add", _aliasHiroFriendsAdd);
 

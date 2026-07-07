@@ -5,7 +5,11 @@
  * and maps LAP client event names to existing badge events.
  */
 
-var LAP_BADGE_COLLECTION = "badges";
+// Player badge progress lives in the "badge_progress" collection (written by
+// rpcBadgesCheckEvent in badges/badges.js — BADGE_PROGRESS_COLLECTION). The
+// "badges" collection only holds system-owned definitions. Reading progress
+// from "badges" always returned empty — sync must read "badge_progress".
+var LAP_BADGE_PROGRESS_COLLECTION = "badge_progress";
 var LAP_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
@@ -95,7 +99,7 @@ var rpcQuizverseLapBadgeSync = function(ctx, logger, nk, payload) {
         var progressData = {};
         try {
             var pRecords = nk.storageRead([{
-                collection: "badges",
+                collection: LAP_BADGE_PROGRESS_COLLECTION,
                 key: progressKey,
                 userId: userId,
             }]);
