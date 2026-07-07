@@ -66640,7 +66640,15 @@ var SocialMaintenance;
         { collection: "ivx_game_player_stats", retentionHours: 2160, reason: "weekly activity stats; rows untouched 90 days = churned player (ML-002)" },
         { collection: "ivx_moderation_reports", retentionHours: 2160, reason: "report rows + dedup markers, 90-day forensic window (G-011)" },
         { collection: "ivx_moderation_counters", retentionHours: 720, reason: "rolling 7-day report counters + reporter daily caps (G-011)" },
-        { collection: "ivx_moderation_flags", retentionHours: 2160, reason: "auto-flag rows; 90 days for ops review before sweep (G-011)" }
+        { collection: "ivx_moderation_flags", retentionHours: 2160, reason: "auto-flag rows; 90 days for ops review before sweep (G-011)" },
+        // Phantom Arena async challenge collections (Gap 5 / 2026-07-07 hardening pass).
+        // Challenges expire in max 7 days (ASYNC_CHALLENGE_EXPIRY_HOURS=168). Any row
+        // untouched for 30 days (720h) is unambiguously in a terminal state — sweeping
+        // by update_time avoids JSON parsing entirely and handles corrupt blobs safely.
+        { collection: "async_challenges", retentionHours: 720, reason: "expired/terminal sessions; 7d window → safe to sweep after 30d by update_time" },
+        { collection: "async_challenge_index", retentionHours: 720, reason: "opponent lookup index rows; expire with parent challenge" },
+        { collection: "async_idempotency", retentionHours: 720, reason: "submit idempotency keys; challenge gone after 30d → dedup useless" },
+        { collection: "async_challenge_stats", retentionHours: 4320, reason: "player career stats, 180d — kept intentionally long for leaderboard history" }
     ];
     var DEFAULT_MAX_ROWS_PER_COLLECTION = 1000;
     var HARD_MAX_ROWS_PER_COLLECTION = 5000;
@@ -66678,11 +66686,13 @@ var SocialMaintenance;
                     results[sweep.collection] = { wouldDelete: n, retentionHours: sweep.retentionHours };
                 }
                 else {
-                    // CockroachDB supports DELETE ... LIMIT; the cap bounds each tick's
-                    // transaction size. Remaining rows are picked up by the next tick.
-                    var res = nk.sqlExec("DELETE FROM storage " +
-                        "WHERE collection = $1 AND update_time < now() - ($2 * INTERVAL '1 hour') " +
-                        "LIMIT $3", [sweep.collection, sweep.retentionHours, maxRows]);
+                    // PostgreSQL (RDS) does not support DELETE...LIMIT. ctid subquery
+                    // caps the batch size per tick. The next tick picks up remaining rows.
+                    var res = nk.sqlExec("DELETE FROM storage WHERE ctid IN (" +
+                        "  SELECT ctid FROM storage" +
+                        "  WHERE collection = $1 AND update_time < now() - ($2 * INTERVAL '1 hour')" +
+                        "  LIMIT $3" +
+                        ")", [sweep.collection, sweep.retentionHours, maxRows]);
                     var deleted = (res && typeof res.rowsAffected === "number") ? res.rowsAffected : 0;
                     totalDeleted += deleted;
                     results[sweep.collection] = { deleted: deleted, retentionHours: sweep.retentionHours, capped: deleted >= maxRows };
@@ -66704,6 +66714,20 @@ var SocialMaintenance;
             }
             catch (ne) {
                 logger.warn("[SocialMaintenance] expiry warnings failed: " + (ne && ne.message));
+            }
+        }
+        // ── Nudge: 48h inactivity re-engagement (Phantom guide Phase 4) ────────
+        // Nudges participants of open challenges (status 1/5) when neither side has
+        // updated the session for 48h — the "silent room" mid-session problem.
+        // Separate dedup key (inact48_*) so a session can receive both an inactivity
+        // nudge and a 24h expiry warning (different urgency levels, different timing).
+        var inactivity = { scanned: 0, nudged: 0 };
+        if (!dryRun) {
+            try {
+                inactivity = runInactivityNudges(ctx, logger, nk);
+            }
+            catch (ie) {
+                logger.warn("[SocialMaintenance] inactivity nudges failed: " + (ie && ie.message));
             }
         }
         // ── Duo Quests weekly pairing (idempotent per ISO week) ────────────────
@@ -66749,6 +66773,7 @@ var SocialMaintenance;
             maxRowsPerCollection: maxRows,
             collections: results,
             expiryWarnings: nudge,
+            inactivityNudges: inactivity,
             duoPairing: pairing,
             leagueRollover: league,
             fanoutBackstop: fanout
@@ -66824,6 +66849,118 @@ var SocialMaintenance;
         }
         return { scanned: scanned, warned: warned };
     }
+    // ── 48h inactivity nudge (Phantom guide Phase 4 / 2026-07-07) ───────────
+    // Scan for still-open challenges where NEITHER party has touched the session
+    // for ≥48h. Uses `update_time` (the storage table's last-write timestamp)
+    // as the staleness signal — this is the same field the collection sweeps use,
+    // requires no JSONB parsing, and is honest because every state transition
+    // rewrites the row (join, submit, rematch all update the session value).
+    //
+    // Status legend (legacy_runtime.js ASYNC_STATUS_* constants):
+    //   1 = OPPONENT_JOINED — opponent joined, nobody has submitted scores yet
+    //   5 = CREATOR_PLAYED  — creator submitted before anyone joined; waiting for opponent
+    //
+    // Push routing:
+    //   status=5 → nudge opponentId (creator already played, opponent is inactive)
+    //   status=1 → nudge BOTH participants (join happened but no scores in 48h)
+    //
+    // The separate dedup key `inact48_{sessionId}` (distinct from `exp24_{sessionId}`)
+    // means a session can correctly receive both an inactivity nudge AND a 24h expiry
+    // warning — they represent different urgency levels at different points in time.
+    function runInactivityNudges(ctx, logger, nk) {
+        var scanned = 0, nudged = 0;
+        var rows = [];
+        try {
+            rows = nk.sqlQuery("SELECT key, value FROM storage " +
+                "WHERE collection = 'async_challenges' " +
+                "  AND (value->>'status') IN ('1','5') " +
+                "  AND update_time < now() - INTERVAL '48 hours' " +
+                "  AND (value->>'expiresAt') > $1 " +
+                "LIMIT 200", [new Date().toISOString()]);
+        }
+        catch (e) {
+            logger.warn("[SocialMaintenance] inactivity scan SQL failed: " + (e && e.message));
+            return { scanned: 0, nudged: 0 };
+        }
+        if (!rows)
+            rows = [];
+        for (var i = 0; i < rows.length; i++) {
+            var v = rows[i] && rows[i].value;
+            if (typeof v === "string") {
+                try {
+                    v = JSON.parse(v);
+                }
+                catch (_) {
+                    v = null;
+                }
+            }
+            if (!v || !v.sessionId)
+                continue;
+            scanned++;
+            // Dedup — one nudge per session lifetime (conditional-create; write fails if key exists).
+            try {
+                nk.storageWrite([{
+                        collection: NUDGE_LOG_COLLECTION, key: "inact48_" + v.sessionId, userId: SYSTEM_USER_ID,
+                        value: { sessionId: v.sessionId, nudgedAt: new Date().toISOString() },
+                        permissionRead: 0, permissionWrite: 0, version: "*"
+                    }]);
+            }
+            catch (_) {
+                continue;
+            } // already nudged this session
+            var status = parseInt(String(v.status), 10);
+            var pushData = {
+                eventType: "async_challenge_inactivity",
+                screen: "phantom_arena",
+                type: "inactivity",
+                sessionId: String(v.sessionId),
+                shareCode: String(v.shareCode || ""),
+                deepLink: v.shareCode ? ("quizverse://challenge/join/" + v.shareCode) : "",
+                action_category: "async_challenge"
+            };
+            var items = [];
+            if (status === 5) {
+                // Creator played, opponent hasn't joined/played — nudge opponent.
+                if (v.opponentId) {
+                    items.push({
+                        targetUserId: v.opponentId,
+                        eventType: "async_challenge_inactivity",
+                        titleKey: "ac_inactivity_opp_title",
+                        bodyKey: "ac_inactivity_opp_body",
+                        vars: { name: String(v.creatorName || "Someone") },
+                        data: pushData
+                    });
+                }
+            }
+            else if (status === 1) {
+                // Opponent joined but no scores yet — nudge both sides.
+                if (v.creatorId) {
+                    items.push({
+                        targetUserId: v.creatorId,
+                        eventType: "async_challenge_inactivity",
+                        titleKey: "ac_inactivity_title",
+                        bodyKey: "ac_inactivity_body",
+                        vars: { name: String(v.opponentName || v.opponentId || "Your opponent") },
+                        data: pushData
+                    });
+                }
+                if (v.opponentId) {
+                    items.push({
+                        targetUserId: v.opponentId,
+                        eventType: "async_challenge_inactivity",
+                        titleKey: "ac_inactivity_title",
+                        bodyKey: "ac_inactivity_body",
+                        vars: { name: String(v.creatorName || "Your challenger") },
+                        data: pushData
+                    });
+                }
+            }
+            if (items.length > 0 && typeof FanoutQueue !== "undefined" && FanoutQueue.enqueue) {
+                nudged += FanoutQueue.enqueue(nk, logger, items);
+            }
+        }
+        return { scanned: scanned, nudged: nudged };
+    }
     var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
     // ── G-012: GDPR cascade delete (doc §E.3) ──────────────────────────────
     //
@@ -66856,7 +66993,9 @@ var SocialMaintenance;
         for (var i = 0; i < CASCADE_COLLECTIONS.length; i++) {
             var coll = CASCADE_COLLECTIONS[i];
             try {
-                var res = nk.sqlExec("DELETE FROM storage WHERE collection = $1 AND key LIKE $2 LIMIT 5000", [coll, pattern]);
+                var res = nk.sqlExec("DELETE FROM storage WHERE ctid IN (" +
+                    "  SELECT ctid FROM storage WHERE collection = $1 AND key LIKE $2 LIMIT 5000" +
+                    ")", [coll, pattern]);
                 total += (res && typeof res.rowsAffected === "number") ? res.rowsAffected : 0;
             }
             catch (e) {

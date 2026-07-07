@@ -362,8 +362,19 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     // Sweeps expired challenges, stale rate-limit buckets (incl. the B-009
     // per-pair keys) and dead presence rows. Mounted after AnalyticsAlerts.init
     // so it gets latency/error instrumentation like every other RPC.
-    logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
-    SocialMaintenance.register(initializer);
+    // GUARD: If the module fails to compile (e.g., SYSTEM_USER_ID hoisting
+    // issue or tsconfig exclusion), fail FAST with a clear FATAL log
+    // instead of silently letting the legacy bridge register a broken stub
+    // that returns HTTP 500 "JavaScript runtime function invalid".
+    if (typeof SocialMaintenance === "undefined" || typeof SocialMaintenance.register !== "function") {
+      logger.error("[FATAL] SocialMaintenance module is undefined or missing register() — " +
+        "the TypeScript build did NOT include data/modules/src/social/maintenance.ts. " +
+        "The ivx_social_maintenance_tick RPC will fall through to the legacy bridge " +
+        "and produce HTTP 500. Rebuild the bundle and verify the file is in the tsconfig include list.");
+    } else {
+      logger.info("[SocialMaintenance] Registering ivx_social_maintenance_tick...");
+      SocialMaintenance.register(initializer);
+    }
 
     // ── Cold-start onboarding state (G-014, doc §E.4) ──────────────────────
     logger.info("[SocialOnboarding] Registering ivx_social_onboarding_state...");

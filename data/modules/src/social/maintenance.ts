@@ -34,6 +34,12 @@
 
 namespace SocialMaintenance {
 
+  // ── Shared constants — defined FIRST so every function below can reference them
+  // safely regardless of hoisting rules.  (The original file had this at the
+  // bottom, which breaks some bundlers.)
+  const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+  const NUDGE_LOG_COLLECTION = "ivx_nudge_log";
+
   // Per-collection retention windows (hours) — deliberately conservative.
   // friend_challenges expire in ≤24h; 720h (30d) past last touch is
   // unambiguously dead data while preserving a generous forensic window.
@@ -100,12 +106,16 @@ namespace SocialMaintenance {
           var n = (countRows && countRows.length > 0) ? parseInt(String(countRows[0].n), 10) : 0;
           results[sweep.collection] = { wouldDelete: n, retentionHours: sweep.retentionHours };
         } else {
-          // CockroachDB supports DELETE ... LIMIT; the cap bounds each tick's
-          // transaction size. Remaining rows are picked up by the next tick.
+          // PostgreSQL (RDS) does not support DELETE...LIMIT directly.
+          // Use a ctid subquery to cap the batch size per tick. ctid is the
+          // physical row pointer — stable within a single statement and safe
+          // for this pattern. The next tick picks up any remaining rows.
           var res: any = nk.sqlExec(
-            "DELETE FROM storage " +
-            "WHERE collection = $1 AND update_time < now() - ($2 * INTERVAL '1 hour') " +
-            "LIMIT $3",
+            "DELETE FROM storage WHERE ctid IN (" +
+            "  SELECT ctid FROM storage" +
+            "  WHERE collection = $1 AND update_time < now() - ($2 * INTERVAL '1 hour')" +
+            "  LIMIT $3" +
+            ")",
             [sweep.collection, sweep.retentionHours, maxRows]
           );
           var deleted = (res && typeof res.rowsAffected === "number") ? res.rowsAffected : 0;
@@ -368,8 +378,6 @@ namespace SocialMaintenance {
     return { scanned: scanned, nudged: nudged };
   }
 
-  var SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
-
   // ── G-012: GDPR cascade delete (doc §E.3) ──────────────────────────────
   //
   // Nakama's built-in account deletion wipes rows OWNED by the deleted user
@@ -402,7 +410,9 @@ namespace SocialMaintenance {
       var coll = CASCADE_COLLECTIONS[i];
       try {
         var res: any = nk.sqlExec(
-          "DELETE FROM storage WHERE collection = $1 AND key LIKE $2 LIMIT 5000",
+          "DELETE FROM storage WHERE ctid IN (" +
+          "  SELECT ctid FROM storage WHERE collection = $1 AND key LIKE $2 LIMIT 5000" +
+          ")",
           [coll, pattern]
         );
         total += (res && typeof res.rowsAffected === "number") ? res.rowsAffected : 0;
@@ -413,6 +423,7 @@ namespace SocialMaintenance {
     logger.info("[SocialMaintenance] GDPR cascade for " + deletedId + ": " + total + " referencing rows removed");
   }
 
+  // ── Export the register contract so postbuild.js / main.ts can discover us ──
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("ivx_social_maintenance_tick", rpcMaintenanceTick);
     try {
