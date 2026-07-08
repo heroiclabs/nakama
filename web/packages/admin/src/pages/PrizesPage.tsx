@@ -6,7 +6,6 @@ import {
   Loader2,
   AlertTriangle,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
   Clock,
@@ -42,13 +41,24 @@ const STATUS_TABS: { id: StatusFilter; label: string }[] = [
   { id: "all", label: "All" },
 ];
 
-const RANK_OPTIONS: { value: number | "all"; label: string }[] = [
-  { value: "all", label: "All ranks" },
-  { value: 1, label: "1st place only" },
-  { value: 2, label: "2nd place only" },
-  { value: 3, label: "3rd place only" },
-  { value: 4, label: "4th place" },
-  { value: 5, label: "5th place" },
+const RANK_OPTIONS: { value: number | "all"; label: string; short: string }[] = [
+  { value: "all", label: "All ranks", short: "Rank" },
+  { value: 1, label: "1st place only", short: "1st place" },
+  { value: 2, label: "2nd place only", short: "2nd place" },
+  { value: 3, label: "3rd place only", short: "3rd place" },
+  { value: 4, label: "4th place", short: "4th place" },
+  { value: 5, label: "5th place", short: "5th place" },
+];
+
+const EMAIL_OPTIONS: { value: EmailFilter; label: string; short: string }[] = [
+  { value: "all", label: "All", short: "Email" },
+  { value: "has", label: "Has email", short: "Has email" },
+  { value: "missing", label: "Missing email", short: "No email" },
+];
+
+const SORT_OPTIONS: { value: SortOrder; label: string; short: string }[] = [
+  { value: "newest", label: "Latest first", short: "Newest" },
+  { value: "oldest", label: "Oldest first", short: "Oldest" },
 ];
 
 function formatTs(sec?: number) {
@@ -116,9 +126,41 @@ function regionDisplay(region?: string): string {
   return map[r] || r.toUpperCase();
 }
 
-function shortId(id: string): string {
-  if (!id || id.length <= 12) return id;
-  return `${id.slice(0, 8)}…`;
+/* ------------------------------------------------------------------ */
+/*  Filter controls                                                    */
+/* ------------------------------------------------------------------ */
+
+const pillSelectCls =
+  "h-9 w-full cursor-pointer appearance-none rounded-full border border-border/50 bg-muted/30 py-0 pl-3.5 pr-8 text-sm text-foreground outline-none transition-colors hover:bg-muted/50 focus:border-primary/40 focus:ring-2 focus:ring-primary/20";
+
+function FilterPill({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+}) {
+  return (
+    <div className="relative min-w-[7.5rem]">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={ariaLabel}
+        className={pillSelectCls}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -310,7 +352,8 @@ function FulfillmentRow({
               {badge.label}
             </span>
           </div>
-          <h3 className="text-base font-bold leading-snug text-foreground sm:text-lg">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Event name</p>
+          <h3 className="mt-0.5 text-base font-bold leading-snug text-foreground sm:text-lg">
             {f.eventTitle || "Untitled event"}
           </h3>
         </div>
@@ -372,11 +415,15 @@ function FulfillmentRow({
         </InfoCell>
       </div>
 
-      <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Calendar className="h-3.5 w-3.5" />
-        Queued {formatTs(f.sortAt || f.queuedAt)}
+      <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+        <Calendar className="h-3.5 w-3.5 shrink-0" />
+        <span>
+          In queue since <span className="text-foreground/80">{formatTs(f.sortAt || f.queuedAt)}</span>
+        </span>
         {f.emailPatchedAt ? (
-          <span className="text-muted-foreground/80">· email saved {formatTs(f.emailPatchedAt)}</span>
+          <span className="text-muted-foreground/80">
+            · Email updated {formatTs(f.emailPatchedAt)}
+          </span>
         ) : null}
       </p>
 
@@ -431,7 +478,6 @@ function FulfillmentRow({
 export function PrizesPage() {
   const [status, setStatus] = useState<StatusFilter>("pending");
   const [search, setSearch] = useState("");
-  const [eventFilter, setEventFilter] = useState<string>("all");
   const [rankFilter, setRankFilter] = useState<number | "all">("all");
   const [emailFilter, setEmailFilter] = useState<EmailFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
@@ -442,28 +488,9 @@ export function PrizesPage() {
   const settle = useSettle();
   const autoFulfill = useAutoFulfill();
 
-  const eventOptions = useMemo(() => {
-    const map = new Map<string, { title: string; latest: number }>();
-    for (const f of fulfillments) {
-      if (!f.eventId) continue;
-      const latest = f.sortAt || f.queuedAt || 0;
-      const existing = map.get(f.eventId);
-      const title = f.eventTitle?.trim() || `Event ${shortId(f.eventId)}`;
-      if (!existing || latest > existing.latest) {
-        map.set(f.eventId, { title, latest });
-      }
-    }
-    return [...map.entries()]
-      .sort((a, b) => b[1].latest - a[1].latest)
-      .map(([id, meta]) => ({ id, title: meta.title, latest: meta.latest }));
-  }, [fulfillments]);
-
   const filtered = useMemo(() => {
     let list = fulfillments;
 
-    if (eventFilter !== "all") {
-      list = list.filter((f) => f.eventId === eventFilter);
-    }
     if (rankFilter !== "all") {
       list = list.filter((f) => f.rank === rankFilter);
     }
@@ -487,7 +514,7 @@ export function PrizesPage() {
     );
     if (sortOrder === "oldest") sorted.reverse();
     return sorted;
-  }, [fulfillments, eventFilter, rankFilter, emailFilter, search, sortOrder]);
+  }, [fulfillments, rankFilter, emailFilter, search, sortOrder]);
 
   const counts = useMemo(() => {
     const c = { pending: 0, fulfilled: 0, failed: 0 };
@@ -498,14 +525,13 @@ export function PrizesPage() {
   }, [fulfillments]);
 
   const activeFilterCount = [
-    eventFilter !== "all",
     rankFilter !== "all",
     emailFilter !== "all",
+    sortOrder !== "newest",
     search.trim().length > 0,
   ].filter(Boolean).length;
 
   function clearFilters() {
-    setEventFilter("all");
     setRankFilter("all");
     setEmailFilter("all");
     setSearch("");
@@ -604,89 +630,103 @@ export function PrizesPage() {
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <Filter className="h-4 w-4 text-primary" />
-            Filters
-          </p>
-          {activeFilterCount > 0 && (
+      {/* Search + filters — compact inline toolbar */}
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search event, prize, or email…"
+              className="h-10 w-full rounded-full border border-border/40 bg-muted/30 py-0 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground/70 outline-none transition-colors hover:bg-muted/40 focus:border-primary/40 focus:bg-muted/40 focus:ring-2 focus:ring-primary/15"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterPill
+              ariaLabel="Winner rank"
+              value={rankFilter === "all" ? "all" : String(rankFilter)}
+              onChange={(v) => setRankFilter(v === "all" ? "all" : Number(v))}
+              options={RANK_OPTIONS.map((o) => ({ value: String(o.value), label: o.label }))}
+            />
+            <FilterPill
+              ariaLabel="Email"
+              value={emailFilter}
+              onChange={(v) => setEmailFilter(v as EmailFilter)}
+              options={EMAIL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
+            <FilterPill
+              ariaLabel="Sort order"
+              value={sortOrder}
+              onChange={(v) => setSortOrder(v as SortOrder)}
+              options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
+          </div>
+        </div>
+
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {search.trim() && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/25 py-0.5 pl-2.5 pr-1 text-xs text-foreground">
+                Search: {search.trim().length > 24 ? `${search.trim().slice(0, 24)}…` : search.trim()}
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {rankFilter !== "all" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/25 py-0.5 pl-2.5 pr-1 text-xs text-foreground">
+                {RANK_OPTIONS.find((o) => o.value === rankFilter)?.short}
+                <button
+                  type="button"
+                  onClick={() => setRankFilter("all")}
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Clear rank filter"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {emailFilter !== "all" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/25 py-0.5 pl-2.5 pr-1 text-xs text-foreground">
+                {EMAIL_OPTIONS.find((o) => o.value === emailFilter)?.short}
+                <button
+                  type="button"
+                  onClick={() => setEmailFilter("all")}
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Clear email filter"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {sortOrder !== "newest" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/25 py-0.5 pl-2.5 pr-1 text-xs text-foreground">
+                {SORT_OPTIONS.find((o) => o.value === sortOrder)?.short}
+                <button
+                  type="button"
+                  onClick={() => setSortOrder("newest")}
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Clear sort"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
             <button
               type="button"
               onClick={clearFilters}
-              className="text-xs text-muted-foreground hover:text-foreground underline"
+              className="text-xs text-muted-foreground hover:text-foreground"
             >
-              Clear all ({activeFilterCount})
+              Clear all
             </button>
-          )}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Event</label>
-            <select
-              value={eventFilter}
-              onChange={(e) => setEventFilter(e.target.value)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="all">All events (newest first)</option>
-              {eventOptions.map((ev) => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.title}
-                </option>
-              ))}
-            </select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Winner rank</label>
-            <select
-              value={rankFilter === "all" ? "all" : String(rankFilter)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setRankFilter(v === "all" ? "all" : Number(v));
-              }}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {RANK_OPTIONS.map((opt) => (
-                <option key={String(opt.value)} value={String(opt.value)}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Email</label>
-            <select
-              value={emailFilter}
-              onChange={(e) => setEmailFilter(e.target.value as EmailFilter)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="all">All</option>
-              <option value="has">Has email</option>
-              <option value="missing">Missing email</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Sort</label>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="newest">Latest events first</option>
-              <option value="oldest">Oldest first</option>
-            </select>
-          </div>
-        </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search event name, prize, or email…"
-            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-        </div>
+        )}
       </div>
 
       {isError && (
