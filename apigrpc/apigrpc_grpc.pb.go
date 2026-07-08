@@ -119,6 +119,7 @@ const (
 	Nakama_ValidateSubscriptionGoogle_FullMethodName        = "/nakama.api.Nakama/ValidateSubscriptionGoogle"
 	Nakama_ValidatePurchaseHuawei_FullMethodName            = "/nakama.api.Nakama/ValidatePurchaseHuawei"
 	Nakama_ValidatePurchaseFacebookInstant_FullMethodName   = "/nakama.api.Nakama/ValidatePurchaseFacebookInstant"
+	Nakama_ValidatePurchaseSamsung_FullMethodName           = "/nakama.api.Nakama/ValidatePurchaseSamsung"
 	Nakama_WriteLeaderboardRecord_FullMethodName            = "/nakama.api.Nakama/WriteLeaderboardRecord"
 	Nakama_WriteStorageObjects_FullMethodName               = "/nakama.api.Nakama/WriteStorageObjects"
 	Nakama_WriteTournamentRecord_FullMethodName             = "/nakama.api.Nakama/WriteTournamentRecord"
@@ -293,6 +294,8 @@ type NakamaClient interface {
 	ValidatePurchaseHuawei(ctx context.Context, in *api.ValidatePurchaseHuaweiRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
 	// Validate FB Instant IAP Receipt
 	ValidatePurchaseFacebookInstant(ctx context.Context, in *api.ValidatePurchaseFacebookInstantRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
+	// Validate Samsung Galaxy Store IAP Receipt
+	ValidatePurchaseSamsung(ctx context.Context, in *api.ValidatePurchaseSamsungRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error)
 	// Write a record to a leaderboard.
 	WriteLeaderboardRecord(ctx context.Context, in *api.WriteLeaderboardRecordRequest, opts ...grpc.CallOption) (*api.LeaderboardRecord, error)
 	// Write objects into the storage engine.
@@ -1119,6 +1122,16 @@ func (c *nakamaClient) ValidatePurchaseFacebookInstant(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *nakamaClient) ValidatePurchaseSamsung(ctx context.Context, in *api.ValidatePurchaseSamsungRequest, opts ...grpc.CallOption) (*api.ValidatePurchaseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(api.ValidatePurchaseResponse)
+	err := c.cc.Invoke(ctx, Nakama_ValidatePurchaseSamsung_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nakamaClient) WriteLeaderboardRecord(ctx context.Context, in *api.WriteLeaderboardRecordRequest, opts ...grpc.CallOption) (*api.LeaderboardRecord, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(api.LeaderboardRecord)
@@ -1318,6 +1331,8 @@ type NakamaServer interface {
 	ValidatePurchaseHuawei(context.Context, *api.ValidatePurchaseHuaweiRequest) (*api.ValidatePurchaseResponse, error)
 	// Validate FB Instant IAP Receipt
 	ValidatePurchaseFacebookInstant(context.Context, *api.ValidatePurchaseFacebookInstantRequest) (*api.ValidatePurchaseResponse, error)
+	// Validate Samsung Galaxy Store IAP Receipt
+	ValidatePurchaseSamsung(context.Context, *api.ValidatePurchaseSamsungRequest) (*api.ValidatePurchaseResponse, error)
 	// Write a record to a leaderboard.
 	WriteLeaderboardRecord(context.Context, *api.WriteLeaderboardRecordRequest) (*api.LeaderboardRecord, error)
 	// Write objects into the storage engine.
@@ -1576,6 +1591,9 @@ func (UnimplementedNakamaServer) ValidatePurchaseHuawei(context.Context, *api.Va
 }
 func (UnimplementedNakamaServer) ValidatePurchaseFacebookInstant(context.Context, *api.ValidatePurchaseFacebookInstantRequest) (*api.ValidatePurchaseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidatePurchaseFacebookInstant not implemented")
+}
+func (UnimplementedNakamaServer) ValidatePurchaseSamsung(context.Context, *api.ValidatePurchaseSamsungRequest) (*api.ValidatePurchaseResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ValidatePurchaseSamsung not implemented")
 }
 func (UnimplementedNakamaServer) WriteLeaderboardRecord(context.Context, *api.WriteLeaderboardRecordRequest) (*api.LeaderboardRecord, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteLeaderboardRecord not implemented")
@@ -3065,6 +3083,24 @@ func _Nakama_ValidatePurchaseFacebookInstant_Handler(srv interface{}, ctx contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Nakama_ValidatePurchaseSamsung_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(api.ValidatePurchaseSamsungRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NakamaServer).ValidatePurchaseSamsung(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Nakama_ValidatePurchaseSamsung_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NakamaServer).ValidatePurchaseSamsung(ctx, req.(*api.ValidatePurchaseSamsungRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Nakama_WriteLeaderboardRecord_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(api.WriteLeaderboardRecordRequest)
 	if err := dec(in); err != nil {
@@ -3449,6 +3485,10 @@ var Nakama_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidatePurchaseFacebookInstant",
 			Handler:    _Nakama_ValidatePurchaseFacebookInstant_Handler,
+		},
+		{
+			MethodName: "ValidatePurchaseSamsung",
+			Handler:    _Nakama_ValidatePurchaseSamsung_Handler,
 		},
 		{
 			MethodName: "WriteLeaderboardRecord",

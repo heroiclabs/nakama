@@ -278,6 +278,7 @@ func (n *RuntimeLuaNakamaModule) Loader(l *lua.LState) int {
 		"purchase_validate_google":                  n.purchaseValidateGoogle,
 		"purchase_validate_huawei":                  n.purchaseValidateHuawei,
 		"purchase_validate_facebook_instant":        n.purchaseValidateFacebookInstant,
+		"purchase_validate_samsung":                 n.purchaseValidateSamsung,
 		"purchase_get_by_transaction_id":            n.purchaseGetByTransactionId,
 		"purchases_list":                            n.purchasesList,
 		"subscription_validate_apple":               n.subscriptionValidateApple,
@@ -8222,6 +8223,43 @@ func (n *RuntimeLuaNakamaModule) purchaseValidateFacebookInstant(l *lua.LState) 
 }
 
 // @group purchases
+// @summary Validates and stores a purchase receipt from the Samsung Galaxy Store.
+// @param userID(type=string) The user ID of the owner of the receipt.
+// @param purchaseId(type=string) The purchase ID returned by the Samsung IAP SDK PurchaseVo.
+// @param persist(type=bool, optional=true, default=true) Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+// @return validation(table) The resulting successfully validated purchases. Any previously validated purchases are returned with a seenBefore flag.
+// @return error(error) An optional error value if an error occurred.
+func (n *RuntimeLuaNakamaModule) purchaseValidateSamsung(l *lua.LState) int {
+	userID := l.CheckString(1)
+	if userID == "" {
+		l.ArgError(1, "expects user id")
+		return 0
+	}
+	uid, err := uuid.FromString(userID)
+	if err != nil {
+		l.ArgError(1, "invalid user id")
+		return 0
+	}
+
+	purchaseId := l.CheckString(2)
+	if purchaseId == "" {
+		l.ArgError(2, "expects purchaseId")
+		return 0
+	}
+
+	persist := l.OptBool(3, true)
+
+	validation, err := ValidatePurchaseSamsung(l.Context(), n.logger, n.db, uid, n.config.GetIAP().Samsung, purchaseId, persist)
+	if err != nil {
+		l.RaiseError("error validating Samsung receipt: %v", err.Error())
+		return 0
+	}
+
+	l.Push(purchaseValidationToLuaTable(l, validation))
+	return 1
+}
+
+// @group purchases
 // @summary Look up a purchase receipt by transaction ID.
 // @param transactionID(type=string) Transaction ID of the purchase to look up.
 // @return purchase(table) A validated purchase and its owner.
@@ -11460,11 +11498,16 @@ func (n *RuntimeLuaNakamaModule) getConfig(l *lua.LState) int {
 
 	iapFacebookInstantCfg := l.CreateTable(0, 1)
 	iapFacebookInstantCfg.RawSetString("app_secret", lua.LString(rnc.GetIAP().GetFacebookInstant().GetAppSecret()))
-	iapCfg := l.CreateTable(0, 4)
+
+	iapSamsungCfg := l.CreateTable(0, 1)
+	iapSamsungCfg.RawSetString("package_name", lua.LString(rnc.GetIAP().GetSamsung().GetPackageName()))
+
+	iapCfg := l.CreateTable(0, 5)
 	iapCfg.RawSetString("apple", iapAppleCfg)
 	iapCfg.RawSetString("google", iapGoogleCfg)
 	iapCfg.RawSetString("huawei", iapHuaweiCfg)
 	iapCfg.RawSetString("facebook_instant", iapFacebookInstantCfg)
+	iapCfg.RawSetString("samsung", iapSamsungCfg)
 	cfgObj.RawSetString("iap", iapCfg)
 
 	googleAuthCfg := l.CreateTable(0, 1)

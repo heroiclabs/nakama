@@ -1239,6 +1239,14 @@ message ValidatePurchaseFacebookInstantRequest {
   google.protobuf.BoolValue persist = 2;
 }
 
+// Samsung IAP Purchase validation request.
+message ValidatePurchaseSamsungRequest {
+  // The purchase ID returned by the Samsung IAP SDK PurchaseVo.
+  string purchase_id = 1;
+  // Persist the purchase so that seenBefore can be computed to protect against replay attacks.
+  google.protobuf.BoolValue persist = 2;
+}
+
 // Validated Purchase stored by Nakama.
 message ValidatedPurchase {
   // Purchase User ID.
@@ -1286,6 +1294,8 @@ enum StoreProvider {
   HUAWEI_APP_GALLERY = 2;
   // Facebook Instant Store
   FACEBOOK_INSTANT_STORE = 3;
+  // Samsung Galaxy Store
+  SAMSUNG_GALAXY_STORE = 4;
 }
 
 // Environment where a purchase/subscription took place,
