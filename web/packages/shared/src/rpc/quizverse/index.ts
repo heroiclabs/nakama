@@ -197,6 +197,8 @@ export interface PrizeFulfillment {
 export interface PrizeFulfillmentsResult {
   fulfillments: PrizeFulfillment[];
   cursor: string;
+  /** Full match count before client limit slice (admin list RPC) */
+  total?: number;
 }
 
 export interface SettlePrizeFulfillmentInput {
