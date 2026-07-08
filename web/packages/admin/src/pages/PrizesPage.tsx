@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Gift,
@@ -12,12 +12,13 @@ import {
   Clock,
   Mail,
   Globe2,
-  Trophy,
-  User,
   Check,
   X,
   Ban,
   PackageCheck,
+  ChevronDown,
+  ChevronRight,
+  Calendar,
 } from "lucide-react";
 import {
   serverKeyAuth,
@@ -31,12 +32,23 @@ import {
 import { cn } from "@/lib/utils";
 
 type StatusFilter = FulfillmentStatus | "all";
+type EmailFilter = "all" | "has" | "missing";
+type SortOrder = "newest" | "oldest";
 
 const STATUS_TABS: { id: StatusFilter; label: string }[] = [
   { id: "pending", label: "Pending" },
-  { id: "fulfilled", label: "Fulfilled" },
+  { id: "fulfilled", label: "Sent" },
   { id: "failed", label: "Failed" },
   { id: "all", label: "All" },
+];
+
+const RANK_OPTIONS: { value: number | "all"; label: string }[] = [
+  { value: "all", label: "All ranks" },
+  { value: 1, label: "1st place only" },
+  { value: 2, label: "2nd place only" },
+  { value: 3, label: "3rd place only" },
+  { value: 4, label: "4th place" },
+  { value: 5, label: "5th place" },
 ];
 
 function formatTs(sec?: number) {
@@ -53,39 +65,74 @@ function formatTs(sec?: number) {
 function statusBadge(status: FulfillmentStatus) {
   switch (status) {
     case "pending":
-      return { cls: "bg-amber-500/10 border-amber-500/20 text-amber-400", icon: <Clock className="h-3.5 w-3.5" /> };
+      return {
+        cls: "bg-amber-500/15 border-amber-500/30 text-amber-300",
+        label: "Waiting to send",
+        icon: <Clock className="h-3.5 w-3.5" />,
+      };
     case "fulfilled":
-      return { cls: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400", icon: <CheckCircle2 className="h-3.5 w-3.5" /> };
+      return {
+        cls: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+        label: "Gift card sent",
+        icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+      };
     case "failed":
-      return { cls: "bg-red-500/10 border-red-500/20 text-red-400", icon: <Ban className="h-3.5 w-3.5" /> };
+      return {
+        cls: "bg-red-500/15 border-red-500/30 text-red-300",
+        label: "Could not send",
+        icon: <Ban className="h-3.5 w-3.5" />,
+      };
   }
 }
 
 function prizeLabel(f: PrizeFulfillment): string {
   const gc = f.giftCard;
-  if (!gc) return "—";
-  const parts: string[] = [];
-  if (gc.prize) parts.push(gc.prize);
-  else if (gc.brand) parts.push(gc.brand);
-  if (gc.value) parts.push(`${gc.currency || "USD"} ${gc.value}`);
-  return parts.join(" · ") || "Gift card";
+  if (!gc) return "Gift card";
+  if (gc.prize) return gc.prize;
+  const brand = gc.brand ? String(gc.brand) : "Gift card";
+  const value = gc.value ? `${gc.currency || "USD"} ${gc.value}` : "";
+  return value ? `${brand} · ${value}` : brand;
+}
+
+function rankDisplay(rank: number): { medal: string; label: string } {
+  if (rank === 1) return { medal: "🥇", label: "1st place" };
+  if (rank === 2) return { medal: "🥈", label: "2nd place" };
+  if (rank === 3) return { medal: "🥉", label: "3rd place" };
+  if (rank > 0) return { medal: "🏅", label: `${rank}th place` };
+  return { medal: "—", label: "No rank" };
+}
+
+function regionDisplay(region?: string): string {
+  const r = (region || "").trim().toLowerCase();
+  if (!r) return "—";
+  const map: Record<string, string> = {
+    usa: "United States",
+    us: "United States",
+    global: "Global",
+    india: "India",
+    uk: "United Kingdom",
+    eu: "Europe",
+  };
+  return map[r] || r.toUpperCase();
+}
+
+function shortId(id: string): string {
+  if (!id || id.length <= 12) return id;
+  return `${id.slice(0, 8)}…`;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
-function useFulfillments(status: StatusFilter, eventId: string) {
-  const eventIdTrimmed = eventId.trim();
+function useFulfillments(status: StatusFilter) {
   return useQuery({
-    queryKey: ["quizverse", "prize_fulfillments", status, eventIdTrimmed],
+    queryKey: ["quizverse", "prize_fulfillments", status],
     queryFn: () =>
       quizverse.listPrizeFulfillments(
         serverKeyAuth(),
         status === "all" ? undefined : status,
         200,
-        undefined,
-        eventIdTrimmed || undefined,
       ),
     select: (data) => data?.fulfillments ?? [],
     staleTime: 15_000,
@@ -129,53 +176,48 @@ function ApprovePanel({ fulfillment, onSubmit, onCancel, isPending }: ApprovePan
   const [provider, setProvider] = useState<"tremendous" | "reloadly">("reloadly");
   const [email, setEmail] = useState(fulfillment.email ?? "");
   const emailValid = EMAIL_RE.test(email.trim());
+  const rank = rankDisplay(fulfillment.rank);
 
   return (
-    <div className="mt-3 space-y-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+    <div className="mt-4 space-y-3 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
       <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <PackageCheck className="h-4 w-4 text-emerald-400" />
-        Approve & auto-send voucher
+        Send {prizeLabel(fulfillment)} to winner
       </h4>
-      <p className="text-xs leading-relaxed text-amber-400/90">
-        Mints a <strong>real</strong> {prizeLabel(fulfillment)} gift card via the selected provider and
-        emails the code / redemption link to the winner. Money is spent only when you confirm.
+      <p className="text-xs text-muted-foreground">
+        {fulfillment.eventTitle || "Event"} · {rank.label} · {regionDisplay(fulfillment.region)}
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Provider</label>
+          <label className="text-xs font-medium text-muted-foreground">Gift card provider</label>
           <select
             value={provider}
             onChange={(e) => setProvider(e.target.value === "reloadly" ? "reloadly" : "tremendous")}
-            className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           >
             <option value="reloadly">Reloadly</option>
             <option value="tremendous">Tremendous</option>
           </select>
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Deliver to (email)</label>
+          <label className="text-xs font-medium text-muted-foreground">Winner&apos;s email</label>
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="winner@email.com"
             className={cn(
-              "w-full rounded-md border bg-background px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring",
+              "w-full rounded-md border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring",
               email.trim() && !emailValid ? "border-red-500/50" : "border-border",
             )}
           />
         </div>
       </div>
       {!fulfillment.email && (
-        <p className="text-xs font-medium text-red-400">
-          This player has no registered email. You must enter their address below before sending.
+        <p className="text-xs font-medium text-amber-400">
+          Player did not enter an email — type one below before sending.
         </p>
       )}
-      {!emailValid && fulfillment.email && (
-        <p className="text-xs text-amber-400">
-          Enter the winner's email — the voucher is delivered there.
-        </p>
-      )}
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <button
           onClick={() =>
             onSubmit({
@@ -189,7 +231,7 @@ function ApprovePanel({ fulfillment, onSubmit, onCancel, isPending }: ApprovePan
           className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600/90 disabled:opacity-50"
         >
           {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-          Confirm & Send Voucher
+          Confirm &amp; send
         </button>
         <button
           onClick={onCancel}
@@ -199,6 +241,27 @@ function ApprovePanel({ fulfillment, onSubmit, onCancel, isPending }: ApprovePan
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Info cell                                                          */
+/* ------------------------------------------------------------------ */
+
+function InfoCell({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5", className)}>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <div className="mt-1 text-sm font-medium text-foreground">{children}</div>
     </div>
   );
 }
@@ -226,106 +289,128 @@ function FulfillmentRow({
   onCancelApprove,
   onReject,
 }: RowProps) {
+  const [showIds, setShowIds] = useState(false);
   const badge = statusBadge(f.status);
+  const rank = rankDisplay(f.rank);
+  const hasEmail = Boolean(f.email?.trim());
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-4">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium capitalize", badge.cls)}>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                badge.cls,
+              )}
+            >
               {badge.icon}
-              {f.status}
+              {badge.label}
             </span>
-            <h4 className="truncate text-sm font-semibold text-foreground">
-              {f.eventTitle || f.eventId}
-            </h4>
-            {f.rank > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400">
-                <Trophy className="h-3 w-3" />
-                Rank {f.rank}
-              </span>
-            )}
           </div>
-
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1 text-foreground">
-              <Gift className="h-3 w-3 text-amber-400" />
-              {prizeLabel(f)}
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <User className="h-3 w-3" />
-              <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{f.userId}</code>
-            </span>
-            {f.email ? (
-              <span className="inline-flex items-center gap-1">
-                <Mail className="h-3 w-3" />
-                {f.email}
-              </span>
-            ) : f.status === "pending" ? (
-              <span className="inline-flex items-center gap-1 text-xs text-amber-400">
-                <AlertTriangle className="h-3 w-3" />
-                No email on file
-              </span>
-            ) : null}
-            {f.region && (
-              <span className="inline-flex items-center gap-1">
-                <Globe2 className="h-3 w-3" />
-                {f.region}
-              </span>
-            )}
-            <span className="inline-flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              queued {formatTs(f.queuedAt)}
-            </span>
-            {f.emailPatchedAt ? (
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                email saved {formatTs(f.emailPatchedAt)}
-              </span>
-            ) : null}
-            {f.eventId && (
-              <span className="inline-flex items-center gap-1">
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]">{f.eventId}</code>
-              </span>
-            )}
-          </div>
-
-          {f.status === "fulfilled" && f.voucher && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-emerald-400">
-              <span>via {f.voucher.provider || "—"}</span>
-              {f.voucher.orderId && <span>order {f.voucher.orderId}</span>}
-              {f.voucher.deliveredTo && <span>→ {f.voucher.deliveredTo}</span>}
-              <span>settled {formatTs(f.settledAt)}</span>
-            </div>
-          )}
-          {f.status === "failed" && f.error && (
-            <p className="text-xs text-red-400">Reason: {f.error}</p>
-          )}
+          <h3 className="text-base font-bold leading-snug text-foreground sm:text-lg">
+            {f.eventTitle || "Untitled event"}
+          </h3>
         </div>
 
         {f.status === "pending" && (
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <button
               onClick={onToggleApprove}
               disabled={isSettling}
-              title="Approve"
-              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600/90 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600/90 disabled:opacity-50"
             >
-              <Check className="h-3.5 w-3.5" />
-              Approve
+              <Check className="h-4 w-4" />
+              Approve &amp; send
             </button>
             <button
               onClick={onReject}
               disabled={isSettling}
-              title="Reject"
-              className="inline-flex items-center gap-1.5 rounded-md border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50"
             >
-              <XCircle className="h-3.5 w-3.5" />
+              <XCircle className="h-4 w-4" />
               Reject
             </button>
           </div>
         )}
       </div>
+
+      {/* Key facts — scannable grid */}
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <InfoCell label="Winner rank">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-base">{rank.medal}</span>
+            {rank.label}
+          </span>
+        </InfoCell>
+        <InfoCell label="Prize">
+          <span className="inline-flex items-center gap-1.5">
+            <Gift className="h-3.5 w-3.5 shrink-0 text-amber-400" />
+            <span className="truncate">{prizeLabel(f)}</span>
+          </span>
+        </InfoCell>
+        <InfoCell label="Email">
+          {hasEmail ? (
+            <span className="inline-flex items-center gap-1.5 break-all text-emerald-400">
+              <Mail className="h-3.5 w-3.5 shrink-0" />
+              {f.email}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              No email yet
+            </span>
+          )}
+        </InfoCell>
+        <InfoCell label="Region">
+          <span className="inline-flex items-center gap-1.5">
+            <Globe2 className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+            {regionDisplay(f.region)}
+          </span>
+        </InfoCell>
+      </div>
+
+      <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Calendar className="h-3.5 w-3.5" />
+        Queued {formatTs(f.sortAt || f.queuedAt)}
+        {f.emailPatchedAt ? (
+          <span className="text-muted-foreground/80">· email saved {formatTs(f.emailPatchedAt)}</span>
+        ) : null}
+      </p>
+
+      {f.status === "fulfilled" && f.voucher && (
+        <div className="mt-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
+          Sent via {f.voucher.provider || "provider"}
+          {f.voucher.deliveredTo ? ` → ${f.voucher.deliveredTo}` : ""}
+          {f.settledAt ? ` · ${formatTs(f.settledAt)}` : ""}
+        </div>
+      )}
+      {f.status === "failed" && f.error && (
+        <div className="mt-2 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+          {f.error}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setShowIds((v) => !v)}
+        className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+      >
+        {showIds ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {showIds ? "Hide" : "Show"} technical IDs
+      </button>
+      {showIds && (
+        <div className="mt-2 space-y-1 rounded-md bg-muted/30 px-3 py-2 font-mono text-[10px] text-muted-foreground">
+          <p>
+            <span className="text-foreground/70">Event ID:</span> {f.eventId}
+          </p>
+          <p>
+            <span className="text-foreground/70">Player ID:</span> {f.userId}
+          </p>
+        </div>
+      )}
 
       {isApproving && (
         <ApprovePanel
@@ -345,29 +430,64 @@ function FulfillmentRow({
 
 export function PrizesPage() {
   const [status, setStatus] = useState<StatusFilter>("pending");
-  const [eventIdFilter, setEventIdFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [eventFilter, setEventFilter] = useState<string>("all");
+  const [rankFilter, setRankFilter] = useState<number | "all">("all");
+  const [emailFilter, setEmailFilter] = useState<EmailFilter>("all");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [approvingKey, setApprovingKey] = useState<string | null>(null);
   const [settlingKey, setSettlingKey] = useState<string | null>(null);
 
-  const { data: fulfillments = [], isLoading, isError, error, refetch } = useFulfillments(status, eventIdFilter);
+  const { data: fulfillments = [], isLoading, isError, error, refetch } = useFulfillments(status);
   const settle = useSettle();
   const autoFulfill = useAutoFulfill();
 
+  const eventOptions = useMemo(() => {
+    const map = new Map<string, { title: string; latest: number }>();
+    for (const f of fulfillments) {
+      if (!f.eventId) continue;
+      const latest = f.sortAt || f.queuedAt || 0;
+      const existing = map.get(f.eventId);
+      const title = f.eventTitle?.trim() || `Event ${shortId(f.eventId)}`;
+      if (!existing || latest > existing.latest) {
+        map.set(f.eventId, { title, latest });
+      }
+    }
+    return [...map.entries()]
+      .sort((a, b) => b[1].latest - a[1].latest)
+      .map(([id, meta]) => ({ id, title: meta.title, latest: meta.latest }));
+  }, [fulfillments]);
+
   const filtered = useMemo(() => {
     let list = fulfillments;
-    if (search) {
+
+    if (eventFilter !== "all") {
+      list = list.filter((f) => f.eventId === eventFilter);
+    }
+    if (rankFilter !== "all") {
+      list = list.filter((f) => f.rank === rankFilter);
+    }
+    if (emailFilter === "has") {
+      list = list.filter((f) => Boolean(f.email?.trim()));
+    } else if (emailFilter === "missing") {
+      list = list.filter((f) => !f.email?.trim());
+    }
+    if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (f) =>
           f.eventTitle?.toLowerCase().includes(q) ||
-          f.eventId?.toLowerCase().includes(q) ||
-          f.userId?.toLowerCase().includes(q) ||
-          f.email?.toLowerCase().includes(q),
+          f.email?.toLowerCase().includes(q) ||
+          prizeLabel(f).toLowerCase().includes(q),
       );
     }
-    return [...list].sort((a, b) => (b.sortAt || b.queuedAt || 0) - (a.sortAt || a.queuedAt || 0));
-  }, [fulfillments, search]);
+
+    const sorted = [...list].sort(
+      (a, b) => (b.sortAt || b.queuedAt || 0) - (a.sortAt || a.queuedAt || 0),
+    );
+    if (sortOrder === "oldest") sorted.reverse();
+    return sorted;
+  }, [fulfillments, eventFilter, rankFilter, emailFilter, search, sortOrder]);
 
   const counts = useMemo(() => {
     const c = { pending: 0, fulfilled: 0, failed: 0 };
@@ -377,11 +497,24 @@ export function PrizesPage() {
     return c;
   }, [fulfillments]);
 
+  const activeFilterCount = [
+    eventFilter !== "all",
+    rankFilter !== "all",
+    emailFilter !== "all",
+    search.trim().length > 0,
+  ].filter(Boolean).length;
+
+  function clearFilters() {
+    setEventFilter("all");
+    setRankFilter("all");
+    setEmailFilter("all");
+    setSearch("");
+    setSortOrder("newest");
+  }
+
   function handleSubmitApprove(input: AutoFulfillPrizeInput) {
     const confirmed = window.confirm(
-      `Mint a REAL gift card and email it to ${input.email}?\n\n` +
-        `Provider: ${input.provider ?? "auto"}\n` +
-        `This spends real money and cannot be undone.`,
+      `Send a real gift card to ${input.email}?\n\nProvider: ${input.provider ?? "auto"}\nThis uses real money.`,
     );
     if (!confirmed) return;
     setSettlingKey(`${input.eventId}:${input.userId}`);
@@ -391,27 +524,24 @@ export function PrizesPage() {
         setApprovingKey(null);
         if (res?.ok) {
           window.alert(
-            `Voucher fulfilled ✅\n` +
-              `Order: ${res.orderId ?? "—"}\n` +
-              `Email sent: ${res.emailSent ? "yes" : "no"}\n` +
-              `Delivered to: ${res.deliveredTo ?? input.email}` +
+            `Gift card sent ✅\nDelivered to: ${res.deliveredTo ?? input.email}` +
               (res.warning ? `\n\n⚠️ ${res.warning}` : ""),
           );
         } else {
-          window.alert(`Fulfillment failed: ${res?.error ?? "unknown error"}`);
+          window.alert(`Failed: ${res?.error ?? "unknown error"}`);
         }
       },
       onError: (err) => {
         const body = err instanceof NakamaRpcError ? (err.body as { error?: string } | undefined) : undefined;
-        window.alert(`Fulfillment failed: ${body?.error ?? (err as Error)?.message ?? "unknown error"}`);
+        window.alert(`Failed: ${body?.error ?? (err as Error)?.message ?? "unknown error"}`);
       },
     });
   }
 
   function handleReject(f: PrizeFulfillment) {
     const reason = window.prompt(
-      `Reject prize for "${f.eventTitle || f.eventId}" (player ${f.userId})?\nEnter a reason:`,
-      "Could not fulfill — invalid details",
+      `Reject prize for "${f.eventTitle || "this event"}" (${rankDisplay(f.rank).label})?\nReason:`,
+      "Could not fulfill",
     );
     if (reason === null) return;
     setSettlingKey(f.key);
@@ -428,19 +558,14 @@ export function PrizesPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
             <Gift className="h-6 w-6 text-primary" />
             Live Event Prizes
-            <span className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-              QuizVerse
-            </span>
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Review and approve gift-card vouchers won in live events. This data is always QuizVerse-scoped
-            — it is not affected by the app selector in the top bar.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Winners waiting for gift cards. Review each row, then approve to send.
           </p>
         </div>
         <button
@@ -453,7 +578,6 @@ export function PrizesPage() {
         </button>
       </div>
 
-      {/* Status tabs */}
       <div className="flex items-center gap-1 border-b border-border">
         {STATUS_TABS.map((tab) => (
           <button
@@ -481,97 +605,137 @@ export function PrizesPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={eventIdFilter}
-            onChange={(e) => setEventIdFilter(e.target.value)}
-            placeholder="Filter by event ID (exact match)..."
-            className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+      <div className="rounded-xl border border-border bg-card/50 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+            <Filter className="h-4 w-4 text-primary" />
+            Filters
+          </p>
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-xs text-muted-foreground hover:text-foreground underline"
+            >
+              Clear all ({activeFilterCount})
+            </button>
+          )}
         </div>
-        <div className="relative flex-1">
-          <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Event</label>
+            <select
+              value={eventFilter}
+              onChange={(e) => setEventFilter(e.target.value)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="all">All events (newest first)</option>
+              {eventOptions.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Winner rank</label>
+            <select
+              value={rankFilter === "all" ? "all" : String(rankFilter)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setRankFilter(v === "all" ? "all" : Number(v));
+              }}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {RANK_OPTIONS.map((opt) => (
+                <option key={String(opt.value)} value={String(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Email</label>
+            <select
+              value={emailFilter}
+              onChange={(e) => setEmailFilter(e.target.value as EmailFilter)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="all">All</option>
+              <option value="has">Has email</option>
+              <option value="missing">Missing email</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Sort</label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="newest">Latest events first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search title, player ID, or email..."
+            placeholder="Search event name, prize, or email…"
             className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
       </div>
-      {eventIdFilter.trim() && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            Event: <code className="font-mono">{eventIdFilter.trim()}</code>
-            <button
-              type="button"
-              onClick={() => setEventIdFilter("")}
-              className="ml-1 rounded-full p-0.5 hover:bg-primary/20"
-              title="Clear event filter"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        </div>
-      )}
 
-      {/* Error */}
       {isError && (
         <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          Failed to load fulfillments: {(error as Error)?.message ?? "Unknown error"}
+          Failed to load: {(error as Error)?.message ?? "Unknown error"}
         </div>
       )}
 
-      {/* Loading */}
       {isLoading && (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          Loading prize queue…
+          Loading…
         </div>
       )}
 
-      {/* Empty */}
       {!isLoading && !isError && filtered.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
           <Gift className="mx-auto mb-3 h-10 w-10 opacity-30" />
-          <p className="text-sm font-medium">
-            {fulfillments.length === 0
-              ? eventIdFilter.trim()
-                ? "No prizes for this event"
-                : "No prizes in this queue"
-              : "No prizes match your search"}
-          </p>
-          <p className="mt-1 text-xs">
-            Gift-card wins from live events appear here for approval.
-          </p>
+          <p className="text-sm font-medium">No prizes match your filters</p>
+          {activeFilterCount > 0 && (
+            <button type="button" onClick={clearFilters} className="mt-2 text-xs text-primary hover:underline">
+              Clear filters
+            </button>
+          )}
         </div>
       )}
 
-      {/* List */}
       {!isLoading && filtered.length > 0 && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Filter className="h-3.5 w-3.5" />
-          {filtered.length} {filtered.length === 1 ? "prize" : "prizes"}
-        </div>
-      )}
-      {!isLoading && filtered.length > 0 && (
-        <div className="space-y-3">
-          {filtered.map((f) => (
-            <FulfillmentRow
-              key={f.key}
-              f={f}
-              isApproving={approvingKey === f.key}
-              isSettling={settlingKey === f.key || settlingKey === `${f.eventId}:${f.userId}`}
-              onToggleApprove={() => setApprovingKey((k) => (k === f.key ? null : f.key))}
-              onSubmitApprove={handleSubmitApprove}
-              onCancelApprove={() => setApprovingKey(null)}
-              onReject={() => handleReject(f)}
-            />
-          ))}
-        </div>
+        <>
+          <p className="text-sm text-muted-foreground">
+            Showing <strong className="text-foreground">{filtered.length}</strong>{" "}
+            {filtered.length === 1 ? "winner" : "winners"}
+          </p>
+          <div className="space-y-4">
+            {filtered.map((f) => (
+              <FulfillmentRow
+                key={f.key}
+                f={f}
+                isApproving={approvingKey === f.key}
+                isSettling={settlingKey === f.key || settlingKey === `${f.eventId}:${f.userId}`}
+                onToggleApprove={() => setApprovingKey((k) => (k === f.key ? null : f.key))}
+                onSubmitApprove={handleSubmitApprove}
+                onCancelApprove={() => setApprovingKey(null)}
+                onReject={() => handleReject(f)}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
