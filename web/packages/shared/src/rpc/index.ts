@@ -99,6 +99,10 @@ export type {
   Ga4Snapshot,
   BeehiivSnapshot,
   UsersSnapshot,
+  PrizeCatalogTier,
+  PrizeCatalogRegion,
+  PrizeCatalog,
+  SetPrizeCatalogResult,
 } from "./quizverse";
 export type {
   OnboardingFunnelAnalyticsParams,

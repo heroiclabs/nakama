@@ -59672,6 +59672,8 @@ var SatoriCreatorEvents;
         initializer.registerRpc("creator_event_fulfillments_list", rpcFulfillmentsList);
         initializer.registerRpc("creator_event_fulfillment_get", rpcFulfillmentGet);
         initializer.registerRpc("creator_event_fulfillment_settle", rpcFulfillmentSettle);
+        initializer.registerRpc("quizverse_prize_catalog_get", rpcPrizeCatalogGet);
+        initializer.registerRpc("admin_prize_catalog_set", rpcAdminPrizeCatalogSet);
     }
     SatoriCreatorEvents.register = register;
     /**
@@ -60945,6 +60947,90 @@ var SatoriCreatorEvents;
             status: status,
             settledAt: settledAt,
         });
+    }
+    // ────────────────────────────────────────────────────────────────────
+    //  Prize Catalog — admin-managed, creator-readable
+    //
+    //  Stored in system-owned `prize_catalog / active`. Admin sets tiers
+    //  via admin_prize_catalog_set (requireAdmin). Creators fetch the live
+    //  catalog via quizverse_prize_catalog_get (public) so event creation
+    //  always reflects the current admin config instead of the hardcoded
+    //  GC constant in the SPA.
+    // ────────────────────────────────────────────────────────────────────
+    var PRIZE_CATALOG_COLLECTION = "prize_catalog";
+    var PRIZE_CATALOG_KEY = "active";
+    var DEFAULT_PRIZE_CATALOG = {
+        version: 1,
+        updatedAt: 0,
+        updatedBy: "system",
+        regions: {
+            india: {
+                region: "india",
+                label: "🇮🇳 India",
+                tiers: [
+                    { rank: "1st", prize: "Flipkart ₹100", brand: "flipkart", value: 100, currency: "INR", fulfillment: "reloadly" },
+                    { rank: "2nd", prize: "Flipkart ₹100", brand: "flipkart", value: 100, currency: "INR", fulfillment: "reloadly" },
+                    { rank: "3rd", prize: "Flipkart ₹50", brand: "flipkart", value: 50, currency: "INR", fulfillment: "reloadly" },
+                    { rank: "4th", prize: "Flipkart ₹50", brand: "flipkart", value: 50, currency: "INR", fulfillment: "reloadly" },
+                    { rank: "5th", prize: "Flipkart ₹50", brand: "flipkart", value: 50, currency: "INR", fulfillment: "reloadly" },
+                ],
+                totalValue: 400,
+                totalCurrency: "INR",
+            },
+            usa: {
+                region: "usa",
+                label: "🇺🇸 USA",
+                tiers: [
+                    { rank: "1st", prize: "Amazon US $1", brand: "amazon us", value: 1, currency: "USD", fulfillment: "reloadly" },
+                    { rank: "2nd", prize: "Amazon US $1", brand: "amazon us", value: 1, currency: "USD", fulfillment: "reloadly" },
+                    { rank: "3rd", prize: "Amazon US $1", brand: "amazon us", value: 1, currency: "USD", fulfillment: "reloadly" },
+                    { rank: "4th", prize: "Amazon US $1", brand: "amazon us", value: 1, currency: "USD", fulfillment: "reloadly" },
+                    { rank: "5th", prize: "Amazon US $1", brand: "amazon us", value: 1, currency: "USD", fulfillment: "reloadly" },
+                ],
+                totalValue: 5,
+                totalCurrency: "USD",
+            },
+            xut: {
+                region: "global",
+                label: "🪙 Coins",
+                tiers: [
+                    { rank: "1st", prize: "5,000 XUT", brand: "xut", value: 5000, currency: "XUT", fulfillment: "nakama" },
+                    { rank: "2nd", prize: "2,500 XUT", brand: "xut", value: 2500, currency: "XUT", fulfillment: "nakama" },
+                    { rank: "3rd", prize: "1,000 XUT", brand: "xut", value: 1000, currency: "XUT", fulfillment: "nakama" },
+                    { rank: "top_10", prize: "500 XUT", brand: "xut", value: 500, currency: "XUT", fulfillment: "nakama" },
+                    { rank: "all", prize: "100 XUT participation bonus", brand: "xut", value: 100, currency: "XUT", fulfillment: "nakama" },
+                ],
+                totalValue: 9100,
+                totalCurrency: "XUT",
+            },
+        },
+        coinBonusTiers: [
+            { rank: "6th", prize: "75 bonus coins", brand: "xut", value: 75, currency: "XUT", fulfillment: "nakama" },
+            { rank: "7th", prize: "50 bonus coins", brand: "xut", value: 50, currency: "XUT", fulfillment: "nakama" },
+            { rank: "8th", prize: "25 bonus coins", brand: "xut", value: 25, currency: "XUT", fulfillment: "nakama" },
+        ],
+    };
+    function rpcPrizeCatalogGet(ctx, logger, nk, _payload) {
+        var stored = Storage.readSystemJson(nk, PRIZE_CATALOG_COLLECTION, PRIZE_CATALOG_KEY);
+        return RpcHelpers.successResponse(stored || DEFAULT_PRIZE_CATALOG);
+    }
+    function rpcAdminPrizeCatalogSet(ctx, logger, nk, payload) {
+        RpcHelpers.requireAdmin(ctx, nk);
+        var data = RpcHelpers.parseRpcPayload(payload);
+        if (!data.regions || typeof data.regions !== "object") {
+            return RpcHelpers.errorResponse("regions object required");
+        }
+        var existing = Storage.readSystemJson(nk, PRIZE_CATALOG_COLLECTION, PRIZE_CATALOG_KEY) || DEFAULT_PRIZE_CATALOG;
+        var catalog = {
+            version: (existing.version || 1) + 1,
+            updatedAt: Math.floor(Date.now() / 1000),
+            updatedBy: ctx.userId || "admin",
+            regions: data.regions,
+            coinBonusTiers: data.coinBonusTiers || existing.coinBonusTiers || DEFAULT_PRIZE_CATALOG.coinBonusTiers,
+        };
+        Storage.writeSystemJson(nk, PRIZE_CATALOG_COLLECTION, PRIZE_CATALOG_KEY, catalog);
+        logger.info("[PrizeCatalog] Updated by %s, version %d", ctx.userId, catalog.version);
+        return RpcHelpers.successResponse({ ok: true, version: catalog.version, updatedAt: catalog.updatedAt });
     }
 })(SatoriCreatorEvents || (SatoriCreatorEvents = {}));
 var SatoriLiveEvents;
