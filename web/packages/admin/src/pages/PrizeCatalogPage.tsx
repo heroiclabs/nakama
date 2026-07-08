@@ -234,7 +234,7 @@ function RegionEditor({ regionKey, region, onChange, onRemove }: RegionEditorPro
 
 /* ─── page ───────────────────────────────────────────────────────────────── */
 
-export function PrizeCatalogPage() {
+export function PrizeCatalogPanel({ embedded = false }: { embedded?: boolean }) {
   const qc = useQueryClient();
   const [draft, setDraft] = useState<PrizeCatalog | null>(null);
   const [saved, setSaved] = useState(false);
@@ -309,14 +309,16 @@ export function PrizeCatalogPage() {
 
   return (
     <div className="space-y-6">
-      {/* header */}
+      {/* header / toolbar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-            <Gift className="h-6 w-6 text-primary" />
-            Prize Catalog
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          {!embedded && (
+            <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <Gift className="h-6 w-6 text-primary" />
+              Prize Catalog
+            </h2>
+          )}
+          <p className={cn("text-sm text-muted-foreground", !embedded && "mt-1")}>
             Set gift card tiers per region. Creators see these live when creating events.
           </p>
           {working && (
@@ -521,6 +523,11 @@ export function PrizeCatalogPage() {
       )}
     </div>
   );
+}
+
+/** Standalone page wrapper (legacy route redirects to /events?tab=prize-catalog). */
+export function PrizeCatalogPage() {
+  return <PrizeCatalogPanel />;
 }
 
 export default PrizeCatalogPage;
