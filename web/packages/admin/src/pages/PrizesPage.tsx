@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Gift,
@@ -16,6 +16,7 @@ import {
   Ban,
   PackageCheck,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Calendar,
   Coins,
@@ -68,6 +69,8 @@ const PRIZE_TYPE_OPTIONS: { value: PrizeTypeFilter; label: string; short: string
   { value: "coins", label: "Coins (XUT) only", short: "Coins" },
   { value: "all", label: "All prize types", short: "All types" },
 ];
+
+const PAGE_SIZE = 50;
 
 function formatTs(sec?: number) {
   if (!sec) return "—";
@@ -221,14 +224,31 @@ function FilterPill({
 /*  Hooks                                                              */
 /* ------------------------------------------------------------------ */
 
-function useFulfillments(status: StatusFilter) {
+function useFulfillments(
+  status: StatusFilter,
+  cursor: string,
+  filters: {
+    prizeType: PrizeTypeFilter;
+    rank: number | "all";
+    emailFilter: EmailFilter;
+    q?: string;
+  },
+) {
   return useQuery({
-    queryKey: ["quizverse", "prize_fulfillments", status],
+    queryKey: ["quizverse", "prize_fulfillments", status, cursor, filters],
     queryFn: () =>
       quizverse.listPrizeFulfillments(
         serverKeyAuth(),
         status === "all" ? undefined : status,
-        200,
+        PAGE_SIZE,
+        cursor || undefined,
+        undefined,
+        {
+          prizeType: filters.prizeType,
+          rank: filters.rank,
+          emailFilter: filters.emailFilter,
+          q: filters.q,
+        },
       ),
     staleTime: 15_000,
   });
@@ -548,48 +568,43 @@ export function PrizesPage() {
   const [emailFilter, setEmailFilter] = useState<EmailFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [prizeTypeFilter, setPrizeTypeFilter] = useState<PrizeTypeFilter>("gift_cards");
+  const [cursorStack, setCursorStack] = useState<string[]>([""]);
+  const currentCursor = cursorStack[cursorStack.length - 1];
   const [approvingKey, setApprovingKey] = useState<string | null>(null);
   const [settlingKey, setSettlingKey] = useState<string | null>(null);
 
-  const { data: fulfillmentData, isLoading, isError, error, refetch } = useFulfillments(status);
+  const listFilters = useMemo(
+    () => ({
+      prizeType: prizeTypeFilter,
+      rank: rankFilter,
+      emailFilter,
+      q: search.trim() || undefined,
+    }),
+    [prizeTypeFilter, rankFilter, emailFilter, search],
+  );
+
+  useEffect(() => {
+    setCursorStack([""]);
+  }, [status, prizeTypeFilter, rankFilter, emailFilter, search]);
+
+  const { data: fulfillmentData, isLoading, isError, error, refetch } = useFulfillments(
+    status,
+    currentCursor,
+    listFilters,
+  );
   const fulfillments = fulfillmentData?.fulfillments ?? [];
   const listTotal = fulfillmentData?.total;
+  const hasNextPage = Boolean(fulfillmentData?.cursor);
+  const hasPrevPage = cursorStack.length > 1;
+  const pageOffset = currentCursor ? parseInt(currentCursor, 10) : 0;
   const settle = useSettle();
   const autoFulfill = useAutoFulfill();
 
-  const filtered = useMemo(() => {
-    let list = fulfillments;
-
-    if (prizeTypeFilter === "gift_cards") {
-      list = list.filter((f) => !isXutFulfillment(f));
-    } else if (prizeTypeFilter === "coins") {
-      list = list.filter((f) => isXutFulfillment(f));
-    }
-
-    if (rankFilter !== "all") {
-      list = list.filter((f) => f.rank === rankFilter);
-    }
-    if (emailFilter === "has") {
-      list = list.filter((f) => Boolean(f.email?.trim()));
-    } else if (emailFilter === "missing") {
-      list = list.filter((f) => !f.email?.trim());
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (f) =>
-          f.eventTitle?.toLowerCase().includes(q) ||
-          f.email?.toLowerCase().includes(q) ||
-          prizeLabel(f).toLowerCase().includes(q),
-      );
-    }
-
-    const sorted = [...list].sort(
-      (a, b) => (b.sortAt || b.queuedAt || 0) - (a.sortAt || a.queuedAt || 0),
-    );
+  const displayed = useMemo(() => {
+    const sorted = [...fulfillments];
     if (sortOrder === "oldest") sorted.reverse();
     return sorted;
-  }, [fulfillments, prizeTypeFilter, rankFilter, emailFilter, search, sortOrder]);
+  }, [fulfillments, sortOrder]);
 
   const activeFilterCount = [
     prizeTypeFilter !== "gift_cards",
@@ -605,6 +620,16 @@ export function PrizesPage() {
     setEmailFilter("all");
     setSearch("");
     setSortOrder("newest");
+    setCursorStack([""]);
+  }
+
+  function goNextPage() {
+    const nextCursor = fulfillmentData?.cursor;
+    if (nextCursor) setCursorStack((s) => [...s, nextCursor]);
+  }
+
+  function goPrevPage() {
+    if (cursorStack.length > 1) setCursorStack((s) => s.slice(0, -1));
   }
 
   function handleSubmitApprove(input: AutoFulfillPrizeInput) {
@@ -677,7 +702,10 @@ export function PrizesPage() {
         {STATUS_TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setStatus(tab.id)}
+            onClick={() => {
+              setStatus(tab.id);
+              setCursorStack([""]);
+            }}
             className={cn(
               "relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
               status === tab.id ? "text-foreground" : "text-muted-foreground hover:text-foreground",
@@ -821,7 +849,7 @@ export function PrizesPage() {
         </div>
       )}
 
-      {!isLoading && !isError && filtered.length === 0 && (
+      {!isLoading && !isError && displayed.length === 0 && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
           <Gift className="mx-auto mb-3 h-10 w-10 opacity-30" />
           <p className="text-sm font-medium">No prizes match your filters</p>
@@ -833,20 +861,27 @@ export function PrizesPage() {
         </div>
       )}
 
-      {!isLoading && filtered.length > 0 && (
+      {!isLoading && displayed.length > 0 && (
         <>
           <p className="text-sm text-muted-foreground">
-            Showing <strong className="text-foreground">{filtered.length}</strong>{" "}
-            {filtered.length === 1 ? "winner" : "winners"}
-            {typeof listTotal === "number" && listTotal > fulfillments.length ? (
-              <span className="text-muted-foreground/80">
-                {" "}
-                (loaded {fulfillments.length} of {listTotal} in this tab — contact dev for pagination)
-              </span>
-            ) : null}
+            {typeof listTotal === "number" && listTotal > 0 ? (
+              <>
+                Showing{" "}
+                <strong className="text-foreground">
+                  {pageOffset + 1}–{pageOffset + displayed.length}
+                </strong>{" "}
+                of <strong className="text-foreground">{listTotal}</strong>{" "}
+                {listTotal === 1 ? "winner" : "winners"}
+              </>
+            ) : (
+              <>
+                Showing <strong className="text-foreground">{displayed.length}</strong>{" "}
+                {displayed.length === 1 ? "winner" : "winners"}
+              </>
+            )}
           </p>
           <div className="space-y-4">
-            {filtered.map((f) => (
+            {displayed.map((f) => (
               <FulfillmentRow
                 key={f.key}
                 f={f}
@@ -858,6 +893,37 @@ export function PrizesPage() {
                 onReject={() => handleReject(f)}
               />
             ))}
+          </div>
+
+          <div className="flex items-center justify-between border-t border-border pt-4">
+            <p className="text-xs text-muted-foreground">
+              Page {cursorStack.length}
+              {typeof listTotal === "number" && listTotal > 0
+                ? ` · ${listTotal} total`
+                : displayed.length > 0
+                  ? ` · ${displayed.length} on this page`
+                  : ""}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={goPrevPage}
+                disabled={!hasPrevPage || isLoading}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={goNextPage}
+                disabled={!hasNextPage || isLoading}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-card px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+              >
+                Next
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </>
       )}

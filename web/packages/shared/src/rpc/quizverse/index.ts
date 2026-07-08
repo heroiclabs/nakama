@@ -215,16 +215,40 @@ export interface SettlePrizeFulfillmentInput {
   error?: string;
 }
 
+export type PrizeTypeFilter = "gift_cards" | "coins" | "all";
+export type PrizeEmailFilter = "all" | "has" | "missing";
+
+export interface ListPrizeFulfillmentsFilters {
+  prizeType?: PrizeTypeFilter;
+  rank?: number | "all";
+  emailFilter?: PrizeEmailFilter;
+  q?: string;
+}
+
 export function listPrizeFulfillments(
   opts: RpcOptions,
   status?: FulfillmentStatus,
   limit?: number,
   cursor?: string,
   eventId?: string,
+  filters?: ListPrizeFulfillmentsFilters,
 ): Promise<PrizeFulfillmentsResult> {
+  var rankParam: number | string | undefined = undefined;
+  if (filters && filters.rank !== undefined && filters.rank !== "all") {
+    rankParam = filters.rank;
+  }
   return callRpc(
     "admin_prize_fulfillments_list",
-    { status, limit, cursor, eventId: eventId || undefined },
+    {
+      status,
+      limit,
+      cursor,
+      eventId: eventId || undefined,
+      prizeType: filters?.prizeType && filters.prizeType !== "all" ? filters.prizeType : undefined,
+      rank: rankParam,
+      emailFilter: filters?.emailFilter && filters.emailFilter !== "all" ? filters.emailFilter : undefined,
+      q: filters?.q?.trim() || undefined,
+    },
     opts,
   ).then((value) => unwrapData<PrizeFulfillmentsResult>(value));
 }
