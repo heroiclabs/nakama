@@ -300,6 +300,54 @@ export function autoFulfillPrize(
   return callDashboardApi<AutoFulfillPrizeResult>("/prize-fulfill", input, opts);
 }
 
+// ── Prize Catalog ──────────────────────────────────────────────────────────
+
+export interface PrizeCatalogTier {
+  rank: string;
+  prize: string;
+  brand: string;
+  value: number;
+  currency: string;
+  fulfillment: "reloadly" | "tremendous" | "nakama" | "manual";
+}
+
+export interface PrizeCatalogRegion {
+  region: string;
+  label: string;
+  tiers: PrizeCatalogTier[];
+  totalValue: number;
+  totalCurrency: string;
+}
+
+export interface PrizeCatalog {
+  version: number;
+  updatedAt: number;
+  updatedBy: string;
+  regions: Record<string, PrizeCatalogRegion>;
+  coinBonusTiers: PrizeCatalogTier[];
+}
+
+export interface SetPrizeCatalogResult {
+  ok: boolean;
+  version: number;
+  updatedAt: number;
+}
+
+export function getPrizeCatalog(opts: RpcOptions): Promise<PrizeCatalog> {
+  return callRpc("quizverse_prize_catalog_get", {}, opts).then((v) =>
+    unwrapData<PrizeCatalog>(v),
+  );
+}
+
+export function setPrizeCatalog(
+  catalog: Pick<PrizeCatalog, "regions" | "coinBonusTiers">,
+  opts: RpcOptions,
+): Promise<SetPrizeCatalogResult> {
+  return callRpc("admin_prize_catalog_set", catalog, opts).then((v) =>
+    unwrapData<SetPrizeCatalogResult>(v),
+  );
+}
+
 export {
   fetchProductMetricsSlice,
   formatCompactNumber,
