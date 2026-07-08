@@ -59965,6 +59965,13 @@ var SatoriCreatorEvents;
     function spaEventCoinAmountForRank(tier, rank) {
         if (!isXutFulfillmentTier(tier))
             return 0;
+        // Explicit admin-catalog bonus tiers (6th/7th/8th) use their configured
+        // value so admins can change bonus amounts; fall back to 75/50/25 if unset.
+        if (tier && (tier.rank === "6th" || tier.rank === "7th" || tier.rank === "8th")) {
+            var bonus = Math.max(0, Math.floor(tier.value || 0));
+            if (bonus > 0)
+                return bonus;
+        }
         if (rank === 6)
             return 75;
         if (rank === 7)
@@ -59975,17 +59982,33 @@ var SatoriCreatorEvents;
             return 0;
         return Math.max(0, Math.floor((tier && tier.value) || 0));
     }
-    function creditSpaEventCoinPrize(nk, logger, winnerId, amount, eventId, rank) {
+    function creditSpaEventCoinPrize(nk, logger, winnerId, amount, eventId, rank, gameId) {
         var amt = Math.max(0, Math.floor(amount || 0));
         if (amt <= 0)
             return { credited: 0, balanceAfter: 0, error: "" };
-        var result = LegacyWallet.addGlobalWalletCurrency(nk, winnerId, amt);
-        if (result.success) {
-            logger.info("[CreatorEvent SPA] Auto-credited %d coins to %s for event %s rank=%d balanceAfter=%d", amt, winnerId, eventId, rank, result.newBalance);
-            return { credited: amt, balanceAfter: result.newBalance, error: "" };
+        var gid = gameId || Constants.DEFAULT_GAME_ID;
+        try {
+            // Credit the GAME wallet (currency "game", mirrored to "tokens") — this is
+            // the balance QuizVerse shows the player as coins. Mirrors the Unity
+            // client wallet_update_game_wallet { currency:"game", operation:"add" } path
+            // so live-event coin prizes land in the same wallet players spend from.
+            var wallet = WalletHelpers.getGameWallet(nk, winnerId, gid);
+            if (wallet.currencies.game === undefined)
+                wallet.currencies.game = 0;
+            if (wallet.currencies.tokens === undefined)
+                wallet.currencies.tokens = 0;
+            wallet.currencies.game += amt;
+            wallet.currencies.tokens += amt;
+            WalletHelpers.saveGameWallet(nk, wallet);
+            var newBalance = wallet.currencies.game;
+            logger.info("[CreatorEvent SPA] Auto-credited %d game coins to %s for event %s rank=%d balanceAfter=%d", amt, winnerId, eventId, rank, newBalance);
+            return { credited: amt, balanceAfter: newBalance, error: "" };
         }
-        logger.error("[CreatorEvent SPA] Auto-credit FAILED for %s event %s rank=%d: %s", winnerId, eventId, rank, result.error || "unknown");
-        return { credited: 0, balanceAfter: result.newBalance || 0, error: result.error || "wallet credit failed" };
+        catch (e) {
+            var em = (e && e.message) ? e.message : String(e);
+            logger.error("[CreatorEvent SPA] Auto-credit FAILED for %s event %s rank=%d: %s", winnerId, eventId, rank, em);
+            return { credited: 0, balanceAfter: 0, error: em || "wallet credit failed" };
+        }
     }
     function spaGiftCardTier(rank) {
         // Map server rank → quests-api SES "tier" enum (cosmetic for the email).
@@ -60074,6 +60097,7 @@ var SatoriCreatorEvents;
             return { ranked: ranked, queued: 0, skippedExisting: 0, xutWinners: 0, xutCredited: 0, tiersConfigured: false };
         }
         var nowSec = Math.floor(Date.now() / 1000);
+        var eventGameId = (def && def.gameId) ? String(def.gameId) : Constants.DEFAULT_GAME_ID;
         var queued = 0;
         var skipped = 0;
         var xutWinners = 0;
@@ -60139,7 +60163,7 @@ var SatoriCreatorEvents;
                     }
                     if (existing.source === "auto_winner_xut" && existing.status === "failed") {
                         var retryAmt = spaEventCoinAmountForRank(tier, rank);
-                        var retryCredit = creditSpaEventCoinPrize(nk, logger, winnerId, retryAmt, eventId, rank);
+                        var retryCredit = creditSpaEventCoinPrize(nk, logger, winnerId, retryAmt, eventId, rank, eventGameId);
                         existing.status = retryCredit.credited > 0 ? "fulfilled" : "failed";
                         existing.xutGranted = retryCredit.credited;
                         existing.fulfilledAt = retryCredit.credited > 0 ? nowSec : existing.fulfilledAt;
@@ -60159,7 +60183,7 @@ var SatoriCreatorEvents;
                 var xutAmount = spaEventCoinAmountForRank(tier, rank);
                 if (xutAmount <= 0)
                     continue;
-                var credit = creditSpaEventCoinPrize(nk, logger, winnerId, xutAmount, eventId, rank);
+                var credit = creditSpaEventCoinPrize(nk, logger, winnerId, xutAmount, eventId, rank, eventGameId);
                 Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
                     userId: winnerId,
                     eventId: eventId,
@@ -60638,40 +60662,24 @@ var SatoriCreatorEvents;
         if (tier) {
             var isXut = isXutFulfillmentTier(tier);
             if (isXut) {
+                // Coin prizes (incl. rank 6-8 bonus coins) are credited to the game
+                // wallet exactly ONCE, at event end, by computeAndQueueWinners — never
+                // instantly on claim. The event is already ended here (guarded above),
+                // so if the end sweep hasn't processed this event yet we run it now;
+                // it is idempotent (per-(event,user) fulfillment row) and credits every
+                // winner. Claim then just reports what was granted.
                 var fKey = eventId + ":" + userId;
                 var priorFulfillment = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
-                if (priorFulfillment && priorFulfillment.source === "auto_winner_xut" && priorFulfillment.status === "fulfilled") {
-                    xutGranted = Math.max(0, Math.floor(priorFulfillment.xutGranted || tier.value || 0));
+                if (!priorFulfillment ||
+                    priorFulfillment.source !== "auto_winner_xut" ||
+                    priorFulfillment.status !== "fulfilled") {
+                    if (!def.id)
+                        def.id = eventId;
+                    computeAndQueueWinners(nk, logger, def, eventId);
+                    priorFulfillment = Storage.readSystemJson(nk, "prize_fulfillments", fKey);
                 }
-                else if (priorFulfillment && priorFulfillment.source === "auto_winner_xut" && priorFulfillment.status === "failed") {
-                    var retryCredit = creditSpaEventCoinPrize(nk, logger, userId, spaEventCoinAmountForRank(tier, myRank), eventId, myRank);
-                    xutGranted = retryCredit.credited;
-                    priorFulfillment.status = retryCredit.credited > 0 ? "fulfilled" : "failed";
-                    priorFulfillment.xutGranted = retryCredit.credited;
-                    priorFulfillment.fulfilledAt = retryCredit.credited > 0 ? nowSec : priorFulfillment.fulfilledAt;
-                    priorFulfillment.walletBalanceAfter = retryCredit.balanceAfter;
-                    priorFulfillment.walletError = retryCredit.error || "";
-                    Storage.writeSystemJson(nk, "prize_fulfillments", fKey, priorFulfillment);
-                }
-                else if (!priorFulfillment) {
-                    var claimCredit = creditSpaEventCoinPrize(nk, logger, userId, spaEventCoinAmountForRank(tier, myRank), eventId, myRank);
-                    xutGranted = claimCredit.credited;
-                    Storage.writeSystemJson(nk, "prize_fulfillments", fKey, {
-                        userId: userId,
-                        eventId: eventId,
-                        rank: myRank,
-                        giftCard: tier,
-                        status: claimCredit.credited > 0 ? "fulfilled" : "failed",
-                        queuedAt: nowSec,
-                        fulfilledAt: claimCredit.credited > 0 ? nowSec : undefined,
-                        eventTitle: def.title || "",
-                        region: def.region || (def.giftCardPrizes && def.giftCardPrizes.region) || "global",
-                        source: "auto_winner_xut",
-                        email: deliveryEmail || "",
-                        xutGranted: claimCredit.credited,
-                        walletBalanceAfter: claimCredit.balanceAfter,
-                        walletError: claimCredit.error || "",
-                    });
+                if (priorFulfillment && priorFulfillment.source === "auto_winner_xut") {
+                    xutGranted = Math.max(0, Math.floor(priorFulfillment.xutGranted || 0));
                 }
             }
             else {
