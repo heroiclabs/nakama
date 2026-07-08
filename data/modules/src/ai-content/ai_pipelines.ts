@@ -476,6 +476,30 @@ namespace AiPipelines {
       );
     }
 
+    // The job ran async — the target user may have been deleted between job
+    // start and completion (e.g. the user-backend guest-cleanup job).
+    // storageWrite/notificationsSend for a missing user violates the `users`
+    // FK (storage_user_id_fkey, SQLSTATE 23503), so probe first and abandon
+    // the fan-out gracefully. The job itself stays terminal on the AI svc;
+    // there is simply nobody left to deliver to.
+    try {
+      var existing = nk.usersGetId([targetUserId]);
+      if (!existing || existing.length === 0) {
+        logger.warn(
+          "[AiPipelines] user %s no longer exists — abandoning completion fan-out for job %s (pipeline=%s status=%s)",
+          targetUserId, jobId, pipeline, status,
+        );
+        return okEnvelope({ delivered: false, skipped: "user_deleted" });
+      }
+    } catch (e: any) {
+      // A probe failure is not proof of deletion — fall through and let the
+      // individually-guarded writes below surface any real error.
+      logger.warn(
+        "[AiPipelines] usersGetId probe failed for user %s: %s",
+        targetUserId, (e && e.message) || String(e),
+      );
+    }
+
     // Compose a compact, push-safe snapshot for the storage row + the
     // notification body. We deliberately keep the surface narrow — full
     // artifact retrieval goes through `GET /content-factory/jobs/:jobId`
