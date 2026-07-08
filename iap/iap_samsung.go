@@ -131,7 +131,7 @@ func ValidateReceiptSamsung(ctx context.Context, httpc *http.Client, packageName
 			errMsg = receiptResp.Status
 		}
 		return nil, raw, &ValidationError{
-			Err:        fmt.Errorf("Samsung IAP: purchase validation failed: %s", errMsg),
+			Err:        fmt.Errorf("Samsung IAP: purchase validation failed: %s (errorCode=%d)", errMsg, receiptResp.ErrorCode),
 			StatusCode: resp.StatusCode,
 			Payload:    string(raw),
 		}
@@ -139,7 +139,9 @@ func ValidateReceiptSamsung(ctx context.Context, httpc *http.Client, packageName
 
 	if packageName != "" && receiptResp.PackageName != "" && receiptResp.PackageName != packageName {
 		return nil, raw, &ValidationError{
-			Err: fmt.Errorf("Samsung IAP: package name mismatch (expected %s, got %s)", packageName, receiptResp.PackageName),
+			Err:        fmt.Errorf("Samsung IAP: package name mismatch (expected %s, got %s)", packageName, receiptResp.PackageName),
+			StatusCode: resp.StatusCode,
+			Payload:    string(raw),
 		}
 	}
 
