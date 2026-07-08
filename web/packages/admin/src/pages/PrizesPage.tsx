@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Calendar,
+  Coins,
 } from "lucide-react";
 import {
   serverKeyAuth,
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils";
 type StatusFilter = FulfillmentStatus | "all";
 type EmailFilter = "all" | "has" | "missing";
 type SortOrder = "newest" | "oldest";
+type PrizeTypeFilter = "gift_cards" | "coins" | "all";
 
 const STATUS_TABS: { id: StatusFilter; label: string }[] = [
   { id: "pending", label: "Pending" },
@@ -61,6 +63,12 @@ const SORT_OPTIONS: { value: SortOrder; label: string; short: string }[] = [
   { value: "oldest", label: "Oldest first", short: "Oldest" },
 ];
 
+const PRIZE_TYPE_OPTIONS: { value: PrizeTypeFilter; label: string; short: string }[] = [
+  { value: "gift_cards", label: "Gift cards only", short: "Gift cards" },
+  { value: "coins", label: "Coins (XUT) only", short: "Coins" },
+  { value: "all", label: "All prize types", short: "All types" },
+];
+
 function formatTs(sec?: number) {
   if (!sec) return "—";
   return new Date(sec * 1000).toLocaleString(undefined, {
@@ -72,8 +80,14 @@ function formatTs(sec?: number) {
   });
 }
 
-function statusBadge(status: FulfillmentStatus) {
-  switch (status) {
+function isXutFulfillment(f: PrizeFulfillment): boolean {
+  if (f.source === "auto_winner_xut") return true;
+  return (f.giftCard?.prize || "").toUpperCase().includes("XUT");
+}
+
+function statusBadge(f: PrizeFulfillment) {
+  const xut = isXutFulfillment(f);
+  switch (f.status) {
     case "pending":
       return {
         cls: "bg-amber-500/15 border-amber-500/30 text-amber-300",
@@ -81,18 +95,58 @@ function statusBadge(status: FulfillmentStatus) {
         icon: <Clock className="h-3.5 w-3.5" />,
       };
     case "fulfilled":
-      return {
-        cls: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
-        label: "Gift card sent",
-        icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-      };
+      return xut
+        ? {
+            cls: "bg-sky-500/15 border-sky-500/30 text-sky-300",
+            label: "Coins credited",
+            icon: <Coins className="h-3.5 w-3.5" />,
+          }
+        : {
+            cls: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300",
+            label: "Gift card sent",
+            icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+          };
     case "failed":
       return {
         cls: "bg-red-500/15 border-red-500/30 text-red-300",
-        label: "Could not send",
+        label: xut ? "Coin credit failed" : "Could not send",
         icon: <Ban className="h-3.5 w-3.5" />,
       };
   }
+}
+
+function prizeTypeBadge(f: PrizeFulfillment) {
+  if (isXutFulfillment(f)) {
+    return {
+      cls: "bg-sky-500/10 border-sky-500/25 text-sky-300",
+      label: "Coins (auto)",
+      icon: <Coins className="h-3 w-3" />,
+    };
+  }
+  return {
+    cls: "bg-amber-500/10 border-amber-500/25 text-amber-300",
+    label: "Gift card",
+    icon: <Gift className="h-3 w-3" />,
+  };
+}
+
+function timelineLine(f: PrizeFulfillment): { label: string; ts?: number } {
+  const sortTs = f.sortAt || f.queuedAt;
+  const actionTs = f.settledAt || sortTs;
+  const xut = isXutFulfillment(f);
+
+  if (f.status === "pending") {
+    return { label: "In queue since", ts: sortTs };
+  }
+  if (f.status === "failed") {
+    return { label: "Failed on", ts: actionTs };
+  }
+  if (f.status === "fulfilled") {
+    return xut
+      ? { label: "Coins auto-credited on", ts: sortTs }
+      : { label: "Gift card sent on", ts: actionTs };
+  }
+  return { label: "Recorded on", ts: sortTs };
 }
 
 function prizeLabel(f: PrizeFulfillment): string {
@@ -176,7 +230,6 @@ function useFulfillments(status: StatusFilter) {
         status === "all" ? undefined : status,
         200,
       ),
-    select: (data) => data?.fulfillments ?? [],
     staleTime: 15_000,
   });
 }
@@ -332,9 +385,12 @@ function FulfillmentRow({
   onReject,
 }: RowProps) {
   const [showIds, setShowIds] = useState(false);
-  const badge = statusBadge(f.status);
+  const badge = statusBadge(f);
+  const typeBadge = prizeTypeBadge(f);
+  const timeline = timelineLine(f);
   const rank = rankDisplay(f.rank);
   const hasEmail = Boolean(f.email?.trim());
+  const needsApproval = f.status === "pending" && !isXutFulfillment(f);
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -351,6 +407,15 @@ function FulfillmentRow({
               {badge.icon}
               {badge.label}
             </span>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                typeBadge.cls,
+              )}
+            >
+              {typeBadge.icon}
+              {typeBadge.label}
+            </span>
           </div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Event name</p>
           <h3 className="mt-0.5 text-base font-bold leading-snug text-foreground sm:text-lg">
@@ -358,7 +423,7 @@ function FulfillmentRow({
           </h3>
         </div>
 
-        {f.status === "pending" && (
+        {needsApproval && (
           <div className="flex shrink-0 flex-wrap gap-2">
             <button
               onClick={onToggleApprove}
@@ -418,7 +483,8 @@ function FulfillmentRow({
       <p className="mt-3 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
         <Calendar className="h-3.5 w-3.5 shrink-0" />
         <span>
-          In queue since <span className="text-foreground/80">{formatTs(f.sortAt || f.queuedAt)}</span>
+          {timeline.label}{" "}
+          <span className="text-foreground/80">{formatTs(timeline.ts)}</span>
         </span>
         {f.emailPatchedAt ? (
           <span className="text-muted-foreground/80">
@@ -427,7 +493,7 @@ function FulfillmentRow({
         ) : null}
       </p>
 
-      {f.status === "fulfilled" && f.voucher && (
+      {f.status === "fulfilled" && !isXutFulfillment(f) && f.voucher && (
         <div className="mt-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
           Sent via {f.voucher.provider || "provider"}
           {f.voucher.deliveredTo ? ` → ${f.voucher.deliveredTo}` : ""}
@@ -481,15 +547,24 @@ export function PrizesPage() {
   const [rankFilter, setRankFilter] = useState<number | "all">("all");
   const [emailFilter, setEmailFilter] = useState<EmailFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
+  const [prizeTypeFilter, setPrizeTypeFilter] = useState<PrizeTypeFilter>("gift_cards");
   const [approvingKey, setApprovingKey] = useState<string | null>(null);
   const [settlingKey, setSettlingKey] = useState<string | null>(null);
 
-  const { data: fulfillments = [], isLoading, isError, error, refetch } = useFulfillments(status);
+  const { data: fulfillmentData, isLoading, isError, error, refetch } = useFulfillments(status);
+  const fulfillments = fulfillmentData?.fulfillments ?? [];
+  const listTotal = fulfillmentData?.total;
   const settle = useSettle();
   const autoFulfill = useAutoFulfill();
 
   const filtered = useMemo(() => {
     let list = fulfillments;
+
+    if (prizeTypeFilter === "gift_cards") {
+      list = list.filter((f) => !isXutFulfillment(f));
+    } else if (prizeTypeFilter === "coins") {
+      list = list.filter((f) => isXutFulfillment(f));
+    }
 
     if (rankFilter !== "all") {
       list = list.filter((f) => f.rank === rankFilter);
@@ -514,17 +589,10 @@ export function PrizesPage() {
     );
     if (sortOrder === "oldest") sorted.reverse();
     return sorted;
-  }, [fulfillments, rankFilter, emailFilter, search, sortOrder]);
-
-  const counts = useMemo(() => {
-    const c = { pending: 0, fulfilled: 0, failed: 0 };
-    for (const f of fulfillments) {
-      if (f.status in c) c[f.status as keyof typeof c]++;
-    }
-    return c;
-  }, [fulfillments]);
+  }, [fulfillments, prizeTypeFilter, rankFilter, emailFilter, search, sortOrder]);
 
   const activeFilterCount = [
+    prizeTypeFilter !== "gift_cards",
     rankFilter !== "all",
     emailFilter !== "all",
     sortOrder !== "newest",
@@ -532,6 +600,7 @@ export function PrizesPage() {
   ].filter(Boolean).length;
 
   function clearFilters() {
+    setPrizeTypeFilter("gift_cards");
     setRankFilter("all");
     setEmailFilter("all");
     setSearch("");
@@ -615,16 +684,6 @@ export function PrizesPage() {
             )}
           >
             {tab.label}
-            {tab.id !== "all" && (
-              <span
-                className={cn(
-                  "ml-1 rounded-full px-1.5 py-0.5 text-xs",
-                  status === tab.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {counts[tab.id as keyof typeof counts]}
-              </span>
-            )}
             {status === tab.id && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />}
           </button>
         ))}
@@ -643,6 +702,12 @@ export function PrizesPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <FilterPill
+              ariaLabel="Prize type"
+              value={prizeTypeFilter}
+              onChange={(v) => setPrizeTypeFilter(v as PrizeTypeFilter)}
+              options={PRIZE_TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
             <FilterPill
               ariaLabel="Winner rank"
               value={rankFilter === "all" ? "all" : String(rankFilter)}
@@ -666,6 +731,19 @@ export function PrizesPage() {
 
         {activeFilterCount > 0 && (
           <div className="flex flex-wrap items-center gap-2">
+            {prizeTypeFilter !== "gift_cards" && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/25 py-0.5 pl-2.5 pr-1 text-xs text-foreground">
+                {PRIZE_TYPE_OPTIONS.find((o) => o.value === prizeTypeFilter)?.short}
+                <button
+                  type="button"
+                  onClick={() => setPrizeTypeFilter("gift_cards")}
+                  className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Clear prize type filter"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
             {search.trim() && (
               <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/25 py-0.5 pl-2.5 pr-1 text-xs text-foreground">
                 Search: {search.trim().length > 24 ? `${search.trim().slice(0, 24)}…` : search.trim()}
@@ -760,6 +838,12 @@ export function PrizesPage() {
           <p className="text-sm text-muted-foreground">
             Showing <strong className="text-foreground">{filtered.length}</strong>{" "}
             {filtered.length === 1 ? "winner" : "winners"}
+            {typeof listTotal === "number" && listTotal > fulfillments.length ? (
+              <span className="text-muted-foreground/80">
+                {" "}
+                (loaded {fulfillments.length} of {listTotal} in this tab — contact dev for pagination)
+              </span>
+            ) : null}
           </p>
           <div className="space-y-4">
             {filtered.map((f) => (
