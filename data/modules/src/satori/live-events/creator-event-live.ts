@@ -11,6 +11,8 @@ namespace SatoriCreatorEvents {
     correctAnswer?: string;
     answer?: string;
     a?: string;
+    /** AI-expanded synonym list (publish time). Grading checks any entry. */
+    acceptedAnswers?: string[];
     timeLimit?: number;
     points?: number;
   }
@@ -97,6 +99,8 @@ namespace SatoriCreatorEvents {
     questions: CreatorEventQuestion[];
     clues?: string[];
     answer?: string;
+    /** Best Guess: AI-expanded synonym list (publish time). */
+    acceptedAnswers?: string[];
     promoVideoUrl?: string;
     recapVideoUrl?: string;
     deepLinkUrl?: string;
@@ -350,14 +354,96 @@ namespace SatoriCreatorEvents {
     return 1.5; // challenge / default
   }
 
+  /** Fuzzy normalizer — keep in sync with SPA `_qvNormAnswer()` in quizverse-live-events.html */
   function normalizeAnswer(value: any): string {
-    return String(value === undefined || value === null ? "" : value).toLowerCase().replace(/\s+/g, " ").trim();
+    return String(value === undefined || value === null ? "" : value)
+      .toLowerCase()
+      .replace(/^ans\s*[:\.]\s*/i, "")
+      .replace(/[\u2018\u2019\u201C\u201D]/g, "'")
+      .replace(/[^a-z0-9 ]+/g, " ")
+      .replace(/\b(the|a|an)\b/g, " ")
+      .replace(/s\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  /** Numeric equality only when both sides are pure numbers (matches SPA `_qvStrictNumber`). */
+  function strictNumber(value: any): number | null {
+    var raw = String(value === undefined || value === null ? "" : value).trim().replace(/,/g, "").replace(/\s+/g, "");
+    if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(raw)) return null;
+    var n = Number(raw);
+    return isFinite(n) ? n : null;
   }
 
   function answersMatch(given: any, expected: any): boolean {
-    var g = normalizeAnswer(given);
+    var u = normalizeAnswer(given);
     var e = normalizeAnswer(expected);
-    return !!g && !!e && g === e;
+    if (!u || !e) return false;
+    if (u === e) return true;
+    var uNum = strictNumber(given);
+    var eNum = strictNumber(expected);
+    if (uNum !== null && eNum !== null && uNum === eNum) return true;
+    return false;
+  }
+
+  function questionAcceptedAnswers(q: any): string[] {
+    var primary = questionAnswer(q);
+    var list: string[] = [];
+    if (q && Array.isArray(q.acceptedAnswers)) {
+      for (var i = 0; i < q.acceptedAnswers.length; i++) {
+        var item = String(q.acceptedAnswers[i] || "").trim();
+        if (item) list.push(item);
+      }
+    }
+    if (list.length === 0) {
+      if (primary) list.push(primary);
+      return list;
+    }
+    if (primary) {
+      var hasPrimary = false;
+      for (var j = 0; j < list.length; j++) {
+        if (answersMatch(list[j], primary)) {
+          hasPrimary = true;
+          break;
+        }
+      }
+      if (!hasPrimary) list.unshift(primary);
+    }
+    return list;
+  }
+
+  function eventAcceptedAnswers(def: CreatorEventDefinition): string[] {
+    var primary = String(def.answer || "");
+    var list: string[] = [];
+    var raw = def.acceptedAnswers;
+    if (Array.isArray(raw)) {
+      for (var i = 0; i < raw.length; i++) {
+        var item = String(raw[i] || "").trim();
+        if (item) list.push(item);
+      }
+    }
+    if (list.length === 0) {
+      if (primary) list.push(primary);
+      return list;
+    }
+    if (primary) {
+      var hasPrimary = false;
+      for (var j = 0; j < list.length; j++) {
+        if (answersMatch(list[j], primary)) {
+          hasPrimary = true;
+          break;
+        }
+      }
+      if (!hasPrimary) list.unshift(primary);
+    }
+    return list;
+  }
+
+  function answersMatchAny(given: any, acceptedList: string[]): boolean {
+    for (var i = 0; i < acceptedList.length; i++) {
+      if (answersMatch(given, acceptedList[i])) return true;
+    }
+    return false;
   }
 
   function questionAnswer(q: any): string {
@@ -476,7 +562,8 @@ namespace SatoriCreatorEvents {
 
   function scoreBestGuess(def: CreatorEventDefinition, answer: any, nowMs: number): any {
     var correctAnswer = String(def.answer || "");
-    var correct = answersMatch(answer, correctAnswer);
+    var acceptedList = eventAcceptedAnswers(def);
+    var correct = answersMatchAny(answer, acceptedList);
     var startMs = Math.floor(numericValue(def.scheduledAt, 0) * 1000);
     var durationSec = Math.max(1, Math.floor(numericValue(def.duration, 30) * 60));
     var elapsedSec = startMs > 0 ? Math.max(0, Math.floor((nowMs - startMs) / 1000)) : 0;
@@ -560,8 +647,8 @@ namespace SatoriCreatorEvents {
         given = String(provided || "").trim();
       }
 
-      var expected = questionAnswer(question);
-      var correct = answersMatch(given, expected);
+      var acceptedList = questionAcceptedAnswers(question);
+      var correct = answersMatchAny(given, acceptedList);
       var baseScore = correct ? Math.floor(numericValue(question.points, 100)) : 0;
       var questionMs = questionElapsedMs(provided, perQuestionSec);
       var appliedSpeedBonus = perQuestionSpeedBonus(correct, questionMs, perQuestionSec, maxSpeedBonus);
