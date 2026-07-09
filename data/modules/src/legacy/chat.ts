@@ -69,6 +69,34 @@ namespace LegacyChat {
     return text;
   }
 
+  // ─── System/structured payload guard (Phantom Arena triple-notify fix) ─────
+  // AsyncChallengeChatIntegration.cs (Unity) sends machine-readable DMs prefixed
+  // with these tags to sync challenge invites / joiner names / results between
+  // devices via the chat channel. Every one of those events ALREADY has its own
+  // clean, localized in-app notification + device push from the dedicated
+  // async-challenge system (legacy_runtime.js: asyncChallengeSendNotification,
+  // codes challenge_received / opponent_joined / opponent_completed /
+  // results_ready / rematch_requested). Without this guard, afterChannelMessageSend
+  // ALSO fires a generic chat push + ephemeral in-app ping (code 9001) whose body
+  // is the raw JSON payload text — a third, redundant, and visually broken
+  // notification for the same event. [ASYNC_CHALLENGE_JOINER] is pure internal
+  // state sync and must never surface to the user at all.
+  var SYSTEM_PAYLOAD_PREFIXES = ["[ASYNC_CHALLENGE_JOINER]", "[ASYNC_CHALLENGE]", "[ASYNC_RESULT]"];
+
+  function isSystemPayloadMessage(content: any): boolean {
+    var text = "";
+    if (typeof content === "string") {
+      text = content;
+    } else if (content && typeof content === "object") {
+      text = String(content.text || content.body || content.message || "");
+    }
+    text = text.trim();
+    for (var i = 0; i < SYSTEM_PAYLOAD_PREFIXES.length; i++) {
+      if (text.indexOf(SYSTEM_PAYLOAD_PREFIXES[i]) === 0) return true;
+    }
+    return false;
+  }
+
   // ─── Failed-push queue helpers ──────────────────────────────────────────────
 
   // Add a recipient to the failed-push index so the scheduler can find them.
@@ -321,7 +349,7 @@ namespace LegacyChat {
         // Direct message (both user IDs must be set — `||` would admit a malformed ack
         // where one ID is missing, producing a wrong targetUserId calculation).
         var targetUserId = (userIdOne === senderId) ? userIdTwo : userIdOne;
-        if (targetUserId && targetUserId !== senderId) {
+        if (targetUserId && targetUserId !== senderId && !isSystemPayloadMessage(content)) {
           pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content);
           // Ephemeral in-app socket notification (code 9001 = incoming_dm).
           // Delivered to recipient's connected socket without requiring channel join,
@@ -675,6 +703,29 @@ namespace LegacyChat {
     }
   }
 
+  // ─── Message hygiene guardrails (length cap + light spam throttle) ─────────
+  // Nothing upstream of this hook validates the raw socket payload, so one
+  // bad client or a buggy retry loop could persist huge/flood messages.
+  // Throwing here is the documented Nakama pattern for rejecting a realtime
+  // before-hook — the client gets the error back, the send never lands.
+  var MAX_MESSAGE_CHARS = 4000;
+  var CHAT_RATE_MAX = 10;           // messages
+  var CHAT_RATE_WINDOW_MS = 10000;  // per this many ms, per user
+  var chatSendLog: { [userId: string]: number[] } = {};
+
+  function enforceChatHygiene(ctx: nkruntime.Context, content: string): void {
+    if (content.length > MAX_MESSAGE_CHARS) {
+      throw new Error("Message too long (max " + MAX_MESSAGE_CHARS + " characters).");
+    }
+    var now = Date.now();
+    var log = (chatSendLog[ctx.userId] || []).filter(function (t) { return now - t < CHAT_RATE_WINDOW_MS; });
+    if (log.length >= CHAT_RATE_MAX) {
+      throw new Error("You're sending messages too fast — slow down.");
+    }
+    log.push(now);
+    chatSendLog[ctx.userId] = log;
+  }
+
   // Before-hook for realtime ChannelMessageSend. Forces persist=true so every
   // chat message is written to channel history. Without persistence the message
   // is only delivered to currently-connected sockets — offline recipients never
@@ -685,13 +736,14 @@ namespace LegacyChat {
     ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
     envelope: nkruntime.EnvelopeChannelMessageSend
   ): nkruntime.EnvelopeChannelMessageSend | void {
-    try {
-      var msg: any = envelope ? (envelope as any).channelMessageSend : null;
-      if (msg) {
+    var msg: any = envelope ? (envelope as any).channelMessageSend : null;
+    if (msg) {
+      enforceChatHygiene(ctx, String(msg.content || ""));
+      try {
         msg.persist = true;
+      } catch (e: any) {
+        logger.warn("[Chat] beforeChannelMessageSend failed to force persist: %s", e && e.message ? e.message : String(e));
       }
-    } catch (e: any) {
-      logger.warn("[Chat] beforeChannelMessageSend failed to force persist: %s", e && e.message ? e.message : String(e));
     }
     return envelope;
   }

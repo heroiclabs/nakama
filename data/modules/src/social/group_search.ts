@@ -96,6 +96,8 @@ namespace SocialGroupSearch {
           gameId:      meta.gameId || gameId,
           groupType:   meta.groupType || "",
           level:       (typeof meta.level === "number") ? meta.level : 1,
+          xp:          (typeof meta.xp === "number") ? meta.xp : 0,
+          trophies:    (typeof meta.trophies === "number") ? meta.trophies : 0,
           badge:       meta.badge || "",
           joinPolicy:  meta.joinPolicy || (String(r.state) === "0" ? "open" : "private")
         });

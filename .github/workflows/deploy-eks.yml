@@ -98,12 +98,21 @@ jobs:
             if [ "$BEFORE" -eq 0 ] || [ "$AFTER" -eq 0 ]; then
               echo "FATAL: dashboard serverKey patch failed"; exit 1
             fi
+            # The legacy dashboard embedded a bootstrapSecret placeholder that
+            # had to be swapped for the runtime secret at build time. The
+            # 2026-07 dashboard removed it (auth is server-validated via
+            # admin_login), so the patch is conditional: only enforce it when
+            # the placeholder is actually present.
             BOOT_BEFORE=$(grep -c "bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8'" web/analytics-dashboard/index.html || true)
-            sed -i "s|bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8'|bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'|g" web/analytics-dashboard/index.html
-            BOOT_AFTER=$(grep -c "bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'" web/analytics-dashboard/index.html || true)
-            echo "bootstrapSecret occurrences before=$BOOT_BEFORE after=$BOOT_AFTER"
-            if [ "$BOOT_BEFORE" -eq 0 ] || [ "$BOOT_AFTER" -eq 0 ]; then
-              echo "FATAL: dashboard bootstrapSecret patch failed"; exit 1
+            if [ "$BOOT_BEFORE" -gt 0 ]; then
+              sed -i "s|bootstrapSecret: '2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8'|bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'|g" web/analytics-dashboard/index.html
+              BOOT_AFTER=$(grep -c "bootstrapSecret: '${RUNTIME_DASHBOARD_SECRET}'" web/analytics-dashboard/index.html || true)
+              echo "bootstrapSecret occurrences before=$BOOT_BEFORE after=$BOOT_AFTER"
+              if [ "$BOOT_AFTER" -eq 0 ]; then
+                echo "FATAL: dashboard bootstrapSecret patch failed"; exit 1
+              fi
+            else
+              echo "INFO: no legacy bootstrapSecret placeholder (server-validated admin_login) - skipping patch"
             fi
           else
             echo "WARN: web/analytics-dashboard/index.html missing - overlay will be a no-op"

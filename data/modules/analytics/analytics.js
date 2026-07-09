@@ -557,9 +557,27 @@ function analyticsIsSandboxIap(ed, ev) {
 
 /**
  * USD revenue for dashboard rollups. Never treat local-currency price/amount as USD.
+ *
+ * REVENUE-AUTHORITY FIX (2026-07): RevenueCat's server-to-server webhook
+ * (quizverse_rc_sync → recordRcRevenueLive, eventData.source ===
+ * "revenuecat_webhook") is now the SOLE contributor to revenue_usd, across
+ * every store (App Store / Play Store / Stripe) and every product type.
+ *
+ * Before this fix, the client ALSO sent its own iap_purchased/purchase_completed
+ * event the moment a purchase finished. Once the RC webhook started reporting
+ * revenue too, the same purchase was counted twice — client fires immediately,
+ * RC's webhook fires moments later, both wrote separate revenue_usd increments.
+ *
+ * Client-fired iap_purchased events are still fully valid for everything else
+ * (funnels, dropoff analysis, tracking-plan validation, "purchases made"
+ * counts) — they just no longer contribute a dollar amount. Only the
+ * webhook-tagged event carries revenue, and it already has its own
+ * idempotency ledger (qv_rc_revenue_ledger) guarding against RC's own
+ * webhook retries.
  */
 function analyticsExtractIapRevenueUsd(ed, ev) {
     if (analyticsIsSandboxIap(ed, ev)) return 0;
+    if (!ed || ed.source !== "revenuecat_webhook") return 0;
     var rev = parseFloat(ed.revenue_usd || ed.price_usd || ed.revenueUsd || ed.priceUsd || 0);
     if (isFinite(rev) && rev > 0) return rev;
     return 0;
