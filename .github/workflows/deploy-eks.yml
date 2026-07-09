@@ -24,7 +24,10 @@ env:
   K8S_NAMESPACE: aicart
   K8S_DEPLOYMENT: intelliverse-nakama
   K8S_CONTAINER: intelliverse-nakama
-  LLM_PROVIDER: openai
+  # GATEWAY-CENTRALIZATION 2026-07-08: qwen3 = the LiteLLM-gateway path
+  # (QWEN3_BASE_URL + nakama virtual key). Was "openai", which put the
+  # direct api.openai.com branch (raw vendor key, now removed) first.
+  LLM_PROVIDER: qwen3
 
 jobs:
   build-deploy:
@@ -151,7 +154,13 @@ jobs:
 
           # Runtime keys from SSM (was CodeBuild env parameter-store block)
           getp() { aws ssm get-parameter --name "$1" --with-decryption --query Parameter.Value --output text 2>/dev/null || true; }
-          OPENAI_API_KEY=$(getp /nakama/OPENAI_API_KEY)
+          # GATEWAY-CENTRALIZATION 2026-07-08: /nakama/OPENAI_API_KEY is no
+          # longer injected. All module LLM paths (chatbox/ai_player/blog_embed)
+          # ride the LiteLLM gateway via QWEN3_BASE_URL + the nakama virtual key
+          # (nakama-litellm-key secret); the direct-OpenAI branch is a dormant
+          # fallback that must not hold a raw vendor key (it was the org's
+          # canonical key sitting in plaintext deployment env — audit P0).
+          # The unset below actively removes the stale value from the live env.
           TMDB_API_KEY=$(getp /nakama/TMDB_API_KEY)
           LASTFM_API_KEY=$(getp /nakama/LASTFM_API_KEY)
           GNEWS_API_KEY=$(getp /nakama/GNEWS_API_KEY)
@@ -167,8 +176,9 @@ jobs:
             --patch='{"spec":{"progressDeadlineSeconds":900,"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":4,"maxUnavailable":0}}}}'
 
           echo "=== Injecting runtime secrets into deployment env (before image update) ==="
+          echo "=== Removing legacy raw OPENAI_API_KEY from deployment env (LiteLLM gateway holds vendor keys) ==="
+          kubectl set env deployment/"$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" OPENAI_API_KEY- || true
           INJECT_ARGS=""
-          [ -n "$OPENAI_API_KEY" ]     && INJECT_ARGS="$INJECT_ARGS OPENAI_API_KEY=$OPENAI_API_KEY"
           [ -n "$XAI_API_KEY" ]        && INJECT_ARGS="$INJECT_ARGS XAI_API_KEY=$XAI_API_KEY"
           [ -n "$LLM_PROVIDER" ]       && INJECT_ARGS="$INJECT_ARGS LLM_PROVIDER=$LLM_PROVIDER"
           [ -n "$TMDB_API_KEY" ]       && INJECT_ARGS="$INJECT_ARGS TMDB_API_KEY=$TMDB_API_KEY"
