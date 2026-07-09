@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
@@ -35,20 +36,30 @@ import {
   ExternalLink,
   XCircle,
   Sparkles,
+  BookMarked,
 } from "lucide-react";
 import { serverKeyAuth, satori, quizverse, type LiveEvent, type CreatorEvent, type CreatorEventStats as CEvtStats, type LeaderboardEntry } from "@nakama/shared";
 import { cn } from "@/lib/utils";
+import { PrizeCatalogPanel } from "./PrizeCatalogPage";
 
 type EventStatus = "active" | "upcoming" | "ended" | "all";
-type TabId = "satori" | "creator";
+type TabId = "satori" | "creator" | "prize-catalog";
 import { useScopedGameId } from "@/hooks/useScopedGame";
 
 const GLOBAL_CONFIG_SCOPE = "global";
+
+const VALID_TABS: TabId[] = ["satori", "creator", "prize-catalog"];
+
+function parseTabParam(value: string | null): TabId {
+  if (value && VALID_TABS.includes(value as TabId)) return value as TabId;
+  return "satori";
+}
 
 // Tab configuration
 const TABS: { id: TabId; label: string; icon: typeof CalendarDays }[] = [
   { id: "satori", label: "Platform Events", icon: CalendarDays },
   { id: "creator", label: "Creator Events", icon: Sparkles },
+  { id: "prize-catalog", label: "Prize Catalog", icon: BookMarked },
 ];
 
 function rpcGameId(scope: string) {
@@ -822,7 +833,15 @@ function CreatorEventStatsPanel({ event, stats, isLoading, onClose }: CreatorEve
 /* ------------------------------------------------------------------ */
 
 export function EventsPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("satori");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = parseTabParam(searchParams.get("tab"));
+  const selectTab = useCallback(
+    (tab: TabId) => {
+      if (tab === "satori") setSearchParams({});
+      else setSearchParams({ tab });
+    },
+    [setSearchParams],
+  );
   const gameScope = useScopedGameId() ?? GLOBAL_CONFIG_SCOPE;
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<EventStatus>("all");
@@ -937,9 +956,10 @@ export function EventsPage() {
   );
 
   const currentCounts = activeTab === "satori" ? counts : creatorCounts;
-  const currentLoading = activeTab === "satori" ? isLoading : creatorLoading;
-  const currentError = activeTab === "satori" ? isError : creatorError;
-  const currentErrorMsg = activeTab === "satori" ? error : creatorErrorMsg;
+  const currentLoading = activeTab === "satori" ? isLoading : activeTab === "creator" ? creatorLoading : false;
+  const currentError = activeTab === "satori" ? isError : activeTab === "creator" ? creatorError : false;
+  const currentErrorMsg = activeTab === "satori" ? error : activeTab === "creator" ? creatorErrorMsg : null;
+  const isEventsTab = activeTab === "satori" || activeTab === "creator";
 
   return (
     <div className="space-y-6">
@@ -955,14 +975,16 @@ export function EventsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => activeTab === "satori" ? refetch() : refetchCreator()}
-            disabled={currentLoading}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", currentLoading && "animate-spin")} />
-            Refresh
-          </button>
+          {isEventsTab && (
+            <button
+              onClick={() => (activeTab === "satori" ? refetch() : refetchCreator())}
+              disabled={currentLoading}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", currentLoading && "animate-spin")} />
+              Refresh
+            </button>
+          )}
           {activeTab === "satori" && (
             <button
               onClick={() => {
@@ -983,7 +1005,7 @@ export function EventsPage() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => selectTab(tab.id)}
             className={cn(
               "relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
               activeTab === tab.id
@@ -993,16 +1015,18 @@ export function EventsPage() {
           >
             <tab.icon className="h-4 w-4" />
             {tab.label}
-            <span
-              className={cn(
-                "ml-1 rounded-full px-1.5 py-0.5 text-xs",
-                activeTab === tab.id
-                  ? "bg-primary/10 text-primary"
-                  : "bg-muted text-muted-foreground",
-              )}
-            >
-              {tab.id === "satori" ? events.length : creatorEvents.length}
-            </span>
+            {tab.id !== "prize-catalog" && (
+              <span
+                className={cn(
+                  "ml-1 rounded-full px-1.5 py-0.5 text-xs",
+                  activeTab === tab.id
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {tab.id === "satori" ? events.length : creatorEvents.length}
+              </span>
+            )}
             {activeTab === tab.id && (
               <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />
             )}
@@ -1023,7 +1047,8 @@ export function EventsPage() {
         />
       )}
 
-      {/* Search + Filter */}
+      {/* Search + Filter (events tabs only) */}
+      {isEventsTab && (
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1055,9 +1080,10 @@ export function EventsPage() {
           ))}
         </div>
       </div>
+      )}
 
       {/* Error */}
-      {currentError && (
+      {isEventsTab && currentError && (
         <div className="flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           Failed to load events: {(currentErrorMsg as Error)?.message ?? "Unknown error"}
@@ -1065,7 +1091,7 @@ export function EventsPage() {
       )}
 
       {/* Loading */}
-      {currentLoading && (
+      {isEventsTab && currentLoading && (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           Loading events…
@@ -1156,6 +1182,9 @@ export function EventsPage() {
           )}
         </>
       )}
+
+      {/* ====== PRIZE CATALOG TAB ====== */}
+      {activeTab === "prize-catalog" && <PrizeCatalogPanel embedded />}
     </div>
   );
 }

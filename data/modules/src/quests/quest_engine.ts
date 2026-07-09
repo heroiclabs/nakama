@@ -474,6 +474,16 @@ namespace QuestEngine {
         updatedQuests[rq.questId].claimedAt = now;
         anyClaimedAt = true;
         logger.info("[QuestEngine] Reward auto-granted: quest=%s user=%s", rq.questId, userId);
+
+        // Server-driven fulfilment + player notification (reward catalog).
+        // Isolated: delivery problems never roll back grants or progress.
+        try {
+          var grantedCfg = config.quests[rq.questId];
+          RewardDelivery.onQuestReward(nk, logger, ctx, userId, gameId,
+            rq.questId, (grantedCfg && grantedCfg.name) || rq.questId, resolved);
+        } catch (dlvErr: any) {
+          logger.warn("[QuestEngine] RewardDelivery hook failed: " + (dlvErr && dlvErr.message ? dlvErr.message : String(dlvErr)));
+        }
       } catch (rewardErr: any) {
         logger.error("[QuestEngine] Reward grant failed (claimedAt stays null, client can retry): quest=%s err=%s",
           rq.questId, (rewardErr && rewardErr.message ? rewardErr.message : String(rewardErr)));
@@ -569,6 +579,13 @@ namespace QuestEngine {
 
     saveUserState(nk, userId, gameId, state);
     logger.info("[QuestEngine] Reward claimed manually: quest=%s user=%s", questId, userId);
+
+    // Same server-driven fulfilment path as auto-grant (catalog + notification).
+    try {
+      RewardDelivery.onQuestReward(nk, logger, ctx, userId, gameId, questId, qConfig.name || questId, resolved);
+    } catch (dlvErr: any) {
+      logger.warn("[QuestEngine] RewardDelivery hook failed (claim): " + (dlvErr && dlvErr.message ? dlvErr.message : String(dlvErr)));
+    }
 
     return RpcHelpers.successResponse({ reward: resolved });
   }

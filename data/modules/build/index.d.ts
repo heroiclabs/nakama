@@ -3665,6 +3665,30 @@ declare namespace QuestEngine {
     export function register(initializer: nkruntime.Initializer): void;
     export {};
 }
+declare namespace RewardDelivery {
+    export interface CatalogEntry {
+        id: string;
+        title: string;
+        message?: string;
+        assetUrl?: string;
+        ctaLabel?: string;
+        deliver?: {
+            channel: "email" | "none";
+            notificationId?: string;
+        };
+        icon?: string;
+    }
+    interface Catalog {
+        rewards: {
+            [rewardId: string]: CatalogEntry;
+        };
+    }
+    export function loadCatalog(nk: nkruntime.Nakama, gameId: string): Catalog;
+    export function deliveryEmail(nk: nkruntime.Nakama, userId: string): string;
+    export function onQuestReward(nk: nkruntime.Nakama, logger: nkruntime.Logger, ctx: nkruntime.Context, userId: string, gameId: string, questId: string, questName: string, resolved: any): void;
+    export function register(initializer: nkruntime.Initializer): void;
+    export {};
+}
 declare namespace QvAgent {
     function register(initializer: nkruntime.Initializer): void;
 }

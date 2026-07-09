@@ -96,12 +96,27 @@ function resolveProviderKey(ctx, providerName, provider) {
 
 // Returns the resolved vLLM base URL for qwen3, reading QWEN3_BASE_URL from
 // ctx.env when present so operators can override without a redeploy.
+// GATEWAY-CENTRALIZATION (2026-07-08): the base URL may now point at the
+// LiteLLM gateway (http://litellm.aicart.svc.cluster.local). Since callLLM
+// appends "/v1/chat/completions" itself, we normalise away a trailing "/"
+// and a trailing "/v1" so the env value works with or without the suffix.
 function resolveQwen3BaseUrl(ctx) {
-    return (ctx && ctx.env && ctx.env['QWEN3_BASE_URL']) || QWEN3_DEFAULT_BASE_URL;
+    var base = (ctx && ctx.env && ctx.env['QWEN3_BASE_URL']) || QWEN3_DEFAULT_BASE_URL;
+    base = ('' + base).replace(/\/+$/, '');
+    if (base.slice(-3) === '/v1') base = base.slice(0, -3);
+    return base;
 }
 
 function resolveQwen3Model(ctx) {
     return (ctx && ctx.env && ctx.env['QWEN3_MODEL']) || QWEN3_DEFAULT_MODEL;
+}
+
+// GATEWAY-CENTRALIZATION (2026-07-08): optional bearer key for the qwen3
+// endpoint. Unset for direct vLLM (keyless); set to the per-service LiteLLM
+// virtual key (sk-...) when QWEN3_BASE_URL points at the LiteLLM gateway.
+function resolveQwen3ApiKey(ctx) {
+    if (!ctx || !ctx.env) return '';
+    return ctx.env['QWEN3_API_KEY'] || ctx.env['LITELLM_API_KEY'] || '';
 }
 
 function getActiveProvider(ctx) {
@@ -152,15 +167,13 @@ function callLLM(nk, logger, ctx, systemPrompt, userMessage, maxTokens) {
         } else if (provider.name === 'qwen3') {
             var qUrl   = resolveQwen3BaseUrl(ctx) + '/v1/chat/completions';
             var qModel = resolveQwen3Model(ctx);
-            // QWEN3_API_KEY is optional: a raw in-cluster vLLM endpoint is
-            // keyless, but the LiteLLM gateway (the durable endpoint after the
-            // voice tier went scale-to-zero — bead na-6sx) requires a bearer
-            // key. Sourced from runtime.env like QWEN3_BASE_URL/QWEN3_MODEL.
+            // The bearer key is optional: a raw in-cluster vLLM endpoint is
+            // keyless, but the LiteLLM gateway requires a virtual key.
+            // Resolved via QWEN3_API_KEY then LITELLM_API_KEY (see
+            // resolveQwen3ApiKey above).
             var qHeaders = { 'Content-Type': 'application/json' };
-            var qKey = (ctx && ctx.env && ctx.env['QWEN3_API_KEY']) || '';
-            if (qKey) {
-                qHeaders['Authorization'] = 'Bearer ' + qKey;
-            }
+            var qKey = resolveQwen3ApiKey(ctx);
+            if (qKey) qHeaders['Authorization'] = 'Bearer ' + qKey;
             response = nk.httpRequest(qUrl, 'post', qHeaders, JSON.stringify({
                 model: qModel,
                 max_tokens: maxTokens,

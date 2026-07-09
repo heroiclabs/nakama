@@ -2653,9 +2653,25 @@ namespace AdminConsole {
     var statusFilter = typeof data.status === "string" ? String(data.status) : "";
     var eventIdFilter = data.eventId || data.event_id || "";
     if (eventIdFilter) eventIdFilter = String(eventIdFilter);
+    var prizeTypeFilter = data.prizeType || data.prize_type || "";
+    if (prizeTypeFilter) prizeTypeFilter = String(prizeTypeFilter);
+    var emailFilter = data.emailFilter || data.email_filter || "";
+    if (emailFilter) emailFilter = String(emailFilter);
+    var rankFilter = data.rank;
+    var rankFilterNum = rankFilter === undefined || rankFilter === null || rankFilter === "" || rankFilter === "all"
+      ? 0
+      : Number(rankFilter);
+    var searchQ = typeof data.q === "string" ? String(data.q).toLowerCase().trim() : "";
     var limit = Math.min(200, Math.max(1, Number(data.limit) || 100));
     var offset = Math.max(0, Number(data.offset) || 0);
     var storageCursor = (typeof data.cursor === "string" && data.cursor) ? String(data.cursor) : "";
+
+    // Offset pagination: numeric cursor is the next slice offset (not Nakama storage cursor).
+    if (storageCursor && /^\d+$/.test(storageCursor)) {
+      offset = parseInt(storageCursor, 10);
+      if (isNaN(offset) || offset < 0) offset = 0;
+      storageCursor = "";
+    }
 
     function prizeFulfillmentStorageCreateTimeSec(storageObj: any): number {
       if (!storageObj) return 0;
@@ -2688,9 +2704,29 @@ namespace AdminConsole {
       };
     }
 
+    function isXutRow(v: any): boolean {
+      if (v.source === "auto_winner_xut") return true;
+      var prize = "";
+      if (v.giftCard && v.giftCard.prize) prize = String(v.giftCard.prize).toUpperCase();
+      return prize.indexOf("XUT") >= 0;
+    }
+
     function rowMatchesFilters(v: any): boolean {
       if (statusFilter && v.status !== statusFilter) return false;
       if (eventIdFilter && String(v.eventId || "") !== eventIdFilter) return false;
+      if (prizeTypeFilter === "gift_cards" && isXutRow(v)) return false;
+      if (prizeTypeFilter === "coins" && !isXutRow(v)) return false;
+      if (rankFilterNum > 0 && Number(v.rank || 0) !== rankFilterNum) return false;
+      var email = v.email ? String(v.email).trim() : "";
+      if (emailFilter === "has" && !email) return false;
+      if (emailFilter === "missing" && email) return false;
+      if (searchQ) {
+        var title = String(v.eventTitle || "").toLowerCase();
+        var emailLc = email.toLowerCase();
+        var prizeLc = "";
+        if (v.giftCard && v.giftCard.prize) prizeLc = String(v.giftCard.prize).toLowerCase();
+        if (title.indexOf(searchQ) < 0 && emailLc.indexOf(searchQ) < 0 && prizeLc.indexOf(searchQ) < 0) return false;
+      }
       return true;
     }
 

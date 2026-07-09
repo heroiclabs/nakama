@@ -197,6 +197,8 @@ export interface PrizeFulfillment {
 export interface PrizeFulfillmentsResult {
   fulfillments: PrizeFulfillment[];
   cursor: string;
+  /** Full match count before client limit slice (admin list RPC) */
+  total?: number;
 }
 
 export interface SettlePrizeFulfillmentInput {
@@ -213,16 +215,40 @@ export interface SettlePrizeFulfillmentInput {
   error?: string;
 }
 
+export type PrizeTypeFilter = "gift_cards" | "coins" | "all";
+export type PrizeEmailFilter = "all" | "has" | "missing";
+
+export interface ListPrizeFulfillmentsFilters {
+  prizeType?: PrizeTypeFilter;
+  rank?: number | "all";
+  emailFilter?: PrizeEmailFilter;
+  q?: string;
+}
+
 export function listPrizeFulfillments(
   opts: RpcOptions,
   status?: FulfillmentStatus,
   limit?: number,
   cursor?: string,
   eventId?: string,
+  filters?: ListPrizeFulfillmentsFilters,
 ): Promise<PrizeFulfillmentsResult> {
+  var rankParam: number | string | undefined = undefined;
+  if (filters && filters.rank !== undefined && filters.rank !== "all") {
+    rankParam = filters.rank;
+  }
   return callRpc(
     "admin_prize_fulfillments_list",
-    { status, limit, cursor, eventId: eventId || undefined },
+    {
+      status,
+      limit,
+      cursor,
+      eventId: eventId || undefined,
+      prizeType: filters?.prizeType && filters.prizeType !== "all" ? filters.prizeType : undefined,
+      rank: rankParam,
+      emailFilter: filters?.emailFilter && filters.emailFilter !== "all" ? filters.emailFilter : undefined,
+      q: filters?.q?.trim() || undefined,
+    },
     opts,
   ).then((value) => unwrapData<PrizeFulfillmentsResult>(value));
 }
@@ -272,6 +298,54 @@ export function autoFulfillPrize(
   opts: RpcOptions,
 ): Promise<AutoFulfillPrizeResult> {
   return callDashboardApi<AutoFulfillPrizeResult>("/prize-fulfill", input, opts);
+}
+
+// ── Prize Catalog ──────────────────────────────────────────────────────────
+
+export interface PrizeCatalogTier {
+  rank: string;
+  prize: string;
+  brand: string;
+  value: number;
+  currency: string;
+  fulfillment: "reloadly" | "tremendous" | "nakama" | "manual";
+}
+
+export interface PrizeCatalogRegion {
+  region: string;
+  label: string;
+  tiers: PrizeCatalogTier[];
+  totalValue: number;
+  totalCurrency: string;
+}
+
+export interface PrizeCatalog {
+  version: number;
+  updatedAt: number;
+  updatedBy: string;
+  regions: Record<string, PrizeCatalogRegion>;
+  coinBonusTiers: PrizeCatalogTier[];
+}
+
+export interface SetPrizeCatalogResult {
+  ok: boolean;
+  version: number;
+  updatedAt: number;
+}
+
+export function getPrizeCatalog(opts: RpcOptions): Promise<PrizeCatalog> {
+  return callRpc("quizverse_prize_catalog_get", {}, opts).then((v) =>
+    unwrapData<PrizeCatalog>(v),
+  );
+}
+
+export function setPrizeCatalog(
+  catalog: Pick<PrizeCatalog, "regions" | "coinBonusTiers">,
+  opts: RpcOptions,
+): Promise<SetPrizeCatalogResult> {
+  return callRpc("admin_prize_catalog_set", catalog, opts).then((v) =>
+    unwrapData<SetPrizeCatalogResult>(v),
+  );
 }
 
 export {
