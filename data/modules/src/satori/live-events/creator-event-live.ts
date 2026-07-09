@@ -129,6 +129,7 @@ namespace SatoriCreatorEvents {
     rank?: number;
     claimedAt?: number;
     eliminated?: boolean;
+    abandonedAt?: number;
   }
 
   interface CreatorEventsIndex {
@@ -691,6 +692,68 @@ namespace SatoriCreatorEvents {
     };
   }
 
+  function rpcAbandon(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    var userId = RpcHelpers.requireUserId(ctx);
+    var data = RpcHelpers.parseRpcPayload(payload);
+    if (!data.eventId) return RpcHelpers.errorResponse("eventId required");
+
+    var eventId = String(data.eventId);
+    var existing = readCompletedAnswer(nk, eventId, userId);
+    if (existing) {
+      if (existing.abandoned === true) {
+        return RpcHelpers.successResponse({ success: true, eventId: eventId, abandoned: true });
+      }
+      return RpcHelpers.errorResponse("You have already finished this event.");
+    }
+
+    var userStates = getUserStates(nk, userId);
+    if (!userStates[eventId] || !userStates[eventId].joinedAt) {
+      return RpcHelpers.errorResponse("You have not joined this event.");
+    }
+
+    var nowMs = Date.now();
+    var answerRecord: any = {
+      eventId: eventId,
+      playerId: userId,
+      deviceId: data.deviceId || data.device_id || "",
+      playerName: String(data.playerName || data.displayName || data.player_name || ctx.username || "").trim(),
+      answer: "",
+      correct: false,
+      score: 0,
+      speedBonus: 0,
+      submitMs: nowMs,
+      elapsedSec: 0,
+      answered: false,
+      abandoned: true,
+      correctCount: 0,
+      totalQuestions: 0,
+      qAnswers: [],
+      source: "creator_event_abandon_rpc",
+    };
+
+    try {
+      nk.storageWrite([{
+        collection: "event_answers",
+        key: eventId,
+        userId: userId,
+        value: answerRecord,
+        permissionRead: 2,
+        permissionWrite: 0,
+        version: "*",
+      }]);
+    } catch (writeErr: any) {
+      logger.warn("[CreatorEvent] Abandon write failed for user=%s event=%s: %s", userId, eventId, writeErr.message || String(writeErr));
+      return RpcHelpers.errorResponse("Could not record event exit.");
+    }
+
+    writeSpaAnswerIndexEntry(nk, logger, eventId, userId, 0, nowMs);
+
+    userStates[eventId].abandonedAt = Math.floor(nowMs / 1000);
+    saveUserStates(nk, userId, userStates);
+
+    return RpcHelpers.successResponse({ success: true, eventId: eventId, abandoned: true });
+  }
+
   function rpcCanPlay(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
     var userId = RpcHelpers.requireUserId(ctx);
     var data = RpcHelpers.parseRpcPayload(payload);
@@ -699,14 +762,18 @@ namespace SatoriCreatorEvents {
     var eventId = String(data.eventId);
     var completedAnswer = readCompletedAnswer(nk, eventId, userId);
     if (completedAnswer) {
+      var abandoned = completedAnswer.abandoned === true;
       return RpcHelpers.successResponse({
         success: true,
         eventId: eventId,
         canPlay: false,
-        played: 1,
-        completed: true,
-        submitted: true,
-        reason: "You have already completed this event.",
+        played: abandoned ? 0 : 1,
+        completed: !abandoned,
+        submitted: !abandoned,
+        abandoned: abandoned,
+        reason: abandoned
+          ? "You left this event and cannot play again."
+          : "You have already completed this event.",
         score: completedAnswer.score || 0,
         correct: completedAnswer.correct === true,
       });
@@ -1762,6 +1829,7 @@ namespace SatoriCreatorEvents {
     initializer.registerRpc("creator_event_get", rpcGet);
     initializer.registerRpc("creator_event_clock", rpcServerClock);
     initializer.registerRpc("creator_event_join", rpcJoin);
+    initializer.registerRpc("creator_event_abandon", rpcAbandon);
     initializer.registerRpc("creator_event_can_play", rpcCanPlay);
     initializer.registerRpc("creator_event_submit", rpcSubmit);
     initializer.registerRpc("creator_event_leaderboard", rpcLeaderboard);
