@@ -19,7 +19,6 @@ import {
   Puzzle,
   Sparkles,
   TrendingUp,
-  DollarSign,
   AlertCircle,
 } from "lucide-react";
 import {
@@ -69,6 +68,7 @@ import {
   useStatusLayoutEditMode,
 } from "@/components/dashboard/SortableDashboard";
 import { GrowthTelemetryPanel } from "@/pages/product-telemetry/GrowthTelemetryPanel";
+import { RevenueCatRevenuePanel } from "@/pages/product-telemetry/RevenueCatRevenuePanel";
 
 const REFETCH_MS = 15_000;
 
@@ -1166,6 +1166,8 @@ function GameMetricsTab({
         eventFilter={eventFilter}
       />
 
+      <RevenueCatRevenuePanel days={days} />
+
       {/* Daily trend charts — mirrors Satori Cloud "Game Metrics" */}
       <div className="grid gap-4 md:grid-cols-2">
         <DailyMetricCard
@@ -1196,26 +1198,6 @@ function GameMetricsTab({
           loading={metricsLoading}
         />
         <DailyMetricCard
-          title="Daily Revenue"
-          subtitle="Sum of purchase revenue per day"
-          icon={DollarSign}
-          series={series}
-          dataKey="revenue"
-          colorHsl={CHART_COLORS.revenue}
-          money
-          loading={metricsLoading}
-        />
-        <DailyMetricCard
-          title="Daily ARPAU"
-          subtitle="Avg revenue per active user"
-          icon={TrendingUp}
-          series={series}
-          dataKey="arpau"
-          colorHsl={CHART_COLORS.arpau}
-          money
-          loading={metricsLoading}
-        />
-        <DailyMetricCard
           title="Daily Avg. Session Duration"
           subtitle="Average session length per session"
           icon={Activity}
@@ -1238,11 +1220,10 @@ function GameMetricsTab({
       </div>
 
       {totals && (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
           <SummaryStat label={`Avg DAU · ${metrics?.days ?? 0}d`} value={totals.avgDau} />
           <SummaryStat label={`Installs · ${metrics?.days ?? 0}d`} value={totals.installs} />
           <SummaryStat label={`Sessions · ${metrics?.days ?? 0}d`} value={totals.sessions} />
-          <SummaryStat label={`Revenue · ${metrics?.days ?? 0}d`} value={`$${totals.revenue.toFixed(2)}`} />
         </div>
       )}
 
@@ -1260,7 +1241,7 @@ function GameMetricsTab({
           />
           <StatGroupCard
             title="RoAS"
-            subtitle="Revenue and return-on-ad-spend"
+            subtitle="Legacy Nakama estimates — use RevenueCat above for IAP $"
             stats={[
               { label: "Avg CPI", value: `$${totals.cpi.toFixed(2)}` },
               { label: "Avg LTV", value: `$${totals.ltv.toFixed(2)}` },
@@ -1288,26 +1269,6 @@ function GameMetricsTab({
               monthly={metrics.monthly}
               dataKey="activeUsers"
               colorHsl={CHART_COLORS.dau}
-              loading={metricsLoading}
-            />
-            <MonthlyMetricCard
-              title="Monthly Revenue"
-              subtitle="Total revenue across all purchases"
-              icon={DollarSign}
-              monthly={metrics.monthly}
-              dataKey="revenue"
-              colorHsl={CHART_COLORS.revenue}
-              money
-              loading={metricsLoading}
-            />
-            <MonthlyMetricCard
-              title="Monthly ARPAU"
-              subtitle="Avg revenue per active user"
-              icon={TrendingUp}
-              monthly={metrics.monthly}
-              dataKey="arpau"
-              colorHsl={CHART_COLORS.arpau}
-              money
               loading={metricsLoading}
             />
             <MonthlyMetricCard
