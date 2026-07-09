@@ -59,6 +59,7 @@ services:
           DISCORD_QV_OPS_WEBHOOK_URL DISCORD_NAKAMA_WEBHOOK_URL
           IVX_AI_SVC_BASE_URL IVX_INSIGHTS_SHARED_SECRET IVX_INSIGHTS_BUCKET_MS
           QUIZVERSE_N8N_BASE_URL QUIZVERSE_ADMIN_API_TOKEN
+          REVENUECAT_SECRET_API_KEY REVENUECAT_PROJECT_ID
           QV_DOGCEO_BREED_SAMPLE
           QV_GET_QUESTIONS_RATE_MAX
         "
@@ -176,6 +177,9 @@ services:
       # QuizVerse CRM product telemetry (WF-09 via quizverse_product_metrics RPC)
       - QUIZVERSE_N8N_BASE_URL=${QUIZVERSE_N8N_BASE_URL:-}
       - QUIZVERSE_ADMIN_API_TOKEN=${QUIZVERSE_ADMIN_API_TOKEN:-}
+      # RevenueCat Charts API v2 — admin dashboard IAP revenue (admin_revenuecat_dashboard RPC)
+      - REVENUECAT_SECRET_API_KEY=${REVENUECAT_SECRET_API_KEY:-}
+      - REVENUECAT_PROJECT_ID=${REVENUECAT_PROJECT_ID:-proj0d38847e}
       # Geo-aware quiz uses iTunes RSS and Deezer API — both free, no key needed
     volumes:
       - ./:/nakama/data
