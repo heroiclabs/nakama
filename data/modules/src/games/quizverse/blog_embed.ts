@@ -152,11 +152,18 @@ namespace BlogEmbed {
         if (name === "qwen3") {
           // Self-hosted vLLM (OpenAI-compatible). 18s keeps the whole RPC under
           // the Next.js /api/blog-quiz/generate 22s client timeout.
-          var qBase = ("" + ((ctx.env && ctx.env["QWEN3_BASE_URL"]) || QWEN3_DEFAULT_BASE_URL)).replace(/\/$/, "");
+          // GATEWAY-CENTRALIZATION (2026-07-08): QWEN3_BASE_URL may point at the
+          // LiteLLM gateway. We append "/v1/chat/completions" ourselves, so strip
+          // a trailing "/v1" (and slashes) to accept the env value either way.
+          // QWEN3_API_KEY / LITELLM_API_KEY is the optional LiteLLM virtual key;
+          // direct vLLM stays keyless when neither is set.
+          var qBase = ("" + ((ctx.env && ctx.env["QWEN3_BASE_URL"]) || QWEN3_DEFAULT_BASE_URL)).replace(/\/+$/, "");
+          if (qBase.slice(-3) === "/v1") qBase = qBase.slice(0, -3);
           var qModel = "" + ((ctx.env && ctx.env["QWEN3_MODEL"]) || QWEN3_DEFAULT_MODEL);
-          var rq = nk.httpRequest(qBase + "/v1/chat/completions", "post", {
-            "Content-Type": "application/json"
-          }, JSON.stringify({
+          var qKey = envStr(ctx, "QWEN3_API_KEY") || envStr(ctx, "LITELLM_API_KEY");
+          var qHeaders: { [key: string]: string } = { "Content-Type": "application/json" };
+          if (qKey) qHeaders["Authorization"] = "Bearer " + qKey;
+          var rq = nk.httpRequest(qBase + "/v1/chat/completions", "post", qHeaders, JSON.stringify({
             model: qModel,
             max_tokens: maxTokens,
             messages: [

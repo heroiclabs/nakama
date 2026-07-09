@@ -1031,15 +1031,30 @@ namespace QuizVerseMigration {
     if (!apiKey) {
       return JSON.stringify({ ok: false, error: "tts_key_unset", fallback_to_client: true });
     }
+    // GATEWAY-CENTRALIZATION (2026-07-08): IVX_ELEVENLABS_BASE_URL lets ops
+    // route TTS through the LiteLLM pass-through
+    // (http://litellm.aicart.svc.cluster.local/elevenlabs). When routed via
+    // the gateway, IVX_ELEVENLABS_API_KEY holds the LiteLLM *virtual* key and
+    // auth is sent as "Authorization: Bearer <key>" — LiteLLM validates it,
+    // drops client headers and injects the real ElevenLabs xi-api-key
+    // upstream. When the env is unset we hit api.elevenlabs.io directly with
+    // the vendor key in the original "xi-api-key" header.
+    var baseUrl = ("" + (env.IVX_ELEVENLABS_BASE_URL || "https://api.elevenlabs.io")).replace(/\/+$/, "");
+    var viaGateway = !!env.IVX_ELEVENLABS_BASE_URL;
+    var authHeaders: { [key: string]: string } = viaGateway
+      ? { "Authorization": "Bearer " + apiKey }
+      : { "xi-api-key": apiKey };
+    authHeaders["Accept"] = "audio/mpeg";
+    authHeaders["Content-Type"] = "application/json";
     var pack = readPlayerContext(nk, userId);
     var voiceId = req.voice_id || env.IVX_ELEVENLABS_DEFAULT_VOICE || "21m00Tcm4TlvDq8ikWAM";
     var modelId = req.model_id || "eleven_multilingual_v2";
 
     try {
       var resp = nk.httpRequest(
-        "https://api.elevenlabs.io/v1/text-to-speech/" + encodeURIComponent(voiceId),
+        baseUrl + "/v1/text-to-speech/" + encodeURIComponent(voiceId),
         "post",
-        { "xi-api-key": apiKey, "Accept": "audio/mpeg", "Content-Type": "application/json" },
+        authHeaders,
         JSON.stringify({ text: String(req.text), model_id: modelId })
       );
       if (resp.code < 200 || resp.code >= 300) {
