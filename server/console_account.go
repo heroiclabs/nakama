@@ -191,9 +191,6 @@ func (s *ConsoleServer) ExportAccount(ctx context.Context, in *console.AccountId
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
 	}
-	if userID == uuid.Nil {
-		return nil, status.Error(codes.InvalidArgument, "Cannot export the system user.")
-	}
 
 	export, err := ExportAccount(ctx, logger, s.db, userID)
 	if err != nil {
@@ -207,9 +204,6 @@ func (s *ConsoleServer) ImportAccount(ctx context.Context, in *console.AccountIm
 	userID, err := uuid.FromString(in.Id)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "Requires a valid user ID.")
-	}
-	if userID == uuid.Nil {
-		return nil, status.Error(codes.InvalidArgument, "Cannot import to the system user.")
 	}
 
 	if _, err := ImportAccount(ctx, logger, s.db, s.statusRegistry, userID, in.Data); err != nil {
