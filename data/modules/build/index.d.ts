@@ -1216,6 +1216,7 @@ declare namespace HiroUnlockables {
     function getConfig(nk: nkruntime.Nakama): Hiro.UnlockablesConfig;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare function persistNormalizedEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, ev: any): void;
 declare namespace QvEntitlements {
     function grantSubscription(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string, store: string, expiresAt: string | null): void;
     function grantConsumable(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string, quantity: number): void;

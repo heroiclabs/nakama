@@ -86,6 +86,12 @@ var INVITE_STATUS_CANCELLED = 'cancelled';
 
 var FRIEND_PUSH_GAME_ID = '126bf539-dae2-4bcf-964d-316c0fa1f92b';
 
+// Phase-17 fix: friend_invite_with_reward (friends_extras.js) records a
+// reward-intent row here keyed by 'invite_reward_<senderId>_<recipientId>',
+// but nothing ever read this collection back — reward grants were silently
+// dropped on every accept. See _fiGrantInviteRewardIfPending below.
+var FRIEND_INVITE_REWARD_COLLECTION = 'friend_invite_rewards';
+
 // Nakama friend states (from runtime API)
 var FR_STATE_FRIEND          = 0;
 var FR_STATE_INVITE_SENT     = 1;
@@ -205,6 +211,126 @@ function _fiRelationFromMap(relMap, targetId) {
         return relMap[targetId];
     }
     return -1;
+}
+
+/**
+ * Grant a pending friend_invite_with_reward bundle to both parties, exactly
+ * once, when the recipient's acceptance completes the mutual-friend edge.
+ *
+ * Phase-17 fix: friends_extras.js::rpcFriendInviteWithReward persists this
+ * row (key 'invite_reward_<senderId>_<recipientId>', written under BOTH
+ * userIds) but historically nothing ever claimed it — accept_friend_invite
+ * only knew about the `friend_invites` collection, a completely different
+ * key scheme, so reward-tagged invites silently granted nothing.
+ *
+ * Non-fatal by design: a reward-grant failure must never block the actual
+ * friend acceptance that's already succeeded.
+ */
+function _fiGrantInviteRewardIfPending(nk, logger, senderId, recipientId) {
+    if (!senderId || !recipientId || !_fiUuidValid(senderId) || !_fiUuidValid(recipientId)) return;
+
+    var rewardKey = 'invite_reward_' + senderId + '_' + recipientId;
+    var rows;
+    try {
+        rows = nk.storageRead([{
+            collection: FRIEND_INVITE_REWARD_COLLECTION,
+            key:        rewardKey,
+            userId:     recipientId
+        }]);
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn('[FriendInvites] invite-reward read failed (non-fatal): ' + e.message);
+        }
+        return;
+    }
+
+    if (!rows || rows.length === 0 || !rows[0].value) return; // no reward tagged on this invite
+    var record = rows[0].value;
+    var rewardVersion = rows[0].version;
+    if (record.status !== 'pending') return; // already claimed or expired — idempotent no-op
+    if (record.expiresAt && new Date(record.expiresAt).getTime() < Date.now()) return; // expired, do not grant
+
+    // Claim FIRST, atomically, before touching the wallet. accept_friend_invite
+    // can legitimately be invoked twice for the same pair (client retry after a
+    // timed-out response, or the graph-fallback path racing the primary path),
+    // and this function itself has no other de-dup guard. Passing `version`
+    // makes this write fail if another concurrent call already claimed the row
+    // — that failure is our double-grant guard, so we abort BEFORE crediting
+    // any currency rather than risk paying out twice.
+    record.status = 'claimed';
+    record.claimedAt = _fiNowIso();
+    try {
+        nk.storageWrite([{
+            collection:      FRIEND_INVITE_REWARD_COLLECTION,
+            key:             rewardKey,
+            userId:          recipientId,
+            value:           record,
+            version:         rewardVersion || undefined,
+            permissionRead:  0,
+            permissionWrite: 0
+        }]);
+    } catch (e) {
+        // Version conflict (or any write failure) — treat as "already being
+        // claimed elsewhere" and bail out without granting. Safer failure mode
+        // for a currency-granting path than risking a double-pay race.
+        if (logger && logger.warn) {
+            logger.warn('[FriendInvites] invite-reward claim failed (treated as already-claimed, no grant issued): ' + e.message);
+        }
+        return;
+    }
+
+    var bundle = record.rewardBundle || {};
+    var coins = parseInt(bundle.coins) || 0;
+    var gems  = parseInt(bundle.gems)  || 0;
+    var xp    = parseInt(bundle.xp)    || 0;
+
+    if (coins > 0 || gems > 0 || xp > 0) {
+        try {
+            nk.walletUpdate(senderId, { coins: coins, gems: gems, xp: xp },
+                { source: 'friend_invite_reward', rewardKey: rewardKey }, true);
+        } catch (e) {
+            // The claim already committed — a failure here is a genuine lost
+            // grant (not a double-grant risk), so this is worth an ERROR, not
+            // just a warning, for ops visibility.
+            if (logger && logger.error) logger.error('[FriendInvites] invite-reward wallet grant (sender) FAILED after claim: ' + e.message + ' | rewardKey=' + rewardKey);
+        }
+        try {
+            nk.walletUpdate(recipientId, { coins: coins, gems: gems, xp: xp },
+                { source: 'friend_invite_reward', rewardKey: rewardKey }, true);
+        } catch (e) {
+            if (logger && logger.error) logger.error('[FriendInvites] invite-reward wallet grant (recipient) FAILED after claim: ' + e.message + ' | rewardKey=' + rewardKey);
+        }
+    }
+
+    // Best-effort mirror onto the sender's copy of the row so their own
+    // reads of the collection also show 'claimed' — non-critical bookkeeping,
+    // the recipient's copy above is the one and only concurrency gate.
+    try {
+        nk.storageWrite([{
+            collection: FRIEND_INVITE_REWARD_COLLECTION, key: rewardKey, userId: senderId,
+            value: record, permissionRead: 0, permissionWrite: 0
+        }]);
+    } catch (e) {
+        if (logger && logger.warn) {
+            logger.warn('[FriendInvites] invite-reward sender-copy mirror write failed (non-fatal): ' + e.message);
+        }
+    }
+
+    try {
+        nk.notificationsSend([{
+            userId:  recipientId,
+            subject: 'Invite Reward Claimed!',
+            content: { type: 'friend_invite_reward_claimed', fromUserId: senderId, rewardBundle: { coins: coins, gems: gems, xp: xp } },
+            code:    112,
+            persistent: true,
+            sender:  senderId
+        }]);
+    } catch (_) { /* best-effort — wallet grant already succeeded */ }
+
+    if (logger && logger.info) {
+        logger.info('[FriendInvites] invite-reward granted | sender=' + senderId + ' recipient=' + recipientId +
+                     ' coins=' + coins + ' gems=' + gems + ' xp=' + xp);
+    }
 }
 
 /**
@@ -782,6 +908,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
                     sourceUserId: derivedFrom, targetUserId: userId,
                     channel: 'in_app', gameId: FRIEND_PUSH_GAME_ID, inviteId: inviteId
                 });
+                _fiGrantInviteRewardIfPending(nk, logger, derivedFrom, userId);
                 logger.info('[FriendInvites] accept via graph fallback | acceptor=' + userId + ' | sender=' + derivedFrom);
                 return _fiOk({ inviteId: inviteId, friendUserId: derivedFrom,
                                friendDisplayName: gfName, viaGraphFallback: true });
@@ -834,6 +961,7 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
         } catch (reconcileErr) {
             logger.warn('[FriendInvites] accept reconcile write failed (non-fatal) | error=' + reconcileErr.message);
         }
+        _fiGrantInviteRewardIfPending(nk, logger, invite.fromUserId, userId);
         return _fiOk({ inviteId: inviteId, alreadyFriends: true,
                        friendUserId: invite.fromUserId,
                        friendDisplayName: invite.fromDisplayName });
@@ -929,6 +1057,8 @@ function rpcFriendsAcceptInvite(ctx, logger, nk, payload) {
         gameId:       FRIEND_PUSH_GAME_ID,
         inviteId:     inviteId
     });
+
+    _fiGrantInviteRewardIfPending(nk, logger, invite.fromUserId, userId);
 
     return _fiOk({
         inviteId:           inviteId,

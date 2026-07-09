@@ -25677,11 +25677,19 @@ var QvEntitlements;
     var KEY_SUBS = "subscriptions";
     var KEY_CONS = "consumables";
     var KEY_ONE = "one_time";
+    // Dedup ledger for RevenueCat webhook revenue recording — RC explicitly
+    // documents that webhook retries reuse the same `event.id` + timestamp
+    // (https://www.revenuecat.com/docs/integrations/webhooks/event-types-and-fields).
+    // Without this guard, a retried webhook (e.g. after a slow/aborted response)
+    // would double-count the same purchase in analytics_live_daily.revenue_usd.
+    var RC_REVENUE_LEDGER_COLLECTION = "qv_rc_revenue_ledger";
     // NAKAMA_WEBHOOK_SECRET is set in docker-compose.yml environment + RUNTIME_ENV_KEYS.
     // RevenueCat webhook Authorization header must match this value.
     // If the env var is unset, signature checking is SKIPPED (dev-only behaviour).
     var WEBHOOK_SECRET_ENV_KEY = "NAKAMA_WEBHOOK_SECRET";
-    // Product ID → tier mapping (must mirror RevenueCatProjectSetup.cs in Unity)
+    // Product ID → tier mapping (must mirror RevenueCatProjectSetup.cs in Unity).
+    // Works for App Store / Play Store product IDs, which are always
+    // descriptive strings like "com.intelliverse.quizverse.pro.monthly".
     function tierForProductId(productId) {
         if (!productId)
             return null;
@@ -25701,6 +25709,31 @@ var QvEntitlements;
             return "voyage_monthly";
         if (productId === "com.intelliverse.quizverse.aifortune")
             return "pro"; // legacy
+        return null;
+    }
+    // RC entitlement lookup_key → internal tier mapping (RC Dashboard →
+    // Entitlements → "identifier"). Web/Stripe products use opaque RevenueCat
+    // product IDs (e.g. "prod_Ukdueh6ejXhPHb") that tierForProductId can never
+    // match by substring, but every RC event — regardless of store — carries
+    // entitlement_ids for whatever entitlement(s) the product grants. This is
+    // the store-agnostic fallback so Stripe/web subscribers get the exact same
+    // tier resolution as App Store/Play Store subscribers.
+    function tierForEntitlementIds(entitlementIds) {
+        if (!entitlementIds || !entitlementIds.length)
+            return null;
+        for (var i = 0; i < entitlementIds.length; i++) {
+            var id = String(entitlementIds[i] || "").toLowerCase();
+            if (id === "pro_plus")
+                return "pro_plus";
+            if (id === "pro")
+                return "pro";
+            if (id === "linkplay_proplus")
+                return "linkplay_proplus";
+            if (id === "linkplay_pro")
+                return "linkplay_pro";
+            if (id === "plus")
+                return "plus";
+        }
         return null;
     }
     // Resolve subscription expiry from RC event data (ISO-8601 or null for lifetime)
@@ -25747,6 +25780,102 @@ var QvEntitlements;
         catch (e) {
             logger.warn("[QvEntitlements] get error: " + (e && e.message ? e.message : String(e)));
             return RpcHelpers.errorResponse("Failed to read entitlements");
+        }
+    }
+    // ── RevenueCat revenue recording (Gap 1 fix) ────────────────────────────
+    //
+    //  RevenueCat is the single source of truth for IAP revenue — reconciled,
+    //  sandbox-free. This writes the transaction's USD amount into the SAME
+    //  live-dashboard + nightly-rollup pipeline every other event uses, so
+    //  admin dashboard / analytics.html always match RevenueCat's own totals.
+    //  Client-side `iap_purchased` events are no longer the source of truth
+    //  (they remain informational only going forward).
+    //
+    //  Runs once per rc_sync call, BEFORE any entitlement-granting branch, so
+    //  revenue is recorded uniformly regardless of whether the productId maps
+    //  to a subscription tier, a consumable, or is unrecognized.
+    function recordRcRevenueLive(ctx, logger, nk, targetUserId, event, eventType, productId, store) {
+        try {
+            // RC docs: `price` is the USD price of the transaction. Can be null/
+            // unknown, 0 for free trials, or negative for refunds. We only record
+            // strictly-positive, finite amounts — this mirrors the platform-wide
+            // convention in analyticsExtractIapRevenueUsd/arExtractIapRevenueUsd
+            // (both enforce rev > 0), so today's live number and tonight's rollup
+            // number always agree. Refund/chargeback netting is a separate,
+            // larger feature and is intentionally out of scope here.
+            var priceUsd = Number(event && event.price);
+            if (!isFinite(priceUsd) || priceUsd <= 0)
+                return;
+            // Sandbox purchases must never inflate the reconciled dashboard total.
+            var env = String((event && event.environment) || "").toUpperCase();
+            if (env === "SANDBOX") {
+                logger.info("[QvEntitlements] rc_sync: skipping revenue for sandbox event id=" + (event && event.id));
+                return;
+            }
+            if (!targetUserId)
+                return;
+            // Idempotency: RevenueCat retries webhooks reusing the same event.id.
+            // Create-only write (version:"*") — if this id was already claimed,
+            // storageWrite throws and we skip recording (already counted).
+            var eventId = (event && event.id) || null;
+            if (eventId) {
+                try {
+                    nk.storageWrite([{
+                            collection: RC_REVENUE_LEDGER_COLLECTION,
+                            key: String(eventId),
+                            userId: Constants.SYSTEM_USER_ID,
+                            value: { eventId: eventId, userId: targetUserId, productId: productId, priceUsd: priceUsd, recordedAt: new Date().toISOString() },
+                            permissionRead: 0,
+                            permissionWrite: 0,
+                            version: "*"
+                        }]);
+                }
+                catch (dupErr) {
+                    logger.info("[QvEntitlements] rc_sync: duplicate RC event id=" + eventId + " — revenue already recorded, skipping");
+                    return;
+                }
+            }
+            else {
+                // No event.id (e.g. an older RC payload shape) — proceed without
+                // dedup rather than silently dropping real revenue. Logged so it's
+                // visible if this ever happens in production.
+                logger.warn("[QvEntitlements] rc_sync: revenue event missing event.id, dedup skipped. productId=" + productId);
+            }
+            var gameId = (ctx.env && ctx.env["DEFAULT_GAME_ID"]) || "126bf539-dae2-4bcf-964d-316c0fa1f92b"; // QuizVerse prod UUID
+            var nowSec = Math.floor(Date.now() / 1000);
+            var ev = {
+                userId: targetUserId,
+                gameId: gameId,
+                eventName: "iap_purchased",
+                originalEventName: "iap_purchased",
+                canonicalized: false,
+                eventData: {
+                    revenue_usd: priceUsd,
+                    is_sandbox: false,
+                    store: store || (event && event.store) || "unknown",
+                    product_id: productId,
+                    source: "revenuecat_webhook",
+                    rc_event_type: eventType,
+                    rc_event_id: eventId
+                },
+                platform: null,
+                sessionId: null,
+                timestamp: new Date(nowSec * 1000).toISOString(),
+                unixTimestamp: nowSec,
+                schemaVersion: 1,
+                clientEventId: eventId,
+                eventTime: null,
+                quizSessionId: null,
+                screenId: null,
+                privacyTier: 1,
+                v2Warnings: []
+            };
+            persistNormalizedEvent(nk, logger, ev);
+            logger.info("[QvEntitlements] rc_sync: recorded $" + priceUsd.toFixed(2) + " revenue for user=" + targetUserId + " productId=" + productId + " event=" + eventType);
+        }
+        catch (e) {
+            // Revenue recording must NEVER block entitlement granting.
+            logger.warn("[QvEntitlements] rc_sync: recordRcRevenueLive failed (non-fatal): " + (e && e.message ? e.message : String(e)));
         }
     }
     // ── quizverse_rc_sync ───────────────────────────────────────────────────
@@ -25825,6 +25954,12 @@ var QvEntitlements;
         if (!productId) {
             return RpcHelpers.errorResponse("productId required");
         }
+        // ── Gap 1 fix: record RevenueCat revenue BEFORE entitlement branching.
+        // Runs for every recognized RC event regardless of subscription/consumable/
+        // unknown productId routing below, so IAP revenue is never silently
+        // dropped for products this RPC doesn't grant a tier for. Never throws
+        // and never blocks entitlement granting (see try/catch inside).
+        recordRcRevenueLive(ctx, logger, nk, targetUserId, event, eventType, productId, store);
         // ── Consumable path (AI Voice session credits) ───────────────────────
         // Triggered by web Stripe webhook (store = "web_stripe") or RC consumable
         // purchases.  productId pattern: *.aivoice.*  or  *.voice_pack.*
@@ -25877,7 +26012,10 @@ var QvEntitlements;
             }
         }
         // ── Subscription path ────────────────────────────────────────────────
-        var tier = tierForProductId(productId);
+        // Try the descriptive productId first (App Store / Play Store), then
+        // fall back to RC's store-agnostic entitlement_ids (required for Stripe/
+        // web, whose product IDs are opaque RC-generated strings).
+        var tier = tierForProductId(productId) || tierForEntitlementIds(event.entitlement_ids);
         if (!tier) {
             // Not a subscription — handle consumables / one-time products when RC sends
             // a GRANT or TEMPORARY_ENTITLEMENT_GRANT event (promotional grants, support
@@ -25917,8 +26055,14 @@ var QvEntitlements;
             return RpcHelpers.successResponse({ ignored: true, reason: "not a subscription product" });
         }
         try {
-            // Handle lifecycle events that should revoke access
-            var isRevoked = eventType === "CANCELLATION" || eventType === "EXPIRATION";
+            // Handle lifecycle events that should revoke access IMMEDIATELY.
+            // Per RevenueCat's documented semantics (Trial/Renewal flows doc): CANCELLATION
+            // only means "auto-renew turned off" — the user KEEPS access for the remainder
+            // of the CURRENT paid/trial period. Only EXPIRATION (the period actually ending)
+            // should revoke access. Treating CANCELLATION as an immediate revoke was cutting
+            // off Pro/Pro+ trial users the moment they tapped "cancel" mid-trial, even though
+            // RC/Apple/Google explicitly keep them entitled until expiresAt.
+            var isImmediateRevoke = eventType === "EXPIRATION";
             // BILLING_ISSUE does NOT revoke — user keeps access during grace period
             var isActive = eventType === "INITIAL_PURCHASE" ||
                 eventType === "RENEWAL" ||
@@ -25926,16 +26070,33 @@ var QvEntitlements;
                 eventType === "PRODUCT_CHANGE" ||
                 eventType === "GRANT" ||
                 eventType === "TEMPORARY_ENTITLEMENT_GRANT";
-            if (isRevoked) {
+            var isCancellationNotice = eventType === "CANCELLATION";
+            if (isImmediateRevoke) {
                 Storage.writeJson(nk, COLLECTION, KEY_SUBS, targetUserId, {
                     tier: null,
-                    status: "cancelled",
+                    status: "expired",
                     productId: productId,
                     store: store,
                     updatedAt: new Date().toISOString()
                 });
                 logger.info("[QvEntitlements] rc_sync: subscription revoked for user=" + targetUserId + " tier=" + tier + " event=" + eventType);
-                return RpcHelpers.successResponse({ tier: tier, status: "cancelled", event: eventType });
+                return RpcHelpers.successResponse({ tier: tier, status: "expired", event: eventType });
+            }
+            if (isCancellationNotice) {
+                // RC always includes expiration_at_ms on CANCELLATION — use it so the client
+                // (and the expiry-enforcement safety net in rpcGetEntitlements) correctly cut
+                // access at the real period end instead of right now.
+                var cancelExpiresAt = resolveExpiry(event);
+                Storage.writeJson(nk, COLLECTION, KEY_SUBS, targetUserId, {
+                    tier: tier,
+                    status: "cancelled",
+                    productId: productId,
+                    store: store,
+                    expiresAt: cancelExpiresAt,
+                    updatedAt: new Date().toISOString()
+                });
+                logger.info("[QvEntitlements] rc_sync: cancellation noted (access continues until expiry) for user=" + targetUserId + " tier=" + tier + " expiresAt=" + (cancelExpiresAt || "lifetime"));
+                return RpcHelpers.successResponse({ tier: tier, status: "cancelled", expiresAt: cancelExpiresAt, event: eventType });
             }
             if (!isActive) {
                 logger.info("[QvEntitlements] rc_sync: ignoring event=" + eventType + " for user=" + targetUserId);
@@ -32303,6 +32464,34 @@ var LegacyChat;
             text = text.substring(0, PUSH_PREVIEW_MAX - 1) + "\u2026";
         return text;
     }
+    // ─── System/structured payload guard (Phantom Arena triple-notify fix) ─────
+    // AsyncChallengeChatIntegration.cs (Unity) sends machine-readable DMs prefixed
+    // with these tags to sync challenge invites / joiner names / results between
+    // devices via the chat channel. Every one of those events ALREADY has its own
+    // clean, localized in-app notification + device push from the dedicated
+    // async-challenge system (legacy_runtime.js: asyncChallengeSendNotification,
+    // codes challenge_received / opponent_joined / opponent_completed /
+    // results_ready / rematch_requested). Without this guard, afterChannelMessageSend
+    // ALSO fires a generic chat push + ephemeral in-app ping (code 9001) whose body
+    // is the raw JSON payload text — a third, redundant, and visually broken
+    // notification for the same event. [ASYNC_CHALLENGE_JOINER] is pure internal
+    // state sync and must never surface to the user at all.
+    var SYSTEM_PAYLOAD_PREFIXES = ["[ASYNC_CHALLENGE_JOINER]", "[ASYNC_CHALLENGE]", "[ASYNC_RESULT]"];
+    function isSystemPayloadMessage(content) {
+        var text = "";
+        if (typeof content === "string") {
+            text = content;
+        }
+        else if (content && typeof content === "object") {
+            text = String(content.text || content.body || content.message || "");
+        }
+        text = text.trim();
+        for (var i = 0; i < SYSTEM_PAYLOAD_PREFIXES.length; i++) {
+            if (text.indexOf(SYSTEM_PAYLOAD_PREFIXES[i]) === 0)
+                return true;
+        }
+        return false;
+    }
     // ─── Failed-push queue helpers ──────────────────────────────────────────────
     // Add a recipient to the failed-push index so the scheduler can find them.
     function addToFailedPushIndex(nk, recipientId) {
@@ -32536,7 +32725,7 @@ var LegacyChat;
                 // Direct message (both user IDs must be set — `||` would admit a malformed ack
                 // where one ID is missing, producing a wrong targetUserId calculation).
                 var targetUserId = (userIdOne === senderId) ? userIdTwo : userIdOne;
-                if (targetUserId && targetUserId !== senderId) {
+                if (targetUserId && targetUserId !== senderId && !isSystemPayloadMessage(content)) {
                     pushDirectMessage(ctx, logger, nk, senderId, senderName, targetUserId, content);
                     // Ephemeral in-app socket notification (code 9001 = incoming_dm).
                     // Delivered to recipient's connected socket without requiring channel join,
@@ -32900,6 +33089,27 @@ var LegacyChat;
         }
     }
     LegacyChat.flushFailedChatPushes = flushFailedChatPushes;
+    // ─── Message hygiene guardrails (length cap + light spam throttle) ─────────
+    // Nothing upstream of this hook validates the raw socket payload, so one
+    // bad client or a buggy retry loop could persist huge/flood messages.
+    // Throwing here is the documented Nakama pattern for rejecting a realtime
+    // before-hook — the client gets the error back, the send never lands.
+    var MAX_MESSAGE_CHARS = 4000;
+    var CHAT_RATE_MAX = 10; // messages
+    var CHAT_RATE_WINDOW_MS = 10000; // per this many ms, per user
+    var chatSendLog = {};
+    function enforceChatHygiene(ctx, content) {
+        if (content.length > MAX_MESSAGE_CHARS) {
+            throw new Error("Message too long (max " + MAX_MESSAGE_CHARS + " characters).");
+        }
+        var now = Date.now();
+        var log = (chatSendLog[ctx.userId] || []).filter(function (t) { return now - t < CHAT_RATE_WINDOW_MS; });
+        if (log.length >= CHAT_RATE_MAX) {
+            throw new Error("You're sending messages too fast — slow down.");
+        }
+        log.push(now);
+        chatSendLog[ctx.userId] = log;
+    }
     // Before-hook for realtime ChannelMessageSend. Forces persist=true so every
     // chat message is written to channel history. Without persistence the message
     // is only delivered to currently-connected sockets — offline recipients never
@@ -32907,14 +33117,15 @@ var LegacyChat;
     // Clients sometimes omit `persist` or send it false; we override server-side
     // so durability is not client-dependent.
     function beforeChannelMessageSend(ctx, logger, nk, envelope) {
-        try {
-            var msg = envelope ? envelope.channelMessageSend : null;
-            if (msg) {
+        var msg = envelope ? envelope.channelMessageSend : null;
+        if (msg) {
+            enforceChatHygiene(ctx, String(msg.content || ""));
+            try {
                 msg.persist = true;
             }
-        }
-        catch (e) {
-            logger.warn("[Chat] beforeChannelMessageSend failed to force persist: %s", e && e.message ? e.message : String(e));
+            catch (e) {
+                logger.warn("[Chat] beforeChannelMessageSend failed to force persist: %s", e && e.message ? e.message : String(e));
+            }
         }
         return envelope;
     }
@@ -67184,6 +67395,8 @@ var SocialGroupSearch;
                     gameId: meta.gameId || gameId,
                     groupType: meta.groupType || "",
                     level: (typeof meta.level === "number") ? meta.level : 1,
+                    xp: (typeof meta.xp === "number") ? meta.xp : 0,
+                    trophies: (typeof meta.trophies === "number") ? meta.trophies : 0,
                     badge: meta.badge || "",
                     joinPolicy: meta.joinPolicy || (String(r.state) === "0" ? "open" : "private")
                 });
