@@ -377,3 +377,11 @@ export {
   type BeehiivSnapshot,
   type UsersSnapshot,
 } from "./growth-snapshot";
+
+export {
+  fetchRevenueCatDashboard,
+  type RevenueCatDashboardResult,
+  type RevenueCatOverview,
+  type RevenueCatDailyPoint,
+  type RevenueCatAdRevenueStatus,
+} from "./revenuecat-dashboard";

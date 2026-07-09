@@ -1227,6 +1227,9 @@ declare namespace QvExplainerVideos {
     function grantExplainerCredits(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string, quantity: number): number;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QuizVerseRevenueCatAdmin {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace AccountMerge {
     function register(initializer: nkruntime.Initializer): void;
 }

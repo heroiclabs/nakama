@@ -196,6 +196,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- RevenueCat admin dashboard proxy (IAP revenue charts) ----
+  try {
+    QuizVerseRevenueCatAdmin.register(initializer);
+    logger.info("[RevenueCatAdmin] admin_revenuecat_dashboard registered");
+  } catch (err: any) {
+    logger.error("[RevenueCatAdmin] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- Explainer video consumables (qv_entitlements / consumables) ----
   try {
     QvExplainerVideos.register(initializer);
