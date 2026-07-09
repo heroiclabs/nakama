@@ -241,7 +241,7 @@ namespace RewardDelivery {
       nk.notificationSend(userId, subject, {
         questId: questId, questName: questName, body: body,
         rewards: summaryParts, assetUrl: (richEntry && richEntry.assetUrl) || ""
-      }, NOTIFICATION_CODE_REWARD, "", true);
+      }, NOTIFICATION_CODE_REWARD, null, true);
     } catch (e2: any) {
       logger.warn("[RewardDelivery] notificationSend failed: " + String(e2 && e2.message ? e2.message : e2));
     }
