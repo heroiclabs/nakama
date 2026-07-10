@@ -607,6 +607,25 @@ namespace SatoriCreatorEvents {
     return Math.floor(maxSpeedBonus * ratio);
   }
 
+  /** Multi-round Best Guess stores rounds[] in storage; derive questions[] for scoring. */
+  function questionsFromBestGuessRounds(def: CreatorEventDefinition): CreatorEventQuestion[] {
+    var rounds = (def as any).rounds;
+    if (!rounds || !rounds.length || rounds.length <= 1) return [];
+    var out: CreatorEventQuestion[] = [];
+    for (var i = 0; i < rounds.length; i++) {
+      var round = rounds[i] as any;
+      if (!round) continue;
+      var ans = String(round.answer || "").trim();
+      if (!ans) continue;
+      out.push({
+        question: String(round.question || ("Question " + (i + 1))).trim(),
+        answer: ans,
+        acceptedAnswers: Array.isArray(round.acceptedAnswers) ? round.acceptedAnswers : undefined,
+      });
+    }
+    return out;
+  }
+
   function scoreQuestionSet(def: CreatorEventDefinition, data: any, nowMs: number): any {
     var questions = def.questions || [];
     if (!questions || questions.length === 0) {
@@ -829,12 +848,27 @@ namespace SatoriCreatorEvents {
       var hasAnswerArray = Array.isArray(data.answers) || Array.isArray(data.qAnswers);
       if (!hasAnswerArray && (data.answer === undefined || data.answer === null)) return RpcHelpers.errorResponse("answers required");
     } else if (data.answer === undefined || data.answer === null) {
-      return RpcHelpers.errorResponse("answer required");
+      var hasBgAnswerArray = Array.isArray(data.answers) || Array.isArray(data.qAnswers);
+      if (!hasBgAnswerArray) return RpcHelpers.errorResponse("answer required");
     }
 
-    var scoreResult = (mode === "speed_quiz" || mode === "elimination")
-      ? scoreQuestionSet(def, data, nowMs)
-      : scoreBestGuess(def, data.answer, nowMs);
+    var scoreResult: any;
+    if (mode === "speed_quiz" || mode === "elimination") {
+      scoreResult = scoreQuestionSet(def, data, nowMs);
+    } else if (mode === "best_guess") {
+      var bgQuestions = def.questions && def.questions.length > 1 ? def.questions : questionsFromBestGuessRounds(def);
+      var hasMultiAnswers = Array.isArray(data.answers) || Array.isArray(data.qAnswers);
+      if (bgQuestions.length > 1 && hasMultiAnswers) {
+        var savedQuestions = def.questions;
+        if (!savedQuestions || savedQuestions.length <= 1) def.questions = bgQuestions;
+        scoreResult = scoreQuestionSet(def, data, nowMs);
+        if (!savedQuestions || savedQuestions.length <= 1) def.questions = savedQuestions;
+      } else {
+        scoreResult = scoreBestGuess(def, data.answer, nowMs);
+      }
+    } else {
+      scoreResult = scoreBestGuess(def, data.answer, nowMs);
+    }
     if (scoreResult.error) return RpcHelpers.errorResponse(scoreResult.error);
 
     var answerRecord: any = {
