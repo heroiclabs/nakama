@@ -118,7 +118,7 @@ func dbConnect(ctx context.Context, logger *zap.Logger, config Config, connConfi
 		db.Close()
 	}
 
-logger.Debug("Database connection config", zap.String("host", connConfig.Host), zap.Uint16("port", connConfig.Port), zap.String("database", connConfig.Database), zap.String("user", connConfig.User))
+	logger.Debug("Database connection config", zap.String("host", connConfig.Host), zap.Uint16("port", connConfig.Port), zap.String("database", connConfig.Database), zap.String("user", connConfig.User))
 	db := stdlib.OpenDB(connConfig)
 	// Limit max time allowed across database ping and version fetch to 15 seconds total.
 	pingCtx, pingCtxCancelFn := context.WithTimeout(ctx, 15*time.Second)

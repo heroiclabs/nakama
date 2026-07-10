@@ -360,7 +360,7 @@ func ValidateSubscriptionApple(ctx context.Context, logger *zap.Logger, db *sql.
 	validatedSub.RefundTime = timestamppb.New(dbSubscription.refundTime)
 	validatedSub.ProviderNotification = dbSubscription.rawNotification
 	validatedSub.Active = dbSubscription.Active()
-	validatedSub.ProviderResponse = ""  // Do not set for jws validation; no point in returning the incoming receipt.
+	validatedSub.ProviderResponse = "" // Do not set for jws validation; no point in returning the incoming receipt.
 
 	return &api.ValidateSubscriptionResponse{ValidatedSubscription: validatedSub}, nil
 }
