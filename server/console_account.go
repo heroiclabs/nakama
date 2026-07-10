@@ -458,7 +458,7 @@ func (s *ConsoleServer) ListAccounts(ctx context.Context, in *console.ListAccoun
       	FROM users u JOIN user_device ud on u.id = ud.user_id
       	WHERE ud.id = $1
 		`
-		if len(in.Filter) >= 3 {
+		if len(in.Filter) >= 3 && userIDFilter == nil {
 			query += `
 				UNION
 				(SELECT id, username, display_name, avatar_url, lang_tag, location, timezone, metadata, apple_id, facebook_id, facebook_instant_game_id, google_id, gamecenter_id, steam_id, edge_count, create_time, update_time
