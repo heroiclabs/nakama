@@ -931,6 +931,11 @@ declare namespace QvQuestionCache {
      */
     export function isCacheValid(nk: nkruntime.Nakama, topic: string): boolean;
     /**
+     * Queue a provider refresh without blocking a player RPC on external I/O.
+     * The cache refresh scheduler drains this collection on its next tick.
+     */
+    export function requestRefresh(nk: nkruntime.Nakama, logger: nkruntime.Logger, topic: string, reason: string): void;
+    /**
      * Refresh ALL cacheable topics one-by-one with a 2 s stagger between each.
      * The stagger prevents simultaneous bursts against external providers.
      * Intended for a Nakama scheduled / cron job — NEVER call from a player RPC.

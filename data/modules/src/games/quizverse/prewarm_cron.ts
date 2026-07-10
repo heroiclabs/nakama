@@ -103,9 +103,25 @@ namespace QvPrewarmCron {
       var rows = nk.storageRead([{ collection: COL_SEEN, key: seenKey, userId: userId }]);
       if (!rows || rows.length === 0 || !rows[0].value) return [];
       var ids: any = rows[0].value.ids;
-      if (!Array.isArray(ids)) return [];
-      // Return most-recently-seen IDs first (tail); keep within MAX_SEEN_IDS
-      return ids.slice(-MAX_SEEN_IDS) as string[];
+      if (Array.isArray(ids)) {
+        return ids.slice(-MAX_SEEN_IDS) as string[];
+      }
+      if (!ids || typeof ids !== "object") return [];
+
+      // quizverse_seen stores { questionId: isoTimestamp }. Keep the newest
+      // entries when the ledger is larger than the prewarm safety cap.
+      var entries: Array<{ id: string; ts: number }> = [];
+      for (var questionId in ids) {
+        if (!ids.hasOwnProperty(questionId)) continue;
+        var rawTs: any = ids[questionId];
+        var parsedTs = typeof rawTs === "number" ? rawTs : Date.parse(String(rawTs));
+        entries.push({ id: questionId, ts: isNaN(parsedTs) ? 0 : parsedTs });
+      }
+      entries.sort(function(a, b) { return a.ts - b.ts; });
+      var start = Math.max(0, entries.length - MAX_SEEN_IDS);
+      var result: string[] = [];
+      for (var ei = start; ei < entries.length; ei++) result.push(entries[ei].id);
+      return result;
     } catch (_e) { return []; }
   }
 
@@ -131,30 +147,9 @@ namespace QvPrewarmCron {
       }
     } catch (_e) {}
 
-    // Read question cache for this topic
-    var pool: any[] = [];
-    try {
-      var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: Constants.SYSTEM_USER_ID }]);
-      if (!cacheRows || cacheRows.length === 0 || !cacheRows[0].value) return 0;
-      var page0: any = cacheRows[0].value;
-      if (Array.isArray(page0.questions)) pool = page0.questions.slice();
-      // Load additional pages
-      var pageCount: number = page0.page_count || 1;
-      if (pageCount > 1) {
-        var reqs: nkruntime.StorageReadRequest[] = [];
-        for (var p = 1; p < pageCount; p++) {
-          reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: Constants.SYSTEM_USER_ID });
-        }
-        var extra = nk.storageRead(reqs);
-        if (extra) {
-          for (var ei = 0; ei < extra.length; ei++) {
-            if (extra[ei] && extra[ei].value && Array.isArray(extra[ei].value.questions)) {
-              pool = pool.concat(extra[ei].value.questions);
-            }
-          }
-        }
-      }
-    } catch (_ce) { return 0; }
+    // Use the canonical reader so prewarm follows cache paging/generation rules.
+    var cacheResult = QvQuestionCache.readCache(nk, logger, topicSlug);
+    var pool: any[] = cacheResult.questions;
 
     if (pool.length === 0) return 0;
 
@@ -256,9 +251,11 @@ namespace QvPrewarmCron {
         ? rows[0].value.last_run_ms : 0;
       if (nowMs() - lastRun < GATE_INTERVAL_MS) return false; // still within gate window
 
+      var expectedVersion = rows && rows.length > 0 ? rows[0].version : "*";
       nk.storageWrite([{
         collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000",
         value: { last_run_ms: nowMs() },
+        version: expectedVersion,
         permissionRead: 0, permissionWrite: 0
       }]);
       return true;

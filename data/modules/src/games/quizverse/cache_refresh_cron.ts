@@ -9,18 +9,19 @@
 // Payload: { "mode": "cold_start" | "all" | "topic", "topic": "anime" }
 //
 // Modes:
-//   cold_start — refresh anime, pokemon, movies, dog, flags, countries, video_quiz with 2 s stagger (post-deploy bootstrap)
+//   cold_start — refresh high-traffic media topics with 2 s stagger (post-deploy bootstrap)
 //   all        — refreshAllTopics, gated to once per 6 h (qv_cache_refresh_state/last_full_run)
 //   topic      — single-topic refreshCache (no global gate)
 
 namespace QvCacheRefreshCron {
 
   var LOG_PREFIX           = "[QvCacheRefresh]";
-  var COLD_START_TOPICS    = ["anime", "pokemon", "movies", "dog", "flags", "countries", "video_quiz"];
+  var COLD_START_TOPICS    = ["anime", "pokemon", "movies", "dog", "flags", "countries", "space", "music", "video_quiz"];
   var FULL_REFRESH_GATE_MS = 6 * 3600000;
   var COLD_STAGGER_MS      = 2000;
   var GATE_COL             = "qv_cache_refresh_state";
   var GATE_KEY             = "last_full_run";
+  var REFRESH_REQ_COL      = "qv_cache_refresh_requests";
   var SYSTEM_USER          = "00000000-0000-0000-0000-000000000000";
 
   function nowMs(): number { return Date.now(); }
@@ -53,9 +54,11 @@ namespace QvCacheRefreshCron {
         ? rows[0].value.last_run_ms : 0;
       if (nowMs() - lastRun < FULL_REFRESH_GATE_MS) return false;
 
+      var expectedVersion = rows && rows.length > 0 ? rows[0].version : "*";
       nk.storageWrite([{
         collection: GATE_COL, key: GATE_KEY, userId: SYSTEM_USER,
         value: { last_run_ms: nowMs() },
+        version: expectedVersion,
         permissionRead: 0, permissionWrite: 0
       }]);
       return true;
@@ -86,6 +89,37 @@ namespace QvCacheRefreshCron {
       error:      r.error,
       elapsed_ms: elapsed
     };
+  }
+
+  function drainPendingRefreshes(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    env: { [k: string]: string }
+  ): Array<{ topic: string; ok: boolean; count: number; error?: string; elapsed_ms: number }> {
+    var results: Array<{ topic: string; ok: boolean; count: number; error?: string; elapsed_ms: number }> = [];
+    try {
+      var pending = nk.storageList(SYSTEM_USER, REFRESH_REQ_COL, 25, "");
+      if (!pending || !Array.isArray(pending.objects)) return results;
+
+      for (var i = 0; i < pending.objects.length; i++) {
+        var obj = pending.objects[i];
+        if (!obj || !obj.key) continue;
+        var topic = obj.value && typeof obj.value.topic === "string"
+          ? obj.value.topic : obj.key;
+        var refreshed = refreshOneTopic(nk, logger, env, topic);
+        results.push(refreshed);
+        if (refreshed.ok) {
+          nk.storageDelete([{ collection: REFRESH_REQ_COL, key: obj.key, userId: SYSTEM_USER }]);
+        }
+        if (i + 1 < pending.objects.length) sleep(COLD_STAGGER_MS);
+      }
+    } catch (err: any) {
+      logger.warn(formatLog("[pending_error]", {
+        event: "cache_refresh_pending_failed",
+        error: (err && err.message) ? err.message : String(err)
+      }));
+    }
+    return results;
   }
 
   function runModeColdStart(
@@ -173,25 +207,26 @@ namespace QvCacheRefreshCron {
       topic:       topic || "none"
     }));
 
-    var results: Array<{ topic: string; ok: boolean; count: number; error?: string; elapsed_ms?: number }> = [];
+    var results: Array<{ topic: string; ok: boolean; count: number; error?: string; elapsed_ms?: number }> =
+      drainPendingRefreshes(nk, logger, env);
     var gated = false;
 
     if (mode === "cold_start") {
-      results = runModeColdStart(nk, logger, env);
+      results = results.concat(runModeColdStart(nk, logger, env));
     } else if (mode === "topic") {
-      results = runModeTopic(nk, logger, env, topic);
+      results = results.concat(runModeTopic(nk, logger, env, topic));
     } else {
       var allRun = runModeAll(nk, logger, env);
       gated   = allRun.gated;
-      results = allRun.results;
+      results = results.concat(allRun.results);
       if (gated) {
         var elapsedGated = nowMs() - started;
         logger.info(formatLog("[tick_done]", {
           event:      "cache_refresh_tick_done",
           mode:       mode,
           gated:      true,
-          succeeded:  0,
-          failed:     0,
+          succeeded:  countSucceeded(results),
+          failed:     results.length - countSucceeded(results),
           elapsed_ms: elapsedGated
         }));
         return JSON.stringify({
@@ -199,6 +234,7 @@ namespace QvCacheRefreshCron {
           skipped:    true,
           mode:       mode,
           reason:     "within_full_refresh_gate",
+          pending_results: results,
           elapsed_ms: elapsedGated
         });
       }

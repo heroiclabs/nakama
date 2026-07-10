@@ -8680,17 +8680,18 @@ var BlogEmbed;
 // Payload: { "mode": "cold_start" | "all" | "topic", "topic": "anime" }
 //
 // Modes:
-//   cold_start — refresh anime, pokemon, movies, dog, flags, countries, video_quiz with 2 s stagger (post-deploy bootstrap)
+//   cold_start — refresh high-traffic media topics with 2 s stagger (post-deploy bootstrap)
 //   all        — refreshAllTopics, gated to once per 6 h (qv_cache_refresh_state/last_full_run)
 //   topic      — single-topic refreshCache (no global gate)
 var QvCacheRefreshCron;
 (function (QvCacheRefreshCron) {
     var LOG_PREFIX = "[QvCacheRefresh]";
-    var COLD_START_TOPICS = ["anime", "pokemon", "movies", "dog", "flags", "countries", "video_quiz"];
+    var COLD_START_TOPICS = ["anime", "pokemon", "movies", "dog", "flags", "countries", "space", "music", "video_quiz"];
     var FULL_REFRESH_GATE_MS = 6 * 3600000;
     var COLD_STAGGER_MS = 2000;
     var GATE_COL = "qv_cache_refresh_state";
     var GATE_KEY = "last_full_run";
+    var REFRESH_REQ_COL = "qv_cache_refresh_requests";
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
     function nowMs() { return Date.now(); }
     function sleep(ms) {
@@ -8722,9 +8723,11 @@ var QvCacheRefreshCron;
                 ? rows[0].value.last_run_ms : 0;
             if (nowMs() - lastRun < FULL_REFRESH_GATE_MS)
                 return false;
+            var expectedVersion = rows && rows.length > 0 ? rows[0].version : "*";
             nk.storageWrite([{
                     collection: GATE_COL, key: GATE_KEY, userId: SYSTEM_USER,
                     value: { last_run_ms: nowMs() },
+                    version: expectedVersion,
                     permissionRead: 0, permissionWrite: 0
                 }]);
             return true;
@@ -8752,6 +8755,35 @@ var QvCacheRefreshCron;
             error: r.error,
             elapsed_ms: elapsed
         };
+    }
+    function drainPendingRefreshes(nk, logger, env) {
+        var results = [];
+        try {
+            var pending = nk.storageList(SYSTEM_USER, REFRESH_REQ_COL, 25, "");
+            if (!pending || !Array.isArray(pending.objects))
+                return results;
+            for (var i = 0; i < pending.objects.length; i++) {
+                var obj = pending.objects[i];
+                if (!obj || !obj.key)
+                    continue;
+                var topic = obj.value && typeof obj.value.topic === "string"
+                    ? obj.value.topic : obj.key;
+                var refreshed = refreshOneTopic(nk, logger, env, topic);
+                results.push(refreshed);
+                if (refreshed.ok) {
+                    nk.storageDelete([{ collection: REFRESH_REQ_COL, key: obj.key, userId: SYSTEM_USER }]);
+                }
+                if (i + 1 < pending.objects.length)
+                    sleep(COLD_STAGGER_MS);
+            }
+        }
+        catch (err) {
+            logger.warn(formatLog("[pending_error]", {
+                event: "cache_refresh_pending_failed",
+                error: (err && err.message) ? err.message : String(err)
+            }));
+        }
+        return results;
     }
     function runModeColdStart(nk, logger, env) {
         var results = [];
@@ -8815,26 +8847,26 @@ var QvCacheRefreshCron;
             topic_count: topicCount,
             topic: topic || "none"
         }));
-        var results = [];
+        var results = drainPendingRefreshes(nk, logger, env);
         var gated = false;
         if (mode === "cold_start") {
-            results = runModeColdStart(nk, logger, env);
+            results = results.concat(runModeColdStart(nk, logger, env));
         }
         else if (mode === "topic") {
-            results = runModeTopic(nk, logger, env, topic);
+            results = results.concat(runModeTopic(nk, logger, env, topic));
         }
         else {
             var allRun = runModeAll(nk, logger, env);
             gated = allRun.gated;
-            results = allRun.results;
+            results = results.concat(allRun.results);
             if (gated) {
                 var elapsedGated = nowMs() - started;
                 logger.info(formatLog("[tick_done]", {
                     event: "cache_refresh_tick_done",
                     mode: mode,
                     gated: true,
-                    succeeded: 0,
-                    failed: 0,
+                    succeeded: countSucceeded(results),
+                    failed: results.length - countSucceeded(results),
                     elapsed_ms: elapsedGated
                 }));
                 return JSON.stringify({
@@ -8842,6 +8874,7 @@ var QvCacheRefreshCron;
                     skipped: true,
                     mode: mode,
                     reason: "within_full_refresh_gate",
+                    pending_results: results,
                     elapsed_ms: elapsedGated
                 });
             }
@@ -9261,7 +9294,11 @@ var QvGetQuestions;
         geography: true, speed_quiz: true, true_false: true, anime: true, pokemon: true,
         cocktail: true, food: true, dog: true, ghibli: true, disney: true, starwars: true,
         countries: true, flags: true, space: true, movies: true, sports: true, music: true,
-        news: true, daily: true, weekly: true, video_quiz: true, ai: true
+        news: true, daily: true, weekly: true, video_quiz: true, ai: true,
+        // New topics (2026-07): infinite-content providers, all free/no-key
+        math: true, // OpenTDB Mathematics (cat 19) + Computers (cat 18)
+        art: true, // Art Institute of Chicago API — CC0 artwork images
+        history: true // OpenTDB History (cat 23) + jService Jeopardy archive
     };
     // Media-pool topics the AI-driven image/media quiz modes (Who's That, Brain Sprint,
     // Image Quiz, Audio Quiz) mix together for their "Random Mix" category.
@@ -9301,6 +9338,13 @@ var QvGetQuestions;
             return "music";
         if (topic.indexOf("news") !== -1)
             return "news";
+        // New topic aliases (2026-07)
+        if (topic.indexOf("math") !== -1 || topic.indexOf("maths") !== -1 || topic.indexOf("comput") !== -1)
+            return "math";
+        if (topic.indexOf("art") !== -1 || topic.indexOf("paint") !== -1 || topic.indexOf("museum") !== -1)
+            return "art";
+        if (topic.indexOf("histor") !== -1 || topic.indexOf("jeopardy") !== -1)
+            return "history";
         // No recognizable topic keyword — likely a bare "<mode> — random mix" label.
         // Deterministically pick a media topic from a hash of the caller-supplied label
         // so repeated requests with the SAME bad label resolve the same way (stable, not
@@ -9385,19 +9429,20 @@ var QvGetQuestions;
     }
     function topicProviderForLog(topic) {
         var map = {
-            opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
+            opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan+anilist+opentdb", pokemon: "pokeapi",
             cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
             ghibli: "ghibli", disney: "disney", starwars: "swapi",
             countries: "restcountries", flags: "restcountries",
-            space: "nasa", movies: "tmdb", sports: "sportsdb",
-            music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
-            video_quiz: "catalog", ai: "claude"
+            space: "nasa", movies: "tmdb", sports: "sportsdb+opentdb",
+            music: "deezer", news: "gnews", daily: "s3", weekly: "s3",
+            video_quiz: "catalog", ai: "claude",
+            math: "opentdb", art: "artic", history: "opentdb+jservice"
         };
         return map[topic] || topic;
     }
     /**
-     * On cache miss: invoke refreshCache, always re-read, emit Grafana event= logs.
-     * Returns earlyReturn JSON when pool is still empty after refresh attempt.
+     * On cache miss: queue a background refresh and return immediately.
+     * Player RPCs never wait on an external question provider.
      */
     function handleEmptyTopicCache(nk, logger, env, topic, traceId, coldStartApplied, userId) {
         logger.warn(formatQvLog("[QvGetQ][GATE:cache_miss]", {
@@ -9409,40 +9454,14 @@ var QvGetQuestions;
             rpc: "quizverse_get_questions"
         }));
         var t0 = nowMs();
-        var refreshResult = QvQuestionCache.refreshCache(nk, logger, env, topic);
-        var gated = refreshResult.ok && refreshResult.count === 0 && !refreshResult.error;
+        QvQuestionCache.requestRefresh(nk, logger, topic, "cache_empty");
         var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
-        var pool = cacheResult.questions;
         var elapsedMs = nowMs() - t0;
-        var provider = topicProviderForLog(topic);
-        logger.info(formatQvLog("[QvGetQ][DEBUG:cache_refresh]", {
-            event: "cache_refresh",
-            traceId: traceId,
-            topic: topic,
-            ok: refreshResult.ok,
-            count: refreshResult.count,
-            gated: gated,
-            error: refreshResult.error || "none",
-            elapsed_ms: elapsedMs,
-            provider: provider
-        }));
-        if (pool.length > 0) {
-            logger.info(formatQvLog("[QvGetQ][GATE:cache_recovered]", {
-                event: "cache_recovered",
-                traceId: traceId,
-                topic: topic,
-                poolSize: pool.length,
-                elapsed_ms: elapsedMs
-            }));
-            return { pool: pool, cacheResult: cacheResult, earlyReturn: null };
-        }
-        var refreshErr = refreshResult.error || "none";
         logger.warn(formatQvLog("[QvGetQ][GATE:cache_empty]", {
             event: "cache_empty",
             traceId: traceId,
             topic: topic,
-            refresh_attempted: true,
-            refresh_error: refreshErr,
+            refresh_queued: true,
             retry_after_seconds: CACHE_REFRESH_RETRY_SEC
         }));
         if (coldStartApplied) {
@@ -9450,7 +9469,7 @@ var QvGetQuestions;
                 event: "cold_start_blocked",
                 traceId: traceId,
                 topic: topic,
-                error: refreshErr,
+                error: "cache_empty",
                 userId: userId
             }));
         }
@@ -9461,9 +9480,8 @@ var QvGetQuestions;
                 ok: false,
                 error: "cache_empty",
                 topic: topic,
-                message: "No questions cached for this topic yet. Refresh was attempted — retry shortly.",
-                refresh_attempted: true,
-                refresh_error: refreshResult.error || null,
+                message: "Questions are warming in the background. Please retry shortly.",
+                refresh_queued: true,
                 retry_after_seconds: CACHE_REFRESH_RETRY_SEC
             })
         };
@@ -9672,13 +9690,16 @@ var QvGetQuestions;
         needed = count - fresh.length - tier2.length;
         if (needed <= 0)
             return fresh.concat(tier2).slice(0, count);
-        // Tier 3: any remaining pool question (covers inflight-reserved IDs)
+        // Tier 3: any remaining non-reserved pool question. Inflight IDs are never
+        // reused, even when that means returning a partial pack.
         var tier3 = [];
         for (var ti = 0; ti < pool.length && tier3.length < needed; ti++) {
             var pq = pool[ti];
             if (!pq || !pq.id)
                 continue;
             if (pickedIds[pq.id])
+                continue;
+            if (excluded[pq.id])
                 continue;
             tier3.push(pq);
             pickedIds[pq.id] = true;
@@ -9799,24 +9820,11 @@ var QvGetQuestions;
             fulfillAttempts++;
             var poolBefore = pool.length;
             var pickedBefore = picked.length;
-            var inflightEvicted = 0;
-            var refreshForced = false;
-            if (picked.length < requestedCount && inflightIds.length > 0) {
-                inflightEvicted = evictUnsubmittedInflightForTopic(nk, logger, userId, topic);
-                inflightPacks = listInflight(nk, userId);
-                inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
-                picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
-            }
+            var refreshQueued = false;
             if (picked.length < requestedCount) {
-                refreshForced = true;
+                refreshQueued = true;
                 cacheRefreshAttempted = true;
-                QvQuestionCache.refreshCache(nk, logger, env, topic, true);
-                cacheResult = QvQuestionCache.readCache(nk, logger, topic);
-                pool = cacheResult.questions;
-                var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType, excludeMedia);
-                langPool = rebuilt.langPool;
-                langActual = rebuilt.langActual;
-                picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
+                QvQuestionCache.requestRefresh(nk, logger, topic, "insufficient_pool");
             }
             logger.info(formatQvLog("[QvGetQ][FULFILL:attempt]", {
                 event: "fulfill_attempt",
@@ -9827,8 +9835,8 @@ var QvGetQuestions;
                 picked: picked.length,
                 pool_before: poolBefore,
                 pool_after: pool.length,
-                inflight_evicted: inflightEvicted,
-                refresh_forced: refreshForced
+                inflight_evicted: 0,
+                refresh_queued: refreshQueued
             }));
             if (picked.length >= requestedCount)
                 break;
@@ -9973,10 +9981,10 @@ var QvGetQuestions;
     // qv_readyqueue/{topicSlug} (user-owned) is populated by prewarm_cron.ts
     // every hour and self-refreshed here after each cache-path delivery.
     //
-    // serveFromReadyQueue(): returns pre-filtered questions from the queue,
-    //   removes consumed entries, and returns the list (empty = cache miss).
+    // serveFromReadyQueue(): revalidates seen/inflight/lang/media, then reserves
+    //   the queue slice and pack atomically (null = cache-path fallback).
     // writeReadyQueue():     writes remaining fresh questions for next call.
-    function serveFromReadyQueue(nk, logger, userId, topic, count) {
+    function serveFromReadyQueue(nk, logger, userId, topic, count, lang, gameId, requireMedia, mediaType, excludeMedia, seenIds, inflightIds) {
         try {
             var topicSlug = topic.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_")
                 .replace(/^_|_$/g, "").substring(0, 64);
@@ -9986,24 +9994,94 @@ var QvGetQuestions;
             var rq = rows[0].value;
             if (!rq.created_at_ms || (nowMs() - rq.created_at_ms) > READYQUEUE_TTL_MS)
                 return null;
-            if (!Array.isArray(rq.questions) || rq.questions.length < count)
+            if (!Array.isArray(rq.questions))
                 return null;
-            var served = rq.questions.slice(0, count);
-            var remaining = rq.questions.slice(count);
-            // Write back remaining (or delete if empty)
-            if (remaining.length > 0) {
-                nk.storageWrite([{
-                        collection: COL_READYQUEUE, key: topicSlug, userId: userId,
-                        value: { topic: rq.topic, questions: remaining, created_at_ms: rq.created_at_ms },
-                        permissionRead: 0, permissionWrite: 0
-                    }]);
+            // Ready queues are only an optimization. Re-apply every correctness
+            // filter because seen/inflight state may have changed after prewarming.
+            var excluded = {};
+            for (var si = 0; si < seenIds.length; si++)
+                excluded[seenIds[si]] = true;
+            for (var ii = 0; ii < inflightIds.length; ii++)
+                excluded[inflightIds[ii]] = true;
+            var fresh = [];
+            for (var qi = 0; qi < rq.questions.length; qi++) {
+                var candidate = rq.questions[qi];
+                if (candidate && candidate.id && !excluded[candidate.id])
+                    fresh.push(candidate);
             }
-            else {
-                nk.storageDelete([{ collection: COL_READYQUEUE, key: topicSlug, userId: userId }]);
+            var langActual = lang;
+            var eligible = [];
+            if (lang !== "en") {
+                for (var li = 0; li < fresh.length; li++) {
+                    if (fresh[li].lang === lang)
+                        eligible.push(fresh[li]);
+                }
             }
+            if (eligible.length < count) {
+                eligible = [];
+                if (lang !== "en")
+                    langActual = "en";
+                for (var ei = 0; ei < fresh.length; ei++) {
+                    if (!fresh[ei].lang || fresh[ei].lang === "en")
+                        eligible.push(fresh[ei]);
+                }
+            }
+            if (eligible.length === 0 && lang === "en")
+                eligible = fresh;
+            if (requireMedia) {
+                eligible = filterToMediaPool(eligible, mediaType);
+            }
+            else if (excludeMedia) {
+                eligible = filterToTextPool(eligible);
+            }
+            if (eligible.length < count)
+                return null;
+            var served = eligible.slice(0, count);
+            var servedIds = {};
+            for (var sqi = 0; sqi < served.length; sqi++)
+                servedIds[served[sqi].id] = true;
+            var remaining = [];
+            for (var rqi = 0; rqi < fresh.length; rqi++) {
+                if (!servedIds[fresh[rqi].id])
+                    remaining.push(fresh[rqi]);
+            }
+            // Reserve the queue slice and create its pack in one CAS transaction.
+            // A concurrent request can never consume the same ready-queue version.
+            var packId = makePackId(nk, gameId, topic);
+            var now = nowMs();
+            var expiry = now + INFLIGHT_TTL_MS;
+            var questionIds = [];
+            for (var qii = 0; qii < served.length; qii++)
+                questionIds.push(served[qii].id);
+            nk.storageWrite([
+                {
+                    collection: COL_READYQUEUE, key: topicSlug, userId: userId,
+                    value: { topic: rq.topic, questions: remaining, created_at_ms: rq.created_at_ms },
+                    version: rows[0].version,
+                    permissionRead: 0, permissionWrite: 0
+                },
+                {
+                    collection: COL_INFLT, key: packId, userId: userId,
+                    value: {
+                        pack_id: packId, topic: topic, question_ids: questionIds,
+                        created_at_ms: now, expires_at_ms: expiry
+                    },
+                    permissionRead: 0, permissionWrite: 0
+                },
+                {
+                    collection: COL_PACKS, key: packId, userId: userId,
+                    value: {
+                        pack_id: packId, topic: topic, lang: lang, lang_actual: langActual,
+                        game_id: gameId, question_ids: questionIds,
+                        question_count: served.length, questions: served,
+                        created_at_ms: now, expires_at_ms: expiry
+                    },
+                    permissionRead: 1, permissionWrite: 0
+                }
+            ]);
             logger.info("[QvGetQ] readyqueue HIT user=" + userId + " topic=" + topicSlug +
                 " served=" + served.length + " remaining=" + remaining.length);
-            return served;
+            return { questions: served, langActual: langActual, packId: packId };
         }
         catch (e) {
             logger.warn("[QvGetQ] readyqueue read failed (non-fatal): " + (e && e.message));
@@ -10141,6 +10219,12 @@ var QvGetQuestions;
             ? req.media_type.toLowerCase().trim() : "";
         if (!requireMedia && reqMediaType)
             requireMedia = true;
+        // A media request without an explicit type must never mix audio and image
+        // rows. Unity's visual modes expect images; the music topic is the one
+        // intentional audio-first exception.
+        if (requireMedia && !reqMediaType) {
+            reqMediaType = topic === "music" ? "audio" : "image";
+        }
         if (requireMedia)
             excludeMedia = false;
         // ── game_id: validate against allowlist (org2) ─────────────────────────
@@ -10246,25 +10330,17 @@ var QvGetQuestions;
         inflightPacks = enforcePacks(nk, logger, userId, inflightPacks);
         // Collect question IDs reserved by active packs for this topic only
         var inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
+        var seenIds = readSeenIds(nk, userId, topic);
         // ── 3. Ready-queue fast path (prewarm hit) ─────────────────────────────
         //
-        // Checks qv_readyqueue first — pre-filtered, per-user question pool
-        // written by prewarm_cron or by this RPC after a previous cache-path call.
-        // Skips seen-filtering, cache reading, and lang-filtering when available.
+        // Checks qv_readyqueue first. The queue is revalidated against current
+        // seen/inflight/language/media state before its CAS reservation is served.
         if (mode !== "personalized") { // personalized mode always uses live cache+SRQ
-            var rqServed = serveFromReadyQueue(nk, logger, userId, topic, count);
-            if (rqServed !== null && requireMedia) {
-                var rqMedia = filterToMediaPool(rqServed, reqMediaType);
-                if (rqMedia.length < count) {
-                    rqServed = null;
-                }
-                else {
-                    rqServed = rqMedia.slice(0, count);
-                }
-            }
-            if (rqServed !== null) {
-                var rqPackId = makePackId(nk, gameId, topic);
-                writePackStorage(nk, userId, rqPackId, topic, lang, lang, gameId, rqServed);
+            var rqResult = serveFromReadyQueue(nk, logger, userId, topic, count, lang, gameId, requireMedia, reqMediaType, excludeMedia, seenIds, inflightIds);
+            if (rqResult !== null) {
+                var rqServed = rqResult.questions;
+                var rqLangActual = rqResult.langActual;
+                var rqPackId = rqResult.packId;
                 logger.info("[QvGetQ] ⚡ readyqueue fast-path pack=" + rqPackId +
                     " topic=" + topic + " n=" + rqServed.length);
                 var rqClientQs = [];
@@ -10297,8 +10373,14 @@ var QvGetQuestions;
                     cache_expired: false,
                     served_from: "readyqueue"
                 };
+                if (rqLangActual !== lang)
+                    rqResp.lang_actual = rqLangActual;
                 return JSON.stringify(rqResp);
             }
+            // A queue CAS may have lost to another request. Re-read reservations
+            // before selecting from the shared cache.
+            inflightPacks = listInflight(nk, userId);
+            inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
         }
         // ── 3. Read cache (normal path) ────────────────────────────────────────
         var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
@@ -10312,6 +10394,9 @@ var QvGetQuestions;
         }
         logger.info("[QvGetQ][GATE:cache_ok] traceId=" + traceId + " topic=" + topic +
             " poolSize=" + pool.length + " cacheExpired=" + cacheResult.expired);
+        if (cacheResult.expired) {
+            QvQuestionCache.requestRefresh(nk, logger, topic, "cache_expired");
+        }
         // ── 4. Lang validation + fallback (Task 1b.1 / 1b.4) ──────────────────
         var langActual = lang;
         var langPool = [];
@@ -10346,15 +10431,9 @@ var QvGetQuestions;
                     langPool: langPool.length,
                     media_type: reqMediaType || "any"
                 }));
-                QvQuestionCache.refreshCache(nk, logger, ctx.env || {}, topic, true);
-                cacheResult = QvQuestionCache.readCache(nk, logger, topic);
-                pool = cacheResult.questions;
-                var rebuilt = rebuildLangPool(pool, lang, requireMedia, reqMediaType, excludeMedia);
-                langPool = rebuilt.langPool;
-                langActual = rebuilt.langActual;
-                mediaPool = filterToMediaPool(langPool, reqMediaType);
+                QvQuestionCache.requestRefresh(nk, logger, topic, "media_pool_empty");
                 logger.info(formatQvLog("[QvGetQ][GATE:stale_cache_media_done]", {
-                    event: "stale_cache_media_heal_done",
+                    event: "stale_cache_media_refresh_queued",
                     traceId: traceId,
                     topic: topic,
                     pool_after: pool.length,
@@ -10420,7 +10499,6 @@ var QvGetQuestions;
         catch (_efe) { /* non-fatal */ }
         // ── 5. Read seen IDs + filter pool (Task 1b.2) ─────────────────────────
         var poolSizeBeforePick = pool.length;
-        var seenIds = readSeenIds(nk, userId, topic);
         var picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
         var fulfillResult = fulfillRequestedCount(nk, logger, ctx.env || {}, userId, topic, lang, requireMedia, reqMediaType, excludeMedia, requestedCount, seenIds, inflightPacks, pool, langPool, langActual, cacheResult, picked, traceId);
         picked = fulfillResult.picked;
@@ -14707,10 +14785,27 @@ var QvPrewarmCron;
             if (!rows || rows.length === 0 || !rows[0].value)
                 return [];
             var ids = rows[0].value.ids;
-            if (!Array.isArray(ids))
+            if (Array.isArray(ids)) {
+                return ids.slice(-MAX_SEEN_IDS);
+            }
+            if (!ids || typeof ids !== "object")
                 return [];
-            // Return most-recently-seen IDs first (tail); keep within MAX_SEEN_IDS
-            return ids.slice(-MAX_SEEN_IDS);
+            // quizverse_seen stores { questionId: isoTimestamp }. Keep the newest
+            // entries when the ledger is larger than the prewarm safety cap.
+            var entries = [];
+            for (var questionId in ids) {
+                if (!ids.hasOwnProperty(questionId))
+                    continue;
+                var rawTs = ids[questionId];
+                var parsedTs = typeof rawTs === "number" ? rawTs : Date.parse(String(rawTs));
+                entries.push({ id: questionId, ts: isNaN(parsedTs) ? 0 : parsedTs });
+            }
+            entries.sort(function (a, b) { return a.ts - b.ts; });
+            var start = Math.max(0, entries.length - MAX_SEEN_IDS);
+            var result = [];
+            for (var ei = start; ei < entries.length; ei++)
+                result.push(entries[ei].id);
+            return result;
         }
         catch (_e) {
             return [];
@@ -14731,35 +14826,9 @@ var QvPrewarmCron;
             }
         }
         catch (_e) { }
-        // Read question cache for this topic
-        var pool = [];
-        try {
-            var cacheRows = nk.storageRead([{ collection: "qv_cache_" + topicSlug, key: "pool_0", userId: Constants.SYSTEM_USER_ID }]);
-            if (!cacheRows || cacheRows.length === 0 || !cacheRows[0].value)
-                return 0;
-            var page0 = cacheRows[0].value;
-            if (Array.isArray(page0.questions))
-                pool = page0.questions.slice();
-            // Load additional pages
-            var pageCount = page0.page_count || 1;
-            if (pageCount > 1) {
-                var reqs = [];
-                for (var p = 1; p < pageCount; p++) {
-                    reqs.push({ collection: "qv_cache_" + topicSlug, key: "pool_" + p, userId: Constants.SYSTEM_USER_ID });
-                }
-                var extra = nk.storageRead(reqs);
-                if (extra) {
-                    for (var ei = 0; ei < extra.length; ei++) {
-                        if (extra[ei] && extra[ei].value && Array.isArray(extra[ei].value.questions)) {
-                            pool = pool.concat(extra[ei].value.questions);
-                        }
-                    }
-                }
-            }
-        }
-        catch (_ce) {
-            return 0;
-        }
+        // Use the canonical reader so prewarm follows cache paging/generation rules.
+        var cacheResult = QvQuestionCache.readCache(nk, logger, topicSlug);
+        var pool = cacheResult.questions;
         if (pool.length === 0)
             return 0;
         // Filter seen IDs
@@ -14858,9 +14927,11 @@ var QvPrewarmCron;
                 ? rows[0].value.last_run_ms : 0;
             if (nowMs() - lastRun < GATE_INTERVAL_MS)
                 return false; // still within gate window
+            var expectedVersion = rows && rows.length > 0 ? rows[0].version : "*";
             nk.storageWrite([{
                     collection: GATE_COL, key: GATE_KEY, userId: "00000000-0000-0000-0000-000000000000",
                     value: { last_run_ms: nowMs() },
+                    version: expectedVersion,
                     permissionRead: 0, permissionWrite: 0
                 }]);
             return true;
@@ -15546,6 +15617,7 @@ var QvQuestionCache;
     var COL_CACHE = "qv_cache_"; // full key: qv_cache_{topic}
     var COL_CIRCUIT = "qv_circuit_breakers";
     var COL_REFRESH_GATE = "qv_cache_refresh_gate";
+    var COL_REFRESH_REQ = "qv_cache_refresh_requests";
     var REFRESH_GATE_MS = 30 * 1000; // dedupe concurrent / back-to-back refreshes
     // Per-topic cache TTL (ms)
     var TOPIC_TTL = {
@@ -15557,11 +15629,14 @@ var QvQuestionCache;
         sports: 2 * 3600000,
         news: 6 * 3600000,
         space: 6 * 3600000,
+        math: 6 * 3600000,
+        history: 12 * 3600000,
         food: 12 * 3600000,
         cocktail: 12 * 3600000,
         anime: 24 * 3600000,
         dog: 24 * 3600000,
         disney: 24 * 3600000,
+        art: 7 * 24 * 3600000,
         pokemon: 72 * 3600000,
         ghibli: 72 * 3600000,
         starwars: 72 * 3600000,
@@ -15697,13 +15772,14 @@ var QvQuestionCache;
     }
     function topicProvider(topic) {
         var map = {
-            opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan", pokemon: "pokeapi",
+            opentdb: "opentdb", speed_quiz: "opentdb", true_false: "opentdb", anime: "jikan+anilist+opentdb", pokemon: "pokeapi",
             cocktail: "cocktaildb", food: "themealdb", dog: "dogceo",
             ghibli: "ghibli", disney: "disney", starwars: "swapi",
             countries: "restcountries", flags: "restcountries",
-            space: "nasa", movies: "tmdb", sports: "sportsdb",
+            space: "nasa", movies: "tmdb", sports: "sportsdb+opentdb",
             music: "deezer", news: "gnews", daily: "s3", weekly: "s3",
-            video_quiz: "catalog", ai: "claude"
+            video_quiz: "catalog", ai: "claude",
+            math: "opentdb", art: "artic", history: "opentdb+jservice"
         };
         return map[topic] || topic;
     }
@@ -16351,11 +16427,22 @@ var QvQuestionCache;
     // fetchAniList's comment for why it barely overlaps Jikan's pool.
     function fetchAnimeQuiz(nk, logger) {
         var out = fetchJikan(nk, logger);
+        // AniList: different popularity signal than Jikan/MAL → genuinely different questions
         try {
             out = out.concat(fetchAniList(nk, logger));
         }
         catch (e) {
             logger.debug("[QvQCache/anime] AniList bonus fetch skipped: " + (e && e.message));
+        }
+        // OpenTDB anime (cat 31) — curated text MCQ from the game-show trivia DB,
+        // covers different angles (voice actors, episode counts, studio facts) that
+        // Jikan/AniList image-matching questions don't. Best-effort only.
+        try {
+            var otdbAnime = fetchOpenTdbCategory(nk, logger, 31, 30, "anime", "anime_manga");
+            out = out.concat(otdbAnime);
+        }
+        catch (e) {
+            logger.debug("[QvQCache/anime] OpenTDB cat=31 bonus fetch skipped: " + (e && e.message));
         }
         return out;
     }
@@ -16517,7 +16604,7 @@ var QvQuestionCache;
         }
         var breedSample = 40;
         if (env && env["QV_DOGCEO_BREED_SAMPLE"]) {
-            var parsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 40);
+            var parsed = parseInt(env["QV_DOGCEO_BREED_SAMPLE"], 10);
             if (!isNaN(parsed) && parsed > 0)
                 breedSample = parsed;
         }
@@ -16563,6 +16650,8 @@ var QvQuestionCache;
                     breedName.replace(/\s+/g, "_") + " reason=" + skipReason);
             }
         }
+        if (results.length === 0)
+            throw new Error("dogceo: 0 questions after breed sampling");
         return results;
     }
     // ── 7. Studio Ghibli ──────────────────────────────────────────────────────
@@ -16793,53 +16882,64 @@ var QvQuestionCache;
         var results = [];
         var apiKey = envKey(env, "REST_COUNTRIES_API_KEY");
         var keyPresent = !!apiKey;
-        logger.info("[QvQCache/restcountries] event=provider_v5_fetch_start topic=" + topic +
+        logger.info("[QvQCache/restcountries] event=provider_fetch_start topic=" + topic +
             " key_present=" + (keyPresent ? "true" : "false") +
-            " host=api.restcountries.com limit=100 paginated=true");
-        if (!apiKey)
-            throw new Error("missing_api_key");
-        var authHeaders = { "Authorization": "Bearer " + apiKey };
-        var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
+            " host=" + (keyPresent ? "api.restcountries.com" : "restcountries.com"));
         var objects = [];
-        var offset = 0;
         var pagesFetched = 0;
-        while (true) {
-            var pageUrl = baseUrl + "&offset=" + offset;
-            var parsed;
-            try {
-                parsed = httpGet(nk, pageUrl, authHeaders);
+        if (apiKey) {
+            var authHeaders = { "Authorization": "Bearer " + apiKey };
+            var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
+            var offset = 0;
+            while (true) {
+                var pageUrl = baseUrl + "&offset=" + offset;
+                var parsed;
+                try {
+                    parsed = httpGet(nk, pageUrl, authHeaders);
+                }
+                catch (he) {
+                    var hmsg = he && he.message ? he.message : String(he);
+                    if (hmsg.indexOf("HTTP 401") !== -1)
+                        throw new Error("http_401");
+                    if (hmsg.indexOf("HTTP 403") !== -1)
+                        throw new Error("http_403");
+                    throw he;
+                }
+                if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
+                    throw new Error("unexpected_response_shape");
+                }
+                var pageObjects = parsed.data.objects;
+                var meta = parsed.data.meta || {};
+                pagesFetched++;
+                for (var pi = 0; pi < pageObjects.length; pi++)
+                    objects.push(pageObjects[pi]);
+                if (!meta.more)
+                    break;
+                offset += 100;
+                if (offset > 1000)
+                    break;
             }
-            catch (he) {
-                var hmsg = he && he.message ? he.message : String(he);
-                if (hmsg.indexOf("HTTP 401") !== -1)
-                    throw new Error("http_401");
-                if (hmsg.indexOf("HTTP 403") !== -1)
-                    throw new Error("http_403");
-                throw he;
-            }
-            if (parsed && parsed.success === false && parsed.errors) {
-                throw new Error("restcountries_v3_deprecated");
-            }
-            if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
-                throw new Error("unexpected_response_shape");
-            }
-            var pageObjects = parsed.data.objects;
-            var meta = parsed.data.meta || {};
-            pagesFetched++;
-            logger.info("[QvQCache/restcountries] event=provider_v5_page_done topic=" + topic +
-                " offset=" + offset +
-                " page_count=" + pageObjects.length +
-                " meta_total=" + (meta.total ? meta.total : 0) +
-                " meta_more=" + (meta.more ? "true" : "false"));
-            for (var pi = 0; pi < pageObjects.length; pi++)
-                objects.push(pageObjects[pi]);
-            if (!meta.more)
-                break;
-            offset += 100;
-            if (offset > 1000)
-                break;
         }
-        logger.info("[QvQCache/restcountries] event=provider_v5_fetch_done topic=" + topic +
+        else {
+            // Keyless fallback keeps Guess the Flag/Countries playable on cold deploys.
+            // Normalize the public v3.1 response into the v5 shape consumed below.
+            var publicRows = httpGet(nk, "https://restcountries.com/v3.1/all?fields=name,capital,region,population,cca2,flags");
+            if (!Array.isArray(publicRows))
+                throw new Error("restcountries_public_unexpected_shape");
+            for (var pri = 0; pri < publicRows.length; pri++) {
+                var publicCountry = publicRows[pri];
+                objects.push({
+                    names: { common: publicCountry && publicCountry.name ? publicCountry.name.common : "" },
+                    capitals: publicCountry ? publicCountry.capital : [],
+                    region: publicCountry ? publicCountry.region : "",
+                    population: publicCountry ? publicCountry.population : 0,
+                    codes: { alpha_2: publicCountry ? publicCountry.cca2 : "" },
+                    flag: { url_png: publicCountry && publicCountry.flags ? publicCountry.flags.png : "" }
+                });
+            }
+            pagesFetched = 1;
+        }
+        logger.info("[QvQCache/restcountries] event=provider_fetch_done topic=" + topic +
             " object_count=" + objects.length +
             " pages_fetched=" + pagesFetched);
         if (objects.length === 0)
@@ -17100,6 +17200,20 @@ var QvQuestionCache;
             " with_badge=" + withBadge + " skipped=" + skipped + " emitted=" + results.length);
         return results;
     }
+    // Combines TheSportsDB visual team questions with OpenTDB Sports (cat 21)
+    // text MCQs. OpenTDB sports covers trivia that image-only team questions
+    // can't (records, rules, championships) — genuinely different content.
+    function fetchSportsQuiz(nk, logger) {
+        var out = fetchSportsdb(nk, logger);
+        try {
+            var otdbSports = fetchOpenTdbCategory(nk, logger, 21, 30, "sports", "general_sports");
+            out = out.concat(otdbSports);
+        }
+        catch (e) {
+            logger.debug("[QvQCache/sports] OpenTDB cat=21 bonus fetch skipped: " + (e && e.message));
+        }
+        return out;
+    }
     // ── 14a. Deezer (Music/Audio) — free, keyless, REAL 30s audio previews ────
     // #QVVBS-CACHE (2026-07): "Audio Quiz (AI) — Not Working" — grepping this whole
     // file for media.type==="audio" turned up zero matches anywhere; the "music"
@@ -17132,12 +17246,21 @@ var QvQuestionCache;
         }
         if (tracks.length === 0)
             throw new Error("Deezer: no tracks in chart");
-        var artistNames = [];
+        // Deduplicate artist names before building the wrong-answer pool.
+        // A top-150 chart routinely contains 3-5 songs per popular artist (Taylor Swift,
+        // Bad Bunny, etc.). Pushing every track's artist into a plain array and then
+        // calling pickExcluding on it yields duplicates like [Swift, Swift, Bad Bunny]
+        // because pickExcluding only excludes the *correct* artist, not repeated names
+        // already selected as wrong answers — the bug flagged in PR review.
+        // Using an object set and Object.keys() mirrors the genreSet pattern used by
+        // fetchJikan, fetchAniList, and every other multi-pick helper in this file.
+        var artistNamesSet = {};
         for (var di = 0; di < tracks.length; di++) {
             var artOf = tracks[di].artist;
             if (artOf && artOf.name)
-                artistNames.push(artOf.name);
+                artistNamesSet[artOf.name] = true;
         }
+        var artistNames = Object.keys(artistNamesSet);
         for (var dj = 0; dj < tracks.length; dj++) {
             var trk = tracks[dj];
             try {
@@ -17208,12 +17331,13 @@ var QvQuestionCache;
             throw new Error("Last.fm: no artists");
         if (!tracks || !tracks.tracks || !tracks.tracks.track)
             throw new Error("Last.fm: no tracks");
-        var artistNames = [];
+        var artistNameSet = {};
         var aa = artists.artists.artist;
         for (var ai2 = 0; ai2 < aa.length; ai2++) {
             if (aa[ai2].name)
-                artistNames.push(aa[ai2].name);
+                artistNameSet[aa[ai2].name] = true;
         }
+        var artistNames = Object.keys(artistNameSet);
         var trackList = tracks.tracks.track;
         for (var ti3 = 0; ti3 < trackList.length; ti3++) {
             var track = trackList[ti3];
@@ -17668,6 +17792,215 @@ var QvQuestionCache;
         }
         return results;
     }
+    // ── 20. Math (OpenTDB Mathematics + Computers) — free, no key ───────────────
+    // OpenTDB category 19 = Science: Mathematics (~400 verified MCQs)
+    // OpenTDB category 18 = Science: Computers (bonus variety)
+    // Two batches so the pool stays large after the quality gate filters weak entries.
+    function fetchMathQuiz(nk, logger) {
+        var results = [];
+        var batches = [
+            { id: 19, amt: 50, label: "mathematics" },
+            { id: 18, amt: 30, label: "science_computers" }
+        ];
+        for (var bi = 0; bi < batches.length; bi++) {
+            var b = batches[bi];
+            try {
+                var batch = fetchOpenTdbCategory(nk, logger, b.id, b.amt, "math", b.label);
+                for (var qi = 0; qi < batch.length; qi++)
+                    results.push(batch[qi]);
+            }
+            catch (e) {
+                logger.debug("[QvQCache/math] OpenTDB cat=" + b.id + " failed (non-fatal): " + (e && e.message));
+            }
+        }
+        if (results.length === 0)
+            throw new Error("math: all OpenTDB fetches returned 0 questions");
+        logger.info("[QvQCache/math] event=math_fetch count=" + results.length);
+        return results;
+    }
+    // ── 21. Art Institute of Chicago (Art) — free, no key, CC0 images ─────────
+    // https://api.artic.edu/api/v1/artworks — thousands of artworks with CC0
+    // images hosted via IIIF. No API key required. Question format: show artwork
+    // image and ask who painted/created it. Wrong answers are other artist names
+    // from the same batch (same pattern as fetchJikan genreSet deduplication).
+    function fetchArtInstitute(nk, logger) {
+        var results = [];
+        var allArtists = {};
+        var rawWorks = [];
+        var pages = [1, 2, 3];
+        for (var pi = 0; pi < pages.length; pi++) {
+            try {
+                var url = "https://api.artic.edu/api/v1/artworks?fields=id,title,artist_display,date_display,artwork_type_title,image_id&limit=50&page=" + pages[pi];
+                var resp = httpGet(nk, url);
+                if (!resp || !Array.isArray(resp.data))
+                    continue;
+                for (var wi = 0; wi < resp.data.length; wi++) {
+                    var w = resp.data[wi];
+                    if (!w.image_id || !w.title || !w.artist_display)
+                        continue;
+                    // artist_display is "Georges Seurat\nFrench, 1859–1891" — take only the name part
+                    var artistRaw = w.artist_display || "";
+                    var artistName = artistRaw.indexOf("\n") >= 0 ? artistRaw.substring(0, artistRaw.indexOf("\n")).trim() : artistRaw.trim();
+                    // Skip "Unknown" / "After X" / "Attributed to X" style entries — poor quiz quality
+                    if (!artistName || artistName.length < 3)
+                        continue;
+                    if (artistName.indexOf("Unknown") === 0 || artistName.indexOf("After ") === 0)
+                        continue;
+                    allArtists[artistName] = true;
+                    rawWorks.push({
+                        title: (w.title || "").trim(),
+                        artist: artistName,
+                        imageId: w.image_id,
+                        date: w.date_display || ""
+                    });
+                }
+            }
+            catch (e) {
+                logger.debug("[QvQCache/artic] page " + pages[pi] + " failed (non-fatal): " + (e && e.message));
+            }
+        }
+        var artistPool = Object.keys(allArtists);
+        if (rawWorks.length === 0 || artistPool.length < 4) {
+            throw new Error("artic: insufficient works or artists (works=" + rawWorks.length + " artists=" + artistPool.length + ")");
+        }
+        for (var ai = 0; ai < rawWorks.length; ai++) {
+            var work = rawWorks[ai];
+            try {
+                var exArt = {};
+                exArt[work.artist] = true;
+                var wrongArtists = pickExcluding(artistPool, exArt, 3);
+                if (wrongArtists.length < 3)
+                    continue;
+                var imageUrl = "https://www.artic.edu/iiif/2/" + work.imageId + "/full/843,/0/default.jpg";
+                var artOpts = [{ text: work.artist, is_correct: true }];
+                for (var wai = 0; wai < wrongArtists.length; wai++) {
+                    artOpts.push({ text: wrongArtists[wai], is_correct: false });
+                }
+                results.push({
+                    provider_key: "artic_" + djb2(work.title + work.artist),
+                    topic: "art", lang: "en",
+                    question_text: "Who created this artwork?",
+                    question_type: "single_select",
+                    raw_options: artOpts,
+                    has_media: true,
+                    media: { type: "image", url: imageUrl, thumbnail_url: imageUrl, duration_seconds: null, mime_type: "image/jpeg" },
+                    explanation: "\"" + work.title + "\"" + (work.date ? " (" + work.date + ")" : "") + " by " + work.artist + ".",
+                    difficulty: "medium", provider: "artic",
+                    meta: { title: work.title, artist: work.artist }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/artic] skip work: " + (e && e.message));
+            }
+        }
+        logger.info("[QvQCache/artic] event=art_fetch works=" + rawWorks.length + " artists=" + artistPool.length + " emitted=" + results.length);
+        return results;
+    }
+    // ── 22. History (OpenTDB History + jService Jeopardy) — free, no key ───────
+    // OpenTDB category 23 = History (primary, well-structured MCQ with 3 distractors)
+    // jService = archive of real Jeopardy clues (bonus variety, best-effort only)
+    // jService clues are in Jeopardy format: "question" is the statement, "answer"
+    // is the keyword response. We collect all answers from the batch to use as a
+    // shared wrong-answer pool — same deduplication-set pattern used throughout.
+    function fetchJservice(nk, logger) {
+        var results = [];
+        var clues = [];
+        // Fetch 2 batches of 100 for a wider pool
+        var endpoints = [
+            "https://jservice.io/api/random?count=100",
+            "https://jservice.io/api/random?count=100"
+        ];
+        for (var ei = 0; ei < endpoints.length; ei++) {
+            try {
+                var raw = httpGet(nk, endpoints[ei]);
+                if (Array.isArray(raw)) {
+                    for (var ci = 0; ci < raw.length; ci++)
+                        clues.push(raw[ci]);
+                }
+            }
+            catch (e) {
+                logger.debug("[QvQCache/jservice] fetch failed (non-fatal): " + (e && e.message));
+            }
+        }
+        if (clues.length === 0)
+            return results;
+        // Collect deduplicated answer pool for wrong-answer picking
+        var answerSet = {};
+        for (var ai2 = 0; ai2 < clues.length; ai2++) {
+            var ans = (clues[ai2].answer || "").replace(/<[^>]+>/g, "").trim();
+            if (ans && ans.length > 0 && ans.length < 60)
+                answerSet[ans] = true;
+        }
+        var answerPool = Object.keys(answerSet);
+        if (answerPool.length < 4)
+            return results;
+        for (var ji = 0; ji < clues.length; ji++) {
+            var clue = clues[ji];
+            try {
+                // Strip HTML tags that jService sometimes embeds in question/answer
+                var qText = (clue.question || "").replace(/<[^>]+>/g, "").trim();
+                var answer = (clue.answer || "").replace(/<[^>]+>/g, "").trim();
+                if (!qText || !answer || qText.length < 10 || answer.length > 60)
+                    continue;
+                // Skip question-less clues or answers that are just numbers
+                if (/^\d+$/.test(answer))
+                    continue;
+                var exJ = {};
+                exJ[answer] = true;
+                var wrongJ = pickExcluding(answerPool, exJ, 3);
+                if (wrongJ.length < 3)
+                    continue;
+                var catTitle = (clue.category && clue.category.title) ? clue.category.title : "";
+                var jOpts = [{ text: answer, is_correct: true }];
+                for (var wji = 0; wji < wrongJ.length; wji++) {
+                    jOpts.push({ text: wrongJ[wji], is_correct: false });
+                }
+                results.push({
+                    provider_key: "jservice_" + (clue.id || djb2(qText)),
+                    topic: "history", lang: "en",
+                    question_text: qText,
+                    question_type: "single_select",
+                    raw_options: jOpts,
+                    has_media: false,
+                    media: null,
+                    explanation: catTitle ? "Category: " + catTitle : "",
+                    difficulty: "hard",
+                    provider: "jservice",
+                    meta: { category: catTitle }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/jservice] skip clue: " + (e && e.message));
+            }
+        }
+        logger.info("[QvQCache/jservice] event=jservice_fetch clues=" + clues.length + " emitted=" + results.length);
+        return results;
+    }
+    function fetchHistoryQuiz(nk, logger) {
+        var results = [];
+        // Primary: OpenTDB History (category 23) — structured MCQ with 3 distractors
+        try {
+            var opentdbBatch = fetchOpenTdbCategory(nk, logger, 23, 50, "history", "history");
+            for (var oi = 0; oi < opentdbBatch.length; oi++)
+                results.push(opentdbBatch[oi]);
+        }
+        catch (e) {
+            logger.warn("[QvQCache/history] OpenTDB cat=23 failed: " + (e && e.message));
+        }
+        // Bonus: jService Jeopardy archive — real questions from the TV show
+        try {
+            var jsBatch = fetchJservice(nk, logger);
+            for (var ji2 = 0; ji2 < jsBatch.length; ji2++)
+                results.push(jsBatch[ji2]);
+        }
+        catch (e) {
+            logger.debug("[QvQCache/history] jService bonus failed (non-fatal): " + (e && e.message));
+        }
+        if (results.length === 0)
+            throw new Error("history: all fetches returned 0 questions");
+        logger.info("[QvQCache/history] event=history_fetch count=" + results.length);
+        return results;
+    }
     // ── Provider router ────────────────────────────────────────────────────────
     function fetchForTopic(nk, env, logger, topic) {
         switch (topic) {
@@ -17692,9 +18025,12 @@ var QvQuestionCache;
             }
             case "space": return fetchNasa(nk, env, logger);
             case "movies": return fetchTmdb(nk, env, logger);
-            case "sports": return fetchSportsdb(nk, logger);
+            case "sports": return fetchSportsQuiz(nk, logger);
             case "music": return fetchMusicQuiz(nk, env, logger);
             case "news": return fetchNews(nk, env, logger);
+            case "math": return fetchMathQuiz(nk, logger);
+            case "art": return fetchArtInstitute(nk, logger);
+            case "history": return fetchHistoryQuiz(nk, logger);
             case "daily":
             case "weekly": return fetchS3(nk, env, logger, topic);
             case "video_quiz": return fetchVideoQuiz(nk, env, logger);
@@ -17706,6 +18042,8 @@ var QvQuestionCache;
     function writeCache(nk, logger, topic, questions, provider, qStats, ttlMs) {
         var now = nowMs();
         var pages = Math.ceil(questions.length / MAX_PER_DOC);
+        var generation = topic + "_" + now + "_" + Math.floor(Math.random() * 1000000);
+        var writes = [];
         for (var p = 0; p < pages; p++) {
             var slice = questions.slice(p * MAX_PER_DOC, (p + 1) * MAX_PER_DOC);
             var langs = {};
@@ -17713,29 +18051,35 @@ var QvQuestionCache;
                 var l = slice[qi].lang || "en";
                 langs[l] = (langs[l] || 0) + 1;
             }
-            nk.storageWrite([{
-                    collection: COL_CACHE + topic,
-                    key: "pool_" + p,
-                    userId: Constants.SYSTEM_USER_ID,
-                    value: {
-                        topic: topic,
-                        page: p,
-                        page_count: pages,
-                        cached_at_ms: now,
-                        expires_at_ms: ttlMs > 0 ? now + ttlMs : 0,
-                        ttl_ms: ttlMs,
-                        provider: provider,
-                        question_count: slice.length,
-                        providers_used: [provider],
-                        lang_breakdown: langs,
-                        quality_gate: qStats,
-                        questions: slice
-                    },
-                    permissionRead: 1,
-                    permissionWrite: 0
-                }]);
-            logger.info("[QvQCache/" + topic + "] wrote pool_" + p + " (" + slice.length + " questions)");
+            writes.push({
+                collection: COL_CACHE + topic,
+                key: "pool_" + p,
+                userId: Constants.SYSTEM_USER_ID,
+                value: {
+                    topic: topic,
+                    generation: generation,
+                    page: p,
+                    page_count: pages,
+                    cached_at_ms: now,
+                    expires_at_ms: ttlMs > 0 ? now + ttlMs : 0,
+                    ttl_ms: ttlMs,
+                    provider: provider,
+                    question_count: slice.length,
+                    providers_used: [provider],
+                    lang_breakdown: langs,
+                    quality_gate: qStats,
+                    questions: slice
+                },
+                permissionRead: 1,
+                permissionWrite: 0
+            });
         }
+        // Nakama commits a storageWrite batch transactionally. Readers therefore
+        // see either the previous generation or this complete generation, never a
+        // page-by-page mixture.
+        nk.storageWrite(writes);
+        logger.info("[QvQCache/" + topic + "] wrote generation=" + generation +
+            " pages=" + pages + " questions=" + questions.length);
     }
     // ══════════════════════════════════════════════════════════════════════════
     // CLAUDE ENRICHMENT (Task 1.5)
@@ -17798,15 +18142,18 @@ var QvQuestionCache;
                 ? rows[0].value.last_refresh_ms : 0;
             if (nowMs() - lastMs < REFRESH_GATE_MS)
                 return false;
+            var expectedVersion = rows && rows.length > 0 ? rows[0].version : "*";
             nk.storageWrite([{
                     collection: COL_REFRESH_GATE, key: topic, userId: Constants.SYSTEM_USER_ID,
                     value: { last_refresh_ms: nowMs() },
+                    version: expectedVersion,
                     permissionRead: 0, permissionWrite: 0
                 }]);
             return true;
         }
         catch (_e) {
-            return true;
+            // A version conflict means another node acquired the lease first.
+            return false;
         }
     }
     // ══════════════════════════════════════════════════════════════════════════
@@ -17828,7 +18175,7 @@ var QvQuestionCache;
                 " event=circuit_open provider=" + provider + " topic=" + topic);
             return { ok: false, topic: topic, count: 0, error: cbMsg };
         }
-        if (!force && !tryAcquireRefreshGate(nk, topic)) {
+        if (!tryAcquireRefreshGate(nk, topic)) {
             logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed" +
                 " event=provider_refresh_gated topic=" + topic);
             return { ok: true, topic: topic, count: 0 };
@@ -17959,6 +18306,7 @@ var QvQuestionCache;
             var pageCount = page0.page_count || 1;
             var expiresMs = page0.expires_at_ms || 0;
             var cachedMs = page0.cached_at_ms || 0;
+            var generation = page0.generation || "";
             var expired = expiresMs > 0 ? expiresMs < nowMs() : true;
             if (Array.isArray(page0.questions))
                 questions = questions.concat(page0.questions);
@@ -17969,8 +18317,13 @@ var QvQuestionCache;
                 var extra = nk.storageRead(reqs);
                 if (extra) {
                     for (var ei = 0; ei < extra.length; ei++) {
-                        if (extra[ei] && extra[ei].value && Array.isArray(extra[ei].value.questions)) {
+                        if (extra[ei] && extra[ei].value &&
+                            (!generation || extra[ei].value.generation === generation) &&
+                            Array.isArray(extra[ei].value.questions)) {
                             questions = questions.concat(extra[ei].value.questions);
+                        }
+                        else if (generation) {
+                            logger.warn("[QvQCache/" + topic + "] skipped mismatched cache page generation");
                         }
                     }
                 }
@@ -18001,6 +18354,33 @@ var QvQuestionCache;
         }
     }
     QvQuestionCache.isCacheValid = isCacheValid;
+    /**
+     * Queue a provider refresh without blocking a player RPC on external I/O.
+     * The cache refresh scheduler drains this collection on its next tick.
+     */
+    function requestRefresh(nk, logger, topic, reason) {
+        try {
+            nk.storageWrite([{
+                    collection: COL_REFRESH_REQ,
+                    key: topic,
+                    userId: Constants.SYSTEM_USER_ID,
+                    value: {
+                        topic: topic,
+                        reason: reason,
+                        requested_at_ms: nowMs()
+                    },
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+            logger.info("[QvQCache/" + topic + "] queued background refresh reason=" + reason +
+                " event=provider_refresh_queued");
+        }
+        catch (err) {
+            logger.warn("[QvQCache/" + topic + "] failed to queue refresh: " +
+                (err && err.message ? err.message : String(err)));
+        }
+    }
+    QvQuestionCache.requestRefresh = requestRefresh;
     /**
      * Refresh ALL cacheable topics one-by-one with a 2 s stagger between each.
      * The stagger prevents simultaneous bursts against external providers.
