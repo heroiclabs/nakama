@@ -3711,6 +3711,67 @@ declare namespace Research {
     var MODULE_VERSION: string;
     function register(initializer: nkruntime.Initializer): void;
 }
+/**
+ * RouterWallet — app-id credit wallets for Intelliverse Router.
+ *
+ * Replicates the QuizVerse coins pattern (storage-object wallets) but keyed
+ * by APP ID instead of user id: collection "router_wallets", key
+ * `wallet_{appId}`, owned by the SYSTEM user since apps are not Nakama users.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/router_wallet/ and call RouterWallet.register(initializer)
+ * from main.ts InitModule. Self-contained on purpose — no references to the
+ * kernel's shared namespaces (Storage/RpcHelpers/Constants).
+ *
+ * All RPCs are SERVER-TO-SERVER ONLY (http_key auth): any call with a
+ * ctx.userId is rejected.
+ *
+ * Concurrency: optimistic concurrency control via the storage object version
+ * — every write passes the version read ("*" for create) and retries up to
+ * 3 times on conflict.
+ */
+declare namespace RouterWallet {
+    var SYSTEM_USER_ID: string;
+    var WALLETS_COLLECTION: string;
+    var LEDGER_COLLECTION: string;
+    var CREDIT_REFS_COLLECTION: string;
+    var MAX_OCC_RETRIES: number;
+    var CREDIT_KINDS: string[];
+    interface WalletHold {
+        kind: string;
+        amount: number;
+        createdAt: string;
+    }
+    interface WalletValue {
+        appId: string;
+        workspaceId: string;
+        currencies: {
+            [kind: string]: number;
+        };
+        holds: {
+            [holdId: string]: WalletHold;
+        };
+        version: number;
+    }
+    interface LedgerEntry {
+        appId: string;
+        kind: string;
+        delta: number;
+        balanceAfter: number;
+        reason: string;
+        ref: string | null;
+        holdId?: string;
+        createdAt: string;
+    }
+    function availableBalance(wallet: WalletValue, kind: string): number;
+    function rpcGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcCredit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcDebit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcHold(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSettle(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcHistory(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace AnalyticsAlerts {
     interface RpcSample {
         ts: number;

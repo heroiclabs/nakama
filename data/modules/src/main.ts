@@ -230,6 +230,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Intelliverse Router app-id credit wallets (s2s-only RPCs) ----
+  try {
+    logger.info("[RouterWallet] Registering router wallet RPCs...");
+    RouterWallet.register(initializer);
+  } catch (err: any) {
+    logger.error("[RouterWallet] Failed to register: " + (err.message || String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");

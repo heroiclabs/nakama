@@ -222,6 +222,14 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Intelliverse Router app-id credit wallets (s2s-only RPCs) ----
+    try {
+        logger.info("[RouterWallet] Registering router wallet RPCs...");
+        RouterWallet.register(initializer);
+    }
+    catch (err) {
+        logger.error("[RouterWallet] Failed to register: " + (err.message || String(err)));
+    }
     // ---- Legacy System Registration (backward-compatible RPCs) ----
     try {
         logger.info("[Legacy] Registering wallet RPCs...");
@@ -35121,6 +35129,18 @@ var LegacyChat;
         initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
     }
     function register(initializer) {
+        function auth(fn) {
+            var wrapped = null;
+            return function (ctx, logger, nk, payload) {
+                if (!wrapped) {
+                    var strictFn = fn;
+                    wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+                        ? RpcHelpers.withCleanAuthError(strictFn)
+                        : strictFn;
+                }
+                return wrapped(ctx, logger, nk, payload);
+            };
+        }
         initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
         initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
         initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);
@@ -35129,13 +35149,13 @@ var LegacyChat;
         // read/unread RPCs below throwing a raw Goja 500 for unauthenticated callers
         // instead of the clean JSON every other chat RPC in this file returns — belt
         // and suspenders on top of each handler's own try/catch.
-        initializer.registerRpc("quizverse_deliver_pending_chat_messages", RpcHelpers.withCleanAuthError(rpcDeliverPendingChatMessages));
+        initializer.registerRpc("quizverse_deliver_pending_chat_messages", auth(rpcDeliverPendingChatMessages));
         initializer.registerRpc("get_group_chat_history", rpcGetGroupChatHistory);
         initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
         initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
         initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
-        initializer.registerRpc("mark_group_messages_read", RpcHelpers.withCleanAuthError(rpcMarkGroupMessagesRead));
-        initializer.registerRpc("get_unread_counts", RpcHelpers.withCleanAuthError(rpcGetUnreadCounts));
+        initializer.registerRpc("mark_group_messages_read", auth(rpcMarkGroupMessagesRead));
+        initializer.registerRpc("get_unread_counts", auth(rpcGetUnreadCounts));
         // Force durable persistence for realtime chat (offline delivery + history +
         // unread counts), then push-notify after the message lands. postbuild also
         // invokes register() without an initializer on every pooled Goja VM to bind
@@ -56546,6 +56566,441 @@ var Research;
     }
     Research.register = register;
 })(Research || (Research = {}));
+/**
+ * RouterWallet — app-id credit wallets for Intelliverse Router.
+ *
+ * Replicates the QuizVerse coins pattern (storage-object wallets) but keyed
+ * by APP ID instead of user id: collection "router_wallets", key
+ * `wallet_{appId}`, owned by the SYSTEM user since apps are not Nakama users.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/router_wallet/ and call RouterWallet.register(initializer)
+ * from main.ts InitModule. Self-contained on purpose — no references to the
+ * kernel's shared namespaces (Storage/RpcHelpers/Constants).
+ *
+ * All RPCs are SERVER-TO-SERVER ONLY (http_key auth): any call with a
+ * ctx.userId is rejected.
+ *
+ * Concurrency: optimistic concurrency control via the storage object version
+ * — every write passes the version read ("*" for create) and retries up to
+ * 3 times on conflict.
+ */
+var RouterWallet;
+(function (RouterWallet) {
+    RouterWallet.SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    RouterWallet.WALLETS_COLLECTION = "router_wallets";
+    RouterWallet.LEDGER_COLLECTION = "router_wallet_ledger";
+    // Ref index for credit idempotency: one object per (appId, ref), created
+    // conditionally ("*") so replays and races can never double-credit.
+    RouterWallet.CREDIT_REFS_COLLECTION = "router_wallet_credit_refs";
+    RouterWallet.MAX_OCC_RETRIES = 3;
+    RouterWallet.CREDIT_KINDS = [
+        // Unified currency (docs/business/credit-system.md): every SKU — LLM,
+        // image, video, voice, music, 3D — is priced in iv_credits.
+        "iv_credits",
+        // Legacy per-kind currencies: still valid during the migration window;
+        // frozen and removed after the one-time balance conversion (§9).
+        "img_credits",
+        "vid_credits",
+        "voice_credits",
+        "audio_credits",
+        "book_credits",
+        "gen3d_credits"
+    ];
+    // ---- helpers ----
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message) {
+        return JSON.stringify({ success: false, error: message });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return {};
+        return JSON.parse(payload);
+    }
+    /** All router_wallet RPCs are server-to-server only (http_key auth). */
+    function requireServerToServer(ctx) {
+        if (ctx.userId) {
+            throw new Error("router_wallet RPCs are server-to-server only");
+        }
+    }
+    function validateKind(kind) {
+        if (RouterWallet.CREDIT_KINDS.indexOf(kind) === -1) {
+            throw new Error("Unknown credit kind: " + kind + " (expected one of " + RouterWallet.CREDIT_KINDS.join(", ") + ")");
+        }
+    }
+    function validateAmount(amount, allowZero) {
+        var n = Number(amount);
+        if (!isFinite(n) || n < 0 || (!allowZero && n === 0)) {
+            throw new Error("amount must be a " + (allowZero ? "non-negative" : "positive") + " number");
+        }
+        return n;
+    }
+    function emptyWallet(appId, workspaceId) {
+        var currencies = {};
+        for (var i = 0; i < RouterWallet.CREDIT_KINDS.length; i++)
+            currencies[RouterWallet.CREDIT_KINDS[i]] = 0;
+        return { appId: appId, workspaceId: workspaceId || "", currencies: currencies, holds: {}, version: 0 };
+    }
+    function heldAmount(wallet, kind) {
+        var total = 0;
+        for (var holdId in wallet.holds) {
+            var hold = wallet.holds[holdId];
+            if (hold && hold.kind === kind)
+                total += hold.amount;
+        }
+        return total;
+    }
+    function availableBalance(wallet, kind) {
+        return (wallet.currencies[kind] || 0) - heldAmount(wallet, kind);
+    }
+    RouterWallet.availableBalance = availableBalance;
+    function walletKey(appId) {
+        return "wallet_" + appId;
+    }
+    function readWallet(nk, appId) {
+        var records = nk.storageRead([{ collection: RouterWallet.WALLETS_COLLECTION, key: walletKey(appId), userId: RouterWallet.SYSTEM_USER_ID }]);
+        if (records && records.length > 0 && records[0].value) {
+            return { wallet: records[0].value, storageVersion: records[0].version };
+        }
+        return { wallet: null, storageVersion: "*" }; // "*" = conditional create (must not exist)
+    }
+    function writeWallet(nk, wallet, storageVersion) {
+        wallet.version = (wallet.version || 0) + 1;
+        nk.storageWrite([{
+                collection: RouterWallet.WALLETS_COLLECTION,
+                key: walletKey(wallet.appId),
+                userId: RouterWallet.SYSTEM_USER_ID,
+                value: wallet,
+                version: storageVersion,
+                permissionRead: 0,
+                permissionWrite: 0
+            }]);
+    }
+    /**
+     * Read-mutate-write with OCC. The mutator runs against a fresh read on each
+     * attempt; business errors thrown by the mutator abort immediately (no
+     * retry), while storage version conflicts retry up to MAX_OCC_RETRIES.
+     */
+    function mutateWallet(nk, appId, createIfMissing, workspaceId, mutator) {
+        var lastError = null;
+        for (var attempt = 0; attempt < RouterWallet.MAX_OCC_RETRIES; attempt++) {
+            var read = readWallet(nk, appId);
+            var wallet = read.wallet;
+            if (!wallet) {
+                if (!createIfMissing)
+                    throw new Error("Wallet not found for app " + appId);
+                wallet = emptyWallet(appId, workspaceId);
+            }
+            mutator(wallet); // business validation happens here — throws are fatal
+            try {
+                writeWallet(nk, wallet, read.storageVersion);
+                return wallet;
+            }
+            catch (e) {
+                lastError = e; // version conflict — re-read and retry
+            }
+        }
+        throw new Error("Wallet write conflict after " + RouterWallet.MAX_OCC_RETRIES + " retries: " + (lastError && lastError.message ? lastError.message : String(lastError)));
+    }
+    function creditRefKey(appId, ref) {
+        return "ref_" + appId + "_" + ref;
+    }
+    /**
+     * Claim a credit ref via conditional create ("*"). Returns true when this
+     * call owns the ref; false when a credit with the same (appId, ref) already
+     * went through (replayed webhook, retried grant job, double-fired cron).
+     */
+    function claimCreditRef(nk, appId, ref, meta) {
+        try {
+            nk.storageWrite([{
+                    collection: RouterWallet.CREDIT_REFS_COLLECTION,
+                    key: creditRefKey(appId, ref),
+                    userId: RouterWallet.SYSTEM_USER_ID,
+                    value: meta,
+                    version: "*",
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (e) {
+            return false; // conditional create failed: ref already claimed
+        }
+    }
+    function releaseCreditRef(nk, appId, ref) {
+        try {
+            nk.storageDelete([{ collection: RouterWallet.CREDIT_REFS_COLLECTION, key: creditRefKey(appId, ref), userId: RouterWallet.SYSTEM_USER_ID }]);
+        }
+        catch (e) {
+            // best-effort rollback; a stuck marker only blocks re-crediting this ref
+        }
+    }
+    function ledgerKey(appId) {
+        var random = Math.floor(Math.random() * 0xffffff).toString(16);
+        return "txn_" + appId + "_" + Date.now() + "_" + random;
+    }
+    function writeLedger(nk, entry) {
+        var key = ledgerKey(entry.appId);
+        nk.storageWrite([{
+                collection: RouterWallet.LEDGER_COLLECTION,
+                key: key,
+                userId: RouterWallet.SYSTEM_USER_ID,
+                value: entry,
+                permissionRead: 0,
+                permissionWrite: 0
+            }]);
+        return key;
+    }
+    function walletView(wallet) {
+        var available = {};
+        for (var i = 0; i < RouterWallet.CREDIT_KINDS.length; i++) {
+            available[RouterWallet.CREDIT_KINDS[i]] = availableBalance(wallet, RouterWallet.CREDIT_KINDS[i]);
+        }
+        return {
+            appId: wallet.appId,
+            workspaceId: wallet.workspaceId,
+            currencies: wallet.currencies,
+            holds: wallet.holds,
+            available: available,
+            version: wallet.version
+        };
+    }
+    // ---- RPC handlers ----
+    function rpcGet(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            var read = readWallet(nk, data.appId);
+            var wallet = read.wallet || emptyWallet(data.appId, "");
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_get failed");
+        }
+    }
+    RouterWallet.rpcGet = rpcGet;
+    function rpcCredit(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.reason)
+                return err("reason required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            // Ref-based idempotency (launch blocker fix): a ref (Stripe invoice id,
+            // trickle_<user>_<date>, ...) credits at most once per app. The ref is
+            // claimed BEFORE the wallet mutation so a concurrent replay loses the
+            // conditional create and returns the already-applied wallet instead.
+            var ref = data.ref || null;
+            if (ref) {
+                var claimed = claimCreditRef(nk, data.appId, ref, {
+                    appId: data.appId,
+                    kind: data.kind,
+                    amount: amount,
+                    reason: data.reason,
+                    createdAt: new Date().toISOString()
+                });
+                if (!claimed) {
+                    var existing = readWallet(nk, data.appId);
+                    var view = walletView(existing.wallet || emptyWallet(data.appId, data.workspaceId || ""));
+                    return ok({ appId: view.appId, workspaceId: view.workspaceId, currencies: view.currencies, holds: view.holds, available: view.available, version: view.version, deduped: true });
+                }
+            }
+            var wallet;
+            try {
+                wallet = mutateWallet(nk, data.appId, true, data.workspaceId || "", function (w) {
+                    if (data.workspaceId && !w.workspaceId)
+                        w.workspaceId = data.workspaceId;
+                    w.currencies[data.kind] = (w.currencies[data.kind] || 0) + amount;
+                });
+            }
+            catch (mutateError) {
+                // Credit never applied — release the ref so a retry can succeed.
+                if (ref)
+                    releaseCreditRef(nk, data.appId, ref);
+                throw mutateError;
+            }
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: data.kind,
+                delta: amount,
+                balanceAfter: wallet.currencies[data.kind],
+                reason: data.reason,
+                ref: ref,
+                createdAt: new Date().toISOString()
+            });
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_credit failed");
+        }
+    }
+    RouterWallet.rpcCredit = rpcCredit;
+    function rpcDebit(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.reason)
+                return err("reason required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var available = availableBalance(w, data.kind);
+                if (available < amount) {
+                    throw new Error("Insufficient " + data.kind + ": available " + available + ", need " + amount);
+                }
+                w.currencies[data.kind] = (w.currencies[data.kind] || 0) - amount;
+            });
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: data.kind,
+                delta: -amount,
+                balanceAfter: wallet.currencies[data.kind],
+                reason: data.reason,
+                ref: data.ref || null,
+                createdAt: new Date().toISOString()
+            });
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_debit failed");
+        }
+    }
+    RouterWallet.rpcDebit = rpcDebit;
+    function rpcHold(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.ref)
+                return err("ref required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            var holdId = nk.uuidv4();
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var available = availableBalance(w, data.kind);
+                if (available < amount) {
+                    throw new Error("Insufficient " + data.kind + " for hold: available " + available + ", need " + amount);
+                }
+                w.holds[holdId] = { kind: data.kind, amount: amount, createdAt: new Date().toISOString() };
+            });
+            return ok({ holdId: holdId, wallet: walletView(wallet) });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_hold failed");
+        }
+    }
+    RouterWallet.rpcHold = rpcHold;
+    function rpcSettle(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.holdId)
+                return err("holdId required");
+            var actualAmount = validateAmount(data.actualAmount, true); // 0 = full release
+            var settledKind = "";
+            var heldAmt = 0;
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var hold = w.holds[data.holdId];
+                if (!hold)
+                    throw new Error("Hold not found: " + data.holdId);
+                if (actualAmount > hold.amount) {
+                    throw new Error("actualAmount " + actualAmount + " exceeds held amount " + hold.amount);
+                }
+                settledKind = hold.kind;
+                heldAmt = hold.amount;
+                delete w.holds[data.holdId];
+                w.currencies[hold.kind] = (w.currencies[hold.kind] || 0) - actualAmount;
+            });
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: settledKind,
+                delta: -actualAmount,
+                balanceAfter: wallet.currencies[settledKind],
+                reason: actualAmount === 0 ? "hold_released" : "hold_settled",
+                ref: data.ref || null,
+                holdId: data.holdId,
+                createdAt: new Date().toISOString()
+            });
+            return ok({
+                holdId: data.holdId,
+                kind: settledKind,
+                heldAmount: heldAmt,
+                settledAmount: actualAmount,
+                released: heldAmt - actualAmount,
+                wallet: walletView(wallet)
+            });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_settle failed");
+        }
+    }
+    RouterWallet.rpcSettle = rpcSettle;
+    function rpcHistory(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            var limit = data.limit ? Math.min(Number(data.limit), 200) : 50;
+            var prefix = "txn_" + data.appId + "_";
+            var entries = [];
+            var cursor = data.cursor || "";
+            // Ledger keys embed the appId; the collection is shared across apps, so
+            // filter by key prefix while paging (same pattern as the kernel's
+            // legacy wallet registry listing).
+            do {
+                var result = nk.storageList(RouterWallet.SYSTEM_USER_ID, RouterWallet.LEDGER_COLLECTION, limit, cursor);
+                var objects = (result && result.objects) || [];
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    if (obj.key && obj.key.indexOf(prefix) === 0 && obj.value) {
+                        entries.push({ key: obj.key, entry: obj.value });
+                        if (entries.length >= limit)
+                            break;
+                    }
+                }
+                cursor = (result && result.cursor) || "";
+            } while (cursor && entries.length < limit);
+            entries.sort(function (a, b) {
+                var ta = (a.entry && a.entry.createdAt) || "";
+                var tb = (b.entry && b.entry.createdAt) || "";
+                return ta < tb ? 1 : ta > tb ? -1 : 0;
+            });
+            return ok({ appId: data.appId, entries: entries, cursor: cursor || null });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_history failed");
+        }
+    }
+    RouterWallet.rpcHistory = rpcHistory;
+    function register(initializer) {
+        initializer.registerRpc("router_wallet_get", rpcGet);
+        initializer.registerRpc("router_wallet_credit", rpcCredit);
+        initializer.registerRpc("router_wallet_debit", rpcDebit);
+        initializer.registerRpc("router_wallet_hold", rpcHold);
+        initializer.registerRpc("router_wallet_settle", rpcSettle);
+        initializer.registerRpc("router_wallet_history", rpcHistory);
+    }
+    RouterWallet.register = register;
+})(RouterWallet || (RouterWallet = {}));
+// Expose the namespace for the standalone vitest harness. Inside Nakama's
+// Goja runtime this is a harmless no-op guard (namespaces are already global
+// in the kernel's outFile bundle).
+if (typeof globalThis !== "undefined") {
+    globalThis.RouterWallet = RouterWallet;
+}
 // =============================================================================
 // AnalyticsAlerts — Hardened RPC analytics + Discord summaries for Nakama
 // =============================================================================
