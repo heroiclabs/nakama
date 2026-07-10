@@ -332,7 +332,18 @@ function arPurgeLiveDailyMoney(nk, gameId, dayStr, dryRun, auditMeta) {
 
 /**
  * Streams analytics_events under SYSTEM_USER and collects records falling on `dateStr`.
- * Returns { events: [...], scanned, truncated, nextCursor }.
+ * Returns { events: [...], scanned, truncated, nextCursor, error }.
+ *
+ * `error` is null on success; when a storageList page fails (e.g. "context
+ * canceled" on a dying request context) it carries the failure message and the
+ * scan stops early. Callers MUST treat a non-null `error` as "abort the whole
+ * run" — the partial result must not be mistaken for a complete-and-empty day,
+ * or rollup docs get overwritten from zero events.
+ *
+ * `budgetMs` (optional) caps the wall-clock scan budget. It is clamped to
+ * [2000, 15000] ms so a bogus value can neither disable the scan nor blow past
+ * the ~22s HTTP socket timeout. Callers already inside a partly-spent request
+ * context (e.g. the dashboard's self-healing auto-rollup) pass a smaller value.
  *
  * Note: we rely on the dashboard-fanout copy written by persistNormalizedEvent,
  * which is keyed as `dash_<gameId>_<YYYY-MM-DD>_...`. Scanning under SYSTEM_USER
@@ -341,16 +352,17 @@ function arPurgeLiveDailyMoney(nk, gameId, dayStr, dryRun, auditMeta) {
  * in memory; there is no per-day key index to read instead.
  *
  * `startCursor` (optional) resumes a previous truncated scan. When the page
- * cap is hit, `truncated` is true and `nextCursor` is the storageList cursor
- * to resume from — the caller checkpoints it and re-invokes later instead of
- * aborting (see rpcAnalyticsRollupRun).
+ * cap or time budget is hit, `truncated` is true and `nextCursor` is the
+ * storageList cursor to resume from — the caller checkpoints it and re-invokes
+ * later instead of aborting (see rpcAnalyticsRollupRun).
  */
-function arScanEventsForDate(nk, logger, dateStr, startCursor) {
+function arScanEventsForDate(nk, logger, dateStr, startCursor, budgetMs) {
     var events = [];
     var scanned = 0;
     var truncated = false;
     var cursor = startCursor || null;
     var pagesScanned = 0;
+    var scanError = null;
     // The dashboard-fanout copies (dash_*) accumulate across all days in one
     // collection, so a day's rollup must page the whole collection and filter by
     // timestamp in-memory. The old fixed 100-page (10k-object) cap made every
@@ -365,8 +377,14 @@ function arScanEventsForDate(nk, logger, dateStr, startCursor) {
     // 15s, not 22s: in prod the HTTP context dies at ~22s (observed 2026-06-10:
     // responses written after that get "empty reply" and storage ops fail with
     // "context canceled"), so leave real headroom for checkpoint writes and the
-    // response itself.
+    // response itself. Callers already running inside a partly-spent request
+    // context (e.g. the dashboard's self-healing auto-rollup) can pass a
+    // smaller budgetMs; it is clamped so a bogus value can't disable the scan
+    // or blow past the socket timeout.
     var scanBudgetMs = 15000;
+    if (typeof budgetMs === "number" && isFinite(budgetMs)) {
+        scanBudgetMs = Math.min(15000, Math.max(2000, Math.floor(budgetMs)));
+    }
     var startMs = Date.now();
     var dayStart = Math.floor(new Date(dateStr + "T00:00:00.000Z").getTime() / 1000);
     var dayEnd = dayStart + 86400;
@@ -382,7 +400,13 @@ function arScanEventsForDate(nk, logger, dateStr, startCursor) {
         try {
             page = nk.storageList(AR_SYSTEM_USER, AR_EVENTS_COLLECTION, pageSize, cursor);
         } catch (e) {
+            // Do NOT treat a failed list as end-of-collection: on a canceled
+            // request context ("context canceled") this used to make the scan
+            // look complete-and-empty, so the compute phase then overwrote /
+            // failed-to-write rollup docs from zero events. Surface the error
+            // so the caller aborts the whole run instead.
             logger.warn("[analytics_rollup] storageList failed: " + e.message);
+            scanError = e.message || "storageList failed";
             break;
         }
         if (!page || !page.objects || page.objects.length === 0) break;
@@ -418,7 +442,7 @@ function arScanEventsForDate(nk, logger, dateStr, startCursor) {
     if (pagesScanned >= maxPages && page && page.cursor) truncated = true;
     // `cursor` already holds the last page's cursor (assigned at loop bottom),
     // i.e. the exact resume point for the next invocation.
-    return { events: events, scanned: scanned, truncated: truncated, nextCursor: truncated ? cursor : null };
+    return { events: events, scanned: scanned, truncated: truncated, nextCursor: truncated ? cursor : null, error: scanError };
 }
 
 /**
@@ -441,6 +465,7 @@ function arScanEventsForRange(nk, logger, fromUnix, toUnix, startCursor) {
     var scanBudgetMs = 15000;
     var startMs = Date.now();
     var page = null;
+    var scanError = null;
 
     for (var p = 0; p < maxPages; p++) {
         if (Date.now() - startMs > scanBudgetMs) {
@@ -451,7 +476,10 @@ function arScanEventsForRange(nk, logger, fromUnix, toUnix, startCursor) {
         try {
             page = nk.storageList(AR_SYSTEM_USER, AR_EVENTS_COLLECTION, pageSize, cursor);
         } catch (e) {
+            // Same as arScanEventsForDate: a failed list must not be
+            // mistaken for end-of-collection (see context-canceled note there).
             logger.warn("[analytics_rollup] storageList failed: " + e.message);
+            scanError = e.message || "storageList failed";
             break;
         }
         if (!page || !page.objects || page.objects.length === 0) break;
@@ -480,7 +508,7 @@ function arScanEventsForRange(nk, logger, fromUnix, toUnix, startCursor) {
     }
 
     if (pagesScanned >= maxPages && page && page.cursor) truncated = true;
-    return { byDate: byDate, scanned: scanned, truncated: truncated, nextCursor: truncated ? cursor : null };
+    return { byDate: byDate, scanned: scanned, truncated: truncated, nextCursor: truncated ? cursor : null, error: scanError };
 }
 
 // ─── Core: resumable-scan checkpoint (analytics_rollup_meta) ───────────────
@@ -1418,10 +1446,23 @@ function rpcAnalyticsRollupRun(ctx, logger, nk, payload) {
         scanResult = { events: [], scanned: 0, truncated: false, nextCursor: null };
     } else {
         try {
-            scanResult = arScanEventsForDate(nk, logger, dateStr, startCursor);
+            // Optional caller-supplied scan budget (ms). Used by the dashboard's
+            // self-healing auto-rollup, which runs inside a request context that
+            // has already spent part of its ~22s lifetime. Clamped in the scan.
+            scanResult = arScanEventsForDate(nk, logger, dateStr, startCursor, data.budget_ms);
         } catch (e) {
             logger.error("[analytics_rollup] scan failed: " + e.message);
             return arErr("Scan failed: " + e.message, 500);
+        }
+        if (scanResult.error) {
+            // storageList aborted mid-scan (e.g. "context canceled"). Abort the
+            // whole run WITHOUT touching the checkpoint: progress up to the
+            // last successful invocation is preserved and the next invocation
+            // (cron pass / fresh request) resumes from it. Computing from a
+            // partial scan here would write incorrect (potentially empty)
+            // rollup docs over good data.
+            logger.error("[analytics_rollup] scan aborted for " + dateStr + ": " + scanResult.error);
+            return arErr("Scan aborted: " + scanResult.error, 500);
         }
     }
 
@@ -1805,6 +1846,11 @@ function rpcAnalyticsRollupBackfill(ctx, logger, nk, payload) {
         var fromUnix = Math.floor(new Date(data.from + "T00:00:00.000Z").getTime() / 1000);
         var toUnix   = Math.floor(new Date(data.to   + "T00:00:00.000Z").getTime() / 1000) + 86400;
         var scan = arScanEventsForRange(nk, logger, fromUnix, toUnix, bf.cursor || null);
+        if (scan.error) {
+            // Abort without advancing the backfill checkpoint — a failed list
+            // (e.g. "context canceled") must not be recorded as scanComplete.
+            return arErr("Backfill scan aborted: " + scan.error, 500);
+        }
 
         var matchedThisSlice = 0;
         for (var dStr in scan.byDate) {

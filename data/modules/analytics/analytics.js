@@ -1354,6 +1354,11 @@ function extractDownloadsFromSnapshot(snap) {
  */
 function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     var SYSTEM_USER = "00000000-0000-0000-0000-000000000000";
+    // Wall-clock anchor for the request. The socket read/write timeouts are
+    // 30s (config.yaml) and in prod the HTTP context is observed dead by
+    // ~22s — any storage op after that fails with "context canceled". Used
+    // by the self-healing auto-rollup guard below.
+    var __adStartMs = Date.now();
     var parsed = {};
     try { parsed = JSON.parse(payload || '{}'); } catch (e) { /* ignore */ }
 
@@ -1742,21 +1747,74 @@ function rpcAnalyticsDashboard(ctx, logger, nk, payload) {
     // missing WAU/MAU history, auto-trigger yesterday's rollup here when it
     // is absent. Wrapped in try/catch so a slow or failing rollup never
     // breaks the dashboard response.
+    //
+    // 2026-07-09 hardening (context-canceled incident). The old block called
+    // rpcAnalyticsRollupRun unconditionally whenever readRollupDaily returned
+    // null. Two failure modes stacked there:
+    //   1. readRollupDaily swallows read errors, so once this request's HTTP
+    //      context was already canceled (the 30-day trend reads above can
+    //      burn the ~22s prod context budget; socket read/write timeouts are
+    //      30s in config.yaml), an EXISTING rollup read back as "missing"
+    //      and the trigger fired anyway.
+    //   2. The rollup then ran its scan + compute/write phase on the dying
+    //      context — storageList failed ("Could not list storage.") and every
+    //      write failed with "context canceled", logged as
+    //      "[analytics_rollup] critical write failures ... rollup_all/funnel_all".
+    // Fixes: (a) error-aware existence check — a failed read means "unknown",
+    // never "missing", so no trigger; (b) only trigger while enough of the
+    // request budget remains, and hand the rollup a scan budget sized to the
+    // time actually left (the run checkpoints and resumes, so a short pass
+    // still makes progress); (c) env kill-switch DASHBOARD_AUTO_ROLLUP=false.
     var autoRollupMeta = null;
     try {
+        var arqEnabled = !(ctx && ctx.env &&
+            (ctx.env.DASHBOARD_AUTO_ROLLUP === "false" || ctx.env.DASHBOARD_AUTO_ROLLUP === "0"));
         var yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-        var existingRoll = readRollupDaily(nk, 'all', yday);
-        if (!existingRoll && typeof rpcAnalyticsRollupRun === 'function') {
-            var aSecret = (ctx && ctx.env && ctx.env.DASHBOARD_SECRET) ||
-                "2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8";
-            logger.info("[analytics_dashboard] stale rollup for " + yday + " — auto-triggering");
-            rpcAnalyticsRollupRun(ctx, logger, nk,
-                JSON.stringify({ date: yday, dashboard_secret: aSecret }));
-            autoRollupMeta = { triggered: true, date: yday };
-            logger.info("[analytics_dashboard] auto-rollup complete for " + yday);
+        var rollupAbsent = false;
+        if (arqEnabled) {
+            // Direct read (NOT readRollupDaily): let a storage error throw so
+            // the catch below records it instead of treating it as absence.
+            var exRead = nk.storageRead([{
+                collection: "analytics_rollup_daily",
+                key: "rollup_all_" + yday,
+                userId: SYSTEM_USER
+            }]);
+            rollupAbsent = !exRead || exRead.length === 0;
+        }
+        if (arqEnabled && rollupAbsent && typeof rpcAnalyticsRollupRun === 'function') {
+            // Budget guard: prod HTTP contexts die at ~22s. Reserve headroom
+            // for the rollup's checkpoint/compute writes and this RPC's own
+            // response; skip entirely when too little time remains — the
+            // cron (or the next early-arriving dashboard request) picks it up.
+            var arqDeadlineMs = 22000;
+            var arqHeadroomMs = 5000;
+            var arqRemainingMs = arqDeadlineMs - (Date.now() - __adStartMs) - arqHeadroomMs;
+            if (arqRemainingMs < 3000) {
+                autoRollupMeta = { triggered: false, skipped: "insufficient_budget", date: yday };
+            } else {
+                var aSecret = (ctx && ctx.env && ctx.env.DASHBOARD_SECRET) ||
+                    "2074ff0e9dea8fb3c8162a0301b6ea06bbb938187b89a0b6789ea583f25d34c8";
+                logger.info("[analytics_dashboard] stale rollup for " + yday +
+                            " — auto-triggering one pass (budget_ms=" + arqRemainingMs + ")");
+                var passRaw = rpcAnalyticsRollupRun(ctx, logger, nk, JSON.stringify({
+                    date: yday,
+                    dashboard_secret: aSecret,
+                    budget_ms: arqRemainingMs
+                }));
+                var passRes = {};
+                try { passRes = JSON.parse(passRaw || "{}"); } catch (ePr) { /* ignore */ }
+                autoRollupMeta = {
+                    triggered: true,
+                    date: yday,
+                    partial: passRes.partial === true,
+                    complete: passRes.complete === true
+                };
+                logger.info("[analytics_dashboard] auto-rollup pass done for " + yday +
+                            (passRes.partial ? " (partial — checkpointed, will resume)" : ""));
+            }
         }
     } catch (autoRollupErr) {
-        logger.warn("[analytics_dashboard] auto-rollup failed: " + (autoRollupErr && autoRollupErr.message));
+        logger.warn("[analytics_dashboard] auto-rollup skipped/failed: " + (autoRollupErr && autoRollupErr.message));
         autoRollupMeta = { triggered: false, error: autoRollupErr && autoRollupErr.message };
     }
 

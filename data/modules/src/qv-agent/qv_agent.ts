@@ -606,6 +606,145 @@ namespace QvAgent {
     }
   }
 
+  // ── RPC: qv_agent_public_activity ──────────────────────────────────────────
+  // Anonymous-OK, counts-only projection of the nightly analytics rollups for
+  // the public /stats/activity marketing page (audience capture + backlinks).
+  //
+  // Sources counts from `analytics_rollup_daily` (rollup_<gameId>_<YYYY-MM-DD>
+  // docs written by analytics_rollup.js under SYSTEM_USER) instead of scanning
+  // raw `analytics_events`: the raw collection pages oldest-first with no
+  // key-prefix filter, so a capped forward scan can never reach recent events
+  // once the collection grows. Direct keyed reads of the last-N rollup docs are
+  // O(N) and always current.
+  //
+  // Returns aggregate learner-activity counts bucketed by UTC day, with weekly
+  // (ISO-8601) and monthly roll-ups. NO PII: only event counts + learner counts
+  // per bucket. Daily learners = exact DAU from the rollup; weekly/monthly
+  // learners = peak daily DAU within the bucket (distinct users across days are
+  // not derivable from daily rollups) — this is signal for a marketing surface,
+  // not an exact ledger.
+  //
+  // Request:  {}  (optional { "days"?: number } lookback window, default/max 365)
+  // Response: { success, data: {
+  //   game_id, generated_unix, sampled,
+  //   totals: { learners, events, days },
+  //   daily:  [{ bucket: "YYYY-MM-DD", events, learners }],   // last 30
+  //   weekly: [{ bucket: "YYYY-Www",  events, learners }],    // last 12
+  //   monthly:[{ bucket: "YYYY-MM",   events, learners }] } }  // last 12
+  var ACTIVITY_ROLLUP_COLLECTION = "analytics_rollup_daily";
+  var QV_GAME_UUID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+
+  function pad2(n: number): string { return n < 10 ? "0" + n : "" + n; }
+
+  function isoDateUtc(d: Date): string {
+    return d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
+  }
+
+  function isoWeekUtc(d: Date): string {
+    var date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    var dayNum = (date.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+    date.setUTCDate(date.getUTCDate() - dayNum + 3); // nearest Thursday
+    var firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+    var firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+    var week = 1 + Math.round((date.getTime() - firstThursday.getTime()) / (7 * 86400000));
+    return date.getUTCFullYear() + "-W" + pad2(week);
+  }
+
+  function bumpBucket(
+    map: { [k: string]: { events: number; learners: number } },
+    key: string,
+    events: number,
+    dau: number
+  ): void {
+    if (!map[key]) map[key] = { events: 0, learners: 0 };
+    map[key].events += events;
+    // Peak daily DAU within the bucket — daily rollups can't give distinct
+    // users across days, so this is the safest non-inflated learner signal.
+    if (dau > map[key].learners) map[key].learners = dau;
+  }
+
+  function lastBuckets(
+    map: { [k: string]: { events: number; learners: number } },
+    n: number
+  ): Array<{ bucket: string; events: number; learners: number }> {
+    var keys: string[] = [];
+    for (var k in map) { if (map.hasOwnProperty(k)) keys.push(k); }
+    keys.sort(); // YYYY-MM-DD / YYYY-Www / YYYY-MM all sort lexicographically by time
+    var start = Math.max(0, keys.length - n);
+    var out: Array<{ bucket: string; events: number; learners: number }> = [];
+    for (var i = start; i < keys.length; i++) {
+      var b = map[keys[i]];
+      out.push({ bucket: keys[i], events: b.events, learners: b.learners });
+    }
+    return out;
+  }
+
+  function rpcPublicActivity(_ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+    try {
+      var data = RpcHelpers.parseRpcPayload(payload);
+      var lookbackDays = Math.min(Math.max(parseInt(data.days) || 365, 30), 365);
+
+      var dayMap: { [k: string]: { events: number; learners: number } } = {};
+      var weekMap: { [k: string]: { events: number; learners: number } } = {};
+      var monthMap: { [k: string]: { events: number; learners: number } } = {};
+      var totalEvents = 0;
+      var peakDau = 0;
+      var dayCount = 0;
+
+      // Direct keyed reads of the last-N daily rollup docs (written nightly by
+      // analytics_rollup.js under SYSTEM_USER as rollup_<gameId>_<YYYY-MM-DD>).
+      // Batched storageRead: missing days simply return no record.
+      var now = Date.now();
+      var batch: nkruntime.StorageReadRequest[] = [];
+      var recs: nkruntime.StorageObject[] = [];
+      for (var back = 0; back < lookbackDays; back++) {
+        var dStr = isoDateUtc(new Date(now - back * 86400000));
+        batch.push({
+          collection: ACTIVITY_ROLLUP_COLLECTION,
+          key: "rollup_" + QV_GAME_UUID + "_" + dStr,
+          userId: Constants.SYSTEM_USER_ID,
+        });
+        if (batch.length >= 100 || back === lookbackDays - 1) {
+          try {
+            var page = nk.storageRead(batch);
+            for (var r = 0; r < page.length; r++) recs.push(page[r]);
+          } catch (e: any) {
+            logger.warn("qv_agent_public_activity rollup read failed: " + (e && e.message ? e.message : String(e)));
+          }
+          batch = [];
+        }
+      }
+
+      for (var i = 0; i < recs.length; i++) {
+        var v: any = recs[i] && recs[i].value;
+        if (!v || !v.date) continue;
+        var events = v.event_count || 0;
+        var dau = v.dau || 0;
+        var d = new Date(v.date + "T00:00:00.000Z");
+        bumpBucket(dayMap, v.date, events, dau);
+        bumpBucket(weekMap, isoWeekUtc(d), events, dau);
+        bumpBucket(monthMap, v.date.substring(0, 7), events, dau);
+        totalEvents += events;
+        if (dau > peakDau) peakDau = dau;
+        dayCount++;
+      }
+
+      return RpcHelpers.successResponse({
+        game_id: ANALYTICS_GAME_ID,
+        generated_unix: Math.floor(Date.now() / 1000),
+        sampled: false, // exact rollup reads — never a capped scan
+        totals: { learners: peakDau, events: totalEvents, days: dayCount },
+        daily: lastBuckets(dayMap, 30),
+        weekly: lastBuckets(weekMap, 12),
+        monthly: lastBuckets(monthMap, 12),
+      });
+    } catch (err: any) {
+      logger.error("qv_agent_public_activity failed: " + (err && err.message ? err.message : String(err)));
+      return RpcHelpers.errorResponse("internal error", 500);
+    }
+  }
+
   // ── Registration ───────────────────────────────────────────────────────────
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("qv_agent_ping", rpcPing);
@@ -615,5 +754,6 @@ namespace QvAgent {
     initializer.registerRpc("qv_agent_global_leaderboard_top10", rpcGlobalLeaderboardTop10);
     initializer.registerRpc("qv_agent_analyze_quiz_performance", rpcAnalyzeQuizPerformance);
     initializer.registerRpc("qv_agent_generate_trivia", rpcGenerateTrivia);
+    initializer.registerRpc("qv_agent_public_activity", rpcPublicActivity);
   }
 }
