@@ -7,6 +7,7 @@ The format is based on [keep a changelog](http://keepachangelog.com) and this pr
 ### Backports
 - #2514: Database and Console route extension points
 - #2522: (WIP) Avoid display name search if search term is an UUID
+- #2524: Add `console.disable_display_name_search` config option to disable console account search by display name entirely.
 
 ## [3.39.0] - 2026-05-20
 ### Added
