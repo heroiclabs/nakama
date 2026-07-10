@@ -107,7 +107,7 @@ func ValidatePurchasesApple(ctx context.Context, logger *zap.Logger, db *sql.DB,
 	dbPurchase.rawResponse = string(receiptJson)
 
 	dbPurchases, err := upsertPurchases(ctx, db, []*storagePurchase{dbPurchase})
-	if err != nil || len(dbPurchases) == 0  {
+	if err != nil || len(dbPurchases) == 0 {
 		logger.Error("Failed to store App Store notification purchase data", zap.Error(err))
 		return nil, status.Error(codes.Internal, "Failed to store app store purchase data")
 	}
