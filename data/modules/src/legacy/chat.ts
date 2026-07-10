@@ -753,13 +753,17 @@ namespace LegacyChat {
     initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
     initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);
     // Delivers queued offline challenge messages; Unity calls this once per session.
-    initializer.registerRpc("quizverse_deliver_pending_chat_messages", rpcDeliverPendingChatMessages);
+    // withCleanAuthError: live-server smoke test (2026-07-09) found this + the two
+    // read/unread RPCs below throwing a raw Goja 500 for unauthenticated callers
+    // instead of the clean JSON every other chat RPC in this file returns — belt
+    // and suspenders on top of each handler's own try/catch.
+    initializer.registerRpc("quizverse_deliver_pending_chat_messages", RpcHelpers.withCleanAuthError(rpcDeliverPendingChatMessages));
     initializer.registerRpc("get_group_chat_history", rpcGetGroupChatHistory);
     initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
     initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
     initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
-    initializer.registerRpc("mark_group_messages_read", rpcMarkGroupMessagesRead);
-    initializer.registerRpc("get_unread_counts", rpcGetUnreadCounts);
+    initializer.registerRpc("mark_group_messages_read", RpcHelpers.withCleanAuthError(rpcMarkGroupMessagesRead));
+    initializer.registerRpc("get_unread_counts", RpcHelpers.withCleanAuthError(rpcGetUnreadCounts));
 
     // Force durable persistence for realtime chat (offline delivery + history +
     // unread counts), then push-notify after the message lands.

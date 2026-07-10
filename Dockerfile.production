@@ -184,8 +184,16 @@ COPY data/modules/ ./
 
 # (c) tsc + postbuild MUST succeed. No `|| true`. If `tsc` produces no
 # build/index.js the postbuild step bails with exit 1 itself.
+#
+# #QVVBS-CACHE (2026-07): seed-video-quiz-catalog.js was NOT run here previously,
+# so build/video_quiz_catalog.json never existed in the production image and
+# postbuild.js silently skipped the __QV_VIDEO_QUIZ_CATALOG__ embed on every deploy
+# — qv_catalog_video_quiz stayed permanently empty ("Video Quiz — Issue observed").
+# The CSV source now lives inside this repo (data/modules/assets/video_quiz_csv/),
+# so the seed step is self-contained and safe to run unconditionally here too.
 RUN if [ -f package.json ]; then \
       npx tsc \
+   && node scripts/seed-video-quiz-catalog.js \
    && (cp *.lua build/ 2>/dev/null || true) \
    && node postbuild.js; \
     fi

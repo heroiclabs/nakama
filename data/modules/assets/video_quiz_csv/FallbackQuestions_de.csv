@@ -1,0 +1,301 @@
+﻿QuestionID,Category,QuestionType,FolderName,Question,Option1,Option2,Option3,Option4,CorrectIndex,Explanantion
+Q_0001,Speed Quiz,Text,SQ_01,Welcher Planet ist als Roter Planet bekannt?,Venus,Mars,Jupiter,Erde,2,Der Mars wird der Rote Planet genannt.
+Q_0002,Speed Quiz,Text,SQ_02,Wie ist H2O allgemein bekannt?,Sauerstoff,Wasserstoff,Salz,Wasser,4,H2O ist Wasser.
+Q_0003,Speed Quiz,Text,SQ_03,Wie viele Kontinente gibt es?,5,8,6,7,4,Es gibt 7 Kontinente.
+Q_0004,Speed Quiz,Text,SQ_04,Welches Gas nehmen Pflanzen auf?,Stickstoff,Wasserstoff,Kohlendioxid,Sauerstoff,3,Pflanzen absorbieren CO2.
+Q_0005,Speed Quiz,Text,SQ_05,Wie hoch ist der Siedepunkt von Wasser?,100°C,200°C,150°C,50°C,1,Wasser siedet bei 100°C.
+Q_0006,Speed Quiz,Text,SQ_06,Welches Tier ist als König des Dschungels bekannt?,Elefant,Löwe,Leopard,Tiger,2,Löwe wird der König des Dschungels genannt.
+Q_0007,Speed Quiz,Text,SQ_07,Wie viele Tage hat ein Schaltjahr?,367,365,364,366,4,Ein Schaltjahr hat 366 Tage.
+Q_0008,Speed Quiz,Text,SQ_08,Welches Metall ist bei Raumtemperatur flüssig?,Gold,Eisen,Quecksilber,Silber,3,Quecksilber ist bei Raumtemperatur flüssig.
+Q_0009,Speed Quiz,Text,SQ_09,Mit welchem ​​Sinnesorgan sieht man?,Haut,Nase,Auge,Ohr,3,Augen helfen uns zu sehen.
+Q_0010,Speed Quiz,Text,SQ_10,Was ist das größte Säugetier?,Giraffe,Blauwal,Elefant,Nashorn,2,Der Blauwal ist das größte Säugetier.
+Q_0011,Speed Quiz,Text,SQ_11,Welches Vitamin bekommen wir durch Sonnenlicht?,Vitamin B,Vitamin C,Vitamin D,Vitamin A,3,Sonnenlicht spendet Vitamin D.
+Q_0012,Speed Quiz,Text,SQ_12,Was sammeln Bienen von Blumen?,Blätter,Wasser,Honig,Pollen,4,Bienen sammeln Pollen.
+Q_0013,Speed Quiz,Text,SQ_13,Welche Form hat drei Seiten?,Dreieck,Rechteck,Quadrat,Kreis,1,Dreieck hat drei Seiten.
+Q_0014,Speed Quiz,Text,SQ_14,Welche Farbe hat der Himmel an einem klaren Tag?,Grün,Rot,Gelb,Blau,4,Der Himmel erscheint aufgrund der Streuung blau.
+Q_0015,Speed Quiz,Text,SQ_15,Wie viele Beine hat eine Spinne?,8,10,6,12,1,Spinnen haben 8 Beine.
+Q_0016,Speed Quiz,Text,SQ_16,Mit welchem ​​Gerät wird die Temperatur gemessen?,Hygrometer,Thermometer,Tachometer,Barometer,2,Thermometer misst die Temperatur.
+Q_0017,Speed Quiz,Text,SQ_17,Welcher Monat kommt nach September?,August,November,Dezember,Oktober,4,Oktober folgt September.
+Q_0018,Speed Quiz,Text,SQ_18,Welches Tier ist für seinen langen Hals bekannt?,Zebra,Kamel,Pferd,Giraffe,4,Giraffe hat einen langen Hals.
+Q_0019,Speed Quiz,Text,SQ_19,"Was atmen wir ein, um zu überleben?",Kohlendioxid,Sauerstoff,Helium,Stickstoff,2,Sauerstoff ist lebenswichtig.
+Q_0020,Speed Quiz,Text,SQ_20,Welcher Gegenstand spendet uns tagsüber Licht?,Sterne,Birne,Sonne,Mond,3,Sonne sorgt für Tageslicht.
+Q_0021,Speed Quiz,Text,SQ_21,Wie viele Stunden hat ein Tag?,24,30,12,18,1,Der Tag hat 24 Stunden.
+Q_0022,Speed Quiz,Text,SQ_22,Welches Tier lebt im Wasser und atmet durch Kiemen?,Fisch,Wal,Delphin,Hund,1,Fish breathe through gills.
+Q_0023,Speed Quiz,Text,SQ_23,Was ist der Gefrierpunkt von Wasser?,50°C,100°C,0°C,10°C,3,Wasser gefriert bei 0°C.
+Q_0024,Speed Quiz,Text,SQ_24,Welches Organ pumpt Blut im menschlichen Körper?,Leber,Herz,Gehirn,Lunge,2,Das Herz pumpt Blut.
+Q_0025,Speed Quiz,Text,SQ_25,Welcher Tag kommt nach Freitag?,Sonntag,Samstag,Montag,Donnerstag,2,Der Samstag folgt auf den Freitag.
+Q_0026,Speed Quiz,Text,SQ_26,Was ist das Gegenteil von heiß?,Warm,Trocken,Kalt,Cool,3,Kalt ist das Gegenteil von heiß.
+Q_0027,Speed Quiz,Text,SQ_27,Aus welchem ​​Teil einer Pflanze entsteht Nahrung?,Stängel,Blatt,Blume,Wurzel,2,Blätter produzieren Nahrung durch Photosynthese.
+Q_0028,Speed Quiz,Text,SQ_28,Was ist die Hauptenergiequelle der Erde?,Strom,Kohle,Sonne,Wind,3,Die Sonne ist die wichtigste Energiequelle.
+Q_0029,Speed Quiz,Text,SQ_29,Welches Tier ist für seine schwarz-weißen Streifen bekannt?,Zebra,Pferd,Tiger,Kuh,1,Zebra hat schwarze und weiße Streifen.
+Q_0030,Speed Quiz,Text,SQ_30,Wie viele Farben hat ein Regenbogen?,7,6,8,5,1,Es gibt 7 Farben in einem Regenbogen.
+Q_0031,Speed Quiz,Image,IMG_001,Welches Tier ist auf dem Bild zu sehen?,Fuchs,Roter Panda,Waschbär,Katze,2,Das Bild zeigt einen roten Panda.
+Q_0032,Speed Quiz,Image,IMG_002,Welche Frucht wird gezeigt?,Litschi,Papaya,Guave,Drachenfrucht,4,Das ist Drachenfrucht.
+Q_0033,Speed Quiz,Image,IMG_003,Welches Objekt ist das?,Uhr,Kompass,Tachometer,Stoppuhr,4,Das Objekt ist eine Stoppuhr.
+Q_0034,Speed Quiz,Image,IMG_004,Welcher Vogel ist abgebildet?,Pfau,Schwan,Papagei,Truthahn,1,Der Vogel ist ein Pfau.
+Q_0035,Speed Quiz,Image,IMG_005,Welches Fahrzeug wird angezeigt?,Gleitschirm,Drohne,Hubschrauber,Heißluftballon,4,Das ist ein Heißluftballon.
+Q_0036,Speed Quiz,Image,IMG_006,Welches Instrument wird angezeigt?,Ukulele,Gitarre,Cello,Violine,4,Das Instrument ist eine Geige.
+Q_0037,Speed Quiz,Image,IMG_007,Welches Tier wird gezeigt?,Koala,Panda,Faultier,Tragen,1,Das Tier ist ein Koala.
+Q_0038,Speed Quiz,Image,IMG_008,Welches Werkzeug wird angezeigt?,Hammer,Gesehen,Zange,Schlüssel,4,Das Werkzeug ist ein Schraubenschlüssel.
+Q_0039,Speed Quiz,Image,IMG_009,Welche Wetterlage wird angezeigt?,Blitz,Regen,Schnee,Nebel,1,Das Bild zeigt einen Blitz.
+Q_0040,Speed Quiz,Image,IMG_010,Welches Meerestier ist abgebildet?,Tintenfisch,Krabbe,Oktopus,Qualle,3,Die Kreatur ist ein Oktopus.
+Q_0041,Speed Quiz,Image,IMG_011,Welche Frucht wird angezeigt?,Mango,Kiwi,Avocado,Birne,3,Das ist eine Avocado.
+Q_0042,Speed Quiz,Image,IMG_012,Welches Tier wird gezeigt?,Wallaby,Reh,Antilope,Känguru,4,Das Tier ist ein Känguru.
+Q_0043,Speed Quiz,Image,IMG_013,Welches Objekt ist das?,Uhr,Sanduhr,Kompass,Timer,2,Das ist eine Sanduhr.
+Q_0044,Speed Quiz,Image,IMG_014,Welches Reptil wird angezeigt?,Leguan,Eidechse,Gecko,Chamäleon,4,Das Reptil ist ein Chamäleon.
+Q_0045,Speed Quiz,Image,IMG_015,Welches Werkzeug wird angezeigt?,Winkelmesser,Kompass,Herrscher,Bandmaß,4,Das ist ein Maßband.
+Q_0046,Speed Quiz,Image,IMG_016,Welches Tier wird gezeigt?,Igel,Mol,Gürteltier,Stachelschwein,1,Das Tier ist ein Igel.
+Q_0047,Speed Quiz,Image,IMG_017,Welches Objekt wird angezeigt?,Erde,Karte,Ball,Globus,4,Das ist ein Globus.
+Q_0048,Speed Quiz,Image,IMG_018,Welche Frucht wird angezeigt?,Trauben,Brombeeren,Johannisbeeren,Blaubeeren,4,Das sind Blaubeeren.
+Q_0049,Speed Quiz,Image,IMG_019,Welches Tier wird gezeigt?,Storch,Reiher,Kran,Flamingo,4,Der Vogel ist ein Flamingo.
+Q_0050,Speed Quiz,Image,IMG_020,Welches Instrument wird angezeigt?,Conga,Bongo,Trommel,Tabla,3,Das ist eine Trommel.
+Q_0051,Speed Quiz,Image,IMG_021,Welches Tier wird gezeigt?,Lama,Schaf,Alpaka,Kamel,3,Das Tier ist ein Alpaka.
+Q_0052,Speed Quiz,Image,IMG_022,Welches Objekt ist das?,Mikroskop,Periskop,Teleskop,Fernglas,1,Das ist ein Mikroskop.
+Q_0053,Speed Quiz,Image,IMG_023,Welche Frucht wird angezeigt?,Granatapfel,Guave,Apfel,Pflaume,1,Das ist ein Granatapfel.
+Q_0054,Speed Quiz,Image,IMG_024,Welches Tier wird gezeigt?,Koala,Affe,Lemur,Faultier,4,Das Tier ist ein Faultier.
+Q_0055,Speed Quiz,Image,IMG_025,Welches Objekt wird angezeigt?,Höhenmesser,Uhr,Kompass,Thermometer,3,Das ist ein Kompass.
+Q_0056,Speed Quiz,Image,IMG_026,Welches Tier wird gezeigt?,Igel,Mol,Stachelschwein,Gürteltier,4,Das Tier ist ein Gürteltier.
+Q_0057,Speed Quiz,Image,IMG_027,Welche Frucht wird angezeigt?,Kokosnuss,Brotfrucht,Papaya,Melone,1,Das ist eine Kokosnuss.
+Q_0058,Speed Quiz,Image,IMG_028,Welches Werkzeug wird angezeigt?,Schere,Klemme,Zange,Zange,3,Das Werkzeug ist eine Zange.
+Q_0059,Speed Quiz,Image,IMG_029,Welcher Vogel ist abgebildet?,Adler,Falke,Falke,Eule,4,Der Vogel ist eine Eule.
+Q_0060,Speed Quiz,Image,IMG_030,Welches Tier wird gezeigt?,Otter,Frettchen,Erdmännchen,Präriehund,3,Das Tier ist ein Erdmännchen.
+Q_0061,Geo Explorer,Text,GE_01,Was ist die Hauptstadt Japans?,Peking,Kyoto,Tokio,Seoul,3,Tokyo is the capital of Japan.
+Q_0062,Geo Explorer,Text,GE_02,Was ist die Hauptstadt Indiens?,Mumbai,Chennai,Neu-Delhi,Kalkutta,3,Neu-Delhi ist die Hauptstadt Indiens.
+Q_0063,Geo Explorer,Text,GE_03,Welcher Fluss ist der längste in Indien?,Godavari,Ganga,Brahmaputra,Yamuna,2,Der Ganga ist der längste Fluss Indiens.
+Q_0064,Geo Explorer,Text,GE_04,Welches Land ist als das Land der aufgehenden Sonne bekannt?,Thailand,Japan,China,Korea,2,Japan wird das Land der aufgehenden Sonne genannt.
+Q_0065,Geo Explorer,Text,GE_05,Welche Bergkette trennt Indien und China?,Rockies,Anden,Alpen,Himalaya,4,Der Himalaya trennt Indien und China.
+Q_0066,Geo Explorer,Text,GE_06,Welche Wüste liegt hauptsächlich in Indien?,Gobi,Thar,Kalahari,Sahara,2,The Thar Desert is in India.
+Q_0067,Geo Explorer,Text,GE_07,Welches asiatische Land hat die größte Bevölkerung?,China,Japan,Indonesien,Indien,1,China hat die größte Bevölkerung.
+Q_0068,Geo Explorer,Text,GE_08,Welcher indische Bundesstaat hat die längste Küste?,Gujarat,Andhra Pradesh,Tamil Nadu,Kerala,1,Gujarat hat die längste Küste.
+Q_0069,Geo Explorer,Text,GE_09,In welchem ​​Land liegt Nepal?,Europa,Afrika,Asien,Australien,3,Nepal liegt in Asien.
+Q_0070,Geo Explorer,Text,GE_10,Welche Stadt ist als Finanzhauptstadt Indiens bekannt?,Chennai,Bengaluru,Delhi,Mumbai,4,Mumbai ist Indiens Finanzhauptstadt.
+Q_0071,Geo Explorer,Text,GE_11,Welcher Fluss fließt durch Bangladesch und Indien?,Euphrat,Tigris,Indus,Brahmaputra,4,Der Brahmaputra fließt durch Indien und Bangladesch.
+Q_0072,Geo Explorer,Text,GE_12,Welches Meer liegt südlich von Indien?,Rotes Meer,Kaspisches Meer,Mittelmeer,Arabisches Meer,4,Das Arabische Meer liegt südlich von Indien.
+Q_0073,Geo Explorer,Text,GE_13,Welchem ​​Land liegt Sri Lanka am nächsten?,Indien,Indonesien,Malaysia,Thailand,1,Sri Lanka liegt in der Nähe von Indien.
+Q_0074,Geo Explorer,Text,GE_14,Welches asiatische Land hat Bangkok als Hauptstadt?,Vietnam,Laos,Thailand,Kambodscha,3,Bangkok ist die Hauptstadt Thailands.
+Q_0075,Geo Explorer,Text,GE_15,Zu welchem ​​Kontinent gehört Indien?,Afrika,Asien,Europa,Australien,2,Indien ist Teil Asiens.
+Q_0076,Geo Explorer,Text,GE_16,Welches Land hat den Eiffelturm?,Spanien,Frankreich,Italien,Deutschland,2,Der Eiffelturm steht in Frankreich.
+Q_0077,Geo Explorer,Text,GE_17,Welcher Ozean ist der größte der Welt?,indisch,Arktis,atlantisch,Pazifik,4,Der Pazifische Ozean ist der größte.
+Q_0078,Geo Explorer,Text,GE_18,Welche Stadt ist als Big Apple bekannt?,Los Angeles,Chicago,New York,Boston,3,New York wird der Big Apple genannt.
+Q_0079,Geo Explorer,Text,GE_19,Welches Land hat die Chinesische Mauer?,China,Indien,Mongolei,Japan,1,Die Chinesische Mauer liegt in China.
+Q_0080,Geo Explorer,Text,GE_20,Auf welchem ​​Kontinent liegt Ägypten?,Australien,Afrika,Asien,Europa,2,Ägypten liegt in Afrika.
+Q_0081,Geo Explorer,Text,GE_21,Welches Land hat Rom als Hauptstadt?,Italien,Spanien,Portugal,Frankreich,1,Rom ist die Hauptstadt Italiens.
+Q_0082,Geo Explorer,Text,GE_22,Welcher Fluss fließt durch Paris?,Donau,Themse,Rhein,Seine,4,Die Seine fließt durch Paris.
+Q_0083,Geo Explorer,Text,GE_23,Welcher Kontinent ist der kälteste?,Antarktis,Afrika,Asien,Europa,1,Die Antarktis ist der kälteste Kontinent.
+Q_0084,Geo Explorer,Text,GE_24,Welches Land hat die Form eines Stiefels?,Spanien,Italien,Frankreich,Griechenland,2,Italien sieht aus wie ein Stiefel.
+Q_0085,Geo Explorer,Text,GE_25,Welches Land ist auch als Down Under bekannt?,Argentinien,Südafrika,Neuseeland,Australien,4,Australien heißt Down Under.
+Q_0086,Geo Explorer,Text,GE_26,Welcher Ozean liegt westlich von Afrika?,Pazifik,atlantisch,Arktis,indisch,2,Der Atlantische Ozean liegt westlich von Afrika.
+Q_0087,Geo Explorer,Text,GE_27,Welche Stadt ist berühmt für die Freiheitsstatue?,Rom,Paris,New York,Washington D.C,3,Die Freiheitsstatue steht in New York.
+Q_0088,Geo Explorer,Text,GE_28,Welches Land hat die meisten Inseln?,Japan,Schweden,Philippinen,Indonesien,2,Schweden hat die meisten Inseln.
+Q_0089,Geo Explorer,Text,GE_29,Welches Land hat Canberra als Hauptstadt?,Neuseeland,Kanada,Vereinigtes Königreich,Australien,4,Canberra ist die Hauptstadt Australiens.
+Q_0090,Geo Explorer,Text,GE_30,Welcher Kontinent hat die meisten Länder?,Afrika,Südamerika,Asien,Europa,1,Afrika hat die meisten Länder.
+Q_0091,Geo Explorer,Image,IMG_031,Welches Wahrzeichen wird angezeigt?,Taj Mahal,Rotes Fort,Qutub Minar,Tor zu Indien,1,Das ist das Taj Mahal.
+Q_0092,Geo Explorer,Image,IMG_032,Welche Länderkarte wird angezeigt?,Australien,Neuseeland,Argentinien,Südafrika,1,Die Karte zeigt Australien.
+Q_0093,Geo Explorer,Image,IMG_033,Welche Skyline der Stadt wird angezeigt?,New York,Chicago,Boston,Los Angeles,1,Das ist New York City.
+Q_0094,Geo Explorer,Image,IMG_034,Welche Wüste wird gezeigt?,Gobi,Thar,Atacama,Sahara,3,Das ist die Atacama-Wüste.
+Q_0095,Geo Explorer,Image,IMG_035,Welcher Berg ist abgebildet?,Kilimandscharo,Everest,Fuji,Denali,1,Das ist der Kilimandscharo.
+Q_0096,Geo Explorer,Image,IMG_036,Welche Landesflagge wird angezeigt?,Schweiz,Dänemark,Österreich,Kanada,4,Dies ist Kanadas Flagge.
+Q_0097,Geo Explorer,Image,IMG_037,Welcher Fluss wird angezeigt?,Amazonas,Nil,Indus,Jangtse,2,Das ist der Nil.
+Q_0098,Geo Explorer,Image,IMG_038,Welches Wahrzeichen wird angezeigt?,Kolosseum,Hafenbrücke,Marina Bay Sands,Opernhaus,4,Dies ist das Sydney Opera House.
+Q_0099,Geo Explorer,Image,IMG_039,Welche Kontinentkarte wird angezeigt?,Asien,Südamerika,Afrika,Europa,2,Das ist Südamerika.
+Q_0100,Geo Explorer,Image,IMG_040,Welche Länderübersicht wird angezeigt?,Südafrika,Simbabwe,Botswana,Namibia,1,Das ist Südafrika.
+Q_0101,Geo Explorer,Image,IMG_041,Welche Stadt wird angezeigt?,Rom,Madrid,Wien,Paris,4,Das ist Paris.
+Q_0102,Geo Explorer,Image,IMG_042,Welcher Vulkan ist abgebildet?,Vesuv,Krakatau,Fuji,Ätna,4,Das ist der Ätna.
+Q_0103,Geo Explorer,Image,IMG_043,Welcher Wasserfall wird angezeigt?,Angel Falls,Victoriafälle,Iguazu-Wasserfälle,Niagarafälle,4,Das sind die Niagarafälle.
+Q_0104,Geo Explorer,Image,IMG_044,Welche Länderkarte wird angezeigt?,Vietnam,Korea,China,Japan,4,Das ist Japan.
+Q_0105,Geo Explorer,Image,IMG_045,Welcher Inselstaat wird angezeigt?,Island,Schottland,Grönland,Irland,1,Das ist Island.
+Q_0106,Geo Explorer,Image,IMG_046,Welche Skyline der Stadt wird angezeigt?,Tokio,Shanghai,Seoul,Osaka,1,Das ist Tokio.
+Q_0107,Geo Explorer,Image,IMG_047,Welche Wüste wird gezeigt?,Kalahari,Mojave,Sahara,Gobi,4,Das ist die Wüste Gobi.
+Q_0108,Geo Explorer,Image,IMG_048,Welches Gebirge ist abgebildet?,Rockies,Anden,Himalaya,Alpen,2,Das sind die Anden.
+Q_0109,Geo Explorer,Image,IMG_049,Welches Flussdelta ist dargestellt?,Nil,Amazonas,Mekong,Ganges,4,Das ist das Gangesdelta.
+Q_0110,Geo Explorer,Image,IMG_050,Welche Länderübersicht wird angezeigt?,Norwegen,Schweden,Dänemark,Finnland,1,Das ist Norwegen.
+Q_0111,Geo Explorer,Image,IMG_051,Welches Wahrzeichen wird angezeigt?,Akropolis,Forum,Pantheon,Kolosseum,4,Das ist das Kolosseum.
+Q_0112,Geo Explorer,Image,IMG_052,Welche Stadt wird angezeigt?,Abu Dhabi,Dubai,Riad,Doha,2,Das ist Dubai.
+Q_0113,Geo Explorer,Image,IMG_053,Welches Meer ist abgebildet?,Ostsee,Mittelmeer,Schwarzes Meer,Rotes Meer,2,Das ist das Mittelmeer.
+Q_0114,Geo Explorer,Image,IMG_054,Welche Insel wird angezeigt?,Phuket,Lombok,Java,Bali,4,Das ist Bali.
+Q_0115,Geo Explorer,Image,IMG_055,Welche Länderkarte wird angezeigt?,Uruguay,Chile,Paraguay,Argentinien,4,Das ist Argentinien.
+Q_0116,Geo Explorer,Image,IMG_056,Welcher Berg ist abgebildet?,Eiger,Jungfrau,Mont Blanc,Matterhorn,4,This is the Matterhorn.
+Q_0117,Geo Explorer,Image,IMG_057,Welches Wahrzeichen wird angezeigt?,Angkor Wat,Chichén Itzá,Machu Picchu,Petra,4,Das ist Petra.
+Q_0118,Geo Explorer,Image,IMG_058,Welcher Fluss wird angezeigt?,Wolga,Donau,Rhein,Seine,2,Das ist die Donau.
+Q_0119,Geo Explorer,Image,IMG_059,Welche Länderübersicht wird angezeigt?,Kolumbien,Peru,Mexiko,Bolivien,3,Das ist Mexiko.
+Q_0120,Geo Explorer,Image,IMG_060,Welche Stadt wird angezeigt?,Manchester,London,Dublin,Edinburgh,2,Das ist London.
+Q_0121,Geo Explorer,Video,VID_001,Welches Land wird in diesem Video gezeigt?,Deutschland,Italien,Frankreich,Spanien,3,Die richtige Antwort ist Frankreich.
+Q_0122,Geo Explorer,Video,VID_002,In welchem ​​Land befindet sich dieses Wahrzeichen?,Mongolei,Korea,Japan,China,4,Die richtige Antwort ist China.
+Q_0123,Geo Explorer,Video,VID_003,Welche indische Stadt kommt in diesem Video vor?,Lucknow,Agra,Delhi,Jaipur,2,Die richtige Antwort ist Agra.
+Q_0124,Geo Explorer,Video,VID_004,Zu welchem ​​Land gehört diese Stadtsilhouette?,Australien,Kanada,Vereinigtes Königreich,USA,4,Die richtige Antwort ist USA.
+Q_0125,Geo Explorer,Video,VID_005,In welcher Stadt steht der Eiffelturm?,Madrid,Rom,Paris,Berlin,3,Die richtige Antwort ist Paris.
+Q_0126,Geo Explorer,Video,VID_006,Welches antike Bauwerk ist hier abgebildet?,Kolosseum,Forum,Pantheon,Akropolis,1,Die richtige Antwort ist Kolosseum.
+Q_0127,Geo Explorer,Video,VID_007,In welcher Stadt steht die Freiheitsstatue?,New York,Boston,Philadelphia,Washington D.C,1,Die richtige Antwort ist New York.
+Q_0128,Geo Explorer,Video,VID_008,Machu Picchu liegt in welchem ​​Land?,Chile,Bolivien,Peru,Ecuador,3,Die richtige Antwort ist Peru.
+Q_0129,Geo Explorer,Video,VID_009,In welchem ​​Land ist Petra eine antike Stadt?,Irak,Ägypten,Jordanien,Iran,3,Die richtige Antwort ist Jordan.
+Q_0130,Geo Explorer,Video,VID_010,Diese Statue überblickt welche brasilianische Stadt?,São Paulo,Salvador,Brasilia,Rio de Janeiro,4,Die richtige Antwort ist Rio de Janeiro.
+Q_0131,Geo Explorer,Video,VID_011,Welches Naturwunder ist hier abgebildet?,Iguazu-Wasserfälle,Victoriafälle,Angel Falls,Niagarafälle,4,Die richtige Antwort ist Niagarafälle.
+Q_0132,Geo Explorer,Video,VID_012,Der Mount Everest liegt an der Grenze zwischen Nepal und welchem ​​Land?,Pakistan,Indien,Bhutan,China,4,Die richtige Antwort ist China.
+Q_0133,Geo Explorer,Video,VID_013,In welcher Stadt steht dieses ikonische Gebäude?,Perth,Melbourne,Sydney,Auckland,3,Die richtige Antwort ist Sydney.
+Q_0134,Geo Explorer,Video,VID_014,In welcher Stadt befindet sich die Golden Gate Bridge?,Seattle,Los Angeles,San Francisco,San Diego,3,Die richtige Antwort ist San Francisco.
+Q_0135,Geo Explorer,Video,VID_015,Welche asiatische Stadtsilhouette ist hier abgebildet?,Peking,Seoul,Tokio,Shanghai,3,Die richtige Antwort ist Tokio.
+Q_0136,Geo Explorer,Video,VID_016,In welcher Stadt liegt der Burj Khalifa?,Abu Dhabi,Dubai,Doha,Riad,2,Die richtige Antwort ist Dubai.
+Q_0137,Geo Explorer,Video,VID_017,Welche europäische Stadt ist für diese Kanäle berühmt?,Amsterdam,Brügge,Venedig,Kopenhagen,3,Die richtige Antwort ist Venedig.
+Q_0138,Geo Explorer,Video,VID_018,Angkor Wat liegt in welchem ​​Land?,Laos,Kambodscha,Thailand,Vietnam,2,Die richtige Antwort ist Kambodscha.
+Q_0139,Geo Explorer,Video,VID_019,Das Great Barrier Reef liegt vor der Küste welchen Landes?,Philippinen,Indonesien,Australien,Malaysia,3,Die richtige Antwort ist Australien.
+Q_0140,Geo Explorer,Video,VID_020,Auf welchem ​​Kontinent liegt dieser Regenwald hauptsächlich?,Südamerika,Asien,Afrika,Australien,1,Die richtige Antwort ist Südamerika.
+Q_0141,Geo Explorer,Video,VID_021,Welcher berühmte Canyon ist das?,Yellowstone,Grand Canyon,Yosemite,Zion,2,Es ist der Grand Canyon in den USA.
+Q_0142,Geo Explorer,Video,VID_022,In welchem ​​Land stehen diese Pyramiden?,Peru,Mexiko,Sudan,Ägypten,4,Es handelt sich um die Pyramiden von Gizeh in Ägypten.
+Q_0143,Geo Explorer,Video,VID_023,Wie heißt dieser alte Steinkreis?,Avebury,Carnac,Newgrange,Stonehenge,4,Es ist Stonehenge in Großbritannien.
+Q_0144,Geo Explorer,Video,VID_024,Welcher ikonische Berg ist hier abgebildet?,Mount Everest,Berg Fuji,Kilimandscharo,Matterhorn,2,Es ist der Berg Fuji in Japan.
+Q_0145,Geo Explorer,Video,VID_025,Welcher Wasserfall ist als „Der donnernde Rauch“ bekannt?,Niagarafälle,Angel Falls,Iguazu-Wasserfälle,Victoriafälle,4,Es sind die Victoriafälle.
+Q_0146,Geo Explorer,Video,VID_026,In welchem ​​Land liegt diese weiß getünchte Inselstadt?,Griechenland,Truthahn,Italien,Spanien,1,Es ist Santorini in Griechenland.
+Q_0147,Geo Explorer,Video,VID_027,Identifizieren Sie diesen kaiserlichen Palastkomplex.,Verbotene Stadt,Große Mauer,Sommerpalast,Tempel des Himmels,1,Es ist die Verbotene Stadt in Peking.
+Q_0148,Geo Explorer,Video,VID_028,Wo befindet sich dieses segelförmige Hotel?,Dubai,Abu Dhabi,Manama,Doha,1,Es ist das Burj Al Arab in Dubai.
+Q_0149,Geo Explorer,Video,VID_029,In welcher Stadt gibt es dieses Gebäude mit der Spitze eines Bootes?,Singapur,Hongkong,Kuala Lumpur,Bangkok,1,Es ist Marina Bay Sands in Singapur.
+Q_0150,Geo Explorer,Video,VID_030,In welcher Stadt steht dieser Wolkenkratzer „The Shard“?,New York,Toronto,London,Paris,3,Es ist The Shard in London.
+Q_0151,Geo Explorer,Audio,AUD_001,Zu welchem ​​Land gehört diese Nationalhymne?,Spanien,Italien,Deutschland,Frankreich,4,Der Ton repräsentiert die Nationalhymne Frankreichs.
+Q_0152,Geo Explorer,Audio,AUD_002,Zu welchem ​​Land gehört diese Nationalhymne?,Thailand,Südkorea,Japan,China,3,Der Ton repräsentiert die Nationalhymne Japans.
+Q_0153,Geo Explorer,Audio,AUD_003,Hier erklingt die Nationalhymne welches Landes?,Indien,Nepal,Sri Lanka,Bangladesch,1,Der Ton repräsentiert die Nationalhymne Indiens.
+Q_0154,Geo Explorer,Audio,AUD_004,Zu welchem ​​Land gehört diese Nationalhymne?,USA,Australien,Vereinigtes Königreich,Kanada,1,Der Ton repräsentiert die Nationalhymne der USA.
+Q_0155,Geo Explorer,Audio,AUD_005,Zu welchem ​​Land gehört diese Nationalhymne?,Australien,Irland,Neuseeland,Vereinigtes Königreich,4,Der Ton repräsentiert die Nationalhymne des Vereinigten Königreichs.
+Q_0156,Geo Explorer,Audio,AUD_006,Hier erklingt die Nationalhymne welches Landes?,Deutschland,Schweiz,Polen,Österreich,1,Der Ton repräsentiert die Nationalhymne Deutschlands.
+Q_0157,Geo Explorer,Audio,AUD_007,Zu welchem ​​Land gehört diese Nationalhymne?,Italien,Spanien,Griechenland,Portugal,1,Der Ton repräsentiert die Nationalhymne Italiens.
+Q_0158,Geo Explorer,Audio,AUD_008,Zu welchem ​​Land gehört diese Nationalhymne?,Spanien,Mexiko,Argentinien,Portugal,1,Der Ton repräsentiert die Nationalhymne Spaniens.
+Q_0159,Geo Explorer,Audio,AUD_009,Hier erklingt die Nationalhymne welches Landes?,USA,Frankreich,Vereinigtes Königreich,Kanada,4,Der Ton repräsentiert die Nationalhymne Kanadas.
+Q_0160,Geo Explorer,Audio,AUD_010,Zu welchem ​​Land gehört diese Nationalhymne?,Neuseeland,Australien,Südafrika,Kanada,2,Der Ton repräsentiert die Nationalhymne Australiens.
+Q_0161,Geo Explorer,Audio,AUD_011,Zu welchem ​​Land gehört diese Nationalhymne?,Vietnam,Korea,Japan,China,4,Der Ton repräsentiert die Nationalhymne Chinas.
+Q_0162,Geo Explorer,Audio,AUD_012,Hier erklingt die Nationalhymne welches Landes?,Chile,Argentinien,Brasilien,Kolumbien,3,Der Ton repräsentiert die Nationalhymne Brasiliens.
+Q_0163,Geo Explorer,Audio,AUD_013,Zu welchem ​​Land gehört diese Nationalhymne?,Polen,Russland,Ukraine,Weißrussland,2,Der Ton repräsentiert die Nationalhymne Russlands.
+Q_0164,Geo Explorer,Audio,AUD_014,Zu welchem ​​Land gehört diese Nationalhymne?,Nordkorea,Japan,Südkorea,China,3,Der Ton repräsentiert die Nationalhymne Südkoreas.
+Q_0165,Geo Explorer,Audio,AUD_015,Hier erklingt die Nationalhymne welches Landes?,Mexiko,Spanien,Argentinien,Kolumbien,1,Der Ton repräsentiert die Nationalhymne Mexikos.
+Q_0166,Geo Explorer,Audio,AUD_016,Zu welchem ​​Land gehört diese Nationalhymne?,Argentinien,Chile,Brasilien,Uruguay,1,Der Ton repräsentiert die Nationalhymne Argentiniens.
+Q_0167,Geo Explorer,Audio,AUD_017,Zu welchem ​​Land gehört diese Nationalhymne?,Ägypten,Kenia,Südafrika,Nigeria,3,Der Ton repräsentiert die Nationalhymne Südafrikas.
+Q_0168,Geo Explorer,Audio,AUD_018,Hier erklingt die Nationalhymne welches Landes?,Saudi-Arabien,Marokko,Jordanien,Ägypten,4,Der Ton repräsentiert die Nationalhymne Ägyptens.
+Q_0169,Geo Explorer,Audio,AUD_019,Zu welchem ​​Land gehört diese Nationalhymne?,Truthahn,Griechenland,Italien,Zypern,2,Der Ton repräsentiert die Nationalhymne Griechenlands.
+Q_0170,Geo Explorer,Audio,AUD_020,Zu welchem ​​Land gehört diese Nationalhymne?,Iran,Griechenland,Aserbaidschan,Truthahn,4,Der Ton repräsentiert die Nationalhymne der Türkei.
+Q_0171,Geo Explorer,Audio,AUD_021,Hier erklingt die Nationalhymne welches Landes?,Pakistan,Afghanistan,Indien,Iran,1,Der Ton repräsentiert die Nationalhymne Pakistans.
+Q_0172,Geo Explorer,Audio,AUD_022,Zu welchem ​​Land gehört diese Nationalhymne?,Kambodscha,Malaysia,Vietnam,Thailand,4,Der Ton repräsentiert die Nationalhymne Thailands.
+Q_0173,Geo Explorer,Audio,AUD_023,Zu welchem ​​Land gehört diese Nationalhymne?,Ägypten,Libanon,Jordanien,Israel,4,Der Ton repräsentiert die Nationalhymne Israels.
+Q_0174,Geo Explorer,Audio,AUD_024,Hier erklingt die Nationalhymne welches Landes?,Saudi-Arabien,Kuwait,Vereinigte Arabische Emirate,Katar,1,Der Ton repräsentiert die Nationalhymne Saudi-Arabiens.
+Q_0175,Geo Explorer,Audio,AUD_025,Zu welchem ​​Land gehört diese Nationalhymne?,Singapur,Malaysia,Indonesien,Philippinen,3,Der Ton repräsentiert die Nationalhymne Indonesiens.
+Q_0176,Geo Explorer,Audio,AUD_026,Zu welchem ​​Land gehört diese Nationalhymne?,Deutschland,Niederlande,Dänemark,Belgien,2,Der Ton repräsentiert die Nationalhymne der Niederlande.
+Q_0177,Geo Explorer,Audio,AUD_027,Hier erklingt die Nationalhymne welches Landes?,Schweden,Dänemark,Finnland,Norwegen,1,Der Ton repräsentiert die Nationalhymne Schwedens.
+Q_0178,Geo Explorer,Audio,AUD_028,Zu welchem ​​Land gehört diese Nationalhymne?,Schweiz,Deutschland,Liechtenstein,Österreich,1,Der Ton repräsentiert die Nationalhymne der Schweiz.
+Q_0179,Geo Explorer,Audio,AUD_029,Zu welchem ​​Land gehört diese Nationalhymne?,Neuseeland,Fidschi,Australien,Samoa,1,Der Ton repräsentiert die Nationalhymne Neuseelands.
+Q_0180,Geo Explorer,Audio,AUD_030,Hier erklingt die Nationalhymne welches Landes?,Brasilien,Portugal,Frankreich,Spanien,2,Der Ton repräsentiert die Nationalhymne Portugals.
+Q_0181,Who's That,Text,WT_01,Wer hat Microsoft gegründet?,Bill Gates,Elon Musk,Mark Zuckerberg,Steve Jobs,1,Bill Gates war Mitbegründer von Microsoft.
+Q_0182,Who's That,Text,WT_02,Wer hat die Mona Lisa gemalt?,Da Vinci,Rembrandt,Van Gogh,Picasso,1,Leonardo da Vinci hat es gemalt.
+Q_0183,Who's That,Text,WT_03,Wer ist als King of Pop bekannt?,Elvis Presley,Eminem,Michael Jackson,Prinz,3,Michael Jackson ist der King of Pop.
+Q_0184,Who's That,Text,WT_04,Wer ist als Iron Man of India bekannt?,Nehru,Gandhi,Bose,Patel,4,Sardar Vallabhbhai Patel ist der Iron Man Indiens.
+Q_0185,Who's That,Text,WT_05,Wer hat Harry Potter geschrieben?,Lewis,Rowling,Tolkien,Martin,2,J.K. Rowling hat Harry Potter geschrieben.
+Q_0186,Who's That,Text,WT_06,Wer hat die Glühbirne erfunden?,Tesla,Edison,Einstein,Newton,2,Thomas Edison hat die Glühbirne erfunden.
+Q_0187,Who's That,Text,WT_07,Wer hat die Schwerkraft entdeckt?,Newton,Einstein,Galilei,Darwin,1,Isaac Newton entdeckte die Schwerkraft.
+Q_0188,Who's That,Text,WT_08,Wer ist der Gründer von Facebook?,Mark Zuckerberg,Steve Jobs,Elon Musk,Bill Gates,1,Mark Zuckerberg gründete Facebook.
+Q_0189,Who's That,Text,WT_09,Wer hat Romeo und Julia geschrieben?,Shakespeare,Austen,Zwei,Dickens,1,William Shakespeare schrieb Romeo und Julia.
+Q_0190,Who's That,Text,WT_10,Wer hat Rama beim Bau der Brücke nach Lanka geholfen?,Hanuman,Vibhishana,Nala,Sugriva,3,Nala half beim Bau der Brücke nach Lanka.
+Q_0191,Who's That,Text,WT_11,Wer ist der CEO von Tesla?,Bezos,Zuckerberg,Tore,Moschus,4,Elon Musk ist Teslas CEO.
+Q_0192,Who's That,Text,WT_12,"Wer war der erste Mensch, der den Mond betrat?",Michael Collins,Juri Gagarin,Buzz Aldrin,Neil Armstrong,4,Neil Armstrong walked first on the moon.
+Q_0193,Who's That,Text,WT_13,Wer ist der Autor von „Der Hobbit“?,Tolkien,Rowling,Lewis,Martin,1,J.R.R. Tolkien hat den Hobbit geschrieben.
+Q_0194,Who's That,Text,WT_14,Wer ist als der Raketenmann Indiens bekannt?,Vikram Sarabhai,APJ Abdul Kalam,Raman,Ambedkar,2,Dr. A.P.J. Abdul Kalam hat sich den Titel verdient.
+Q_0195,Who's That,Text,WT_15,Wer hat Apple gegründet?,Tore,Moschus,Seite,Jobs,4,Steve Jobs war Mitbegründer von Apple.
+Q_0196,Who's That,Text,WT_16,Wer hat Penicillin entdeckt?,Pasteur,Newton,Curie,Fleming,4,Alexander Fleming entdeckte das Penicillin.
+Q_0197,Who's That,Text,WT_17,Wer gilt als Vater der Computer?,Bill Gates,Steve Jobs,Alan Turing,Charles Babbage,4,Charles Babbage gilt als Vater der Computer.
+Q_0198,Who's That,Text,WT_18,Wer hat Amerika entdeckt?,Kolumbus,Kochen,Vasco da Gama,Magellan,1,Christoph Kolumbus entdeckte Amerika.
+Q_0199,Who's That,Text,WT_19,Wer hat Amazon gegründet?,Zuckerberg,Tore,Bezos,Moschus,3,Jeff Bezos gründete Amazon.
+Q_0200,Who's That,Text,WT_20,Wer ist als Barde von Avon bekannt?,Shakespeare,Wordsworth,Milton,Chaucer,1,William Shakespeare wird der Barde von Avon genannt.
+Q_0201,Who's That,Text,WT_21,Wer war die erste Frau im Weltraum?,Walentina Tereschkowa,Kalpana Chawla,Sally Ride,Sunita Williams,1,Walentina Tereschkowa war die erste Frau im Weltraum.
+Q_0202,Who's That,Text,WT_22,Wer hat die Decke der Sixtinischen Kapelle bemalt?,Raphael,Donatello,Da Vinci,Michelangelo,4,Michelangelo malte die Decke der Sixtinischen Kapelle.
+Q_0203,Who's That,Text,WT_23,Wer hat SpaceX gegründet?,Seite,Bezos,Moschus,Branson,3,Elon Musk gründete SpaceX.
+Q_0204,Who's That,Text,WT_24,Wer hat „Der Fänger im Roggen“ geschrieben?,Salinger,Fitzgerald,Hemingway,Orwell,1,J.D. Salinger schrieb „Der Fänger im Roggen“.
+Q_0205,Who's That,Text,WT_25,Wer war der erste Präsident der Vereinigten Staaten?,Washington,Adams,Jefferson,Lincoln,1,George Washington war der erste US-Präsident.
+Q_0206,Who's That,Text,WT_26,Wer ist als der fliegende Sikh bekannt?,Milkha Singh,Neeraj Chopra,Abhinav Bindra,P.T. Usha,1,Milkha Singh war als der fliegende Sikh bekannt.
+Q_0207,Who's That,Text,WT_27,Wer hat die Symphonie Nr. 5 komponiert?,Bach,Chopin,Mozart,Beethoven,4,Beethoven komponierte die Sinfonie Nr. 5.
+Q_0208,Who's That,Text,WT_28,Wer hat das Telefon erfunden?,Glocke,Edison,Marconi,Tesla,1,Alexander Graham Bell hat das Telefon erfunden.
+Q_0209,Who's That,Text,WT_29,Wer war der Wagenlenker von Arjuna während des Kurukshetra-Krieges?,Bhishma,Karna,Drona,Krishna,4,Lord Krishna war Arjunas Wagenlenker.
+Q_0210,Who's That,Text,WT_30,"Wer war die erste Frau, die einen Nobelpreis gewann?",Herschel,Curie,Meitner,Göppert-Mayer,2,Marie Curie war die erste Nobelpreisträgerin.
+Q_0211,Who's That,Image,IMG_061,Wer ist auf dem Bild zu sehen?,Mbappé,Messi,Ronaldo,Neymar,2,Das ist Lionel Messi.
+Q_0212,Who's That,Image,IMG_062,Wer ist diese fiktive Figur?,Spider-Man,Batman,Iron Man,Übermensch,1,Das ist Spider-Man.
+Q_0213,Who's That,Image,IMG_063,Wer wird angezeigt?,Amitabh Bachchan,Aamir Khan,Rajesh Khanna,Salman Khan,1,Das ist Amitabh Bachchan.
+Q_0214,Who's That,Image,IMG_064,Wer ist diese fiktive Figur?,Ron Weasley,Harry Potter,Frodo,Percy Jackson,2,Das ist Harry Potter.
+Q_0215,Who's That,Image,IMG_065,Wer wird angezeigt?,Williams,Osaka,Scharapowa,Halep,1,Das ist Serena Williams.
+Q_0216,Who's That,Image,IMG_066,Wer ist diese fiktive Figur?,Yoda,Darth Vader,Kylo Ren,Luke Skywalker,2,Das ist Darth Vader.
+Q_0217,Who's That,Image,IMG_067,Wer wird angezeigt?,Moschus,Bezos,Kochen,Tore,1,Das ist Elon Musk.
+Q_0218,Who's That,Image,IMG_068,Wer ist diese fiktive Figur?,Übermensch,Blitz,Joker,Batman,4,Das ist Batman.
+Q_0219,Who's That,Image,IMG_069,Wer wird angezeigt?,Adani,Birla,Ambani,Ratan Tata,4,Das ist Ratan Tata.
+Q_0220,Who's That,Image,IMG_070,Wer ist diese fiktive Figur?,Goku,Vegeta,Ruffy,Naruto,1,Das ist Goku.
+Q_0221,Who's That,Image,IMG_071,Wer wird angezeigt?,Beyoncé,Rihanna,Schnell,Adele,3,Das ist Taylor Swift.
+Q_0222,Who's That,Image,IMG_072,Wer ist diese fiktive Figur?,Bindung,Poirot,Watson,Holmes,4,Das ist Sherlock Holmes.
+Q_0223,Who's That,Image,IMG_073,Wer wird angezeigt?,Dravid,Sachin,Dhoni,Kohli,2,Das ist Sachin Tendulkar.
+Q_0224,Who's That,Image,IMG_074,Wer ist diese fiktive Figur?,Homer,Stewie,Bart,Peter Griffin,1,Das ist Homer Simpson.
+Q_0225,Who's That,Image,IMG_075,Wer wird angezeigt?,Ellen,Winfrey,Gaga,Schnell,2,Das ist Oprah Winfrey.
+Q_0226,Who's That,Image,IMG_076,Wer ist diese fiktive Figur?,Captain America,Hulk,Iron Man,Thor,1,Das ist Captain America.
+Q_0227,Who's That,Image,IMG_077,Wer wird angezeigt?,Yogi Adityanath,Amit Shah,Narendra Modi,Rahul Gandhi,3,Das ist Narendra Modi.
+Q_0228,Who's That,Image,IMG_078,Wer ist diese fiktive Figur?,Mickey,Donald,Tom,Albern,1,Das ist Mickey Mouse.
+Q_0229,Who's That,Image,IMG_079,Wer wird angezeigt?,Hanks,DiCaprio,Kreuzfahrt,Pitt,2,Das ist Leonardo DiCaprio.
+Q_0230,Who's That,Image,IMG_080,Wer ist diese fiktive Figur?,Joker,Pinguin,Riddler,Batman,1,Das ist der Joker.
+Q_0231,Who's That,Image,IMG_081,Wer wird angezeigt?,Meitner,Franklin,Curie,Alles Gute,3,Das ist Marie Curie.
+Q_0232,Who's That,Image,IMG_082,Wer ist diese fiktive Figur?,Rapunzel,Moana,Elsa,Anna,3,Das ist Elsa.
+Q_0233,Who's That,Image,IMG_083,Wer wird angezeigt?,Jordanien,Kobe,LeBron,Curry,1,Das ist Michael Jordan.
+Q_0234,Who's That,Image,IMG_084,Wer ist diese fiktive Figur?,Vision,Iron Man,Thor,Hulk,2,Das ist Iron Man.
+Q_0235,Who's That,Image,IMG_085,Wer wird angezeigt?,Bohr,Einstein,Feynman,Tesla,2,Das ist Albert Einstein.
+Q_0236,Who's That,Image,IMG_086,Wer ist diese fiktive Figur?,Pikachu,Eichhörnchen,Glumanda,Bisasam,1,Das ist Pikachu.
+Q_0237,Who's That,Image,IMG_087,Wer wird angezeigt?,Bolzen,Gatlin,Lewis,Blake,1,Das ist Usain Bolt.
+Q_0238,Who's That,Image,IMG_088,Wer ist diese fiktive Figur?,Mario,Kirby,Luigi,Schall,1,Das ist Mario.
+Q_0239,Who's That,Image,IMG_089,Wer wird angezeigt?,Jobs,Zuckerberg,Tore,Bezos,3,Das ist Bill Gates.
+Q_0240,Who's That,Image,IMG_090,Wer ist diese fiktive Figur?,Doraemon,Pokémon,Shinchan,Nobita,1,Das ist Doraemon.
+Q_0241,Who's That,Video,VID_031,Wer ist in diesem Videoclip zu sehen?,Mark Zuckerberg,Jeff Bezos,Bill Gates,Elon Musk,4,Bei der abgebildeten Person handelt es sich um Elon Musk.
+Q_0242,Who's That,Video,VID_032,Wer ist in diesem Videoclip zu sehen?,MS Dhoni,Sachin Tendulkar,Virat Kohli,Rohit Sharma,3,Die abgebildete Person ist Virat Kohli.
+Q_0243,Who's That,Video,VID_033,Wer ist in diesem Videoclip zu sehen?,Virender Sehwag,Rahul Dravid,MS Dhoni,Kapil Dev,3,Die abgebildete Person ist MS Dhoni.
+Q_0244,Who's That,Video,VID_034,Wer ist in diesem Videoclip zu sehen?,Tom Cruise,Johnny Depp,Brad Pitt,Leonardo DiCaprio,4,Bei der abgebildeten Person handelt es sich um Leonardo DiCaprio.
+Q_0245,Who's That,Video,VID_035,Wer ist in diesem Videoclip zu sehen?,Anne Hathaway,Emma Stone,Scarlett Johansson,Jennifer Lawrence,3,Die abgebildete Person ist Scarlett Johansson.
+Q_0246,Who's That,Video,VID_036,Wer ist in diesem Videoclip zu sehen?,Neymar,Cristiano Ronaldo,Lionel Messi,Mbappé,2,Die abgebildete Person ist Cristiano Ronaldo.
+Q_0247,Who's That,Video,VID_037,Wer ist in diesem Videoclip zu sehen?,Ronaldinho,Lionel Messi,Xavi,Maradona,2,Bei der abgebildeten Person handelt es sich um Lionel Messi.
+Q_0248,Who's That,Video,VID_038,Wer ist in diesem Videoclip zu sehen?,Ben Affleck,Brad Pitt,Tom Cruise,Matt Damon,3,Die abgebildete Person ist Tom Cruise.
+Q_0249,Who's That,Video,VID_039,Wer ist in diesem Videoclip zu sehen?,Mark Ruffalo,Chris Hemsworth,Robert Downey Jr,Chris Evans,3,Die abgebildete Person ist Robert Downey Jr.
+Q_0250,Who's That,Video,VID_040,Wer ist in diesem Videoclip zu sehen?,Aamir Khan,Hrithik Roshan,Salman Khan,Shah Rukh Khan,4,Die abgebildete Person ist Shah Rukh Khan.
+Q_0251,Who's That,Video,VID_041,Wer ist in diesem Videoclip zu sehen?,Salman Khan,Aamir Khan,Akshay Kumar,Shah Rukh Khan,1,Die abgebildete Person ist Salman Khan.
+Q_0252,Who's That,Video,VID_042,Wer ist in diesem Videoclip zu sehen?,Dharmendra,Rajesh Khanna,Rishi Kapoor,Amitabh Bachchan,4,Die abgebildete Person ist Amitabh Bachchan.
+Q_0253,Who's That,Video,VID_043,Wer ist in diesem Videoclip zu sehen?,Narendra Modi,Amit Shah,Rahul Gandhi,Manmohan Singh,1,Die abgebildete Person ist Narendra Modi.
+Q_0254,Who's That,Video,VID_044,Wer ist in diesem Videoclip zu sehen?,George Bush,Bill Clinton,Barack Obama,Joe Biden,3,Die abgebildete Person ist Barack Obama.
+Q_0255,Who's That,Video,VID_045,Wer ist in diesem Videoclip zu sehen?,Tim Cook,Steve Wozniak,Bill Gates,Steve Jobs,4,Die abgebildete Person ist Steve Jobs.
+Q_0256,Who's That,Video,VID_046,Wer ist in diesem Videoclip zu sehen?,Bill Gates,Elon Musk,Mark Zuckerberg,Jeff Bezos,1,Die abgebildete Person ist Bill Gates.
+Q_0257,Who's That,Video,VID_047,Wer ist in diesem Videoclip zu sehen?,Larry Seite,Jack Dorsey,Sergey Brin,Mark Zuckerberg,4,Bei der abgebildeten Person handelt es sich um Mark Zuckerberg.
+Q_0258,Who's That,Video,VID_048,Wer ist in diesem Videoclip zu sehen?,Warren Buffett,Bill Gates,Jeff Bezos,Elon Musk,3,Bei der abgebildeten Person handelt es sich um Jeff Bezos.
+Q_0259,Who's That,Video,VID_049,Wer ist in diesem Videoclip zu sehen?,Venus Williams,Simona Halep,Serena Williams,Naomi Osaka,3,Die abgebildete Person ist Serena Williams.
+Q_0260,Who's That,Video,VID_050,Wer ist in diesem Videoclip zu sehen?,LeBron James,Kobe Bryant,Shaquille O'Neal,Michael Jordan,4,Die abgebildete Person ist Michael Jordan.
+Q_0261,Who's That,Video,VID_051,Wer ist in diesem Videoclip zu sehen?,Rafael Nadal,Roger Federer,Andy Murray,Novak Djokovic,2,Die abgebildete Person ist Roger Federer.
+Q_0262,Who's That,Video,VID_052,Wer ist in diesem Videoclip zu sehen?,Yohan Blake,Justin Gatlin,Tyson Gay,Usain Bolt,4,Die abgebildete Person ist Usain Bolt.
+Q_0263,Who's That,Video,VID_053,Wer ist in diesem Videoclip zu sehen?,Andy Murray,Rafael Nadal,Novak Djokovic,Roger Federer,2,Bei der abgebildeten Person handelt es sich um Rafael Nadal.
+Q_0264,Who's That,Video,VID_054,Wer ist in diesem Videoclip zu sehen?,Dustin Johnson,Tiger Woods,Rory McIlroy,Phil Mickelson,2,Die abgebildete Person ist Tiger Woods.
+Q_0265,Who's That,Video,VID_055,Wer ist in diesem Videoclip zu sehen?,Ariana Grande,Katy Perry,Taylor Swift,Selena Gomez,3,Die abgebildete Person ist Taylor Swift.
+Q_0266,Who's That,Video,VID_056,Wer ist in diesem Videoclip zu sehen?,Emma Stone,Emma Watson,Anne Hathaway,Natalie Portman,2,Die abgebildete Person ist Emma Watson.
+Q_0267,Who's That,Video,VID_057,Wer ist in diesem Videoclip zu sehen?,Chris Evans,Chris Pratt,Ryan Reynolds,Chris Hemsworth,4,Die abgebildete Person ist Chris Hemsworth.
+Q_0268,Who's That,Video,VID_058,Wer ist in diesem Videoclip zu sehen?,Tom Cruise,Johnny Depp,Brad Pitt,Keanu Reeves,4,Die abgebildete Person ist Keanu Reeves.
+Q_0269,Who's That,Video,VID_059,Wer ist in diesem Videoclip zu sehen?,Will Smith,Denzel Washington,Jamie Foxx,Eddie Murphy,1,Die abgebildete Person ist Will Smith.
+Q_0270,Who's That,Video,VID_060,Wer ist in diesem Videoclip zu sehen?,Dave Bautista,Dwayne Johnson,John Cena,Der Felsen,2,Die abgebildete Person ist Dwayne Johnson.
+Q_0271,Brain Sprint,Text,SQ_01,Was ist 15 + 27?,42,Nan,Nan,Nan,1,Addition: 15 + 27 = 42.
+Q_0272,Brain Sprint,Text,SQ_02,Was ist 12 multipliziert mit 8?,96,Nan,Nan,Nan,1,Multiplikation: 12 * 8 = 96.
+Q_0273,Brain Sprint,Text,SQ_03,"Wie viele Minuten haben 2,5 Stunden?",150,Nan,Nan,Nan,1,"2 Stunden = 120 Minuten, 0,5 Stunden = 30 Minuten. Insgesamt 150."
+Q_0274,Brain Sprint,Text,SQ_04,"Was ist die nächste Zahl in der Reihenfolge: 2, 4, 8, 16, ...?",32,Nan,Nan,Nan,1,Die Sequenz verdoppelt sich jedes Mal.
+Q_0275,Brain Sprint,Text,SQ_05,Was ist 150 geteilt durch 6?,25,Nan,Nan,Nan,1,Teilung: 150 / 6 = 25.
+Q_0276,Brain Sprint,Text,SQ_06,Wie viele Seiten hat ein regelmäßiges Siebeneck?,7,Nan,Nan,Nan,1,Ein Siebeneck hat 7 Seiten.
+Q_0277,Brain Sprint,Text,SQ_07,Was ist 9 zum Quadrat?,81,Nan,Nan,Nan,1,9 * 9 = 81.
+Q_0278,Brain Sprint,Text,SQ_08,Wie viele Spieler einer Fußballmannschaft stehen gleichzeitig auf dem Spielfeld?,11,Nan,Nan,Nan,1,Jedes Team besteht aus 11 Spielern.
+Q_0279,Brain Sprint,Text,SQ_09,Wie groß ist die Winkelsumme in einem Dreieck (in Grad)?,180,Nan,Nan,Nan,1,Die Innenwinkel eines Dreiecks summieren sich immer zu 180 Grad.
+Q_0280,Brain Sprint,Text,SQ_10,Was ist 100 minus 37?,63,Nan,Nan,Nan,1,Subtraktion: 100 - 37 = 63.
+Q_0281,Brain Sprint,Text,SQ_11,Wie viele Bundesstaaten gibt es in den Vereinigten Staaten?,50,Nan,Nan,Nan,1,Die USA haben 50 Staaten.
+Q_0282,Brain Sprint,Text,SQ_12,Was ist die Quadratwurzel von 144?,12,Nan,Nan,Nan,1,12 * 12 = 144.
+Q_0283,Brain Sprint,Text,SQ_13,Wie viele Tage hat ein Schaltjahr?,366,Nan,Nan,Nan,1,Ein Schaltjahr hat 366 Tage.
+Q_0284,Brain Sprint,Text,SQ_14,Was ist 7 multipliziert mit 13?,91,Nan,Nan,Nan,1,7 * 13 = 91.
+Q_0285,Brain Sprint,Text,SQ_15,Wie viele Saiten hat eine Standardgitarre?,6,Nan,Nan,Nan,1,Eine Standardgitarre hat 6 Saiten.
+Q_0286,Brain Sprint,Text,SQ_16,"Was ist die nächste Zahl in der Reihenfolge: 1, 4, 9, 16, ...?",25,Nan,Nan,Nan,1,"Die Reihenfolge folgt den Quadratzahlen: 1^2, 2^2, 3^2, 4^2, 5^2."
+Q_0287,Brain Sprint,Text,SQ_17,Wie viele Knochen hat der erwachsene menschliche Körper?,206,Nan,Nan,Nan,1,Ein erwachsener Mensch hat 206 Knochen.
+Q_0288,Brain Sprint,Text,SQ_18,Was sind 20 % von 150?,30,Nan,Nan,Nan,1,"0,20 * 150 = 30."
+Q_0289,Brain Sprint,Text,SQ_19,Wie viele Nullen gibt es in einer Million?,6,Nan,Nan,Nan,1,1.000.000 hat sechs Nullen.
+Q_0290,Brain Sprint,Text,SQ_20,Was ist 11 mal 11?,121,Nan,Nan,Nan,1,11 * 11 = 121.
+Q_0291,Brain Sprint,Text,SQ_21,Wie viele Jahre hat ein Jahrhundert?,100,Nan,Nan,Nan,1,Ein Jahrhundert besteht aus 100 Jahren.
+Q_0292,Brain Sprint,Text,SQ_22,Was ist 250 geteilt durch 5?,50,Nan,Nan,Nan,1,250 / 5 = 50.
+Q_0293,Brain Sprint,Text,SQ_23,Wie viele Kontinente gibt es auf der Erde?,7,Nan,Nan,Nan,1,Es gibt 7 Kontinente.
+Q_0294,Brain Sprint,Text,SQ_24,Was ist (10 + 5) multipliziert mit 3?,45,Nan,Nan,Nan,1,15 * 3 = 45.
+Q_0295,Brain Sprint,Text,SQ_25,Wie viele Stunden haben 3 Tage?,72,Nan,Nan,Nan,1,3 * 24 = 72.
+Q_0296,Brain Sprint,Text,SQ_26,Wie hoch ist der Siedepunkt von Wasser in Celsius?,100,Nan,Nan,Nan,1,Wasser siedet bei 100 Grad Celsius.
+Q_0297,Brain Sprint,Text,SQ_27,Wie viele Seiten hat ein Sechseck?,6,Nan,Nan,Nan,1,Ein Sechseck hat 6 Seiten.
+Q_0298,Brain Sprint,Text,SQ_28,Was ist 500 minus 125?,375,Nan,Nan,Nan,1,500 - 125 = 375.
+Q_0299,Brain Sprint,Text,SQ_29,Wie viele Sekunden sind 5 Minuten?,300,Nan,Nan,Nan,1,5 * 60 = 300.
+Q_0300,Brain Sprint,Text,SQ_30,Was ist 8 mal 9?,72,Nan,Nan,Nan,1,8 * 9 = 72.

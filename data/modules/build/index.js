@@ -9254,6 +9254,65 @@ var QvGetQuestions;
         "videoquiz": "video_quiz",
         "video-quiz": "video_quiz"
     };
+    // Every topic the cache/provider layer actually understands — mirrors the
+    // `switch(topic)` in question_cache.ts's fetchForTopic(). Keep in sync manually
+    // whenever a new case is added there.
+    var KNOWN_TOPICS = {
+        geography: true, speed_quiz: true, true_false: true, anime: true, pokemon: true,
+        cocktail: true, food: true, dog: true, ghibli: true, disney: true, starwars: true,
+        countries: true, flags: true, space: true, movies: true, sports: true, music: true,
+        news: true, daily: true, weekly: true, video_quiz: true, ai: true
+    };
+    // Media-pool topics the AI-driven image/media quiz modes (Who's That, Brain Sprint,
+    // Image Quiz, Audio Quiz) mix together for their "Random Mix" category.
+    var MEDIA_MIX_TOPICS = ["anime", "dog", "pokemon", "sports"];
+    // #QVVBS-CACHE (2026-07): UnifiedRoomPanel bakes the UI display label of the
+    // selected mode ("Who's That — Random Mix", "Brain Sprint - Random Mix", "Audio
+    // Quiz — Random Mix", …) straight into CreateRoomRequest.CustomTopic when priming
+    // multiplayer lazy question generation, instead of a real topic slug — confirmed
+    // live in qv_circuit_breakers ("Unknown topic: brain sprint - random mix" /
+    // "Unknown topic: audio quiz — random mix"). An unrecognized label used to fall
+    // straight through to fetchForTopic()'s `default: throw`, which tripped that
+    // (bogus, one-off) topic's circuit breaker and returned zero AI-generated
+    // questions for the rest of the match — the "AI could not generate additional
+    // questions" symptom reported for Who's That / Brain Sprint / Image Quiz / Audio
+    // Quiz. Rather than patch every current and future Unity call site, normalize
+    // server-side so any caller sending a human-readable label still resolves to a
+    // real, cacheable topic.
+    function normalizeUnresolvedTopic(topic, seedKey) {
+        for (var i = 0; i < MEDIA_MIX_TOPICS.length; i++) {
+            if (topic.indexOf(MEDIA_MIX_TOPICS[i]) !== -1)
+                return MEDIA_MIX_TOPICS[i];
+        }
+        if (topic.indexOf("space") !== -1 || topic.indexOf("nasa") !== -1)
+            return "space";
+        if (topic.indexOf("flag") !== -1 || topic.indexOf("countr") !== -1)
+            return "flags";
+        if (topic.indexOf("video") !== -1)
+            return "video_quiz";
+        if (topic.indexOf("movie") !== -1 || topic.indexOf("film") !== -1)
+            return "movies";
+        // "audio" must resolve here too — Audio Quiz's raw label is "audio quiz — random
+        // mix" and contains no "music"/"song" keyword, so it used to fall all the way
+        // through to a MEDIA_MIX_TOPICS guess (an image-only topic), still leaving Audio
+        // Quiz with zero real audio content. "music" is now the one topic with actual
+        // media.type==="audio" questions (Deezer, see question_cache.ts fetchDeezer).
+        if (topic.indexOf("music") !== -1 || topic.indexOf("song") !== -1 || topic.indexOf("audio") !== -1)
+            return "music";
+        if (topic.indexOf("news") !== -1)
+            return "news";
+        // No recognizable topic keyword — likely a bare "<mode> — random mix" label.
+        // Deterministically pick a media topic from a hash of the caller-supplied label
+        // so repeated requests with the SAME bad label resolve the same way (stable, not
+        // literally random per-call), while still spreading load across providers.
+        if (topic.indexOf("random") !== -1 || topic.indexOf("mix") !== -1 || topic === "") {
+            var hash = 0;
+            for (var j = 0; j < seedKey.length; j++)
+                hash = (hash * 31 + seedKey.charCodeAt(j)) | 0;
+            return MEDIA_MIX_TOPICS[Math.abs(hash) % MEDIA_MIX_TOPICS.length];
+        }
+        return topic; // genuinely unknown — let fetchForTopic's `default: throw` handle it as before
+    }
     // ── Allowed game IDs (org2) ────────────────────────────────────────────────
     var ALLOWED_GAME_IDS = {
         "126bf539-dae2-4bcf-964d-316c0fa1f92b": true, // QuizVerse production
@@ -10064,6 +10123,13 @@ var QvGetQuestions;
             throw nakamaError("topic is required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
         if (TOPIC_ALIASES[topic])
             topic = TOPIC_ALIASES[topic];
+        if (!KNOWN_TOPICS[topic]) {
+            var normalizedTopic = normalizeUnresolvedTopic(topic, userId + "|" + topic);
+            if (normalizedTopic !== topic) {
+                logger.warn("[QvGetQ] normalized unrecognized topic '" + topic + "' -> '" + normalizedTopic + "' user=" + userId);
+                topic = normalizedTopic;
+            }
+        }
         var count = DEFAULT_COUNT;
         if (typeof req.count === "number" && req.count >= MIN_COUNT) {
             count = Math.min(MAX_COUNT, Math.max(MIN_COUNT, Math.floor(req.count)));
@@ -15636,7 +15702,7 @@ var QvQuestionCache;
             ghibli: "ghibli", disney: "disney", starwars: "swapi",
             countries: "restcountries", flags: "restcountries",
             space: "nasa", movies: "tmdb", sports: "sportsdb",
-            music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+            music: "deezer", news: "gnews", daily: "s3", weekly: "s3",
             video_quiz: "catalog", ai: "claude"
         };
         return map[topic] || topic;
@@ -15672,6 +15738,35 @@ var QvQuestionCache;
             return JSON.parse(resp.body);
         }
         throw new Error("httpGet exhausted retries for " + url.substring(0, 80));
+    }
+    function httpPost(nk, url, bodyObj, extraHeaders) {
+        var headers = { "Accept": "application/json", "Content-Type": "application/json", "User-Agent": "QuizVerse/1.0" };
+        if (extraHeaders) {
+            for (var k2 in extraHeaders) {
+                if (extraHeaders.hasOwnProperty(k2))
+                    headers[k2] = extraHeaders[k2];
+            }
+        }
+        var backoffMs2 = 1000;
+        for (var attempt2 = 0; attempt2 <= HTTP_MAX_RETRIES; attempt2++) {
+            if (attempt2 > 0)
+                sleep(backoffMs2);
+            var resp2 = nk.httpRequest(url, "post", headers, JSON.stringify(bodyObj));
+            if (!resp2)
+                throw new Error("no_response from " + url.substring(0, 80));
+            if (resp2.code === 429) {
+                if (attempt2 === HTTP_MAX_RETRIES) {
+                    throw new Error("HTTP 429 rate-limited after " + HTTP_MAX_RETRIES + " retries: " + url.substring(0, 80));
+                }
+                backoffMs2 = backoffMs2 * 2;
+                continue;
+            }
+            if (resp2.code < 200 || resp2.code >= 300) {
+                throw new Error("HTTP " + resp2.code + " from " + url.substring(0, 80));
+            }
+            return JSON.parse(resp2.body);
+        }
+        throw new Error("httpPost exhausted retries for " + url.substring(0, 80));
     }
     // ── Circuit breaker ────────────────────────────────────────────────────────
     function readCircuit(nk, provider) {
@@ -16030,12 +16125,123 @@ var QvQuestionCache;
         return results;
     }
     // ── 2. Jikan (Anime) ──────────────────────────────────────────────────────
+    // ── 3a. AniList (Anime, bonus) — free, keyless GraphQL, different pool than Jikan ──
+    // #QVVBS-CACHE (2026-07): requested via Firecrawl research for more free anime
+    // content variety. AniList (https://graphql.anilist.co) needs no API key for
+    // public data and ranks by a different popularity signal than Jikan/MAL, so its
+    // top-N barely overlaps Jikan's — this is genuinely new questions, not the same
+    // ~75 titles re-templated. Best-effort only: AniList failing must never fail the
+    // "anime" topic since Jikan (fetchJikan) already covers it on its own.
+    function fetchAniList(nk, logger) {
+        var results = [];
+        var query = "query($page:Int,$perPage:Int){Page(page:$page,perPage:$perPage){media(type:ANIME,sort:POPULARITY_DESC,isAdult:false){title{english romaji}startDate{year}episodes genres coverImage{large}}}}";
+        var media = [];
+        for (var pg2 = 1; pg2 <= 2; pg2++) {
+            try {
+                var gqlResp = httpPost(nk, "https://graphql.anilist.co", { query: query, variables: { page: pg2, perPage: 50 } });
+                if (gqlResp && gqlResp.data && gqlResp.data.Page && Array.isArray(gqlResp.data.Page.media)) {
+                    media = media.concat(gqlResp.data.Page.media);
+                }
+            }
+            catch (alErr) {
+                logger.debug("[QvQCache/anilist] page " + pg2 + " fetch failed: " + (alErr && alErr.message));
+            }
+        }
+        if (media.length === 0)
+            return results; // best-effort — Jikan already covers this topic
+        var genreSetAL = {};
+        for (var ag2 = 0; ag2 < media.length; ag2++) {
+            var gens2 = media[ag2].genres || [];
+            for (var gi4 = 0; gi4 < gens2.length; gi4++)
+                genreSetAL[gens2[gi4]] = true;
+        }
+        var allGenresAL = Object.keys(genreSetAL).length >= 6 ? Object.keys(genreSetAL) : ANIME_GENRES;
+        for (var mi = 0; mi < media.length; mi++) {
+            var m = media[mi];
+            try {
+                var titleAL = (m.title && (m.title.english || m.title.romaji)) || "Unknown";
+                var yearAL = (m.startDate && m.startDate.year) || null;
+                var genresAL = m.genres || [];
+                var coverAL = (m.coverImage && m.coverImage.large) || null;
+                var mediaAL = coverAL ? { type: "image", url: coverAL, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null;
+                if (genresAL.length === 0 && !yearAL)
+                    continue;
+                var useGenreTpl = genresAL.length > 0 && (Math.random() < 0.6 || !yearAL);
+                var q2 = null;
+                if (useGenreTpl) {
+                    var correctGenreAL = genresAL[0];
+                    var exSetAL = {};
+                    for (var gx2 = 0; gx2 < genresAL.length; gx2++)
+                        exSetAL[genresAL[gx2]] = true;
+                    var wgAL = pickExcluding(allGenresAL, exSetAL, 3);
+                    if (wgAL.length === 3) {
+                        var gOptsAL = [{ text: correctGenreAL, is_correct: true }];
+                        for (var wgi2 = 0; wgi2 < wgAL.length; wgi2++)
+                            gOptsAL.push({ text: wgAL[wgi2], is_correct: false });
+                        q2 = {
+                            provider_key: "anilist_genre_" + djb2(titleAL),
+                            topic: "anime", lang: "en",
+                            question_text: "What genre best describes the anime \"" + titleAL + "\"?",
+                            question_type: "single_select",
+                            raw_options: gOptsAL, has_media: !!coverAL, media: mediaAL,
+                            explanation: "\"" + titleAL + "\" belongs to the " + genresAL.join(", ") + " genre(s).",
+                            difficulty: "medium", provider: "anilist",
+                            meta: { title: titleAL, year: yearAL, genres: genresAL }
+                        };
+                    }
+                }
+                if (!q2 && yearAL) {
+                    var yrAL = Number(yearAL);
+                    var yOptsAL = [
+                        { text: String(yrAL), is_correct: true },
+                        { text: String(yrAL - 2), is_correct: false },
+                        { text: String(yrAL + 1), is_correct: false },
+                        { text: String(yrAL - 5), is_correct: false }
+                    ];
+                    q2 = {
+                        provider_key: "anilist_year_" + djb2(titleAL),
+                        topic: "anime", lang: "en",
+                        question_text: "What year did \"" + titleAL + "\" originally air?",
+                        question_type: "single_select",
+                        raw_options: yOptsAL, has_media: !!coverAL, media: mediaAL,
+                        explanation: "\"" + titleAL + "\" first aired in " + yrAL + ".",
+                        difficulty: "hard", provider: "anilist",
+                        meta: { title: titleAL, year: yearAL }
+                    };
+                }
+                if (q2)
+                    results.push(q2);
+            }
+            catch (e) {
+                logger.debug("[QvQCache/anilist] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
     function fetchJikan(nk, logger) {
         var results = [];
-        var data = httpGet(nk, "https://api.jikan.moe/v4/top/anime?page=1&limit=25&filter=bypopularity");
-        if (!data || !Array.isArray(data.data))
+        // #QVVBS-CACHE: was a single page (25 anime) forever — the exact same top-25
+        // list every refresh, capping the server-wide "anime" pool at ~24 questions
+        // post-quality-gate (2026-07 "limited pool / repeated questions" report). Jikan
+        // allows up to 25/page; pulling 3 pages triples the source pool to ~75 distinct
+        // anime per refresh, compounding with the merge-on-refresh accumulation in
+        // refreshCache(). Jikan's public rate limit is 3 req/s / 60 req/min, so 3
+        // sequential calls here are well within budget.
+        var animeList = [];
+        for (var pg = 1; pg <= 3; pg++) {
+            try {
+                var pageData = httpGet(nk, "https://api.jikan.moe/v4/top/anime?page=" + pg + "&limit=25&filter=bypopularity");
+                if (pageData && Array.isArray(pageData.data))
+                    animeList = animeList.concat(pageData.data);
+            }
+            catch (pageErr) {
+                logger.debug("[QvQCache/jikan] page " + pg + " fetch failed: " + (pageErr && pageErr.message));
+                if (pg === 1)
+                    throw pageErr; // page 1 failing = genuine outage, keep old error semantics
+            }
+        }
+        if (animeList.length === 0)
             throw new Error("Jikan: no data array");
-        var animeList = data.data;
         // Collect all genres from results for wrong-answer pool
         var genreSet = {};
         for (var ag = 0; ag < animeList.length; ag++) {
@@ -16139,6 +16345,19 @@ var QvQuestionCache;
             }
         }
         return results;
+    }
+    // Jikan is the primary/required anime source (throws → topic fails, same as before
+    // this change). AniList is merged in as best-effort bonus variety on top — see
+    // fetchAniList's comment for why it barely overlaps Jikan's pool.
+    function fetchAnimeQuiz(nk, logger) {
+        var out = fetchJikan(nk, logger);
+        try {
+            out = out.concat(fetchAniList(nk, logger));
+        }
+        catch (e) {
+            logger.debug("[QvQCache/anime] AniList bonus fetch skipped: " + (e && e.message));
+        }
+        return out;
     }
     // ── 3. PokeAPI ────────────────────────────────────────────────────────────
     function fetchPokeapi(nk, logger) {
@@ -16717,6 +16936,14 @@ var QvQuestionCache;
         for (var ni = 0; ni < data7.length; ni++) {
             var apod = data7[ni];
             try {
+                // #QVVBS-CACHE: NASA APOD is occasionally a video embed (YouTube/Vimeo url,
+                // no hdurl) instead of a photo — media_type is "video" on those days. Passing
+                // that url through as an "image" media item made Unity try to load a video
+                // page as a texture, which fails to render — the "Space Trivia (Image-related
+                // issue observed)" report. Skip non-image entries; the other ~48 items in this
+                // 50-count APOD batch cover the gap.
+                if (apod.media_type && apod.media_type !== "image")
+                    continue;
                 var atitle = (apod.title || "").trim();
                 var adate = apod.date || "";
                 var aurl = apod.hdurl || apod.url || null;
@@ -16872,6 +17099,102 @@ var QvQuestionCache;
         logger.info("[QvQCache/sdb] event=sports_fetch_summary total_teams=" + totalTeams +
             " with_badge=" + withBadge + " skipped=" + skipped + " emitted=" + results.length);
         return results;
+    }
+    // ── 14a. Deezer (Music/Audio) — free, keyless, REAL 30s audio previews ────
+    // #QVVBS-CACHE (2026-07): "Audio Quiz (AI) — Not Working" — grepping this whole
+    // file for media.type==="audio" turned up zero matches anywhere; the "music"
+    // topic (the only music-adjacent topic that existed) was 100% text trivia via
+    // fetchLastfm() with has_media:false, AND that function hard-throws because
+    // LASTFM_API_KEY has never been configured (FALLBACK_KEYS entry is ""). So the
+    // AI-driven Audio Quiz mode had literally no server-side source of playable
+    // audio, ever. Deezer's public chart API needs no API key/auth and returns a
+    // native 30-second MP3 `preview` URL per track — exactly the has_media:true
+    // audio content this topic was missing. Made primary; fetchLastfm (below)
+    // is merged in as bonus text-trivia variety only if a key is ever configured.
+    function fetchDeezer(nk, logger) {
+        var results = [];
+        // 3 pages (index 0/50/100) of the global Top-100+ chart — a single page repeats
+        // the exact same ~50 songs every refresh (same "limited pool" failure mode fixed
+        // for Jikan below). Deezer's public API is unauthenticated/keyless with no
+        // documented hard rate limit for this scale, so 3 sequential calls is safe.
+        var tracks = [];
+        for (var pg = 0; pg < 3; pg++) {
+            try {
+                var chartPage = httpGet(nk, "https://api.deezer.com/chart/0/tracks?limit=50&index=" + (pg * 50));
+                if (chartPage && Array.isArray(chartPage.data))
+                    tracks = tracks.concat(chartPage.data);
+            }
+            catch (pageErr) {
+                logger.debug("[QvQCache/deezer] page " + pg + " fetch failed: " + (pageErr && pageErr.message));
+                if (pg === 0)
+                    throw pageErr; // page 0 failing = genuine outage
+            }
+        }
+        if (tracks.length === 0)
+            throw new Error("Deezer: no tracks in chart");
+        var artistNames = [];
+        for (var di = 0; di < tracks.length; di++) {
+            var artOf = tracks[di].artist;
+            if (artOf && artOf.name)
+                artistNames.push(artOf.name);
+        }
+        for (var dj = 0; dj < tracks.length; dj++) {
+            var trk = tracks[dj];
+            try {
+                if (trk.explicit_lyrics === true)
+                    continue; // keep quiz content family-safe
+                var previewUrl = trk.preview || "";
+                var trackTitle = trk.title || trk.title_short || "Unknown";
+                var artistName = trk.artist && trk.artist.name ? trk.artist.name : "";
+                if (!previewUrl || !trackTitle || !artistName)
+                    continue;
+                var excludeD = {};
+                excludeD[artistName] = true;
+                var wrongArtists = pickExcluding(artistNames, excludeD, 3);
+                if (wrongArtists.length < 3)
+                    continue;
+                var dOpts = [{ text: artistName, is_correct: true }];
+                for (var wi = 0; wi < wrongArtists.length; wi++) {
+                    dOpts.push({ text: wrongArtists[wi], is_correct: false });
+                }
+                var cover = (trk.album && (trk.album.cover_medium || trk.album.cover_big)) || null;
+                results.push({
+                    provider_key: "deezer_" + (trk.id || djb2(trackTitle + artistName)),
+                    topic: "music", lang: "en",
+                    question_text: "Listen to the clip — who is the artist performing this song?",
+                    question_type: "single_select",
+                    raw_options: dOpts,
+                    has_media: true,
+                    media: {
+                        type: "audio", url: previewUrl, thumbnail_url: cover,
+                        duration_seconds: 30, mime_type: "audio/mpeg"
+                    },
+                    explanation: "\"" + trackTitle + "\" is performed by " + artistName + ".",
+                    difficulty: "medium", provider: "deezer",
+                    meta: { track_title: trackTitle }
+                });
+            }
+            catch (e) {
+                logger.debug("[QvQCache/deezer] skip: " + (e && e.message));
+            }
+        }
+        return results;
+    }
+    // Combines the always-available Deezer audio pool with Last.fm's text-only
+    // artist trivia (only when LASTFM_API_KEY is configured) so the "music" topic
+    // carries both real audio-quiz media and bonus text variety. Deezer succeeding
+    // is sufficient on its own — Last.fm failing/missing must never fail the topic.
+    function fetchMusicQuiz(nk, env, logger) {
+        var out = fetchDeezer(nk, logger); // throws if Deezer itself is down — that's the real failure signal now
+        try {
+            var fmKeyCheck = envKey(env, "LASTFM_API_KEY");
+            if (fmKeyCheck)
+                out = out.concat(fetchLastfm(nk, env, logger));
+        }
+        catch (e) {
+            logger.debug("[QvQCache/music] Last.fm bonus fetch skipped: " + (e && e.message));
+        }
+        return out;
     }
     // ── 14. Last.fm (Music) — requires LASTFM_API_KEY ─────────────────────────
     function fetchLastfm(nk, env, logger) {
@@ -17351,7 +17674,7 @@ var QvQuestionCache;
             case "geography": return fetchGeoQuiz(nk, logger);
             case "speed_quiz": return fetchSpeedQuiz(nk, logger);
             case "true_false": return fetchTrueFalseQuiz(nk, logger);
-            case "anime": return fetchJikan(nk, logger);
+            case "anime": return fetchAnimeQuiz(nk, logger);
             case "pokemon": return fetchPokeapi(nk, logger);
             case "cocktail": return fetchCocktaildb(nk, logger);
             case "food": return fetchMealdb(nk, logger);
@@ -17370,7 +17693,7 @@ var QvQuestionCache;
             case "space": return fetchNasa(nk, env, logger);
             case "movies": return fetchTmdb(nk, env, logger);
             case "sports": return fetchSportsdb(nk, logger);
-            case "music": return fetchLastfm(nk, env, logger);
+            case "music": return fetchMusicQuiz(nk, env, logger);
             case "news": return fetchNews(nk, env, logger);
             case "daily":
             case "weekly": return fetchS3(nk, env, logger, topic);
@@ -17560,8 +17883,41 @@ var QvQuestionCache;
             }
             // ── Claude 1-sentence enrichment for still-blank explanations ─────────
             claudeEnrichBatch(nk, env, logger, normalized);
-            // Cap: max 500 questions total (5 pages × 100) — keeps storage sane
-            var capped = normalized.slice(0, MAX_PER_DOC * 5);
+            // ── Merge with existing unexpired pool (accumulate, don't overwrite) ──
+            // #QVVBS-CACHE (2026-07): writeCache() used to fully replace the previous
+            // pool every refresh cycle. Providers like Jikan return a small, largely
+            // repeating page per fetch, so topics such as "anime" were permanently stuck
+            // at ~24 questions server-wide — exhausted fast by qv_seen tracking, causing
+            // "AI could not generate additional questions" and "limited question pool /
+            // repeated questions" (Survival Quiz). NormalizedQuestion.id is a stable hash
+            // of (topic, provider, provider_key), so merging by id is a safe dedupe key
+            // across refresh cycles — new questions are kept first so capping below
+            // always favors freshness.
+            var merged = normalized;
+            try {
+                var existingPool = readCache(nk, logger, topic);
+                if (existingPool.questions.length > 0) {
+                    var mergedIds = {};
+                    for (var mi = 0; mi < normalized.length; mi++)
+                        mergedIds[normalized[mi].id] = true;
+                    var carried = 0;
+                    for (var ei2 = 0; ei2 < existingPool.questions.length; ei2++) {
+                        var oldQ = existingPool.questions[ei2];
+                        if (mergedIds[oldQ.id])
+                            continue;
+                        merged.push(oldQ);
+                        mergedIds[oldQ.id] = true;
+                        carried++;
+                    }
+                    logger.info("[QvQCache/" + topic + "] merged " + normalized.length + " new + " + carried + " carried-over = " + merged.length + " total");
+                }
+            }
+            catch (mergeErr) {
+                logger.warn("[QvQCache/" + topic + "] merge-with-existing failed, using fresh fetch only: " + (mergeErr && mergeErr.message));
+            }
+            // Cap: max 500 questions total (5 pages × 100) — keeps storage sane. New
+            // questions are already first in `merged`, so capping keeps the freshest.
+            var capped = merged.slice(0, MAX_PER_DOC * 5);
             // ── Write cache ───────────────────────────────────────────────────────
             var qStats = {
                 total_processed: rawList.length,
@@ -33470,13 +33826,17 @@ var LegacyChat;
         initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
         initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);
         // Delivers queued offline challenge messages; Unity calls this once per session.
-        initializer.registerRpc("quizverse_deliver_pending_chat_messages", rpcDeliverPendingChatMessages);
+        // withCleanAuthError: live-server smoke test (2026-07-09) found this + the two
+        // read/unread RPCs below throwing a raw Goja 500 for unauthenticated callers
+        // instead of the clean JSON every other chat RPC in this file returns — belt
+        // and suspenders on top of each handler's own try/catch.
+        initializer.registerRpc("quizverse_deliver_pending_chat_messages", RpcHelpers.withCleanAuthError(rpcDeliverPendingChatMessages));
         initializer.registerRpc("get_group_chat_history", rpcGetGroupChatHistory);
         initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
         initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
         initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
-        initializer.registerRpc("mark_group_messages_read", rpcMarkGroupMessagesRead);
-        initializer.registerRpc("get_unread_counts", rpcGetUnreadCounts);
+        initializer.registerRpc("mark_group_messages_read", RpcHelpers.withCleanAuthError(rpcMarkGroupMessagesRead));
+        initializer.registerRpc("get_unread_counts", RpcHelpers.withCleanAuthError(rpcGetUnreadCounts));
         // Force durable persistence for realtime chat (offline delivery + history +
         // unread counts), then push-notify after the message lands.
         initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
@@ -33829,8 +34189,13 @@ var LegacyFriends;
             if (ids.length === 0 && usernames.length === 0) {
                 return RpcHelpers.errorResponse("ids or usernames required");
             }
+            // nakama-common's .d.ts types this as returning FriendList, but this
+            // server's Goja binding hands back `undefined` — every single call
+            // crashed with "Cannot read property 'friends' of undefined" (found
+            // live by the Social Zone eval suite's friends_block round-trip
+            // test). Guard defensively instead of assuming either shape.
             var result = nk.friendsBlock(userId, username, ids, usernames);
-            return RpcHelpers.successResponse({ friends: result.friends || [] });
+            return RpcHelpers.successResponse({ friends: (result && result.friends) || [] });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to block");
@@ -33850,8 +34215,10 @@ var LegacyFriends;
             if (ids.length === 0 && usernames.length === 0) {
                 return RpcHelpers.errorResponse("ids or usernames required");
             }
+            // Same defensive guard as rpcFriendsBlock above — this server's
+            // nk.friendsDelete binding also hands back `undefined`.
             var result = nk.friendsDelete(userId, username, ids, usernames);
-            return RpcHelpers.successResponse({ friends: result.friends || [] });
+            return RpcHelpers.successResponse({ friends: (result && result.friends) || [] });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to unblock");
@@ -33873,6 +34240,7 @@ var LegacyFriends;
             if (ids.length === 0 && usernames.length === 0) {
                 return RpcHelpers.errorResponse("ids or usernames required");
             }
+            // Same defensive guard as rpcFriendsBlock/rpcFriendsUnblock above.
             var result = nk.friendsDelete(userId, username, ids, usernames);
             var sendNotif = globalThis.sendFriendsNotification;
             if (typeof sendNotif === "function") {
@@ -33893,7 +34261,7 @@ var LegacyFriends;
                     }
                 }
             }
-            return RpcHelpers.successResponse({ friends: result.friends || [] });
+            return RpcHelpers.successResponse({ friends: (result && result.friends) || [] });
         }
         catch (e) {
             return RpcHelpers.errorResponse(e.message || "Failed to remove friend");

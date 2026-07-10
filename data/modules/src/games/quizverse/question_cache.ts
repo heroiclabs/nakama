@@ -263,7 +263,7 @@ namespace QvQuestionCache {
       ghibli: "ghibli", disney: "disney", starwars: "swapi",
       countries: "restcountries", flags: "restcountries",
       space: "nasa", movies: "tmdb", sports: "sportsdb",
-      music: "lastfm", news: "gnews", daily: "s3", weekly: "s3",
+      music: "deezer", news: "gnews", daily: "s3", weekly: "s3",
       video_quiz: "catalog", ai: "claude"
     };
     return map[topic] || topic;
@@ -299,6 +299,33 @@ namespace QvQuestionCache {
       return JSON.parse(resp.body);
     }
     throw new Error("httpGet exhausted retries for " + url.substring(0, 80));
+  }
+
+  function httpPost(nk: nkruntime.Nakama, url: string, bodyObj: any, extraHeaders?: { [k: string]: string }): any {
+    var headers: { [k: string]: string } = { "Accept": "application/json", "Content-Type": "application/json", "User-Agent": "QuizVerse/1.0" };
+    if (extraHeaders) {
+      for (var k2 in extraHeaders) {
+        if (extraHeaders.hasOwnProperty(k2)) headers[k2] = extraHeaders[k2];
+      }
+    }
+    var backoffMs2 = 1000;
+    for (var attempt2 = 0; attempt2 <= HTTP_MAX_RETRIES; attempt2++) {
+      if (attempt2 > 0) sleep(backoffMs2);
+      var resp2 = nk.httpRequest(url, "post", headers, JSON.stringify(bodyObj));
+      if (!resp2) throw new Error("no_response from " + url.substring(0, 80));
+      if (resp2.code === 429) {
+        if (attempt2 === HTTP_MAX_RETRIES) {
+          throw new Error("HTTP 429 rate-limited after " + HTTP_MAX_RETRIES + " retries: " + url.substring(0, 80));
+        }
+        backoffMs2 = backoffMs2 * 2;
+        continue;
+      }
+      if (resp2.code < 200 || resp2.code >= 300) {
+        throw new Error("HTTP " + resp2.code + " from " + url.substring(0, 80));
+      }
+      return JSON.parse(resp2.body);
+    }
+    throw new Error("httpPost exhausted retries for " + url.substring(0, 80));
   }
 
   // ── Circuit breaker ────────────────────────────────────────────────────────
@@ -667,12 +694,115 @@ namespace QvQuestionCache {
   }
 
   // ── 2. Jikan (Anime) ──────────────────────────────────────────────────────
+  // ── 3a. AniList (Anime, bonus) — free, keyless GraphQL, different pool than Jikan ──
+  // #QVVBS-CACHE (2026-07): requested via Firecrawl research for more free anime
+  // content variety. AniList (https://graphql.anilist.co) needs no API key for
+  // public data and ranks by a different popularity signal than Jikan/MAL, so its
+  // top-N barely overlaps Jikan's — this is genuinely new questions, not the same
+  // ~75 titles re-templated. Best-effort only: AniList failing must never fail the
+  // "anime" topic since Jikan (fetchJikan) already covers it on its own.
+  function fetchAniList(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+    var results: RawQuestion[] = [];
+    var query = "query($page:Int,$perPage:Int){Page(page:$page,perPage:$perPage){media(type:ANIME,sort:POPULARITY_DESC,isAdult:false){title{english romaji}startDate{year}episodes genres coverImage{large}}}}";
+    var media: any[] = [];
+    for (var pg2 = 1; pg2 <= 2; pg2++) {
+      try {
+        var gqlResp: any = httpPost(nk, "https://graphql.anilist.co", { query: query, variables: { page: pg2, perPage: 50 } });
+        if (gqlResp && gqlResp.data && gqlResp.data.Page && Array.isArray(gqlResp.data.Page.media)) {
+          media = media.concat(gqlResp.data.Page.media);
+        }
+      } catch (alErr: any) {
+        logger.debug("[QvQCache/anilist] page " + pg2 + " fetch failed: " + (alErr && alErr.message));
+      }
+    }
+    if (media.length === 0) return results; // best-effort — Jikan already covers this topic
+
+    var genreSetAL: { [g: string]: boolean } = {};
+    for (var ag2 = 0; ag2 < media.length; ag2++) {
+      var gens2: string[] = media[ag2].genres || [];
+      for (var gi4 = 0; gi4 < gens2.length; gi4++) genreSetAL[gens2[gi4]] = true;
+    }
+    var allGenresAL: string[] = Object.keys(genreSetAL).length >= 6 ? Object.keys(genreSetAL) : ANIME_GENRES;
+
+    for (var mi = 0; mi < media.length; mi++) {
+      var m: any = media[mi];
+      try {
+        var titleAL: string = (m.title && (m.title.english || m.title.romaji)) || "Unknown";
+        var yearAL: number | null = (m.startDate && m.startDate.year) || null;
+        var genresAL: string[] = m.genres || [];
+        var coverAL: string | null = (m.coverImage && m.coverImage.large) || null;
+        var mediaAL: any = coverAL ? { type: "image", url: coverAL, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null;
+
+        if (genresAL.length === 0 && !yearAL) continue;
+
+        var useGenreTpl = genresAL.length > 0 && (Math.random() < 0.6 || !yearAL);
+        var q2: RawQuestion | null = null;
+
+        if (useGenreTpl) {
+          var correctGenreAL = genresAL[0];
+          var exSetAL: { [k: string]: boolean } = {};
+          for (var gx2 = 0; gx2 < genresAL.length; gx2++) exSetAL[genresAL[gx2]] = true;
+          var wgAL = pickExcluding(allGenresAL, exSetAL, 3);
+          if (wgAL.length === 3) {
+            var gOptsAL: RawOpt[] = [{ text: correctGenreAL, is_correct: true }];
+            for (var wgi2 = 0; wgi2 < wgAL.length; wgi2++) gOptsAL.push({ text: wgAL[wgi2] as string, is_correct: false });
+            q2 = {
+              provider_key: "anilist_genre_" + djb2(titleAL),
+              topic: "anime", lang: "en",
+              question_text: "What genre best describes the anime \"" + titleAL + "\"?",
+              question_type: "single_select",
+              raw_options: gOptsAL, has_media: !!coverAL, media: mediaAL,
+              explanation: "\"" + titleAL + "\" belongs to the " + genresAL.join(", ") + " genre(s).",
+              difficulty: "medium", provider: "anilist",
+              meta: { title: titleAL, year: yearAL, genres: genresAL }
+            };
+          }
+        }
+        if (!q2 && yearAL) {
+          var yrAL = Number(yearAL);
+          var yOptsAL: RawOpt[] = [
+            { text: String(yrAL),     is_correct: true },
+            { text: String(yrAL - 2), is_correct: false },
+            { text: String(yrAL + 1), is_correct: false },
+            { text: String(yrAL - 5), is_correct: false }
+          ];
+          q2 = {
+            provider_key: "anilist_year_" + djb2(titleAL),
+            topic: "anime", lang: "en",
+            question_text: "What year did \"" + titleAL + "\" originally air?",
+            question_type: "single_select",
+            raw_options: yOptsAL, has_media: !!coverAL, media: mediaAL,
+            explanation: "\"" + titleAL + "\" first aired in " + yrAL + ".",
+            difficulty: "hard", provider: "anilist",
+            meta: { title: titleAL, year: yearAL }
+          };
+        }
+        if (q2) results.push(q2);
+      } catch (e: any) { logger.debug("[QvQCache/anilist] skip: " + (e && e.message)); }
+    }
+    return results;
+  }
+
   function fetchJikan(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
-    var data = httpGet(nk, "https://api.jikan.moe/v4/top/anime?page=1&limit=25&filter=bypopularity");
-    if (!data || !Array.isArray(data.data)) throw new Error("Jikan: no data array");
-
-    var animeList: any[] = data.data;
+    // #QVVBS-CACHE: was a single page (25 anime) forever — the exact same top-25
+    // list every refresh, capping the server-wide "anime" pool at ~24 questions
+    // post-quality-gate (2026-07 "limited pool / repeated questions" report). Jikan
+    // allows up to 25/page; pulling 3 pages triples the source pool to ~75 distinct
+    // anime per refresh, compounding with the merge-on-refresh accumulation in
+    // refreshCache(). Jikan's public rate limit is 3 req/s / 60 req/min, so 3
+    // sequential calls here are well within budget.
+    var animeList: any[] = [];
+    for (var pg = 1; pg <= 3; pg++) {
+      try {
+        var pageData: any = httpGet(nk, "https://api.jikan.moe/v4/top/anime?page=" + pg + "&limit=25&filter=bypopularity");
+        if (pageData && Array.isArray(pageData.data)) animeList = animeList.concat(pageData.data);
+      } catch (pageErr: any) {
+        logger.debug("[QvQCache/jikan] page " + pg + " fetch failed: " + (pageErr && pageErr.message));
+        if (pg === 1) throw pageErr; // page 1 failing = genuine outage, keep old error semantics
+      }
+    }
+    if (animeList.length === 0) throw new Error("Jikan: no data array");
     // Collect all genres from results for wrong-answer pool
     var genreSet: { [g: string]: boolean } = {};
     for (var ag = 0; ag < animeList.length; ag++) {
@@ -767,6 +897,19 @@ namespace QvQuestionCache {
       } catch (e: any) { logger.debug("[QvQCache/jikan] skip[" + ai + "]: " + (e && e.message)); }
     }
     return results;
+  }
+
+  // Jikan is the primary/required anime source (throws → topic fails, same as before
+  // this change). AniList is merged in as best-effort bonus variety on top — see
+  // fetchAniList's comment for why it barely overlaps Jikan's pool.
+  function fetchAnimeQuiz(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+    var out = fetchJikan(nk, logger);
+    try {
+      out = out.concat(fetchAniList(nk, logger));
+    } catch (e: any) {
+      logger.debug("[QvQCache/anime] AniList bonus fetch skipped: " + (e && e.message));
+    }
+    return out;
   }
 
   // ── 3. PokeAPI ────────────────────────────────────────────────────────────
@@ -1307,6 +1450,13 @@ namespace QvQuestionCache {
     for (var ni = 0; ni < data7.length; ni++) {
       var apod: any = data7[ni];
       try {
+        // #QVVBS-CACHE: NASA APOD is occasionally a video embed (YouTube/Vimeo url,
+        // no hdurl) instead of a photo — media_type is "video" on those days. Passing
+        // that url through as an "image" media item made Unity try to load a video
+        // page as a texture, which fails to render — the "Space Trivia (Image-related
+        // issue observed)" report. Skip non-image entries; the other ~48 items in this
+        // 50-count APOD batch cover the gap.
+        if (apod.media_type && apod.media_type !== "image") continue;
         var atitle = (apod.title || "").trim();
         var adate  = apod.date || "";
         var aurl   = apod.hdurl || apod.url || null;
@@ -1445,6 +1595,95 @@ namespace QvQuestionCache {
     logger.info("[QvQCache/sdb] event=sports_fetch_summary total_teams=" + totalTeams +
       " with_badge=" + withBadge + " skipped=" + skipped + " emitted=" + results.length);
     return results;
+  }
+
+  // ── 14a. Deezer (Music/Audio) — free, keyless, REAL 30s audio previews ────
+  // #QVVBS-CACHE (2026-07): "Audio Quiz (AI) — Not Working" — grepping this whole
+  // file for media.type==="audio" turned up zero matches anywhere; the "music"
+  // topic (the only music-adjacent topic that existed) was 100% text trivia via
+  // fetchLastfm() with has_media:false, AND that function hard-throws because
+  // LASTFM_API_KEY has never been configured (FALLBACK_KEYS entry is ""). So the
+  // AI-driven Audio Quiz mode had literally no server-side source of playable
+  // audio, ever. Deezer's public chart API needs no API key/auth and returns a
+  // native 30-second MP3 `preview` URL per track — exactly the has_media:true
+  // audio content this topic was missing. Made primary; fetchLastfm (below)
+  // is merged in as bonus text-trivia variety only if a key is ever configured.
+  function fetchDeezer(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+    var results: RawQuestion[] = [];
+    // 3 pages (index 0/50/100) of the global Top-100+ chart — a single page repeats
+    // the exact same ~50 songs every refresh (same "limited pool" failure mode fixed
+    // for Jikan below). Deezer's public API is unauthenticated/keyless with no
+    // documented hard rate limit for this scale, so 3 sequential calls is safe.
+    var tracks: any[] = [];
+    for (var pg = 0; pg < 3; pg++) {
+      try {
+        var chartPage: any = httpGet(nk, "https://api.deezer.com/chart/0/tracks?limit=50&index=" + (pg * 50));
+        if (chartPage && Array.isArray(chartPage.data)) tracks = tracks.concat(chartPage.data);
+      } catch (pageErr: any) {
+        logger.debug("[QvQCache/deezer] page " + pg + " fetch failed: " + (pageErr && pageErr.message));
+        if (pg === 0) throw pageErr; // page 0 failing = genuine outage
+      }
+    }
+    if (tracks.length === 0) throw new Error("Deezer: no tracks in chart");
+    var artistNames: string[] = [];
+    for (var di = 0; di < tracks.length; di++) {
+      var artOf: any = tracks[di].artist;
+      if (artOf && artOf.name) artistNames.push(artOf.name);
+    }
+    for (var dj = 0; dj < tracks.length; dj++) {
+      var trk: any = tracks[dj];
+      try {
+        if (trk.explicit_lyrics === true) continue; // keep quiz content family-safe
+        var previewUrl: string = trk.preview || "";
+        var trackTitle: string = trk.title || trk.title_short || "Unknown";
+        var artistName: string = trk.artist && trk.artist.name ? trk.artist.name : "";
+        if (!previewUrl || !trackTitle || !artistName) continue;
+
+        var excludeD: { [k: string]: boolean } = {};
+        excludeD[artistName] = true;
+        var wrongArtists = pickExcluding(artistNames, excludeD, 3);
+        if (wrongArtists.length < 3) continue;
+
+        var dOpts: RawOpt[] = [{ text: artistName, is_correct: true }];
+        for (var wi = 0; wi < wrongArtists.length; wi++) {
+          dOpts.push({ text: wrongArtists[wi] as string, is_correct: false });
+        }
+
+        var cover: string | null = (trk.album && (trk.album.cover_medium || trk.album.cover_big)) || null;
+
+        results.push({
+          provider_key: "deezer_" + (trk.id || djb2(trackTitle + artistName)),
+          topic: "music", lang: "en",
+          question_text: "Listen to the clip — who is the artist performing this song?",
+          question_type: "single_select",
+          raw_options: dOpts,
+          has_media: true,
+          media: {
+            type: "audio", url: previewUrl, thumbnail_url: cover,
+            duration_seconds: 30, mime_type: "audio/mpeg"
+          },
+          explanation: "\"" + trackTitle + "\" is performed by " + artistName + ".",
+          difficulty: "medium", provider: "deezer",
+          meta: { track_title: trackTitle }
+        });
+      } catch (e: any) { logger.debug("[QvQCache/deezer] skip: " + (e && e.message)); }
+    }
+    return results;
+  }
+
+  // Combines the always-available Deezer audio pool with Last.fm's text-only
+  // artist trivia (only when LASTFM_API_KEY is configured) so the "music" topic
+  // carries both real audio-quiz media and bonus text variety. Deezer succeeding
+  // is sufficient on its own — Last.fm failing/missing must never fail the topic.
+  function fetchMusicQuiz(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger): RawQuestion[] {
+    var out = fetchDeezer(nk, logger); // throws if Deezer itself is down — that's the real failure signal now
+    try {
+      var fmKeyCheck = envKey(env, "LASTFM_API_KEY");
+      if (fmKeyCheck) out = out.concat(fetchLastfm(nk, env, logger));
+    } catch (e: any) {
+      logger.debug("[QvQCache/music] Last.fm bonus fetch skipped: " + (e && e.message));
+    }
+    return out;
   }
 
   // ── 14. Last.fm (Music) — requires LASTFM_API_KEY ─────────────────────────
@@ -1906,7 +2145,7 @@ namespace QvQuestionCache {
       case "geography":   return fetchGeoQuiz(nk, logger);
       case "speed_quiz":  return fetchSpeedQuiz(nk, logger);
       case "true_false":  return fetchTrueFalseQuiz(nk, logger);
-      case "anime":     return fetchJikan(nk, logger);
+      case "anime":     return fetchAnimeQuiz(nk, logger);
       case "pokemon":   return fetchPokeapi(nk, logger);
       case "cocktail":  return fetchCocktaildb(nk, logger);
       case "food":      return fetchMealdb(nk, logger);
@@ -1925,7 +2164,7 @@ namespace QvQuestionCache {
       case "space":    return fetchNasa(nk, env, logger);
       case "movies":   return fetchTmdb(nk, env, logger);
       case "sports":   return fetchSportsdb(nk, logger);
-      case "music":    return fetchLastfm(nk, env, logger);
+      case "music":    return fetchMusicQuiz(nk, env, logger);
       case "news":     return fetchNews(nk, env, logger);
       case "daily":
       case "weekly":   return fetchS3(nk, env, logger, topic);
@@ -2151,8 +2390,39 @@ namespace QvQuestionCache {
       // ── Claude 1-sentence enrichment for still-blank explanations ─────────
       claudeEnrichBatch(nk, env, logger, normalized);
 
-      // Cap: max 500 questions total (5 pages × 100) — keeps storage sane
-      var capped = normalized.slice(0, MAX_PER_DOC * 5);
+      // ── Merge with existing unexpired pool (accumulate, don't overwrite) ──
+      // #QVVBS-CACHE (2026-07): writeCache() used to fully replace the previous
+      // pool every refresh cycle. Providers like Jikan return a small, largely
+      // repeating page per fetch, so topics such as "anime" were permanently stuck
+      // at ~24 questions server-wide — exhausted fast by qv_seen tracking, causing
+      // "AI could not generate additional questions" and "limited question pool /
+      // repeated questions" (Survival Quiz). NormalizedQuestion.id is a stable hash
+      // of (topic, provider, provider_key), so merging by id is a safe dedupe key
+      // across refresh cycles — new questions are kept first so capping below
+      // always favors freshness.
+      var merged: NormalizedQuestion[] = normalized;
+      try {
+        var existingPool = readCache(nk, logger, topic);
+        if (existingPool.questions.length > 0) {
+          var mergedIds: { [id: string]: boolean } = {};
+          for (var mi = 0; mi < normalized.length; mi++) mergedIds[normalized[mi].id] = true;
+          var carried = 0;
+          for (var ei2 = 0; ei2 < existingPool.questions.length; ei2++) {
+            var oldQ = existingPool.questions[ei2];
+            if (mergedIds[oldQ.id]) continue;
+            merged.push(oldQ);
+            mergedIds[oldQ.id] = true;
+            carried++;
+          }
+          logger.info("[QvQCache/" + topic + "] merged " + normalized.length + " new + " + carried + " carried-over = " + merged.length + " total");
+        }
+      } catch (mergeErr: any) {
+        logger.warn("[QvQCache/" + topic + "] merge-with-existing failed, using fresh fetch only: " + (mergeErr && mergeErr.message));
+      }
+
+      // Cap: max 500 questions total (5 pages × 100) — keeps storage sane. New
+      // questions are already first in `merged`, so capping keeps the freshest.
+      var capped = merged.slice(0, MAX_PER_DOC * 5);
 
       // ── Write cache ───────────────────────────────────────────────────────
       var qStats = {

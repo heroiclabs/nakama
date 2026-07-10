@@ -1,0 +1,301 @@
+﻿QuestionID,Category,QuestionType,FolderName,Question,Option1,Option2,Option3,Option4,CorrectIndex,Explanantion
+Q_0001,Speed Quiz,Text,SQ_01,哪颗行星被称为红色星球？,金星,火星,木星,地球,2,Mars is called the Red Planet.
+Q_0002,Speed Quiz,Text,SQ_02,H2O俗称什么？,氧,氢,盐,水,4,H2O是水。
+Q_0003,Speed Quiz,Text,SQ_03,有多少个大陆？,5,8,6,7,4,有7大洲。
+Q_0004,Speed Quiz,Text,SQ_04,植物吸收哪些气体？,氮,氢,二氧化碳,氧,3,植物吸收二氧化碳。
+Q_0005,Speed Quiz,Text,SQ_05,水的沸点是多少？,100℃,200℃,150℃,50℃,1,水在 100°C 时沸腾。
+Q_0006,Speed Quiz,Text,SQ_06,哪种动物被称为丛林之王？,大象,狮子,豹,老虎,2,Lion is called the King of the Jungle.
+Q_0007,Speed Quiz,Text,SQ_07,闰年有多少天？,367,365,364,366,4,闰年有 366 天。
+Q_0008,Speed Quiz,Text,SQ_08,哪种金属在室温下是液态？,金子,铁,汞,银,3,Mercury is liquid at room temperature.
+Q_0009,Speed Quiz,Text,SQ_09,哪个感觉器官是用来看的？,皮肤,鼻子,眼睛,耳朵,3,眼睛帮助我们看见。
+Q_0010,Speed Quiz,Text,SQ_10,最大的哺乳动物是什么？,长颈鹿,蓝鲸,大象,犀牛,2,Blue Whale is the largest mammal.
+Q_0011,Speed Quiz,Text,SQ_11,我们从阳光中获取哪种维生素？,维生素B,维生素C,维生素D,维生素A,3,Sunlight gives Vitamin D.
+Q_0012,Speed Quiz,Text,SQ_12,蜜蜂从花中采集什么？,树叶,水,蜂蜜,花粉,4,蜜蜂采集花粉。
+Q_0013,Speed Quiz,Text,SQ_13,哪种形状有三个边？,三角形,长方形,正方形,圆圈,1,Triangle has three sides.
+Q_0014,Speed Quiz,Text,SQ_14,晴天时天空的颜色是什么？,绿色的,红色的,黄色的,蓝色的,4,Sky appears blue due to scattering.
+Q_0015,Speed Quiz,Text,SQ_15,蜘蛛有几条腿？,8,10,6,12,1,蜘蛛有8条腿。
+Q_0016,Speed Quiz,Text,SQ_16,测量温度用什么仪器？,湿度计,温度计,车速表,晴雨表,2,Thermometer measures temperature.
+Q_0017,Speed Quiz,Text,SQ_17,九月之后是哪一个月？,八月,十一月,十二月,十月,4,October follows September.
+Q_0018,Speed Quiz,Text,SQ_18,哪种动物以其长脖子而闻名？,斑马,骆驼,马,长颈鹿,4,长颈鹿的脖子很长。
+Q_0019,Speed Quiz,Text,SQ_19,我们呼吸什么才能生存？,二氧化碳,氧,氦,氮,2,Oxygen is essential for life.
+Q_0020,Speed Quiz,Text,SQ_20,白天哪个物体给我们提供光？,星星,电灯泡,太阳,月亮,3,太阳提供日光。
+Q_0021,Speed Quiz,Text,SQ_21,一天有多少个小时？,24,30,12,18,1,There are 24 hours in a day.
+Q_0022,Speed Quiz,Text,SQ_22,哪种动物生活在水中并通过鳃呼吸？,鱼,鲸,海豚,狗,1,Fish breathe through gills.
+Q_0023,Speed Quiz,Text,SQ_23,水的冰点是多少？,50℃,100℃,0℃,10℃,3,水在 0°C 时结冰。
+Q_0024,Speed Quiz,Text,SQ_24,Which organ pumps blood in the human body?,肝,心,脑,肺,2,心脏泵血。
+Q_0025,Speed Quiz,Text,SQ_25,星期五之后是哪一天？,星期日,周六,周一,周四,2,Saturday comes after Friday.
+Q_0026,Speed Quiz,Text,SQ_26,热的反义词是什么？,温暖的,干燥,寒冷的,凉爽的,3,Cold is the opposite of hot.
+Q_0027,Speed Quiz,Text,SQ_27,植物的哪一部分制造食物？,干,叶子,花,根,2,Leaves make food by photosynthesis.
+Q_0028,Speed Quiz,Text,SQ_28,地球的主要能源是什么？,电,煤炭,太阳,风,3,Sun is the main energy source.
+Q_0029,Speed Quiz,Text,SQ_29,哪种动物以其黑白条纹而闻名？,斑马,马,老虎,奶牛,1,Zebra has black and white stripes.
+Q_0030,Speed Quiz,Text,SQ_30,彩虹有多少种颜色？,7,6,8,5,1,There are 7 colors in a rainbow.
+Q_0031,Speed Quiz,Image,IMG_001,图片中显示的是哪种动物？,狐狸,小熊猫,狸,猫,2,The image shows a red panda.
+Q_0032,Speed Quiz,Image,IMG_002,显示什么水果？,荔枝,木瓜,番石榴,火龙果,4,这是火龙果。
+Q_0033,Speed Quiz,Image,IMG_003,这是哪个物体？,钟,罗盘,车速表,跑表,4,The object is a stopwatch.
+Q_0034,Speed Quiz,Image,IMG_004,显示的是哪只鸟？,孔雀,天鹅,鹦鹉,火鸡,1,这只鸟是孔雀。
+Q_0035,Speed Quiz,Image,IMG_005,显示的是哪辆车？,滑翔伞,无人机,直升机,热气球,4,This is a hot air balloon.
+Q_0036,Speed Quiz,Image,IMG_006,显示的是哪种仪器？,尤克里里,吉他,大提琴,小提琴,4,The instrument is a violin.
+Q_0037,Speed Quiz,Image,IMG_007,显示的是哪种动物？,考拉,熊猫,树懒,熊,1,该动物是考拉。
+Q_0038,Speed Quiz,Image,IMG_008,显示什么工具？,锤,锯,钳,扳手,4,工具是扳手。
+Q_0039,Speed Quiz,Image,IMG_009,显示哪种天气状况？,闪电,雨,雪,多雾路段,1,The image shows lightning.
+Q_0040,Speed Quiz,Image,IMG_010,图中展示的是哪种海洋生物？,乌贼,螃蟹,章鱼,海蜇,3,The creature is an octopus.
+Q_0041,Speed Quiz,Image,IMG_011,显示的是哪种水果？,芒果,猕猴桃,牛油果,梨,3,这是鳄梨。
+Q_0042,Speed Quiz,Image,IMG_012,显示的是哪种动物？,袋鼠,鹿,羚羊,袋鼠,4,The animal is a kangaroo.
+Q_0043,Speed Quiz,Image,IMG_013,这是什么物体？,钟,滴漏,罗盘,定时器,2,这是一个沙漏。
+Q_0044,Speed Quiz,Image,IMG_014,显示的是哪种爬行动物？,鬣蜥,蜥蜴,壁虎,变色龙,4,The reptile is a chameleon.
+Q_0045,Speed Quiz,Image,IMG_015,显示的是哪个工具？,量角器,罗盘,统治者,卷尺,4,这是卷尺。
+Q_0046,Speed Quiz,Image,IMG_016,显示的是哪种动物？,刺猬,痣,犰狳,豪猪,1,The animal is a hedgehog.
+Q_0047,Speed Quiz,Image,IMG_017,显示哪个对象？,地球,地图,球,地球,4,这是一个地球仪。
+Q_0048,Speed Quiz,Image,IMG_018,显示的是哪种水果？,葡萄,黑莓,醋栗,蓝莓,4,这些是蓝莓。
+Q_0049,Speed Quiz,Image,IMG_019,显示的是哪种动物？,鹳,苍鹭,起重机,火烈鸟,4,这只鸟是火烈鸟。
+Q_0050,Speed Quiz,Image,IMG_020,显示的是哪种仪器？,康加舞,邦戈,鼓,塔布拉,3,这是一个鼓。
+Q_0051,Speed Quiz,Image,IMG_021,显示的是哪种动物？,骆驼,羊,羊驼毛,骆驼,3,该动物是羊驼。
+Q_0052,Speed Quiz,Image,IMG_022,这是什么物体？,显微镜,潜望镜,望远镜,双筒望远镜,1,这是显微镜。
+Q_0053,Speed Quiz,Image,IMG_023,显示的是哪种水果？,石榴,番石榴,苹果,李子,1,这是一个石榴。
+Q_0054,Speed Quiz,Image,IMG_024,显示的是哪种动物？,考拉,猴,狐猴,树懒,4,该动物是树懒。
+Q_0055,Speed Quiz,Image,IMG_025,显示哪个对象？,高度表,钟,罗盘,温度计,3,这是一个指南针。
+Q_0056,Speed Quiz,Image,IMG_026,显示的是哪种动物？,刺猬,痣,豪猪,犰狳,4,该动物是犰狳。
+Q_0057,Speed Quiz,Image,IMG_027,显示的是哪种水果？,椰子,面包果,木瓜,瓜,1,这是椰子。
+Q_0058,Speed Quiz,Image,IMG_028,显示的是哪个工具？,剪刀,夹钳,钳,钳,3,工具是钳子。
+Q_0059,Speed Quiz,Image,IMG_029,显示的是哪只鸟？,鹰,鹰,鹘,猫头鹰,4,这只鸟是一只猫头鹰。
+Q_0060,Speed Quiz,Image,IMG_030,显示的是哪种动物？,獭,雪貂,猫鼬,草原土拨鼠,3,该动物是猫鼬。
+Q_0061,Geo Explorer,Text,GE_01,What is the capital of Japan?,北京,京都,东京,汉城,3,东京是日本的首都。
+Q_0062,Geo Explorer,Text,GE_02,印度的首都是哪里？,孟买,钦奈,新德里,加尔各答,3,新德里是印度的首都。
+Q_0063,Geo Explorer,Text,GE_03,印度最长的河流是哪条？,戈达瓦里,恒河,雅鲁藏布江,亚穆纳,2,恒河是印度最长的河流。
+Q_0064,Geo Explorer,Text,GE_04,哪个国家被称为“旭日之国”？,泰国,日本,中国,韩国,2,日本被称为“旭日之国”。
+Q_0065,Geo Explorer,Text,GE_05,哪座山脉将印度和中国分开？,落基山脉,安第斯山脉,阿尔卑斯山,喜马拉雅山,4,喜马拉雅山将印度和中国分开。
+Q_0066,Geo Explorer,Text,GE_06,Which desert is located mainly in India?,戈壁,塔尔,卡拉哈里,撒哈拉,2,塔尔沙漠位于印度。
+Q_0067,Geo Explorer,Text,GE_07,亚洲哪个国家人口最多？,中国,日本,印度尼西亚,印度,1,中国拥有最多的人口。
+Q_0068,Geo Explorer,Text,GE_08,印度哪个邦的海岸线最长？,古吉拉特邦,安得拉邦,泰米尔纳德邦,喀拉拉邦,1,古吉拉特邦拥有最长的海岸线。
+Q_0069,Geo Explorer,Text,GE_09,尼泊尔位于哪个国家？,欧洲,非洲,亚洲,澳大利亚,3,尼泊尔位于亚洲。
+Q_0070,Geo Explorer,Text,GE_10,哪个城市被称为印度的金融之都？,钦奈,班加罗尔,德里,孟买,4,孟买是印度的金融首都。
+Q_0071,Geo Explorer,Text,GE_11,哪条河流流经孟加拉国和印度？,幼发拉底河,底格里斯河,梧桐,雅鲁藏布江,4,雅鲁藏布江流经印度和孟加拉国。
+Q_0072,Geo Explorer,Text,GE_12,印度以南是哪个海？,红海,里海,地中海,阿拉伯海,4,阿拉伯海位于印度南部。
+Q_0073,Geo Explorer,Text,GE_13,斯里兰卡离哪个国家最近？,印度,印度尼西亚,马来西亚,泰国,1,斯里兰卡距离印度很近。
+Q_0074,Geo Explorer,Text,GE_14,哪个亚洲国家的首都是曼谷？,越南,老挝,泰国,柬埔寨,3,曼谷是泰国的首都。
+Q_0075,Geo Explorer,Text,GE_15,印度属于哪个洲？,非洲,亚洲,欧洲,澳大利亚,2,印度是亚洲的一部分。
+Q_0076,Geo Explorer,Text,GE_16,哪个国家有埃菲尔铁塔？,西班牙,法国,意大利,德国,2,The Eiffel Tower is in France.
+Q_0077,Geo Explorer,Text,GE_17,世界上最大的海洋是哪一个？,印度人,北极,大西洋,太平洋,4,太平洋是最大的。
+Q_0078,Geo Explorer,Text,GE_18,哪个城市被称为“大苹果”？,洛杉矶,芝加哥,纽约,波士顿,3,纽约被称为“大苹果”。
+Q_0079,Geo Explorer,Text,GE_19,哪个国家有长城？,中国,印度,蒙古,日本,1,长城在中国。
+Q_0080,Geo Explorer,Text,GE_20,埃及位于哪个洲？,澳大利亚,非洲,亚洲,欧洲,2,埃及位于非洲。
+Q_0081,Geo Explorer,Text,GE_21,哪个国家的首都是罗马？,意大利,西班牙,葡萄牙,法国,1,罗马是意大利的首都。
+Q_0082,Geo Explorer,Text,GE_22,巴黎流经哪条河？,多瑙河,泰晤士河,莱茵河,罾,4,塞纳河流经巴黎。
+Q_0083,Geo Explorer,Text,GE_23,哪个洲最冷？,南极洲,非洲,亚洲,欧洲,1,南极洲是最冷的大陆。
+Q_0084,Geo Explorer,Text,GE_24,哪个国家的形状像靴子？,西班牙,意大利,法国,希腊,2,意大利看起来像一只靴子。
+Q_0085,Geo Explorer,Text,GE_25,哪个国家也被称为“Down Under”？,阿根廷,南非,新西兰,澳大利亚,4,澳大利亚被称为Down Under。
+Q_0086,Geo Explorer,Text,GE_26,非洲西边是哪个洋？,太平洋,大西洋,北极,印度人,2,大西洋位于非洲西部。
+Q_0087,Geo Explorer,Text,GE_27,哪个城市因自由女神像而闻名？,罗马,巴黎,纽约,华盛顿特区,3,The Statue of Liberty is in New York.
+Q_0088,Geo Explorer,Text,GE_28,哪个国家的岛屿最多？,日本,瑞典,菲律宾,印度尼西亚,2,Sweden has the most islands.
+Q_0089,Geo Explorer,Text,GE_29,哪个国家的首都是堪培拉？,新西兰,加拿大,英国,澳大利亚,4,Canberra is the capital of Australia.
+Q_0090,Geo Explorer,Text,GE_30,哪个洲的国家最多？,非洲,南美洲,亚洲,欧洲,1,Africa has the most countries.
+Q_0091,Geo Explorer,Image,IMG_031,显示了哪个地标？,泰姬陵,红堡,古特卜塔,印度门户,1,这就是泰姬陵。
+Q_0092,Geo Explorer,Image,IMG_032,显示哪个国家的地图？,澳大利亚,新西兰,阿根廷,南非,1,地图是澳大利亚。
+Q_0093,Geo Explorer,Image,IMG_033,显示了哪个城市的天际线？,纽约,芝加哥,波士顿,洛杉矶,1,这是纽约市。
+Q_0094,Geo Explorer,Image,IMG_034,显示的是哪个沙漠？,戈壁,塔尔,阿塔卡马,撒哈拉,3,This is the Atacama Desert.
+Q_0095,Geo Explorer,Image,IMG_035,显示的是哪座山？,乞力马扎罗山,珠穆朗玛峰,富士,迪纳利峰,1,This is Mount Kilimanjaro.
+Q_0096,Geo Explorer,Image,IMG_036,显示哪个国家的国旗？,瑞士,丹麦,奥地利,加拿大,4,This is Canada’s flag.
+Q_0097,Geo Explorer,Image,IMG_037,显示的是哪条河流？,亚马逊,尼罗河,梧桐,长江,2,这就是尼罗河。
+Q_0098,Geo Explorer,Image,IMG_038,显示了哪个地标？,斗兽场,海港大桥,滨海湾金沙酒店,歌剧院,4,This is the Sydney Opera House.
+Q_0099,Geo Explorer,Image,IMG_039,显示哪个洲的地图？,亚洲,南美洲,非洲,欧洲,2,这是南美洲。
+Q_0100,Geo Explorer,Image,IMG_040,显示哪个国家的轮廓？,南非,津巴布韦,博茨瓦纳,纳米比亚,1,这是南非。
+Q_0101,Geo Explorer,Image,IMG_041,显示的是哪个城市？,罗马,马德里,维也纳,巴黎,4,这是巴黎。
+Q_0102,Geo Explorer,Image,IMG_042,显示的是哪座火山？,维苏威火山,喀拉喀托,富士,埃特纳火山,4,这就是埃特纳火山。
+Q_0103,Geo Explorer,Image,IMG_043,显示的是哪个瀑布？,安赫尔瀑布,Victoria Falls,伊瓜苏瀑布,尼亚加拉瀑布,4,这就是尼亚加拉大瀑布。
+Q_0104,Geo Explorer,Image,IMG_044,显示哪个国家的地图？,越南,韩国,中国,日本,4,这是日本。
+Q_0105,Geo Explorer,Image,IMG_045,显示的是哪个岛国？,冰岛,苏格兰,格陵兰,爱尔兰,1,这就是冰岛。
+Q_0106,Geo Explorer,Image,IMG_046,显示了哪个城市的天际线？,东京,上海,汉城,大阪,1,这是东京。
+Q_0107,Geo Explorer,Image,IMG_047,显示的是哪个沙漠？,卡拉哈里,莫哈维,撒哈拉,戈壁,4,这就是戈壁滩。
+Q_0108,Geo Explorer,Image,IMG_048,显示的是哪座山脉？,落基山脉,安第斯山脉,喜马拉雅山,阿尔卑斯山,2,这些是安第斯山脉。
+Q_0109,Geo Explorer,Image,IMG_049,显示的是哪条河流三角洲？,尼罗河,亚马逊,湄公河,恒河,4,This is the Ganges Delta.
+Q_0110,Geo Explorer,Image,IMG_050,显示哪个国家的轮廓？,挪威,瑞典,丹麦,芬兰,1,这是挪威。
+Q_0111,Geo Explorer,Image,IMG_051,显示了哪个地标？,雅典卫城,论坛,万神殿,斗兽场,4,这是罗马斗兽场。
+Q_0112,Geo Explorer,Image,IMG_052,显示的是哪个城市？,阿布扎比,迪拜,利雅得,多哈,2,这是迪拜。
+Q_0113,Geo Explorer,Image,IMG_053,显示的是哪个海？,波罗的海,地中海,黑海,红海,2,This is the Mediterranean Sea.
+Q_0114,Geo Explorer,Image,IMG_054,Which island is shown?,普吉岛,龙目岛,爪哇,巴厘岛,4,这是巴厘岛。
+Q_0115,Geo Explorer,Image,IMG_055,显示哪个国家的地图？,乌拉圭,智利,巴拉圭,阿根廷,4,这是阿根廷。
+Q_0116,Geo Explorer,Image,IMG_056,显示的是哪座山？,艾格峰,少女峰,勃朗峰,马特宏峰,4,这就是马特洪峰。
+Q_0117,Geo Explorer,Image,IMG_057,显示了哪个地标？,吴哥窟,奇琴伊察,马丘比丘,佩特拉,4,这是佩特拉。
+Q_0118,Geo Explorer,Image,IMG_058,显示的是哪条河流？,伏尔加河,多瑙河,莱茵河,罾,2,This is the Danube River.
+Q_0119,Geo Explorer,Image,IMG_059,显示哪个国家的轮廓？,哥伦比亚,秘鲁,墨西哥,玻利维亚,3,这是墨西哥。
+Q_0120,Geo Explorer,Image,IMG_060,显示的是哪个城市？,曼彻斯特,伦敦,都柏林,爱丁堡,2,这是伦敦。
+Q_0121,Geo Explorer,Video,VID_001,该视频中出现的是哪个国家？,德国,意大利,法国,西班牙,3,The correct answer is France.
+Q_0122,Geo Explorer,Video,VID_002,This landmark is located in which country?,蒙古,韩国,日本,中国,4,The correct answer is China.
+Q_0123,Geo Explorer,Video,VID_003,Which Indian city appears in this video?,勒克瑙,阿格拉,德里,斋浦尔,2,The correct answer is Agra.
+Q_0124,Geo Explorer,Video,VID_004,This city skyline belongs to which country?,澳大利亚,加拿大,英国,美国,4,The correct answer is USA.
+Q_0125,Geo Explorer,Video,VID_005,The Eiffel Tower is found in which city?,马德里,罗马,巴黎,柏林,3,The correct answer is Paris.
+Q_0126,Geo Explorer,Video,VID_006,Which ancient structure is shown here?,斗兽场,论坛,万神殿,雅典卫城,1,The correct answer is Colosseum.
+Q_0127,Geo Explorer,Video,VID_007,Which city is home to Statue of Liberty?,纽约,波士顿,费城,华盛顿特区,1,The correct answer is New York.
+Q_0128,Geo Explorer,Video,VID_008,Machu Picchu is located in which country?,智利,玻利维亚,秘鲁,厄瓜多尔,3,The correct answer is Peru.
+Q_0129,Geo Explorer,Video,VID_009,Petra is an ancient city in which country?,伊拉克,埃及,约旦,伊朗,3,The correct answer is Jordan.
+Q_0130,Geo Explorer,Video,VID_010,This statue overlooks which Brazilian city?,圣保罗,萨尔瓦多,巴西利亚,里约热内卢,4,The correct answer is Rio de Janeiro.
+Q_0131,Geo Explorer,Video,VID_011,Which natural wonder is shown here?,伊瓜苏瀑布,Victoria Falls,安赫尔瀑布,尼亚加拉瀑布,4,The correct answer is Niagara Falls.
+Q_0132,Geo Explorer,Video,VID_012,珠穆朗玛峰位于尼泊尔和哪个国家的边境？,巴基斯坦,印度,不丹,中国,4,The correct answer is China.
+Q_0133,Geo Explorer,Video,VID_013,This iconic building is located in which city?,珀斯,墨尔本,悉尼,奥克兰,3,The correct answer is Sydney.
+Q_0134,Geo Explorer,Video,VID_014,The Golden Gate Bridge is located in which city?,西雅图,洛杉矶,旧金山,圣地亚哥,3,The correct answer is San Francisco.
+Q_0135,Geo Explorer,Video,VID_015,Which Asian city skyline is shown here?,北京,汉城,东京,上海,3,The correct answer is Tokyo.
+Q_0136,Geo Explorer,Video,VID_016,Burj Khalifa is located in which city?,阿布扎比,迪拜,多哈,利雅得,2,The correct answer is Dubai.
+Q_0137,Geo Explorer,Video,VID_017,Which European city is famous for these canals?,阿姆斯特丹,布鲁日,威尼斯,哥本哈根,3,The correct answer is Venice.
+Q_0138,Geo Explorer,Video,VID_018,Angkor Wat is located in which country?,老挝,柬埔寨,泰国,越南,2,The correct answer is Cambodia.
+Q_0139,Geo Explorer,Video,VID_019,大堡礁位于哪个国家的海岸附近？,菲律宾,印度尼西亚,澳大利亚,马来西亚,3,The correct answer is Australia.
+Q_0140,Geo Explorer,Video,VID_020,这片雨林主要位于哪个大陆？,南美洲,亚洲,非洲,澳大利亚,1,The correct answer is South America.
+Q_0141,Geo Explorer,Video,VID_021,Which famous canyon is this?,黄石公园,大峡谷,优胜美地,锡安,2,It is the Grand Canyon in USA.
+Q_0142,Geo Explorer,Video,VID_022,These pyramids are located in which country?,秘鲁,墨西哥,苏丹,埃及,4,They are the Pyramids of Giza in Egypt.
+Q_0143,Geo Explorer,Video,VID_023,What is this ancient stone circle called?,埃夫伯里,卡纳克,纽格兰奇,巨石阵,4,It is Stonehenge in the UK.
+Q_0144,Geo Explorer,Video,VID_024,Which iconic mountain is shown here?,珠穆朗玛峰,富士山,乞力马扎罗山,马特宏峰,2,It is Mount Fuji in Japan.
+Q_0145,Geo Explorer,Video,VID_025,哪个瀑布被称为“雷鸣之烟”？,尼亚加拉瀑布,安赫尔瀑布,伊瓜苏瀑布,维多利亚瀑布,4,这是维多利亚瀑布。
+Q_0146,Geo Explorer,Video,VID_026,这个白色的岛屿小镇位于哪个国家？,希腊,火鸡,意大利,西班牙,1,It is Santorini in Greece.
+Q_0147,Geo Explorer,Video,VID_027,Identify this imperial palace complex.,故宫,长城,颐和园,天坛,1,It is the Forbidden City in Beijing.
+Q_0148,Geo Explorer,Video,VID_028,This sail-shaped hotel is located where?,迪拜,阿布扎比,麦纳麦,多哈,1,It is the Burj Al Arab in Dubai.
+Q_0149,Geo Explorer,Video,VID_029,Which city features this boat-topped building?,新加坡,香港,吉隆坡,曼谷,1,It is Marina Bay Sands in Singapore.
+Q_0150,Geo Explorer,Video,VID_030,This skyscraper 'The Shard' is in which city?,纽约,多伦多,伦敦,巴黎,3,It is The Shard in London.
+Q_0151,Geo Explorer,Audio,AUD_001,这首国歌属于哪个国家？,西班牙,意大利,德国,法国,4,音频代表法国国歌。
+Q_0152,Geo Explorer,Audio,AUD_002,This national anthem belongs to which country?,泰国,韩国,日本,中国,3,音频代表日本国歌。
+Q_0153,Geo Explorer,Audio,AUD_003,Which country's national anthem is playing here?,印度,尼泊尔,斯里兰卡,孟加拉国,1,该音频代表印度国歌。
+Q_0154,Geo Explorer,Audio,AUD_004,这首国歌属于哪个国家？,美国,澳大利亚,英国,加拿大,1,The audio represents the national anthem of USA.
+Q_0155,Geo Explorer,Audio,AUD_005,This national anthem belongs to which country?,澳大利亚,爱尔兰,新西兰,英国,4,The audio represents the national anthem of UK.
+Q_0156,Geo Explorer,Audio,AUD_006,Which country's national anthem is playing here?,德国,瑞士,波兰,奥地利,1,音频代表德国国歌。
+Q_0157,Geo Explorer,Audio,AUD_007,这首国歌属于哪个国家？,意大利,西班牙,希腊,葡萄牙,1,该音频代表意大利国歌。
+Q_0158,Geo Explorer,Audio,AUD_008,This national anthem belongs to which country?,西班牙,墨西哥,阿根廷,葡萄牙,1,该音频代表西班牙国歌。
+Q_0159,Geo Explorer,Audio,AUD_009,Which country's national anthem is playing here?,美国,法国,英国,加拿大,4,该音频代表加拿大国歌。
+Q_0160,Geo Explorer,Audio,AUD_010,这首国歌属于哪个国家？,新西兰,澳大利亚,南非,加拿大,2,The audio represents the national anthem of Australia.
+Q_0161,Geo Explorer,Audio,AUD_011,This national anthem belongs to which country?,越南,韩国,日本,中国,4,音频代表中国国歌。
+Q_0162,Geo Explorer,Audio,AUD_012,Which country's national anthem is playing here?,智利,阿根廷,巴西,哥伦比亚,3,该音频代表巴西国歌。
+Q_0163,Geo Explorer,Audio,AUD_013,这首国歌属于哪个国家？,波兰,俄罗斯,乌克兰,白俄罗斯,2,音频代表俄罗斯国歌。
+Q_0164,Geo Explorer,Audio,AUD_014,This national anthem belongs to which country?,北朝鲜,日本,韩国,中国,3,音频代表韩国国歌。
+Q_0165,Geo Explorer,Audio,AUD_015,Which country's national anthem is playing here?,墨西哥,西班牙,阿根廷,哥伦比亚,1,该音频代表墨西哥国歌。
+Q_0166,Geo Explorer,Audio,AUD_016,这首国歌属于哪个国家？,阿根廷,智利,巴西,乌拉圭,1,该音频代表阿根廷国歌。
+Q_0167,Geo Explorer,Audio,AUD_017,This national anthem belongs to which country?,埃及,肯尼亚,南非,尼日利亚,3,该音频代表南非国歌。
+Q_0168,Geo Explorer,Audio,AUD_018,Which country's national anthem is playing here?,沙特阿拉伯,摩洛哥,约旦,埃及,4,该音频代表埃及国歌。
+Q_0169,Geo Explorer,Audio,AUD_019,这首国歌属于哪个国家？,火鸡,希腊,意大利,塞浦路斯,2,该音频代表希腊国歌。
+Q_0170,Geo Explorer,Audio,AUD_020,This national anthem belongs to which country?,伊朗,希腊,阿塞拜疆,火鸡,4,该音频代表土耳其国歌。
+Q_0171,Geo Explorer,Audio,AUD_021,Which country's national anthem is playing here?,巴基斯坦,阿富汗,印度,伊朗,1,该音频代表巴基斯坦国歌。
+Q_0172,Geo Explorer,Audio,AUD_022,这首国歌属于哪个国家？,柬埔寨,马来西亚,越南,泰国,4,该音频代表泰国国歌。
+Q_0173,Geo Explorer,Audio,AUD_023,This national anthem belongs to which country?,埃及,黎巴嫩,约旦,以色列,4,该音频代表以色列国歌。
+Q_0174,Geo Explorer,Audio,AUD_024,Which country's national anthem is playing here?,沙特阿拉伯,科威特,阿联酋,卡塔尔,1,该音频代表沙特阿拉伯的国歌。
+Q_0175,Geo Explorer,Audio,AUD_025,这首国歌属于哪个国家？,新加坡,马来西亚,印度尼西亚,菲律宾,3,该音频代表印度尼西亚国歌。
+Q_0176,Geo Explorer,Audio,AUD_026,This national anthem belongs to which country?,德国,荷兰,丹麦,比利时,2,该音频代表荷兰国歌。
+Q_0177,Geo Explorer,Audio,AUD_027,Which country's national anthem is playing here?,瑞典,丹麦,芬兰,挪威,1,该音频代表瑞典国歌。
+Q_0178,Geo Explorer,Audio,AUD_028,这首国歌属于哪个国家？,瑞士,德国,列支敦士登,奥地利,1,音频代表瑞士国歌。
+Q_0179,Geo Explorer,Audio,AUD_029,This national anthem belongs to which country?,新西兰,斐济,澳大利亚,萨摩亚,1,该音频代表新西兰国歌。
+Q_0180,Geo Explorer,Audio,AUD_030,Which country's national anthem is playing here?,巴西,葡萄牙,法国,西班牙,2,该音频代表葡萄牙国歌。
+Q_0181,Who's That,Text,WT_01,微软是谁创立的？,比尔·盖茨,埃隆·马斯克,马克·扎克伯格,史蒂夫·乔布斯,1,Bill Gates co-founded Microsoft.
+Q_0182,Who's That,Text,WT_02,Who painted the Mona Lisa?,达芬奇,伦勃朗,梵高,毕加索,1,Leonardo da Vinci painted it.
+Q_0183,Who's That,Text,WT_03,Who is known as the King of Pop?,猫王埃尔维斯·普雷斯利,阿姆,迈克尔·杰克逊,王子,3,Michael Jackson is the King of Pop.
+Q_0184,Who's That,Text,WT_04,Who is known as the Iron Man of India?,尼赫鲁,甘地,玻色,帕特尔,4,萨达尔·瓦拉巴伊·帕特尔是印度的钢铁侠。
+Q_0185,Who's That,Text,WT_05,哈利·波特是谁写的？,刘易斯,罗琳,托尔金,马丁,2,J.K. Rowling wrote Harry Potter.
+Q_0186,Who's That,Text,WT_06,Who invented the light bulb?,特斯拉,爱迪生,爱因斯坦,牛顿,2,Thomas Edison invented the bulb.
+Q_0187,Who's That,Text,WT_07,谁发现了万有引力？,牛顿,爱因斯坦,伽利略,达尔文,1,Isaac Newton discovered gravity.
+Q_0188,Who's That,Text,WT_08,Who is the founder of Facebook?,马克·扎克伯格,史蒂夫·乔布斯,埃隆·马斯克,比尔·盖茨,1,Mark Zuckerberg founded Facebook.
+Q_0189,Who's That,Text,WT_09,Who wrote Romeo and Juliet?,莎士比亚,奥斯汀,吐温,狄更斯,1,William Shakespeare wrote Romeo and Juliet.
+Q_0190,Who's That,Text,WT_10,Who helped Rama build the bridge to Lanka?,哈努曼,维毗沙那,那拉,苏格里瓦,3,Nala helped build the bridge to Lanka.
+Q_0191,Who's That,Text,WT_11,特斯拉的首席执行官是谁？,贝佐斯,扎克伯格,盖茨,麝香,4,Elon Musk is Tesla's CEO.
+Q_0192,Who's That,Text,WT_12,Who was the first man to walk on the moon?,迈克尔·柯林斯,尤里·加加林,巴兹·奥尔德林,尼尔·阿姆斯特朗,4,Neil Armstrong walked first on the moon.
+Q_0193,Who's That,Text,WT_13,Who is the author of The Hobbit?,托尔金,罗琳,刘易斯,马丁,1,J.R.R. Tolkien wrote The Hobbit.
+Q_0194,Who's That,Text,WT_14,Who is known as the Missile Man of India?,维克拉姆·萨拉巴伊,APJ阿卜杜勒卡拉姆,拉曼,安贝德卡尔,2,A.P.J.博士Abdul Kalam earned the title.
+Q_0195,Who's That,Text,WT_15,苹果公司是谁创立的？,盖茨,麝香,页,工作机会,4,Steve Jobs co-founded Apple.
+Q_0196,Who's That,Text,WT_16,Who discovered penicillin?,巴斯德,牛顿,居里,弗莱明,4,Alexander Fleming discovered penicillin.
+Q_0197,Who's That,Text,WT_17,Who is known as the Father of Computers?,比尔·盖茨,史蒂夫·乔布斯,艾伦·图灵,查尔斯·巴贝奇,4,查尔斯·巴贝奇被称为计算机之父。
+Q_0198,Who's That,Text,WT_18,谁发现了美洲？,哥伦布,厨师,瓦斯科达伽马,麦哲伦,1,Christopher Columbus discovered America.
+Q_0199,Who's That,Text,WT_19,亚马逊是谁创立的？,扎克伯格,盖茨,贝佐斯,麝香,3,Jeff Bezos founded Amazon.
+Q_0200,Who's That,Text,WT_20,Who is known as the Bard of Avon?,莎士比亚,华兹华斯,米尔顿,乔叟,1,William Shakespeare is called the Bard of Avon.
+Q_0201,Who's That,Text,WT_21,Who was the first woman in space?,瓦伦蒂娜·捷列什科娃,卡尔帕纳·乔拉,莎莉·赖德,苏尼塔·威廉姆斯,1,瓦莲京娜·捷列什科娃是第一位进入太空的女性。
+Q_0202,Who's That,Text,WT_22,Who painted the Sistine Chapel ceiling?,拉斐尔,多纳泰罗,达芬奇,米开朗基罗,4,Michelangelo painted the Sistine Chapel ceiling.
+Q_0203,Who's That,Text,WT_23,SpaceX是谁创立的？,页,贝佐斯,麝香,布兰森,3,Elon Musk founded SpaceX.
+Q_0204,Who's That,Text,WT_24,Who wrote The Catcher in the Rye?,塞林格,菲茨杰拉德,海明威,奥威尔,1,J.D. Salinger wrote The Catcher in the Rye.
+Q_0205,Who's That,Text,WT_25,谁是美国第一任总统？,华盛顿,亚当斯,杰斐逊,林肯,1,George Washington was the first U.S. President.
+Q_0206,Who's That,Text,WT_26,Who is known as the Flying Sikh?,米尔哈·辛格,尼拉吉·乔普拉,阿比纳夫·宾德拉,PT乌莎,1,Milkha Singh was known as the Flying Sikh.
+Q_0207,Who's That,Text,WT_27,Who composed Symphony No. 5?,巴赫,肖邦,莫扎特,贝多芬,4,Beethoven composed Symphony No. 5.
+Q_0208,Who's That,Text,WT_28,Who invented the telephone?,钟,爱迪生,马可尼,特斯拉,1,Alexander Graham Bell invented the telephone.
+Q_0209,Who's That,Text,WT_29,库茹之野战争期间阿朱那的战车御手是谁？,毗湿摩,迦尔纳,德罗纳,克里希纳,4,Lord Krishna was Arjuna’s charioteer.
+Q_0210,Who's That,Text,WT_30,Who was the first woman to win a Nobel Prize?,赫歇尔,居里,迈特纳,格佩特-迈耶,2,Marie Curie was the first woman Nobel laureate.
+Q_0211,Who's That,Image,IMG_061,Who is shown in the image?,姆巴佩,梅西,罗纳尔多,内马尔,2,这是莱昂内尔·梅西。
+Q_0212,Who's That,Image,IMG_062,Who is this fictional character?,蜘蛛侠,蝙蝠侠,钢铁侠,超人,1,这是蜘蛛侠。
+Q_0213,Who's That,Image,IMG_063,展示了谁？,阿米特巴·巴强,阿米尔·汗,拉杰什·卡纳,萨尔曼·汗,1,This is Amitabh Bachchan.
+Q_0214,Who's That,Image,IMG_064,Who is this fictional character?,罗恩·韦斯莱,哈利·波特,佛罗多,珀西·杰克逊,2,这是哈利·波特。
+Q_0215,Who's That,Image,IMG_065,展示了谁？,威廉姆斯,大阪,莎拉波娃,哈勒普,1,这是塞雷娜·威廉姆斯。
+Q_0216,Who's That,Image,IMG_066,Who is this fictional character?,尤达,达斯·维达,凯洛·伦,卢克·天行者,2,这是达斯·维德。
+Q_0217,Who's That,Image,IMG_067,展示了谁？,麝香,贝佐斯,厨师,盖茨,1,这是埃隆·马斯克。
+Q_0218,Who's That,Image,IMG_068,Who is this fictional character?,超人,闪光,小丑,蝙蝠侠,4,这是蝙蝠侠。
+Q_0219,Who's That,Image,IMG_069,展示了谁？,阿达尼,比尔拉,安巴尼,拉坦·塔塔,4,这是拉坦·塔塔。
+Q_0220,Who's That,Image,IMG_070,Who is this fictional character?,悟空,贝吉塔,路飞,鸣人,1,这是悟空。
+Q_0221,Who's That,Image,IMG_071,展示了谁？,碧昂丝,蕾哈娜,迅速,阿黛尔,3,这是泰勒·斯威夫特。
+Q_0222,Who's That,Image,IMG_072,Who is this fictional character?,纽带,波洛,沃森,福尔摩斯,4,这是夏洛克·福尔摩斯。
+Q_0223,Who's That,Image,IMG_073,展示了谁？,德拉维德,萨钦,多尼船,科利,2,This is Sachin Tendulkar.
+Q_0224,Who's That,Image,IMG_074,Who is this fictional character?,荷马,斯蒂维,巴特,彼得·格里芬,1,这是荷马·辛普森。
+Q_0225,Who's That,Image,IMG_075,展示了谁？,艾伦,温弗瑞,加加,迅速,2,这是奥普拉·温弗瑞。
+Q_0226,Who's That,Image,IMG_076,Who is this fictional character?,美国队长,浩克,钢铁侠,托尔,1,这是美国队长。
+Q_0227,Who's That,Image,IMG_077,展示了谁？,瑜伽士阿迪亚纳特,阿米特·沙阿,纳伦德拉·莫迪,拉胡尔·甘地,3,这是纳伦德拉·莫迪。
+Q_0228,Who's That,Image,IMG_078,Who is this fictional character?,米奇,唐纳德,汤姆,高飞,1,这是米老鼠。
+Q_0229,Who's That,Image,IMG_079,展示了谁？,汉克斯,迪卡普里奥,巡航,皮特,2,This is Leonardo DiCaprio.
+Q_0230,Who's That,Image,IMG_080,Who is this fictional character?,小丑,企鹅,谜语人,蝙蝠侠,1,这就是小丑。
+Q_0231,Who's That,Image,IMG_081,展示了谁？,迈特纳,富兰克林,居里,古道尔,3,这是玛丽·居里。
+Q_0232,Who's That,Image,IMG_082,Who is this fictional character?,长发公主,莫阿娜,艾尔莎,安娜,3,这是艾尔莎。
+Q_0233,Who's That,Image,IMG_083,展示了谁？,约旦,神户,勒布朗,咖喱,1,这是迈克尔·乔丹。
+Q_0234,Who's That,Image,IMG_084,Who is this fictional character?,想象,钢铁侠,托尔,浩克,2,这是钢铁侠。
+Q_0235,Who's That,Image,IMG_085,展示了谁？,玻尔,爱因斯坦,费曼,特斯拉,2,这是阿尔伯特·爱因斯坦。
+Q_0236,Who's That,Image,IMG_086,Who is this fictional character?,皮卡丘,杰尼龟,小火龙,妙蛙种子,1,这是皮卡丘。
+Q_0237,Who's That,Image,IMG_087,展示了谁？,螺栓,加特林,刘易斯,布莱克,1,这是尤塞恩·博尔特。
+Q_0238,Who's That,Image,IMG_088,Who is this fictional character?,马里奥,卡比,路易吉,索尼克,1,这是马里奥。
+Q_0239,Who's That,Image,IMG_089,展示了谁？,工作机会,扎克伯格,盖茨,贝佐斯,3,这是比尔·盖茨。
+Q_0240,Who's That,Image,IMG_090,Who is this fictional character?,哆啦A梦,神奇宝贝,新灿,大雄,1,这是哆啦A梦。
+Q_0241,Who's That,Video,VID_031,Who is shown in this video clip?,马克·扎克伯格,杰夫·贝佐斯,比尔·盖茨,埃隆·马斯克,4,The person shown is Elon Musk.
+Q_0242,Who's That,Video,VID_032,Who is shown in this video clip?,多尼女士,萨钦·坦杜卡,维拉特·科利,罗希特·夏尔马,3,The person shown is Virat Kohli.
+Q_0243,Who's That,Video,VID_033,Who is shown in this video clip?,维伦德·塞瓦格,拉胡尔·德拉维德,多尼女士,卡皮尔·德夫,3,The person shown is MS Dhoni.
+Q_0244,Who's That,Video,VID_034,Who is shown in this video clip?,汤姆·克鲁斯,约翰尼·德普,布拉德·皮特,莱昂纳多·迪卡普里奥,4,The person shown is Leonardo DiCaprio.
+Q_0245,Who's That,Video,VID_035,Who is shown in this video clip?,安妮·海瑟薇,艾玛·斯通,斯嘉丽约翰逊,詹妮弗·劳伦斯,3,The person shown is Scarlett Johansson.
+Q_0246,Who's That,Video,VID_036,Who is shown in this video clip?,内马尔,克里斯蒂亚诺·罗纳尔多,莱昂内尔·梅西,姆巴佩,2,The person shown is Cristiano Ronaldo.
+Q_0247,Who's That,Video,VID_037,Who is shown in this video clip?,罗纳尔迪尼奥,莱昂内尔·梅西,哈维,马拉多纳,2,The person shown is Lionel Messi.
+Q_0248,Who's That,Video,VID_038,Who is shown in this video clip?,本·阿弗莱克,布拉德·皮特,汤姆·克鲁斯,马特·达蒙,3,The person shown is Tom Cruise.
+Q_0249,Who's That,Video,VID_039,Who is shown in this video clip?,马克·鲁法洛,克里斯·海姆斯沃斯,小罗伯特·唐尼,克里斯埃文斯,3,The person shown is Robert Downey Jr.
+Q_0250,Who's That,Video,VID_040,Who is shown in this video clip?,阿米尔·汗,赫里尼克·罗斯汉,萨尔曼·汗,沙鲁克汗,4,The person shown is Shah Rukh Khan.
+Q_0251,Who's That,Video,VID_041,Who is shown in this video clip?,萨尔曼·汗,阿米尔·汗,阿克谢·库马尔,沙鲁克汗,1,The person shown is Salman Khan.
+Q_0252,Who's That,Video,VID_042,Who is shown in this video clip?,法门陀罗,拉杰什·卡纳,里希·卡普尔,阿米特巴·巴强,4,The person shown is Amitabh Bachchan.
+Q_0253,Who's That,Video,VID_043,Who is shown in this video clip?,纳伦德拉·莫迪,阿米特·沙阿,拉胡尔·甘地,曼莫汉·辛格,1,The person shown is Narendra Modi.
+Q_0254,Who's That,Video,VID_044,Who is shown in this video clip?,乔治·布什,比尔·克林顿,巴拉克·奥巴马,乔·拜登,3,The person shown is Barack Obama.
+Q_0255,Who's That,Video,VID_045,Who is shown in this video clip?,蒂姆·库克,史蒂夫·沃兹尼亚克,比尔·盖茨,史蒂夫·乔布斯,4,The person shown is Steve Jobs.
+Q_0256,Who's That,Video,VID_046,Who is shown in this video clip?,比尔·盖茨,埃隆·马斯克,马克·扎克伯格,杰夫·贝佐斯,1,The person shown is Bill Gates.
+Q_0257,Who's That,Video,VID_047,Who is shown in this video clip?,拉里·佩奇,杰克·多尔西,谢尔盖·布林,马克·扎克伯格,4,The person shown is Mark Zuckerberg.
+Q_0258,Who's That,Video,VID_048,Who is shown in this video clip?,沃伦·巴菲特,比尔·盖茨,杰夫·贝佐斯,埃隆·马斯克,3,The person shown is Jeff Bezos.
+Q_0259,Who's That,Video,VID_049,Who is shown in this video clip?,维纳斯·威廉姆斯,西蒙娜·哈勒普,塞雷娜·威廉姆斯,大坂直美,3,The person shown is Serena Williams.
+Q_0260,Who's That,Video,VID_050,Who is shown in this video clip?,勒布朗·詹姆斯,科比·布莱恩特,沙奎尔·奥尼尔,迈克尔·乔丹,4,The person shown is Michael Jordan.
+Q_0261,Who's That,Video,VID_051,Who is shown in this video clip?,拉斐尔·纳达尔,罗杰·费德勒,安迪·穆雷,诺瓦克·德约科维奇,2,The person shown is Roger Federer.
+Q_0262,Who's That,Video,VID_052,Who is shown in this video clip?,约翰·布莱克,贾斯汀·加特林,泰森·盖伊,尤塞恩·博尔特,4,The person shown is Usain Bolt.
+Q_0263,Who's That,Video,VID_053,Who is shown in this video clip?,安迪·穆雷,拉斐尔·纳达尔,诺瓦克·德约科维奇,罗杰·费德勒,2,The person shown is Rafael Nadal.
+Q_0264,Who's That,Video,VID_054,Who is shown in this video clip?,达斯汀·约翰逊,泰格·伍兹,罗里·麦克罗伊,菲尔·米克尔森,2,The person shown is Tiger Woods.
+Q_0265,Who's That,Video,VID_055,Who is shown in this video clip?,阿丽亚娜·格兰德,凯蒂·佩里,泰勒·斯威夫特,赛琳娜·戈麦斯,3,The person shown is Taylor Swift.
+Q_0266,Who's That,Video,VID_056,Who is shown in this video clip?,艾玛·斯通,艾玛·沃特森,安妮·海瑟薇,娜塔莉波特曼,2,The person shown is Emma Watson.
+Q_0267,Who's That,Video,VID_057,Who is shown in this video clip?,克里斯埃文斯,克里斯·帕拉特,瑞安·雷诺兹,克里斯·海姆斯沃斯,4,The person shown is Chris Hemsworth.
+Q_0268,Who's That,Video,VID_058,Who is shown in this video clip?,汤姆·克鲁斯,约翰尼·德普,布拉德·皮特,基努·里维斯,4,The person shown is Keanu Reeves.
+Q_0269,Who's That,Video,VID_059,Who is shown in this video clip?,威尔·史密斯,丹泽尔·华盛顿,杰米·福克斯,艾迪·墨菲,1,The person shown is Will Smith.
+Q_0270,Who's That,Video,VID_060,Who is shown in this video clip?,戴夫·巴蒂斯塔,巨石强森,约翰·塞纳,岩石,2,The person shown is Dwayne Johnson.
+Q_0271,Brain Sprint,Text,SQ_01,15 + 27 是多少？,42,南,南,南,1,加法：15 + 27 = 42。
+Q_0272,Brain Sprint,Text,SQ_02,What is 12 multiplied by 8?,96,南,南,南,1,Multiplication: 12 * 8 = 96.
+Q_0273,Brain Sprint,Text,SQ_03,How many minutes are there in 2.5 hours?,150,南,南,南,1,"2 hours = 120 mins, 0.5 hours = 30 mins.总计 150。"
+Q_0274,Brain Sprint,Text,SQ_04,序列中的下一个数字是什么：2、4、8、16、...？,32,南,南,南,1,The sequence doubles each time.
+Q_0275,Brain Sprint,Text,SQ_05,What is 150 divided by 6?,25,南,南,南,1,划分：150 / 6 = 25。
+Q_0276,Brain Sprint,Text,SQ_06,How many sides does a regular heptagon have?,7,南,南,南,1,七边形有 7 条边。
+Q_0277,Brain Sprint,Text,SQ_07,9的平方是多少？,81,南,南,南,1,9 * 9 = 81。
+Q_0278,Brain Sprint,Text,SQ_08,一支足球队同时在场上有多少名球员？,11,南,南,南,1,Each team has 11 players.
+Q_0279,Brain Sprint,Text,SQ_09,三角形的内角和是多少（以度为单位）？,180,南,南,南,1,三角形的内角之和始终为 180 度。
+Q_0280,Brain Sprint,Text,SQ_10,100 减 37 是多少？,63,南,南,南,1,Subtraction: 100 - 37 = 63.
+Q_0281,Brain Sprint,Text,SQ_11,How many states are there in the United States?,50,南,南,南,1,美国有 50 个州。
+Q_0282,Brain Sprint,Text,SQ_12,What is the square root of 144?,12,南,南,南,1,12 * 12 = 144。
+Q_0283,Brain Sprint,Text,SQ_13,闰年有多少天？,366,南,南,南,1,A leap year has 366 days.
+Q_0284,Brain Sprint,Text,SQ_14,What is 7 multiplied by 13?,91,南,南,南,1,7 * 13 = 91。
+Q_0285,Brain Sprint,Text,SQ_15,How many strings does a standard guitar have?,6,南,南,南,1,A standard guitar has 6 strings.
+Q_0286,Brain Sprint,Text,SQ_16,序列中的下一个数字是什么：1、4、9、16、...？,25,南,南,南,1,该序列遵循平方数：1^2、2^2、3^2、4^2、5^2。
+Q_0287,Brain Sprint,Text,SQ_17,How many bones are in the adult human body?,206,南,南,南,1,An adult human has 206 bones.
+Q_0288,Brain Sprint,Text,SQ_18,150 的 20% 是多少？,30,南,南,南,1,0.20 * 150 = 30。
+Q_0289,Brain Sprint,Text,SQ_19,How many zeros are there in one million?,6,南,南,南,1,"1,000,000 有六个零。"
+Q_0290,Brain Sprint,Text,SQ_20,11乘以11等于多少？,121,南,南,南,1,11 * 11 = 121。
+Q_0291,Brain Sprint,Text,SQ_21,How many years are in a century?,100,南,南,南,1,A century consists of 100 years.
+Q_0292,Brain Sprint,Text,SQ_22,What is 250 divided by 5?,50,南,南,南,1,250 / 5 = 50。
+Q_0293,Brain Sprint,Text,SQ_23,How many continents are there on Earth?,7,南,南,南,1,有7大洲。
+Q_0294,Brain Sprint,Text,SQ_24,What is (10 + 5) multiplied by 3?,45,南,南,南,1,15 * 3 = 45。
+Q_0295,Brain Sprint,Text,SQ_25,How many hours are there in 3 days?,72,南,南,南,1,3 * 24 = 72。
+Q_0296,Brain Sprint,Text,SQ_26,What is the boiling point of water in Celsius?,100,南,南,南,1,Water boils at 100 degrees Celsius.
+Q_0297,Brain Sprint,Text,SQ_27,How many sides does a hexagon have?,6,南,南,南,1,六边形有 6 条边。
+Q_0298,Brain Sprint,Text,SQ_28,500 减 125 是多少？,375,南,南,南,1,500 - 125 = 375。
+Q_0299,Brain Sprint,Text,SQ_29,How many seconds are in 5 minutes?,300,南,南,南,1,5 * 60 = 300。
+Q_0300,Brain Sprint,Text,SQ_30,8 乘以 9 等于多少？,72,南,南,南,1,8 * 9 = 72。

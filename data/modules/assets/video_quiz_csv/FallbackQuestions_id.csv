@@ -1,0 +1,301 @@
+﻿QuestionID,Category,QuestionType,FolderName,Question,Option1,Option2,Option3,Option4,CorrectIndex,Explanantion
+Q_0001,Speed Quiz,Text,SQ_01,Planet manakah yang disebut Planet Merah?,Venus,Mars,Jupiter,Bumi,2,Mars disebut Planet Merah.
+Q_0002,Speed Quiz,Text,SQ_02,H2O biasa disebut dengan apa?,Oksigen,Hidrogen,Garam,Air,4,H2O adalah air.
+Q_0003,Speed Quiz,Text,SQ_03,Ada berapa benua?,5,8,6,7,4,Ada 7 benua.
+Q_0004,Speed Quiz,Text,SQ_04,Gas apa yang diserap tumbuhan?,Nitrogen,Hidrogen,Karbon Dioksida,Oksigen,3,Tumbuhan menyerap CO2.
+Q_0005,Speed Quiz,Text,SQ_05,Berapa titik didih air?,100°C,200°C,150°C,50°C,1,Air mendidih pada suhu 100°C.
+Q_0006,Speed Quiz,Text,SQ_06,Hewan apa yang disebut Raja Hutan?,Gajah,Singa,macan tutul,Harimau,2,Singa disebut Raja Hutan.
+Q_0007,Speed Quiz,Text,SQ_07,Ada berapa hari dalam satu tahun kabisat?,367,365,364,366,4,Tahun kabisat memiliki 366 hari.
+Q_0008,Speed Quiz,Text,SQ_08,Logam manakah yang berbentuk cair pada suhu kamar?,Emas,Besi,Air raksa,Perak,3,Merkuri berbentuk cair pada suhu kamar.
+Q_0009,Speed Quiz,Text,SQ_09,Alat indera manakah yang digunakan untuk melihat?,Kulit,Hidung,Mata,Telinga,3,Mata membantu kita melihat.
+Q_0010,Speed Quiz,Text,SQ_10,Apa mamalia terbesar?,Jerapah,Paus Biru,Gajah,Badak,2,Paus Biru adalah mamalia terbesar.
+Q_0011,Speed Quiz,Text,SQ_11,Vitamin apa yang kita dapatkan dari sinar matahari?,Vitamin B,Vitamin C,Vitamin D,vitamin A,3,Sinar matahari memberi Vitamin D.
+Q_0012,Speed Quiz,Text,SQ_12,Apa yang dikumpulkan lebah dari bunga?,Daun-daun,Air,Sayang,Serbuk sari,4,Lebah mengumpulkan serbuk sari.
+Q_0013,Speed Quiz,Text,SQ_13,Bentuk manakah yang memiliki tiga sisi?,Segi tiga,Persegi panjang,Persegi,Lingkaran,1,Segitiga mempunyai tiga sisi.
+Q_0014,Speed Quiz,Text,SQ_14,Apa warna langit pada hari yang cerah?,Hijau,Merah,Kuning,Biru,4,Langit tampak biru karena hamburan.
+Q_0015,Speed Quiz,Text,SQ_15,Berapa banyak kaki yang dimiliki laba-laba?,8,10,6,12,1,Laba-laba mempunyai 8 kaki.
+Q_0016,Speed Quiz,Text,SQ_16,Alat apa yang digunakan untuk mengukur suhu?,Higrometer,Termometer,Speedometer,Barometer,2,Termometer mengukur suhu.
+Q_0017,Speed Quiz,Text,SQ_17,Bulan apa yang datang setelah September?,Agustus,November,Desember,Oktober,4,Oktober menyusul September.
+Q_0018,Speed Quiz,Text,SQ_18,Hewan apa yang terkenal dengan lehernya yang panjang?,zebra,Unta,Kuda,Jerapah,4,Jerapah memiliki leher yang panjang.
+Q_0019,Speed Quiz,Text,SQ_19,Apa yang kita hirup untuk bertahan hidup?,Karbon Dioksida,Oksigen,Helium,Nitrogen,2,Oksigen sangat penting bagi kehidupan.
+Q_0020,Speed Quiz,Text,SQ_20,Benda manakah yang memberi kita cahaya di siang hari?,Bintang,Bohlam,Matahari,Bulan,3,Matahari memberikan siang hari.
+Q_0021,Speed Quiz,Text,SQ_21,Ada berapa jam dalam sehari?,24,30,12,18,1,Ada 24 jam dalam sehari.
+Q_0022,Speed Quiz,Text,SQ_22,Hewan apa yang hidup di air dan bernapas melalui insang?,Ikan,Paus,Lumba-lumba,Anjing,1,Ikan bernapas melalui insang.
+Q_0023,Speed Quiz,Text,SQ_23,Berapa titik beku air?,50°C,100°C,0°C,10°C,3,Air membeku pada suhu 0°C.
+Q_0024,Speed Quiz,Text,SQ_24,Organ manakah yang memompa darah ke dalam tubuh manusia?,Hati,Jantung,Otak,Paru-paru,2,Jantung memompa darah.
+Q_0025,Speed Quiz,Text,SQ_25,Hari apa yang datang setelah hari Jumat?,Minggu,Sabtu,Senin,Kamis,2,Sabtu datang setelah hari Jumat.
+Q_0026,Speed Quiz,Text,SQ_26,Apa lawan kata dari panas?,Hangat,Kering,Dingin,Dingin,3,Dingin adalah kebalikan dari panas.
+Q_0027,Speed Quiz,Text,SQ_27,Bagian tumbuhan manakah yang menghasilkan makanan?,Tangkai,Daun,Bunga,Akar,2,Daun membuat makanan melalui fotosintesis.
+Q_0028,Speed Quiz,Text,SQ_28,Apa sumber energi utama bumi?,Listrik,Batu bara,Matahari,Angin,3,Matahari merupakan sumber energi utama.
+Q_0029,Speed Quiz,Text,SQ_29,Hewan apa yang terkenal dengan garis-garis hitam putihnya?,zebra,Kuda,Harimau,Sapi,1,Zebra memiliki garis-garis hitam dan putih.
+Q_0030,Speed Quiz,Text,SQ_30,Berapa banyak warna yang ada pada pelangi?,7,6,8,5,1,Ada 7 warna dalam pelangi.
+Q_0031,Speed Quiz,Image,IMG_001,Hewan apa yang ditunjukkan pada gambar?,Rubah,Panda Merah,rakun,Kucing,2,Gambar menunjukkan panda merah.
+Q_0032,Speed Quiz,Image,IMG_002,Buah apa yang ditampilkan?,Leci,Pepaya,Jambu biji,Buah naga,4,Ini adalah buah naga.
+Q_0033,Speed Quiz,Image,IMG_003,Benda manakah ini?,Jam,Kompas,Speedometer,Stopwatch,4,Objeknya adalah stopwatch.
+Q_0034,Speed Quiz,Image,IMG_004,Burung apa yang ditampilkan?,Merak,Angsa,Burung beo,Turki,1,Burung itu adalah burung merak.
+Q_0035,Speed Quiz,Image,IMG_005,Kendaraan apa yang ditampilkan?,Paralayang,Dengung,Helikopter,Balon Udara Panas,4,Ini adalah balon udara.
+Q_0036,Speed Quiz,Image,IMG_006,Instrumen apa yang ditampilkan?,Gitar kecil,Gitar,Selo,Biola,4,Alat musiknya adalah biola.
+Q_0037,Speed Quiz,Image,IMG_007,Hewan apa yang ditampilkan?,Koala,Panda,Kemalasan,Beruang,1,Hewan tersebut adalah koala.
+Q_0038,Speed Quiz,Image,IMG_008,Alat apa yang ditampilkan?,Palu,Gergaji,Tang,Kunci,4,Alat tersebut adalah kunci pas.
+Q_0039,Speed Quiz,Image,IMG_009,Kondisi cuaca apa yang ditampilkan?,Petir,Hujan,Salju,Kabut,1,Gambar menunjukkan kilat.
+Q_0040,Speed Quiz,Image,IMG_010,Makhluk laut manakah yang ditampilkan?,Cumi-cumi,Kepiting,Gurita,Ubur ubur,3,Makhluk itu adalah gurita.
+Q_0041,Speed Quiz,Image,IMG_011,Buah apa yang ditampilkan?,buah mangga,Kiwi,Alpukat,Pir,3,Ini adalah alpukat.
+Q_0042,Speed Quiz,Image,IMG_012,Hewan apa yang ditampilkan?,Walabi,Rusa,Antelop,Kanguru,4,Hewan tersebut adalah kanguru.
+Q_0043,Speed Quiz,Image,IMG_013,Benda apa ini?,Jam,Jam pasir,Kompas,pengatur waktu,2,Ini adalah jam pasir.
+Q_0044,Speed Quiz,Image,IMG_014,Reptil manakah yang ditampilkan?,Iguana,Kadal,Tokek,Bunglon,4,The reptile is a chameleon.
+Q_0045,Speed Quiz,Image,IMG_015,Alat apa yang ditampilkan?,Busur derajat,Kompas,Penggaris,Pita pengukur,4,Ini adalah pita pengukur.
+Q_0046,Speed Quiz,Image,IMG_016,Hewan apa yang ditampilkan?,Landak,Tikus tanah,Armadillo,Landak,1,Hewan itu adalah landak.
+Q_0047,Speed Quiz,Image,IMG_017,Objek manakah yang ditampilkan?,Bumi,Peta,Bola,Bola dunia,4,Ini adalah bola dunia.
+Q_0048,Speed Quiz,Image,IMG_018,Buah apa yang ditampilkan?,Anggur,Blackberry,kismis,Blueberry,4,Ini adalah blueberry.
+Q_0049,Speed Quiz,Image,IMG_019,Hewan apa yang ditampilkan?,Bangau,Bangau,Derek,Flamingo,4,Burung itu adalah seekor flamingo.
+Q_0050,Speed Quiz,Image,IMG_020,Instrumen apa yang ditampilkan?,Konga,Bongo,Drum,Tabla,3,Ini adalah drum.
+Q_0051,Speed Quiz,Image,IMG_021,Hewan apa yang ditampilkan?,lama,Domba,alpaka,Unta,3,Hewan itu adalah alpaka.
+Q_0052,Speed Quiz,Image,IMG_022,Benda apa ini?,Mikroskop,Periskop,Teleskop,Teropong,1,Ini adalah mikroskop.
+Q_0053,Speed Quiz,Image,IMG_023,Buah apa yang ditampilkan?,Delima,Jambu biji,Apel,Prem,1,Ini adalah buah delima.
+Q_0054,Speed Quiz,Image,IMG_024,Hewan apa yang ditampilkan?,Koala,Monyet,Kubung,Kemalasan,4,Hewan itu adalah seekor kemalasan.
+Q_0055,Speed Quiz,Image,IMG_025,Objek manakah yang ditampilkan?,Alat pengukur tinggi,Jam,Kompas,Termometer,3,Ini adalah kompas.
+Q_0056,Speed Quiz,Image,IMG_026,Hewan apa yang ditampilkan?,Landak,Tikus tanah,Landak,Armadillo,4,Hewan tersebut adalah armadillo.
+Q_0057,Speed Quiz,Image,IMG_027,Buah apa yang ditampilkan?,Kelapa,Buah sukun,Pepaya,Melon,1,Ini kelapa.
+Q_0058,Speed Quiz,Image,IMG_028,Alat apa yang ditampilkan?,Gunting,Penjepit,Tang,Penjepit,3,Alatnya adalah tang.
+Q_0059,Speed Quiz,Image,IMG_029,Burung apa yang ditampilkan?,Burung rajawali,Elang,Elang,Burung hantu,4,Burung itu adalah burung hantu.
+Q_0060,Speed Quiz,Image,IMG_030,Hewan apa yang ditampilkan?,Berang-berang,Musang,Meerkat,Anjing Padang Rumput,3,Hewan itu adalah meerkat.
+Q_0061,Geo Explorer,Text,GE_01,Apa ibu kota Jepang?,Beijing,Kyoto,Tokyo,seoul,3,Tokyo adalah ibu kota Jepang.
+Q_0062,Geo Explorer,Text,GE_02,Apa ibu kota India?,Mumbai,Chennai,New Delhi,Kolkata,3,New Delhi adalah ibu kota India.
+Q_0063,Geo Explorer,Text,GE_03,Sungai manakah yang terpanjang di India?,Godavari,Gangga,Brahmaputra,yamuna,2,Gangga adalah sungai terpanjang di India.
+Q_0064,Geo Explorer,Text,GE_04,Negara manakah yang dikenal sebagai Negeri Matahari Terbit?,Thailand,Jepang,Cina,Korea,2,Jepang disebut sebagai Negeri Matahari Terbit.
+Q_0065,Geo Explorer,Text,GE_05,Pegunungan manakah yang memisahkan India dan Cina?,Pegunungan Rocky,Andes,pegunungan Alpen,Himalaya,4,Pegunungan Himalaya memisahkan India dan Cina.
+Q_0066,Geo Explorer,Text,GE_06,Which desert is located mainly in India?,Gobi,Itu,Kalahari,Sahara,2,Gurun Thar ada di India.
+Q_0067,Geo Explorer,Text,GE_07,Negara Asia manakah yang memiliki populasi terbesar?,Cina,Jepang,Indonesia,India,1,Tiongkok memiliki populasi terbesar.
+Q_0068,Geo Explorer,Text,GE_08,Negara bagian manakah di India yang memiliki garis pantai terpanjang?,Gujarat,Andhra Pradesh,Tamil Nadu,Kerala,1,Gujarat memiliki garis pantai terpanjang.
+Q_0069,Geo Explorer,Text,GE_09,Nepal terletak di negara manakah?,Eropa,Afrika,Asia,Australia,3,Nepal terletak di Asia.
+Q_0070,Geo Explorer,Text,GE_10,Kota manakah yang dikenal sebagai ibu kota keuangan India?,Chennai,Bengaluru,Delhi,Mumbai,4,Mumbai adalah ibu kota keuangan India.
+Q_0071,Geo Explorer,Text,GE_11,Sungai manakah yang mengalir melalui Bangladesh dan India?,Efrat,harimau,industri,Brahmaputra,4,Brahmaputra mengalir melalui India dan Bangladesh.
+Q_0072,Geo Explorer,Text,GE_12,Laut manakah yang terletak di sebelah selatan India?,Laut Merah,Laut Kaspia,Laut Tengah,Laut Arab,4,Laut Arab terletak di selatan India.
+Q_0073,Geo Explorer,Text,GE_13,Negara mana yang paling dekat dengan Sri Lanka?,India,Indonesia,Malaysia,Thailand,1,Sri Lanka terletak dekat dengan India.
+Q_0074,Geo Explorer,Text,GE_14,Negara Asia manakah yang beribu kota Bangkok?,Vietnam,Laos,Thailand,Kamboja,3,Bangkok adalah ibu kota Thailand.
+Q_0075,Geo Explorer,Text,GE_15,India termasuk di benua manakah?,Afrika,Asia,Eropa,Australia,2,India adalah bagian dari Asia.
+Q_0076,Geo Explorer,Text,GE_16,Negara mana yang memiliki Menara Eiffel?,Spanyol,Perancis,Italia,Jerman,2,Menara Eiffel ada di Perancis.
+Q_0077,Geo Explorer,Text,GE_17,Laut manakah yang terluas di dunia?,India,Arktik,Atlantik,Pasifik,4,Samudra Pasifik adalah yang terbesar.
+Q_0078,Geo Explorer,Text,GE_18,Kota manakah yang dikenal sebagai Big Apple?,Los Angeles,Chicago,New York,Boston,3,New York disebut Big Apple.
+Q_0079,Geo Explorer,Text,GE_19,Negara mana yang memiliki Tembok Besar?,Cina,India,Mongolia,Jepang,1,Tembok Besar ada di Tiongkok.
+Q_0080,Geo Explorer,Text,GE_20,Di benua manakah letak Mesir?,Australia,Afrika,Asia,Eropa,2,Mesir berada di Afrika.
+Q_0081,Geo Explorer,Text,GE_21,Negara manakah yang beribu kota Roma?,Italia,Spanyol,Portugal,Perancis,1,Roma adalah ibu kota Italia.
+Q_0082,Geo Explorer,Text,GE_22,Sungai manakah yang mengalir melalui Paris?,Danube,Sungai Thames,Rhein,Pukat,4,Sungai Seine mengalir melalui Paris.
+Q_0083,Geo Explorer,Text,GE_23,Benua manakah yang terdingin?,Antartika,Afrika,Asia,Eropa,1,Antartika adalah benua terdingin.
+Q_0084,Geo Explorer,Text,GE_24,Negara manakah yang bentuknya seperti sepatu bot?,Spanyol,Italia,Perancis,Yunani,2,Italia terlihat seperti sepatu bot.
+Q_0085,Geo Explorer,Text,GE_25,Negara manakah yang disebut juga dengan Down Under?,Argentina,Afrika Selatan,Selandia Baru,Australia,4,Australia disebut Down Under.
+Q_0086,Geo Explorer,Text,GE_26,Laut manakah yang terletak di sebelah barat Afrika?,Pasifik,Atlantik,Arktik,India,2,Samudera Atlantik terletak di sebelah barat Afrika.
+Q_0087,Geo Explorer,Text,GE_27,Kota manakah yang terkenal dengan Patung Liberty?,Roma,Paris,New York,Washington DC,3,Patung Liberty ada di New York.
+Q_0088,Geo Explorer,Text,GE_28,Negara mana yang memiliki pulau paling banyak?,Jepang,Swedia,Filipina,Indonesia,2,Swedia memiliki pulau terbanyak.
+Q_0089,Geo Explorer,Text,GE_29,Which country has Canberra as its capital?,Selandia Baru,Kanada,Inggris,Australia,4,Canberra adalah ibu kota Australia.
+Q_0090,Geo Explorer,Text,GE_30,Benua manakah yang memiliki negara paling banyak?,Afrika,Amerika Selatan,Asia,Eropa,1,Afrika memiliki negara terbanyak.
+Q_0091,Geo Explorer,Image,IMG_031,Tengara manakah yang ditampilkan?,Taj Mahal,Benteng Merah,Qutub Minar,Gerbang India,1,Ini adalah Taj Mahal.
+Q_0092,Geo Explorer,Image,IMG_032,Peta negara mana yang ditampilkan?,Australia,Selandia Baru,Argentina,Afrika Selatan,1,Petanya adalah Australia.
+Q_0093,Geo Explorer,Image,IMG_033,Cakrawala kota manakah yang ditampilkan?,New York,Chicago,Boston,Los Angeles,1,Ini adalah Kota New York.
+Q_0094,Geo Explorer,Image,IMG_034,Gurun manakah yang ditampilkan?,Gobi,Itu,Atacama,Sahara,3,Ini adalah Gurun Atacama.
+Q_0095,Geo Explorer,Image,IMG_035,Gunung manakah yang ditampilkan?,Kilimanjaro,Everest,Fuji,Denali,1,Ini adalah Gunung Kilimanjaro.
+Q_0096,Geo Explorer,Image,IMG_036,Bendera negara mana yang ditampilkan?,Swiss,Denmark,Austria,Kanada,4,Ini adalah bendera Kanada.
+Q_0097,Geo Explorer,Image,IMG_037,Sungai manakah yang ditampilkan?,Amazon,Nil,industri,Yangtze,2,Ini adalah Sungai Nil.
+Q_0098,Geo Explorer,Image,IMG_038,Tengara manakah yang ditampilkan?,Colosseum,Jembatan Pelabuhan,Pasir Teluk Marina,Gedung opera,4,Ini adalah Gedung Opera Sydney.
+Q_0099,Geo Explorer,Image,IMG_039,Peta benua manakah yang ditampilkan?,Asia,Amerika Selatan,Afrika,Eropa,2,Ini adalah Amerika Selatan.
+Q_0100,Geo Explorer,Image,IMG_040,Garis besar negara mana yang ditampilkan?,Afrika Selatan,Zimbabwe,Botswana,Namibia,1,Ini adalah Afrika Selatan.
+Q_0101,Geo Explorer,Image,IMG_041,Kota mana yang ditampilkan?,Roma,Madrid,Wina,Paris,4,Ini adalah Paris.
+Q_0102,Geo Explorer,Image,IMG_042,Gunung berapi manakah yang ditampilkan?,Vesuvius,Krakatau,Fuji,etna,4,Ini adalah Gunung Etna.
+Q_0103,Geo Explorer,Image,IMG_043,Air terjun manakah yang ditampilkan?,Air Terjun Malaikat,Air Terjun Victoria,Air Terjun Iguazu,Air Terjun Niagara,4,Ini adalah Air Terjun Niagara.
+Q_0104,Geo Explorer,Image,IMG_044,Peta negara mana yang ditampilkan?,Vietnam,Korea,Cina,Jepang,4,Ini Jepang.
+Q_0105,Geo Explorer,Image,IMG_045,Negara pulau manakah yang ditampilkan?,Islandia,Skotlandia,Tanah penggembalaan,Irlandia,1,Ini adalah Islandia.
+Q_0106,Geo Explorer,Image,IMG_046,Cakrawala kota manakah yang ditampilkan?,Tokyo,Shanghai,seoul,Osaka,1,Ini Tokyo.
+Q_0107,Geo Explorer,Image,IMG_047,Gurun manakah yang ditampilkan?,Kalahari,Mojave,Sahara,Gobi,4,Ini adalah Gurun Gobi.
+Q_0108,Geo Explorer,Image,IMG_048,Pegunungan manakah yang ditampilkan?,Pegunungan Rocky,Andes,Himalaya,pegunungan Alpen,2,Ini adalah Andes.
+Q_0109,Geo Explorer,Image,IMG_049,Delta sungai manakah yang ditampilkan?,Nil,Amazon,Mekong,Gangga,4,Ini adalah Delta Gangga.
+Q_0110,Geo Explorer,Image,IMG_050,Garis besar negara mana yang ditampilkan?,Norwegia,Swedia,Denmark,Finlandia,1,Ini adalah Norwegia.
+Q_0111,Geo Explorer,Image,IMG_051,Tengara manakah yang ditampilkan?,Akropolis,Forum,Panteon,Colosseum,4,Ini adalah Colosseum.
+Q_0112,Geo Explorer,Image,IMG_052,Kota mana yang ditampilkan?,Abu Dhabi,Dubai,Riyadh,Doha,2,Ini Dubai.
+Q_0113,Geo Explorer,Image,IMG_053,Laut manakah yang ditampilkan?,Laut Baltik,Laut Tengah,Laut Hitam,Laut Merah,2,This is the Mediterranean Sea.
+Q_0114,Geo Explorer,Image,IMG_054,Pulau manakah yang ditampilkan?,phuket,Lombok,Jawa,Bali,4,Ini Bali.
+Q_0115,Geo Explorer,Image,IMG_055,Peta negara mana yang ditampilkan?,Uruguay,Chili,Paraguay,Argentina,4,Ini adalah Argentina.
+Q_0116,Geo Explorer,Image,IMG_056,Gunung manakah yang ditampilkan?,Eiger,Jungfrau,Mont Blanc,masalah,4,Ini adalah Matterhorn.
+Q_0117,Geo Explorer,Image,IMG_057,Tengara manakah yang ditampilkan?,Angkor Wat,Chichen Itza,Machu Picchu,Petra,4,Ini Petra.
+Q_0118,Geo Explorer,Image,IMG_058,Sungai manakah yang ditampilkan?,Volga,Danube,Rhein,Pukat,2,Ini adalah Sungai Danube.
+Q_0119,Geo Explorer,Image,IMG_059,Garis besar negara mana yang ditampilkan?,Kolumbia,Peru,Meksiko,Bolivia,3,Ini adalah Meksiko.
+Q_0120,Geo Explorer,Image,IMG_060,Kota mana yang ditampilkan?,Manchester,London,Dublin,Edinburgh,2,Ini London.
+Q_0121,Geo Explorer,Video,VID_001,Negara manakah yang ditampilkan dalam video ini?,Jerman,Italia,Perancis,Spanyol,3,Jawaban yang benar adalah Perancis.
+Q_0122,Geo Explorer,Video,VID_002,Bangunan terkenal ini terletak di negara manakah?,Mongolia,Korea,Jepang,Cina,4,Jawaban yang benar adalah Tiongkok.
+Q_0123,Geo Explorer,Video,VID_003,Kota manakah di India yang muncul dalam video ini?,beruntung,Agra,Delhi,Jaipur,2,Jawaban yang benar adalah Agra.
+Q_0124,Geo Explorer,Video,VID_004,Cakrawala kota ini milik negara mana?,Australia,Kanada,Inggris,Amerika Serikat,4,Jawaban yang benar adalah Amerika.
+Q_0125,Geo Explorer,Video,VID_005,Menara Eiffel terletak di kota manakah?,Madrid,Roma,Paris,Berlin,3,Jawaban yang benar adalah Paris.
+Q_0126,Geo Explorer,Video,VID_006,Struktur kuno manakah yang ditampilkan di sini?,Colosseum,Forum,Panteon,Akropolis,1,The correct answer is Colosseum.
+Q_0127,Geo Explorer,Video,VID_007,Kota manakah yang menjadi rumah bagi Patung Liberty?,New York,Boston,Filadelfia,Washington DC,1,Jawaban yang benar adalah New York.
+Q_0128,Geo Explorer,Video,VID_008,Machu Picchu terletak di negara manakah?,Chili,Bolivia,Peru,Ekuador,3,Jawaban yang benar adalah Peru.
+Q_0129,Geo Explorer,Video,VID_009,Petra adalah kota kuno di negara manakah?,Irak,Mesir,Yordania,Iran,3,Jawaban yang benar adalah Yordania.
+Q_0130,Geo Explorer,Video,VID_010,Patung ini menghadap ke kota Brazil yang mana?,Sao Paulo,Salvador,Brasilia,Rio de Janeiro,4,Jawaban yang benar adalah Rio de Janeiro.
+Q_0131,Geo Explorer,Video,VID_011,Keajaiban alam manakah yang ditampilkan di sini?,Air Terjun Iguazu,Air Terjun Victoria,Air Terjun Malaikat,Air Terjun Niagara,4,Jawaban yang benar adalah Air Terjun Niagara.
+Q_0132,Geo Explorer,Video,VID_012,Gunung Everest terletak di perbatasan Nepal dan negara mana?,Pakistan,India,Bhutan,Cina,4,Jawaban yang benar adalah Tiongkok.
+Q_0133,Geo Explorer,Video,VID_013,Bangunan ikonik ini terletak di kota manakah?,Perth,Melbourne,Sidney,Auckland,3,Jawaban yang benar adalah Sidney.
+Q_0134,Geo Explorer,Video,VID_014,Jembatan Golden Gate terletak di kota manakah?,Seattle,Los Angeles,San Fransisco,San Diego,3,Jawaban yang benar adalah San Fransisco.
+Q_0135,Geo Explorer,Video,VID_015,Cakrawala kota Asia manakah yang ditampilkan di sini?,Beijing,seoul,Tokyo,Shanghai,3,Jawaban yang benar adalah Tokyo.
+Q_0136,Geo Explorer,Video,VID_016,Burj Khalifa terletak di kota manakah?,Abu Dhabi,Dubai,Doha,Riyadh,2,Jawaban yang benar adalah Dubai.
+Q_0137,Geo Explorer,Video,VID_017,Kota Eropa manakah yang terkenal dengan kanal-kanal ini?,Amsterdam,Brugge,Venesia,Kopenhagen,3,Jawaban yang benar adalah Venesia.
+Q_0138,Geo Explorer,Video,VID_018,Angkor Wat terletak di negara manakah?,Laos,Kamboja,Thailand,Vietnam,2,Jawaban yang benar adalah Kamboja.
+Q_0139,Geo Explorer,Video,VID_019,Great Barrier Reef terletak di lepas pantai negara manakah?,Filipina,Indonesia,Australia,Malaysia,3,Jawaban yang benar adalah Australia.
+Q_0140,Geo Explorer,Video,VID_020,Hutan hujan ini terutama terletak di benua manakah?,Amerika Selatan,Asia,Afrika,Australia,1,Jawaban yang benar adalah Amerika Selatan.
+Q_0141,Geo Explorer,Video,VID_021,Ngarai terkenal manakah ini?,batu kuning,Ngarai Besar,Yosemite,Sion,2,Itu adalah Grand Canyon di Amerika.
+Q_0142,Geo Explorer,Video,VID_022,Piramida ini terletak di negara manakah?,Peru,Meksiko,Sudan,Mesir,4,Itu adalah Piramida Giza di Mesir.
+Q_0143,Geo Explorer,Video,VID_023,Apa nama lingkaran batu kuno ini?,Avebury,Karnak,Newgrange,Batu Henge,4,Itu adalah Stonehenge di Inggris.
+Q_0144,Geo Explorer,Video,VID_024,Gunung ikonik manakah yang ditampilkan di sini?,Gunung Everest,Gunung Fuji,Gunung Kilimanjaro,masalah,2,Itu adalah Gunung Fuji di Jepang.
+Q_0145,Geo Explorer,Video,VID_025,Air terjun manakah yang dikenal dengan nama 'Asap yang Bergemuruh'?,Air Terjun Niagara,Air Terjun Malaikat,Air Terjun Iguazu,Air Terjun Victoria,4,Itu adalah Air Terjun Victoria.
+Q_0146,Geo Explorer,Video,VID_026,Kota pulau bercat putih ini berada di negara manakah?,Yunani,Turki,Italia,Spanyol,1,Itu adalah Santorini di Yunani.
+Q_0147,Geo Explorer,Video,VID_027,Identify this imperial palace complex.,Kota Terlarang,Tembok Besar,Istana Musim Panas,Kuil Surga,1,Itu adalah Kota Terlarang di Beijing.
+Q_0148,Geo Explorer,Video,VID_028,Hotel berbentuk layar ini letaknya dimana?,Dubai,Abu Dhabi,Manama,Doha,1,Itu adalah Burj Al Arab di Dubai.
+Q_0149,Geo Explorer,Video,VID_029,Kota manakah yang memiliki bangunan beratap perahu ini?,Singapura,Hongkong,Kuala Lumpur,Bangkok,1,Itu adalah Marina Bay Sands di Singapura.
+Q_0150,Geo Explorer,Video,VID_030,Gedung pencakar langit 'The Shard' ini berada di kota manakah?,New York,Toronto,London,Paris,3,Itu adalah The Shard di London.
+Q_0151,Geo Explorer,Audio,AUD_001,Lagu kebangsaan ini berasal dari negara manakah?,Spanyol,Italia,Jerman,Perancis,4,Audio mewakili lagu kebangsaan Perancis.
+Q_0152,Geo Explorer,Audio,AUD_002,Lagu kebangsaan ini milik negara mana?,Thailand,Korea Selatan,Jepang,Cina,3,Audio mewakili lagu kebangsaan Jepang.
+Q_0153,Geo Explorer,Audio,AUD_003,Lagu kebangsaan negara mana yang diputar di sini?,India,Nepal,Sri Lanka,Bangladesh,1,Audio mewakili lagu kebangsaan India.
+Q_0154,Geo Explorer,Audio,AUD_004,Lagu kebangsaan ini berasal dari negara manakah?,Amerika Serikat,Australia,Inggris,Kanada,1,Audio mewakili lagu kebangsaan Amerika Serikat.
+Q_0155,Geo Explorer,Audio,AUD_005,Lagu kebangsaan ini milik negara mana?,Australia,Irlandia,Selandia Baru,Inggris,4,Audio mewakili lagu kebangsaan Inggris.
+Q_0156,Geo Explorer,Audio,AUD_006,Lagu kebangsaan negara mana yang diputar di sini?,Jerman,Swiss,Polandia,Austria,1,Audio mewakili lagu kebangsaan Jerman.
+Q_0157,Geo Explorer,Audio,AUD_007,Lagu kebangsaan ini berasal dari negara manakah?,Italia,Spanyol,Yunani,Portugal,1,Audio mewakili lagu kebangsaan Italia.
+Q_0158,Geo Explorer,Audio,AUD_008,Lagu kebangsaan ini milik negara mana?,Spanyol,Meksiko,Argentina,Portugal,1,Audio mewakili lagu kebangsaan Spanyol.
+Q_0159,Geo Explorer,Audio,AUD_009,Lagu kebangsaan negara mana yang diputar di sini?,Amerika Serikat,Perancis,Inggris,Kanada,4,Audio mewakili lagu kebangsaan Kanada.
+Q_0160,Geo Explorer,Audio,AUD_010,Lagu kebangsaan ini berasal dari negara manakah?,Selandia Baru,Australia,Afrika Selatan,Kanada,2,Audio mewakili lagu kebangsaan Australia.
+Q_0161,Geo Explorer,Audio,AUD_011,Lagu kebangsaan ini milik negara mana?,Vietnam,Korea,Jepang,Cina,4,Audio tersebut mewakili lagu kebangsaan Tiongkok.
+Q_0162,Geo Explorer,Audio,AUD_012,Lagu kebangsaan negara mana yang diputar di sini?,Chili,Argentina,Brazil,Kolumbia,3,Audio tersebut mewakili lagu kebangsaan Brasil.
+Q_0163,Geo Explorer,Audio,AUD_013,Lagu kebangsaan ini berasal dari negara manakah?,Polandia,Rusia,Ukraina,Belarusia,2,Audio tersebut mewakili lagu kebangsaan Rusia.
+Q_0164,Geo Explorer,Audio,AUD_014,Lagu kebangsaan ini milik negara mana?,Korea Utara,Jepang,Korea Selatan,Cina,3,Audio tersebut mewakili lagu kebangsaan Korea Selatan.
+Q_0165,Geo Explorer,Audio,AUD_015,Lagu kebangsaan negara mana yang diputar di sini?,Meksiko,Spanyol,Argentina,Kolumbia,1,Audio mewakili lagu kebangsaan Meksiko.
+Q_0166,Geo Explorer,Audio,AUD_016,Lagu kebangsaan ini berasal dari negara manakah?,Argentina,Chili,Brazil,Uruguay,1,Audio mewakili lagu kebangsaan Argentina.
+Q_0167,Geo Explorer,Audio,AUD_017,Lagu kebangsaan ini milik negara mana?,Mesir,Kenya,Afrika Selatan,Nigeria,3,Audio mewakili lagu kebangsaan Afrika Selatan.
+Q_0168,Geo Explorer,Audio,AUD_018,Lagu kebangsaan negara mana yang diputar di sini?,Arab Saudi,Maroko,Yordania,Mesir,4,Audio mewakili lagu kebangsaan Mesir.
+Q_0169,Geo Explorer,Audio,AUD_019,Lagu kebangsaan ini berasal dari negara manakah?,Turki,Yunani,Italia,Siprus,2,Audio mewakili lagu kebangsaan Yunani.
+Q_0170,Geo Explorer,Audio,AUD_020,Lagu kebangsaan ini milik negara mana?,Iran,Yunani,Azerbaijan,Turki,4,Audio tersebut mewakili lagu kebangsaan Turki.
+Q_0171,Geo Explorer,Audio,AUD_021,Lagu kebangsaan negara mana yang diputar di sini?,Pakistan,Afganistan,India,Iran,1,Audio mewakili lagu kebangsaan Pakistan.
+Q_0172,Geo Explorer,Audio,AUD_022,Lagu kebangsaan ini berasal dari negara manakah?,Kamboja,Malaysia,Vietnam,Thailand,4,Audio mewakili lagu kebangsaan Thailand.
+Q_0173,Geo Explorer,Audio,AUD_023,Lagu kebangsaan ini milik negara mana?,Mesir,Libanon,Yordania,Israel,4,Audio mewakili lagu kebangsaan Israel.
+Q_0174,Geo Explorer,Audio,AUD_024,Lagu kebangsaan negara mana yang diputar di sini?,Arab Saudi,Kuwait,UEA,Qatar,1,Audio tersebut mewakili lagu kebangsaan Arab Saudi.
+Q_0175,Geo Explorer,Audio,AUD_025,Lagu kebangsaan ini berasal dari negara manakah?,Singapura,Malaysia,Indonesia,Filipina,3,Audio tersebut mewakili lagu kebangsaan Indonesia.
+Q_0176,Geo Explorer,Audio,AUD_026,Lagu kebangsaan ini milik negara mana?,Jerman,Belanda,Denmark,Belgia,2,Audio mewakili lagu kebangsaan Belanda.
+Q_0177,Geo Explorer,Audio,AUD_027,Lagu kebangsaan negara mana yang diputar di sini?,Swedia,Denmark,Finlandia,Norwegia,1,Audio mewakili lagu kebangsaan Swedia.
+Q_0178,Geo Explorer,Audio,AUD_028,Lagu kebangsaan ini berasal dari negara manakah?,Swiss,Jerman,Liechtenstein,Austria,1,Audio mewakili lagu kebangsaan Swiss.
+Q_0179,Geo Explorer,Audio,AUD_029,Lagu kebangsaan ini milik negara mana?,Selandia Baru,Fiji,Australia,Samoa,1,Audio mewakili lagu kebangsaan Selandia Baru.
+Q_0180,Geo Explorer,Audio,AUD_030,Lagu kebangsaan negara mana yang diputar di sini?,Brazil,Portugal,Perancis,Spanyol,2,Audio mewakili lagu kebangsaan Portugal.
+Q_0181,Who's That,Text,WT_01,Siapa yang mendirikan Microsoft?,Bill Gates,Elon Musk,Mark Zuckerberg,Steve Jobs,1,Bill Gates ikut mendirikan Microsoft.
+Q_0182,Who's That,Text,WT_02,Siapa yang melukis Mona Lisa?,Da Vinci,Rembrandt,Van Gogh,Picasso,1,Leonardo da Vinci melukisnya.
+Q_0183,Who's That,Text,WT_03,Siapa yang dikenal sebagai Raja Pop?,Elvis Presley,Eminem,Michael Jackson,Pangeran,3,Michael Jackson adalah Raja Pop.
+Q_0184,Who's That,Text,WT_04,Siapa yang dikenal sebagai Manusia Besi India?,Nehru,Gandhi,Bose,Patel,4,Sardar Vallabhbhai Patel adalah Manusia Besi India.
+Q_0185,Who's That,Text,WT_05,Siapa yang menulis Harry Potter?,Lewis,Rowling,Tolkien,Martin,2,J.K. Rowling wrote Harry Potter.
+Q_0186,Who's That,Text,WT_06,Siapa penemu bola lampu?,Tesla,Edison,Einstein,Newton,2,Thomas Edison menemukan bola lampu.
+Q_0187,Who's That,Text,WT_07,Siapa yang menemukan gravitasi?,Newton,Einstein,Galileo,Darwin,1,Isaac Newton menemukan gravitasi.
+Q_0188,Who's That,Text,WT_08,Siapa pendiri Facebook?,Mark Zuckerberg,Steve Jobs,Elon Musk,Bill Gates,1,Mark Zuckerberg mendirikan Facebook.
+Q_0189,Who's That,Text,WT_09,Siapa yang menulis Romeo dan Juliet?,Shakespeare,Australia,Kembar,Iblis,1,William Shakespeare menulis Romeo dan Juliet.
+Q_0190,Who's That,Text,WT_10,Siapa yang membantu Rama membangun jembatan ke Lanka?,Hanoman,Vibhishana,Nala,Sugriva,3,Nala membantu membangun jembatan ke Lanka.
+Q_0191,Who's That,Text,WT_11,Siapa CEO Tesla?,Bezos,Zuckerberg,Gerbang,Musk,4,Elon Musk adalah CEO Tesla.
+Q_0192,Who's That,Text,WT_12,Siapa manusia pertama yang berjalan di bulan?,Michael Collins,Yuri Gagarin,Buzz Aldrin,Neil Amstrong,4,Neil Armstrong berjalan pertama kali di bulan.
+Q_0193,Who's That,Text,WT_13,Siapa penulis The Hobbit?,Tolkien,Rowling,Lewis,Martin,1,J.R.R. Tolkien menulis The Hobbit.
+Q_0194,Who's That,Text,WT_14,Siapa yang dikenal sebagai Manusia Rudal India?,Vikram Sarabhai,APJ Abdul Kalam,Raman,Ambedkar,2,Dr. Abdul Kalam mendapatkan gelar tersebut.
+Q_0195,Who's That,Text,WT_15,Siapa yang mendirikan Apple?,Gerbang,Musk,Halaman,Pekerjaan,4,Steve Jobs ikut mendirikan Apple.
+Q_0196,Who's That,Text,WT_16,Siapa yang menemukan penisilin?,Pasteur,Newton,penasaran,Fleming,4,Alexander Fleming menemukan penisilin.
+Q_0197,Who's That,Text,WT_17,Siapa yang disebut sebagai Bapak Komputer?,Bill Gates,Steve Jobs,Alan Turing,Charles Babbage,4,Charles Babbage dikenal sebagai Bapak Komputer.
+Q_0198,Who's That,Text,WT_18,Siapa yang menemukan Amerika?,Colombus,Memasak,Vasco da Gama,Magellan,1,Christopher Columbus menemukan Amerika.
+Q_0199,Who's That,Text,WT_19,Siapa yang mendirikan Amazon?,Zuckerberg,Gerbang,Bezos,Musk,3,Jeff Bezos mendirikan Amazon.
+Q_0200,Who's That,Text,WT_20,Siapa yang dikenal sebagai Penyair Avon?,Shakespeare,Nilai kata,Milton,Chaucer,1,William Shakespeare disebut Penyair Avon.
+Q_0201,Who's That,Text,WT_21,Siapa wanita pertama di luar angkasa?,Valentina Tereshkova,Kalpana Chawla,Sally naik,Sunita Williams,1,Valentina Tereshkova adalah wanita pertama yang berada di luar angkasa.
+Q_0202,Who's That,Text,WT_22,Siapa yang mengecat langit-langit Kapel Sistina?,Raphael,Donatello,Da Vinci,Michelangelo,4,Michelangelo melukis langit-langit Kapel Sistina.
+Q_0203,Who's That,Text,WT_23,Siapa yang mendirikan SpaceX?,Halaman,Bezos,Musk,Branson,3,Elon Musk mendirikan SpaceX.
+Q_0204,Who's That,Text,WT_24,Siapa yang menulis The Catcher in the Rye?,Salinger,Fitzgerald,Hemingway,Orwell,1,JD Salinger menulis The Catcher in the Rye.
+Q_0205,Who's That,Text,WT_25,Siapa Presiden pertama Amerika Serikat?,Washington,Adam,Jefferson,Lincoln,1,George Washington adalah Presiden AS pertama.
+Q_0206,Who's That,Text,WT_26,Siapa yang dikenal sebagai Sikh Terbang?,Milkha Singh,Neeraj Chopra,Abhinav Bindra,PT usha,1,Milkha Singh dikenal sebagai Sikh Terbang.
+Q_0207,Who's That,Text,WT_27,Siapa yang menggubah Simfoni No.5?,Bach,Chopin,Mozart,Beethoven,4,Beethoven menggubah Simfoni No.5.
+Q_0208,Who's That,Text,WT_28,Siapa penemu telepon?,Bel,Edison,Marconi,Tesla,1,Alexander Graham Bell menemukan telepon.
+Q_0209,Who's That,Text,WT_29,Siapa kusir Arjuna pada perang Kurukshetra?,Bisma,Karna,Naga,Kresna,4,Sri Krishna adalah kusir Arjuna.
+Q_0210,Who's That,Text,WT_30,Siapa wanita pertama yang memenangkan Hadiah Nobel?,Herschel,penasaran,Meitner,Goeppert-Mayer,2,Marie Curie adalah wanita pertama penerima Nobel.
+Q_0211,Who's That,Image,IMG_061,Siapa yang ditunjukkan pada gambar?,Mbappe,Messi,Ronaldo,Neymar,2,Ini Lionel Messi.
+Q_0212,Who's That,Image,IMG_062,Siapakah karakter fiksi ini?,Manusia laba-laba,Batman,Manusia Besi,manusia unggul,1,Ini adalah Spider-Man.
+Q_0213,Who's That,Image,IMG_063,Siapa yang ditampilkan?,Amitabh Bachchan,Aamir Khan,Rajesh Khanna,Salman Khan,1,Ini Amitabh Bachchan.
+Q_0214,Who's That,Image,IMG_064,Siapakah karakter fiksi ini?,Ron Weasley,Harry Potter,Frodo,Percy Jackson,2,Ini Harry Potter.
+Q_0215,Who's That,Image,IMG_065,Siapa yang ditampilkan?,Williams,Osaka,Sharapova,Halep,1,Ini Serena Williams.
+Q_0216,Who's That,Image,IMG_066,Siapakah karakter fiksi ini?,Yoda,Darth Vader,Kylo Ren,Lukas Skywalker,2,Ini Darth Vader.
+Q_0217,Who's That,Image,IMG_067,Siapa yang ditampilkan?,Musk,Bezos,Memasak,Gerbang,1,Ini adalah Elon Musk.
+Q_0218,Who's That,Image,IMG_068,Siapakah karakter fiksi ini?,manusia unggul,Kilatan,Pelawak,Batman,4,Ini adalah Batman.
+Q_0219,Who's That,Image,IMG_069,Siapa yang ditampilkan?,Adani,Birla,Ambani,Ratan Tata,4,Ini Ratan Tata.
+Q_0220,Who's That,Image,IMG_070,Siapakah karakter fiksi ini?,goku,Vegeta,Luffy,Naruto,1,Ini Goku.
+Q_0221,Who's That,Image,IMG_071,Siapa yang ditampilkan?,Beyonce,Rihanna,Cepat,Adele,3,Ini Taylor Swift.
+Q_0222,Who's That,Image,IMG_072,Siapakah karakter fiksi ini?,Menjalin kedekatan,Poirot,Watson,Holmes,4,Ini SherlockHolmes.
+Q_0223,Who's That,Image,IMG_073,Siapa yang ditampilkan?,Dravida,Sachin,Dhoni,Kohli,2,Ini Sachin Tendulkar.
+Q_0224,Who's That,Image,IMG_074,Siapakah karakter fiksi ini?,Homer,Stewie,Bart,Peter Griffin,1,Ini Homer Simpson.
+Q_0225,Who's That,Image,IMG_075,Siapa yang ditampilkan?,Ellen,Winfrey,Gaga,Cepat,2,Ini Oprah Winfrey.
+Q_0226,Who's That,Image,IMG_076,Siapakah karakter fiksi ini?,Kapten Amerika,Hulk,Manusia Besi,Thor,1,Ini Kapten Amerika.
+Q_0227,Who's That,Image,IMG_077,Siapa yang ditampilkan?,Yogi Adityanath,Amit Syah,Narendra Modi,Rahul Gandhi,3,Ini Narendra Modi.
+Q_0228,Who's That,Image,IMG_078,Siapakah karakter fiksi ini?,Miki,Donald,Tom,Bodoh,1,Ini Mickey Mouse.
+Q_0229,Who's That,Image,IMG_079,Siapa yang ditampilkan?,Terima kasih,DiCaprio,Pelayaran,Pitt,2,This is Leonardo DiCaprio.
+Q_0230,Who's That,Image,IMG_080,Siapakah karakter fiksi ini?,Pelawak,Penguin,teka-teki,Batman,1,Ini adalah Jokernya.
+Q_0231,Who's That,Image,IMG_081,Siapa yang ditampilkan?,Meitner,Franklin,penasaran,Bagus sekali,3,Ini Marie Curie.
+Q_0232,Who's That,Image,IMG_082,Siapakah karakter fiksi ini?,Rapunzel,Moana,Elsa,Anna,3,Ini Elsa.
+Q_0233,Who's That,Image,IMG_083,Siapa yang ditampilkan?,Yordania,Kobe,LeBron,Kari,1,Ini Michael Jordan.
+Q_0234,Who's That,Image,IMG_084,Siapakah karakter fiksi ini?,Penglihatan,Manusia Besi,Thor,Hulk,2,Ini adalah Manusia Besi.
+Q_0235,Who's That,Image,IMG_085,Siapa yang ditampilkan?,Bohr,Einstein,Feynman,Tesla,2,Ini Albert Einstein.
+Q_0236,Who's That,Image,IMG_086,Siapakah karakter fiksi ini?,Pikachu,menyemprot,Charmander,Bulbasaur,1,Ini adalah Pikachu.
+Q_0237,Who's That,Image,IMG_087,Siapa yang ditampilkan?,Baut,Gatlin,Lewis,Blake,1,Ini adalah Usain Bolt.
+Q_0238,Who's That,Image,IMG_088,Siapakah karakter fiksi ini?,mario,Kirby,Luigi,Sonik,1,Ini Mario.
+Q_0239,Who's That,Image,IMG_089,Siapa yang ditampilkan?,Pekerjaan,Zuckerberg,Gerbang,Bezos,3,Ini Bill Gates.
+Q_0240,Who's That,Image,IMG_090,Siapakah karakter fiksi ini?,Doraemon,Pokemon,Shinchan,Nobita,1,Ini Doraemon.
+Q_0241,Who's That,Video,VID_031,Siapa yang ditampilkan dalam klip video ini?,Mark Zuckerberg,Jeff Bezos,Bill Gates,Elon Musk,4,Orang yang ditampilkan adalah Elon Musk.
+Q_0242,Who's That,Video,VID_032,Siapa yang ditampilkan dalam klip video ini?,MS Dhoni,Sachin Tendulkar,Virat Kohli,Rohit Sharma,3,Orang yang ditampilkan adalah Virat Kohli.
+Q_0243,Who's That,Video,VID_033,Siapa yang ditampilkan dalam klip video ini?,Virender Sehwag,Rahul Dravid,MS Dhoni,Kapil Dev,3,Orang yang ditampilkan adalah MS Dhoni.
+Q_0244,Who's That,Video,VID_034,Siapa yang ditampilkan dalam klip video ini?,Tom Cruise,Johnny Depp,Brad Pitt,Leonardo DiCaprio,4,Orang yang ditampilkan adalah Leonardo DiCaprio.
+Q_0245,Who's That,Video,VID_035,Siapa yang ditampilkan dalam klip video ini?,Anne Hathaway,Emma Batu,Scarlett Johansson,Jenifer Lawrence,3,Orang yang ditampilkan adalah Scarlett Johansson.
+Q_0246,Who's That,Video,VID_036,Siapa yang ditampilkan dalam klip video ini?,Neymar,Cristiano Ronaldo,Lionel Messi,Mbappe,2,Orang yang ditampilkan adalah Cristiano Ronaldo.
+Q_0247,Who's That,Video,VID_037,Siapa yang ditampilkan dalam klip video ini?,Ronaldinho,Lionel Messi,Xavi,Maradona,2,Orang yang ditampilkan adalah Lionel Messi.
+Q_0248,Who's That,Video,VID_038,Siapa yang ditampilkan dalam klip video ini?,Ben Affleck,Brad Pitt,Tom Cruise,Matt Damon,3,Orang yang ditampilkan adalah Tom Cruise.
+Q_0249,Who's That,Video,VID_039,Siapa yang ditampilkan dalam klip video ini?,Tandai Ruffalo,Chris Hemsworth,Robert Downey Jr,Chris Evans,3,Orang yang ditampilkan adalah Robert Downey Jr.
+Q_0250,Who's That,Video,VID_040,Siapa yang ditampilkan dalam klip video ini?,Aamir Khan,Hrithik Roshan,Salman Khan,Syah Rukh Khan,4,Orang yang ditampilkan adalah Shah Rukh Khan.
+Q_0251,Who's That,Video,VID_041,Siapa yang ditampilkan dalam klip video ini?,Salman Khan,Aamir Khan,Akshay Kumar,Syah Rukh Khan,1,Orang yang ditampilkan adalah Salman Khan.
+Q_0252,Who's That,Video,VID_042,Siapa yang ditampilkan dalam klip video ini?,Dharma,Rajesh Khanna,Resi Kapoor,Amitabh Bachchan,4,Orang yang ditampilkan adalah Amitabh Bachchan.
+Q_0253,Who's That,Video,VID_043,Siapa yang ditampilkan dalam klip video ini?,Narendra Modi,Amit Syah,Rahul Gandhi,Manmohan Singh,1,Orang yang ditampilkan adalah Narendra Modi.
+Q_0254,Who's That,Video,VID_044,Siapa yang ditampilkan dalam klip video ini?,George Bush,Bill Clinton,Barrack Obama,Joe Biden,3,Orang yang ditampilkan adalah Barack Obama.
+Q_0255,Who's That,Video,VID_045,Siapa yang ditampilkan dalam klip video ini?,Tim Masak,Steve Wozniak,Bill Gates,Steve Jobs,4,Orang yang ditampilkan adalah Steve Jobs.
+Q_0256,Who's That,Video,VID_046,Siapa yang ditampilkan dalam klip video ini?,Bill Gates,Elon Musk,Mark Zuckerberg,Jeff Bezos,1,Orang yang ditampilkan adalah Bill Gates.
+Q_0257,Who's That,Video,VID_047,Siapa yang ditampilkan dalam klip video ini?,Larry Halaman,Jack Dorsey,Sergei Brin,Mark Zuckerberg,4,Orang yang ditampilkan adalah Mark Zuckerberg.
+Q_0258,Who's That,Video,VID_048,Siapa yang ditampilkan dalam klip video ini?,Warren Buffett,Bill Gates,Jeff Bezos,Elon Musk,3,Orang yang ditampilkan adalah Jeff Bezos.
+Q_0259,Who's That,Video,VID_049,Siapa yang ditampilkan dalam klip video ini?,Venus Williams,Simona Halep,Serena Williams,Naomi Osaka,3,Orang yang ditampilkan adalah Serena Williams.
+Q_0260,Who's That,Video,VID_050,Siapa yang ditampilkan dalam klip video ini?,LeBron James,Kobe Bryant,Shaquille O'Neal,Michael Jordan,4,Orang yang ditampilkan adalah Michael Jordan.
+Q_0261,Who's That,Video,VID_051,Siapa yang ditampilkan dalam klip video ini?,Rafael Nadal,Roger Federer,andi murray,Novak Djokovic,2,Orang yang ditampilkan adalah Roger Federer.
+Q_0262,Who's That,Video,VID_052,Siapa yang ditampilkan dalam klip video ini?,Yohan Blake,Justin Gatlin,Tyson Gay,Usain Bolt,4,Orang yang ditampilkan adalah Usain Bolt.
+Q_0263,Who's That,Video,VID_053,Siapa yang ditampilkan dalam klip video ini?,andi murray,Rafael Nadal,Novak Djokovic,Roger Federer,2,Orang yang ditampilkan adalah Rafael Nadal.
+Q_0264,Who's That,Video,VID_054,Siapa yang ditampilkan dalam klip video ini?,Dustin Johnson,Hutan Harimau,Rory McIlroy,Phil Mickelson,2,Orang yang ditampilkan adalah Tiger Woods.
+Q_0265,Who's That,Video,VID_055,Siapa yang ditampilkan dalam klip video ini?,Ariana Grande,Katy Perry,Taylor Swift,selena gomez,3,Orang yang ditampilkan adalah Taylor Swift.
+Q_0266,Who's That,Video,VID_056,Siapa yang ditampilkan dalam klip video ini?,Emma Batu,Emma Watson,Anne Hathaway,Natalie Portman,2,Orang yang ditampilkan adalah Emma Watson.
+Q_0267,Who's That,Video,VID_057,Siapa yang ditampilkan dalam klip video ini?,Chris Evans,Chris Pratt,Ryan Reynolds,Chris Hemsworth,4,Orang yang ditampilkan adalah Chris Hemsworth.
+Q_0268,Who's That,Video,VID_058,Siapa yang ditampilkan dalam klip video ini?,Tom Cruise,Johnny Depp,Brad Pitt,Keanu Reeves,4,Orang yang ditampilkan adalah Keanu Reeves.
+Q_0269,Who's That,Video,VID_059,Siapa yang ditampilkan dalam klip video ini?,Akankah Smith,Denzel Washington,Jamie Foxx,Eddie Murphy,1,Orang yang ditampilkan adalah Will Smith.
+Q_0270,Who's That,Video,VID_060,Siapa yang ditampilkan dalam klip video ini?,Dave Bautista,Dwayne Johnson,John Cena,Batu,2,Orang yang ditampilkan adalah Dwayne Johnson.
+Q_0271,Brain Sprint,Text,SQ_01,Berapakah 15+27?,42,,,,1,Penjumlahan: 15 + 27 = 42.
+Q_0272,Brain Sprint,Text,SQ_02,Berapakah 12 dikalikan 8?,96,,,,1,Perkalian: 12 * 8 = 96.
+Q_0273,Brain Sprint,Text,SQ_03,"Berapa menit dalam 2,5 jam?",150,,,,1,"2 jam = 120 menit, 0,5 jam = 30 menit. Jumlahnya 150."
+Q_0274,Brain Sprint,Text,SQ_04,"Berapakah bilangan selanjutnya pada barisan tersebut: 2, 4, 8, 16, ...?",32,,,,1,Urutannya berlipat ganda setiap kali.
+Q_0275,Brain Sprint,Text,SQ_05,Berapa 150 dibagi 6?,25,,,,1,Pembagian: 150/6 = 25.
+Q_0276,Brain Sprint,Text,SQ_06,Berapa banyak sisi yang dimiliki segi tujuh beraturan?,7,,,,1,Segi tujuh memiliki 7 sisi.
+Q_0277,Brain Sprint,Text,SQ_07,What is 9 squared?,81,,,,1,9*9 = 81.
+Q_0278,Brain Sprint,Text,SQ_08,Berapa banyak pemain dalam tim sepak bola di lapangan sekaligus?,11,,,,1,Setiap tim mempunyai 11 pemain.
+Q_0279,Brain Sprint,Text,SQ_09,Berapa jumlah sudut dalam suatu segitiga (dalam derajat)?,180,,,,1,Sudut dalam suatu segitiga selalu berjumlah 180 derajat.
+Q_0280,Brain Sprint,Text,SQ_10,Berapakah 100 dikurangi 37?,63,,,,1,Pengurangan: 100 - 37 = 63.
+Q_0281,Brain Sprint,Text,SQ_11,Berapa banyak negara bagian yang ada di Amerika Serikat?,50,,,,1,Amerika mempunyai 50 negara bagian.
+Q_0282,Brain Sprint,Text,SQ_12,Berapakah akar kuadrat dari 144?,12,,,,1,12*12 = 144.
+Q_0283,Brain Sprint,Text,SQ_13,Ada berapa hari dalam satu tahun kabisat?,366,,,,1,A leap year has 366 days.
+Q_0284,Brain Sprint,Text,SQ_14,Berapakah 7 dikalikan 13?,91,,,,1,7*13 = 91.
+Q_0285,Brain Sprint,Text,SQ_15,Berapa banyak senar yang dimiliki gitar standar?,6,,,,1,Gitar standar memiliki 6 senar.
+Q_0286,Brain Sprint,Text,SQ_16,"Berapakah bilangan selanjutnya pada barisan tersebut: 1, 4, 9, 16, ...?",25,,,,1,"Urutannya mengikuti bilangan kuadrat: 1^2, 2^2, 3^2, 4^2, 5^2."
+Q_0287,Brain Sprint,Text,SQ_17,Berapa jumlah tulang pada tubuh manusia dewasa?,206,,,,1,Manusia dewasa mempunyai 206 tulang.
+Q_0288,Brain Sprint,Text,SQ_18,Berapakah 20% dari 150?,30,,,,1,"0,20*150 = 30."
+Q_0289,Brain Sprint,Text,SQ_19,Berapa banyak angka nol dalam satu juta?,6,,,,1,1.000.000 memiliki enam angka nol.
+Q_0290,Brain Sprint,Text,SQ_20,Berapakah 11 dikali 11?,121,,,,1,11 * 11 = 121.
+Q_0291,Brain Sprint,Text,SQ_21,Berapa tahun dalam satu abad?,100,,,,1,Satu abad terdiri dari 100 tahun.
+Q_0292,Brain Sprint,Text,SQ_22,Berapa 250 dibagi 5?,50,,,,1,250/5 = 50.
+Q_0293,Brain Sprint,Text,SQ_23,Berapa banyak benua yang ada di bumi?,7,,,,1,Ada 7 benua.
+Q_0294,Brain Sprint,Text,SQ_24,Berapakah (10 + 5) dikalikan 3?,45,,,,1,15*3 = 45.
+Q_0295,Brain Sprint,Text,SQ_25,Berapa jam dalam 3 hari?,72,,,,1,3*24 = 72.
+Q_0296,Brain Sprint,Text,SQ_26,Berapa titik didih air dalam Celcius?,100,,,,1,Air mendidih pada suhu 100 derajat Celcius.
+Q_0297,Brain Sprint,Text,SQ_27,Berapa banyak sisi yang dimiliki segi enam?,6,,,,1,Segi enam mempunyai 6 sisi.
+Q_0298,Brain Sprint,Text,SQ_28,Berapa 500 dikurangi 125?,375,,,,1,500 - 125 = 375.
+Q_0299,Brain Sprint,Text,SQ_29,Berapa detik dalam 5 menit?,300,,,,1,5*60 = 300.
+Q_0300,Brain Sprint,Text,SQ_30,Berapa 8 kali 9?,72,,,,1,8*9 = 72.

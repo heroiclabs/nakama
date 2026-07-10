@@ -37,7 +37,7 @@ function asyncChallengeTransitionState(session, event, data) {
     if (status === ASYNC_STATUS_EXPIRED)
         return { ok: false, errorCode: 'TERMINAL', error: 'This challenge has expired.' };
     if (status === ASYNC_STATUS_BOTH_COMPLETED) {
-        if (event !== AC_EVT_CREATOR_SUBMIT && event !== AC_EVT_OPPONENT_SUBMIT)
+        if (event !== AC_EVT_CREATOR_SUBMIT && event !== AC_EVT_OPPONENT_SUBMIT && event !== AC_EVT_CANCEL)
             return { ok: false, errorCode: 'TERMINAL', error: 'Challenge is already completed.' };
     }
 

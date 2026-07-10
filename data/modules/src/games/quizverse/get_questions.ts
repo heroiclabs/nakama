@@ -66,6 +66,62 @@ namespace QvGetQuestions {
     "video-quiz":     "video_quiz"
   };
 
+  // Every topic the cache/provider layer actually understands — mirrors the
+  // `switch(topic)` in question_cache.ts's fetchForTopic(). Keep in sync manually
+  // whenever a new case is added there.
+  var KNOWN_TOPICS: { [t: string]: boolean } = {
+    geography: true, speed_quiz: true, true_false: true, anime: true, pokemon: true,
+    cocktail: true, food: true, dog: true, ghibli: true, disney: true, starwars: true,
+    countries: true, flags: true, space: true, movies: true, sports: true, music: true,
+    news: true, daily: true, weekly: true, video_quiz: true, ai: true
+  };
+
+  // Media-pool topics the AI-driven image/media quiz modes (Who's That, Brain Sprint,
+  // Image Quiz, Audio Quiz) mix together for their "Random Mix" category.
+  var MEDIA_MIX_TOPICS = ["anime", "dog", "pokemon", "sports"];
+
+  // #QVVBS-CACHE (2026-07): UnifiedRoomPanel bakes the UI display label of the
+  // selected mode ("Who's That — Random Mix", "Brain Sprint - Random Mix", "Audio
+  // Quiz — Random Mix", …) straight into CreateRoomRequest.CustomTopic when priming
+  // multiplayer lazy question generation, instead of a real topic slug — confirmed
+  // live in qv_circuit_breakers ("Unknown topic: brain sprint - random mix" /
+  // "Unknown topic: audio quiz — random mix"). An unrecognized label used to fall
+  // straight through to fetchForTopic()'s `default: throw`, which tripped that
+  // (bogus, one-off) topic's circuit breaker and returned zero AI-generated
+  // questions for the rest of the match — the "AI could not generate additional
+  // questions" symptom reported for Who's That / Brain Sprint / Image Quiz / Audio
+  // Quiz. Rather than patch every current and future Unity call site, normalize
+  // server-side so any caller sending a human-readable label still resolves to a
+  // real, cacheable topic.
+  function normalizeUnresolvedTopic(topic: string, seedKey: string): string {
+    for (var i = 0; i < MEDIA_MIX_TOPICS.length; i++) {
+      if (topic.indexOf(MEDIA_MIX_TOPICS[i]) !== -1) return MEDIA_MIX_TOPICS[i];
+    }
+    if (topic.indexOf("space") !== -1 || topic.indexOf("nasa") !== -1) return "space";
+    if (topic.indexOf("flag") !== -1 || topic.indexOf("countr") !== -1) return "flags";
+    if (topic.indexOf("video") !== -1) return "video_quiz";
+    if (topic.indexOf("movie") !== -1 || topic.indexOf("film") !== -1) return "movies";
+    // "audio" must resolve here too — Audio Quiz's raw label is "audio quiz — random
+    // mix" and contains no "music"/"song" keyword, so it used to fall all the way
+    // through to a MEDIA_MIX_TOPICS guess (an image-only topic), still leaving Audio
+    // Quiz with zero real audio content. "music" is now the one topic with actual
+    // media.type==="audio" questions (Deezer, see question_cache.ts fetchDeezer).
+    if (topic.indexOf("music") !== -1 || topic.indexOf("song") !== -1 || topic.indexOf("audio") !== -1) return "music";
+    if (topic.indexOf("news") !== -1) return "news";
+
+    // No recognizable topic keyword — likely a bare "<mode> — random mix" label.
+    // Deterministically pick a media topic from a hash of the caller-supplied label
+    // so repeated requests with the SAME bad label resolve the same way (stable, not
+    // literally random per-call), while still spreading load across providers.
+    if (topic.indexOf("random") !== -1 || topic.indexOf("mix") !== -1 || topic === "") {
+      var hash = 0;
+      for (var j = 0; j < seedKey.length; j++) hash = (hash * 31 + seedKey.charCodeAt(j)) | 0;
+      return MEDIA_MIX_TOPICS[Math.abs(hash) % MEDIA_MIX_TOPICS.length];
+    }
+
+    return topic; // genuinely unknown — let fetchForTopic's `default: throw` handle it as before
+  }
+
   // ── Allowed game IDs (org2) ────────────────────────────────────────────────
   var ALLOWED_GAME_IDS: { [id: string]: boolean } = {
     "126bf539-dae2-4bcf-964d-316c0fa1f92b": true,  // QuizVerse production
@@ -1011,6 +1067,14 @@ namespace QvGetQuestions {
     var topic = (typeof req.topic === "string" && req.topic) ? req.topic.toLowerCase().trim() : "";
     if (!topic) throw nakamaError("topic is required", nkruntime.Codes.INVALID_ARGUMENT);
     if (TOPIC_ALIASES[topic]) topic = TOPIC_ALIASES[topic];
+
+    if (!KNOWN_TOPICS[topic]) {
+      var normalizedTopic = normalizeUnresolvedTopic(topic, userId + "|" + topic);
+      if (normalizedTopic !== topic) {
+        logger.warn("[QvGetQ] normalized unrecognized topic '" + topic + "' -> '" + normalizedTopic + "' user=" + userId);
+        topic = normalizedTopic;
+      }
+    }
 
     var count = DEFAULT_COUNT;
     if (typeof req.count === "number" && req.count >= MIN_COUNT) {

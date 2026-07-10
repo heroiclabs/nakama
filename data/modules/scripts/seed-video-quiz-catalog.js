@@ -31,20 +31,18 @@ const OUTPUT_FILE = path.join(BUILD_DIR, 'video_quiz_catalog.json');
 const DEFAULT_CDN_BASE =
   'https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/assets';
 
-const DEFAULT_CSV_ROOT = path.resolve(
-  MODULES_DIR,
-  '..',
-  '..',
-  '..',
-  '..',
-  'Int-newFolder',
-  'intelliverse-x-games-platform-2',
-  'games',
-  'quiz-verse',
-  'Assets',
-  'Resources',
-  'FallBackQuestionCSV',
-);
+// #QVVBS-CACHE (2026-07): the old default pointed at a sibling-repo path
+// (Int-newFolder/intelliverse-x-games-platform-2/...) that no longer exists (the
+// Unity repo now lives at a completely different location, and is never checked out
+// alongside this repo in the production Docker build anyway — Dockerfile.production
+// only COPYs data/modules/). That made this script fail with "CSV root not found"
+// on every real build, so build/video_quiz_catalog.json was never generated, so
+// postbuild.js never embedded __QV_VIDEO_QUIZ_CATALOG__, so qv_catalog_video_quiz
+// stayed permanently empty in production ("Video Quiz — Issue observed",
+// catalog_bundle_missing). Fix: commit a copy of the CSVs into THIS repo
+// (data/modules/assets/video_quiz_csv/) so the build is self-contained and works
+// identically in local dev, CI, and the Docker build context.
+const DEFAULT_CSV_ROOT = path.join(MODULES_DIR, 'assets', 'video_quiz_csv');
 
 const OPTION_IDS = ['A', 'B', 'C', 'D'];
 

@@ -19352,7 +19352,12 @@ function asyncChallengeTransitionState(session, event, data) {
         return { ok: false, errorCode: 'TERMINAL', error: 'This challenge has expired.' };
     if (status === ASYNC_STATUS_BOTH_COMPLETED) {
         // Submit is idempotent even on completed sessions (offline-queue retry path).
-        if (event !== AC_EVT_CREATOR_SUBMIT && event !== AC_EVT_OPPONENT_SUBMIT)
+        // CANCEL falls through to its own case below instead of being swallowed here —
+        // that case returns the more specific errorCode='ALREADY_COMPLETED' (vs. this
+        // guard's generic 'TERMINAL'), which is what async_challenge_state_machine_test.js
+        // asserts. Before this fix the CANCEL case's ALREADY_COMPLETED branch (below) was
+        // unreachable dead code because this guard always intercepted it first.
+        if (event !== AC_EVT_CREATOR_SUBMIT && event !== AC_EVT_OPPONENT_SUBMIT && event !== AC_EVT_CANCEL)
             return { ok: false, errorCode: 'TERMINAL', error: 'Challenge is already completed.' };
     }
 
