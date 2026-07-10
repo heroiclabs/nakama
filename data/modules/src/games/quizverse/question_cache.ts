@@ -1,4 +1,4 @@
-﻿// question_cache.ts — QuizVerse question-delivery cache layer.
+// question_cache.ts — QuizVerse question-delivery cache layer.
 //
 // NO RPCS IN THIS FILE — utility namespace only.
 // Called by get_questions.ts (Phase 1b) and by a background cron refresh.
@@ -116,14 +116,15 @@ namespace QvQuestionCache {
   //   NASA        → https://api.nasa.gov  (already defaults to DEMO_KEY)
 
   var FALLBACK_KEYS: { [k: string]: string } = {
-    TMDB_API_KEY:       "93ca6d6373e2584a56bfe144bee48280",
+    TMDB_API_KEY: "93ca6d6373e2584a56bfe144bee48280",
+    REST_COUNTRIES_API_KEY: "rc_live_97dedc18b8484adbbef2908738179d54",
     LASTFM_API_KEY:     "",   // ← paste your Last.fm key here
-    GNEWS_API_KEY:      "996c2e560c01a91df9d4a9ddbef0e38e",
-    CURRENTS_API_KEY:   "vJ7f8IPcf_vrhpwk2_-wqzVOpFCxHV26zMhKv4NPV_KiXb-r",
+    GNEWS_API_KEY: "996c2e560c01a91df9d4a9ddbef0e38e",
+    CURRENTS_API_KEY: "vJ7f8IPcf_vrhpwk2_-wqzVOpFCxHV26zMhKv4NPV_KiXb-r",
     MEDIASTACK_API_KEY: "ec6ef35b59624891e5604efb140adefb",
-    NEWSAPI_API_KEY:    "5cbc52d4e9e14df683ed965b04cbf6fb",
+    NEWSAPI_API_KEY: "5cbc52d4e9e14df683ed965b04cbf6fb",
     GUARDIAN_API_KEY:   "test",   // Guardian developer tier — replace with production key when ready
-    NASA_API_KEY:       "g2ofGlzt9YRi0pt2xHhLjCygLWdi6536mEGezmr9"   // safe public fallback (50 req/day)
+    NASA_API_KEY: "g2ofGlzt9YRi0pt2xHhLjCygLWdi6536mEGezmr9"   // safe public fallback (50 req/day)
   };
 
   function envKey(env: any, key: string): string {
@@ -722,67 +723,44 @@ namespace QvQuestionCache {
     }
     if (media.length === 0) return results; // best-effort — Jikan already covers this topic
 
-    var genreSetAL: { [g: string]: boolean } = {};
+    // Image Guess must ask players to identify the pictured anime. The previous
+    // genre/year templates displayed a cover while asking unrelated metadata,
+    // which made the mode feel internally inconsistent.
+    var allTitlesAL: string[] = [];
     for (var ag2 = 0; ag2 < media.length; ag2++) {
-      var gens2: string[] = media[ag2].genres || [];
-      for (var gi4 = 0; gi4 < gens2.length; gi4++) genreSetAL[gens2[gi4]] = true;
+      var mediaTitle = media[ag2] && media[ag2].title
+        ? (media[ag2].title.english || media[ag2].title.romaji)
+        : "";
+      if (mediaTitle) allTitlesAL.push(String(mediaTitle));
     }
-    var allGenresAL: string[] = Object.keys(genreSetAL).length >= 6 ? Object.keys(genreSetAL) : ANIME_GENRES;
 
     for (var mi = 0; mi < media.length; mi++) {
       var m: any = media[mi];
       try {
         var titleAL: string = (m.title && (m.title.english || m.title.romaji)) || "Unknown";
-        var yearAL: number | null = (m.startDate && m.startDate.year) || null;
-        var genresAL: string[] = m.genres || [];
         var coverAL: string | null = (m.coverImage && m.coverImage.large) || null;
         var mediaAL: any = coverAL ? { type: "image", url: coverAL, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null;
+        if (!coverAL) continue;
 
-        if (genresAL.length === 0 && !yearAL) continue;
+        var excludeTitleAL: { [k: string]: boolean } = {};
+        excludeTitleAL[titleAL] = true;
+        var wrongTitlesAL = pickExcluding(allTitlesAL, excludeTitleAL, 3);
+        if (wrongTitlesAL.length < 3) continue;
 
-        var useGenreTpl = genresAL.length > 0 && (Math.random() < 0.6 || !yearAL);
-        var q2: RawQuestion | null = null;
-
-        if (useGenreTpl) {
-          var correctGenreAL = genresAL[0];
-          var exSetAL: { [k: string]: boolean } = {};
-          for (var gx2 = 0; gx2 < genresAL.length; gx2++) exSetAL[genresAL[gx2]] = true;
-          var wgAL = pickExcluding(allGenresAL, exSetAL, 3);
-          if (wgAL.length === 3) {
-            var gOptsAL: RawOpt[] = [{ text: correctGenreAL, is_correct: true }];
-            for (var wgi2 = 0; wgi2 < wgAL.length; wgi2++) gOptsAL.push({ text: wgAL[wgi2] as string, is_correct: false });
-            q2 = {
-              provider_key: "anilist_genre_" + djb2(titleAL),
-              topic: "anime", lang: "en",
-              question_text: "What genre best describes the anime \"" + titleAL + "\"?",
-              question_type: "single_select",
-              raw_options: gOptsAL, has_media: !!coverAL, media: mediaAL,
-              explanation: "\"" + titleAL + "\" belongs to the " + genresAL.join(", ") + " genre(s).",
-              difficulty: "medium", provider: "anilist",
-              meta: { title: titleAL, year: yearAL, genres: genresAL }
-            };
-          }
+        var titleOptsAL: RawOpt[] = [{ text: titleAL, is_correct: true }];
+        for (var wti2 = 0; wti2 < wrongTitlesAL.length; wti2++) {
+          titleOptsAL.push({ text: wrongTitlesAL[wti2] as string, is_correct: false });
         }
-        if (!q2 && yearAL) {
-          var yrAL = Number(yearAL);
-          var yOptsAL: RawOpt[] = [
-            { text: String(yrAL),     is_correct: true },
-            { text: String(yrAL - 2), is_correct: false },
-            { text: String(yrAL + 1), is_correct: false },
-            { text: String(yrAL - 5), is_correct: false }
-          ];
-          q2 = {
-            provider_key: "anilist_year_" + djb2(titleAL),
-            topic: "anime", lang: "en",
-            question_text: "What year did \"" + titleAL + "\" originally air?",
-            question_type: "single_select",
-            raw_options: yOptsAL, has_media: !!coverAL, media: mediaAL,
-            explanation: "\"" + titleAL + "\" first aired in " + yrAL + ".",
-            difficulty: "hard", provider: "anilist",
-            meta: { title: titleAL, year: yearAL }
-          };
-        }
-        if (q2) results.push(q2);
+        results.push({
+          provider_key: "anilist_identity_" + djb2(titleAL),
+          topic: "anime", lang: "en",
+          question_text: "Which anime is shown in this image?",
+          question_type: "single_select",
+          raw_options: titleOptsAL, has_media: true, media: mediaAL,
+          explanation: "The image shows \"" + titleAL + "\".",
+          difficulty: "medium", provider: "anilist",
+          meta: { title: titleAL }
+        });
       } catch (e: any) { logger.debug("[QvQCache/anilist] skip: " + (e && e.message)); }
     }
     return results;
@@ -808,97 +786,45 @@ namespace QvQuestionCache {
       }
     }
     if (animeList.length === 0) throw new Error("Jikan: no data array");
-    // Collect all genres from results for wrong-answer pool
-    var genreSet: { [g: string]: boolean } = {};
+    // Use titles as distractors so every media-backed anime row is a true
+    // visual-identification question rather than a genre/year trivia question.
+    var allAnimeTitles: string[] = [];
     for (var ag = 0; ag < animeList.length; ag++) {
-      var gens: any[] = animeList[ag].genres || [];
-      for (var gi2 = 0; gi2 < gens.length; gi2++) genreSet[gens[gi2].name] = true;
+      var animeTitle = animeList[ag]
+        ? (animeList[ag].title_english || animeList[ag].title)
+        : "";
+      if (animeTitle) allAnimeTitles.push(String(animeTitle));
     }
-    var allGenres: string[] = Object.keys(genreSet).length >= 6 ? Object.keys(genreSet) : ANIME_GENRES;
 
     for (var ai = 0; ai < animeList.length; ai++) {
       var a: any = animeList[ai];
       try {
         var title = a.title_english || a.title || "Unknown";
-        var year = a.year
-          || (a.aired && a.aired.prop && a.aired.prop.from && a.aired.prop.from.year)
-          || null;
-        var episodes = a.episodes || null;
-        var genres: string[] = [];
-        var agenres: any[] = a.genres || [];
-        for (var gi3 = 0; gi3 < agenres.length; gi3++) genres.push(agenres[gi3].name);
         var imageUrl: string | null = (a.images && a.images.jpg && a.images.jpg.image_url)
           ? a.images.jpg.image_url : null;
+        if (!imageUrl) continue;
 
-        var media: any = imageUrl ? { type: "image", url: imageUrl, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null;
-        var tpl = Math.floor(Math.random() * 3);
-        var q: RawQuestion | null = null;
+        var excludeTitle: { [k: string]: boolean } = {};
+        excludeTitle[title] = true;
+        var wrongTitles = pickExcluding(allAnimeTitles, excludeTitle, 3);
+        if (wrongTitles.length < 3) continue;
 
-        if (tpl === 0 && genres.length > 0) {
-          // Genre template
-          var correctGenre = genres[0];
-          var exSet: { [k: string]: boolean } = {};
-          for (var gx = 0; gx < genres.length; gx++) exSet[genres[gx]] = true;
-          var wg = pickExcluding(allGenres, exSet, 3);
-          if (wg.length < 3) tpl = 2; // fall through to year
-          else {
-            var gOpts: RawOpt[] = [{ text: correctGenre, is_correct: true }];
-            for (var wgi = 0; wgi < wg.length; wgi++) gOpts.push({ text: wg[wgi], is_correct: false });
-            q = {
-              provider_key: "jikan_genre_" + (a.mal_id || ai),
-              topic: "anime", lang: "en",
-              question_text: "What genre best describes the anime \"" + title + "\"?",
-              question_type: "single_select",
-              raw_options: gOpts, has_media: !!imageUrl, media: media,
-              explanation: "\"" + title + "\" belongs to the " + genres.join(", ") + " genre(s).",
-              difficulty: "medium", provider: "jikan",
-              meta: { title: title, year: year, genres: genres }
-            };
-          }
+        var titleOpts: RawOpt[] = [{ text: title, is_correct: true }];
+        for (var wti = 0; wti < wrongTitles.length; wti++) {
+          titleOpts.push({ text: wrongTitles[wti] as string, is_correct: false });
         }
-        if (tpl === 1 && episodes) {
-          // Episode count template
-          var ep = episodes;
-          var eOpts: RawOpt[] = [
-            { text: String(ep), is_correct: true },
-            { text: String(Math.max(1, ep - Math.floor(Math.random() * 8) - 3)), is_correct: false },
-            { text: String(ep + Math.floor(Math.random() * 10) + 2), is_correct: false },
-            { text: String(ep + Math.floor(Math.random() * 20) + 14), is_correct: false }
-          ];
-          q = {
-            provider_key: "jikan_ep_" + (a.mal_id || ai),
-            topic: "anime", lang: "en",
-            question_text: "How many episodes does \"" + title + "\" have?",
-            question_type: "single_select",
-            raw_options: eOpts, has_media: !!imageUrl, media: media,
-            explanation: "\"" + title + "\" has " + ep + " episodes.",
-            difficulty: "hard", provider: "jikan",
-            meta: { title: title, year: year }
-          };
-        }
-        if ((tpl === 2 || !q) && year) {
-          // Release year template
-          var yr = Number(year);
-          if (isNaN(yr)) { q = null; } else {
-            var yOpts: RawOpt[] = [
-              { text: String(yr),     is_correct: true },
-              { text: String(yr - 2), is_correct: false },
-              { text: String(yr + 1), is_correct: false },
-              { text: String(yr - 5), is_correct: false }
-            ];
-            q = {
-              provider_key: "jikan_year_" + (a.mal_id || ai),
-              topic: "anime", lang: "en",
-              question_text: "In what year did \"" + title + "\" first air?",
-              question_type: "single_select",
-              raw_options: yOpts, has_media: !!imageUrl, media: media,
-              explanation: "\"" + title + "\" first aired in " + yr + ".",
-              difficulty: "medium", provider: "jikan",
-              meta: { title: title, year: year }
-            };
-          }
-        }
-        if (q) results.push(q);
+        results.push({
+          provider_key: "jikan_identity_" + (a.mal_id || ai),
+          topic: "anime", lang: "en",
+          question_text: "Which anime is shown in this image?",
+          question_type: "single_select",
+          raw_options: titleOpts,
+          has_media: true,
+          media: { type: "image", url: imageUrl, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" },
+          explanation: "The image shows \"" + title + "\".",
+          difficulty: "medium", provider: "jikan",
+          meta: { title: title }
+        });
       } catch (e: any) { logger.debug("[QvQCache/jikan] skip[" + ai + "]: " + (e && e.message)); }
     }
     return results;
@@ -1329,50 +1255,64 @@ namespace QvQuestionCache {
     var pagesFetched = 0;
 
     if (apiKey) {
-      var authHeaders: { [k: string]: string } = { "Authorization": "Bearer " + apiKey };
-      var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
-      var offset = 0;
-      while (true) {
-        var pageUrl = baseUrl + "&offset=" + offset;
-        var parsed: any;
-        try {
-          parsed = httpGet(nk, pageUrl, authHeaders);
-        } catch (he: any) {
-          var hmsg = he && he.message ? he.message : String(he);
-          if (hmsg.indexOf("HTTP 401") !== -1) throw new Error("http_401");
-          if (hmsg.indexOf("HTTP 403") !== -1) throw new Error("http_403");
-          throw he;
-        }
+      try {
+        var authHeaders: { [k: string]: string } = { "Authorization": "Bearer " + apiKey };
+        var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
+        var offset = 0;
+        while (true) {
+          var pageUrl = baseUrl + "&offset=" + offset;
+          var parsed: any;
+          try {
+            parsed = httpGet(nk, pageUrl, authHeaders);
+          } catch (he: any) {
+            var hmsg = he && he.message ? he.message : String(he);
+            if (hmsg.indexOf("HTTP 401") !== -1) throw new Error("http_401");
+            if (hmsg.indexOf("HTTP 403") !== -1) throw new Error("http_403");
+            throw he;
+          }
 
-        if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
-          throw new Error("unexpected_response_shape");
-        }
+          if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
+            throw new Error("unexpected_response_shape");
+          }
 
-        var pageObjects: any[] = parsed.data.objects;
-        var meta: any = parsed.data.meta || {};
-        pagesFetched++;
-        for (var pi = 0; pi < pageObjects.length; pi++) objects.push(pageObjects[pi]);
-        if (!meta.more) break;
-        offset += 100;
-        if (offset > 1000) break;
+          var pageObjects: any[] = parsed.data.objects;
+          var meta: any = parsed.data.meta || {};
+          pagesFetched++;
+          for (var pi = 0; pi < pageObjects.length; pi++) objects.push(pageObjects[pi]);
+          if (!meta.more) break;
+          offset += 100;
+          if (offset > 1000) break;
+        }
+      } catch (paidErr: any) {
+        // A missing/expired paid-provider key must never disable Flag Quiz.
+        logger.warn("[QvQCache/restcountries] authenticated provider failed; using keyless fallback error=" +
+          (paidErr && paidErr.message ? paidErr.message : String(paidErr)));
+        objects = [];
+        pagesFetched = 0;
       }
-    } else {
-      // Keyless fallback keeps Guess the Flag/Countries playable on cold deploys.
-      // Normalize the public v3.1 response into the v5 shape consumed below.
+    }
+
+    if (objects.length === 0) {
+      // Keyless fallback keeps Guess the Flag/Countries playable on cold
+      // deploys. Rest Countries v3 was retired in 2026, so use the pinned
+      // world-countries dataset and deterministic FlagCDN PNG URLs.
       var publicRows: any = httpGet(
         nk,
-        "https://restcountries.com/v3.1/all?fields=name,capital,region,population,cca2,flags"
+        "https://cdn.jsdelivr.net/npm/world-countries@5.1.0/countries.json"
       );
-      if (!Array.isArray(publicRows)) throw new Error("restcountries_public_unexpected_shape");
+      if (!Array.isArray(publicRows)) throw new Error("world_countries_unexpected_shape");
       for (var pri = 0; pri < publicRows.length; pri++) {
         var publicCountry: any = publicRows[pri];
+        var publicCode = publicCountry && publicCountry.cca2
+          ? String(publicCountry.cca2).toLowerCase()
+          : "";
         objects.push({
           names: { common: publicCountry && publicCountry.name ? publicCountry.name.common : "" },
           capitals: publicCountry ? publicCountry.capital : [],
           region: publicCountry ? publicCountry.region : "",
           population: publicCountry ? publicCountry.population : 0,
           codes: { alpha_2: publicCountry ? publicCountry.cca2 : "" },
-          flag: { url_png: publicCountry && publicCountry.flags ? publicCountry.flags.png : "" }
+          flag: { url_png: publicCode ? "https://flagcdn.com/w320/" + publicCode + ".png" : "" }
         });
       }
       pagesFetched = 1;
@@ -1400,7 +1340,9 @@ namespace QvQuestionCache {
 
     var flagRawCount = 0;
     var capRawCount = 0;
-    var sample2 = pick(withCap, 40);
+    // Keep the full country set in the server cache. Sampling only 40 countries
+    // permanently starved Guess the Flag and made seen-ledger exhaustion common.
+    var sample2 = pick(withCap, Math.min(withCap.length, 200));
     for (var ci3 = 0; ci3 < sample2.length; ci3++) {
       var country: any = sample2[ci3];
       try {
@@ -1463,7 +1405,14 @@ namespace QvQuestionCache {
       " raw_flags=" + flagRawCount +
       " raw_countries=" + capRawCount);
 
-    return results;
+    // Keep topic caches semantically pure. Previously qv_cache_flags also
+    // contained capital-city rows (and qv_cache_countries contained flag rows),
+    // so a visual Flag Quiz could receive the wrong question contract.
+    var topicResults: RawQuestion[] = [];
+    for (var tri = 0; tri < results.length; tri++) {
+      if (results[tri].topic === topic) topicResults.push(results[tri]);
+    }
+    return topicResults;
   }
 
   // ── 11. NASA APOD (Space) — key-gated; falls back to DEMO_KEY ─────────────
@@ -1637,7 +1586,74 @@ namespace QvQuestionCache {
     return out;
   }
 
-  // ── 14a. Deezer (Music/Audio) — free, keyless, REAL 30s audio previews ────
+  // ── 14a. iTunes Search (Music/Audio) — keyless 30s AAC previews ───────────
+  function fetchItunesMusic(nk: nkruntime.Nakama, logger: nkruntime.Logger): RawQuestion[] {
+    var terms = ["top%20hits", "global%20hits", "popular%20music"];
+    var tracks: any[] = [];
+    for (var ipg = 0; ipg < terms.length; ipg++) {
+      try {
+        var page: any = httpGet(
+          nk,
+          "https://itunes.apple.com/search?term=" + terms[ipg] +
+          "&country=US&media=music&entity=song&limit=50"
+        );
+        if (page && Array.isArray(page.results)) tracks = tracks.concat(page.results);
+      } catch (itunesErr: any) {
+        logger.debug("[QvQCache/itunes] fetch failed term=" + terms[ipg] + ": " +
+          (itunesErr && itunesErr.message));
+      }
+    }
+    if (tracks.length === 0) throw new Error("iTunes Search: no tracks");
+
+    var artistSet: { [name: string]: boolean } = {};
+    for (var ia = 0; ia < tracks.length; ia++) {
+      if (tracks[ia] && tracks[ia].artistName) artistSet[String(tracks[ia].artistName)] = true;
+    }
+    var artists = Object.keys(artistSet);
+    var results: RawQuestion[] = [];
+    for (var it = 0; it < tracks.length; it++) {
+      var track: any = tracks[it];
+      try {
+        if (!track || !track.previewUrl || !track.artistName || !track.trackName) continue;
+        if (track.trackExplicitness === "explicit") continue;
+        var artist = String(track.artistName);
+        var excludeArtist: { [name: string]: boolean } = {};
+        excludeArtist[artist] = true;
+        var wrongArtists = pickExcluding(artists, excludeArtist, 3);
+        if (wrongArtists.length < 3) continue;
+
+        var opts: RawOpt[] = [{ text: artist, is_correct: true }];
+        for (var iwo = 0; iwo < wrongArtists.length; iwo++) {
+          opts.push({ text: wrongArtists[iwo] as string, is_correct: false });
+        }
+        results.push({
+          provider_key: "itunes_" + String(track.trackId || djb2(track.trackName + artist)),
+          topic: "music", lang: "en",
+          question_text: "Listen to the clip — who is the artist performing this song?",
+          question_type: "single_select",
+          raw_options: opts,
+          has_media: true,
+          media: {
+            type: "audio",
+            url: String(track.previewUrl),
+            thumbnail_url: track.artworkUrl100 ? String(track.artworkUrl100) : null,
+            duration_seconds: 30,
+            mime_type: "audio/mp4"
+          },
+          explanation: "\"" + String(track.trackName) + "\" is performed by " + artist + ".",
+          difficulty: "medium", provider: "itunes",
+          meta: { track_title: String(track.trackName) }
+        });
+      } catch (itunesRowErr: any) {
+        logger.debug("[QvQCache/itunes] row skipped: " +
+          (itunesRowErr && itunesRowErr.message));
+      }
+    }
+    if (results.length === 0) throw new Error("iTunes Search: zero playable previews");
+    return results;
+  }
+
+  // ── 14b. Deezer (Music/Audio) — keyless 30s MP3 previews ─────────────────
   // #QVVBS-CACHE (2026-07): "Audio Quiz (AI) — Not Working" — grepping this whole
   // file for media.type==="audio" turned up zero matches anywhere; the "music"
   // topic (the only music-adjacent topic that existed) was 100% text trivia via
@@ -1720,22 +1736,36 @@ namespace QvQuestionCache {
     return results;
   }
 
-  // Combines the always-available Deezer audio pool with Last.fm's text-only
-  // artist trivia (only when LASTFM_API_KEY is configured) so the "music" topic
-  // carries both real audio-quiz media and bonus text variety. Deezer succeeding
-  // is sufficient on its own — Last.fm failing/missing must never fail the topic.
+  // Prefer Deezer MP3 previews, but its chart endpoint can legally return
+  // {data:[],total:0}. iTunes Search is the independent keyless fallback and
+  // currently provides stable 30-second AAC previews.
   function fetchMusicQuiz(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger): RawQuestion[] {
-    var out = fetchDeezer(nk, logger); // throws if Deezer itself is down — that's the real failure signal now
+    var out: RawQuestion[] = [];
+    try {
+      out = fetchDeezer(nk, logger);
+    } catch (deezerErr: any) {
+      logger.warn("[QvQCache/music] Deezer unavailable; switching to iTunes Search: " +
+        (deezerErr && deezerErr.message ? deezerErr.message : String(deezerErr)));
+    }
+    if (out.length < 30) {
+      try {
+        out = out.concat(fetchItunesMusic(nk, logger));
+      } catch (itunesErr: any) {
+        logger.warn("[QvQCache/music] iTunes fallback failed: " +
+          (itunesErr && itunesErr.message ? itunesErr.message : String(itunesErr)));
+      }
+    }
     try {
       var fmKeyCheck = envKey(env, "LASTFM_API_KEY");
       if (fmKeyCheck) out = out.concat(fetchLastfm(nk, env, logger));
     } catch (e: any) {
       logger.debug("[QvQCache/music] Last.fm bonus fetch skipped: " + (e && e.message));
     }
+    if (out.length === 0) throw new Error("music: all audio providers returned zero questions");
     return out;
   }
 
-  // ── 14. Last.fm (Music) — requires LASTFM_API_KEY ─────────────────────────
+  // ── 14c. Last.fm (Music) — requires LASTFM_API_KEY ────────────────────────
   function fetchLastfm(nk: nkruntime.Nakama, env: any, logger: nkruntime.Logger): RawQuestion[] {
     var results: RawQuestion[] = [];
     var fmKey = envKey(env, "LASTFM_API_KEY");
@@ -2593,10 +2623,16 @@ namespace QvQuestionCache {
       return { ok: false, topic: topic, count: 0, error: cbMsg };
     }
 
-    if (!tryAcquireRefreshGate(nk, topic)) {
+    if (!force && !tryAcquireRefreshGate(nk, topic)) {
       logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed" +
         " event=provider_refresh_gated topic=" + topic);
       return { ok: true, topic: topic, count: 0 };
+    }
+    if (force) {
+      // Best effort: update the normal lease timestamp for observability and to
+      // gate subsequent non-forced refreshes. Schema-repair callers may bypass
+      // an old lease because stale data must not survive until the next TTL.
+      tryAcquireRefreshGate(nk, topic);
     }
 
     try {
@@ -2673,6 +2709,14 @@ namespace QvQuestionCache {
           for (var ei2 = 0; ei2 < existingPool.questions.length; ei2++) {
             var oldQ = existingPool.questions[ei2];
             if (mergedIds[oldQ.id]) continue;
+            // Schema migration: remove media-backed anime metadata templates.
+            // Image Guess now exclusively asks users to identify the pictured
+            // title; carrying old genre/year rows would preserve the bug forever.
+            if (topic === "anime" && oldQ.has_media && oldQ.media &&
+                oldQ.media.type === "image" &&
+                oldQ.question_text !== "Which anime is shown in this image?") {
+              continue;
+            }
             merged.push(oldQ);
             mergedIds[oldQ.id] = true;
             carried++;

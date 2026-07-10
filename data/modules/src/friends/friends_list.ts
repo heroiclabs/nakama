@@ -272,8 +272,16 @@ namespace IntelliverseFriendsList {
       return err("Failed to load friends", ERR_INTERNAL);
     }
 
-    var rawFriends: any[] = (friendsResp && friendsResp.friends) ? friendsResp.friends : [];
-    var nextCursor: string | null = (friendsResp && (friendsResp as any).cursor) || null;
+    // Nakama releases have exposed this binding both as FriendList and as a
+    // direct array in Goja. Normalize both shapes so a valid native graph can
+    // never become an empty Social Zone roster after a runtime upgrade.
+    var rawFriends: any[] = Array.isArray(friendsResp as any)
+      ? (friendsResp as any)
+      : (friendsResp && (friendsResp as any).friends)
+        ? (friendsResp as any).friends
+        : [];
+    var nextCursor: string | null =
+      (!Array.isArray(friendsResp as any) && friendsResp && (friendsResp as any).cursor) || null;
 
     // ── Bulk-load presence ──────────────────────────────────────────────
     var ids: string[] = [];
@@ -359,7 +367,8 @@ namespace IntelliverseFriendsList {
         STATE_BLOCKED as any,
         undefined as any
       );
-      if (resp && resp.friends) rawList = resp.friends;
+      if (Array.isArray(resp as any)) rawList = resp as any;
+      else if (resp && (resp as any).friends) rawList = (resp as any).friends;
     } catch (e: any) {
       if (logger && logger.error) {
         logger.error("[ListBlockedUsers] nk.friendsList failed: " + (e.message || String(e)));

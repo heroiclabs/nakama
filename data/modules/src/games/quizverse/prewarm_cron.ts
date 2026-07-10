@@ -49,6 +49,13 @@ namespace QvPrewarmCron {
   var MAX_USERS_PER_RUN = 200;
   var TOP_TOPICS_N      = 3;                  // pre-warm top-3 affinity topics
   var MAX_SEEN_IDS      = 500;                // seen IDs to load per user
+  var WARMABLE_TOPICS: { [topic: string]: boolean } = {
+    anime: true, pokemon: true, movies: true, dog: true, dish: true,
+    flags: true, countries: true, space: true, music: true,
+    video_quiz: true, sports: true, ghibli: true, disney: true,
+    starwars: true, news: true, speed_quiz: true, true_false: true,
+    opentdb: true, general: true
+  };
 
   function nowMs(): number { return Date.now(); }
 
@@ -131,9 +138,13 @@ namespace QvPrewarmCron {
     nk:        nkruntime.Nakama,
     logger:    nkruntime.Logger,
     userId:    string,
-    topic:     string
+    topic:     string,
+    desiredCount?: number
   ): number {
     var topicSlug = slugify(topic);
+    var targetCount = typeof desiredCount === "number"
+      ? Math.max(4, Math.min(READYQUEUE_SIZE, Math.floor(desiredCount)))
+      : READYQUEUE_SIZE;
 
     // Skip if readyqueue is still fresh
     try {
@@ -141,7 +152,7 @@ namespace QvPrewarmCron {
       if (existing && existing.length > 0 && existing[0].value) {
         var rq: any = existing[0].value;
         if (rq.created_at_ms && (nowMs() - rq.created_at_ms) < READYQUEUE_TTL_MS &&
-            Array.isArray(rq.questions) && rq.questions.length >= READYQUEUE_SIZE / 2) {
+            Array.isArray(rq.questions) && rq.questions.length >= targetCount) {
           return 0; // still fresh — skip
         }
       }
@@ -169,7 +180,23 @@ namespace QvPrewarmCron {
       var tmp = fresh[fi]; fresh[fi] = fresh[ri]; fresh[ri] = tmp;
     }
 
-    var toStore = fresh.slice(0, READYQUEUE_SIZE);
+    var toStore = fresh.slice(0, targetCount);
+
+    // Availability tier: once unseen questions are exhausted, append the
+    // oldest previously-seen questions. This preserves variety first while
+    // ensuring survival/replay sessions always have a complete ready queue.
+    if (toStore.length < targetCount) {
+      var storedIds: { [id: string]: boolean } = {};
+      for (var tsi = 0; tsi < toStore.length; tsi++) storedIds[toStore[tsi].id] = true;
+      var poolById: { [id: string]: any } = {};
+      for (var pbi = 0; pbi < pool.length; pbi++) poolById[pool[pbi].id] = pool[pbi];
+      for (var bfi = 0; bfi < seenIds.length && toStore.length < targetCount; bfi++) {
+        var seenQuestion = poolById[seenIds[bfi]];
+        if (!seenQuestion || storedIds[seenQuestion.id]) continue;
+        toStore.push(seenQuestion);
+        storedIds[seenQuestion.id] = true;
+      }
+    }
     if (toStore.length === 0) return 0;
 
     try {
@@ -232,6 +259,135 @@ namespace QvPrewarmCron {
       logger.warn("[QvPrewarm] prewarmUser error userId=" + userId + ": " + (e && e.message));
     }
     return stats;
+  }
+
+  function readReadyQueue(
+    nk: nkruntime.Nakama,
+    userId: string,
+    topic: string
+  ): any[] {
+    try {
+      var rows = nk.storageRead([{
+        collection: COL_READYQUEUE, key: slugify(topic), userId: userId
+      }]);
+      if (rows && rows.length > 0 && rows[0].value &&
+          Array.isArray(rows[0].value.questions)) {
+        return rows[0].value.questions;
+      }
+    } catch (_e) {}
+    return [];
+  }
+
+  function topicCacheNeedsRepair(topic: string, questions: any[], minCount: number): boolean {
+    if (!Array.isArray(questions) || questions.length < minCount) return true;
+
+    if (topic === "anime") {
+      for (var ai = 0; ai < questions.length; ai++) {
+        var aq = questions[ai];
+        if (aq && aq.has_media && aq.media && aq.media.type === "image" &&
+            aq.question_text !== "Which anime is shown in this image?") {
+          return true;
+        }
+      }
+    }
+
+    if (topic === "flags" || topic === "countries") {
+      var correctTopicCount = 0;
+      for (var fi = 0; fi < questions.length; fi++) {
+        if (questions[fi] && questions[fi].topic === topic) correctTopicCount++;
+      }
+      if (correctTopicCount < Math.max(minCount, 60)) return true;
+    }
+
+    if (topic === "music") {
+      var audioCount = 0;
+      for (var mi = 0; mi < questions.length; mi++) {
+        var mm = questions[mi] && questions[mi].media;
+        if (mm && mm.type === "audio" && mm.url) audioCount++;
+      }
+      if (audioCount < minCount) return true;
+    }
+
+    if (topic === "video_quiz") {
+      var cdnVideoCount = 0;
+      for (var vi = 0; vi < questions.length; vi++) {
+        var vm = questions[vi] && questions[vi].media;
+        if (vm && vm.type === "video" && typeof vm.url === "string" &&
+            vm.url.indexOf("cloudfront.net/") !== -1) {
+          cdnVideoCount++;
+        }
+      }
+      if (cdnVideoCount < minCount) return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Authenticated app-start/post-quiz warmup. It never reserves a question pack:
+   * it repairs a missing/thin shared topic cache and fills the caller's private
+   * ready queue, so the real get_questions call remains authoritative and fast.
+   */
+  function rpcWarmTopic(
+    ctx:     nkruntime.Context,
+    logger:  nkruntime.Logger,
+    nk:      nkruntime.Nakama,
+    payload: string
+  ): string {
+    var userId = ctx.userId || "";
+    if (!userId) {
+      throw new Error(JSON.stringify({ code: 16, message: "authentication required" }));
+    }
+
+    var req: any = {};
+    try { req = JSON.parse(payload || "{}"); } catch (_pe) {
+      throw new Error(JSON.stringify({ code: 3, message: "invalid JSON payload" }));
+    }
+    var topic = slugify(typeof req.topic === "string" ? req.topic : "");
+    if (!topic || !WARMABLE_TOPICS[topic]) {
+      throw new Error(JSON.stringify({ code: 3, message: "unsupported warmup topic" }));
+    }
+    var minCount = typeof req.min_count === "number"
+      ? Math.max(4, Math.min(READYQUEUE_SIZE, Math.floor(req.min_count)))
+      : READYQUEUE_SIZE;
+
+    var before = QvQuestionCache.readCache(nk, logger, topic);
+    var refreshed = false;
+    var refreshError = "";
+    var needsSchemaRepair = topicCacheNeedsRepair(topic, before.questions, minCount);
+    if (before.expired || needsSchemaRepair) {
+      var refreshResult = QvQuestionCache.refreshCache(
+        nk, logger, ctx.env || {}, topic, needsSchemaRepair);
+      refreshed = refreshResult.ok && refreshResult.count > 0;
+      refreshError = refreshResult.error || "";
+    }
+
+    var after = QvQuestionCache.readCache(nk, logger, topic);
+    var queueWritten = prewarmTopic(nk, logger, userId, topic, minCount);
+    var readyQuestions = readReadyQueue(nk, userId, topic);
+    var mediaUrls: string[] = [];
+    var mediaSeen: { [url: string]: boolean } = {};
+    for (var mi = 0; mi < readyQuestions.length && mediaUrls.length < 4; mi++) {
+      var media = readyQuestions[mi] && readyQuestions[mi].media;
+      var mediaUrl = media && typeof media.url === "string" ? media.url : "";
+      if (!mediaUrl || mediaSeen[mediaUrl]) continue;
+      mediaSeen[mediaUrl] = true;
+      mediaUrls.push(mediaUrl);
+    }
+
+    logger.info("[QvPrewarm] user warm topic=" + topic +
+      " cache=" + after.questions.length + " queue=" + readyQuestions.length +
+      " refreshed=" + refreshed + " media=" + mediaUrls.length);
+    return JSON.stringify({
+      ok:                  after.questions.length > 0 && readyQuestions.length > 0,
+      topic:               topic,
+      cache_count:         after.questions.length,
+      ready_count:         readyQuestions.length,
+      queue_written:       queueWritten,
+      refreshed:           refreshed,
+      refresh_error:       refreshError || undefined,
+      media_urls:          mediaUrls
+    });
   }
 
   // ── Opportunistic rate gate ─────────────────────────────────────────────────
@@ -343,6 +499,7 @@ namespace QvPrewarmCron {
 
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("quizverse_prewarm_tick", rpcPrewarmTick);
+    initializer.registerRpc("quizverse_warm_topic", rpcWarmTopic);
   }
 
   var _NOOP: any = { registerRpc: function() {} };

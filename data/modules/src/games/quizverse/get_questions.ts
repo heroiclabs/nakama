@@ -218,8 +218,10 @@ namespace QvGetQuestions {
   }
 
   /**
-   * On cache miss: queue a background refresh and return immediately.
-   * Player RPCs never wait on an external question provider.
+   * On cache miss: perform one gated emergency refresh before returning an
+   * error. Normal traffic is still served stale-while-revalidate, but a cold
+   * deploy can no longer leave a topic permanently empty while waiting for an
+   * external scheduler to drain the refresh request.
    */
   function handleEmptyTopicCache(
     nk:              nkruntime.Nakama,
@@ -244,14 +246,32 @@ namespace QvGetQuestions {
     }));
 
     var t0 = nowMs();
-    QvQuestionCache.requestRefresh(nk, logger, topic, "cache_empty");
+    var emergencyRefresh = QvQuestionCache.refreshCache(nk, logger, env, topic);
     var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
     var elapsedMs = nowMs() - t0;
+    if (cacheResult.questions.length > 0) {
+      logger.info(formatQvLog("[QvGetQ][GATE:cache_recovered]", {
+        event:      "cache_emergency_refresh_ok",
+        traceId:    traceId,
+        topic:      topic,
+        pool_size:  cacheResult.questions.length,
+        elapsed_ms: elapsedMs
+      }));
+      return {
+        pool:        cacheResult.questions,
+        cacheResult: cacheResult,
+        earlyReturn: null
+      };
+    }
+
+    QvQuestionCache.requestRefresh(nk, logger, topic, "cache_empty");
     logger.warn(formatQvLog("[QvGetQ][GATE:cache_empty]", {
       event:               "cache_empty",
       traceId:             traceId,
       topic:               topic,
       refresh_queued:      true,
+      refresh_error:       emergencyRefresh.error || "none",
+      elapsed_ms:           elapsedMs,
       retry_after_seconds: CACHE_REFRESH_RETRY_SEC
     }));
 
@@ -445,6 +465,24 @@ namespace QvGetQuestions {
     return out;
   }
 
+  function filterToTopicContract(pool: any[], topic: string, requireMedia: boolean, mediaType: string): any[] {
+    if (topic !== "flags" && topic !== "countries" &&
+        !(topic === "anime" && requireMedia && (!mediaType || mediaType === "image"))) {
+      return pool;
+    }
+
+    var out: any[] = [];
+    for (var ci = 0; ci < pool.length; ci++) {
+      var q = pool[ci];
+      if (!q) continue;
+      if ((topic === "flags" || topic === "countries") && q.topic !== topic) continue;
+      if (topic === "anime" &&
+          q.question_text !== "Which anime is shown in this image?") continue;
+      out.push(q);
+    }
+    return out;
+  }
+
   function filterAndPick(
     pool:        any[],
     seenIds:     string[],
@@ -625,8 +663,9 @@ namespace QvGetQuestions {
   }
 
   /**
-   * Retry picking until requestedCount is met or attempts are exhausted.
-   * Merges inflight eviction + forced cache refresh into one bounded loop.
+   * Make one bounded synchronous repair attempt when the selected pool cannot
+   * satisfy the requested count. This is the cold-cache safety net; normal
+   * requests remain storage-only and use the ready queue.
    */
   function fulfillRequestedCount(
     nk:             nkruntime.Nakama,
@@ -662,16 +701,42 @@ namespace QvGetQuestions {
     var inflightIds           = collectInflightIdsForTopic(inflightPacks, topic);
     var fulfillAttempts       = 0;
 
-    while (fulfillAttempts < MAX_FULFILL_ATTEMPTS && picked.length < requestedCount) {
+    if (picked.length < requestedCount) {
       fulfillAttempts++;
-      var poolBefore     = pool.length;
-      var pickedBefore   = picked.length;
-      var refreshQueued = false;
+      var poolBefore = pool.length;
+      cacheRefreshAttempted = true;
 
-      if (picked.length < requestedCount) {
-        refreshQueued         = true;
-        cacheRefreshAttempted = true;
-        QvQuestionCache.requestRefresh(nk, logger, topic, "insufficient_pool");
+      var refreshResult = QvQuestionCache.refreshCache(nk, logger, env, topic);
+      var refreshedCache = QvQuestionCache.readCache(nk, logger, topic);
+      if (refreshedCache.questions.length > 0) {
+        cacheResult = refreshedCache;
+        pool = refreshedCache.questions;
+
+        var rebuiltLangPool: any[] = [];
+        langActual = lang;
+        if (lang !== "en") {
+          for (var rli = 0; rli < pool.length; rli++) {
+            if (pool[rli].lang === lang) rebuiltLangPool.push(pool[rli]);
+          }
+        }
+        if (rebuiltLangPool.length === 0) {
+          if (lang !== "en") langActual = "en";
+          for (var rei = 0; rei < pool.length; rei++) {
+            if (!pool[rei].lang || pool[rei].lang === "en") rebuiltLangPool.push(pool[rei]);
+          }
+        }
+        if (rebuiltLangPool.length === 0) rebuiltLangPool = pool;
+        if (requireMedia) {
+          rebuiltLangPool = filterToMediaPool(rebuiltLangPool, reqMediaType);
+        } else if (excludeMedia) {
+          var refreshedTextPool = filterToTextPool(rebuiltLangPool);
+          if (refreshedTextPool.length > 0) rebuiltLangPool = refreshedTextPool;
+        }
+
+        langPool = rebuiltLangPool;
+        inflightPacks = listInflight(nk, userId);
+        inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
+        picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
       }
 
       logger.info(formatQvLog("[QvGetQ][FULFILL:attempt]", {
@@ -683,12 +748,28 @@ namespace QvGetQuestions {
         picked:           picked.length,
         pool_before:      poolBefore,
         pool_after:       pool.length,
-        inflight_evicted: 0,
-        refresh_queued:   refreshQueued
+        refresh_ok:       refreshResult.ok,
+        refresh_error:    refreshResult.error || "none"
       }));
+    }
 
-      if (picked.length >= requestedCount) break;
-      if (pool.length <= poolBefore && picked.length <= pickedBefore) break;
+    // Last-resort availability tier: a stale unsubmitted pack must not force a
+    // short quiz. Reuse those IDs only after fresh and oldest-seen candidates
+    // have been exhausted. Packs remain unique internally; this only permits
+    // overlap with another abandoned/inflight session owned by the same user.
+    if (picked.length < requestedCount && langPool.length >= requestedCount && inflightIds.length > 0) {
+      var withoutInflightExclusion = filterAndPick(langPool, seenIds, [], requestedCount);
+      if (withoutInflightExclusion.length > picked.length) {
+        picked = withoutInflightExclusion;
+        logger.warn(formatQvLog("[QvGetQ][FULFILL:inflight_reuse]", {
+          event:          "fulfill_inflight_reuse",
+          traceId:        traceId,
+          topic:          topic,
+          requested:      requestedCount,
+          delivered:      picked.length,
+          inflight_count: inflightIds.length
+        }));
+      }
     }
 
     logger.info(formatQvLog("[QvGetQ][FULFILL:done]", {
@@ -1337,11 +1418,12 @@ namespace QvGetQuestions {
 
     // Last resort: language field absent on all cached questions
     if (langPool.length === 0) langPool = pool;
+    langPool = filterToTopicContract(langPool, topic, requireMedia, reqMediaType);
 
     // ── 4a. Media filter (ImageGuess / audio quiz modes) ────────────────────
     if (requireMedia) {
       var mediaPool = filterToMediaPool(langPool, reqMediaType);
-      if (mediaPool.length === 0 && langPool.length > 0) {
+      if (mediaPool.length === 0) {
         logger.warn(formatQvLog("[QvGetQ][GATE:stale_cache_media]", {
           event:      "stale_cache_media_heal",
           traceId:    traceId,
@@ -1349,7 +1431,37 @@ namespace QvGetQuestions {
           langPool:   langPool.length,
           media_type: reqMediaType || "any"
         }));
-        QvQuestionCache.requestRefresh(nk, logger, topic, "media_pool_empty");
+        // Repair stale schemas synchronously once. This covers old anime
+        // genre/year rows, mixed flags/countries caches, and pre-Deezer music
+        // caches without making the player retry after deployment.
+        QvQuestionCache.refreshCache(nk, logger, ctx.env || {}, topic, true);
+        var repairedCache = QvQuestionCache.readCache(nk, logger, topic);
+        if (repairedCache.questions.length > 0) {
+          pool = repairedCache.questions;
+          cacheResult = repairedCache;
+          var repairedLangPool: any[] = [];
+          for (var rmi = 0; rmi < pool.length; rmi++) {
+            var repairedQ = pool[rmi];
+            if (lang === "en") {
+              if (!repairedQ.lang || repairedQ.lang === "en") repairedLangPool.push(repairedQ);
+            } else if (repairedQ.lang === lang) {
+              repairedLangPool.push(repairedQ);
+            }
+          }
+          if (repairedLangPool.length === 0 && lang !== "en") {
+            langActual = "en";
+            for (var rme = 0; rme < pool.length; rme++) {
+              if (!pool[rme].lang || pool[rme].lang === "en") repairedLangPool.push(pool[rme]);
+            }
+          }
+          if (repairedLangPool.length === 0) repairedLangPool = pool;
+          repairedLangPool = filterToTopicContract(
+            repairedLangPool, topic, requireMedia, reqMediaType);
+          mediaPool = filterToMediaPool(repairedLangPool, reqMediaType);
+        }
+        if (mediaPool.length === 0) {
+          QvQuestionCache.requestRefresh(nk, logger, topic, "media_pool_empty");
+        }
         logger.info(formatQvLog("[QvGetQ][GATE:stale_cache_media_done]", {
           event:       "stale_cache_media_refresh_queued",
           traceId:     traceId,

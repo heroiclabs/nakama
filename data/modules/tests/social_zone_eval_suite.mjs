@@ -40,7 +40,7 @@ const SERVER_KEY = process.env.NAKAMA_EVAL_SERVER_KEY || "defaultkey";
 const HTTP_BASE = `${USE_TLS ? "https" : "http"}://${HOST}:${PORT}`;
 const WS_BASE = `${USE_TLS ? "wss" : "ws"}://${HOST}:${PORT}`;
 
-const RUN_TAG = Math.random().toString(36).slice(2, 10);
+const RUN_TAG = process.env.NAKAMA_EVAL_RUN_TAG || Math.random().toString(36).slice(2, 10);
 const log = (...a) => console.log(...a);
 
 // ─── HTTP helpers ───────────────────────────────────────────────────────────
@@ -179,7 +179,7 @@ async function friendsSuite(A, B) {
   await test("ivx_social_invites_pending shows it for B", async () => {
     const r = await rpc(B.token, "ivx_social_invites_pending", {});
     assert(r.ok, `unexpected response: ${JSON.stringify(r.body)}`);
-    const list = r.body?.data?.invites || r.body?.invites || [];
+    const list = r.body?.data?.incoming || r.body?.incoming || [];
     assert(Array.isArray(list) && list.some((i) => i.inviteId === inviteId), "sent invite not visible to recipient");
   });
 
@@ -191,14 +191,18 @@ async function friendsSuite(A, B) {
   await test("ivx_social_friends_list shows the new pair (both directions)", async () => {
     const rA = await rpc(A.token, "ivx_social_friends_list", {});
     const rB = await rpc(B.token, "ivx_social_friends_list", {});
-    const listA = rA.body?.data?.friends || rA.body?.friends || [];
-    const listB = rB.body?.data?.friends || rB.body?.friends || [];
+    const listA = rA.body?.data?.results || rA.body?.results || [];
+    const listB = rB.body?.data?.results || rB.body?.results || [];
     assert(listA.some((f) => (f.userId || f.id) === B.userId), "A does not see B as a friend");
     assert(listB.some((f) => (f.userId || f.id) === A.userId), "B does not see A as a friend");
   });
 
   await test("ivx_social_challenge_send A -> B", async () => {
-    const r = await rpc(A.token, "ivx_social_challenge_send", { targetUserId: B.userId, gameMode: "classic" });
+    const r = await rpc(A.token, "ivx_social_challenge_send", {
+      targetUserId: B.userId,
+      gameId: "quizverse_sync_eval",
+      challengeData: { modeName: "classic", isAsync: false },
+    });
     if (!r.ok || r.body.success === false) { skip("ivx_social_challenge_send A -> B (soft)", JSON.stringify(r.body)); return; }
     challengeId = r.body?.data?.challengeId || r.body?.challengeId;
   });
@@ -206,7 +210,7 @@ async function friendsSuite(A, B) {
   await test("ivx_social_challenges_pending visible to B", async () => {
     if (!challengeId) { skip("ivx_social_challenges_pending visible to B", "no challengeId from prior step"); return; }
     const r = await rpc(B.token, "ivx_social_challenges_pending", {});
-    const list = r.body?.data?.challenges || r.body?.challenges || [];
+    const list = r.body?.data?.incoming || r.body?.incoming || [];
     assert(Array.isArray(list) && list.some((c) => c.challengeId === challengeId), "challenge not visible to recipient");
   });
 
@@ -221,12 +225,12 @@ async function friendsSuite(A, B) {
   });
 
   await test("friends_block / ivx_social_friends_blocked / friends_unblock round-trip", async () => {
-    const b1 = await rpc(A.token, "friends_block", { userId: B.userId });
+    const b1 = await rpc(A.token, "friends_block", { targetUserId: B.userId });
     assert(b1.ok && b1.body.success !== false, `block failed: ${JSON.stringify(b1.body)}`);
     const list = await rpc(A.token, "ivx_social_friends_blocked", {});
-    const arr = list.body?.data?.blocked || list.body?.blocked || [];
+    const arr = list.body?.data?.results || list.body?.results || [];
     assert(Array.isArray(arr) && arr.some((u) => (u.userId || u.id) === B.userId), "blocked user not in blocked list");
-    const b2 = await rpc(A.token, "friends_unblock", { userId: B.userId });
+    const b2 = await rpc(A.token, "friends_unblock", { targetUserId: B.userId });
     assert(b2.ok && b2.body.success !== false, `unblock failed: ${JSON.stringify(b2.body)}`);
   });
 }
@@ -313,9 +317,9 @@ async function chatSuite(A, B, groupId) {
   const groupTag = `eval-suite-group-msg-${RUN_TAG}`;
 
   await test("send_direct_message A -> B, then B's history actually contains it", async () => {
-    const send = await rpc(A.token, "send_direct_message", { userId: B.userId, content: dmTag });
+    const send = await rpc(A.token, "send_direct_message", { targetUserId: B.userId, messageText: dmTag });
     assert(send.ok && send.body.success !== false, `send failed: ${JSON.stringify(send.body)}`);
-    const hist = await rpc(B.token, "get_direct_message_history", { userId: A.userId, limit: 20 });
+    const hist = await rpc(B.token, "get_direct_message_history", { targetUserId: A.userId, limit: 20 });
     assert(hist.ok, `history fetch failed: ${JSON.stringify(hist.body)}`);
     const messages = hist.body?.data?.messages || hist.body?.messages || [];
     const found = messages.some((m) => JSON.stringify(m).includes(dmTag));
@@ -323,7 +327,7 @@ async function chatSuite(A, B, groupId) {
   });
 
   await test("mark_direct_messages_read (B)", async () => {
-    const r = await rpc(B.token, "mark_direct_messages_read", { userId: A.userId });
+    const r = await rpc(B.token, "mark_direct_messages_read", { targetUserId: A.userId });
     assert(r.ok && r.body.success !== false, `mark read failed: ${JSON.stringify(r.body)}`);
   });
 

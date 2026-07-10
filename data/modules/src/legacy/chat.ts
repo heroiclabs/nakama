@@ -710,20 +710,30 @@ namespace LegacyChat {
   // before-hook — the client gets the error back, the send never lands.
   var MAX_MESSAGE_CHARS = 4000;
   var CHAT_RATE_MAX = 10;           // messages
-  var CHAT_RATE_WINDOW_MS = 10000;  // per this many ms, per user
-  var chatSendLog: { [userId: string]: number[] } = {};
+  var CHAT_RATE_WINDOW_SEC = 10;     // per this many seconds, per user
 
-  function enforceChatHygiene(ctx: nkruntime.Context, content: string): void {
+  function enforceChatHygiene(
+    ctx: nkruntime.Context,
+    nk: nkruntime.Nakama,
+    content: string
+  ): void {
     if (content.length > MAX_MESSAGE_CHARS) {
       throw new Error("Message too long (max " + MAX_MESSAGE_CHARS + " characters).");
     }
-    var now = Date.now();
-    var log = (chatSendLog[ctx.userId] || []).filter(function (t) { return now - t < CHAT_RATE_WINDOW_MS; });
-    if (log.length >= CHAT_RATE_MAX) {
+
+    // Nakama executes handlers across a Goja VM pool (and multiple pods in
+    // production), so module-local counters are not authoritative. Use the
+    // shared storage-backed limiter to enforce one contract everywhere.
+    var decision = SharedRateLimit.checkUserWindow(
+      ctx,
+      nk,
+      "channel_message_send",
+      CHAT_RATE_WINDOW_SEC,
+      CHAT_RATE_MAX
+    );
+    if (!decision.allowed) {
       throw new Error("You're sending messages too fast — slow down.");
     }
-    log.push(now);
-    chatSendLog[ctx.userId] = log;
   }
 
   // Before-hook for realtime ChannelMessageSend. Forces persist=true so every
@@ -738,7 +748,7 @@ namespace LegacyChat {
   ): nkruntime.EnvelopeChannelMessageSend | void {
     var msg: any = envelope ? (envelope as any).channelMessageSend : null;
     if (msg) {
-      enforceChatHygiene(ctx, String(msg.content || ""));
+      enforceChatHygiene(ctx, nk, String(msg.content || ""));
       try {
         msg.persist = true;
       } catch (e: any) {
@@ -746,6 +756,11 @@ namespace LegacyChat {
       }
     }
     return envelope;
+  }
+
+  function registerRealtimeHooks(initializer: nkruntime.Initializer): void {
+    initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
+    initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
   }
 
   export function register(initializer: nkruntime.Initializer): void {
@@ -766,9 +781,9 @@ namespace LegacyChat {
     initializer.registerRpc("get_unread_counts", RpcHelpers.withCleanAuthError(rpcGetUnreadCounts));
 
     // Force durable persistence for realtime chat (offline delivery + history +
-    // unread counts), then push-notify after the message lands.
-    initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
-    // Push notifications for messages sent directly over the realtime socket.
-    initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
+    // unread counts), then push-notify after the message lands. postbuild also
+    // invokes register() without an initializer on every pooled Goja VM to bind
+    // RPC stubs; only the real InitModule call may install realtime hooks.
+    if (initializer) registerRealtimeHooks(initializer);
   }
 }
