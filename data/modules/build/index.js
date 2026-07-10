@@ -21221,85 +21221,96 @@ var AdminConsole;
                 source: "satori_platform"
             });
         }
-        // Also fetch creator-portal events from Nakama storage (live_events collection).
-        // Events published via creator_live_event_publish RPC are stored under the system
-        // user ID so storageList can find them without needing to know individual creator IDs.
+        // Dedup is intentionally keyed on the event ID alone: event IDs are UUIDs
+        // minted once at creation, and the SAME logical event can legitimately exist
+        // in two storage paths — mirrored under SYSTEM by creator_live_event_publish
+        // AND under the creator's own user id (SPA publish path). The SYSTEM scan
+        // runs first, so the canonical SYSTEM copy wins and the creator-owned mirror
+        // is skipped. A composite key (id + owner) would surface the same event twice
+        // in the admin dashboard, which is exactly what this dedup prevents.
+        var seenCreatorIds = {};
+        var creatorEventsCollection = "live_events";
+        var maxListPages = 20; // 20 pages x 100 = 2000 events per scan, same for both scans
+        function pushCreatorLiveEventRow(obj) {
+            if (!obj.value)
+                return;
+            var ev = obj.value;
+            var evId = String(ev.id || obj.key || "");
+            if (!evId) {
+                logger.warn("[rpcAdminLiveEventsList] Skipping live_events object with no id/key (owner=%s)", obj.userId || "unknown");
+                return;
+            }
+            if (seenCreatorIds[evId])
+                return;
+            if (gameId && ev.gameId && ev.gameId !== gameId)
+                return;
+            var nowSec = Math.floor(Date.now() / 1000);
+            var startSec = ev.scheduledAt || ev.createdAt || 0;
+            var endSec = startSec + (ev.duration || 30) * 60;
+            var derivedStatus = ev.status;
+            if (derivedStatus === "published") {
+                if (nowSec >= startSec && nowSec < endSec)
+                    derivedStatus = "live";
+                else if (nowSec >= endSec)
+                    derivedStatus = "ended";
+            }
+            var rewardsJson = undefined;
+            if (ev.giftCardPrizes && ev.giftCardPrizes.tiers) {
+                rewardsJson = JSON.stringify(ev.giftCardPrizes.tiers.map(function (t) {
+                    return { type: t.brand || "prize", rank: t.rank, amount: t.value, currency: t.currency, label: t.prize };
+                }));
+            }
+            else if (ev.prizes && ev.prizes.length > 0) {
+                rewardsJson = JSON.stringify(ev.prizes);
+            }
+            else if (ev.prizePool > 0) {
+                rewardsJson = JSON.stringify([{ type: "xut", amount: ev.prizePool, currency: "XUT" }]);
+            }
+            events.push({
+                id: evId,
+                name: ev.title || "Untitled Creator Event",
+                description: ev.description || "",
+                start_time_sec: startSec,
+                end_time_sec: endSec,
+                rewards_json: rewardsJson,
+                audiences: [],
+                enabled: ev.status !== "ended" && ev.status !== "cancelled",
+                created_at: isoFromSec(ev.createdAt),
+                updated_at: isoFromSec(ev.publishedAt || ev.createdAt),
+                source: "quizverse_creator",
+                creator_id: ev.creatorId || obj.userId,
+                game_id: ev.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
+                game_mode: ev.gameMode || "best_guess",
+                difficulty: ev.difficulty || "challenge",
+                category: ev.category || "",
+                custom_topic: ev.customTopic || "",
+                participant_count: ev.participantCount || 0,
+                prize_pool: ev.prizePool || 0,
+                entry_fee: ev.entryFee || 0,
+                gift_card_prizes: ev.giftCardPrizes || null,
+                prize_funding: ev.prizeFunding || null,
+                visibility: ev.visibility || "public",
+                region: ev.region || "global",
+                timezone: ev.timezone || "UTC",
+                duration_minutes: ev.duration || 30,
+                clue_count: ev.clues ? ev.clues.length : 0,
+                question_count: ev.questions ? ev.questions.length : 0,
+                promo_video_url: ev.promoVideoUrl || "",
+                deep_link_url: ev.deepLinkUrl || "",
+                status: derivedStatus,
+                published_at: isoFromSec(ev.publishedAt),
+                ended_at: isoFromSec(ev.endedAt)
+            });
+            seenCreatorIds[evId] = true;
+        }
+        // Creator events stored under SYSTEM (creator_live_event_publish path).
         try {
             var cursor = "";
-            var creatorEventsCollection = "live_events";
-            for (var page = 0; page < 10; page++) { // Max 10 pages = 1000 events
+            for (var page = 0; page < maxListPages; page++) {
                 var result = nk.storageList(Constants.SYSTEM_USER_ID, creatorEventsCollection, 100, cursor);
                 var objects = result.objects || [];
                 for (var i = 0; i < objects.length; i++) {
-                    var obj = objects[i];
-                    if (!obj.value)
-                        continue;
-                    var ev = obj.value;
-                    // Filter by gameId if specified
-                    if (gameId && ev.gameId && ev.gameId !== gameId)
-                        continue;
-                    // Compute dynamic status based on current time
-                    var nowSec = Math.floor(Date.now() / 1000);
-                    var startSec = ev.scheduledAt || ev.createdAt || 0;
-                    var endSec = startSec + (ev.duration || 30) * 60;
-                    var derivedStatus = ev.status;
-                    if (derivedStatus === "published") {
-                        if (nowSec >= startSec && nowSec < endSec)
-                            derivedStatus = "live";
-                        else if (nowSec >= endSec)
-                            derivedStatus = "ended";
-                    }
-                    // Build rewards_json from giftCardPrizes or prizes array
-                    var rewardsJson = undefined;
-                    if (ev.giftCardPrizes && ev.giftCardPrizes.tiers) {
-                        rewardsJson = JSON.stringify(ev.giftCardPrizes.tiers.map(function (t) {
-                            return { type: t.brand || "prize", rank: t.rank, amount: t.value, currency: t.currency, label: t.prize };
-                        }));
-                    }
-                    else if (ev.prizes && ev.prizes.length > 0) {
-                        rewardsJson = JSON.stringify(ev.prizes);
-                    }
-                    else if (ev.prizePool > 0) {
-                        rewardsJson = JSON.stringify([{ type: "xut", amount: ev.prizePool, currency: "XUT" }]);
-                    }
-                    // Convert creator event to admin dashboard format with QuizVerse-specific fields
-                    events.push({
-                        // Satori-compatible base fields
-                        id: ev.id || obj.key,
-                        name: ev.title || "Untitled Creator Event",
-                        description: ev.description || "",
-                        start_time_sec: startSec,
-                        end_time_sec: endSec,
-                        rewards_json: rewardsJson,
-                        audiences: [],
-                        enabled: ev.status !== "ended" && ev.status !== "cancelled",
-                        created_at: isoFromSec(ev.createdAt),
-                        updated_at: isoFromSec(ev.publishedAt || ev.createdAt),
-                        // QuizVerse creator event specific fields
-                        source: "quizverse_creator",
-                        creator_id: ev.creatorId || obj.userId,
-                        game_id: ev.gameId || "126bf539-dae2-4bcf-964d-316c0fa1f92b",
-                        game_mode: ev.gameMode || "best_guess",
-                        difficulty: ev.difficulty || "challenge",
-                        category: ev.category || "",
-                        custom_topic: ev.customTopic || "",
-                        participant_count: ev.participantCount || 0,
-                        prize_pool: ev.prizePool || 0,
-                        entry_fee: ev.entryFee || 0,
-                        gift_card_prizes: ev.giftCardPrizes || null,
-                        prize_funding: ev.prizeFunding || null,
-                        visibility: ev.visibility || "public",
-                        region: ev.region || "global",
-                        timezone: ev.timezone || "UTC",
-                        duration_minutes: ev.duration || 30,
-                        clue_count: ev.clues ? ev.clues.length : 0,
-                        question_count: ev.questions ? ev.questions.length : 0,
-                        promo_video_url: ev.promoVideoUrl || "",
-                        deep_link_url: ev.deepLinkUrl || "",
-                        status: derivedStatus,
-                        published_at: isoFromSec(ev.publishedAt),
-                        ended_at: isoFromSec(ev.endedAt)
-                    });
+                    pushCreatorLiveEventRow(objects[i]);
                 }
                 cursor = result.cursor || "";
                 if (!cursor)
@@ -21307,7 +21318,37 @@ var AdminConsole;
             }
         }
         catch (e) {
-            logger.warn("[rpcAdminLiveEventsList] Failed to fetch creator events: %s", e.message || String(e));
+            logger.warn("[rpcAdminLiveEventsList] Failed to fetch SYSTEM live_events: %s", e.message || String(e));
+        }
+        // SPA / creator-portal events live under the CREATOR's user id (not SYSTEM).
+        // live.quizverse.world lists via storageList(null, …); match that here so
+        // WhatsApp, WF-47 KB, and admin live-ops see the same events.
+        //
+        // Permission model for storageList(null, ...): this is a server-runtime call
+        // that enumerates the "live_events" collection across ALL owners, bypassing
+        // per-object read permissions. That is safe and intended here because:
+        //  1. This RPC is admin-gated (RpcHelpers.requireAdmin above) — output is
+        //     only visible to authenticated admins, who must see private events too.
+        //  2. The scan is scoped to the single "live_events" collection; no other
+        //     user data is reachable.
+        //  3. Each row carries its `visibility` field, and public-facing consumers
+        //     (WhatsApp conversation hub via live-ops.ts isPublicJoinable) filter
+        //     out non-public events before anything reaches end users.
+        try {
+            var spaCursor = "";
+            for (var spaPage = 0; spaPage < maxListPages; spaPage++) {
+                var spaResult = nk.storageList(null, creatorEventsCollection, 100, spaCursor);
+                var spaObjects = spaResult.objects || [];
+                for (var j = 0; j < spaObjects.length; j++) {
+                    pushCreatorLiveEventRow(spaObjects[j]);
+                }
+                spaCursor = spaResult.cursor || "";
+                if (!spaCursor)
+                    break;
+            }
+        }
+        catch (spaErr) {
+            logger.warn("[rpcAdminLiveEventsList] Failed to list creator-owned live_events: %s", spaErr.message || String(spaErr));
         }
         return RpcHelpers.successResponse({ events: events, game_id: gameId || Constants.DEFAULT_GAME_ID });
     }
