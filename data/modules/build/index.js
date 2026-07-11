@@ -70113,15 +70113,42 @@ var SocialGroupLinks;
 //
 // Pagination: numeric offset cursor (opaque string to clients — doc §19.5:
 // clients must never parse cursors).
+//
+// gameId resolution (2026-07-11):
+//   QuizVerse historically stored BOTH the slug "quizverse" and the canonical
+//   UUID "126bf539-dae2-4bcf-964d-316c0fa1f92b" in metadata.gameId. Matching
+//   only one of them silently dropped the other half of browse/search results.
+//   resolveGameIdAliases() expands slug → [uuid, slug] (and UUID → same pair)
+//   so a single QuizVerse discover call covers both write paths. Legacy rows
+//   with empty/missing gameId are excluded (they are not safely attributable).
 var SocialGroupSearch;
 (function (SocialGroupSearch) {
     var MAX_LIMIT = 50;
     var MAX_QUERY = 64;
+    var QUIZVERSE_UUID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    /**
+     * Expand a caller-supplied gameId into every string that may appear in
+     * groups.metadata.gameId for that product. Unknown ids pass through as-is.
+     */
+    function resolveGameIdAliases(raw) {
+        var id = (raw || "").trim();
+        if (!id)
+            id = QUIZVERSE_UUID;
+        var lower = id.toLowerCase();
+        if (id === QUIZVERSE_UUID || lower === "quizverse" || lower === "quiz-verse") {
+            return [QUIZVERSE_UUID, "quizverse", "QuizVerse", "quiz-verse"];
+        }
+        return [id];
+    }
     function rpcGroupSearch(ctx, logger, nk, payload) {
         try {
             RpcHelpers.requireUserId(ctx);
             var data = RpcHelpers.parseRpcPayload(payload) || {};
-            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            // Default to the canonical QuizVerse UUID (matches IntelliVerseXConfig /
+            // Unity GameConfig). resolveGameIdAliases still expands slug variants.
+            var rawGameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : QUIZVERSE_UUID;
+            var gameIdAliases = resolveGameIdAliases(rawGameId);
+            var primaryGameId = gameIdAliases[0];
             var limit = (typeof data.limit === "number" && data.limit > 0) ? Math.min(Math.floor(data.limit), MAX_LIMIT) : 20;
             var offset = 0;
             if (typeof data.cursor === "string" && data.cursor) {
@@ -70138,24 +70165,41 @@ var SocialGroupSearch;
             var openOnly = data.openOnly !== false;
             var rows = [];
             try {
+                // Build IN-list placeholders ($1..$N) for every accepted gameId alias.
+                var inParams = [];
+                var inPlaceholders = [];
+                for (var ai = 0; ai < gameIdAliases.length; ai++) {
+                    inParams.push(gameIdAliases[ai]);
+                    inPlaceholders.push("$" + (ai + 1));
+                }
+                var inClause = inPlaceholders.join(", ");
+                var openParamIdx = inParams.length + 1;
+                var nextIdx = openParamIdx + 1;
                 if (query) {
                     // Escape ILIKE wildcards in user input, then wrap in %...%.
                     var escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+                    var queryParamIdx = nextIdx;
+                    var limitParamIdx = nextIdx + 1;
+                    var offsetParamIdx = nextIdx + 2;
+                    var qParams = inParams.concat([openOnly, "%" + escaped + "%", limit + 1, offset]);
                     rows = nk.sqlQuery("SELECT id, name, description, avatar_url, edge_count, max_count, state, metadata " +
                         "FROM groups " +
-                        "WHERE (metadata->>'gameId') = $1 " +
-                        "  AND ($2 = false OR state = 0) " +
-                        "  AND name ILIKE $3 " +
+                        "WHERE (metadata->>'gameId') IN (" + inClause + ") " +
+                        "  AND ($" + openParamIdx + " = false OR state = 0) " +
+                        "  AND name ILIKE $" + queryParamIdx + " " +
                         "ORDER BY edge_count DESC, name ASC " +
-                        "LIMIT $4 OFFSET $5", [gameId, openOnly, "%" + escaped + "%", limit + 1, offset]);
+                        "LIMIT $" + limitParamIdx + " OFFSET $" + offsetParamIdx, qParams);
                 }
                 else {
+                    var limitParamIdx2 = nextIdx;
+                    var offsetParamIdx2 = nextIdx + 1;
+                    var bParams = inParams.concat([openOnly, limit + 1, offset]);
                     rows = nk.sqlQuery("SELECT id, name, description, avatar_url, edge_count, max_count, state, metadata " +
                         "FROM groups " +
-                        "WHERE (metadata->>'gameId') = $1 " +
-                        "  AND ($2 = false OR state = 0) " +
+                        "WHERE (metadata->>'gameId') IN (" + inClause + ") " +
+                        "  AND ($" + openParamIdx + " = false OR state = 0) " +
                         "ORDER BY edge_count DESC, name ASC " +
-                        "LIMIT $3 OFFSET $4", [gameId, openOnly, limit + 1, offset]);
+                        "LIMIT $" + limitParamIdx2 + " OFFSET $" + offsetParamIdx2, bParams);
                 }
             }
             catch (sqlErr) {
@@ -70186,7 +70230,7 @@ var SocialGroupSearch;
                     memberCount: (typeof r.edge_count === "number") ? r.edge_count : parseInt(String(r.edge_count || 0), 10),
                     maxCount: (typeof r.max_count === "number") ? r.max_count : parseInt(String(r.max_count || 0), 10),
                     open: String(r.state) === "0",
-                    gameId: meta.gameId || gameId,
+                    gameId: meta.gameId || primaryGameId,
                     groupType: meta.groupType || "",
                     level: (typeof meta.level === "number") ? meta.level : 1,
                     xp: (typeof meta.xp === "number") ? meta.xp : 0,
