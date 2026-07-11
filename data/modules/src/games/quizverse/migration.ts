@@ -941,18 +941,22 @@ namespace QuizVerseMigration {
       throw nakamaError("refresh_token required", nkruntime.Codes.INVALID_ARGUMENT);
     }
     var idp = req.idp_username || req.idpUsername || req["idp-username"] || "";
-    // Unity APIManager uses /api/user/auth/refresh-token?idp-username=… with
-    // body { refreshToken }. Prefer that path when idp_username is present so
-    // web/Unity refresh tokens minted by the same login share one endpoint.
-    if (idp) {
-      var unityPath =
-        "/api/user/auth/refresh-token?idp-username=" + encodeURIComponent(String(idp));
-      return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", unityPath, {
-        refreshToken: refreshTok
+    // IMPORTANT: /api/user/auth-v2/refresh does NOT exist on api.intelli-verse-x.ai
+    // (returns HTTP 404). Unity APIManager's proven path is:
+    //   POST /api/user/auth/refresh-token?idp-username=…  body { refreshToken }
+    // Always use that. idp_username is required for Cognito refresh to succeed.
+    if (!idp) {
+      return JSON.stringify({
+        ok: false,
+        error: "idp_username_required",
+        rpc: RPC_AUTH_REFRESH,
+        fallback_to_client: true,
+        message: "auth_refresh requires idp_username (Unity refresh-token parity)"
       });
     }
-    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", "/api/user/auth-v2/refresh", {
-      refresh_token: refreshTok,
+    var unityPath =
+      "/api/user/auth/refresh-token?idp-username=" + encodeURIComponent(String(idp));
+    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", unityPath, {
       refreshToken: refreshTok
     });
   }
