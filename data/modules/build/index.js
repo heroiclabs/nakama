@@ -6544,26 +6544,51 @@ var IntelliverseFriends;
         try {
             // 1000 is well above realistic friend list sizes; we don't paginate
             // here because relationship enrichment must be complete or absent.
-            var resp = nk.friendsList(userId, 1000, undefined, undefined);
-            if (resp && resp.friends) {
-                for (var i = 0; i < resp.friends.length; i++) {
-                    var fr = resp.friends[i];
-                    if (!fr || !fr.user)
-                        continue;
-                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
-                        ? fr.state.value
-                        : fr.state;
-                    var fid = fr.user.id;
-                    if (s === STATE_FRIEND)
-                        relationMap[fid] = "friend";
-                    else if (s === STATE_INVITE_SENT)
-                        relationMap[fid] = "pending_sent";
-                    else if (s === STATE_INVITE_RECEIVED)
-                        relationMap[fid] = "pending_received";
-                    else if (s === STATE_BLOCKED) {
-                        relationMap[fid] = "blocked";
-                        blockedSet[fid] = true;
+            var resp = nk.friendsList(userId, 1000, null, null);
+            var list = [];
+            if (resp && resp.friends && resp.friends.length)
+                list = resp.friends;
+            else if (Array.isArray(resp))
+                list = resp;
+            // Same prod Goja empty-list footgun as friends_list — recover via SQL.
+            if (list.length === 0) {
+                try {
+                    var rows = nk.sqlQuery("SELECT destination_id AS friend_id, state AS edge_state FROM user_edge WHERE source_id = $1 LIMIT 1000", [userId]);
+                    if (rows) {
+                        for (var ri = 0; ri < rows.length; ri++) {
+                            var row = rows[ri];
+                            if (!row || !row.friend_id)
+                                continue;
+                            list.push({
+                                user: { id: String(row.friend_id) },
+                                state: (typeof row.edge_state === "number")
+                                    ? row.edge_state
+                                    : parseInt(String(row.edge_state || 0), 10)
+                            });
+                        }
                     }
+                }
+                catch (_) { /* enrichment stays degraded */ }
+            }
+            for (var i = 0; i < list.length; i++) {
+                var fr = list[i];
+                if (!fr || !fr.user)
+                    continue;
+                var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                    ? fr.state.value
+                    : fr.state;
+                var fid = fr.user.id;
+                if (!fid)
+                    continue;
+                if (s === STATE_FRIEND)
+                    relationMap[fid] = "friend";
+                else if (s === STATE_INVITE_SENT)
+                    relationMap[fid] = "pending_sent";
+                else if (s === STATE_INVITE_RECEIVED)
+                    relationMap[fid] = "pending_received";
+                else if (s === STATE_BLOCKED) {
+                    relationMap[fid] = "blocked";
+                    blockedSet[fid] = true;
                 }
             }
         }
@@ -7060,19 +7085,42 @@ var IntelliverseNearbyPlayers;
     function loadExcludedSet(nk, logger, userId) {
         var excluded = {};
         try {
-            var resp = nk.friendsList(userId, 1000, undefined, undefined);
-            if (resp && resp.friends) {
-                for (var i = 0; i < resp.friends.length; i++) {
-                    var fr = resp.friends[i];
-                    if (!fr || !fr.user)
-                        continue;
-                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
-                        ? fr.state.value
-                        : fr.state;
-                    if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
-                        s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
-                        excluded[fr.user.id] = true;
+            var resp = nk.friendsList(userId, 1000, null, null);
+            var list = [];
+            if (resp && resp.friends && resp.friends.length)
+                list = resp.friends;
+            else if (Array.isArray(resp))
+                list = resp;
+            if (list.length === 0) {
+                try {
+                    var rows = nk.sqlQuery("SELECT destination_id AS friend_id, state AS edge_state FROM user_edge WHERE source_id = $1 LIMIT 1000", [userId]);
+                    if (rows) {
+                        for (var ri = 0; ri < rows.length; ri++) {
+                            var row = rows[ri];
+                            if (!row || !row.friend_id)
+                                continue;
+                            list.push({
+                                user: { id: String(row.friend_id) },
+                                state: (typeof row.edge_state === "number")
+                                    ? row.edge_state
+                                    : parseInt(String(row.edge_state || 0), 10)
+                            });
+                        }
                     }
+                }
+                catch (_) { /* degrade */ }
+            }
+            for (var i = 0; i < list.length; i++) {
+                var fr = list[i];
+                if (!fr || !fr.user)
+                    continue;
+                var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                    ? fr.state.value
+                    : fr.state;
+                if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
+                    s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
+                    if (fr.user.id)
+                        excluded[fr.user.id] = true;
                 }
             }
         }
@@ -7427,6 +7475,82 @@ var IntelliverseFriendsList;
         return map;
     }
     /**
+     * Normalize nk.friendsList / FriendList shapes across Goja bindings.
+     */
+    function normalizeFriendsList(friendsResp) {
+        if (!friendsResp)
+            return [];
+        if (Array.isArray(friendsResp))
+            return friendsResp;
+        if (friendsResp.friends && Array.isArray(friendsResp.friends))
+            return friendsResp.friends;
+        if (friendsResp.Friends && Array.isArray(friendsResp.Friends))
+            return friendsResp.Friends;
+        return [];
+    }
+    /**
+     * SQL fallback when nk.friendsList returns empty despite a live friend graph
+     * (seen on prod 2026-07-11 — native /v2/friend had rows, Goja list did not).
+     * Builds the same { user, state } objects flattenFriend expects.
+     */
+    function loadFriendsViaSql(nk, logger, userId, limit, stateFilter) {
+        var out = [];
+        try {
+            var rows = [];
+            if (stateFilter === undefined || stateFilter === null) {
+                rows = nk.sqlQuery("SELECT e.destination_id AS friend_id, e.state AS edge_state, e.update_time AS edge_update_time, " +
+                    "       u.username, u.display_name, u.avatar_url, u.create_time, u.update_time, u.metadata " +
+                    "FROM user_edge e " +
+                    "JOIN users u ON u.id = e.destination_id " +
+                    "WHERE e.source_id = $1 " +
+                    "ORDER BY e.update_time DESC " +
+                    "LIMIT $2", [userId, limit]);
+            }
+            else {
+                rows = nk.sqlQuery("SELECT e.destination_id AS friend_id, e.state AS edge_state, e.update_time AS edge_update_time, " +
+                    "       u.username, u.display_name, u.avatar_url, u.create_time, u.update_time, u.metadata " +
+                    "FROM user_edge e " +
+                    "JOIN users u ON u.id = e.destination_id " +
+                    "WHERE e.source_id = $1 AND e.state = $2 " +
+                    "ORDER BY e.update_time DESC " +
+                    "LIMIT $3", [userId, stateFilter, limit]);
+            }
+            if (!rows)
+                return out;
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                if (!row || !row.friend_id)
+                    continue;
+                var edgeState = (typeof row.edge_state === "number")
+                    ? row.edge_state
+                    : parseInt(String(row.edge_state || 0), 10);
+                out.push({
+                    state: edgeState,
+                    updateTime: row.edge_update_time || "",
+                    user: {
+                        id: String(row.friend_id),
+                        username: row.username || "",
+                        displayName: row.display_name || "",
+                        display_name: row.display_name || "",
+                        avatarUrl: row.avatar_url || "",
+                        avatar_url: row.avatar_url || "",
+                        createTime: row.create_time || "",
+                        create_time: row.create_time || "",
+                        updateTime: row.update_time || "",
+                        update_time: row.update_time || "",
+                        metadata: row.metadata || {}
+                    }
+                });
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn) {
+                logger.warn("[FriendsList] user_edge SQL fallback failed: " + (e && e.message));
+            }
+        }
+        return out;
+    }
+    /**
      * Flatten a Nakama friend object into our canonical wire shape.
      * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
      * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
@@ -7489,7 +7613,10 @@ var IntelliverseFriendsList;
         // ── Fetch from Nakama ───────────────────────────────────────────────
         var friendsResp = null;
         try {
-            friendsResp = nk.friendsList(userId, limit, stateFilter, cursor);
+            // Prefer null cursor (matches duo_quests / friends_feed call sites).
+            // Passing JS `undefined` has been observed on prod Goja to yield an
+            // empty FriendList while the native /v2/friend graph still has rows.
+            friendsResp = nk.friendsList(userId, limit, (stateFilter === undefined ? null : stateFilter), (cursor === undefined ? null : cursor));
         }
         catch (e) {
             if (logger && logger.error) {
@@ -7500,11 +7627,17 @@ var IntelliverseFriendsList;
         // Nakama releases have exposed this binding both as FriendList and as a
         // direct array in Goja. Normalize both shapes so a valid native graph can
         // never become an empty Social Zone roster after a runtime upgrade.
-        var rawFriends = Array.isArray(friendsResp)
-            ? friendsResp
-            : (friendsResp && friendsResp.friends)
-                ? friendsResp.friends
-                : [];
+        var rawFriends = normalizeFriendsList(friendsResp);
+        // Prod incident 2026-07-11 (Sid): nk.friendsList returned {friends:[]} while
+        // GET /v2/friend returned 14 edges. Fall back to user_edge SQL so Social
+        // Zone never shows an empty roster when the graph is non-empty.
+        if (rawFriends.length === 0) {
+            rawFriends = loadFriendsViaSql(nk, logger, userId, limit, stateFilter);
+            if (rawFriends.length > 0 && logger && logger.warn) {
+                logger.warn("[FriendsList] nk.friendsList empty — recovered " + rawFriends.length +
+                    " rows via user_edge SQL for user=" + userId);
+            }
+        }
         var nextCursor = (!Array.isArray(friendsResp) && friendsResp && friendsResp.cursor) || null;
         // ── Bulk-load presence ──────────────────────────────────────────────
         var ids = [];
@@ -13502,10 +13635,25 @@ var QuizVerseMigration;
     }
     function rpcAuthRefresh(ctx, logger, nk, payload) {
         var req = parseJson(payload);
-        if (!req.refresh_token) {
+        // Accept Unity field names (refreshToken) and broker snake_case.
+        var refreshTok = req.refresh_token || req.refreshToken || "";
+        if (!refreshTok) {
             throw nakamaError("refresh_token required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
         }
-        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_REFRESH, "post", "/api/user/auth-v2/refresh", req);
+        var idp = req.idp_username || req.idpUsername || req["idp-username"] || "";
+        // Unity APIManager uses /api/user/auth/refresh-token?idp-username=… with
+        // body { refreshToken }. Prefer that path when idp_username is present so
+        // web/Unity refresh tokens minted by the same login share one endpoint.
+        if (idp) {
+            var unityPath = "/api/user/auth/refresh-token?idp-username=" + encodeURIComponent(String(idp));
+            return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_REFRESH, "post", unityPath, {
+                refreshToken: refreshTok
+            });
+        }
+        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_REFRESH, "post", "/api/user/auth-v2/refresh", {
+            refresh_token: refreshTok,
+            refreshToken: refreshTok
+        });
     }
     function rpcAuthUserinfo(ctx, _l, nk, _p) {
         var userId = requireAuth(ctx);
@@ -35121,6 +35269,18 @@ var LegacyChat;
         initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
     }
     function register(initializer) {
+        function auth(fn) {
+            var wrapped = null;
+            return function (ctx, logger, nk, payload) {
+                if (!wrapped) {
+                    var strictFn = fn;
+                    wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+                        ? RpcHelpers.withCleanAuthError(strictFn)
+                        : strictFn;
+                }
+                return wrapped(ctx, logger, nk, payload);
+            };
+        }
         initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
         initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
         initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);
@@ -35129,13 +35289,13 @@ var LegacyChat;
         // read/unread RPCs below throwing a raw Goja 500 for unauthenticated callers
         // instead of the clean JSON every other chat RPC in this file returns — belt
         // and suspenders on top of each handler's own try/catch.
-        initializer.registerRpc("quizverse_deliver_pending_chat_messages", RpcHelpers.withCleanAuthError(rpcDeliverPendingChatMessages));
+        initializer.registerRpc("quizverse_deliver_pending_chat_messages", auth(rpcDeliverPendingChatMessages));
         initializer.registerRpc("get_group_chat_history", rpcGetGroupChatHistory);
         initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
         initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
         initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
-        initializer.registerRpc("mark_group_messages_read", RpcHelpers.withCleanAuthError(rpcMarkGroupMessagesRead));
-        initializer.registerRpc("get_unread_counts", RpcHelpers.withCleanAuthError(rpcGetUnreadCounts));
+        initializer.registerRpc("mark_group_messages_read", auth(rpcMarkGroupMessagesRead));
+        initializer.registerRpc("get_unread_counts", auth(rpcGetUnreadCounts));
         // Force durable persistence for realtime chat (offline delivery + history +
         // unread counts), then push-notify after the message lands. postbuild also
         // invokes register() without an initializer on every pooled Goja VM to bind

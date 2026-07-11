@@ -764,6 +764,28 @@ namespace LegacyChat {
   }
 
   export function register(initializer: nkruntime.Initializer): void {
+    // withCleanAuthError wraps a handler once at registration time, but when
+    // register() is auto-invoked at IIFE scope by the postbuild script,
+    // RpcHelpers may not be initialised yet — LegacyChat sorts before
+    // shared/rpc-helpers on Linux (case-sensitive readdir). An eager
+    // RpcHelpers.withCleanAuthError(...) here throws at startup and takes
+    // down the entire JS runtime (GHA run 29118582453 / e3c96bd):
+    //   TypeError: Cannot read property 'withCleanAuthError' of undefined
+    // Use a lazy wrapper (same pattern as hermes.ts / quest_engine.ts).
+    type StrictRpc = (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string;
+    function auth(fn: nkruntime.RpcFunction): nkruntime.RpcFunction {
+      var wrapped: StrictRpc | null = null;
+      return function(ctx, logger, nk, payload): string {
+        if (!wrapped) {
+          const strictFn = fn as StrictRpc;
+          wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+            ? RpcHelpers.withCleanAuthError(strictFn)
+            : strictFn;
+        }
+        return wrapped(ctx, logger, nk, payload);
+      };
+    }
+
     initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
     initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
     initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);
@@ -772,13 +794,13 @@ namespace LegacyChat {
     // read/unread RPCs below throwing a raw Goja 500 for unauthenticated callers
     // instead of the clean JSON every other chat RPC in this file returns — belt
     // and suspenders on top of each handler's own try/catch.
-    initializer.registerRpc("quizverse_deliver_pending_chat_messages", RpcHelpers.withCleanAuthError(rpcDeliverPendingChatMessages));
+    initializer.registerRpc("quizverse_deliver_pending_chat_messages", auth(rpcDeliverPendingChatMessages));
     initializer.registerRpc("get_group_chat_history", rpcGetGroupChatHistory);
     initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
     initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
     initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
-    initializer.registerRpc("mark_group_messages_read", RpcHelpers.withCleanAuthError(rpcMarkGroupMessagesRead));
-    initializer.registerRpc("get_unread_counts", RpcHelpers.withCleanAuthError(rpcGetUnreadCounts));
+    initializer.registerRpc("mark_group_messages_read", auth(rpcMarkGroupMessagesRead));
+    initializer.registerRpc("get_unread_counts", auth(rpcGetUnreadCounts));
 
     // Force durable persistence for realtime chat (offline delivery + history +
     // unread counts), then push-notify after the message lands. postbuild also

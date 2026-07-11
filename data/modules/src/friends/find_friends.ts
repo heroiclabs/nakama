@@ -213,20 +213,45 @@ namespace IntelliverseFriends {
     try {
       // 1000 is well above realistic friend list sizes; we don't paginate
       // here because relationship enrichment must be complete or absent.
-      var resp = nk.friendsList(userId, 1000, undefined as any, undefined as any);
-      if (resp && resp.friends) {
-        for (var i = 0; i < resp.friends.length; i++) {
-          var fr: any = resp.friends[i];
-          if (!fr || !fr.user) continue;
-          var s: any = (fr.state && typeof fr.state === "object" && "value" in fr.state)
-            ? fr.state.value
-            : fr.state;
-          var fid = fr.user.id;
-          if      (s === STATE_FRIEND)          relationMap[fid] = "friend";
-          else if (s === STATE_INVITE_SENT)     relationMap[fid] = "pending_sent";
-          else if (s === STATE_INVITE_RECEIVED) relationMap[fid] = "pending_received";
-          else if (s === STATE_BLOCKED)       { relationMap[fid] = "blocked"; blockedSet[fid] = true; }
-        }
+      var resp = nk.friendsList(userId, 1000, null as any, null as any);
+      var list: any[] = [];
+      if (resp && resp.friends && resp.friends.length) list = resp.friends as any[];
+      else if (Array.isArray(resp as any)) list = resp as any;
+
+      // Same prod Goja empty-list footgun as friends_list — recover via SQL.
+      if (list.length === 0) {
+        try {
+          var rows = nk.sqlQuery(
+            "SELECT destination_id AS friend_id, state AS edge_state FROM user_edge WHERE source_id = $1 LIMIT 1000",
+            [userId]
+          ) as any[];
+          if (rows) {
+            for (var ri = 0; ri < rows.length; ri++) {
+              var row: any = rows[ri];
+              if (!row || !row.friend_id) continue;
+              list.push({
+                user: { id: String(row.friend_id) },
+                state: (typeof row.edge_state === "number")
+                  ? row.edge_state
+                  : parseInt(String(row.edge_state || 0), 10)
+              });
+            }
+          }
+        } catch (_) { /* enrichment stays degraded */ }
+      }
+
+      for (var i = 0; i < list.length; i++) {
+        var fr: any = list[i];
+        if (!fr || !fr.user) continue;
+        var s: any = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+          ? fr.state.value
+          : fr.state;
+        var fid = fr.user.id;
+        if (!fid) continue;
+        if      (s === STATE_FRIEND)          relationMap[fid] = "friend";
+        else if (s === STATE_INVITE_SENT)     relationMap[fid] = "pending_sent";
+        else if (s === STATE_INVITE_RECEIVED) relationMap[fid] = "pending_received";
+        else if (s === STATE_BLOCKED)       { relationMap[fid] = "blocked"; blockedSet[fid] = true; }
       }
     } catch (e: any) {
       // Relationship lookup failure must NOT fail the search — just degrade

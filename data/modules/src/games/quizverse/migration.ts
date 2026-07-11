@@ -935,10 +935,26 @@ namespace QuizVerseMigration {
     payload: string
   ): string {
     var req = parseJson(payload);
-    if (!req.refresh_token) {
+    // Accept Unity field names (refreshToken) and broker snake_case.
+    var refreshTok = req.refresh_token || req.refreshToken || "";
+    if (!refreshTok) {
       throw nakamaError("refresh_token required", nkruntime.Codes.INVALID_ARGUMENT);
     }
-    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", "/api/user/auth-v2/refresh", req);
+    var idp = req.idp_username || req.idpUsername || req["idp-username"] || "";
+    // Unity APIManager uses /api/user/auth/refresh-token?idp-username=… with
+    // body { refreshToken }. Prefer that path when idp_username is present so
+    // web/Unity refresh tokens minted by the same login share one endpoint.
+    if (idp) {
+      var unityPath =
+        "/api/user/auth/refresh-token?idp-username=" + encodeURIComponent(String(idp));
+      return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", unityPath, {
+        refreshToken: refreshTok
+      });
+    }
+    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", "/api/user/auth-v2/refresh", {
+      refresh_token: refreshTok,
+      refreshToken: refreshTok
+    });
   }
   function rpcAuthUserinfo(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, _p: string): string {
     var userId = requireAuth(ctx);
