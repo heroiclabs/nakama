@@ -64,10 +64,15 @@ namespace LegacyPlayer {
       }
     }
 
-    if (data.displayName || data.avatarUrl) {
+    // Mirror displayName / avatarUrl onto the Nakama account so friends,
+    // leaderboards, and groups that read account.user.* stay in sync.
+    // Pass null for untouched fields (Nakama leaves those unchanged).
+    if (data.displayName !== undefined || data.avatarUrl !== undefined) {
       try {
+        var accountDisplayName = data.displayName !== undefined ? String(data.displayName) : null;
+        var accountAvatarUrl = data.avatarUrl !== undefined ? String(data.avatarUrl) : null;
         // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
-        nk.accountUpdateId(userId, null, data.displayName || null, null, null, null, data.avatarUrl || null, null);
+        nk.accountUpdateId(userId, null, accountDisplayName, null, null, null, accountAvatarUrl, null);
       } catch (err: any) {
         logger.warn("[Player] Failed to update account: " + err.message);
       }

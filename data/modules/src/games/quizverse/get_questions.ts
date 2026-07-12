@@ -39,7 +39,9 @@ namespace QvGetQuestions {
   var MAX_FULFILL_ATTEMPTS = 3;
   var SEEN_MAX          = 500;      // cap the seen-IDs array to keep storage lean
   var COL_READYQUEUE    = "qv_readyqueue"; // pre-warmed per-user question pool
-  var READYQUEUE_TTL_MS = 2 * 3600000;    // 2 h — discard stale readyqueue entries
+  // 8 h hard TTL — overnight reopen still hits fast path. Soft window below
+  // allows stale-while-revalidate up to 2× TTL (industry CDN pattern).
+  var READYQUEUE_TTL_MS = 8 * 3600000;
 
   // Client topic aliases — applied after trim/toLowerCase, before cache lookup
   var TOPIC_ALIASES: { [alias: string]: string } = {
@@ -74,6 +76,7 @@ namespace QvGetQuestions {
     cocktail: true, food: true, dog: true, ghibli: true, disney: true, starwars: true,
     countries: true, flags: true, space: true, movies: true, sports: true, music: true,
     news: true, daily: true, weekly: true, video_quiz: true, ai: true,
+    opentdb: true, // general OpenTDB (TrueFalse / Speed fallbacks)
     // New topics (2026-07): infinite-content providers, all free/no-key
     math: true,    // OpenTDB Mathematics (cat 19) + Computers (cat 18)
     art: true,     // Art Institute of Chicago API — CC0 artwork images
@@ -953,8 +956,12 @@ namespace QvGetQuestions {
       var rows = nk.storageRead([{ collection: COL_READYQUEUE, key: topicSlug, userId: userId }]);
       if (!rows || rows.length === 0 || !rows[0].value) return null;
       var rq: any = rows[0].value;
-      if (!rq.created_at_ms || (nowMs() - rq.created_at_ms) > READYQUEUE_TTL_MS) return null;
-      if (!Array.isArray(rq.questions)) return null;
+      if (!rq.created_at_ms || !Array.isArray(rq.questions)) return null;
+      // Hard drop after 2× TTL. Between TTL and 2×TTL: stale-while-revalidate —
+      // still serve a complete eligible slice so cold origin refresh never blocks
+      // the player while cron/client warm rewrites the queue.
+      var rqAge = nowMs() - rq.created_at_ms;
+      if (rqAge > READYQUEUE_TTL_MS * 2) return null;
 
       // Ready queues are only an optimization. Re-apply every correctness
       // filter because seen/inflight state may have changed after prewarming.

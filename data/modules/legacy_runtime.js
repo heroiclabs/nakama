@@ -19752,7 +19752,7 @@ function asyncChallengeCountActive(nk, userId) {
  * @returns {string} JSON response with session data
  */
 function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
-    logger.debug('[AsyncChallenge] Creating challenge for user: ' + ctx.userId);
+    logger.info('[SZ-DIAG][SERVER][AsyncChallengeCreate] start user=' + ctx.userId);
 
     var request;
     try {
@@ -19765,6 +19765,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         // Validate user
         var userValidation = asyncChallengeValidateUser(ctx, request);
         if (!userValidation.valid) {
+            logger.warn('[SZ-DIAG][SERVER][AsyncChallengeCreate] auth failed: ' + userValidation.error);
             return JSON.stringify({
                 success: false,
                 message: userValidation.error,
@@ -19777,6 +19778,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         // Check active challenge limit
         var activeCount = asyncChallengeCountActive(nk, userId);
         if (activeCount >= ASYNC_CHALLENGE_MAX_PER_USER) {
+            logger.warn('[SZ-DIAG][SERVER][AsyncChallengeCreate] MAX_CHALLENGES user=' + userId + ' active=' + activeCount);
             return JSON.stringify({
                 success: false,
                 message: 'Maximum active challenges reached (' + ASYNC_CHALLENGE_MAX_PER_USER + '). Please complete or cancel existing challenges.',
@@ -19797,6 +19799,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
                 if (msSinceLast < 0) msSinceLast = minGapMs + 1;
                 if (msSinceLast < minGapMs) {
                     var secsLeft = Math.ceil((minGapMs - msSinceLast) / 1000);
+                    logger.warn('[SZ-DIAG][SERVER][AsyncChallengeCreate] RATE_LIMITED user=' + userId + ' waitSec=' + secsLeft);
                     return JSON.stringify({
                         success: false,
                         message: 'Please wait ' + secsLeft + ' second(s) before creating another challenge.',
@@ -19816,6 +19819,14 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         var challengedUserId = request.challengedUserId || request.ChallengedUserId || null;
         var challengedDisplayName = request.challengedDisplayName || request.ChallengedDisplayName || null;
         var playerDisplayName = request.playerDisplayName || request.PlayerDisplayName || 'Unknown';
+
+        logger.info(
+            '[SZ-DIAG][SERVER][AsyncChallengeCreate] params user=' + userId +
+            ' modeType=' + quizModeType +
+            ' modeName=' + quizModeName +
+            ' challengedUserId=' + (challengedUserId || '<none>') +
+            ' challengedDisplayName=' + (challengedDisplayName || '<none>')
+        );
 
         // Generate session ID and share code
         var sessionId = nk.uuidv4();
@@ -19906,6 +19917,15 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         }
 
         logger.info('[AsyncChallenge] Session created: ' + sessionId + ' code: ' + shareCode + ' by user: ' + userId);
+        logger.info(
+            '[SZ-DIAG][SERVER][AsyncChallengeCreate] OK sessionId=' + sessionId +
+            ' shareCode=' + shareCode +
+            ' creatorId=' + userId +
+            ' challengedUserId=' + (challengedUserId || '<none>') +
+            ' opponentId=null_until_join' +
+            ' notified=' + !!(challengedUserId && challengedUserId !== userId) +
+            ' NOTE: Unity HandleChallengeCreated checks PlayerB (null here) not ChallengedUserId'
+        );
 
         return JSON.stringify({
             success: true,
@@ -19914,6 +19934,7 @@ function rpcAsyncChallengeCreate(ctx, logger, nk, payload) {
         });
     } catch (err) {
         logger.error('[AsyncChallenge] Create error: ' + err.message);
+        logger.error('[SZ-DIAG][SERVER][AsyncChallengeCreate] FAIL user=' + (ctx && ctx.userId) + ' err=' + err.message);
         logRpcError(nk, logger, 'async_challenge_create', err.message, ctx.userId, null);
         return JSON.stringify({ success: false, message: err.message, data: null });
     }

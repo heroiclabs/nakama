@@ -7671,15 +7671,47 @@ var IntelliverseFriendsList;
         catch (_) { /* optional enrichment — cards degrade to no-activity */ }
         // ── Flatten ─────────────────────────────────────────────────────────
         var results = [];
+        var cntFriend = 0;
+        var cntPendingRecv = 0;
+        var cntPendingSent = 0;
+        var cntBlocked = 0;
+        var cntOther = 0;
+        var samplePendingRecv = [];
         for (var j = 0; j < rawFriends.length; j++) {
             var fr = rawFriends[j];
             if (!fr || !fr.user || !fr.user.id)
                 continue;
             var online = !!onlineMap[fr.user.id];
             var fcountry = countryMap[fr.user.id] || "";
-            results.push(flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null));
+            var flat = flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null);
+            results.push(flat);
+            var st = flat.relationshipStatus;
+            if (st === "friend")
+                cntFriend++;
+            else if (st === "pending_received") {
+                cntPendingRecv++;
+                if (samplePendingRecv.length < 5)
+                    samplePendingRecv.push(String(flat.userId || fr.user.id));
+            }
+            else if (st === "pending_sent")
+                cntPendingSent++;
+            else if (st === "blocked")
+                cntBlocked++;
+            else
+                cntOther++;
         }
         if (logger && logger.info) {
+            logger.info("[SZ-DIAG][SERVER][FriendsList] user=" + userId +
+                " stateFilter=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+                " country=" + (myCountry || "?") +
+                " returned=" + results.length +
+                " friend=" + cntFriend +
+                " pending_received=" + cntPendingRecv +
+                " pending_sent=" + cntPendingSent +
+                " blocked=" + cntBlocked +
+                " other=" + cntOther +
+                " pendingRecvSample=" + samplePendingRecv.join(",") +
+                " nextCursor=" + (nextCursor || "null"));
             logger.info("[FriendsList] user=" + userId +
                 " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
                 " country=" + (myCountry || "?") +
@@ -9837,7 +9869,9 @@ var QvGetQuestions;
     var MAX_FULFILL_ATTEMPTS = 3;
     var SEEN_MAX = 500; // cap the seen-IDs array to keep storage lean
     var COL_READYQUEUE = "qv_readyqueue"; // pre-warmed per-user question pool
-    var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — discard stale readyqueue entries
+    // 8 h hard TTL — overnight reopen still hits fast path. Soft window below
+    // allows stale-while-revalidate up to 2× TTL (industry CDN pattern).
+    var READYQUEUE_TTL_MS = 8 * 3600000;
     // Client topic aliases — applied after trim/toLowerCase, before cache lookup
     var TOPIC_ALIASES = {
         "dish": "food",
@@ -9870,6 +9904,7 @@ var QvGetQuestions;
         cocktail: true, food: true, dog: true, ghibli: true, disney: true, starwars: true,
         countries: true, flags: true, space: true, movies: true, sports: true, music: true,
         news: true, daily: true, weekly: true, video_quiz: true, ai: true,
+        opentdb: true, // general OpenTDB (TrueFalse / Speed fallbacks)
         // New topics (2026-07): infinite-content providers, all free/no-key
         math: true, // OpenTDB Mathematics (cat 19) + Computers (cat 18)
         art: true, // Art Institute of Chicago API — CC0 artwork images
@@ -10650,9 +10685,13 @@ var QvGetQuestions;
             if (!rows || rows.length === 0 || !rows[0].value)
                 return null;
             var rq = rows[0].value;
-            if (!rq.created_at_ms || (nowMs() - rq.created_at_ms) > READYQUEUE_TTL_MS)
+            if (!rq.created_at_ms || !Array.isArray(rq.questions))
                 return null;
-            if (!Array.isArray(rq.questions))
+            // Hard drop after 2× TTL. Between TTL and 2×TTL: stale-while-revalidate —
+            // still serve a complete eligible slice so cold origin refresh never blocks
+            // the player while cron/client warm rewrites the queue.
+            var rqAge = nowMs() - rq.created_at_ms;
+            if (rqAge > READYQUEUE_TTL_MS * 2)
                 return null;
             // Ready queues are only an optimization. Re-apply every correctness
             // filter because seen/inflight state may have changed after prewarming.
@@ -15418,18 +15457,18 @@ var PlayerDNA;
 // ── get_questions integration ─────────────────────────────────────────────────
 //
 //   get_questions checks qv_readyqueue first (before readCache):
-//     • If found and fresh (<2 h) and has ≥ count questions → serve instantly,
+//     • If found and fresh (<8 h, soft to 16 h) and has ≥ count questions → serve instantly,
 //       remove consumed questions from the readyqueue doc
 //     • Otherwise fall through to normal cache path; after selecting questions
 //       write remaining fresh pool back to readyqueue for next call
 //
 // ── Storage collections ───────────────────────────────────────────────────────
 //
-//   qv_active_users   key=userId, owner=""  { last_played_ms }
+//   qv_active_users   key=userId, owner=system  { last_played_ms }
 //   qv_readyqueue     key=topicSlug, owner=userId  { questions, created_at_ms }
 //
-// ── postbuild note ────────────────────────────────────────────────────────────
-//   registerCron is called directly inside InitModule (detected by postbuild).
+// Client StartupTopics (Unity QuizQuestionWarmupCoordinator) must stay aligned
+// with STARTUP_DEFAULT_TOPICS below.
 var QvPrewarmCron;
 (function (QvPrewarmCron) {
     var COL_ACTIVE = "qv_active_users";
@@ -15437,16 +15476,27 @@ var QvPrewarmCron;
     var COL_SEEN = "qv_seen";
     var ACTIVE_WINDOW_MS = 7 * 24 * 3600000; // 7 days
     var READYQUEUE_SIZE = 30; // questions to pre-compute per topic
-    var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — re-warm if stale
+    var READYQUEUE_TTL_MS = 8 * 3600000; // 8 h — align with get_questions + client resume
     var MAX_USERS_PER_RUN = 200;
-    var TOP_TOPICS_N = 3; // pre-warm top-3 affinity topics
+    var TOP_TOPICS_N = 5; // DNA affinities to merge with startup defaults
+    var MAX_TOPICS_PER_USER = 15; // hard cap per cron user (cost control)
     var MAX_SEEN_IDS = 500; // seen IDs to load per user
+    // Keep in sync with Trivia.Services.QuizQuestionWarmupCoordinator.StartupTopics
+    // and question_cache.fetchForTopic cases.
+    var STARTUP_DEFAULT_TOPICS = [
+        "flags", "music", "video_quiz", "anime", "pokemon",
+        "movies", "dog", "space", "sports", "countries",
+        "true_false", "speed_quiz", "opentdb",
+        "food", "cocktail", "ghibli", "disney", "starwars", "news",
+        "geography"
+    ];
     var WARMABLE_TOPICS = {
         anime: true, pokemon: true, movies: true, dog: true, dish: true,
+        food: true, cocktail: true,
         flags: true, countries: true, space: true, music: true,
         video_quiz: true, sports: true, ghibli: true, disney: true,
         starwars: true, news: true, speed_quiz: true, true_false: true,
-        opentdb: true, general: true
+        opentdb: true, general: true, geography: true
     };
     function nowMs() { return Date.now(); }
     function slugify(s) {
@@ -15454,6 +15504,40 @@ var QvPrewarmCron;
             .replace(/[^a-z0-9]+/g, "_")
             .replace(/^_|_$/g, "")
             .substring(0, 64);
+    }
+    // Mirror submit_result.updateActiveUser — login/warm must register the player
+    // so hourly cron covers them even before their first quiz submit.
+    function updateActiveUser(nk, userId) {
+        if (!userId)
+            return;
+        try {
+            nk.storageWrite([{
+                    collection: COL_ACTIVE,
+                    key: userId,
+                    userId: "00000000-0000-0000-0000-000000000000",
+                    value: { last_played_ms: nowMs() },
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (_e) { /* non-critical */ }
+    }
+    function uniqueTopics(topics) {
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < topics.length; i++) {
+            var slug = slugify(topics[i] || "");
+            if (!slug || !WARMABLE_TOPICS[slug] || seen[slug])
+                continue;
+            // dish is an alias of food in get_questions — warm the canonical cache.
+            if (slug === "dish")
+                slug = "food";
+            if (seen[slug])
+                continue;
+            seen[slug] = true;
+            out.push(slug);
+        }
+        return out;
     }
     // ── Active user list ────────────────────────────────────────────────────────
     function listActiveUsers(nk, logger) {
@@ -15615,31 +15699,33 @@ var QvPrewarmCron;
     function prewarmUser(nk, logger, userId) {
         var stats = { topics: 0, questions: 0 };
         try {
-            // Load DNA to find top affinity topics
-            var dnaRows = nk.storageRead([{ collection: "player_dna", key: "dna", userId: userId }]);
-            if (!dnaRows || dnaRows.length === 0 || !dnaRows[0].value) {
-                // Fall back to default cold-start topics
-                var coldTopics = ["anime", "pokemon", "movies"];
-                for (var ci = 0; ci < coldTopics.length; ci++) {
-                    var n = prewarmTopic(nk, logger, userId, coldTopics[ci]);
-                    if (n > 0) {
-                        stats.topics++;
-                        stats.questions += n;
+            var planned = [];
+            // DNA affinities (best-effort) — merge with full startup defaults so cron
+            // coverage matches the client's first-tap topic list.
+            try {
+                var dnaRows = nk.storageRead([{ collection: "player_dna", key: "dna", userId: userId }]);
+                if (dnaRows && dnaRows.length > 0 && dnaRows[0].value) {
+                    var dna = dnaRows[0].value;
+                    var affinities = (dna && typeof dna.affinities === "object") ? dna.affinities : {};
+                    var topicKeys = Object.keys(affinities);
+                    topicKeys.sort(function (a, b) {
+                        return (affinities[b] || 0) - (affinities[a] || 0);
+                    });
+                    for (var di = 0; di < topicKeys.length && di < TOP_TOPICS_N; di++) {
+                        planned.push(topicKeys[di]);
                     }
                 }
-                return stats;
             }
-            var dna = dnaRows[0].value;
-            var affinities = (dna && typeof dna.affinities === "object") ? dna.affinities : {};
-            var topicKeys = Object.keys(affinities);
-            topicKeys.sort(function (a, b) {
-                return (affinities[b] || 0) - (affinities[a] || 0);
-            });
-            var top = topicKeys.slice(0, TOP_TOPICS_N);
-            if (top.length === 0)
-                top = ["anime", "pokemon", "movies"];
-            for (var ti = 0; ti < top.length; ti++) {
-                var n2 = prewarmTopic(nk, logger, userId, top[ti]);
+            catch (_dnaErr) { /* fall through to defaults */ }
+            for (var si = 0; si < STARTUP_DEFAULT_TOPICS.length; si++) {
+                planned.push(STARTUP_DEFAULT_TOPICS[si]);
+            }
+            var topics = uniqueTopics(planned).slice(0, MAX_TOPICS_PER_USER);
+            if (topics.length === 0) {
+                topics = uniqueTopics(STARTUP_DEFAULT_TOPICS).slice(0, MAX_TOPICS_PER_USER);
+            }
+            for (var ti = 0; ti < topics.length; ti++) {
+                var n2 = prewarmTopic(nk, logger, userId, topics[ti]);
                 if (n2 > 0) {
                     stats.topics++;
                     stats.questions += n2;
@@ -15719,6 +15805,8 @@ var QvPrewarmCron;
         if (!userId) {
             throw new Error(JSON.stringify({ code: 16, message: "authentication required" }));
         }
+        // Register as active so hourly cron covers this player even before submit.
+        updateActiveUser(nk, userId);
         var req = {};
         try {
             req = JSON.parse(payload || "{}");
@@ -15727,6 +15815,8 @@ var QvPrewarmCron;
             throw new Error(JSON.stringify({ code: 3, message: "invalid JSON payload" }));
         }
         var topic = slugify(typeof req.topic === "string" ? req.topic : "");
+        if (topic === "dish")
+            topic = "food";
         if (!topic || !WARMABLE_TOPICS[topic]) {
             throw new Error(JSON.stringify({ code: 3, message: "unsupported warmup topic" }));
         }
@@ -18894,6 +18984,7 @@ var QvQuestionCache;
             case "geography": return fetchGeoQuiz(nk, logger);
             case "speed_quiz": return fetchSpeedQuiz(nk, logger);
             case "true_false": return fetchTrueFalseQuiz(nk, logger);
+            case "opentdb": return fetchOpenTdbCategory(nk, logger, 9, 50, "opentdb", "");
             case "anime": return fetchAnimeQuiz(nk, logger);
             case "pokemon": return fetchPokeapi(nk, logger);
             case "cocktail": return fetchCocktaildb(nk, logger);
@@ -37823,10 +37914,15 @@ var LegacyPlayer;
                 metadata.customData[k] = data.customData[k];
             }
         }
-        if (data.displayName || data.avatarUrl) {
+        // Mirror displayName / avatarUrl onto the Nakama account so friends,
+        // leaderboards, and groups that read account.user.* stay in sync.
+        // Pass null for untouched fields (Nakama leaves those unchanged).
+        if (data.displayName !== undefined || data.avatarUrl !== undefined) {
             try {
+                var accountDisplayName = data.displayName !== undefined ? String(data.displayName) : null;
+                var accountAvatarUrl = data.avatarUrl !== undefined ? String(data.avatarUrl) : null;
                 // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
-                nk.accountUpdateId(userId, null, data.displayName || null, null, null, null, data.avatarUrl || null, null);
+                nk.accountUpdateId(userId, null, accountDisplayName, null, null, null, accountAvatarUrl, null);
             }
             catch (err) {
                 logger.warn("[Player] Failed to update account: " + err.message);
@@ -38412,6 +38508,55 @@ var PushAlerts;
             fields.push({
                 name: "🌍 By Language / Region (" + localeRows.length + " active)",
                 value: lines.join("\n").slice(0, 1024),
+                inline: false,
+            });
+        }
+        // ── Soft T1 spotlight (US / UK / AU / CA / …) ─────────────────────────
+        // Option B: global sends continue; this field validates Tier-1 health first.
+        if (s.byTier || s.byCountry) {
+            var t1Flag = {
+                "US": "🇺🇸", "GB": "🇬🇧", "CA": "🇨🇦", "AU": "🇦🇺", "NZ": "🇳🇿",
+                "DE": "🇩🇪", "FR": "🇫🇷", "JP": "🇯🇵", "KR": "🇰🇷", "IE": "🇮🇪",
+                "SG": "🇸🇬", "NL": "🇳🇱", "SE": "🇸🇪", "NO": "🇳🇴", "DK": "🇩🇰",
+                "FI": "🇫🇮", "CH": "🇨🇭", "AT": "🇦🇹", "BE": "🇧🇪", "HK": "🇭🇰",
+                "TW": "🇹🇼", "IL": "🇮🇱"
+            };
+            var tierLines = [];
+            var tiers = s.byTier || {};
+            var tierOrder = ["t1", "t2", "t3", "unknown"];
+            for (var ti = 0; ti < tierOrder.length; ti++) {
+                var tk = tierOrder[ti];
+                if (!tiers[tk])
+                    continue;
+                var tt = tiers[tk].sent + tiers[tk].gated;
+                tierLines.push("**" + tk.toUpperCase() + "** — " + tiers[tk].sent + " sent / " +
+                    tiers[tk].gated + " gated (" + pct(tiers[tk].sent, tt) + ")");
+            }
+            var countryRows = [];
+            var byC = s.byCountry || {};
+            for (var cc in byC) {
+                if (byC.hasOwnProperty(cc) && t1Flag[cc]) {
+                    countryRows.push({ cc: cc, sent: byC[cc].sent, gated: byC[cc].gated });
+                }
+            }
+            countryRows.sort(function (a, b) { return b.sent - a.sent; });
+            var cLines = [];
+            for (var ci = 0; ci < countryRows.length && ci < 10; ci++) {
+                var cr = countryRows[ci];
+                var ctot = cr.sent + cr.gated;
+                cLines.push((t1Flag[cr.cc] || cr.cc) + " **" + cr.cc + "** — " + cr.sent +
+                    " sent / " + cr.gated + " gated (" + pct(cr.sent, ctot) + ")");
+            }
+            var t1Block = "";
+            if (tierLines.length > 0)
+                t1Block += tierLines.join("\n") + "\n";
+            if (cLines.length > 0)
+                t1Block += "\n**T1 countries**\n" + cLines.join("\n");
+            if (!t1Block)
+                t1Block = "_No geo-tagged users in this run (country cache empty)_";
+            fields.push({
+                name: "🥇 Soft T1 focus (global sends ON)",
+                value: t1Block.slice(0, 1024),
                 inline: false,
             });
         }
@@ -39556,14 +39701,140 @@ var LegacyPush;
     // users get a sensible morning window. The permanent fix is the client
     // sending a numeric offset ("+05:30"), which the parser below honours
     // exactly for every region.
-    // UTC (offset 0) is the safe global default. IST (+330) was used previously
-    // because the user base was India-first, but it silently gated ALL users in
-    // other timezones (e.g. USA 9 AM ET = 14:00 UTC → appeared as 19:30 IST →
-    // always outside the send window). UTC-0 means users with unparseable
-    // timezone strings ("Local", "Unknown") receive pushes based on server UTC,
-    // which is neutral — the quiet-hours guard (22:00-08:00) still protects them.
-    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 0; // UTC — safe global fallback
+    // Last-resort when timezone AND country are unknown. Prefer country-aware
+    // defaults below (US→ET, IN→IST, …) so T1 users with "Local"/empty TZ still
+    // land in a real local morning window instead of UTC night.
+    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 0; // UTC — only when country also unknown
+    // Soft T1: rough DST helpers (no tzdb in Goja). Good enough for send windows
+    // (±1h error only near transition Sundays). Northern = US/CA/EU; AU = southern.
+    function _nthSundayUtc(year, month0, n) {
+        var d = new Date(Date.UTC(year, month0, 1));
+        var day = d.getUTCDay();
+        var firstSun = 1 + ((7 - day) % 7);
+        return Date.UTC(year, month0, firstSun + (n - 1) * 7);
+    }
+    function _lastSundayUtc(year, month0) {
+        var d = new Date(Date.UTC(year, month0 + 1, 0));
+        var day = d.getUTCDay();
+        return Date.UTC(year, month0, d.getUTCDate() - day);
+    }
+    function _inNorthernDst(nowMs) {
+        var y = new Date(nowMs).getUTCFullYear();
+        // Approx US: 2nd Sun Mar → 1st Sun Nov; EU similar (last Sun Mar/Oct).
+        // Use US bounds — EU differs by ~1 week; still inside 09–13 / 17–21 windows.
+        var start = _nthSundayUtc(y, 2, 2);
+        var end = _nthSundayUtc(y, 10, 1);
+        return nowMs >= start && nowMs < end;
+    }
+    function _inAuDst(nowMs) {
+        var y = new Date(nowMs).getUTCFullYear();
+        // AU: first Sun Oct → first Sun Apr (spans year boundary)
+        var start = _nthSundayUtc(y, 9, 1);
+        var end = _nthSundayUtc(y, 3, 1);
+        return nowMs >= start || nowMs < end;
+    }
+    function buildIanaOffsetMap(nowMs) {
+        var nDst = _inNorthernDst(nowMs);
+        var aDst = _inAuDst(nowMs);
+        return {
+            "Asia/Kolkata": 330, "Asia/Calcutta": 330, "Asia/Karachi": 300, "Asia/Dhaka": 360,
+            "Asia/Kathmandu": 345, "Asia/Colombo": 330, "Asia/Tokyo": 540, "Asia/Seoul": 540,
+            "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Hong_Kong": 480, "Asia/Dubai": 240,
+            "Asia/Jakarta": 420, "Asia/Bangkok": 420, "Asia/Manila": 480, "Asia/Tehran": 210,
+            // UK / Ireland (T1)
+            "Europe/London": nDst ? 60 : 0, "Europe/Dublin": nDst ? 60 : 0,
+            "Europe/Berlin": nDst ? 120 : 60, "Europe/Paris": nDst ? 120 : 60,
+            "Europe/Madrid": nDst ? 120 : 60, "Europe/Rome": nDst ? 120 : 60,
+            "Europe/Amsterdam": nDst ? 120 : 60, "Europe/Stockholm": nDst ? 120 : 60,
+            "Europe/Oslo": nDst ? 120 : 60, "Europe/Copenhagen": nDst ? 120 : 60,
+            "Europe/Helsinki": nDst ? 180 : 120, "Europe/Zurich": nDst ? 120 : 60,
+            "Europe/Vienna": nDst ? 120 : 60, "Europe/Brussels": nDst ? 120 : 60,
+            "Europe/Moscow": 180, "Europe/Istanbul": 180,
+            // USA / Canada (T1) — DST-aware
+            "America/New_York": nDst ? -240 : -300, "America/Toronto": nDst ? -240 : -300,
+            "America/Chicago": nDst ? -300 : -360, "America/Denver": nDst ? -360 : -420,
+            "America/Los_Angeles": nDst ? -420 : -480, "America/Phoenix": -420,
+            "America/Vancouver": nDst ? -420 : -480, "America/Edmonton": nDst ? -360 : -420,
+            "America/Winnipeg": nDst ? -300 : -360, "America/Halifax": nDst ? -180 : -240,
+            "America/Sao_Paulo": -180, "America/Mexico_City": nDst ? -300 : -360,
+            // Australia / NZ (T1) — southern DST (Brisbane/Perth no DST)
+            "Australia/Sydney": aDst ? 660 : 600, "Australia/Melbourne": aDst ? 660 : 600,
+            "Australia/Hobart": aDst ? 660 : 600, "Australia/Adelaide": aDst ? 630 : 570,
+            "Australia/Brisbane": 600, "Australia/Perth": 480,
+            "Pacific/Auckland": aDst ? 780 : 720,
+            "Africa/Cairo": 120, "Africa/Johannesburg": 120, "Africa/Lagos": 60,
+            // Windows TZ IDs (editor / some Unity builds write these to account.timezone)
+            "Eastern Standard Time": nDst ? -240 : -300,
+            "Central Standard Time": nDst ? -300 : -360,
+            "Mountain Standard Time": nDst ? -360 : -420,
+            "Pacific Standard Time": nDst ? -420 : -480,
+            "GMT Standard Time": nDst ? 60 : 0,
+            "India Standard Time": 330,
+            "AUS Eastern Standard Time": aDst ? 660 : 600,
+            "Tokyo Standard Time": 540,
+            "Korea Standard Time": 540,
+            "China Standard Time": 480,
+            "Singapore Standard Time": 480
+        };
+    }
+    /** Country → default IANA offset when client sent Local/empty/Unknown. US→ET. */
+    function offsetMinutesForCountry(cc, nowMs) {
+        if (!cc)
+            return NOTIF_DEFAULT_TZ_OFFSET_MIN;
+        var nDst = _inNorthernDst(nowMs);
+        var aDst = _inAuDst(nowMs);
+        var map = {
+            // Americas — US majority population is Eastern; West Coast still gets
+            // 06–10 local (usable) instead of 02–06 UTC night under the old default.
+            "US": nDst ? -240 : -300, "CA": nDst ? -240 : -300, "MX": nDst ? -300 : -360,
+            "BR": -180,
+            // Europe / UK
+            "GB": nDst ? 60 : 0, "IE": nDst ? 60 : 0, "DE": nDst ? 120 : 60, "FR": nDst ? 120 : 60,
+            "NL": nDst ? 120 : 60, "BE": nDst ? 120 : 60, "AT": nDst ? 120 : 60, "CH": nDst ? 120 : 60,
+            "SE": nDst ? 120 : 60, "NO": nDst ? 120 : 60, "DK": nDst ? 120 : 60, "FI": nDst ? 180 : 120,
+            "ES": nDst ? 120 : 60, "IT": nDst ? 120 : 60, "PT": nDst ? 60 : 0,
+            // APAC
+            "AU": aDst ? 660 : 600, "NZ": aDst ? 780 : 720, "JP": 540, "KR": 540,
+            "SG": 480, "HK": 480, "TW": 480, "CN": 480, "IN": 330, "ID": 420, "TH": 420,
+            "PH": 480, "MY": 480, "AE": 240, "IL": nDst ? 180 : 120,
+            "ZA": 120, "NG": 60, "EG": 120, "PK": 300, "BD": 360, "LK": 330, "NP": 345
+        };
+        var key = String(cc).toUpperCase();
+        return map[key] !== undefined ? map[key] : NOTIF_DEFAULT_TZ_OFFSET_MIN;
+    }
+    function resolveCountryCodeForTz(nk, userId, account) {
+        try {
+            var geoCc = GeoTier.getCountryForPushAnalytics(nk, userId);
+            if (geoCc)
+                return String(geoCc).toUpperCase();
+        }
+        catch (_) { }
+        try {
+            var acc = account || nk.accountGetId(userId);
+            if (acc && acc.user) {
+                var meta = {};
+                try {
+                    if (acc.user.metadata) {
+                        meta = typeof acc.user.metadata === "string"
+                            ? JSON.parse(acc.user.metadata) : acc.user.metadata;
+                    }
+                }
+                catch (_) {
+                    meta = {};
+                }
+                if (meta && typeof meta.country === "string" && meta.country.length === 2) {
+                    return String(meta.country).toUpperCase();
+                }
+                var loc = acc.user.location ? String(acc.user.location).trim().toUpperCase() : "";
+                if (/^[A-Z]{2}$/.test(loc))
+                    return loc;
+            }
+        }
+        catch (_) { }
+        return "";
+    }
     function getUserTimezoneOffsetMinutes(nk, userId) {
+        var nowMs = Date.now();
         try {
             var account = nk.accountGetId(userId);
             var tz = account && account.user ? account.user.timezone : "";
@@ -39576,9 +39847,11 @@ var LegacyPush;
             var tzLower = String(tz || "").trim().toLowerCase();
             if (tzLower === "z" || tzLower === "utc" || tzLower === "gmt")
                 return 0;
-            // Unparseable sentinels the client is known to emit → use default.
+            // Unparseable sentinels → country-aware default (US→ET, IN→IST, …).
+            // Old UTC-only fallback put US users in a 02–09 AM local night window.
             if (!tz || tzLower === "local" || tzLower === "unknown") {
-                return NOTIF_DEFAULT_TZ_OFFSET_MIN;
+                var ccBad = resolveCountryCodeForTz(nk, userId, account);
+                return offsetMinutesForCountry(ccBad, nowMs);
             }
             // Numeric offset, the canonical correct form the client should send:
             //   "+05:30", "-04:00", "+0530", "+9".
@@ -39587,21 +39860,13 @@ var LegacyPush;
                 var sign = m[1] === "-" ? -1 : 1;
                 return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
             }
-            // Common IANA fallbacks (cheap built-in lookup; no tz lib in Goja)
-            var iana = {
-                "Asia/Kolkata": 330, "Asia/Calcutta": 330, "Asia/Karachi": 300, "Asia/Dhaka": 360,
-                "Asia/Kathmandu": 345, "Asia/Colombo": 330, "Asia/Tokyo": 540, "Asia/Seoul": 540,
-                "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Hong_Kong": 480, "Asia/Dubai": 240,
-                "Asia/Jakarta": 420, "Asia/Bangkok": 420, "Asia/Manila": 480, "Asia/Tehran": 210,
-                "Europe/London": 0, "Europe/Dublin": 0, "Europe/Berlin": 60, "Europe/Paris": 60,
-                "Europe/Madrid": 60, "Europe/Rome": 60, "Europe/Moscow": 180, "Europe/Istanbul": 180,
-                "America/New_York": -300, "America/Toronto": -300, "America/Chicago": -360,
-                "America/Denver": -420, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
-                "America/Mexico_City": -360, "Africa/Cairo": 120, "Africa/Johannesburg": 120,
-                "Africa/Lagos": 60, "Australia/Sydney": 600, "Pacific/Auckland": 720
-            };
+            var iana = buildIanaOffsetMap(nowMs);
             if (iana[String(tz)] !== undefined)
                 return iana[String(tz)];
+            // Unknown IANA/Windows string → still try country before UTC.
+            var ccUnk = resolveCountryCodeForTz(nk, userId, account);
+            if (ccUnk)
+                return offsetMinutesForCountry(ccUnk, nowMs);
         }
         catch (_) { }
         return NOTIF_DEFAULT_TZ_OFFSET_MIN;
@@ -39609,6 +39874,35 @@ var LegacyPush;
     function getUserLocalHour(nk, userId) {
         var offsetMin = getUserTimezoneOffsetMinutes(nk, userId);
         return new Date(Date.now() + offsetMin * 60000).getUTCHours();
+    }
+    function bumpGeoStats(byCountry, byTier, nk, userId, didSend) {
+        var cc = "";
+        try {
+            cc = GeoTier.getCountryForPushAnalytics(nk, userId) || "";
+        }
+        catch (_) {
+            cc = "";
+        }
+        var tier = "unknown";
+        try {
+            tier = GeoTier.classifyCountryTier(cc);
+        }
+        catch (_) {
+            tier = "unknown";
+        }
+        var key = cc || "ZZ";
+        if (!byCountry[key])
+            byCountry[key] = { sent: 0, gated: 0 };
+        if (!byTier[tier])
+            byTier[tier] = { sent: 0, gated: 0 };
+        if (didSend) {
+            byCountry[key].sent++;
+            byTier[tier].sent++;
+        }
+        else {
+            byCountry[key].gated++;
+            byTier[tier].gated++;
+        }
     }
     function isInQuietHours(nk, userId) {
         var h = getUserLocalHour(nk, userId);
@@ -39973,15 +40267,23 @@ var LegacyPush;
     function readDailyQuizCursor(nk, todayKey) {
         var fresh = {
             dateKey: todayKey, offset: 0, scanned: 0, sent: 0, gated: 0,
-            byLocale: {}, gateReasons: { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 },
+            byLocale: {}, byCountry: {}, byTier: {},
+            gateReasons: { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 },
             dedupedDevices: 0, reported: false
         };
         try {
             var objs = nk.storageRead([{ collection: DQ_CURSOR_COLLECTION, key: DQ_CURSOR_KEY, userId: Constants.SYSTEM_USER_ID }]);
             if (objs && objs.length > 0 && objs[0].value) {
                 var v = objs[0].value;
-                if (v.dateKey === todayKey)
+                if (v.dateKey === todayKey) {
+                    if (!v.byCountry)
+                        v.byCountry = {};
+                    if (!v.byTier)
+                        v.byTier = {};
+                    if (!v.byLocale)
+                        v.byLocale = {};
                     return v;
+                }
             }
         }
         catch (_) { /* fall through to fresh */ }
@@ -40026,6 +40328,8 @@ var LegacyPush;
         }
         var cursor = readDailyQuizCursor(nk, todayKey);
         var byLocale = cursor.byLocale;
+        var byCountry = cursor.byCountry || {};
+        var byTier = cursor.byTier || {};
         var gateReasons = cursor.gateReasons;
         var sent = 0, gated = 0, scanned = 0;
         // One shared set per run: devices (endpoint ARNs) already pushed. Catches
@@ -40058,12 +40362,14 @@ var LegacyPush;
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 if (hasMarker(nk, u, "daily_quiz", todayKey)) {
                     gated++;
                     gateReasons.alreadySent++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 var topic = pickQuizTopic(quiz, locale);
@@ -40072,10 +40378,12 @@ var LegacyPush;
                     recordMarker(nk, u, "daily_quiz", todayKey);
                     sent++;
                     byLocale[locale].sent++;
+                    bumpGeoStats(byCountry, byTier, nk, u, true);
                 }
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     // Distinguish no-token from send-failure cheaply using the exported helper
                     // (reads the same storage key sendLocalizedPushToUser already read).
                     if (!LegacyPush.userHasPushTokens(nk, u)) {
@@ -40100,6 +40408,8 @@ var LegacyPush;
         cursor.sent += sent;
         cursor.gated += gated;
         cursor.byLocale = byLocale;
+        cursor.byCountry = byCountry;
+        cursor.byTier = byTier;
         cursor.gateReasons = gateReasons;
         cursor.dedupedDevices += runDedupStats.skippedDevices;
         cursor.offset = completedPass ? 0 : offset;
@@ -40109,7 +40419,8 @@ var LegacyPush;
             PushAlerts.postCronReport(nk, logger, {
                 cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
                 scanned: cursor.scanned, sent: cursor.sent, gated: cursor.gated,
-                byLocale: cursor.byLocale, gateReasons: cursor.gateReasons,
+                byLocale: cursor.byLocale, byCountry: cursor.byCountry, byTier: cursor.byTier,
+                gateReasons: cursor.gateReasons,
                 dedupedDevices: cursor.dedupedDevices
             });
             cursor.reported = true;
@@ -40168,6 +40479,8 @@ var LegacyPush;
         var todayKey = todayDateKey();
         var sent = 0, gated = 0, scanned = 0;
         var byLocale = {};
+        var byCountry = {};
+        var byTier = {};
         var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var quizMissedAll = false;
         // Per-run memo of the premium quiz per base language. The old code called
@@ -40208,12 +40521,14 @@ var LegacyPush;
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) {
                     gated++;
                     gateReasons.alreadySent++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 var quiz = premiumQuizForLocale(locale);
@@ -40221,6 +40536,7 @@ var LegacyPush;
                     gated++;
                     byLocale[locale].gated++;
                     quizMissedAll = true;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 var topic = pickQuizTopic(quiz, locale);
@@ -40229,10 +40545,12 @@ var LegacyPush;
                     recordMarker(nk, u, "daily_premium_quiz", todayKey);
                     sent++;
                     byLocale[locale].sent++;
+                    bumpGeoStats(byCountry, byTier, nk, u, true);
                 }
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     if (!LegacyPush.userHasPushTokens(nk, u)) {
                         gateReasons.noToken++;
                     }
@@ -40280,7 +40598,8 @@ var LegacyPush;
                 cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
                 scanned: scanned, sent: sent, gated: gated,
                 noQuiz: isNoQuiz,
-                byLocale: byLocale, gateReasons: gateReasons,
+                byLocale: byLocale, byCountry: byCountry, byTier: byTier,
+                gateReasons: gateReasons,
                 dedupedDevices: runDedupStats.skippedDevices
             });
         }
@@ -40432,6 +40751,8 @@ var LegacyPush;
         var todayKey = todayDateKey();
         var sent = 0, gated = 0, scanned = 0;
         var byLocale = {};
+        var byCountry = {};
+        var byTier = {};
         var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var batch = 100, offset = 0;
         // Cross-account device dedup within this run (same phone under multiple accounts).
@@ -40457,12 +40778,14 @@ var LegacyPush;
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 } // weekly window 10:00–20:00 local
                 if (hasMarker(nk, u, dayMarkerKey, todayKey)) {
                     gated++;
                     gateReasons.alreadySent++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 // Push one notification mentioning whichever changed type has copy in user's locale (first match).
@@ -40482,10 +40805,12 @@ var LegacyPush;
                     recordMarker(nk, u, dayMarkerKey, todayKey);
                     sent++;
                     byLocale[locale].sent++;
+                    bumpGeoStats(byCountry, byTier, nk, u, true);
                 }
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     if (!LegacyPush.userHasPushTokens(nk, u)) {
                         gateReasons.noToken++;
                     }
@@ -40503,7 +40828,9 @@ var LegacyPush;
         // (it runs hourly; a no-change report every hour would be noise).
         PushAlerts.postCronReport(nk, logger, {
             cronName: "weekly_quiz", dateKey: todayKey, topic: changedTypes.join(", "),
-            scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons,
+            scanned: scanned, sent: sent, gated: gated,
+            byLocale: byLocale, byCountry: byCountry, byTier: byTier,
+            gateReasons: gateReasons,
             dedupedDevices: runDedupStats.skippedDevices
         });
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes, dedupedDevices: runDedupStats.skippedDevices });
@@ -67493,6 +67820,63 @@ var GeoTier;
         return "";
     }
     GeoTier.getUserCountry = getUserCountry;
+    /** True when ISO alpha-2 is a Tier-1 (premium) market per T1_COUNTRIES. */
+    function isT1Country(countryCode) {
+        if (!countryCode)
+            return false;
+        return !!T1_COUNTRIES[String(countryCode).toUpperCase()];
+    }
+    GeoTier.isT1Country = isT1Country;
+    /**
+     * Map ISO alpha-2 → t1|t2|t3. Unknown / empty → "unknown" (not silently t3)
+     * so push soft-T1 reports can separate "no geo" from emerging markets.
+     */
+    function classifyCountryTier(countryCode) {
+        if (!countryCode)
+            return "unknown";
+        var cc = String(countryCode).toUpperCase();
+        if (T1_COUNTRIES[cc])
+            return TIER_T1;
+        if (T2_COUNTRIES[cc])
+            return TIER_T2;
+        return TIER_T3;
+    }
+    GeoTier.classifyCountryTier = classifyCountryTier;
+    /**
+     * Cache-first country for push analytics / soft T1 reporting.
+     * Never HTTP. Order: geo_tier cache → users.metadata.country →
+     * account.user.location (2-letter). Returns "" if unresolved.
+     */
+    function getCountryForPushAnalytics(nk, userId) {
+        var cached = getUserCountry(nk, userId);
+        if (cached)
+            return cached;
+        try {
+            var account = nk.accountGetId(userId);
+            if (account && account.user) {
+                var meta = {};
+                try {
+                    if (account.user.metadata) {
+                        meta = typeof account.user.metadata === "string"
+                            ? JSON.parse(account.user.metadata)
+                            : account.user.metadata;
+                    }
+                }
+                catch (_) {
+                    meta = {};
+                }
+                if (meta && typeof meta.country === "string" && meta.country.length === 2) {
+                    return String(meta.country).toUpperCase();
+                }
+                var loc = account.user.location ? String(account.user.location).trim().toUpperCase() : "";
+                if (/^[A-Z]{2}$/.test(loc))
+                    return loc;
+            }
+        }
+        catch (_) { }
+        return "";
+    }
+    GeoTier.getCountryForPushAnalytics = getCountryForPushAnalytics;
     /**
      * Resolve + cache the user's country in one call (cache-first, then
      * IP-API fallback). Returns the resolved alpha-2 code, or "" when even

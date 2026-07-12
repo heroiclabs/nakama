@@ -2422,6 +2422,7 @@ namespace QvQuestionCache {
       case "geography":   return fetchGeoQuiz(nk, logger);
       case "speed_quiz":  return fetchSpeedQuiz(nk, logger);
       case "true_false":  return fetchTrueFalseQuiz(nk, logger);
+      case "opentdb":     return fetchOpenTdbCategory(nk, logger, 9, 50, "opentdb", "");
       case "anime":     return fetchAnimeQuiz(nk, logger);
       case "pokemon":   return fetchPokeapi(nk, logger);
       case "cocktail":  return fetchCocktaildb(nk, logger);
