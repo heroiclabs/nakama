@@ -63,3 +63,12 @@ router_wallet_get
 router_wallet_hold
 router_wallet_settle
 world_session_start
+
+# ── World-trivia server-authoritative learning content (2026-07-12) ───
+# world_story_get backs the client narration manifest; world_story_upsert is
+# the s2s loader path that ingests generator story.json into server-only
+# storage (correct answers never reach the client). Gating these makes any
+# bundle that drops the learning layer fail the rollout instead of silently
+# serving worlds with no server-side questions.
+world_story_upsert
+world_story_get

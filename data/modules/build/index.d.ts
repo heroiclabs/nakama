@@ -5701,7 +5701,10 @@ declare namespace WorldTrivia {
     var PACKS_COLLECTION: string;
     var SESSIONS_COLLECTION: string;
     var LEADERBOARDS_COLLECTION: string;
+    var STORIES_COLLECTION: string;
+    var STORY_NARRATION_COLLECTION: string;
     var MAX_OCC_RETRIES: number;
+    var ANSWER_MIN_INTERVAL_MS: number;
     var SCORE_CORRECT: number;
     var SCORE_OBJECT_FOUND: number;
     var SCORE_FINISH_BONUS: number;
@@ -5763,6 +5766,34 @@ declare namespace WorldTrivia {
         questions: TriviaQuestion[];
         updatedAt: string;
     }
+    interface StoryBeat {
+        checkpointIndex: number;
+        checkpointId?: string;
+        objectHint?: string;
+        text: string;
+    }
+    interface StoryNarration {
+        intro: string;
+        beats: StoryBeat[];
+        ambient: string[];
+        finale: string;
+    }
+    interface StoryQuestion extends TriviaQuestion {
+        checkpointIndex?: number;
+        explanation?: string;
+    }
+    /** Full story — server-only storage, never client-readable. */
+    interface StoryValue {
+        appId: string;
+        templateId: string;
+        conceptId: string;
+        title: string;
+        language: string;
+        narration: StoryNarration;
+        questions: StoryQuestion[];
+        schemaVersion: number;
+        updatedAt: string;
+    }
     interface ScavengerObject {
         id: string;
         color: string;
@@ -5780,6 +5811,8 @@ declare namespace WorldTrivia {
         userId: string;
         templateId: string;
         packId: string;
+        conceptId?: string;
+        lastAnswerAtMs?: number;
         seed: number;
         status: string;
         lap: number;
@@ -5824,6 +5857,41 @@ declare namespace WorldTrivia {
     function shuffleIds(ids: string[], rnd: () => number): string[];
     function rpcTemplateUpsert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcPackUpsert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    /**
+     * Narration redaction built field-by-field from scratch (whitelist, never
+     * a delete-fields blacklist) so no future StoryValue field can leak into
+     * client-readable storage by default.
+     */
+    function narrationView(story: StoryValue): {
+        appId: string;
+        templateId: string;
+        conceptId: string;
+        title: string;
+        language: string;
+        schemaVersion: number;
+        narration: {
+            intro: string;
+            beats: any[];
+            ambient: string[];
+            finale: string;
+        };
+        questionCount: number;
+        updatedAt: string;
+    };
+    /**
+     * world_story_upsert — s2s only (loader tool path). Ingests the generator's
+     * story.json: validates, stores the FULL story (questions + correctIndex +
+     * explanation) server-only, and writes the narration-only redaction to the
+     * public collection. Correct answers never exist in any client-fetchable
+     * object.
+     */
+    function rpcStoryUpsert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    /**
+     * world_story_get — client manifest + narration for (world, concept).
+     * Serves ONLY the redacted narration view; never questions, choices,
+     * correctness or explanations.
+     */
+    function rpcStoryGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcSessionStart(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcSessionGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function rpcCheckpointReach(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;

@@ -78832,7 +78832,18 @@ var WorldTrivia;
     WorldTrivia.PACKS_COLLECTION = "trivia_packs";
     WorldTrivia.SESSIONS_COLLECTION = "world_sessions";
     WorldTrivia.LEADERBOARDS_COLLECTION = "world_leaderboards";
+    // Story/concept content (server-authoritative learning layer):
+    //  - world_stories: FULL story incl. correctIndex + explanation. SYSTEM-owned,
+    //    permissionRead 0 — never client-readable.
+    //  - world_story_narration: narration-only redaction (intro/beats/ambient/
+    //    finale). SYSTEM-owned, permissionRead 2 (public) so clients may also
+    //    read it directly via the storage API. MUST NEVER contain questions,
+    //    choices, correctness or explanations.
+    WorldTrivia.STORIES_COLLECTION = "world_stories";
+    WorldTrivia.STORY_NARRATION_COLLECTION = "world_story_narration";
     WorldTrivia.MAX_OCC_RETRIES = 3;
+    // Anti-cheat: minimum wall-clock gap between graded answers per session.
+    WorldTrivia.ANSWER_MIN_INTERVAL_MS = 1200;
     WorldTrivia.SCORE_CORRECT = 100;
     WorldTrivia.SCORE_OBJECT_FOUND = 25;
     WorldTrivia.SCORE_FINISH_BONUS = 250;
@@ -79010,8 +79021,13 @@ var WorldTrivia;
     function sessionKey(sessionId) {
         return "session_" + sessionId;
     }
-    function leaderboardKey(appId, templateId) {
-        return "lb_" + appId + "_" + templateId;
+    function leaderboardKey(appId, templateId, conceptId) {
+        // Story sessions score onto a per-(world, concept) board; classic pack
+        // sessions keep the original per-(world) key.
+        return "lb_" + appId + "_" + templateId + (conceptId ? "_" + conceptId : "");
+    }
+    function storyKey(appId, templateId, conceptId) {
+        return "story_" + appId + "_" + templateId + "_" + conceptId;
     }
     function readSystemObject(nk, collection, key) {
         var records = nk.storageRead([{ collection: collection, key: key, userId: WorldTrivia.SYSTEM_USER_ID }]);
@@ -79038,6 +79054,32 @@ var WorldTrivia;
     }
     function readPack(nk, appId, packId) {
         return readSystemObject(nk, WorldTrivia.PACKS_COLLECTION, packKey(appId, packId)).value;
+    }
+    function readStory(nk, appId, templateId, conceptId) {
+        return readSystemObject(nk, WorldTrivia.STORIES_COLLECTION, storyKey(appId, templateId, conceptId)).value;
+    }
+    /** Narration redaction is world-readable (permissionRead 2): it is public content. */
+    function writePublicNarration(nk, key, value) {
+        nk.storageWrite([{
+                collection: WorldTrivia.STORY_NARRATION_COLLECTION,
+                key: key,
+                userId: WorldTrivia.SYSTEM_USER_ID,
+                value: value,
+                permissionRead: 2,
+                permissionWrite: 0
+            }]);
+    }
+    /**
+     * The graded question bank for a session: the story's question list for
+     * concept sessions, the classic trivia pack otherwise. Always server-side.
+     */
+    function resolveQuestions(nk, session) {
+        if (session.conceptId) {
+            var story = readStory(nk, session.appId, session.templateId, session.conceptId);
+            return story ? story.questions : null;
+        }
+        var pack = readPack(nk, session.appId, session.packId);
+        return pack ? pack.questions : null;
     }
     /**
      * Read-mutate-write on a session with OCC — identical shape to
@@ -79134,6 +79176,7 @@ var WorldTrivia;
             sessionId: session.sessionId,
             appId: session.appId,
             templateId: session.templateId,
+            conceptId: session.conceptId || null,
             status: session.status,
             seed: session.seed,
             assets: template.assets,
@@ -79283,6 +79326,162 @@ var WorldTrivia;
         }
     }
     WorldTrivia.rpcPackUpsert = rpcPackUpsert;
+    // ---- story authoring + client story RPCs ----
+    /**
+     * Narration redaction built field-by-field from scratch (whitelist, never
+     * a delete-fields blacklist) so no future StoryValue field can leak into
+     * client-readable storage by default.
+     */
+    function narrationView(story) {
+        var beats = [];
+        for (var i = 0; i < story.narration.beats.length; i++) {
+            var b = story.narration.beats[i];
+            var beat = { checkpointIndex: b.checkpointIndex, text: b.text };
+            if (b.checkpointId)
+                beat.checkpointId = b.checkpointId;
+            if (b.objectHint)
+                beat.objectHint = b.objectHint;
+            beats.push(beat);
+        }
+        return {
+            appId: story.appId,
+            templateId: story.templateId,
+            conceptId: story.conceptId,
+            title: story.title,
+            language: story.language,
+            schemaVersion: story.schemaVersion,
+            narration: {
+                intro: story.narration.intro,
+                beats: beats,
+                ambient: (story.narration.ambient || []).slice(),
+                finale: story.narration.finale
+            },
+            questionCount: story.questions.length,
+            updatedAt: story.updatedAt
+        };
+    }
+    WorldTrivia.narrationView = narrationView;
+    /**
+     * world_story_upsert — s2s only (loader tool path). Ingests the generator's
+     * story.json: validates, stores the FULL story (questions + correctIndex +
+     * explanation) server-only, and writes the narration-only redaction to the
+     * public collection. Correct answers never exist in any client-fetchable
+     * object.
+     */
+    function rpcStoryUpsert(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required (worldId/jobId)");
+            if (!data.conceptId)
+                return err("conceptId required");
+            var narration = data.narration || {};
+            if (!narration.intro || typeof narration.intro !== "string")
+                return err("narration.intro required");
+            if (!narration.finale || typeof narration.finale !== "string")
+                return err("narration.finale required");
+            if (!narration.beats || !narration.beats.length)
+                return err("narration.beats required (non-empty array)");
+            if (!data.questions || !data.questions.length)
+                return err("questions required (non-empty array)");
+            var beats = [];
+            for (var bi = 0; bi < narration.beats.length; bi++) {
+                var rawBeat = narration.beats[bi];
+                if (!rawBeat.text)
+                    throw new Error("narration.beats[" + bi + "].text required");
+                var idx = Number(rawBeat.checkpointIndex);
+                if (!isFinite(idx) || idx !== Math.floor(idx) || idx < 0) {
+                    throw new Error("narration.beats[" + bi + "].checkpointIndex must be a non-negative integer");
+                }
+                var beat = { checkpointIndex: idx, text: rawBeat.text };
+                if (rawBeat.checkpointId)
+                    beat.checkpointId = String(rawBeat.checkpointId);
+                if (rawBeat.objectHint)
+                    beat.objectHint = String(rawBeat.objectHint);
+                beats.push(beat);
+            }
+            var questions = [];
+            var seen = {};
+            for (var i = 0; i < data.questions.length; i++) {
+                var q = data.questions[i];
+                if (!q.id)
+                    throw new Error("questions[" + i + "].id required");
+                if (seen[q.id])
+                    throw new Error("duplicate question id: " + q.id);
+                seen[q.id] = true;
+                if (!q.text)
+                    throw new Error("questions[" + i + "].text required");
+                if (!q.choices || q.choices.length < 2)
+                    throw new Error("questions[" + i + "].choices requires at least 2 entries");
+                var correctIndex = Number(q.correctIndex);
+                if (!isFinite(correctIndex) || correctIndex !== Math.floor(correctIndex) || correctIndex < 0 || correctIndex >= q.choices.length) {
+                    throw new Error("questions[" + i + "].correctIndex out of range");
+                }
+                var question = { id: q.id, text: q.text, choices: q.choices, correctIndex: correctIndex };
+                if (q.category)
+                    question.category = q.category;
+                if (q.explanation)
+                    question.explanation = String(q.explanation);
+                if (typeof q.checkpointIndex === "number" && isFinite(q.checkpointIndex) && q.checkpointIndex >= 0) {
+                    question.checkpointIndex = Math.floor(q.checkpointIndex);
+                }
+                questions.push(question);
+            }
+            var story = {
+                appId: data.appId,
+                templateId: data.templateId,
+                conceptId: data.conceptId,
+                title: data.title || data.conceptId,
+                language: data.language || "en",
+                narration: { intro: narration.intro, beats: beats, ambient: narration.ambient || [], finale: narration.finale },
+                questions: questions,
+                schemaVersion: typeof data.schemaVersion === "number" ? data.schemaVersion : 1,
+                updatedAt: new Date().toISOString()
+            };
+            var key = storyKey(data.appId, data.templateId, data.conceptId);
+            writeSystemObject(nk, WorldTrivia.STORIES_COLLECTION, key, story);
+            writePublicNarration(nk, key, narrationView(story));
+            return ok({
+                appId: story.appId,
+                templateId: story.templateId,
+                conceptId: story.conceptId,
+                title: story.title,
+                beatCount: beats.length,
+                questionCount: questions.length
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_story_upsert failed");
+        }
+    }
+    WorldTrivia.rpcStoryUpsert = rpcStoryUpsert;
+    /**
+     * world_story_get — client manifest + narration for (world, concept).
+     * Serves ONLY the redacted narration view; never questions, choices,
+     * correctness or explanations.
+     */
+    function rpcStoryGet(ctx, logger, nk, payload) {
+        try {
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required");
+            if (!data.conceptId)
+                return err("conceptId required");
+            var story = readStory(nk, data.appId, data.templateId, data.conceptId);
+            if (!story)
+                return err("Story not found: " + data.templateId + "/" + data.conceptId + " (app " + data.appId + ")");
+            return ok(narrationView(story));
+        }
+        catch (e) {
+            return err(e.message || "world_story_get failed");
+        }
+    }
+    WorldTrivia.rpcStoryGet = rpcStoryGet;
     // ---- RPC handlers: gameplay (authenticated user) ----
     function rpcSessionStart(ctx, logger, nk, payload) {
         try {
@@ -79295,19 +79494,34 @@ var WorldTrivia;
             var template = readTemplate(nk, data.appId, data.templateId);
             if (!template)
                 return err("Template not found: " + data.templateId + " (app " + data.appId + ")");
-            var pack = readPack(nk, data.appId, template.packId);
-            if (!pack)
-                return err("Trivia pack not found: " + template.packId + " (app " + data.appId + ")");
-            if (pack.questions.length < template.settings.requiredCorrect) {
-                return err("Trivia pack " + template.packId + " has " + pack.questions.length + " questions; template requires " + template.settings.requiredCorrect + " correct answers");
+            // Question source: a (world, concept) story when conceptId is given,
+            // the template's classic trivia pack otherwise.
+            var bank;
+            if (data.conceptId) {
+                var story = readStory(nk, data.appId, data.templateId, data.conceptId);
+                if (!story)
+                    return err("Story not found: " + data.templateId + "/" + data.conceptId + " (app " + data.appId + ")");
+                bank = story.questions;
+                if (bank.length < template.settings.requiredCorrect) {
+                    return err("Story " + data.conceptId + " has " + bank.length + " questions; template requires " + template.settings.requiredCorrect + " correct answers");
+                }
+            }
+            else {
+                var pack = readPack(nk, data.appId, template.packId);
+                if (!pack)
+                    return err("Trivia pack not found: " + template.packId + " (app " + data.appId + ")");
+                if (pack.questions.length < template.settings.requiredCorrect) {
+                    return err("Trivia pack " + template.packId + " has " + pack.questions.length + " questions; template requires " + template.settings.requiredCorrect + " correct answers");
+                }
+                bank = pack.questions;
             }
             var sessionId = nk.uuidv4();
             // Seed derivation: the sessionId is server-generated, so the seed is
             // unique per session and unforgeable by the client.
             var seed = fnv1a32(sessionId);
             var questionIds = [];
-            for (var i = 0; i < pack.questions.length; i++)
-                questionIds.push(pack.questions[i].id);
+            for (var i = 0; i < bank.length; i++)
+                questionIds.push(bank[i].id);
             var questionQueue = shuffleIds(questionIds, mulberry32((seed ^ WorldTrivia.QUESTION_STREAM) >>> 0));
             var objects = deriveObjects(seed, template.settings.objectCount, template.scavengerVolumes);
             var now = nowMs();
@@ -79317,6 +79531,8 @@ var WorldTrivia;
                 userId: userId,
                 templateId: data.templateId,
                 packId: template.packId,
+                conceptId: data.conceptId ? String(data.conceptId) : undefined,
+                lastAnswerAtMs: 0,
                 seed: seed,
                 status: "active",
                 lap: 1,
@@ -79380,9 +79596,12 @@ var WorldTrivia;
             var template = readTemplate(nk, pre.appId, pre.templateId);
             if (!template)
                 return err("Template not found: " + pre.templateId);
-            var pack = readPack(nk, pre.appId, pre.packId);
-            if (!pack)
-                return err("Trivia pack not found: " + pre.packId);
+            var bank = resolveQuestions(nk, pre);
+            if (!bank)
+                return err(pre.conceptId ? "Story not found: " + pre.templateId + "/" + pre.conceptId : "Trivia pack not found: " + pre.packId);
+            var bankById = {};
+            for (var bqi = 0; bqi < bank.length; bqi++)
+                bankById[bank[bqi].id] = bank[bqi];
             var now = nowMs();
             var expired = false;
             var issuedQuestionId = "";
@@ -79394,9 +79613,11 @@ var WorldTrivia;
                     return;
                 }
                 var checkpoint = null;
+                var checkpointIndex = -1;
                 for (var i = 0; i < template.checkpoints.length; i++) {
                     if (template.checkpoints[i].id === data.checkpointId) {
                         checkpoint = template.checkpoints[i];
+                        checkpointIndex = i;
                         break;
                     }
                 }
@@ -79439,7 +79660,21 @@ var WorldTrivia;
                     s.questionQueue = shuffleIds(s.askedQuestionIds, mulberry32((s.seed + s.lap) >>> 0));
                     s.askedQuestionIds = [];
                 }
-                var qid = s.questionQueue.shift();
+                // Story sessions prefer the queued question themed to this beat
+                // (question.checkpointIndex == index of the checkpoint in the
+                // template). Falls back to the queue head when no themed question
+                // remains, so exhaustion still can't dead-end the loop.
+                var pickAt = 0;
+                if (s.conceptId) {
+                    for (var qq = 0; qq < s.questionQueue.length; qq++) {
+                        var cand = bankById[s.questionQueue[qq]];
+                        if (cand && typeof cand.checkpointIndex === "number" && cand.checkpointIndex === checkpointIndex) {
+                            pickAt = qq;
+                            break;
+                        }
+                    }
+                }
+                var qid = s.questionQueue.splice(pickAt, 1)[0];
                 s.askedQuestionIds.push(qid);
                 s.pendingQuestion = { questionId: qid, checkpointId: checkpoint.id, issuedAtMs: now };
                 issuedQuestionId = qid;
@@ -79449,15 +79684,9 @@ var WorldTrivia;
             });
             if (expired)
                 return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
-            var question = null;
-            for (var qi = 0; qi < pack.questions.length; qi++) {
-                if (pack.questions[qi].id === issuedQuestionId) {
-                    question = pack.questions[qi];
-                    break;
-                }
-            }
+            var question = bankById[issuedQuestionId] || null;
             if (!question)
-                return err("Question " + issuedQuestionId + " missing from pack " + pre.packId);
+                return err("Question " + issuedQuestionId + " missing from " + (pre.conceptId ? "story " + pre.conceptId : "pack " + pre.packId));
             return ok({
                 checkpointId: data.checkpointId,
                 question: questionView(question),
@@ -79488,13 +79717,13 @@ var WorldTrivia;
             var template = readTemplate(nk, pre.appId, pre.templateId);
             if (!template)
                 return err("Template not found: " + pre.templateId);
-            var pack = readPack(nk, pre.appId, pre.packId);
-            if (!pack)
-                return err("Trivia pack not found: " + pre.packId);
+            var bank = resolveQuestions(nk, pre);
+            if (!bank)
+                return err(pre.conceptId ? "Story not found: " + pre.templateId + "/" + pre.conceptId : "Trivia pack not found: " + pre.packId);
             var question = null;
-            for (var i = 0; i < pack.questions.length; i++) {
-                if (pack.questions[i].id === data.questionId) {
-                    question = pack.questions[i];
+            for (var i = 0; i < bank.length; i++) {
+                if (bank[i].id === data.questionId) {
+                    question = bank[i];
                     break;
                 }
             }
@@ -79513,6 +79742,12 @@ var WorldTrivia;
                 if (!s.pendingQuestion || s.pendingQuestion.questionId !== data.questionId) {
                     throw new Error("No pending question with id " + data.questionId);
                 }
+                // Rate limit: graded answers can't arrive faster than a human could
+                // read a question. The attempt is rejected WITHOUT consuming the
+                // pending question (throw aborts the mutation).
+                if (s.lastAnswerAtMs && now - s.lastAnswerAtMs < WorldTrivia.ANSWER_MIN_INTERVAL_MS) {
+                    throw new Error("Answer rate limit: wait " + (WorldTrivia.ANSWER_MIN_INTERVAL_MS - (now - s.lastAnswerAtMs)) + "ms before answering again");
+                }
                 answerExpired = questionExpired(s.pendingQuestion, now, template.settings.maxAnswerSeconds);
                 // Grading is entirely server-side: the client never saw correctIndex.
                 correct = !answerExpired && choiceIndex === question.correctIndex;
@@ -79530,18 +79765,23 @@ var WorldTrivia;
                     s.wrongCount += 1;
                 }
                 s.pendingQuestion = null;
+                s.lastAnswerAtMs = now;
                 s.lastEventAtMs = now;
             });
             if (sessionExpired)
                 return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
-            return ok({
+            var answerOut = {
                 questionId: data.questionId,
                 correct: correct,
                 expired: answerExpired,
                 // Revealed post-grade only, so the AI host can announce the answer.
                 correctIndex: question.correctIndex,
                 progress: progressView(session, template)
-            });
+            };
+            // Learning layer: the explanation ships only AFTER grading.
+            if (question.explanation)
+                answerOut.explanation = question.explanation;
+            return ok(answerOut);
         }
         catch (e) {
             return err(e.message || "world_answer_submit failed");
@@ -79652,7 +79892,7 @@ var WorldTrivia;
                 durationMs: now - session.startedAtMs,
                 finishedAt: new Date().toISOString()
             };
-            var rank = upsertLeaderboardEntry(nk, session.appId, session.templateId, entry);
+            var rank = upsertLeaderboardEntry(nk, session.appId, session.templateId, session.conceptId, entry);
             var reward = creditFinishReward(nk, logger, session, template);
             return ok({
                 sessionId: session.sessionId,
@@ -79700,11 +79940,12 @@ var WorldTrivia;
             if (!data.templateId)
                 return err("templateId required");
             var limit = data.limit ? Math.min(Number(data.limit), WorldTrivia.LEADERBOARD_SIZE) : WorldTrivia.LEADERBOARD_SIZE;
-            var read = readSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, leaderboardKey(data.appId, data.templateId));
+            var read = readSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, leaderboardKey(data.appId, data.templateId, data.conceptId ? String(data.conceptId) : undefined));
             var entries = (read.value && read.value.entries) || [];
             return ok({
                 appId: data.appId,
                 templateId: data.templateId,
+                conceptId: data.conceptId || null,
                 entries: entries.slice(0, limit)
             });
         }
@@ -79719,12 +79960,12 @@ var WorldTrivia;
      * score, ties broken by shorter duration. OCC-retried like sessions.
      * Returns the entry's 1-based rank, or null if it fell off the board.
      */
-    function upsertLeaderboardEntry(nk, appId, templateId, entry) {
-        var key = leaderboardKey(appId, templateId);
+    function upsertLeaderboardEntry(nk, appId, templateId, conceptId, entry) {
+        var key = leaderboardKey(appId, templateId, conceptId);
         var lastError = null;
         for (var attempt = 0; attempt < WorldTrivia.MAX_OCC_RETRIES; attempt++) {
             var read = readSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, key);
-            var value = read.value || { appId: appId, templateId: templateId, entries: [] };
+            var value = read.value || { appId: appId, templateId: templateId, conceptId: conceptId || null, entries: [] };
             var entries = value.entries || [];
             // Keyed by sessionId — a replayed finish (which finish's single-shot
             // status flip already prevents) could never duplicate a row.
@@ -79793,6 +80034,9 @@ var WorldTrivia;
         // authoring (s2s)
         initializer.registerRpc("world_template_upsert", rpcTemplateUpsert);
         initializer.registerRpc("world_trivia_pack_upsert", rpcPackUpsert);
+        initializer.registerRpc("world_story_upsert", rpcStoryUpsert);
+        // client story manifest + narration (no answers by construction)
+        initializer.registerRpc("world_story_get", rpcStoryGet);
         // gameplay (authenticated user)
         initializer.registerRpc("world_session_start", rpcSessionStart);
         initializer.registerRpc("world_session_get", rpcSessionGet);
