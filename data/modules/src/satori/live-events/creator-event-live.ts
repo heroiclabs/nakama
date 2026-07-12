@@ -1199,7 +1199,16 @@ namespace SatoriCreatorEvents {
   }
 
   function rpcCreate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
+    // Allow server-to-server calls (Content Factory / n8n via http_key) — same
+    // pattern as rpcUpdatePromo. Unauthenticated calls without admin key are rejected.
+    var userId = ctx.userId || "";
+    var isServerCall = !userId;
+    if (isServerCall && !isAdminCtx(ctx, nk)) {
+      return RpcHelpers.errorResponse("AUTH_REQUIRED: sign in or use admin http_key");
+    }
+    if (isServerCall) {
+      userId = Constants.SYSTEM_USER_ID;
+    }
     var data = RpcHelpers.parseRpcPayload(payload);
 
     if (!data.title) return RpcHelpers.errorResponse("title required");
@@ -1295,8 +1304,16 @@ namespace SatoriCreatorEvents {
   }
 
   function rpcPublish(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
-    var userId = RpcHelpers.requireUserId(ctx);
-    var isAdmin = isAdminCtx(ctx, nk);
+    // Allow server-to-server calls (Content Factory bootstrap / n8n via http_key).
+    var userId = ctx.userId || "";
+    var isServerCall = !userId;
+    if (isServerCall && !isAdminCtx(ctx, nk)) {
+      return RpcHelpers.errorResponse("AUTH_REQUIRED: sign in or use admin http_key");
+    }
+    var isAdmin = isServerCall || isAdminCtx(ctx, nk);
+    if (isServerCall) {
+      userId = Constants.SYSTEM_USER_ID;
+    }
     var data = RpcHelpers.parseRpcPayload(payload);
 
     var event: CreatorEventDefinition | null = null;
