@@ -52,3 +52,14 @@ nakama_analytics_tick
 # NOTE: registered name is `wallet_get_balances` (plural) in
 # src/legacy/wallet.ts:750 — verified pre-merge against master.
 wallet_get_balances
+
+# ── Intelliverse Router credit metering (2026-07-12 outage) ────────
+# router_wallet_* backs ALL router media/voice/conversation metering
+# (walletHold). The 2026-07-12 13:08Z master deploy (gha73) shipped a
+# bundle without them because PR #294 (b3-router-wallet) was unmerged;
+# every paid request platform-wide 402'd. These entries make any such
+# bundle fail the image smoke test / rollout gate instead of deploying.
+router_wallet_get
+router_wallet_hold
+router_wallet_settle
+world_session_start

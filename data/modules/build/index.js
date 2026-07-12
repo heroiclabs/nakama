@@ -222,6 +222,24 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Intelliverse Router app-id credit wallets (s2s-only RPCs) ----
+    try {
+        logger.info("[RouterWallet] Registering router wallet RPCs...");
+        RouterWallet.register(initializer);
+    }
+    catch (err) {
+        logger.error("[RouterWallet] Failed to register: " + (err.message || String(err)));
+    }
+    // ---- Intelliverse world-trivia game loop (playable world templates) ----
+    // Registered AFTER RouterWallet so the session-finish reward hook can find
+    // the wallet namespace (soft dependency — skips crediting when absent).
+    try {
+        logger.info("[WorldTrivia] Registering world trivia RPCs...");
+        WorldTrivia.register(initializer);
+    }
+    catch (err) {
+        logger.error("[WorldTrivia] Failed to register: " + (err.message || String(err)));
+    }
     // ---- Legacy System Registration (backward-compatible RPCs) ----
     try {
         logger.info("[Legacy] Registering wallet RPCs...");
@@ -57037,6 +57055,441 @@ var Research;
     }
     Research.register = register;
 })(Research || (Research = {}));
+/**
+ * RouterWallet — app-id credit wallets for Intelliverse Router.
+ *
+ * Replicates the QuizVerse coins pattern (storage-object wallets) but keyed
+ * by APP ID instead of user id: collection "router_wallets", key
+ * `wallet_{appId}`, owned by the SYSTEM user since apps are not Nakama users.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/router_wallet/ and call RouterWallet.register(initializer)
+ * from main.ts InitModule. Self-contained on purpose — no references to the
+ * kernel's shared namespaces (Storage/RpcHelpers/Constants).
+ *
+ * All RPCs are SERVER-TO-SERVER ONLY (http_key auth): any call with a
+ * ctx.userId is rejected.
+ *
+ * Concurrency: optimistic concurrency control via the storage object version
+ * — every write passes the version read ("*" for create) and retries up to
+ * 3 times on conflict.
+ */
+var RouterWallet;
+(function (RouterWallet) {
+    RouterWallet.SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    RouterWallet.WALLETS_COLLECTION = "router_wallets";
+    RouterWallet.LEDGER_COLLECTION = "router_wallet_ledger";
+    // Ref index for credit idempotency: one object per (appId, ref), created
+    // conditionally ("*") so replays and races can never double-credit.
+    RouterWallet.CREDIT_REFS_COLLECTION = "router_wallet_credit_refs";
+    RouterWallet.MAX_OCC_RETRIES = 3;
+    RouterWallet.CREDIT_KINDS = [
+        // Unified currency (docs/business/credit-system.md): every SKU — LLM,
+        // image, video, voice, music, 3D — is priced in iv_credits.
+        "iv_credits",
+        // Legacy per-kind currencies: still valid during the migration window;
+        // frozen and removed after the one-time balance conversion (§9).
+        "img_credits",
+        "vid_credits",
+        "voice_credits",
+        "audio_credits",
+        "book_credits",
+        "gen3d_credits"
+    ];
+    // ---- helpers ----
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message) {
+        return JSON.stringify({ success: false, error: message });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return {};
+        return JSON.parse(payload);
+    }
+    /** All router_wallet RPCs are server-to-server only (http_key auth). */
+    function requireServerToServer(ctx) {
+        if (ctx.userId) {
+            throw new Error("router_wallet RPCs are server-to-server only");
+        }
+    }
+    function validateKind(kind) {
+        if (RouterWallet.CREDIT_KINDS.indexOf(kind) === -1) {
+            throw new Error("Unknown credit kind: " + kind + " (expected one of " + RouterWallet.CREDIT_KINDS.join(", ") + ")");
+        }
+    }
+    function validateAmount(amount, allowZero) {
+        var n = Number(amount);
+        if (!isFinite(n) || n < 0 || (!allowZero && n === 0)) {
+            throw new Error("amount must be a " + (allowZero ? "non-negative" : "positive") + " number");
+        }
+        return n;
+    }
+    function emptyWallet(appId, workspaceId) {
+        var currencies = {};
+        for (var i = 0; i < RouterWallet.CREDIT_KINDS.length; i++)
+            currencies[RouterWallet.CREDIT_KINDS[i]] = 0;
+        return { appId: appId, workspaceId: workspaceId || "", currencies: currencies, holds: {}, version: 0 };
+    }
+    function heldAmount(wallet, kind) {
+        var total = 0;
+        for (var holdId in wallet.holds) {
+            var hold = wallet.holds[holdId];
+            if (hold && hold.kind === kind)
+                total += hold.amount;
+        }
+        return total;
+    }
+    function availableBalance(wallet, kind) {
+        return (wallet.currencies[kind] || 0) - heldAmount(wallet, kind);
+    }
+    RouterWallet.availableBalance = availableBalance;
+    function walletKey(appId) {
+        return "wallet_" + appId;
+    }
+    function readWallet(nk, appId) {
+        var records = nk.storageRead([{ collection: RouterWallet.WALLETS_COLLECTION, key: walletKey(appId), userId: RouterWallet.SYSTEM_USER_ID }]);
+        if (records && records.length > 0 && records[0].value) {
+            return { wallet: records[0].value, storageVersion: records[0].version };
+        }
+        return { wallet: null, storageVersion: "*" }; // "*" = conditional create (must not exist)
+    }
+    function writeWallet(nk, wallet, storageVersion) {
+        wallet.version = (wallet.version || 0) + 1;
+        nk.storageWrite([{
+                collection: RouterWallet.WALLETS_COLLECTION,
+                key: walletKey(wallet.appId),
+                userId: RouterWallet.SYSTEM_USER_ID,
+                value: wallet,
+                version: storageVersion,
+                permissionRead: 0,
+                permissionWrite: 0
+            }]);
+    }
+    /**
+     * Read-mutate-write with OCC. The mutator runs against a fresh read on each
+     * attempt; business errors thrown by the mutator abort immediately (no
+     * retry), while storage version conflicts retry up to MAX_OCC_RETRIES.
+     */
+    function mutateWallet(nk, appId, createIfMissing, workspaceId, mutator) {
+        var lastError = null;
+        for (var attempt = 0; attempt < RouterWallet.MAX_OCC_RETRIES; attempt++) {
+            var read = readWallet(nk, appId);
+            var wallet = read.wallet;
+            if (!wallet) {
+                if (!createIfMissing)
+                    throw new Error("Wallet not found for app " + appId);
+                wallet = emptyWallet(appId, workspaceId);
+            }
+            mutator(wallet); // business validation happens here — throws are fatal
+            try {
+                writeWallet(nk, wallet, read.storageVersion);
+                return wallet;
+            }
+            catch (e) {
+                lastError = e; // version conflict — re-read and retry
+            }
+        }
+        throw new Error("Wallet write conflict after " + RouterWallet.MAX_OCC_RETRIES + " retries: " + (lastError && lastError.message ? lastError.message : String(lastError)));
+    }
+    function creditRefKey(appId, ref) {
+        return "ref_" + appId + "_" + ref;
+    }
+    /**
+     * Claim a credit ref via conditional create ("*"). Returns true when this
+     * call owns the ref; false when a credit with the same (appId, ref) already
+     * went through (replayed webhook, retried grant job, double-fired cron).
+     */
+    function claimCreditRef(nk, appId, ref, meta) {
+        try {
+            nk.storageWrite([{
+                    collection: RouterWallet.CREDIT_REFS_COLLECTION,
+                    key: creditRefKey(appId, ref),
+                    userId: RouterWallet.SYSTEM_USER_ID,
+                    value: meta,
+                    version: "*",
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (e) {
+            return false; // conditional create failed: ref already claimed
+        }
+    }
+    function releaseCreditRef(nk, appId, ref) {
+        try {
+            nk.storageDelete([{ collection: RouterWallet.CREDIT_REFS_COLLECTION, key: creditRefKey(appId, ref), userId: RouterWallet.SYSTEM_USER_ID }]);
+        }
+        catch (e) {
+            // best-effort rollback; a stuck marker only blocks re-crediting this ref
+        }
+    }
+    function ledgerKey(appId) {
+        var random = Math.floor(Math.random() * 0xffffff).toString(16);
+        return "txn_" + appId + "_" + Date.now() + "_" + random;
+    }
+    function writeLedger(nk, entry) {
+        var key = ledgerKey(entry.appId);
+        nk.storageWrite([{
+                collection: RouterWallet.LEDGER_COLLECTION,
+                key: key,
+                userId: RouterWallet.SYSTEM_USER_ID,
+                value: entry,
+                permissionRead: 0,
+                permissionWrite: 0
+            }]);
+        return key;
+    }
+    function walletView(wallet) {
+        var available = {};
+        for (var i = 0; i < RouterWallet.CREDIT_KINDS.length; i++) {
+            available[RouterWallet.CREDIT_KINDS[i]] = availableBalance(wallet, RouterWallet.CREDIT_KINDS[i]);
+        }
+        return {
+            appId: wallet.appId,
+            workspaceId: wallet.workspaceId,
+            currencies: wallet.currencies,
+            holds: wallet.holds,
+            available: available,
+            version: wallet.version
+        };
+    }
+    // ---- RPC handlers ----
+    function rpcGet(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            var read = readWallet(nk, data.appId);
+            var wallet = read.wallet || emptyWallet(data.appId, "");
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_get failed");
+        }
+    }
+    RouterWallet.rpcGet = rpcGet;
+    function rpcCredit(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.reason)
+                return err("reason required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            // Ref-based idempotency (launch blocker fix): a ref (Stripe invoice id,
+            // trickle_<user>_<date>, ...) credits at most once per app. The ref is
+            // claimed BEFORE the wallet mutation so a concurrent replay loses the
+            // conditional create and returns the already-applied wallet instead.
+            var ref = data.ref || null;
+            if (ref) {
+                var claimed = claimCreditRef(nk, data.appId, ref, {
+                    appId: data.appId,
+                    kind: data.kind,
+                    amount: amount,
+                    reason: data.reason,
+                    createdAt: new Date().toISOString()
+                });
+                if (!claimed) {
+                    var existing = readWallet(nk, data.appId);
+                    var view = walletView(existing.wallet || emptyWallet(data.appId, data.workspaceId || ""));
+                    return ok({ appId: view.appId, workspaceId: view.workspaceId, currencies: view.currencies, holds: view.holds, available: view.available, version: view.version, deduped: true });
+                }
+            }
+            var wallet;
+            try {
+                wallet = mutateWallet(nk, data.appId, true, data.workspaceId || "", function (w) {
+                    if (data.workspaceId && !w.workspaceId)
+                        w.workspaceId = data.workspaceId;
+                    w.currencies[data.kind] = (w.currencies[data.kind] || 0) + amount;
+                });
+            }
+            catch (mutateError) {
+                // Credit never applied — release the ref so a retry can succeed.
+                if (ref)
+                    releaseCreditRef(nk, data.appId, ref);
+                throw mutateError;
+            }
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: data.kind,
+                delta: amount,
+                balanceAfter: wallet.currencies[data.kind],
+                reason: data.reason,
+                ref: ref,
+                createdAt: new Date().toISOString()
+            });
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_credit failed");
+        }
+    }
+    RouterWallet.rpcCredit = rpcCredit;
+    function rpcDebit(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.reason)
+                return err("reason required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var available = availableBalance(w, data.kind);
+                if (available < amount) {
+                    throw new Error("Insufficient " + data.kind + ": available " + available + ", need " + amount);
+                }
+                w.currencies[data.kind] = (w.currencies[data.kind] || 0) - amount;
+            });
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: data.kind,
+                delta: -amount,
+                balanceAfter: wallet.currencies[data.kind],
+                reason: data.reason,
+                ref: data.ref || null,
+                createdAt: new Date().toISOString()
+            });
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_debit failed");
+        }
+    }
+    RouterWallet.rpcDebit = rpcDebit;
+    function rpcHold(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.ref)
+                return err("ref required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            var holdId = nk.uuidv4();
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var available = availableBalance(w, data.kind);
+                if (available < amount) {
+                    throw new Error("Insufficient " + data.kind + " for hold: available " + available + ", need " + amount);
+                }
+                w.holds[holdId] = { kind: data.kind, amount: amount, createdAt: new Date().toISOString() };
+            });
+            return ok({ holdId: holdId, wallet: walletView(wallet) });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_hold failed");
+        }
+    }
+    RouterWallet.rpcHold = rpcHold;
+    function rpcSettle(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.holdId)
+                return err("holdId required");
+            var actualAmount = validateAmount(data.actualAmount, true); // 0 = full release
+            var settledKind = "";
+            var heldAmt = 0;
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var hold = w.holds[data.holdId];
+                if (!hold)
+                    throw new Error("Hold not found: " + data.holdId);
+                if (actualAmount > hold.amount) {
+                    throw new Error("actualAmount " + actualAmount + " exceeds held amount " + hold.amount);
+                }
+                settledKind = hold.kind;
+                heldAmt = hold.amount;
+                delete w.holds[data.holdId];
+                w.currencies[hold.kind] = (w.currencies[hold.kind] || 0) - actualAmount;
+            });
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: settledKind,
+                delta: -actualAmount,
+                balanceAfter: wallet.currencies[settledKind],
+                reason: actualAmount === 0 ? "hold_released" : "hold_settled",
+                ref: data.ref || null,
+                holdId: data.holdId,
+                createdAt: new Date().toISOString()
+            });
+            return ok({
+                holdId: data.holdId,
+                kind: settledKind,
+                heldAmount: heldAmt,
+                settledAmount: actualAmount,
+                released: heldAmt - actualAmount,
+                wallet: walletView(wallet)
+            });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_settle failed");
+        }
+    }
+    RouterWallet.rpcSettle = rpcSettle;
+    function rpcHistory(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            var limit = data.limit ? Math.min(Number(data.limit), 200) : 50;
+            var prefix = "txn_" + data.appId + "_";
+            var entries = [];
+            var cursor = data.cursor || "";
+            // Ledger keys embed the appId; the collection is shared across apps, so
+            // filter by key prefix while paging (same pattern as the kernel's
+            // legacy wallet registry listing).
+            do {
+                var result = nk.storageList(RouterWallet.SYSTEM_USER_ID, RouterWallet.LEDGER_COLLECTION, limit, cursor);
+                var objects = (result && result.objects) || [];
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    if (obj.key && obj.key.indexOf(prefix) === 0 && obj.value) {
+                        entries.push({ key: obj.key, entry: obj.value });
+                        if (entries.length >= limit)
+                            break;
+                    }
+                }
+                cursor = (result && result.cursor) || "";
+            } while (cursor && entries.length < limit);
+            entries.sort(function (a, b) {
+                var ta = (a.entry && a.entry.createdAt) || "";
+                var tb = (b.entry && b.entry.createdAt) || "";
+                return ta < tb ? 1 : ta > tb ? -1 : 0;
+            });
+            return ok({ appId: data.appId, entries: entries, cursor: cursor || null });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_history failed");
+        }
+    }
+    RouterWallet.rpcHistory = rpcHistory;
+    function register(initializer) {
+        initializer.registerRpc("router_wallet_get", rpcGet);
+        initializer.registerRpc("router_wallet_credit", rpcCredit);
+        initializer.registerRpc("router_wallet_debit", rpcDebit);
+        initializer.registerRpc("router_wallet_hold", rpcHold);
+        initializer.registerRpc("router_wallet_settle", rpcSettle);
+        initializer.registerRpc("router_wallet_history", rpcHistory);
+    }
+    RouterWallet.register = register;
+})(RouterWallet || (RouterWallet = {}));
+// Expose the namespace for the standalone vitest harness. Inside Nakama's
+// Goja runtime this is a harmless no-op guard (namespaces are already global
+// in the kernel's outFile bundle).
+if (typeof globalThis !== "undefined") {
+    globalThis.RouterWallet = RouterWallet;
+}
 // =============================================================================
 // AnalyticsAlerts — Hardened RPC analytics + Discord summaries for Nakama
 // =============================================================================
@@ -78273,6 +78726,1021 @@ var UserModel;
     }
     UserModel.register = register;
 })(UserModel || (UserModel = {}));
+/**
+ * WorldTrivia — playable world templates game loop for Intelliverse.
+ *
+ * The founder's loop: a player moves through a generated 3D world, hits
+ * CHECKPOINTS, answers a TRIVIA QUESTION at each, and may FINISH after 5
+ * CORRECT answers. ALWAYS-UNIQUE COLORED OBJECTS spawn per session as a
+ * scavenger-hunt secondary mechanic (uniqueness via seeded RNG from the
+ * server-generated sessionId). Full design: docs/worlds/game-loop.md.
+ *
+ * Follows the router-wallet module conventions: global namespace, storage
+ * objects owned by the SYSTEM user, {success,data}/{success,error} envelopes,
+ * optimistic concurrency control with up to 3 retries on session mutations.
+ *
+ * Everything is App-ID scoped (multi-tenant): templates, trivia packs, and
+ * sessions all carry an appId consistent with the repo's "apps" model.
+ *
+ * Auth split:
+ *  - authoring RPCs (world_template_upsert, world_trivia_pack_upsert) are
+ *    SERVER-TO-SERVER ONLY (http_key), like all router_wallet RPCs;
+ *  - gameplay RPCs require an authenticated Nakama user (ctx.userId) and
+ *    verify session ownership — the game is server-authoritative, the client
+ *    never grades answers or counts progress.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/world_trivia/ and call WorldTrivia.register(initializer)
+ * from main.ts InitModule. Self-contained; the router-wallet finish-reward
+ * hook resolves RouterWallet softly at call time and is skipped when the
+ * wallet module is not installed.
+ */
+var WorldTrivia;
+(function (WorldTrivia) {
+    WorldTrivia.SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    WorldTrivia.TEMPLATES_COLLECTION = "world_templates";
+    WorldTrivia.PACKS_COLLECTION = "trivia_packs";
+    WorldTrivia.SESSIONS_COLLECTION = "world_sessions";
+    WorldTrivia.LEADERBOARDS_COLLECTION = "world_leaderboards";
+    WorldTrivia.MAX_OCC_RETRIES = 3;
+    WorldTrivia.SCORE_CORRECT = 100;
+    WorldTrivia.SCORE_OBJECT_FOUND = 25;
+    WorldTrivia.SCORE_FINISH_BONUS = 250;
+    WorldTrivia.IDLE_EXPIRY_MS = 30 * 60 * 1000;
+    WorldTrivia.LEADERBOARD_SIZE = 100;
+    // Tolerance multipliers for proximity checks (client lag / interpolation).
+    WorldTrivia.PROXIMITY_SLACK = 1.5;
+    // Fraction of the theoretical minimum travel time we actually require
+    // (20% slack for lag and legitimate shortcuts).
+    WorldTrivia.SPEED_SLACK = 0.8;
+    // XOR stream separator so the question shuffle and the object layout draw
+    // from independent RNG streams of the same session seed.
+    WorldTrivia.QUESTION_STREAM = 0x51ab9e3d;
+    WorldTrivia.OBJECT_SHAPES = ["sphere", "cube", "cone", "torus"];
+    WorldTrivia.DEFAULT_SETTINGS = {
+        requiredCorrect: 5, // the founder's completion rule
+        objectCount: 8,
+        maxSpeed: 10, // m/s movement sanity bound
+        maxAnswerSeconds: 60,
+        collectRadius: 3,
+        finishRewardCredits: 0 // iv_credits via router-wallet on finish
+    };
+    // ---- seeded RNG (duplicated verbatim in worlds-viewer/js/seeded.js so the
+    // client can re-derive and assert the scavenger layout from the seed) ----
+    var imul = Math.imul || function (a, b) {
+        var ah = (a >>> 16) & 0xffff, al = a & 0xffff;
+        var bh = (b >>> 16) & 0xffff, bl = b & 0xffff;
+        return ((al * bl) + (((ah * bl + al * bh) << 16) >>> 0)) | 0;
+    };
+    /** FNV-1a 32-bit hash — session seed derivation from the sessionId UUID. */
+    function fnv1a32(str) {
+        var h = 0x811c9dc5;
+        for (var i = 0; i < str.length; i++) {
+            h = (h ^ str.charCodeAt(i)) >>> 0;
+            h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+        }
+        return h >>> 0;
+    }
+    WorldTrivia.fnv1a32 = fnv1a32;
+    /** mulberry32 PRNG — tiny, fast, deterministic across JS runtimes. */
+    function mulberry32(seed) {
+        var a = seed >>> 0;
+        return function () {
+            a = (a + 0x6d2b79f5) >>> 0;
+            var t = a;
+            t = imul(t ^ (t >>> 15), t | 1);
+            t = (t ^ (t + imul(t ^ (t >>> 7), t | 61))) >>> 0;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+    WorldTrivia.mulberry32 = mulberry32;
+    function hslToHex(h, s, l) {
+        var sn = s / 100, ln = l / 100;
+        var c = (1 - Math.abs(2 * ln - 1)) * sn;
+        var hp = (((h % 360) + 360) % 360) / 60;
+        var x = c * (1 - Math.abs((hp % 2) - 1));
+        var r = 0, g = 0, b = 0;
+        if (hp < 1) {
+            r = c;
+            g = x;
+        }
+        else if (hp < 2) {
+            r = x;
+            g = c;
+        }
+        else if (hp < 3) {
+            g = c;
+            b = x;
+        }
+        else if (hp < 4) {
+            g = x;
+            b = c;
+        }
+        else if (hp < 5) {
+            r = x;
+            b = c;
+        }
+        else {
+            r = c;
+            b = x;
+        }
+        var m = ln - c / 2;
+        function hex(v) {
+            var n = Math.round((v + m) * 255);
+            var out = n.toString(16);
+            return out.length === 1 ? "0" + out : out;
+        }
+        return "#" + hex(r) + hex(g) + hex(b);
+    }
+    /**
+     * Derive the per-session scavenger layout from the seed. Colors are unique
+     * within the session by construction: a random start hue, then even
+     * 360/N spacing with ±10° jitter (spacing 45° at N=8, so hues can never
+     * collide), fixed saturation/lightness. Draw order per object is fixed
+     * (jitter, volume, x, y, z) — the viewer replays it byte-for-byte.
+     */
+    function deriveObjects(seed, count, volumes) {
+        var rnd = mulberry32(seed);
+        var startHue = Math.floor(rnd() * 360);
+        var objects = [];
+        for (var i = 0; i < count; i++) {
+            var jitter = rnd() * 20 - 10;
+            var vol = volumes[Math.floor(rnd() * volumes.length)];
+            var x = vol.min.x + rnd() * (vol.max.x - vol.min.x);
+            var y = vol.min.y + rnd() * (vol.max.y - vol.min.y);
+            var z = vol.min.z + rnd() * (vol.max.z - vol.min.z);
+            var hue = startHue + (i * 360) / count + jitter;
+            objects.push({
+                id: "obj-" + (i + 1),
+                color: hslToHex(hue, 70, 55),
+                shape: WorldTrivia.OBJECT_SHAPES[i % WorldTrivia.OBJECT_SHAPES.length],
+                position: { x: x, y: y, z: z }
+            });
+        }
+        return objects;
+    }
+    WorldTrivia.deriveObjects = deriveObjects;
+    function shuffleIds(ids, rnd) {
+        var out = ids.slice();
+        for (var i = out.length - 1; i > 0; i--) {
+            var j = Math.floor(rnd() * (i + 1));
+            var tmp = out[i];
+            out[i] = out[j];
+            out[j] = tmp;
+        }
+        return out;
+    }
+    WorldTrivia.shuffleIds = shuffleIds;
+    // ---- helpers ----
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message) {
+        return JSON.stringify({ success: false, error: message });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return {};
+        return JSON.parse(payload);
+    }
+    /** Authoring RPCs are server-to-server only (http_key auth). */
+    function requireServerToServer(ctx) {
+        if (ctx.userId) {
+            throw new Error("world_trivia authoring RPCs are server-to-server only");
+        }
+    }
+    /** Gameplay RPCs require an authenticated Nakama user session. */
+    function requireUser(ctx) {
+        if (!ctx.userId) {
+            throw new Error("world_trivia gameplay RPCs require an authenticated user session");
+        }
+        return ctx.userId;
+    }
+    function validateVec3(v, label) {
+        if (!v || typeof v.x !== "number" || typeof v.y !== "number" || typeof v.z !== "number"
+            || !isFinite(v.x) || !isFinite(v.y) || !isFinite(v.z)) {
+            throw new Error(label + " must be {x, y, z} numbers");
+        }
+        return { x: v.x, y: v.y, z: v.z };
+    }
+    function dist(a, b) {
+        var dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    function nowMs() {
+        return Date.now();
+    }
+    // ---- storage ----
+    function templateKey(appId, templateId) {
+        return "template_" + appId + "_" + templateId;
+    }
+    function packKey(appId, packId) {
+        return "pack_" + appId + "_" + packId;
+    }
+    function sessionKey(sessionId) {
+        return "session_" + sessionId;
+    }
+    function leaderboardKey(appId, templateId) {
+        return "lb_" + appId + "_" + templateId;
+    }
+    function readSystemObject(nk, collection, key) {
+        var records = nk.storageRead([{ collection: collection, key: key, userId: WorldTrivia.SYSTEM_USER_ID }]);
+        if (records && records.length > 0 && records[0].value) {
+            return { value: records[0].value, storageVersion: records[0].version };
+        }
+        return { value: null, storageVersion: "*" };
+    }
+    function writeSystemObject(nk, collection, key, value, storageVersion) {
+        var write = {
+            collection: collection,
+            key: key,
+            userId: WorldTrivia.SYSTEM_USER_ID,
+            value: value,
+            permissionRead: 0,
+            permissionWrite: 0
+        };
+        if (storageVersion)
+            write.version = storageVersion;
+        nk.storageWrite([write]);
+    }
+    function readTemplate(nk, appId, templateId) {
+        return readSystemObject(nk, WorldTrivia.TEMPLATES_COLLECTION, templateKey(appId, templateId)).value;
+    }
+    function readPack(nk, appId, packId) {
+        return readSystemObject(nk, WorldTrivia.PACKS_COLLECTION, packKey(appId, packId)).value;
+    }
+    /**
+     * Read-mutate-write on a session with OCC — identical shape to
+     * router-wallet's mutateWallet: business errors thrown by the mutator abort
+     * immediately, storage version conflicts retry up to MAX_OCC_RETRIES.
+     */
+    function mutateSession(nk, sessionId, mutator) {
+        var lastError = null;
+        for (var attempt = 0; attempt < WorldTrivia.MAX_OCC_RETRIES; attempt++) {
+            var read = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(sessionId));
+            var session = read.value;
+            if (!session)
+                throw new Error("Session not found: " + sessionId);
+            mutator(session);
+            session.version = (session.version || 0) + 1;
+            try {
+                writeSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(sessionId), session, read.storageVersion);
+                return session;
+            }
+            catch (e) {
+                lastError = e; // version conflict — re-read and retry
+            }
+        }
+        throw new Error("Session write conflict after " + WorldTrivia.MAX_OCC_RETRIES + " retries: " + (lastError && lastError.message ? lastError.message : String(lastError)));
+    }
+    // ---- session guards (run inside mutators) ----
+    function requireOwnedActive(session, userId) {
+        if (session.userId !== userId) {
+            throw new Error("Session does not belong to the caller");
+        }
+        if (session.status !== "active") {
+            throw new Error("Session is " + session.status);
+        }
+    }
+    /**
+     * Lazy idle expiry: sessions untouched for IDLE_EXPIRY_MS flip to abandoned
+     * on the next access instead of via a cron. Returns true when this call
+     * performed the flip (the caller persists it and rejects the gameplay op).
+     */
+    function expireIfIdle(session, now) {
+        if (now - session.lastEventAtMs > WorldTrivia.IDLE_EXPIRY_MS) {
+            session.status = "abandoned";
+            session.finishedAtMs = now;
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Movement sanity: covering distance d from the last validated position
+     * must take at least d / maxSpeed * SPEED_SLACK. Rejects teleports without
+     * punishing ordinary lag.
+     */
+    function requireSaneMovement(session, position, now, maxSpeed) {
+        var d = dist(session.lastPosition, position);
+        var minMs = (d / maxSpeed) * WorldTrivia.SPEED_SLACK * 1000;
+        if (now - session.lastEventAtMs < minMs) {
+            throw new Error("Movement too fast: " + Math.round(d) + "m in " + (now - session.lastEventAtMs) + "ms exceeds maxSpeed " + maxSpeed + "m/s");
+        }
+    }
+    function questionExpired(pending, now, maxAnswerSeconds) {
+        return now - pending.issuedAtMs > maxAnswerSeconds * 1000;
+    }
+    // ---- client views (redaction) ----
+    function checkpointView(cp) {
+        return { id: cp.id, name: cp.name, position: cp.position, radius: cp.radius };
+    }
+    function settingsView(s) {
+        return {
+            requiredCorrect: s.requiredCorrect,
+            objectCount: s.objectCount,
+            maxSpeed: s.maxSpeed,
+            maxAnswerSeconds: s.maxAnswerSeconds,
+            collectRadius: s.collectRadius
+        };
+    }
+    /** Question as issued to the player — never includes correctIndex. */
+    function questionView(q) {
+        var view = { questionId: q.id, text: q.text, choices: q.choices };
+        if (q.category)
+            view.category = q.category;
+        return view;
+    }
+    /**
+     * The session manifest the client renders from. Redacts the question queue
+     * (order would leak upcoming questions) and all grading state internals;
+     * includes the seed so the viewer can re-derive and assert the scavenger
+     * layout (contract check on the shared RNG).
+     */
+    function sessionView(session, template) {
+        var checkpoints = [];
+        for (var i = 0; i < template.checkpoints.length; i++)
+            checkpoints.push(checkpointView(template.checkpoints[i]));
+        return {
+            sessionId: session.sessionId,
+            appId: session.appId,
+            templateId: session.templateId,
+            status: session.status,
+            seed: session.seed,
+            assets: template.assets,
+            spawnPoint: template.spawnPoint,
+            checkpoints: checkpoints,
+            objects: session.objects,
+            objectsFound: session.objectsFound,
+            visitedCheckpoints: session.visitedCheckpoints,
+            lap: session.lap,
+            correctCount: session.correctCount,
+            wrongCount: session.wrongCount,
+            finishEligible: session.finishEligible,
+            score: session.score,
+            settings: settingsView(template.settings),
+            startedAtMs: session.startedAtMs
+        };
+    }
+    function progressView(session, template) {
+        return {
+            correctCount: session.correctCount,
+            wrongCount: session.wrongCount,
+            requiredCorrect: template.settings.requiredCorrect,
+            finishEligible: session.finishEligible,
+            score: session.score,
+            lap: session.lap,
+            objectsFound: session.objectsFound.length,
+            objectCount: session.objects.length
+        };
+    }
+    // ---- RPC handlers: authoring (s2s only) ----
+    function rpcTemplateUpsert(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required");
+            if (!data.packId)
+                return err("packId required");
+            if (!data.checkpoints || !data.checkpoints.length)
+                return err("checkpoints required (non-empty array)");
+            if (!data.scavengerVolumes || !data.scavengerVolumes.length)
+                return err("scavengerVolumes required (non-empty array)");
+            var checkpoints = [];
+            var seenIds = {};
+            for (var i = 0; i < data.checkpoints.length; i++) {
+                var cp = data.checkpoints[i];
+                if (!cp.id)
+                    throw new Error("checkpoint[" + i + "].id required");
+                if (seenIds[cp.id])
+                    throw new Error("duplicate checkpoint id: " + cp.id);
+                seenIds[cp.id] = true;
+                checkpoints.push({
+                    id: cp.id,
+                    name: cp.name || cp.id,
+                    position: validateVec3(cp.position, "checkpoint[" + i + "].position"),
+                    radius: typeof cp.radius === "number" && cp.radius > 0 ? cp.radius : 5
+                });
+            }
+            var volumes = [];
+            for (var v = 0; v < data.scavengerVolumes.length; v++) {
+                volumes.push({
+                    min: validateVec3(data.scavengerVolumes[v].min, "scavengerVolumes[" + v + "].min"),
+                    max: validateVec3(data.scavengerVolumes[v].max, "scavengerVolumes[" + v + "].max")
+                });
+            }
+            var settings = {
+                requiredCorrect: WorldTrivia.DEFAULT_SETTINGS.requiredCorrect,
+                objectCount: WorldTrivia.DEFAULT_SETTINGS.objectCount,
+                maxSpeed: WorldTrivia.DEFAULT_SETTINGS.maxSpeed,
+                maxAnswerSeconds: WorldTrivia.DEFAULT_SETTINGS.maxAnswerSeconds,
+                collectRadius: WorldTrivia.DEFAULT_SETTINGS.collectRadius,
+                finishRewardCredits: WorldTrivia.DEFAULT_SETTINGS.finishRewardCredits
+            };
+            var overrides = data.settings || {};
+            for (var key in settings) {
+                if (typeof overrides[key] === "number" && isFinite(overrides[key]) && overrides[key] >= 0) {
+                    settings[key] = overrides[key];
+                }
+            }
+            if (settings.requiredCorrect < 1)
+                settings.requiredCorrect = 1;
+            var template = {
+                appId: data.appId,
+                templateId: data.templateId,
+                name: data.name || data.templateId,
+                packId: data.packId,
+                assets: data.assets || {},
+                spawnPoint: data.spawnPoint ? validateVec3(data.spawnPoint, "spawnPoint") : { x: 0, y: 0, z: 0 },
+                checkpoints: checkpoints,
+                scavengerVolumes: volumes,
+                settings: settings,
+                updatedAt: new Date().toISOString()
+            };
+            writeSystemObject(nk, WorldTrivia.TEMPLATES_COLLECTION, templateKey(data.appId, data.templateId), template);
+            return ok(template);
+        }
+        catch (e) {
+            return err(e.message || "world_template_upsert failed");
+        }
+    }
+    WorldTrivia.rpcTemplateUpsert = rpcTemplateUpsert;
+    function rpcPackUpsert(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.packId)
+                return err("packId required");
+            if (!data.questions || !data.questions.length)
+                return err("questions required (non-empty array)");
+            var questions = [];
+            var seen = {};
+            for (var i = 0; i < data.questions.length; i++) {
+                var q = data.questions[i];
+                if (!q.id)
+                    throw new Error("questions[" + i + "].id required");
+                if (seen[q.id])
+                    throw new Error("duplicate question id: " + q.id);
+                seen[q.id] = true;
+                if (!q.text)
+                    throw new Error("questions[" + i + "].text required");
+                if (!q.choices || q.choices.length < 2)
+                    throw new Error("questions[" + i + "].choices requires at least 2 entries");
+                var correctIndex = Number(q.correctIndex);
+                if (!isFinite(correctIndex) || correctIndex !== Math.floor(correctIndex) || correctIndex < 0 || correctIndex >= q.choices.length) {
+                    throw new Error("questions[" + i + "].correctIndex out of range");
+                }
+                var question = { id: q.id, text: q.text, choices: q.choices, correctIndex: correctIndex };
+                if (q.category)
+                    question.category = q.category;
+                questions.push(question);
+            }
+            var pack = {
+                appId: data.appId,
+                packId: data.packId,
+                questions: questions,
+                updatedAt: new Date().toISOString()
+            };
+            writeSystemObject(nk, WorldTrivia.PACKS_COLLECTION, packKey(data.appId, data.packId), pack);
+            return ok({ appId: data.appId, packId: data.packId, questionCount: questions.length });
+        }
+        catch (e) {
+            return err(e.message || "world_trivia_pack_upsert failed");
+        }
+    }
+    WorldTrivia.rpcPackUpsert = rpcPackUpsert;
+    // ---- RPC handlers: gameplay (authenticated user) ----
+    function rpcSessionStart(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required");
+            var template = readTemplate(nk, data.appId, data.templateId);
+            if (!template)
+                return err("Template not found: " + data.templateId + " (app " + data.appId + ")");
+            var pack = readPack(nk, data.appId, template.packId);
+            if (!pack)
+                return err("Trivia pack not found: " + template.packId + " (app " + data.appId + ")");
+            if (pack.questions.length < template.settings.requiredCorrect) {
+                return err("Trivia pack " + template.packId + " has " + pack.questions.length + " questions; template requires " + template.settings.requiredCorrect + " correct answers");
+            }
+            var sessionId = nk.uuidv4();
+            // Seed derivation: the sessionId is server-generated, so the seed is
+            // unique per session and unforgeable by the client.
+            var seed = fnv1a32(sessionId);
+            var questionIds = [];
+            for (var i = 0; i < pack.questions.length; i++)
+                questionIds.push(pack.questions[i].id);
+            var questionQueue = shuffleIds(questionIds, mulberry32((seed ^ WorldTrivia.QUESTION_STREAM) >>> 0));
+            var objects = deriveObjects(seed, template.settings.objectCount, template.scavengerVolumes);
+            var now = nowMs();
+            var session = {
+                sessionId: sessionId,
+                appId: data.appId,
+                userId: userId,
+                templateId: data.templateId,
+                packId: template.packId,
+                seed: seed,
+                status: "active",
+                lap: 1,
+                visitedCheckpoints: [],
+                pendingQuestion: null,
+                questionQueue: questionQueue,
+                askedQuestionIds: [],
+                correctCount: 0,
+                wrongCount: 0,
+                finishEligible: false,
+                objects: objects,
+                objectsFound: [],
+                score: 0,
+                lastPosition: template.spawnPoint,
+                lastEventAtMs: now,
+                startedAtMs: now,
+                finishedAtMs: null,
+                version: 0
+            };
+            writeSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(sessionId), session, "*");
+            return ok(sessionView(session, template));
+        }
+        catch (e) {
+            return err(e.message || "world_session_start failed");
+        }
+    }
+    WorldTrivia.rpcSessionStart = rpcSessionStart;
+    function rpcSessionGet(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            var session = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!session)
+                return err("Session not found: " + data.sessionId);
+            if (session.userId !== userId)
+                return err("Session does not belong to the caller");
+            var template = readTemplate(nk, session.appId, session.templateId);
+            if (!template)
+                return err("Template not found: " + session.templateId);
+            return ok(sessionView(session, template));
+        }
+        catch (e) {
+            return err(e.message || "world_session_get failed");
+        }
+    }
+    WorldTrivia.rpcSessionGet = rpcSessionGet;
+    function rpcCheckpointReach(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            if (!data.checkpointId)
+                return err("checkpointId required");
+            var position = validateVec3(data.position, "position");
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var pack = readPack(nk, pre.appId, pre.packId);
+            if (!pack)
+                return err("Trivia pack not found: " + pre.packId);
+            var now = nowMs();
+            var expired = false;
+            var issuedQuestionId = "";
+            var expiredPrevious = false;
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    expired = true;
+                    return;
+                }
+                var checkpoint = null;
+                for (var i = 0; i < template.checkpoints.length; i++) {
+                    if (template.checkpoints[i].id === data.checkpointId) {
+                        checkpoint = template.checkpoints[i];
+                        break;
+                    }
+                }
+                if (!checkpoint)
+                    throw new Error("Unknown checkpoint: " + data.checkpointId);
+                // A question left pending past its time budget counts as wrong and
+                // unblocks the loop; a still-live one blocks new checkpoints.
+                if (s.pendingQuestion) {
+                    if (questionExpired(s.pendingQuestion, now, template.settings.maxAnswerSeconds)) {
+                        s.wrongCount += 1;
+                        s.pendingQuestion = null;
+                        expiredPrevious = true;
+                    }
+                    else {
+                        throw new Error("Answer the pending question before reaching another checkpoint");
+                    }
+                }
+                // Checkpoints are unordered (free-roam) but once-per-lap. Exhausting
+                // every checkpoint re-arms them all: a new lap costs travel time,
+                // never a dead end (docs/worlds/game-loop.md §4).
+                if (s.visitedCheckpoints.indexOf(checkpoint.id) !== -1) {
+                    if (s.visitedCheckpoints.length >= template.checkpoints.length) {
+                        s.lap += 1;
+                        s.visitedCheckpoints = [];
+                    }
+                    else {
+                        throw new Error("Checkpoint already visited this lap: " + checkpoint.id);
+                    }
+                }
+                if (dist(position, checkpoint.position) > checkpoint.radius * WorldTrivia.PROXIMITY_SLACK) {
+                    throw new Error("Position is not at checkpoint " + checkpoint.id);
+                }
+                requireSaneMovement(s, position, now, template.settings.maxSpeed);
+                // No repeats within a session by construction: the queue is a seeded
+                // shuffle of the whole pack. Only on full exhaustion (small pack +
+                // many wrong answers) do asked questions recycle, reshuffled by lap.
+                if (s.questionQueue.length === 0) {
+                    if (s.askedQuestionIds.length === 0)
+                        throw new Error("Trivia pack is empty");
+                    s.questionQueue = shuffleIds(s.askedQuestionIds, mulberry32((s.seed + s.lap) >>> 0));
+                    s.askedQuestionIds = [];
+                }
+                var qid = s.questionQueue.shift();
+                s.askedQuestionIds.push(qid);
+                s.pendingQuestion = { questionId: qid, checkpointId: checkpoint.id, issuedAtMs: now };
+                issuedQuestionId = qid;
+                s.visitedCheckpoints.push(checkpoint.id);
+                s.lastPosition = position;
+                s.lastEventAtMs = now;
+            });
+            if (expired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            var question = null;
+            for (var qi = 0; qi < pack.questions.length; qi++) {
+                if (pack.questions[qi].id === issuedQuestionId) {
+                    question = pack.questions[qi];
+                    break;
+                }
+            }
+            if (!question)
+                return err("Question " + issuedQuestionId + " missing from pack " + pre.packId);
+            return ok({
+                checkpointId: data.checkpointId,
+                question: questionView(question),
+                previousQuestionExpired: expiredPrevious,
+                progress: progressView(session, template)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_checkpoint_reach failed");
+        }
+    }
+    WorldTrivia.rpcCheckpointReach = rpcCheckpointReach;
+    function rpcAnswerSubmit(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            if (!data.questionId)
+                return err("questionId required");
+            var choiceIndex = Number(data.choiceIndex);
+            if (!isFinite(choiceIndex) || choiceIndex !== Math.floor(choiceIndex) || choiceIndex < 0) {
+                return err("choiceIndex must be a non-negative integer");
+            }
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var pack = readPack(nk, pre.appId, pre.packId);
+            if (!pack)
+                return err("Trivia pack not found: " + pre.packId);
+            var question = null;
+            for (var i = 0; i < pack.questions.length; i++) {
+                if (pack.questions[i].id === data.questionId) {
+                    question = pack.questions[i];
+                    break;
+                }
+            }
+            if (!question)
+                return err("Unknown question: " + data.questionId);
+            var now = nowMs();
+            var sessionExpired = false;
+            var answerExpired = false;
+            var correct = false;
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    sessionExpired = true;
+                    return;
+                }
+                if (!s.pendingQuestion || s.pendingQuestion.questionId !== data.questionId) {
+                    throw new Error("No pending question with id " + data.questionId);
+                }
+                answerExpired = questionExpired(s.pendingQuestion, now, template.settings.maxAnswerSeconds);
+                // Grading is entirely server-side: the client never saw correctIndex.
+                correct = !answerExpired && choiceIndex === question.correctIndex;
+                if (correct) {
+                    s.correctCount += 1;
+                    s.score += WorldTrivia.SCORE_CORRECT;
+                    if (s.correctCount >= template.settings.requiredCorrect) {
+                        s.finishEligible = true; // the 5-correct completion rule
+                    }
+                }
+                else {
+                    // Wrong answer policy: miss and move on. The question and the
+                    // checkpoint are consumed; a new question waits at the next
+                    // checkpoint — travel time is the cooldown (game-loop.md §4).
+                    s.wrongCount += 1;
+                }
+                s.pendingQuestion = null;
+                s.lastEventAtMs = now;
+            });
+            if (sessionExpired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            return ok({
+                questionId: data.questionId,
+                correct: correct,
+                expired: answerExpired,
+                // Revealed post-grade only, so the AI host can announce the answer.
+                correctIndex: question.correctIndex,
+                progress: progressView(session, template)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_answer_submit failed");
+        }
+    }
+    WorldTrivia.rpcAnswerSubmit = rpcAnswerSubmit;
+    function rpcObjectFound(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            if (!data.objectId)
+                return err("objectId required");
+            var position = validateVec3(data.position, "position");
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var now = nowMs();
+            var expired = false;
+            var found = null;
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    expired = true;
+                    return;
+                }
+                var obj = null;
+                for (var i = 0; i < s.objects.length; i++) {
+                    if (s.objects[i].id === data.objectId) {
+                        obj = s.objects[i];
+                        break;
+                    }
+                }
+                // Validates against the seed-derived layout stored at session start.
+                if (!obj)
+                    throw new Error("Unknown object: " + data.objectId);
+                if (s.objectsFound.indexOf(obj.id) !== -1)
+                    throw new Error("Object already found: " + obj.id);
+                if (dist(position, obj.position) > template.settings.collectRadius * WorldTrivia.PROXIMITY_SLACK) {
+                    throw new Error("Position is not at object " + obj.id);
+                }
+                requireSaneMovement(s, position, now, template.settings.maxSpeed);
+                s.objectsFound.push(obj.id);
+                s.score += WorldTrivia.SCORE_OBJECT_FOUND;
+                s.lastPosition = position;
+                s.lastEventAtMs = now;
+                found = obj;
+            });
+            if (expired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            return ok({
+                objectId: found.id,
+                color: found.color,
+                shape: found.shape,
+                foundCount: session.objectsFound.length,
+                totalObjects: session.objects.length,
+                progress: progressView(session, template)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_object_found failed");
+        }
+    }
+    WorldTrivia.rpcObjectFound = rpcObjectFound;
+    function rpcSessionFinish(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var now = nowMs();
+            var expired = false;
+            // Single-shot: the status flip runs under OCC, so a double-fired finish
+            // loses the version race and lands on "Session is finished".
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    expired = true;
+                    return;
+                }
+                if (!s.finishEligible) {
+                    throw new Error("Not finish-eligible: " + s.correctCount + "/" + template.settings.requiredCorrect + " correct answers");
+                }
+                s.status = "finished";
+                s.score += WorldTrivia.SCORE_FINISH_BONUS;
+                s.finishedAtMs = now;
+                s.lastEventAtMs = now;
+            });
+            if (expired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            var entry = {
+                sessionId: session.sessionId,
+                userId: session.userId,
+                score: session.score,
+                correctCount: session.correctCount,
+                wrongCount: session.wrongCount,
+                objectsFound: session.objectsFound.length,
+                durationMs: now - session.startedAtMs,
+                finishedAt: new Date().toISOString()
+            };
+            var rank = upsertLeaderboardEntry(nk, session.appId, session.templateId, entry);
+            var reward = creditFinishReward(nk, logger, session, template);
+            return ok({
+                sessionId: session.sessionId,
+                score: session.score,
+                correctCount: session.correctCount,
+                wrongCount: session.wrongCount,
+                objectsFound: session.objectsFound.length,
+                totalObjects: session.objects.length,
+                durationMs: entry.durationMs,
+                rank: rank,
+                reward: reward
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_session_finish failed");
+        }
+    }
+    WorldTrivia.rpcSessionFinish = rpcSessionFinish;
+    function rpcSessionAbandon(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            var now = nowMs();
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                s.status = "abandoned";
+                s.finishedAtMs = now;
+                s.lastEventAtMs = now;
+            });
+            return ok({ sessionId: session.sessionId, status: session.status, score: session.score });
+        }
+        catch (e) {
+            return err(e.message || "world_session_abandon failed");
+        }
+    }
+    WorldTrivia.rpcSessionAbandon = rpcSessionAbandon;
+    function rpcLeaderboardGet(ctx, logger, nk, payload) {
+        try {
+            // Readable by players and s2s callers alike.
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required");
+            var limit = data.limit ? Math.min(Number(data.limit), WorldTrivia.LEADERBOARD_SIZE) : WorldTrivia.LEADERBOARD_SIZE;
+            var read = readSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, leaderboardKey(data.appId, data.templateId));
+            var entries = (read.value && read.value.entries) || [];
+            return ok({
+                appId: data.appId,
+                templateId: data.templateId,
+                entries: entries.slice(0, limit)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_leaderboard_get failed");
+        }
+    }
+    WorldTrivia.rpcLeaderboardGet = rpcLeaderboardGet;
+    // ---- leaderboard + wallet reward internals ----
+    /**
+     * Storage-object leaderboard per (app, template): top LEADERBOARD_SIZE by
+     * score, ties broken by shorter duration. OCC-retried like sessions.
+     * Returns the entry's 1-based rank, or null if it fell off the board.
+     */
+    function upsertLeaderboardEntry(nk, appId, templateId, entry) {
+        var key = leaderboardKey(appId, templateId);
+        var lastError = null;
+        for (var attempt = 0; attempt < WorldTrivia.MAX_OCC_RETRIES; attempt++) {
+            var read = readSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, key);
+            var value = read.value || { appId: appId, templateId: templateId, entries: [] };
+            var entries = value.entries || [];
+            // Keyed by sessionId — a replayed finish (which finish's single-shot
+            // status flip already prevents) could never duplicate a row.
+            var filtered = [];
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].sessionId !== entry.sessionId)
+                    filtered.push(entries[i]);
+            }
+            filtered.push(entry);
+            filtered.sort(function (a, b) {
+                if (b.score !== a.score)
+                    return b.score - a.score;
+                return a.durationMs - b.durationMs;
+            });
+            value.entries = filtered.slice(0, WorldTrivia.LEADERBOARD_SIZE);
+            try {
+                writeSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, key, value, read.storageVersion);
+                for (var r = 0; r < value.entries.length; r++) {
+                    if (value.entries[r].sessionId === entry.sessionId)
+                        return r + 1;
+                }
+                return null;
+            }
+            catch (e) {
+                lastError = e;
+            }
+        }
+        throw new Error("Leaderboard write conflict after " + WorldTrivia.MAX_OCC_RETRIES + " retries: " + (lastError && lastError.message ? lastError.message : String(lastError)));
+    }
+    /**
+     * Wallet reward hook: credits the app's router-wallet in-process through
+     * the already-deployed RouterWallet module. Ref world_finish_{sessionId}
+     * rides the wallet's conditional-create dedupe, so a replay can never
+     * double-credit. Soft dependency: when RouterWallet isn't installed (or
+     * the credit fails) the finish still succeeds and the reward is reported
+     * as skipped — game completion must never be hostage to billing.
+     */
+    function creditFinishReward(nk, logger, session, template) {
+        var amount = template.settings.finishRewardCredits;
+        if (!amount || amount <= 0) {
+            return { credited: false, skipped: true, reason: "no finishRewardCredits configured" };
+        }
+        var rw = typeof globalThis !== "undefined" ? globalThis.RouterWallet : null;
+        if (!rw || typeof rw.rpcCredit !== "function") {
+            return { credited: false, skipped: true, reason: "router_wallet module not installed" };
+        }
+        try {
+            var s2sCtx = { userId: "" }; // in-process s2s call
+            var result = JSON.parse(rw.rpcCredit(s2sCtx, logger, nk, JSON.stringify({
+                appId: session.appId,
+                kind: "iv_credits",
+                amount: amount,
+                reason: "world_finish_reward",
+                ref: "world_finish_" + session.sessionId
+            })));
+            if (!result.success) {
+                return { credited: false, skipped: true, reason: result.error || "router_wallet_credit failed" };
+            }
+            return { credited: !result.data.deduped, deduped: !!result.data.deduped, kind: "iv_credits", amount: amount };
+        }
+        catch (e) {
+            return { credited: false, skipped: true, reason: e.message || "router_wallet_credit threw" };
+        }
+    }
+    function register(initializer) {
+        // authoring (s2s)
+        initializer.registerRpc("world_template_upsert", rpcTemplateUpsert);
+        initializer.registerRpc("world_trivia_pack_upsert", rpcPackUpsert);
+        // gameplay (authenticated user)
+        initializer.registerRpc("world_session_start", rpcSessionStart);
+        initializer.registerRpc("world_session_get", rpcSessionGet);
+        initializer.registerRpc("world_checkpoint_reach", rpcCheckpointReach);
+        initializer.registerRpc("world_answer_submit", rpcAnswerSubmit);
+        initializer.registerRpc("world_object_found", rpcObjectFound);
+        initializer.registerRpc("world_session_finish", rpcSessionFinish);
+        initializer.registerRpc("world_session_abandon", rpcSessionAbandon);
+        initializer.registerRpc("world_leaderboard_get", rpcLeaderboardGet);
+    }
+    WorldTrivia.register = register;
+})(WorldTrivia || (WorldTrivia = {}));
+// Expose the namespace for the standalone vitest harness. Inside Nakama's
+// Goja runtime this is a harmless no-op guard (namespaces are already global
+// in the kernel's outFile bundle).
+if (typeof globalThis !== "undefined") {
+    globalThis.WorldTrivia = WorldTrivia;
+}
 // kb_enrichment.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // Continuous KB enrichment loop — recomputes derived user attributes so that
