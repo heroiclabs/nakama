@@ -5639,6 +5639,174 @@ declare namespace Satori {
 declare namespace UserModel {
     function register(initializer: nkruntime.Initializer): void;
 }
+/**
+ * WorldTrivia — playable world templates game loop for Intelliverse.
+ *
+ * The founder's loop: a player moves through a generated 3D world, hits
+ * CHECKPOINTS, answers a TRIVIA QUESTION at each, and may FINISH after 5
+ * CORRECT answers. ALWAYS-UNIQUE COLORED OBJECTS spawn per session as a
+ * scavenger-hunt secondary mechanic (uniqueness via seeded RNG from the
+ * server-generated sessionId). Full design: docs/worlds/game-loop.md.
+ *
+ * Follows the router-wallet module conventions: global namespace, storage
+ * objects owned by the SYSTEM user, {success,data}/{success,error} envelopes,
+ * optimistic concurrency control with up to 3 retries on session mutations.
+ *
+ * Everything is App-ID scoped (multi-tenant): templates, trivia packs, and
+ * sessions all carry an appId consistent with the repo's "apps" model.
+ *
+ * Auth split:
+ *  - authoring RPCs (world_template_upsert, world_trivia_pack_upsert) are
+ *    SERVER-TO-SERVER ONLY (http_key), like all router_wallet RPCs;
+ *  - gameplay RPCs require an authenticated Nakama user (ctx.userId) and
+ *    verify session ownership — the game is server-authoritative, the client
+ *    never grades answers or counts progress.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/world_trivia/ and call WorldTrivia.register(initializer)
+ * from main.ts InitModule. Self-contained; the router-wallet finish-reward
+ * hook resolves RouterWallet softly at call time and is skipped when the
+ * wallet module is not installed.
+ */
+declare namespace WorldTrivia {
+    var SYSTEM_USER_ID: string;
+    var TEMPLATES_COLLECTION: string;
+    var PACKS_COLLECTION: string;
+    var SESSIONS_COLLECTION: string;
+    var LEADERBOARDS_COLLECTION: string;
+    var MAX_OCC_RETRIES: number;
+    var SCORE_CORRECT: number;
+    var SCORE_OBJECT_FOUND: number;
+    var SCORE_FINISH_BONUS: number;
+    var IDLE_EXPIRY_MS: number;
+    var LEADERBOARD_SIZE: number;
+    var PROXIMITY_SLACK: number;
+    var SPEED_SLACK: number;
+    var QUESTION_STREAM: number;
+    var OBJECT_SHAPES: string[];
+    var DEFAULT_SETTINGS: TemplateSettings;
+    interface Vec3 {
+        x: number;
+        y: number;
+        z: number;
+    }
+    interface Checkpoint {
+        id: string;
+        name: string;
+        position: Vec3;
+        radius: number;
+    }
+    interface ScavengerVolume {
+        min: Vec3;
+        max: Vec3;
+    }
+    interface TemplateSettings {
+        requiredCorrect: number;
+        objectCount: number;
+        maxSpeed: number;
+        maxAnswerSeconds: number;
+        collectRadius: number;
+        finishRewardCredits: number;
+    }
+    interface WorldTemplate {
+        appId: string;
+        templateId: string;
+        name: string;
+        packId: string;
+        assets: {
+            splatUrl?: string;
+            meshUrl?: string;
+        };
+        spawnPoint: Vec3;
+        checkpoints: Checkpoint[];
+        scavengerVolumes: ScavengerVolume[];
+        settings: TemplateSettings;
+        updatedAt: string;
+    }
+    interface TriviaQuestion {
+        id: string;
+        text: string;
+        choices: string[];
+        correctIndex: number;
+        category?: string;
+    }
+    interface TriviaPack {
+        appId: string;
+        packId: string;
+        questions: TriviaQuestion[];
+        updatedAt: string;
+    }
+    interface ScavengerObject {
+        id: string;
+        color: string;
+        shape: string;
+        position: Vec3;
+    }
+    interface PendingQuestion {
+        questionId: string;
+        checkpointId: string;
+        issuedAtMs: number;
+    }
+    interface SessionValue {
+        sessionId: string;
+        appId: string;
+        userId: string;
+        templateId: string;
+        packId: string;
+        seed: number;
+        status: string;
+        lap: number;
+        visitedCheckpoints: string[];
+        pendingQuestion: PendingQuestion | null;
+        questionQueue: string[];
+        askedQuestionIds: string[];
+        correctCount: number;
+        wrongCount: number;
+        finishEligible: boolean;
+        objects: ScavengerObject[];
+        objectsFound: string[];
+        score: number;
+        lastPosition: Vec3;
+        lastEventAtMs: number;
+        startedAtMs: number;
+        finishedAtMs: number | null;
+        version: number;
+    }
+    interface LeaderboardEntry {
+        sessionId: string;
+        userId: string;
+        score: number;
+        correctCount: number;
+        wrongCount: number;
+        objectsFound: number;
+        durationMs: number;
+        finishedAt: string;
+    }
+    /** FNV-1a 32-bit hash — session seed derivation from the sessionId UUID. */
+    function fnv1a32(str: string): number;
+    /** mulberry32 PRNG — tiny, fast, deterministic across JS runtimes. */
+    function mulberry32(seed: number): () => number;
+    /**
+     * Derive the per-session scavenger layout from the seed. Colors are unique
+     * within the session by construction: a random start hue, then even
+     * 360/N spacing with ±10° jitter (spacing 45° at N=8, so hues can never
+     * collide), fixed saturation/lightness. Draw order per object is fixed
+     * (jitter, volume, x, y, z) — the viewer replays it byte-for-byte.
+     */
+    function deriveObjects(seed: number, count: number, volumes: ScavengerVolume[]): ScavengerObject[];
+    function shuffleIds(ids: string[], rnd: () => number): string[];
+    function rpcTemplateUpsert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcPackUpsert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionStart(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcCheckpointReach(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcAnswerSubmit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcObjectFound(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionFinish(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionAbandon(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcLeaderboardGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace KbEnrichment {
     function register(initializer: nkruntime.Initializer): void;
 }

@@ -238,6 +238,16 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[RouterWallet] Failed to register: " + (err.message || String(err)));
   }
 
+  // ---- Intelliverse world-trivia game loop (playable world templates) ----
+  // Registered AFTER RouterWallet so the session-finish reward hook can find
+  // the wallet namespace (soft dependency — skips crediting when absent).
+  try {
+    logger.info("[WorldTrivia] Registering world trivia RPCs...");
+    WorldTrivia.register(initializer);
+  } catch (err: any) {
+    logger.error("[WorldTrivia] Failed to register: " + (err.message || String(err)));
+  }
+
   // ---- Legacy System Registration (backward-compatible RPCs) ----
   try {
     logger.info("[Legacy] Registering wallet RPCs...");
