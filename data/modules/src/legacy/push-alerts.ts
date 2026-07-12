@@ -389,6 +389,10 @@ namespace PushAlerts {
     gated: number;
     noQuiz?: boolean;          // true if S3 file was missing
     byLocale: { [locale: string]: { sent: number; gated: number } };
+    // Soft T1 rollout (option B): keep global sends, but report T1 geos
+    // (US/GB/AU/CA/…) separately so ops can validate Tier-1 first.
+    byCountry?: { [cc: string]: { sent: number; gated: number } };
+    byTier?: { [tier: string]: { sent: number; gated: number } };
     gateReasons?: GateReasons; // breakdown of WHY users were gated
     dedupedDevices?: number;   // duplicate deliveries suppressed (same device under 2+ accounts)
   }
@@ -498,6 +502,52 @@ namespace PushAlerts {
       fields.push({
         name: "🌍 By Language / Region (" + localeRows.length + " active)",
         value: lines.join("\n").slice(0, 1024),
+        inline: false,
+      });
+    }
+
+    // ── Soft T1 spotlight (US / UK / AU / CA / …) ─────────────────────────
+    // Option B: global sends continue; this field validates Tier-1 health first.
+    if (s.byTier || s.byCountry) {
+      var t1Flag: { [cc: string]: string } = {
+        "US": "🇺🇸", "GB": "🇬🇧", "CA": "🇨🇦", "AU": "🇦🇺", "NZ": "🇳🇿",
+        "DE": "🇩🇪", "FR": "🇫🇷", "JP": "🇯🇵", "KR": "🇰🇷", "IE": "🇮🇪",
+        "SG": "🇸🇬", "NL": "🇳🇱", "SE": "🇸🇪", "NO": "🇳🇴", "DK": "🇩🇰",
+        "FI": "🇫🇮", "CH": "🇨🇭", "AT": "🇦🇹", "BE": "🇧🇪", "HK": "🇭🇰",
+        "TW": "🇹🇼", "IL": "🇮🇱"
+      };
+      var tierLines: string[] = [];
+      var tiers = s.byTier || {};
+      var tierOrder = ["t1", "t2", "t3", "unknown"];
+      for (var ti = 0; ti < tierOrder.length; ti++) {
+        var tk = tierOrder[ti];
+        if (!tiers[tk]) continue;
+        var tt = tiers[tk].sent + tiers[tk].gated;
+        tierLines.push("**" + tk.toUpperCase() + "** — " + tiers[tk].sent + " sent / " +
+          tiers[tk].gated + " gated (" + pct(tiers[tk].sent, tt) + ")");
+      }
+      var countryRows: { cc: string; sent: number; gated: number }[] = [];
+      var byC = s.byCountry || {};
+      for (var cc in byC) {
+        if (byC.hasOwnProperty(cc) && t1Flag[cc]) {
+          countryRows.push({ cc: cc, sent: byC[cc].sent, gated: byC[cc].gated });
+        }
+      }
+      countryRows.sort(function (a, b) { return b.sent - a.sent; });
+      var cLines: string[] = [];
+      for (var ci = 0; ci < countryRows.length && ci < 10; ci++) {
+        var cr = countryRows[ci];
+        var ctot = cr.sent + cr.gated;
+        cLines.push((t1Flag[cr.cc] || cr.cc) + " **" + cr.cc + "** — " + cr.sent +
+          " sent / " + cr.gated + " gated (" + pct(cr.sent, ctot) + ")");
+      }
+      var t1Block = "";
+      if (tierLines.length > 0) t1Block += tierLines.join("\n") + "\n";
+      if (cLines.length > 0) t1Block += "\n**T1 countries**\n" + cLines.join("\n");
+      if (!t1Block) t1Block = "_No geo-tagged users in this run (country cache empty)_";
+      fields.push({
+        name: "🥇 Soft T1 focus (global sends ON)",
+        value: t1Block.slice(0, 1024),
         inline: false,
       });
     }

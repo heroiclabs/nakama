@@ -1589,6 +1589,18 @@ declare namespace PushAlerts {
                 gated: number;
             };
         };
+        byCountry?: {
+            [cc: string]: {
+                sent: number;
+                gated: number;
+            };
+        };
+        byTier?: {
+            [tier: string]: {
+                sent: number;
+                gated: number;
+            };
+        };
         gateReasons?: GateReasons;
         dedupedDevices?: number;
     }
@@ -4235,6 +4247,19 @@ declare namespace GeoTier {
      * an unknown geo as "no nearby scoping possible".
      */
     function getUserCountry(nk: nkruntime.Nakama, userId: string): string;
+    /** True when ISO alpha-2 is a Tier-1 (premium) market per T1_COUNTRIES. */
+    function isT1Country(countryCode: string): boolean;
+    /**
+     * Map ISO alpha-2 → t1|t2|t3. Unknown / empty → "unknown" (not silently t3)
+     * so push soft-T1 reports can separate "no geo" from emerging markets.
+     */
+    function classifyCountryTier(countryCode: string): string;
+    /**
+     * Cache-first country for push analytics / soft T1 reporting.
+     * Never HTTP. Order: geo_tier cache → users.metadata.country →
+     * account.user.location (2-letter). Returns "" if unresolved.
+     */
+    function getCountryForPushAnalytics(nk: nkruntime.Nakama, userId: string): string;
     /**
      * Resolve + cache the user's country in one call (cache-first, then
      * IP-API fallback). Returns the resolved alpha-2 code, or "" when even

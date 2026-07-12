@@ -411,15 +411,43 @@ namespace IntelliverseFriendsList {
 
     // ── Flatten ─────────────────────────────────────────────────────────
     var results: any[] = [];
+    var cntFriend = 0;
+    var cntPendingRecv = 0;
+    var cntPendingSent = 0;
+    var cntBlocked = 0;
+    var cntOther = 0;
+    var samplePendingRecv: string[] = [];
     for (var j = 0; j < rawFriends.length; j++) {
       var fr = rawFriends[j];
       if (!fr || !fr.user || !fr.user.id) continue;
       var online = !!onlineMap[fr.user.id];
       var fcountry = countryMap[fr.user.id] || "";
-      results.push(flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null));
+      var flat = flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null);
+      results.push(flat);
+      var st = flat.relationshipStatus;
+      if (st === "friend") cntFriend++;
+      else if (st === "pending_received") {
+        cntPendingRecv++;
+        if (samplePendingRecv.length < 5) samplePendingRecv.push(String(flat.userId || fr.user.id));
+      } else if (st === "pending_sent") cntPendingSent++;
+      else if (st === "blocked") cntBlocked++;
+      else cntOther++;
     }
 
     if (logger && logger.info) {
+      logger.info(
+        "[SZ-DIAG][SERVER][FriendsList] user=" + userId +
+        " stateFilter=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+        " country=" + (myCountry || "?") +
+        " returned=" + results.length +
+        " friend=" + cntFriend +
+        " pending_received=" + cntPendingRecv +
+        " pending_sent=" + cntPendingSent +
+        " blocked=" + cntBlocked +
+        " other=" + cntOther +
+        " pendingRecvSample=" + samplePendingRecv.join(",") +
+        " nextCursor=" + (nextCursor || "null")
+      );
       logger.info(
         "[FriendsList] user=" + userId +
         " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +

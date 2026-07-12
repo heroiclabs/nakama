@@ -13,6 +13,16 @@ var LAP_BADGE_PROGRESS_COLLECTION = "badge_progress";
 var LAP_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 /**
+ * Map legacy / mistaken web client event names → canonical badge_definitions.js events.
+ * Without this, web fires like lap_quiz_completed never unlock lap_quiz_master.
+ */
+var LAP_EVENT_ALIASES = {
+    lap_quiz_completed: "lap_quiz_played",
+    lap_flashcards_completed: "lap_flash_completed",
+    lap_flash_session: "lap_flash_completed",
+};
+
+/**
  * RPC: quizverse_lap_badge_event
  * Payload: { event_type, event_data? }
  *   event_type examples:
@@ -22,6 +32,8 @@ var LAP_SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  *     - "lap_note_shared"          → triggers lap_sharer
  *     - "lap_streak_day"           → triggers lap_streak_keeper
  *     - "lap_battle_won"           → triggers lap_battle_winner
+ *     - "lap_perfect_score"        → triggers lap_perfectionist
+ *     - "lap_speed_run"            → triggers lap_speed_demon
  *
  * Internally delegates to the existing badges_check_event RPC logic
  * with game_id hard-coded to "quizverse".
@@ -38,11 +50,17 @@ var rpcQuizverseLapBadgeEvent = function(ctx, logger, nk, payload) {
             });
         }
 
+        var eventType = data.event_type;
+        if (LAP_EVENT_ALIASES[eventType]) {
+            logger.info("[LAP-Badges] Alias " + eventType + " → " + LAP_EVENT_ALIASES[eventType]);
+            eventType = LAP_EVENT_ALIASES[eventType];
+        }
+
         // Build the standard badges_check_event payload
         var checkPayload = JSON.stringify({
             game_id: "quizverse",
-            event_type: data.event_type,
-            event_data: data.event_data || {},
+            event_type: eventType,
+            event_data: data.event_data || data.data || {},
         });
 
         // Re-use the existing badge check function from badges.js

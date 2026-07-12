@@ -1371,6 +1371,18 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
         }
     }
 
+    if (logger && logger.info) {
+        logger.info(
+            '[SZ-DIAG][SERVER][InvitesPending] user=' + userId +
+            ' incoming=' + incoming.length +
+            ' outgoing=' + outgoing.length +
+            ' hasAnyOutgoingGraph=' + hasAnyOutgoing +
+            ' incomingSample=' + incoming.slice(0, 5).map(function (x) {
+                return (x && x.fromUserId) ? x.fromUserId : '?';
+            }).join(',')
+        );
+    }
+
     return _fiOk({
         incoming:      incoming,
         outgoing:      outgoing,
