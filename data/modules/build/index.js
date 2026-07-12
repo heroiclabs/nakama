@@ -163,6 +163,16 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[LiveBanner] failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Quizverse Brain contextual prompt gate ----
+    // Server-authoritative daily/weekly frequency, cross-device OCC reservation,
+    // idempotent lifecycle commits, successful-visit tracking, and telemetry.
+    try {
+        QuizVerseBrainPrompts.register(initializer);
+        logger.info("[BrainPrompt] evaluate + commit RPCs registered");
+    }
+    catch (err) {
+        logger.error("[BrainPrompt] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- QuizVerse product telemetry (quizverse_product_metrics → n8n WF-09) ----
     // Independent of QuizVerse Next.js /admin/metrics — both may call WF-09 in parallel.
     try {
@@ -188,6 +198,14 @@ function InitModule(ctx, logger, nk, initializer) {
     catch (err) {
         logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
     }
+    // ---- Link & Play server-authoritative daily note quota ----
+    try {
+        QvLapNoteQuota.register(initializer);
+        logger.info("[QvLapNoteQuota] quizverse_lap_note_quota registered");
+    }
+    catch (err) {
+        logger.error("[QvLapNoteQuota] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
     // ---- RevenueCat admin dashboard proxy (IAP revenue charts) ----
     try {
         QuizVerseRevenueCatAdmin.register(initializer);
@@ -203,6 +221,24 @@ function InitModule(ctx, logger, nk, initializer) {
     }
     catch (err) {
         logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
+    }
+    // ---- Intelliverse Router app-id credit wallets (s2s-only RPCs) ----
+    try {
+        logger.info("[RouterWallet] Registering router wallet RPCs...");
+        RouterWallet.register(initializer);
+    }
+    catch (err) {
+        logger.error("[RouterWallet] Failed to register: " + (err.message || String(err)));
+    }
+    // ---- Intelliverse world-trivia game loop (playable world templates) ----
+    // Registered AFTER RouterWallet so the session-finish reward hook can find
+    // the wallet namespace (soft dependency — skips crediting when absent).
+    try {
+        logger.info("[WorldTrivia] Registering world trivia RPCs...");
+        WorldTrivia.register(initializer);
+    }
+    catch (err) {
+        logger.error("[WorldTrivia] Failed to register: " + (err.message || String(err)));
     }
     // ---- Legacy System Registration (backward-compatible RPCs) ----
     try {
@@ -6526,26 +6562,51 @@ var IntelliverseFriends;
         try {
             // 1000 is well above realistic friend list sizes; we don't paginate
             // here because relationship enrichment must be complete or absent.
-            var resp = nk.friendsList(userId, 1000, undefined, undefined);
-            if (resp && resp.friends) {
-                for (var i = 0; i < resp.friends.length; i++) {
-                    var fr = resp.friends[i];
-                    if (!fr || !fr.user)
-                        continue;
-                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
-                        ? fr.state.value
-                        : fr.state;
-                    var fid = fr.user.id;
-                    if (s === STATE_FRIEND)
-                        relationMap[fid] = "friend";
-                    else if (s === STATE_INVITE_SENT)
-                        relationMap[fid] = "pending_sent";
-                    else if (s === STATE_INVITE_RECEIVED)
-                        relationMap[fid] = "pending_received";
-                    else if (s === STATE_BLOCKED) {
-                        relationMap[fid] = "blocked";
-                        blockedSet[fid] = true;
+            var resp = nk.friendsList(userId, 1000, null, null);
+            var list = [];
+            if (resp && resp.friends && resp.friends.length)
+                list = resp.friends;
+            else if (Array.isArray(resp))
+                list = resp;
+            // Same prod Goja empty-list footgun as friends_list — recover via SQL.
+            if (list.length === 0) {
+                try {
+                    var rows = nk.sqlQuery("SELECT destination_id AS friend_id, state AS edge_state FROM user_edge WHERE source_id = $1 LIMIT 1000", [userId]);
+                    if (rows) {
+                        for (var ri = 0; ri < rows.length; ri++) {
+                            var row = rows[ri];
+                            if (!row || !row.friend_id)
+                                continue;
+                            list.push({
+                                user: { id: String(row.friend_id) },
+                                state: (typeof row.edge_state === "number")
+                                    ? row.edge_state
+                                    : parseInt(String(row.edge_state || 0), 10)
+                            });
+                        }
                     }
+                }
+                catch (_) { /* enrichment stays degraded */ }
+            }
+            for (var i = 0; i < list.length; i++) {
+                var fr = list[i];
+                if (!fr || !fr.user)
+                    continue;
+                var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                    ? fr.state.value
+                    : fr.state;
+                var fid = fr.user.id;
+                if (!fid)
+                    continue;
+                if (s === STATE_FRIEND)
+                    relationMap[fid] = "friend";
+                else if (s === STATE_INVITE_SENT)
+                    relationMap[fid] = "pending_sent";
+                else if (s === STATE_INVITE_RECEIVED)
+                    relationMap[fid] = "pending_received";
+                else if (s === STATE_BLOCKED) {
+                    relationMap[fid] = "blocked";
+                    blockedSet[fid] = true;
                 }
             }
         }
@@ -7042,19 +7103,42 @@ var IntelliverseNearbyPlayers;
     function loadExcludedSet(nk, logger, userId) {
         var excluded = {};
         try {
-            var resp = nk.friendsList(userId, 1000, undefined, undefined);
-            if (resp && resp.friends) {
-                for (var i = 0; i < resp.friends.length; i++) {
-                    var fr = resp.friends[i];
-                    if (!fr || !fr.user)
-                        continue;
-                    var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
-                        ? fr.state.value
-                        : fr.state;
-                    if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
-                        s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
-                        excluded[fr.user.id] = true;
+            var resp = nk.friendsList(userId, 1000, null, null);
+            var list = [];
+            if (resp && resp.friends && resp.friends.length)
+                list = resp.friends;
+            else if (Array.isArray(resp))
+                list = resp;
+            if (list.length === 0) {
+                try {
+                    var rows = nk.sqlQuery("SELECT destination_id AS friend_id, state AS edge_state FROM user_edge WHERE source_id = $1 LIMIT 1000", [userId]);
+                    if (rows) {
+                        for (var ri = 0; ri < rows.length; ri++) {
+                            var row = rows[ri];
+                            if (!row || !row.friend_id)
+                                continue;
+                            list.push({
+                                user: { id: String(row.friend_id) },
+                                state: (typeof row.edge_state === "number")
+                                    ? row.edge_state
+                                    : parseInt(String(row.edge_state || 0), 10)
+                            });
+                        }
                     }
+                }
+                catch (_) { /* degrade */ }
+            }
+            for (var i = 0; i < list.length; i++) {
+                var fr = list[i];
+                if (!fr || !fr.user)
+                    continue;
+                var s = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+                    ? fr.state.value
+                    : fr.state;
+                if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
+                    s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
+                    if (fr.user.id)
+                        excluded[fr.user.id] = true;
                 }
             }
         }
@@ -7409,6 +7493,82 @@ var IntelliverseFriendsList;
         return map;
     }
     /**
+     * Normalize nk.friendsList / FriendList shapes across Goja bindings.
+     */
+    function normalizeFriendsList(friendsResp) {
+        if (!friendsResp)
+            return [];
+        if (Array.isArray(friendsResp))
+            return friendsResp;
+        if (friendsResp.friends && Array.isArray(friendsResp.friends))
+            return friendsResp.friends;
+        if (friendsResp.Friends && Array.isArray(friendsResp.Friends))
+            return friendsResp.Friends;
+        return [];
+    }
+    /**
+     * SQL fallback when nk.friendsList returns empty despite a live friend graph
+     * (seen on prod 2026-07-11 — native /v2/friend had rows, Goja list did not).
+     * Builds the same { user, state } objects flattenFriend expects.
+     */
+    function loadFriendsViaSql(nk, logger, userId, limit, stateFilter) {
+        var out = [];
+        try {
+            var rows = [];
+            if (stateFilter === undefined || stateFilter === null) {
+                rows = nk.sqlQuery("SELECT e.destination_id AS friend_id, e.state AS edge_state, e.update_time AS edge_update_time, " +
+                    "       u.username, u.display_name, u.avatar_url, u.create_time, u.update_time, u.metadata " +
+                    "FROM user_edge e " +
+                    "JOIN users u ON u.id = e.destination_id " +
+                    "WHERE e.source_id = $1 " +
+                    "ORDER BY e.update_time DESC " +
+                    "LIMIT $2", [userId, limit]);
+            }
+            else {
+                rows = nk.sqlQuery("SELECT e.destination_id AS friend_id, e.state AS edge_state, e.update_time AS edge_update_time, " +
+                    "       u.username, u.display_name, u.avatar_url, u.create_time, u.update_time, u.metadata " +
+                    "FROM user_edge e " +
+                    "JOIN users u ON u.id = e.destination_id " +
+                    "WHERE e.source_id = $1 AND e.state = $2 " +
+                    "ORDER BY e.update_time DESC " +
+                    "LIMIT $3", [userId, stateFilter, limit]);
+            }
+            if (!rows)
+                return out;
+            for (var i = 0; i < rows.length; i++) {
+                var row = rows[i];
+                if (!row || !row.friend_id)
+                    continue;
+                var edgeState = (typeof row.edge_state === "number")
+                    ? row.edge_state
+                    : parseInt(String(row.edge_state || 0), 10);
+                out.push({
+                    state: edgeState,
+                    updateTime: row.edge_update_time || "",
+                    user: {
+                        id: String(row.friend_id),
+                        username: row.username || "",
+                        displayName: row.display_name || "",
+                        display_name: row.display_name || "",
+                        avatarUrl: row.avatar_url || "",
+                        avatar_url: row.avatar_url || "",
+                        createTime: row.create_time || "",
+                        create_time: row.create_time || "",
+                        updateTime: row.update_time || "",
+                        update_time: row.update_time || "",
+                        metadata: row.metadata || {}
+                    }
+                });
+            }
+        }
+        catch (e) {
+            if (logger && logger.warn) {
+                logger.warn("[FriendsList] user_edge SQL fallback failed: " + (e && e.message));
+            }
+        }
+        return out;
+    }
+    /**
      * Flatten a Nakama friend object into our canonical wire shape.
      * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
      * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
@@ -7471,7 +7631,10 @@ var IntelliverseFriendsList;
         // ── Fetch from Nakama ───────────────────────────────────────────────
         var friendsResp = null;
         try {
-            friendsResp = nk.friendsList(userId, limit, stateFilter, cursor);
+            // Prefer null cursor (matches duo_quests / friends_feed call sites).
+            // Passing JS `undefined` has been observed on prod Goja to yield an
+            // empty FriendList while the native /v2/friend graph still has rows.
+            friendsResp = nk.friendsList(userId, limit, (stateFilter === undefined ? null : stateFilter), (cursor === undefined ? null : cursor));
         }
         catch (e) {
             if (logger && logger.error) {
@@ -7479,8 +7642,21 @@ var IntelliverseFriendsList;
             }
             return err("Failed to load friends", ERR_INTERNAL);
         }
-        var rawFriends = (friendsResp && friendsResp.friends) ? friendsResp.friends : [];
-        var nextCursor = (friendsResp && friendsResp.cursor) || null;
+        // Nakama releases have exposed this binding both as FriendList and as a
+        // direct array in Goja. Normalize both shapes so a valid native graph can
+        // never become an empty Social Zone roster after a runtime upgrade.
+        var rawFriends = normalizeFriendsList(friendsResp);
+        // Prod incident 2026-07-11 (Sid): nk.friendsList returned {friends:[]} while
+        // GET /v2/friend returned 14 edges. Fall back to user_edge SQL so Social
+        // Zone never shows an empty roster when the graph is non-empty.
+        if (rawFriends.length === 0) {
+            rawFriends = loadFriendsViaSql(nk, logger, userId, limit, stateFilter);
+            if (rawFriends.length > 0 && logger && logger.warn) {
+                logger.warn("[FriendsList] nk.friendsList empty — recovered " + rawFriends.length +
+                    " rows via user_edge SQL for user=" + userId);
+            }
+        }
+        var nextCursor = (!Array.isArray(friendsResp) && friendsResp && friendsResp.cursor) || null;
         // ── Bulk-load presence ──────────────────────────────────────────────
         var ids = [];
         for (var i = 0; i < rawFriends.length; i++) {
@@ -7513,15 +7689,47 @@ var IntelliverseFriendsList;
         catch (_) { /* optional enrichment — cards degrade to no-activity */ }
         // ── Flatten ─────────────────────────────────────────────────────────
         var results = [];
+        var cntFriend = 0;
+        var cntPendingRecv = 0;
+        var cntPendingSent = 0;
+        var cntBlocked = 0;
+        var cntOther = 0;
+        var samplePendingRecv = [];
         for (var j = 0; j < rawFriends.length; j++) {
             var fr = rawFriends[j];
             if (!fr || !fr.user || !fr.user.id)
                 continue;
             var online = !!onlineMap[fr.user.id];
             var fcountry = countryMap[fr.user.id] || "";
-            results.push(flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null));
+            var flat = flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null);
+            results.push(flat);
+            var st = flat.relationshipStatus;
+            if (st === "friend")
+                cntFriend++;
+            else if (st === "pending_received") {
+                cntPendingRecv++;
+                if (samplePendingRecv.length < 5)
+                    samplePendingRecv.push(String(flat.userId || fr.user.id));
+            }
+            else if (st === "pending_sent")
+                cntPendingSent++;
+            else if (st === "blocked")
+                cntBlocked++;
+            else
+                cntOther++;
         }
         if (logger && logger.info) {
+            logger.info("[SZ-DIAG][SERVER][FriendsList] user=" + userId +
+                " stateFilter=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+                " country=" + (myCountry || "?") +
+                " returned=" + results.length +
+                " friend=" + cntFriend +
+                " pending_received=" + cntPendingRecv +
+                " pending_sent=" + cntPendingSent +
+                " blocked=" + cntBlocked +
+                " other=" + cntOther +
+                " pendingRecvSample=" + samplePendingRecv.join(",") +
+                " nextCursor=" + (nextCursor || "null"));
             logger.info("[FriendsList] user=" + userId +
                 " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
                 " country=" + (myCountry || "?") +
@@ -7550,7 +7758,9 @@ var IntelliverseFriendsList;
             // Block lists are tiny in practice (<100 users for >99.9% of accounts);
             // we hard-cap at 500 to prevent abuse + memory blow-ups.
             var resp = nk.friendsList(userId, BLOCKED_LIST_HARD_LIMIT, STATE_BLOCKED, undefined);
-            if (resp && resp.friends)
+            if (Array.isArray(resp))
+                rawList = resp;
+            else if (resp && resp.friends)
                 rawList = resp.friends;
         }
         catch (e) {
@@ -8669,6 +8879,421 @@ var BlogEmbed;
     }
     BlogEmbed.register = register;
 })(BlogEmbed || (BlogEmbed = {}));
+// =============================================================================
+// Quizverse Brain contextual prompt gate
+// =============================================================================
+// RPCs:
+//   quizverse_brain_prompt_evaluate — eligibility + short OCC reservation
+//   quizverse_brain_prompt_commit   — idempotent shown/accepted/opened/suppressed
+//
+// Nakama owns cross-device frequency and visit state. Unity owns session-level
+// result signals. AI topic coverage is advisory input only: it unlocks no
+// entitlement/reward and never carries a Cognito token through Nakama.
+// =============================================================================
+var QuizVerseBrainPrompts;
+(function (QuizVerseBrainPrompts) {
+    var COLLECTION = "qv_brain_prompt";
+    var KEY = "state";
+    var SCHEMA_VERSION = 1;
+    var RESERVATION_TTL_MS = 10 * 60 * 1000;
+    var WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    var OCC_MAX_RETRIES = 5;
+    var IDEM_MAX_ENTRIES = 32;
+    var DEFAULT_GAME_ID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    function emptyBucket() {
+        return { consumed: false, promptId: "", shownMs: 0, openedMs: 0 };
+    }
+    function utcDay(nowMs) {
+        return new Date(nowMs).toISOString().slice(0, 10);
+    }
+    function isoWeek(nowMs) {
+        var date = new Date(nowMs);
+        var day = date.getUTCDay();
+        var isoDay = day === 0 ? 7 : day;
+        date.setUTCDate(date.getUTCDate() + 4 - isoDay);
+        var yearStart = Date.UTC(date.getUTCFullYear(), 0, 1);
+        var week = Math.ceil((((date.getTime() - yearStart) / 86400000) + 1) / 7);
+        return date.getUTCFullYear() + "-W" + (week < 10 ? "0" : "") + week;
+    }
+    function createState(nowMs) {
+        return {
+            schemaVersion: SCHEMA_VERSION,
+            utcDay: utcDay(nowMs),
+            isoWeek: isoWeek(nowMs),
+            lastSuccessfulBrainVisitMs: 0,
+            daily: emptyBucket(),
+            weekly: emptyBucket(),
+            reservation: null,
+            idempotency: {}
+        };
+    }
+    function normalizeState(raw, nowMs) {
+        var state = raw && typeof raw === "object" ? raw : createState(nowMs);
+        state.schemaVersion = SCHEMA_VERSION;
+        state.lastSuccessfulBrainVisitMs = Number(state.lastSuccessfulBrainVisitMs || 0);
+        state.daily = state.daily || emptyBucket();
+        state.weekly = state.weekly || emptyBucket();
+        state.idempotency = state.idempotency || {};
+        if (state.utcDay !== utcDay(nowMs)) {
+            state.utcDay = utcDay(nowMs);
+            state.daily = emptyBucket();
+            if (state.reservation && state.reservation.bucket === "daily")
+                state.reservation = null;
+        }
+        if (state.isoWeek !== isoWeek(nowMs)) {
+            state.isoWeek = isoWeek(nowMs);
+            state.weekly = emptyBucket();
+            if (state.reservation && state.reservation.bucket === "weekly")
+                state.reservation = null;
+        }
+        if (state.reservation && state.reservation.expiresMs <= nowMs) {
+            var reservedBucket = state.reservation.bucket === "weekly" ? state.weekly : state.daily;
+            if (!reservedBucket.consumed)
+                state.reservation = null;
+        }
+        return state;
+    }
+    function readState(nk, userId, nowMs) {
+        var rows = nk.storageRead([{ collection: COLLECTION, key: KEY, userId: userId }]);
+        if (!rows || rows.length === 0) {
+            return { value: createState(nowMs), version: "*", exists: false };
+        }
+        return {
+            value: normalizeState(rows[0].value, nowMs),
+            version: rows[0].version || "",
+            exists: true
+        };
+    }
+    function writeState(nk, userId, stored) {
+        nk.storageWrite([{
+                collection: COLLECTION,
+                key: KEY,
+                userId: userId,
+                value: stored.value,
+                version: stored.exists ? stored.version : "*",
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    function mutateState(nk, userId, nowMs, mutator) {
+        var lastError = null;
+        for (var attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+            var stored = readState(nk, userId, nowMs);
+            var result = mutator(stored.value);
+            if (!result.write)
+                return result.response;
+            try {
+                writeState(nk, userId, stored);
+                return result.response;
+            }
+            catch (err) {
+                lastError = err;
+            }
+        }
+        throw lastError || new Error("brain_prompt_occ_exhausted");
+    }
+    function parsePayload(payload) {
+        if (!payload)
+            return {};
+        try {
+            return JSON.parse(payload);
+        }
+        catch (_) {
+            return null;
+        }
+    }
+    function safeString(value, maxLength) {
+        return String(value || "").trim().slice(0, maxLength);
+    }
+    function emit(ctx, nk, logger, userId, eventName, eventData, clientEventId) {
+        try {
+            var nowSec = Math.floor(Date.now() / 1000);
+            persistNormalizedEvent(nk, logger, {
+                userId: userId,
+                gameId: (ctx.env && ctx.env["DEFAULT_GAME_ID"]) || DEFAULT_GAME_ID,
+                eventName: eventName,
+                originalEventName: eventName,
+                canonicalized: false,
+                eventData: eventData || {},
+                platform: "unity",
+                sessionId: ctx.sessionId || null,
+                timestamp: new Date(nowSec * 1000).toISOString(),
+                unixTimestamp: nowSec,
+                schemaVersion: 1,
+                clientEventId: clientEventId || null,
+                eventTime: null,
+                quizSessionId: eventData && eventData.result_id || null,
+                screenId: eventData && eventData.screen_id || null,
+                privacyTier: 1,
+                v2Warnings: []
+            });
+        }
+        catch (err) {
+            logger.warn("[BrainPrompt] analytics failed: " + (err && err.message ? err.message : String(err)));
+        }
+    }
+    function readPremiumHint(nk, userId) {
+        try {
+            var rows = nk.storageRead([{ collection: "qv_entitlements", key: "subscriptions", userId: userId }]);
+            var subs = rows && rows.length ? rows[0].value : {};
+            var tier = safeString(subs && subs.tier, 64).toLowerCase();
+            var active = !!tier && String(subs && subs.status || "active").toLowerCase() !== "expired";
+            if (active && subs && subs.expiresAt) {
+                var exp = new Date(subs.expiresAt).getTime();
+                if (!isNaN(exp) && exp <= Date.now())
+                    active = false;
+            }
+            return { tier: tier || "free", isPremium: active };
+        }
+        catch (_) {
+            return { tier: "free", isPremium: false };
+        }
+    }
+    function selectPrompt(data) {
+        var trigger = safeString(data.trigger, 32).toLowerCase();
+        var session = data.session && typeof data.session === "object" ? data.session : {};
+        if (trigger === "app_home_open") {
+            return { promptId: "weekly_recap", bucket: "weekly" };
+        }
+        if (trigger !== "post_quiz_results")
+            return null;
+        var maxWrong = Math.max(0, Math.min(1000, Number(session.max_consecutive_wrong || 0)));
+        if (maxWrong >= 3)
+            return { promptId: "wrong_streak", bucket: "daily" };
+        var accuracy = Number(session.category_accuracy_pct);
+        var notesEligible = data.notes_eligible === true;
+        if (isFinite(accuracy) && accuracy >= 0 && accuracy < 60 && notesEligible) {
+            return { promptId: "post_quiz_weak", bucket: "daily" };
+        }
+        return null;
+    }
+    function rpcEvaluate(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = parsePayload(payload);
+        if (data === null)
+            return RpcHelpers.errorResponse("invalid JSON payload", 400);
+        var selected = selectPrompt(data);
+        var clientEventId = safeString(data.client_event_id, 128);
+        var nowMs = Date.now();
+        if (!selected) {
+            emit(ctx, nk, logger, userId, "brain_prompt_suppressed", { reason: "criteria_not_met", trigger: safeString(data.trigger, 32) }, clientEventId);
+            return RpcHelpers.successResponse({
+                status: "suppressed",
+                prompt_id: null,
+                reason: "criteria_not_met",
+                server_time_ms: nowMs
+            });
+        }
+        var response = mutateState(nk, userId, nowMs, function (state) {
+            var bucket = selected.bucket === "weekly" ? state.weekly : state.daily;
+            if (bucket.consumed) {
+                return {
+                    write: false,
+                    response: {
+                        status: "suppressed",
+                        prompt_id: null,
+                        reason: selected.bucket + "_slot_consumed",
+                        server_time_ms: nowMs
+                    }
+                };
+            }
+            if (selected.promptId === "weekly_recap") {
+                if (!state.lastSuccessfulBrainVisitMs) {
+                    return {
+                        write: false,
+                        response: {
+                            status: "suppressed",
+                            prompt_id: null,
+                            reason: "brain_never_opened",
+                            server_time_ms: nowMs
+                        }
+                    };
+                }
+                if (nowMs - state.lastSuccessfulBrainVisitMs < WEEK_MS) {
+                    return {
+                        write: false,
+                        response: {
+                            status: "suppressed",
+                            prompt_id: null,
+                            reason: "brain_visit_recent",
+                            next_eligible_ms: state.lastSuccessfulBrainVisitMs + WEEK_MS,
+                            server_time_ms: nowMs
+                        }
+                    };
+                }
+            }
+            if (state.reservation && state.reservation.expiresMs > nowMs) {
+                if (clientEventId && state.reservation.clientEventId === clientEventId &&
+                    state.reservation.promptId === selected.promptId) {
+                    return {
+                        write: false,
+                        response: {
+                            status: "eligible",
+                            prompt_id: selected.promptId,
+                            reservation_token: state.reservation.token,
+                            reservation_expires_ms: state.reservation.expiresMs,
+                            replay: true,
+                            server_time_ms: nowMs
+                        }
+                    };
+                }
+                return {
+                    write: false,
+                    response: {
+                        status: "suppressed",
+                        prompt_id: null,
+                        reason: "reservation_active",
+                        server_time_ms: nowMs
+                    }
+                };
+            }
+            var token = nk.uuidv4();
+            state.reservation = {
+                token: token,
+                promptId: selected.promptId,
+                bucket: selected.bucket,
+                clientEventId: clientEventId,
+                resultId: safeString(data.session && data.session.result_id, 128),
+                createdMs: nowMs,
+                expiresMs: nowMs + RESERVATION_TTL_MS
+            };
+            return {
+                write: true,
+                response: {
+                    status: "eligible",
+                    prompt_id: selected.promptId,
+                    reservation_token: token,
+                    reservation_expires_ms: nowMs + RESERVATION_TTL_MS,
+                    context: selected.promptId,
+                    category: safeString(data.session && data.session.category, 128),
+                    server_time_ms: nowMs
+                }
+            };
+        });
+        response.premium_hint = readPremiumHint(nk, userId);
+        emit(ctx, nk, logger, userId, response.status === "eligible" ? "brain_prompt_eligible" : "brain_prompt_suppressed", {
+            prompt_id: response.prompt_id,
+            reason: response.reason || "",
+            trigger: safeString(data.trigger, 32),
+            result_id: safeString(data.session && data.session.result_id, 128)
+        }, clientEventId);
+        return RpcHelpers.successResponse(response);
+    }
+    function pruneIdempotency(state) {
+        var keys = Object.keys(state.idempotency || {});
+        if (keys.length <= IDEM_MAX_ENTRIES)
+            return;
+        keys.sort(function (a, b) {
+            return (state.idempotency[a].atMs || 0) - (state.idempotency[b].atMs || 0);
+        });
+        while (keys.length > IDEM_MAX_ENTRIES) {
+            delete state.idempotency[keys.shift()];
+        }
+    }
+    function rpcCommit(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = parsePayload(payload);
+        if (data === null)
+            return RpcHelpers.errorResponse("invalid JSON payload", 400);
+        var action = safeString(data.action, 32).toLowerCase();
+        if (action !== "shown" && action !== "accepted" &&
+            action !== "opened" && action !== "suppressed") {
+            return RpcHelpers.errorResponse("action must be shown|accepted|opened|suppressed", 400);
+        }
+        var promptId = safeString(data.prompt_id, 64);
+        var token = safeString(data.reservation_token, 64);
+        var idemKey = safeString(data.idempotency_key, 128);
+        var clientEventId = safeString(data.client_event_id, 128);
+        var directOpen = action === "opened" &&
+            (promptId === "graph" || promptId === "profile" || promptId === "manual");
+        if (!directOpen && !token)
+            return RpcHelpers.errorResponse("reservation_token required", 400);
+        if (!idemKey)
+            return RpcHelpers.errorResponse("idempotency_key required", 400);
+        var nowMs = Date.now();
+        var response = mutateState(nk, userId, nowMs, function (state) {
+            var replay = state.idempotency[idemKey];
+            if (replay) {
+                return {
+                    write: false,
+                    response: {
+                        status: "replay",
+                        action: replay.action,
+                        prompt_id: replay.promptId,
+                        slot_consumed: replay.promptId === "weekly_recap"
+                            ? state.weekly.consumed : state.daily.consumed,
+                        last_successful_brain_visit_ms: state.lastSuccessfulBrainVisitMs,
+                        server_time_ms: nowMs
+                    }
+                };
+            }
+            var reservation = state.reservation;
+            if (!directOpen) {
+                if (!reservation || reservation.token !== token || reservation.promptId !== promptId) {
+                    return {
+                        write: false,
+                        response: { status: "rejected", reason: "reservation_mismatch", server_time_ms: nowMs }
+                    };
+                }
+                var reservedBucket = reservation.bucket === "weekly" ? state.weekly : state.daily;
+                if (reservation.expiresMs <= nowMs && !reservedBucket.consumed) {
+                    state.reservation = null;
+                    return {
+                        write: true,
+                        response: { status: "rejected", reason: "reservation_expired", server_time_ms: nowMs }
+                    };
+                }
+            }
+            var bucket = reservation && reservation.bucket === "weekly" ? state.weekly : state.daily;
+            if (action === "shown") {
+                bucket.consumed = true;
+                bucket.promptId = promptId;
+                bucket.shownMs = nowMs;
+            }
+            else if (action === "opened") {
+                state.lastSuccessfulBrainVisitMs = nowMs;
+                if (!directOpen) {
+                    bucket.consumed = true;
+                    bucket.promptId = promptId;
+                    if (!bucket.shownMs)
+                        bucket.shownMs = nowMs;
+                    bucket.openedMs = nowMs;
+                }
+            }
+            else if (action === "suppressed") {
+                state.reservation = null;
+            }
+            state.idempotency[idemKey] = { action: action, promptId: promptId, atMs: nowMs };
+            pruneIdempotency(state);
+            return {
+                write: true,
+                response: {
+                    status: action,
+                    prompt_id: promptId,
+                    slot_consumed: directOpen ? false : bucket.consumed,
+                    last_successful_brain_visit_ms: state.lastSuccessfulBrainVisitMs,
+                    server_time_ms: nowMs
+                }
+            };
+        });
+        var eventName = action === "shown" ? "brain_prompt_shown" :
+            action === "accepted" ? "brain_prompt_accepted" :
+                action === "opened" ? "brain_prompt_opened" : "brain_prompt_suppressed";
+        emit(ctx, nk, logger, userId, eventName, {
+            prompt_id: promptId,
+            status: response.status,
+            reason: safeString(data.suppress_reason || response.reason, 128),
+            result_id: safeString(data.result_id, 128),
+            screen_id: safeString(data.screen_id, 64)
+        }, clientEventId);
+        return RpcHelpers.successResponse(response);
+    }
+    function register(initializer) {
+        initializer.registerRpc("quizverse_brain_prompt_evaluate", rpcEvaluate);
+        initializer.registerRpc("quizverse_brain_prompt_commit", rpcCommit);
+    }
+    QuizVerseBrainPrompts.register = register;
+})(QuizVerseBrainPrompts || (QuizVerseBrainPrompts = {}));
 // cache_refresh_cron.ts — Scheduled topic-cache refresh for QuizVerse question delivery.
 //
 // Populates qv_cache_{topic} via QvQuestionCache.refreshCache / refreshAllTopics.
@@ -9262,7 +9887,9 @@ var QvGetQuestions;
     var MAX_FULFILL_ATTEMPTS = 3;
     var SEEN_MAX = 500; // cap the seen-IDs array to keep storage lean
     var COL_READYQUEUE = "qv_readyqueue"; // pre-warmed per-user question pool
-    var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — discard stale readyqueue entries
+    // 8 h hard TTL — overnight reopen still hits fast path. Soft window below
+    // allows stale-while-revalidate up to 2× TTL (industry CDN pattern).
+    var READYQUEUE_TTL_MS = 8 * 3600000;
     // Client topic aliases — applied after trim/toLowerCase, before cache lookup
     var TOPIC_ALIASES = {
         "dish": "food",
@@ -9295,6 +9922,7 @@ var QvGetQuestions;
         cocktail: true, food: true, dog: true, ghibli: true, disney: true, starwars: true,
         countries: true, flags: true, space: true, movies: true, sports: true, music: true,
         news: true, daily: true, weekly: true, video_quiz: true, ai: true,
+        opentdb: true, // general OpenTDB (TrueFalse / Speed fallbacks)
         // New topics (2026-07): infinite-content providers, all free/no-key
         math: true, // OpenTDB Mathematics (cat 19) + Computers (cat 18)
         art: true, // Art Institute of Chicago API — CC0 artwork images
@@ -9441,8 +10069,10 @@ var QvGetQuestions;
         return map[topic] || topic;
     }
     /**
-     * On cache miss: queue a background refresh and return immediately.
-     * Player RPCs never wait on an external question provider.
+     * On cache miss: perform one gated emergency refresh before returning an
+     * error. Normal traffic is still served stale-while-revalidate, but a cold
+     * deploy can no longer leave a topic permanently empty while waiting for an
+     * external scheduler to drain the refresh request.
      */
     function handleEmptyTopicCache(nk, logger, env, topic, traceId, coldStartApplied, userId) {
         logger.warn(formatQvLog("[QvGetQ][GATE:cache_miss]", {
@@ -9454,14 +10084,31 @@ var QvGetQuestions;
             rpc: "quizverse_get_questions"
         }));
         var t0 = nowMs();
-        QvQuestionCache.requestRefresh(nk, logger, topic, "cache_empty");
+        var emergencyRefresh = QvQuestionCache.refreshCache(nk, logger, env, topic);
         var cacheResult = QvQuestionCache.readCache(nk, logger, topic);
         var elapsedMs = nowMs() - t0;
+        if (cacheResult.questions.length > 0) {
+            logger.info(formatQvLog("[QvGetQ][GATE:cache_recovered]", {
+                event: "cache_emergency_refresh_ok",
+                traceId: traceId,
+                topic: topic,
+                pool_size: cacheResult.questions.length,
+                elapsed_ms: elapsedMs
+            }));
+            return {
+                pool: cacheResult.questions,
+                cacheResult: cacheResult,
+                earlyReturn: null
+            };
+        }
+        QvQuestionCache.requestRefresh(nk, logger, topic, "cache_empty");
         logger.warn(formatQvLog("[QvGetQ][GATE:cache_empty]", {
             event: "cache_empty",
             traceId: traceId,
             topic: topic,
             refresh_queued: true,
+            refresh_error: emergencyRefresh.error || "none",
+            elapsed_ms: elapsedMs,
             retry_after_seconds: CACHE_REFRESH_RETRY_SEC
         }));
         if (coldStartApplied) {
@@ -9642,6 +10289,25 @@ var QvGetQuestions;
         }
         return out;
     }
+    function filterToTopicContract(pool, topic, requireMedia, mediaType) {
+        if (topic !== "flags" && topic !== "countries" &&
+            !(topic === "anime" && requireMedia && (!mediaType || mediaType === "image"))) {
+            return pool;
+        }
+        var out = [];
+        for (var ci = 0; ci < pool.length; ci++) {
+            var q = pool[ci];
+            if (!q)
+                continue;
+            if ((topic === "flags" || topic === "countries") && q.topic !== topic)
+                continue;
+            if (topic === "anime" &&
+                q.question_text !== "Which anime is shown in this image?")
+                continue;
+            out.push(q);
+        }
+        return out;
+    }
     function filterAndPick(pool, seenIds, inflightIds, count) {
         // Build exclusion set
         var excluded = {};
@@ -9809,22 +10475,53 @@ var QvGetQuestions;
         return deleted;
     }
     /**
-     * Retry picking until requestedCount is met or attempts are exhausted.
-     * Merges inflight eviction + forced cache refresh into one bounded loop.
+     * Make one bounded synchronous repair attempt when the selected pool cannot
+     * satisfy the requested count. This is the cold-cache safety net; normal
+     * requests remain storage-only and use the ready queue.
      */
     function fulfillRequestedCount(nk, logger, env, userId, topic, lang, requireMedia, reqMediaType, excludeMedia, requestedCount, seenIds, inflightPacks, pool, langPool, langActual, cacheResult, picked, traceId) {
         var cacheRefreshAttempted = false;
         var inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
         var fulfillAttempts = 0;
-        while (fulfillAttempts < MAX_FULFILL_ATTEMPTS && picked.length < requestedCount) {
+        if (picked.length < requestedCount) {
             fulfillAttempts++;
             var poolBefore = pool.length;
-            var pickedBefore = picked.length;
-            var refreshQueued = false;
-            if (picked.length < requestedCount) {
-                refreshQueued = true;
-                cacheRefreshAttempted = true;
-                QvQuestionCache.requestRefresh(nk, logger, topic, "insufficient_pool");
+            cacheRefreshAttempted = true;
+            var refreshResult = QvQuestionCache.refreshCache(nk, logger, env, topic);
+            var refreshedCache = QvQuestionCache.readCache(nk, logger, topic);
+            if (refreshedCache.questions.length > 0) {
+                cacheResult = refreshedCache;
+                pool = refreshedCache.questions;
+                var rebuiltLangPool = [];
+                langActual = lang;
+                if (lang !== "en") {
+                    for (var rli = 0; rli < pool.length; rli++) {
+                        if (pool[rli].lang === lang)
+                            rebuiltLangPool.push(pool[rli]);
+                    }
+                }
+                if (rebuiltLangPool.length === 0) {
+                    if (lang !== "en")
+                        langActual = "en";
+                    for (var rei = 0; rei < pool.length; rei++) {
+                        if (!pool[rei].lang || pool[rei].lang === "en")
+                            rebuiltLangPool.push(pool[rei]);
+                    }
+                }
+                if (rebuiltLangPool.length === 0)
+                    rebuiltLangPool = pool;
+                if (requireMedia) {
+                    rebuiltLangPool = filterToMediaPool(rebuiltLangPool, reqMediaType);
+                }
+                else if (excludeMedia) {
+                    var refreshedTextPool = filterToTextPool(rebuiltLangPool);
+                    if (refreshedTextPool.length > 0)
+                        rebuiltLangPool = refreshedTextPool;
+                }
+                langPool = rebuiltLangPool;
+                inflightPacks = listInflight(nk, userId);
+                inflightIds = collectInflightIdsForTopic(inflightPacks, topic);
+                picked = filterAndPick(langPool, seenIds, inflightIds, requestedCount);
             }
             logger.info(formatQvLog("[QvGetQ][FULFILL:attempt]", {
                 event: "fulfill_attempt",
@@ -9835,13 +10532,27 @@ var QvGetQuestions;
                 picked: picked.length,
                 pool_before: poolBefore,
                 pool_after: pool.length,
-                inflight_evicted: 0,
-                refresh_queued: refreshQueued
+                refresh_ok: refreshResult.ok,
+                refresh_error: refreshResult.error || "none"
             }));
-            if (picked.length >= requestedCount)
-                break;
-            if (pool.length <= poolBefore && picked.length <= pickedBefore)
-                break;
+        }
+        // Last-resort availability tier: a stale unsubmitted pack must not force a
+        // short quiz. Reuse those IDs only after fresh and oldest-seen candidates
+        // have been exhausted. Packs remain unique internally; this only permits
+        // overlap with another abandoned/inflight session owned by the same user.
+        if (picked.length < requestedCount && langPool.length >= requestedCount && inflightIds.length > 0) {
+            var withoutInflightExclusion = filterAndPick(langPool, seenIds, [], requestedCount);
+            if (withoutInflightExclusion.length > picked.length) {
+                picked = withoutInflightExclusion;
+                logger.warn(formatQvLog("[QvGetQ][FULFILL:inflight_reuse]", {
+                    event: "fulfill_inflight_reuse",
+                    traceId: traceId,
+                    topic: topic,
+                    requested: requestedCount,
+                    delivered: picked.length,
+                    inflight_count: inflightIds.length
+                }));
+            }
         }
         logger.info(formatQvLog("[QvGetQ][FULFILL:done]", {
             event: "fulfill_done",
@@ -9992,9 +10703,13 @@ var QvGetQuestions;
             if (!rows || rows.length === 0 || !rows[0].value)
                 return null;
             var rq = rows[0].value;
-            if (!rq.created_at_ms || (nowMs() - rq.created_at_ms) > READYQUEUE_TTL_MS)
+            if (!rq.created_at_ms || !Array.isArray(rq.questions))
                 return null;
-            if (!Array.isArray(rq.questions))
+            // Hard drop after 2× TTL. Between TTL and 2×TTL: stale-while-revalidate —
+            // still serve a complete eligible slice so cold origin refresh never blocks
+            // the player while cron/client warm rewrites the queue.
+            var rqAge = nowMs() - rq.created_at_ms;
+            if (rqAge > READYQUEUE_TTL_MS * 2)
                 return null;
             // Ready queues are only an optimization. Re-apply every correctness
             // filter because seen/inflight state may have changed after prewarming.
@@ -10420,10 +11135,11 @@ var QvGetQuestions;
         // Last resort: language field absent on all cached questions
         if (langPool.length === 0)
             langPool = pool;
+        langPool = filterToTopicContract(langPool, topic, requireMedia, reqMediaType);
         // ── 4a. Media filter (ImageGuess / audio quiz modes) ────────────────────
         if (requireMedia) {
             var mediaPool = filterToMediaPool(langPool, reqMediaType);
-            if (mediaPool.length === 0 && langPool.length > 0) {
+            if (mediaPool.length === 0) {
                 logger.warn(formatQvLog("[QvGetQ][GATE:stale_cache_media]", {
                     event: "stale_cache_media_heal",
                     traceId: traceId,
@@ -10431,7 +11147,40 @@ var QvGetQuestions;
                     langPool: langPool.length,
                     media_type: reqMediaType || "any"
                 }));
-                QvQuestionCache.requestRefresh(nk, logger, topic, "media_pool_empty");
+                // Repair stale schemas synchronously once. This covers old anime
+                // genre/year rows, mixed flags/countries caches, and pre-Deezer music
+                // caches without making the player retry after deployment.
+                QvQuestionCache.refreshCache(nk, logger, ctx.env || {}, topic, true);
+                var repairedCache = QvQuestionCache.readCache(nk, logger, topic);
+                if (repairedCache.questions.length > 0) {
+                    pool = repairedCache.questions;
+                    cacheResult = repairedCache;
+                    var repairedLangPool = [];
+                    for (var rmi = 0; rmi < pool.length; rmi++) {
+                        var repairedQ = pool[rmi];
+                        if (lang === "en") {
+                            if (!repairedQ.lang || repairedQ.lang === "en")
+                                repairedLangPool.push(repairedQ);
+                        }
+                        else if (repairedQ.lang === lang) {
+                            repairedLangPool.push(repairedQ);
+                        }
+                    }
+                    if (repairedLangPool.length === 0 && lang !== "en") {
+                        langActual = "en";
+                        for (var rme = 0; rme < pool.length; rme++) {
+                            if (!pool[rme].lang || pool[rme].lang === "en")
+                                repairedLangPool.push(pool[rme]);
+                        }
+                    }
+                    if (repairedLangPool.length === 0)
+                        repairedLangPool = pool;
+                    repairedLangPool = filterToTopicContract(repairedLangPool, topic, requireMedia, reqMediaType);
+                    mediaPool = filterToMediaPool(repairedLangPool, reqMediaType);
+                }
+                if (mediaPool.length === 0) {
+                    QvQuestionCache.requestRefresh(nk, logger, topic, "media_pool_empty");
+                }
                 logger.info(formatQvLog("[QvGetQ][GATE:stale_cache_media_done]", {
                     event: "stale_cache_media_refresh_queued",
                     traceId: traceId,
@@ -12943,10 +13692,29 @@ var QuizVerseMigration;
     }
     function rpcAuthRefresh(ctx, logger, nk, payload) {
         var req = parseJson(payload);
-        if (!req.refresh_token) {
+        // Accept Unity field names (refreshToken) and broker snake_case.
+        var refreshTok = req.refresh_token || req.refreshToken || "";
+        if (!refreshTok) {
             throw nakamaError("refresh_token required", 3 /* nkruntime.Codes.INVALID_ARGUMENT */);
         }
-        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_REFRESH, "post", "/api/user/auth-v2/refresh", req);
+        var idp = req.idp_username || req.idpUsername || req["idp-username"] || "";
+        // IMPORTANT: /api/user/auth-v2/refresh does NOT exist on api.intelli-verse-x.ai
+        // (returns HTTP 404). Unity APIManager's proven path is:
+        //   POST /api/user/auth/refresh-token?idp-username=…  body { refreshToken }
+        // Always use that. idp_username is required for Cognito refresh to succeed.
+        if (!idp) {
+            return JSON.stringify({
+                ok: false,
+                error: "idp_username_required",
+                rpc: QuizVerseMigration.RPC_AUTH_REFRESH,
+                fallback_to_client: true,
+                message: "auth_refresh requires idp_username (Unity refresh-token parity)"
+            });
+        }
+        var unityPath = "/api/user/auth/refresh-token?idp-username=" + encodeURIComponent(String(idp));
+        return proxyAuthEndpoint(ctx, logger, nk, QuizVerseMigration.RPC_AUTH_REFRESH, "post", unityPath, {
+            refreshToken: refreshTok
+        });
     }
     function rpcAuthUserinfo(ctx, _l, nk, _p) {
         var userId = requireAuth(ctx);
@@ -14707,18 +15475,18 @@ var PlayerDNA;
 // ── get_questions integration ─────────────────────────────────────────────────
 //
 //   get_questions checks qv_readyqueue first (before readCache):
-//     • If found and fresh (<2 h) and has ≥ count questions → serve instantly,
+//     • If found and fresh (<8 h, soft to 16 h) and has ≥ count questions → serve instantly,
 //       remove consumed questions from the readyqueue doc
 //     • Otherwise fall through to normal cache path; after selecting questions
 //       write remaining fresh pool back to readyqueue for next call
 //
 // ── Storage collections ───────────────────────────────────────────────────────
 //
-//   qv_active_users   key=userId, owner=""  { last_played_ms }
+//   qv_active_users   key=userId, owner=system  { last_played_ms }
 //   qv_readyqueue     key=topicSlug, owner=userId  { questions, created_at_ms }
 //
-// ── postbuild note ────────────────────────────────────────────────────────────
-//   registerCron is called directly inside InitModule (detected by postbuild).
+// Client StartupTopics (Unity QuizQuestionWarmupCoordinator) must stay aligned
+// with STARTUP_DEFAULT_TOPICS below.
 var QvPrewarmCron;
 (function (QvPrewarmCron) {
     var COL_ACTIVE = "qv_active_users";
@@ -14726,16 +15494,68 @@ var QvPrewarmCron;
     var COL_SEEN = "qv_seen";
     var ACTIVE_WINDOW_MS = 7 * 24 * 3600000; // 7 days
     var READYQUEUE_SIZE = 30; // questions to pre-compute per topic
-    var READYQUEUE_TTL_MS = 2 * 3600000; // 2 h — re-warm if stale
+    var READYQUEUE_TTL_MS = 8 * 3600000; // 8 h — align with get_questions + client resume
     var MAX_USERS_PER_RUN = 200;
-    var TOP_TOPICS_N = 3; // pre-warm top-3 affinity topics
+    var TOP_TOPICS_N = 5; // DNA affinities to merge with startup defaults
+    var MAX_TOPICS_PER_USER = 15; // hard cap per cron user (cost control)
     var MAX_SEEN_IDS = 500; // seen IDs to load per user
+    // Keep in sync with Trivia.Services.QuizQuestionWarmupCoordinator.StartupTopics
+    // and question_cache.fetchForTopic cases.
+    var STARTUP_DEFAULT_TOPICS = [
+        "flags", "music", "video_quiz", "anime", "pokemon",
+        "movies", "dog", "space", "sports", "countries",
+        "true_false", "speed_quiz", "opentdb",
+        "food", "cocktail", "ghibli", "disney", "starwars", "news",
+        "geography"
+    ];
+    var WARMABLE_TOPICS = {
+        anime: true, pokemon: true, movies: true, dog: true, dish: true,
+        food: true, cocktail: true,
+        flags: true, countries: true, space: true, music: true,
+        video_quiz: true, sports: true, ghibli: true, disney: true,
+        starwars: true, news: true, speed_quiz: true, true_false: true,
+        opentdb: true, general: true, geography: true
+    };
     function nowMs() { return Date.now(); }
     function slugify(s) {
         return s.trim().toLowerCase()
             .replace(/[^a-z0-9]+/g, "_")
             .replace(/^_|_$/g, "")
             .substring(0, 64);
+    }
+    // Mirror submit_result.updateActiveUser — login/warm must register the player
+    // so hourly cron covers them even before their first quiz submit.
+    function updateActiveUser(nk, userId) {
+        if (!userId)
+            return;
+        try {
+            nk.storageWrite([{
+                    collection: COL_ACTIVE,
+                    key: userId,
+                    userId: "00000000-0000-0000-0000-000000000000",
+                    value: { last_played_ms: nowMs() },
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+        }
+        catch (_e) { /* non-critical */ }
+    }
+    function uniqueTopics(topics) {
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < topics.length; i++) {
+            var slug = slugify(topics[i] || "");
+            if (!slug || !WARMABLE_TOPICS[slug] || seen[slug])
+                continue;
+            // dish is an alias of food in get_questions — warm the canonical cache.
+            if (slug === "dish")
+                slug = "food";
+            if (seen[slug])
+                continue;
+            seen[slug] = true;
+            out.push(slug);
+        }
+        return out;
     }
     // ── Active user list ────────────────────────────────────────────────────────
     function listActiveUsers(nk, logger) {
@@ -14812,15 +15632,18 @@ var QvPrewarmCron;
         }
     }
     // ── Pre-warm one user → one topic ──────────────────────────────────────────
-    function prewarmTopic(nk, logger, userId, topic) {
+    function prewarmTopic(nk, logger, userId, topic, desiredCount) {
         var topicSlug = slugify(topic);
+        var targetCount = typeof desiredCount === "number"
+            ? Math.max(4, Math.min(READYQUEUE_SIZE, Math.floor(desiredCount)))
+            : READYQUEUE_SIZE;
         // Skip if readyqueue is still fresh
         try {
             var existing = nk.storageRead([{ collection: COL_READYQUEUE, key: topicSlug, userId: userId }]);
             if (existing && existing.length > 0 && existing[0].value) {
                 var rq = existing[0].value;
                 if (rq.created_at_ms && (nowMs() - rq.created_at_ms) < READYQUEUE_TTL_MS &&
-                    Array.isArray(rq.questions) && rq.questions.length >= READYQUEUE_SIZE / 2) {
+                    Array.isArray(rq.questions) && rq.questions.length >= targetCount) {
                     return 0; // still fresh — skip
                 }
             }
@@ -14848,7 +15671,25 @@ var QvPrewarmCron;
             fresh[fi] = fresh[ri];
             fresh[ri] = tmp;
         }
-        var toStore = fresh.slice(0, READYQUEUE_SIZE);
+        var toStore = fresh.slice(0, targetCount);
+        // Availability tier: once unseen questions are exhausted, append the
+        // oldest previously-seen questions. This preserves variety first while
+        // ensuring survival/replay sessions always have a complete ready queue.
+        if (toStore.length < targetCount) {
+            var storedIds = {};
+            for (var tsi = 0; tsi < toStore.length; tsi++)
+                storedIds[toStore[tsi].id] = true;
+            var poolById = {};
+            for (var pbi = 0; pbi < pool.length; pbi++)
+                poolById[pool[pbi].id] = pool[pbi];
+            for (var bfi = 0; bfi < seenIds.length && toStore.length < targetCount; bfi++) {
+                var seenQuestion = poolById[seenIds[bfi]];
+                if (!seenQuestion || storedIds[seenQuestion.id])
+                    continue;
+                toStore.push(seenQuestion);
+                storedIds[seenQuestion.id] = true;
+            }
+        }
         if (toStore.length === 0)
             return 0;
         try {
@@ -14876,31 +15717,33 @@ var QvPrewarmCron;
     function prewarmUser(nk, logger, userId) {
         var stats = { topics: 0, questions: 0 };
         try {
-            // Load DNA to find top affinity topics
-            var dnaRows = nk.storageRead([{ collection: "player_dna", key: "dna", userId: userId }]);
-            if (!dnaRows || dnaRows.length === 0 || !dnaRows[0].value) {
-                // Fall back to default cold-start topics
-                var coldTopics = ["anime", "pokemon", "movies"];
-                for (var ci = 0; ci < coldTopics.length; ci++) {
-                    var n = prewarmTopic(nk, logger, userId, coldTopics[ci]);
-                    if (n > 0) {
-                        stats.topics++;
-                        stats.questions += n;
+            var planned = [];
+            // DNA affinities (best-effort) — merge with full startup defaults so cron
+            // coverage matches the client's first-tap topic list.
+            try {
+                var dnaRows = nk.storageRead([{ collection: "player_dna", key: "dna", userId: userId }]);
+                if (dnaRows && dnaRows.length > 0 && dnaRows[0].value) {
+                    var dna = dnaRows[0].value;
+                    var affinities = (dna && typeof dna.affinities === "object") ? dna.affinities : {};
+                    var topicKeys = Object.keys(affinities);
+                    topicKeys.sort(function (a, b) {
+                        return (affinities[b] || 0) - (affinities[a] || 0);
+                    });
+                    for (var di = 0; di < topicKeys.length && di < TOP_TOPICS_N; di++) {
+                        planned.push(topicKeys[di]);
                     }
                 }
-                return stats;
             }
-            var dna = dnaRows[0].value;
-            var affinities = (dna && typeof dna.affinities === "object") ? dna.affinities : {};
-            var topicKeys = Object.keys(affinities);
-            topicKeys.sort(function (a, b) {
-                return (affinities[b] || 0) - (affinities[a] || 0);
-            });
-            var top = topicKeys.slice(0, TOP_TOPICS_N);
-            if (top.length === 0)
-                top = ["anime", "pokemon", "movies"];
-            for (var ti = 0; ti < top.length; ti++) {
-                var n2 = prewarmTopic(nk, logger, userId, top[ti]);
+            catch (_dnaErr) { /* fall through to defaults */ }
+            for (var si = 0; si < STARTUP_DEFAULT_TOPICS.length; si++) {
+                planned.push(STARTUP_DEFAULT_TOPICS[si]);
+            }
+            var topics = uniqueTopics(planned).slice(0, MAX_TOPICS_PER_USER);
+            if (topics.length === 0) {
+                topics = uniqueTopics(STARTUP_DEFAULT_TOPICS).slice(0, MAX_TOPICS_PER_USER);
+            }
+            for (var ti = 0; ti < topics.length; ti++) {
+                var n2 = prewarmTopic(nk, logger, userId, topics[ti]);
                 if (n2 > 0) {
                     stats.topics++;
                     stats.questions += n2;
@@ -14911,6 +15754,128 @@ var QvPrewarmCron;
             logger.warn("[QvPrewarm] prewarmUser error userId=" + userId + ": " + (e && e.message));
         }
         return stats;
+    }
+    function readReadyQueue(nk, userId, topic) {
+        try {
+            var rows = nk.storageRead([{
+                    collection: COL_READYQUEUE, key: slugify(topic), userId: userId
+                }]);
+            if (rows && rows.length > 0 && rows[0].value &&
+                Array.isArray(rows[0].value.questions)) {
+                return rows[0].value.questions;
+            }
+        }
+        catch (_e) { }
+        return [];
+    }
+    function topicCacheNeedsRepair(topic, questions, minCount) {
+        if (!Array.isArray(questions) || questions.length < minCount)
+            return true;
+        if (topic === "anime") {
+            for (var ai = 0; ai < questions.length; ai++) {
+                var aq = questions[ai];
+                if (aq && aq.has_media && aq.media && aq.media.type === "image" &&
+                    aq.question_text !== "Which anime is shown in this image?") {
+                    return true;
+                }
+            }
+        }
+        if (topic === "flags" || topic === "countries") {
+            var correctTopicCount = 0;
+            for (var fi = 0; fi < questions.length; fi++) {
+                if (questions[fi] && questions[fi].topic === topic)
+                    correctTopicCount++;
+            }
+            if (correctTopicCount < Math.max(minCount, 60))
+                return true;
+        }
+        if (topic === "music") {
+            var audioCount = 0;
+            for (var mi = 0; mi < questions.length; mi++) {
+                var mm = questions[mi] && questions[mi].media;
+                if (mm && mm.type === "audio" && mm.url)
+                    audioCount++;
+            }
+            if (audioCount < minCount)
+                return true;
+        }
+        if (topic === "video_quiz") {
+            var cdnVideoCount = 0;
+            for (var vi = 0; vi < questions.length; vi++) {
+                var vm = questions[vi] && questions[vi].media;
+                if (vm && vm.type === "video" && typeof vm.url === "string" &&
+                    vm.url.indexOf("cloudfront.net/") !== -1) {
+                    cdnVideoCount++;
+                }
+            }
+            if (cdnVideoCount < minCount)
+                return true;
+        }
+        return false;
+    }
+    /**
+     * Authenticated app-start/post-quiz warmup. It never reserves a question pack:
+     * it repairs a missing/thin shared topic cache and fills the caller's private
+     * ready queue, so the real get_questions call remains authoritative and fast.
+     */
+    function rpcWarmTopic(ctx, logger, nk, payload) {
+        var userId = ctx.userId || "";
+        if (!userId) {
+            throw new Error(JSON.stringify({ code: 16, message: "authentication required" }));
+        }
+        // Register as active so hourly cron covers this player even before submit.
+        updateActiveUser(nk, userId);
+        var req = {};
+        try {
+            req = JSON.parse(payload || "{}");
+        }
+        catch (_pe) {
+            throw new Error(JSON.stringify({ code: 3, message: "invalid JSON payload" }));
+        }
+        var topic = slugify(typeof req.topic === "string" ? req.topic : "");
+        if (topic === "dish")
+            topic = "food";
+        if (!topic || !WARMABLE_TOPICS[topic]) {
+            throw new Error(JSON.stringify({ code: 3, message: "unsupported warmup topic" }));
+        }
+        var minCount = typeof req.min_count === "number"
+            ? Math.max(4, Math.min(READYQUEUE_SIZE, Math.floor(req.min_count)))
+            : READYQUEUE_SIZE;
+        var before = QvQuestionCache.readCache(nk, logger, topic);
+        var refreshed = false;
+        var refreshError = "";
+        var needsSchemaRepair = topicCacheNeedsRepair(topic, before.questions, minCount);
+        if (before.expired || needsSchemaRepair) {
+            var refreshResult = QvQuestionCache.refreshCache(nk, logger, ctx.env || {}, topic, needsSchemaRepair);
+            refreshed = refreshResult.ok && refreshResult.count > 0;
+            refreshError = refreshResult.error || "";
+        }
+        var after = QvQuestionCache.readCache(nk, logger, topic);
+        var queueWritten = prewarmTopic(nk, logger, userId, topic, minCount);
+        var readyQuestions = readReadyQueue(nk, userId, topic);
+        var mediaUrls = [];
+        var mediaSeen = {};
+        for (var mi = 0; mi < readyQuestions.length && mediaUrls.length < 4; mi++) {
+            var media = readyQuestions[mi] && readyQuestions[mi].media;
+            var mediaUrl = media && typeof media.url === "string" ? media.url : "";
+            if (!mediaUrl || mediaSeen[mediaUrl])
+                continue;
+            mediaSeen[mediaUrl] = true;
+            mediaUrls.push(mediaUrl);
+        }
+        logger.info("[QvPrewarm] user warm topic=" + topic +
+            " cache=" + after.questions.length + " queue=" + readyQuestions.length +
+            " refreshed=" + refreshed + " media=" + mediaUrls.length);
+        return JSON.stringify({
+            ok: after.questions.length > 0 && readyQuestions.length > 0,
+            topic: topic,
+            cache_count: after.questions.length,
+            ready_count: readyQuestions.length,
+            queue_written: queueWritten,
+            refreshed: refreshed,
+            refresh_error: refreshError || undefined,
+            media_urls: mediaUrls
+        });
     }
     // ── Opportunistic rate gate ─────────────────────────────────────────────────
     //
@@ -15008,6 +15973,7 @@ var QvPrewarmCron;
     // ── Registration ─────────────────────────────────────────────────────────────
     function register(initializer) {
         initializer.registerRpc("quizverse_prewarm_tick", rpcPrewarmTick);
+        initializer.registerRpc("quizverse_warm_topic", rpcWarmTopic);
     }
     QvPrewarmCron.register = register;
     var _NOOP = { registerRpc: function () { } };
@@ -15676,6 +16642,7 @@ var QvQuestionCache;
     //   NASA        → https://api.nasa.gov  (already defaults to DEMO_KEY)
     var FALLBACK_KEYS = {
         TMDB_API_KEY: "93ca6d6373e2584a56bfe144bee48280",
+        REST_COUNTRIES_API_KEY: "rc_live_97dedc18b8484adbbef2908738179d54",
         LASTFM_API_KEY: "", // ← paste your Last.fm key here
         GNEWS_API_KEY: "996c2e560c01a91df9d4a9ddbef0e38e",
         CURRENTS_API_KEY: "vJ7f8IPcf_vrhpwk2_-wqzVOpFCxHV26zMhKv4NPV_KiXb-r",
@@ -16225,68 +17192,44 @@ var QvQuestionCache;
         }
         if (media.length === 0)
             return results; // best-effort — Jikan already covers this topic
-        var genreSetAL = {};
+        // Image Guess must ask players to identify the pictured anime. The previous
+        // genre/year templates displayed a cover while asking unrelated metadata,
+        // which made the mode feel internally inconsistent.
+        var allTitlesAL = [];
         for (var ag2 = 0; ag2 < media.length; ag2++) {
-            var gens2 = media[ag2].genres || [];
-            for (var gi4 = 0; gi4 < gens2.length; gi4++)
-                genreSetAL[gens2[gi4]] = true;
+            var mediaTitle = media[ag2] && media[ag2].title
+                ? (media[ag2].title.english || media[ag2].title.romaji)
+                : "";
+            if (mediaTitle)
+                allTitlesAL.push(String(mediaTitle));
         }
-        var allGenresAL = Object.keys(genreSetAL).length >= 6 ? Object.keys(genreSetAL) : ANIME_GENRES;
         for (var mi = 0; mi < media.length; mi++) {
             var m = media[mi];
             try {
                 var titleAL = (m.title && (m.title.english || m.title.romaji)) || "Unknown";
-                var yearAL = (m.startDate && m.startDate.year) || null;
-                var genresAL = m.genres || [];
                 var coverAL = (m.coverImage && m.coverImage.large) || null;
                 var mediaAL = coverAL ? { type: "image", url: coverAL, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null;
-                if (genresAL.length === 0 && !yearAL)
+                if (!coverAL)
                     continue;
-                var useGenreTpl = genresAL.length > 0 && (Math.random() < 0.6 || !yearAL);
-                var q2 = null;
-                if (useGenreTpl) {
-                    var correctGenreAL = genresAL[0];
-                    var exSetAL = {};
-                    for (var gx2 = 0; gx2 < genresAL.length; gx2++)
-                        exSetAL[genresAL[gx2]] = true;
-                    var wgAL = pickExcluding(allGenresAL, exSetAL, 3);
-                    if (wgAL.length === 3) {
-                        var gOptsAL = [{ text: correctGenreAL, is_correct: true }];
-                        for (var wgi2 = 0; wgi2 < wgAL.length; wgi2++)
-                            gOptsAL.push({ text: wgAL[wgi2], is_correct: false });
-                        q2 = {
-                            provider_key: "anilist_genre_" + djb2(titleAL),
-                            topic: "anime", lang: "en",
-                            question_text: "What genre best describes the anime \"" + titleAL + "\"?",
-                            question_type: "single_select",
-                            raw_options: gOptsAL, has_media: !!coverAL, media: mediaAL,
-                            explanation: "\"" + titleAL + "\" belongs to the " + genresAL.join(", ") + " genre(s).",
-                            difficulty: "medium", provider: "anilist",
-                            meta: { title: titleAL, year: yearAL, genres: genresAL }
-                        };
-                    }
+                var excludeTitleAL = {};
+                excludeTitleAL[titleAL] = true;
+                var wrongTitlesAL = pickExcluding(allTitlesAL, excludeTitleAL, 3);
+                if (wrongTitlesAL.length < 3)
+                    continue;
+                var titleOptsAL = [{ text: titleAL, is_correct: true }];
+                for (var wti2 = 0; wti2 < wrongTitlesAL.length; wti2++) {
+                    titleOptsAL.push({ text: wrongTitlesAL[wti2], is_correct: false });
                 }
-                if (!q2 && yearAL) {
-                    var yrAL = Number(yearAL);
-                    var yOptsAL = [
-                        { text: String(yrAL), is_correct: true },
-                        { text: String(yrAL - 2), is_correct: false },
-                        { text: String(yrAL + 1), is_correct: false },
-                        { text: String(yrAL - 5), is_correct: false }
-                    ];
-                    q2 = {
-                        provider_key: "anilist_year_" + djb2(titleAL),
-                        topic: "anime", lang: "en",
-                        question_text: "What year did \"" + titleAL + "\" originally air?",
-                        question_type: "single_select",
-                        raw_options: yOptsAL, has_media: !!coverAL, media: mediaAL,
-                        explanation: "\"" + titleAL + "\" first aired in " + yrAL + ".",
-                        difficulty: "hard", provider: "anilist",
-                        meta: { title: titleAL, year: yearAL }
-                    };
-                }
-                if (q2)
-                    results.push(q2);
+                results.push({
+                    provider_key: "anilist_identity_" + djb2(titleAL),
+                    topic: "anime", lang: "en",
+                    question_text: "Which anime is shown in this image?",
+                    question_type: "single_select",
+                    raw_options: titleOptsAL, has_media: true, media: mediaAL,
+                    explanation: "The image shows \"" + titleAL + "\".",
+                    difficulty: "medium", provider: "anilist",
+                    meta: { title: titleAL }
+                });
             }
             catch (e) {
                 logger.debug("[QvQCache/anilist] skip: " + (e && e.message));
@@ -16318,103 +17261,45 @@ var QvQuestionCache;
         }
         if (animeList.length === 0)
             throw new Error("Jikan: no data array");
-        // Collect all genres from results for wrong-answer pool
-        var genreSet = {};
+        // Use titles as distractors so every media-backed anime row is a true
+        // visual-identification question rather than a genre/year trivia question.
+        var allAnimeTitles = [];
         for (var ag = 0; ag < animeList.length; ag++) {
-            var gens = animeList[ag].genres || [];
-            for (var gi2 = 0; gi2 < gens.length; gi2++)
-                genreSet[gens[gi2].name] = true;
+            var animeTitle = animeList[ag]
+                ? (animeList[ag].title_english || animeList[ag].title)
+                : "";
+            if (animeTitle)
+                allAnimeTitles.push(String(animeTitle));
         }
-        var allGenres = Object.keys(genreSet).length >= 6 ? Object.keys(genreSet) : ANIME_GENRES;
         for (var ai = 0; ai < animeList.length; ai++) {
             var a = animeList[ai];
             try {
                 var title = a.title_english || a.title || "Unknown";
-                var year = a.year
-                    || (a.aired && a.aired.prop && a.aired.prop.from && a.aired.prop.from.year)
-                    || null;
-                var episodes = a.episodes || null;
-                var genres = [];
-                var agenres = a.genres || [];
-                for (var gi3 = 0; gi3 < agenres.length; gi3++)
-                    genres.push(agenres[gi3].name);
                 var imageUrl = (a.images && a.images.jpg && a.images.jpg.image_url)
                     ? a.images.jpg.image_url : null;
-                var media = imageUrl ? { type: "image", url: imageUrl, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" } : null;
-                var tpl = Math.floor(Math.random() * 3);
-                var q = null;
-                if (tpl === 0 && genres.length > 0) {
-                    // Genre template
-                    var correctGenre = genres[0];
-                    var exSet = {};
-                    for (var gx = 0; gx < genres.length; gx++)
-                        exSet[genres[gx]] = true;
-                    var wg = pickExcluding(allGenres, exSet, 3);
-                    if (wg.length < 3)
-                        tpl = 2; // fall through to year
-                    else {
-                        var gOpts = [{ text: correctGenre, is_correct: true }];
-                        for (var wgi = 0; wgi < wg.length; wgi++)
-                            gOpts.push({ text: wg[wgi], is_correct: false });
-                        q = {
-                            provider_key: "jikan_genre_" + (a.mal_id || ai),
-                            topic: "anime", lang: "en",
-                            question_text: "What genre best describes the anime \"" + title + "\"?",
-                            question_type: "single_select",
-                            raw_options: gOpts, has_media: !!imageUrl, media: media,
-                            explanation: "\"" + title + "\" belongs to the " + genres.join(", ") + " genre(s).",
-                            difficulty: "medium", provider: "jikan",
-                            meta: { title: title, year: year, genres: genres }
-                        };
-                    }
+                if (!imageUrl)
+                    continue;
+                var excludeTitle = {};
+                excludeTitle[title] = true;
+                var wrongTitles = pickExcluding(allAnimeTitles, excludeTitle, 3);
+                if (wrongTitles.length < 3)
+                    continue;
+                var titleOpts = [{ text: title, is_correct: true }];
+                for (var wti = 0; wti < wrongTitles.length; wti++) {
+                    titleOpts.push({ text: wrongTitles[wti], is_correct: false });
                 }
-                if (tpl === 1 && episodes) {
-                    // Episode count template
-                    var ep = episodes;
-                    var eOpts = [
-                        { text: String(ep), is_correct: true },
-                        { text: String(Math.max(1, ep - Math.floor(Math.random() * 8) - 3)), is_correct: false },
-                        { text: String(ep + Math.floor(Math.random() * 10) + 2), is_correct: false },
-                        { text: String(ep + Math.floor(Math.random() * 20) + 14), is_correct: false }
-                    ];
-                    q = {
-                        provider_key: "jikan_ep_" + (a.mal_id || ai),
-                        topic: "anime", lang: "en",
-                        question_text: "How many episodes does \"" + title + "\" have?",
-                        question_type: "single_select",
-                        raw_options: eOpts, has_media: !!imageUrl, media: media,
-                        explanation: "\"" + title + "\" has " + ep + " episodes.",
-                        difficulty: "hard", provider: "jikan",
-                        meta: { title: title, year: year }
-                    };
-                }
-                if ((tpl === 2 || !q) && year) {
-                    // Release year template
-                    var yr = Number(year);
-                    if (isNaN(yr)) {
-                        q = null;
-                    }
-                    else {
-                        var yOpts = [
-                            { text: String(yr), is_correct: true },
-                            { text: String(yr - 2), is_correct: false },
-                            { text: String(yr + 1), is_correct: false },
-                            { text: String(yr - 5), is_correct: false }
-                        ];
-                        q = {
-                            provider_key: "jikan_year_" + (a.mal_id || ai),
-                            topic: "anime", lang: "en",
-                            question_text: "In what year did \"" + title + "\" first air?",
-                            question_type: "single_select",
-                            raw_options: yOpts, has_media: !!imageUrl, media: media,
-                            explanation: "\"" + title + "\" first aired in " + yr + ".",
-                            difficulty: "medium", provider: "jikan",
-                            meta: { title: title, year: year }
-                        };
-                    }
-                }
-                if (q)
-                    results.push(q);
+                results.push({
+                    provider_key: "jikan_identity_" + (a.mal_id || ai),
+                    topic: "anime", lang: "en",
+                    question_text: "Which anime is shown in this image?",
+                    question_type: "single_select",
+                    raw_options: titleOpts,
+                    has_media: true,
+                    media: { type: "image", url: imageUrl, thumbnail_url: null, duration_seconds: null, mime_type: "image/jpeg" },
+                    explanation: "The image shows \"" + title + "\".",
+                    difficulty: "medium", provider: "jikan",
+                    meta: { title: title }
+                });
             }
             catch (e) {
                 logger.debug("[QvQCache/jikan] skip[" + ai + "]: " + (e && e.message));
@@ -16888,53 +17773,66 @@ var QvQuestionCache;
         var objects = [];
         var pagesFetched = 0;
         if (apiKey) {
-            var authHeaders = { "Authorization": "Bearer " + apiKey };
-            var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
-            var offset = 0;
-            while (true) {
-                var pageUrl = baseUrl + "&offset=" + offset;
-                var parsed;
-                try {
-                    parsed = httpGet(nk, pageUrl, authHeaders);
+            try {
+                var authHeaders = { "Authorization": "Bearer " + apiKey };
+                var baseUrl = "https://api.restcountries.com/countries/v5?response_fields=names.common,capitals,region,population,codes.alpha_2,flag.url_png&limit=100";
+                var offset = 0;
+                while (true) {
+                    var pageUrl = baseUrl + "&offset=" + offset;
+                    var parsed;
+                    try {
+                        parsed = httpGet(nk, pageUrl, authHeaders);
+                    }
+                    catch (he) {
+                        var hmsg = he && he.message ? he.message : String(he);
+                        if (hmsg.indexOf("HTTP 401") !== -1)
+                            throw new Error("http_401");
+                        if (hmsg.indexOf("HTTP 403") !== -1)
+                            throw new Error("http_403");
+                        throw he;
+                    }
+                    if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
+                        throw new Error("unexpected_response_shape");
+                    }
+                    var pageObjects = parsed.data.objects;
+                    var meta = parsed.data.meta || {};
+                    pagesFetched++;
+                    for (var pi = 0; pi < pageObjects.length; pi++)
+                        objects.push(pageObjects[pi]);
+                    if (!meta.more)
+                        break;
+                    offset += 100;
+                    if (offset > 1000)
+                        break;
                 }
-                catch (he) {
-                    var hmsg = he && he.message ? he.message : String(he);
-                    if (hmsg.indexOf("HTTP 401") !== -1)
-                        throw new Error("http_401");
-                    if (hmsg.indexOf("HTTP 403") !== -1)
-                        throw new Error("http_403");
-                    throw he;
-                }
-                if (!parsed || !parsed.data || !parsed.data.objects || !Array.isArray(parsed.data.objects)) {
-                    throw new Error("unexpected_response_shape");
-                }
-                var pageObjects = parsed.data.objects;
-                var meta = parsed.data.meta || {};
-                pagesFetched++;
-                for (var pi = 0; pi < pageObjects.length; pi++)
-                    objects.push(pageObjects[pi]);
-                if (!meta.more)
-                    break;
-                offset += 100;
-                if (offset > 1000)
-                    break;
+            }
+            catch (paidErr) {
+                // A missing/expired paid-provider key must never disable Flag Quiz.
+                logger.warn("[QvQCache/restcountries] authenticated provider failed; using keyless fallback error=" +
+                    (paidErr && paidErr.message ? paidErr.message : String(paidErr)));
+                objects = [];
+                pagesFetched = 0;
             }
         }
-        else {
-            // Keyless fallback keeps Guess the Flag/Countries playable on cold deploys.
-            // Normalize the public v3.1 response into the v5 shape consumed below.
-            var publicRows = httpGet(nk, "https://restcountries.com/v3.1/all?fields=name,capital,region,population,cca2,flags");
+        if (objects.length === 0) {
+            // Keyless fallback keeps Guess the Flag/Countries playable on cold
+            // deploys. Rest Countries v3 was retired in 2026, so use the pinned
+            // world-countries dataset and deterministic FlagCDN PNG URLs.
+            var publicRows = httpGet(nk, "https://cdn.jsdelivr.net/npm/world-countries@5.1.0/countries.json");
             if (!Array.isArray(publicRows))
-                throw new Error("restcountries_public_unexpected_shape");
+                throw new Error("world_countries_unexpected_shape");
             for (var pri = 0; pri < publicRows.length; pri++) {
                 var publicCountry = publicRows[pri];
+                var publicCode = publicCountry && publicCountry.cca2
+                    ? String(publicCountry.cca2).toLowerCase()
+                    : "";
                 objects.push({
                     names: { common: publicCountry && publicCountry.name ? publicCountry.name.common : "" },
                     capitals: publicCountry ? publicCountry.capital : [],
                     region: publicCountry ? publicCountry.region : "",
                     population: publicCountry ? publicCountry.population : 0,
                     codes: { alpha_2: publicCountry ? publicCountry.cca2 : "" },
-                    flag: { url_png: publicCountry && publicCountry.flags ? publicCountry.flags.png : "" }
+                    flag: { url_png: publicCode ? "https://flagcdn.com/w320/" + publicCode + ".png" : "" }
                 });
             }
             pagesFetched = 1;
@@ -16960,7 +17858,9 @@ var QvQuestionCache;
         }
         var flagRawCount = 0;
         var capRawCount = 0;
-        var sample2 = pick(withCap, 40);
+        // Keep the full country set in the server cache. Sampling only 40 countries
+        // permanently starved Guess the Flag and made seen-ledger exhaustion common.
+        var sample2 = pick(withCap, Math.min(withCap.length, 200));
         for (var ci3 = 0; ci3 < sample2.length; ci3++) {
             var country = sample2[ci3];
             try {
@@ -17024,7 +17924,15 @@ var QvQuestionCache;
             " countries_sampled=" + sample2.length +
             " raw_flags=" + flagRawCount +
             " raw_countries=" + capRawCount);
-        return results;
+        // Keep topic caches semantically pure. Previously qv_cache_flags also
+        // contained capital-city rows (and qv_cache_countries contained flag rows),
+        // so a visual Flag Quiz could receive the wrong question contract.
+        var topicResults = [];
+        for (var tri = 0; tri < results.length; tri++) {
+            if (results[tri].topic === topic)
+                topicResults.push(results[tri]);
+        }
+        return topicResults;
     }
     // ── 11. NASA APOD (Space) — key-gated; falls back to DEMO_KEY ─────────────
     function fetchNasa(nk, env, logger) {
@@ -17214,7 +18122,77 @@ var QvQuestionCache;
         }
         return out;
     }
-    // ── 14a. Deezer (Music/Audio) — free, keyless, REAL 30s audio previews ────
+    // ── 14a. iTunes Search (Music/Audio) — keyless 30s AAC previews ───────────
+    function fetchItunesMusic(nk, logger) {
+        var terms = ["top%20hits", "global%20hits", "popular%20music"];
+        var tracks = [];
+        for (var ipg = 0; ipg < terms.length; ipg++) {
+            try {
+                var page = httpGet(nk, "https://itunes.apple.com/search?term=" + terms[ipg] +
+                    "&country=US&media=music&entity=song&limit=50");
+                if (page && Array.isArray(page.results))
+                    tracks = tracks.concat(page.results);
+            }
+            catch (itunesErr) {
+                logger.debug("[QvQCache/itunes] fetch failed term=" + terms[ipg] + ": " +
+                    (itunesErr && itunesErr.message));
+            }
+        }
+        if (tracks.length === 0)
+            throw new Error("iTunes Search: no tracks");
+        var artistSet = {};
+        for (var ia = 0; ia < tracks.length; ia++) {
+            if (tracks[ia] && tracks[ia].artistName)
+                artistSet[String(tracks[ia].artistName)] = true;
+        }
+        var artists = Object.keys(artistSet);
+        var results = [];
+        for (var it = 0; it < tracks.length; it++) {
+            var track = tracks[it];
+            try {
+                if (!track || !track.previewUrl || !track.artistName || !track.trackName)
+                    continue;
+                if (track.trackExplicitness === "explicit")
+                    continue;
+                var artist = String(track.artistName);
+                var excludeArtist = {};
+                excludeArtist[artist] = true;
+                var wrongArtists = pickExcluding(artists, excludeArtist, 3);
+                if (wrongArtists.length < 3)
+                    continue;
+                var opts = [{ text: artist, is_correct: true }];
+                for (var iwo = 0; iwo < wrongArtists.length; iwo++) {
+                    opts.push({ text: wrongArtists[iwo], is_correct: false });
+                }
+                results.push({
+                    provider_key: "itunes_" + String(track.trackId || djb2(track.trackName + artist)),
+                    topic: "music", lang: "en",
+                    question_text: "Listen to the clip — who is the artist performing this song?",
+                    question_type: "single_select",
+                    raw_options: opts,
+                    has_media: true,
+                    media: {
+                        type: "audio",
+                        url: String(track.previewUrl),
+                        thumbnail_url: track.artworkUrl100 ? String(track.artworkUrl100) : null,
+                        duration_seconds: 30,
+                        mime_type: "audio/mp4"
+                    },
+                    explanation: "\"" + String(track.trackName) + "\" is performed by " + artist + ".",
+                    difficulty: "medium", provider: "itunes",
+                    meta: { track_title: String(track.trackName) }
+                });
+            }
+            catch (itunesRowErr) {
+                logger.debug("[QvQCache/itunes] row skipped: " +
+                    (itunesRowErr && itunesRowErr.message));
+            }
+        }
+        if (results.length === 0)
+            throw new Error("iTunes Search: zero playable previews");
+        return results;
+    }
+    // ── 14b. Deezer (Music/Audio) — keyless 30s MP3 previews ─────────────────
     // #QVVBS-CACHE (2026-07): "Audio Quiz (AI) — Not Working" — grepping this whole
     // file for media.type==="audio" turned up zero matches anywhere; the "music"
     // topic (the only music-adjacent topic that existed) was 100% text trivia via
@@ -17303,12 +18281,27 @@ var QvQuestionCache;
         }
         return results;
     }
-    // Combines the always-available Deezer audio pool with Last.fm's text-only
-    // artist trivia (only when LASTFM_API_KEY is configured) so the "music" topic
-    // carries both real audio-quiz media and bonus text variety. Deezer succeeding
-    // is sufficient on its own — Last.fm failing/missing must never fail the topic.
+    // Prefer Deezer MP3 previews, but its chart endpoint can legally return
+    // {data:[],total:0}. iTunes Search is the independent keyless fallback and
+    // currently provides stable 30-second AAC previews.
     function fetchMusicQuiz(nk, env, logger) {
-        var out = fetchDeezer(nk, logger); // throws if Deezer itself is down — that's the real failure signal now
+        var out = [];
+        try {
+            out = fetchDeezer(nk, logger);
+        }
+        catch (deezerErr) {
+            logger.warn("[QvQCache/music] Deezer unavailable; switching to iTunes Search: " +
+                (deezerErr && deezerErr.message ? deezerErr.message : String(deezerErr)));
+        }
+        if (out.length < 30) {
+            try {
+                out = out.concat(fetchItunesMusic(nk, logger));
+            }
+            catch (itunesErr) {
+                logger.warn("[QvQCache/music] iTunes fallback failed: " +
+                    (itunesErr && itunesErr.message ? itunesErr.message : String(itunesErr)));
+            }
+        }
         try {
             var fmKeyCheck = envKey(env, "LASTFM_API_KEY");
             if (fmKeyCheck)
@@ -17317,9 +18310,11 @@ var QvQuestionCache;
         catch (e) {
             logger.debug("[QvQCache/music] Last.fm bonus fetch skipped: " + (e && e.message));
         }
+        if (out.length === 0)
+            throw new Error("music: all audio providers returned zero questions");
         return out;
     }
-    // ── 14. Last.fm (Music) — requires LASTFM_API_KEY ─────────────────────────
+    // ── 14c. Last.fm (Music) — requires LASTFM_API_KEY ────────────────────────
     function fetchLastfm(nk, env, logger) {
         var results = [];
         var fmKey = envKey(env, "LASTFM_API_KEY");
@@ -18007,6 +19002,7 @@ var QvQuestionCache;
             case "geography": return fetchGeoQuiz(nk, logger);
             case "speed_quiz": return fetchSpeedQuiz(nk, logger);
             case "true_false": return fetchTrueFalseQuiz(nk, logger);
+            case "opentdb": return fetchOpenTdbCategory(nk, logger, 9, 50, "opentdb", "");
             case "anime": return fetchAnimeQuiz(nk, logger);
             case "pokemon": return fetchPokeapi(nk, logger);
             case "cocktail": return fetchCocktaildb(nk, logger);
@@ -18175,10 +19171,16 @@ var QvQuestionCache;
                 " event=circuit_open provider=" + provider + " topic=" + topic);
             return { ok: false, topic: topic, count: 0, error: cbMsg };
         }
-        if (!tryAcquireRefreshGate(nk, topic)) {
+        if (!force && !tryAcquireRefreshGate(nk, topic)) {
             logger.info("[QvQCache/" + topic + "] refresh gated — recent refresh in progress or completed" +
                 " event=provider_refresh_gated topic=" + topic);
             return { ok: true, topic: topic, count: 0 };
+        }
+        if (force) {
+            // Best effort: update the normal lease timestamp for observability and to
+            // gate subsequent non-forced refreshes. Schema-repair callers may bypass
+            // an old lease because stale data must not survive until the next TTL.
+            tryAcquireRefreshGate(nk, topic);
         }
         try {
             // ── Fetch ─────────────────────────────────────────────────────────────
@@ -18252,6 +19254,14 @@ var QvQuestionCache;
                         var oldQ = existingPool.questions[ei2];
                         if (mergedIds[oldQ.id])
                             continue;
+                        // Schema migration: remove media-backed anime metadata templates.
+                        // Image Guess now exclusively asks users to identify the pictured
+                        // title; carrying old genre/year rows would preserve the bug forever.
+                        if (topic === "anime" && oldQ.has_media && oldQ.media &&
+                            oldQ.media.type === "image" &&
+                            oldQ.question_text !== "Which anime is shown in this image?") {
+                            continue;
+                        }
                         merged.push(oldQ);
                         mergedIds[oldQ.id] = true;
                         carried++;
@@ -27297,6 +28307,173 @@ var QvExplainerVideos;
     }
     QvExplainerVideos.register = register;
 })(QvExplainerVideos || (QvExplainerVideos = {}));
+// ---------------------------------------------------------------------------
+// lap-note-quota.ts — server-authoritative Link & Play note creation quota.
+//
+// Free: 5/day. QuizVerse Pro/Plus or LinkPlay Pro: 20/day.
+// QuizVerse Pro+ or LinkPlay Pro+: unlimited.
+// Reset boundary: 00:00 UTC.
+//
+// The reserve/release contract lets the web proxy reserve before dispatching
+// the AI job and refund the slot if the upstream request fails.
+// ---------------------------------------------------------------------------
+var QvLapNoteQuota;
+(function (QvLapNoteQuota) {
+    var COLLECTION = "qv_lap_note_quota";
+    var KEY_PREFIX = "notes_";
+    var OCC_MAX_RETRIES = 4;
+    function utcDate(now) {
+        return now.toISOString().slice(0, 10);
+    }
+    function nextUtcReset(now) {
+        return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0)).toISOString();
+    }
+    function quotaKey(date) {
+        return KEY_PREFIX + date;
+    }
+    function subscriptionTier(nk, userId, nowMs) {
+        var rows = nk.storageRead([{
+                collection: "qv_entitlements",
+                key: "subscriptions",
+                userId: userId
+            }]);
+        if (!rows || rows.length === 0 || !rows[0].value)
+            return "free";
+        var subs = rows[0].value;
+        var tier = String(subs.tier || "").toLowerCase();
+        var status = String(subs.status || "active").toLowerCase();
+        if (!tier || status === "expired" || status === "revoked" || status === "inactive") {
+            return "free";
+        }
+        if (subs.expiresAt) {
+            var expiryMs = new Date(subs.expiresAt).getTime();
+            if (!isNaN(expiryMs) && expiryMs <= nowMs)
+                return "free";
+        }
+        return tier;
+    }
+    function limitForTier(tier) {
+        if (tier === "pro_plus" || tier === "linkplay_proplus")
+            return -1;
+        if (tier === "pro" || tier === "plus" || tier === "linkplay_pro")
+            return 20;
+        return 5;
+    }
+    function readQuota(nk, userId, date) {
+        var rows = nk.storageRead([{
+                collection: COLLECTION,
+                key: quotaKey(date),
+                userId: userId
+            }]);
+        if (!rows || rows.length === 0) {
+            return {
+                value: { date: date, used: 0, reservations: {}, updatedAt: new Date().toISOString() },
+                version: "*",
+                exists: false
+            };
+        }
+        var value = rows[0].value || {};
+        return {
+            value: {
+                date: date,
+                used: Math.max(0, Number(value.used) || 0),
+                reservations: value.reservations || {},
+                updatedAt: String(value.updatedAt || "")
+            },
+            version: rows[0].version || "",
+            exists: true
+        };
+    }
+    function writeQuota(nk, userId, stored) {
+        stored.value.updatedAt = new Date().toISOString();
+        nk.storageWrite([{
+                collection: COLLECTION,
+                key: quotaKey(stored.value.date),
+                userId: userId,
+                value: stored.value,
+                version: stored.exists ? stored.version : "*",
+                permissionRead: 1,
+                permissionWrite: 0
+            }]);
+    }
+    function response(state, tier, limit, resetAt, allowed, reservationId) {
+        return RpcHelpers.successResponse({
+            allowed: allowed !== false,
+            tier: tier,
+            limit: limit < 0 ? null : limit,
+            unlimited: limit < 0,
+            used: state.used,
+            remaining: limit < 0 ? null : Math.max(0, limit - state.used),
+            date: state.date,
+            resetAt: resetAt,
+            reservationId: reservationId || ""
+        });
+    }
+    function rpcLapNoteQuota(ctx, logger, nk, payload) {
+        var userId = RpcHelpers.requireUserId(ctx);
+        var data = RpcHelpers.parseRpcPayload(payload) || {};
+        var action = String(data.action || "status").toLowerCase();
+        var now = new Date();
+        var date = action === "release" && data.date ? String(data.date) : utcDate(now);
+        var tier = subscriptionTier(nk, userId, now.getTime());
+        var limit = limitForTier(tier);
+        var resetAt = nextUtcReset(now);
+        if (limit < 0) {
+            var unlimitedState = readQuota(nk, userId, date).value;
+            return response(unlimitedState, tier, limit, resetAt, true, "");
+        }
+        if (action === "status") {
+            return response(readQuota(nk, userId, date).value, tier, limit, resetAt);
+        }
+        if (action !== "reserve" && action !== "release") {
+            return RpcHelpers.errorResponse("action must be status, reserve, or release");
+        }
+        var reservationId = action === "release" ? String(data.reservationId || "") : "";
+        if (action === "release" && !reservationId) {
+            return RpcHelpers.errorResponse("reservationId required for release");
+        }
+        if (action === "release") {
+            var expectedSecret = String(ctx.env["NAKAMA_WEBHOOK_SECRET"] || "");
+            var suppliedSecret = String(data.refundSecret || "");
+            if (!expectedSecret || suppliedSecret !== expectedSecret) {
+                return RpcHelpers.errorResponse("release is server-only");
+            }
+        }
+        var lastError = null;
+        for (var attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+            var stored = readQuota(nk, userId, date);
+            var state = stored.value;
+            if (action === "reserve") {
+                if (state.used >= limit) {
+                    return response(state, tier, limit, resetAt, false, "");
+                }
+                reservationId = nk.uuidv4();
+                state.used += 1;
+                state.reservations[reservationId] = true;
+            }
+            else {
+                if (!state.reservations[reservationId]) {
+                    return response(state, tier, limit, resetAt, true, "");
+                }
+                delete state.reservations[reservationId];
+                state.used = Math.max(0, state.used - 1);
+            }
+            try {
+                writeQuota(nk, userId, stored);
+                return response(state, tier, limit, resetAt, true, action === "reserve" ? reservationId : "");
+            }
+            catch (err) {
+                lastError = err;
+            }
+        }
+        logger.error("[QvLapNoteQuota] OCC exhausted user=" + userId + " action=" + action);
+        throw lastError || new Error("lap_note_quota_contention");
+    }
+    function register(initializer) {
+        initializer.registerRpc("quizverse_lap_note_quota", rpcLapNoteQuota);
+    }
+    QvLapNoteQuota.register = register;
+})(QvLapNoteQuota || (QvLapNoteQuota = {}));
 // =============================================================================
 // RPC: admin_revenuecat_dashboard
 //
@@ -34168,19 +35345,18 @@ var LegacyChat;
     // before-hook — the client gets the error back, the send never lands.
     var MAX_MESSAGE_CHARS = 4000;
     var CHAT_RATE_MAX = 10; // messages
-    var CHAT_RATE_WINDOW_MS = 10000; // per this many ms, per user
-    var chatSendLog = {};
-    function enforceChatHygiene(ctx, content) {
+    var CHAT_RATE_WINDOW_SEC = 10; // per this many seconds, per user
+    function enforceChatHygiene(ctx, nk, content) {
         if (content.length > MAX_MESSAGE_CHARS) {
             throw new Error("Message too long (max " + MAX_MESSAGE_CHARS + " characters).");
         }
-        var now = Date.now();
-        var log = (chatSendLog[ctx.userId] || []).filter(function (t) { return now - t < CHAT_RATE_WINDOW_MS; });
-        if (log.length >= CHAT_RATE_MAX) {
+        // Nakama executes handlers across a Goja VM pool (and multiple pods in
+        // production), so module-local counters are not authoritative. Use the
+        // shared storage-backed limiter to enforce one contract everywhere.
+        var decision = SharedRateLimit.checkUserWindow(ctx, nk, "channel_message_send", CHAT_RATE_WINDOW_SEC, CHAT_RATE_MAX);
+        if (!decision.allowed) {
             throw new Error("You're sending messages too fast — slow down.");
         }
-        log.push(now);
-        chatSendLog[ctx.userId] = log;
     }
     // Before-hook for realtime ChannelMessageSend. Forces persist=true so every
     // chat message is written to channel history. Without persistence the message
@@ -34191,7 +35367,7 @@ var LegacyChat;
     function beforeChannelMessageSend(ctx, logger, nk, envelope) {
         var msg = envelope ? envelope.channelMessageSend : null;
         if (msg) {
-            enforceChatHygiene(ctx, String(msg.content || ""));
+            enforceChatHygiene(ctx, nk, String(msg.content || ""));
             try {
                 msg.persist = true;
             }
@@ -34201,7 +35377,23 @@ var LegacyChat;
         }
         return envelope;
     }
+    function registerRealtimeHooks(initializer) {
+        initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
+        initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
+    }
     function register(initializer) {
+        function auth(fn) {
+            var wrapped = null;
+            return function (ctx, logger, nk, payload) {
+                if (!wrapped) {
+                    var strictFn = fn;
+                    wrapped = (typeof RpcHelpers !== "undefined" && RpcHelpers.withCleanAuthError)
+                        ? RpcHelpers.withCleanAuthError(strictFn)
+                        : strictFn;
+                }
+                return wrapped(ctx, logger, nk, payload);
+            };
+        }
         initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
         initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
         initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);
@@ -34210,18 +35402,19 @@ var LegacyChat;
         // read/unread RPCs below throwing a raw Goja 500 for unauthenticated callers
         // instead of the clean JSON every other chat RPC in this file returns — belt
         // and suspenders on top of each handler's own try/catch.
-        initializer.registerRpc("quizverse_deliver_pending_chat_messages", RpcHelpers.withCleanAuthError(rpcDeliverPendingChatMessages));
+        initializer.registerRpc("quizverse_deliver_pending_chat_messages", auth(rpcDeliverPendingChatMessages));
         initializer.registerRpc("get_group_chat_history", rpcGetGroupChatHistory);
         initializer.registerRpc("get_direct_message_history", rpcGetDirectMessageHistory);
         initializer.registerRpc("get_chat_room_history", rpcGetChatRoomHistory);
         initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
-        initializer.registerRpc("mark_group_messages_read", RpcHelpers.withCleanAuthError(rpcMarkGroupMessagesRead));
-        initializer.registerRpc("get_unread_counts", RpcHelpers.withCleanAuthError(rpcGetUnreadCounts));
+        initializer.registerRpc("mark_group_messages_read", auth(rpcMarkGroupMessagesRead));
+        initializer.registerRpc("get_unread_counts", auth(rpcGetUnreadCounts));
         // Force durable persistence for realtime chat (offline delivery + history +
-        // unread counts), then push-notify after the message lands.
-        initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
-        // Push notifications for messages sent directly over the realtime socket.
-        initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
+        // unread counts), then push-notify after the message lands. postbuild also
+        // invokes register() without an initializer on every pooled Goja VM to bind
+        // RPC stubs; only the real InitModule call may install realtime hooks.
+        if (initializer)
+            registerRealtimeHooks(initializer);
     }
     LegacyChat.register = register;
 })(LegacyChat || (LegacyChat = {}));
@@ -34564,6 +35757,8 @@ var LegacyFriends;
             var usernames = data.usernames ? (Array.isArray(data.usernames) ? data.usernames : [data.usernames]) : [];
             if (data.userId)
                 ids.push(data.userId);
+            if (data.targetUserId)
+                ids.push(data.targetUserId);
             if (data.username)
                 usernames.push(data.username);
             if (ids.length === 0 && usernames.length === 0) {
@@ -34590,6 +35785,8 @@ var LegacyFriends;
             var usernames = data.usernames ? (Array.isArray(data.usernames) ? data.usernames : [data.usernames]) : [];
             if (data.userId)
                 ids.push(data.userId);
+            if (data.targetUserId)
+                ids.push(data.targetUserId);
             if (data.username)
                 usernames.push(data.username);
             if (ids.length === 0 && usernames.length === 0) {
@@ -36735,10 +37932,15 @@ var LegacyPlayer;
                 metadata.customData[k] = data.customData[k];
             }
         }
-        if (data.displayName || data.avatarUrl) {
+        // Mirror displayName / avatarUrl onto the Nakama account so friends,
+        // leaderboards, and groups that read account.user.* stay in sync.
+        // Pass null for untouched fields (Nakama leaves those unchanged).
+        if (data.displayName !== undefined || data.avatarUrl !== undefined) {
             try {
+                var accountDisplayName = data.displayName !== undefined ? String(data.displayName) : null;
+                var accountAvatarUrl = data.avatarUrl !== undefined ? String(data.avatarUrl) : null;
                 // Signature: accountUpdateId(userId, username, displayName, timezone, location, langTag, avatarUrl, metadata)
-                nk.accountUpdateId(userId, null, data.displayName || null, null, null, null, data.avatarUrl || null, null);
+                nk.accountUpdateId(userId, null, accountDisplayName, null, null, null, accountAvatarUrl, null);
             }
             catch (err) {
                 logger.warn("[Player] Failed to update account: " + err.message);
@@ -37324,6 +38526,55 @@ var PushAlerts;
             fields.push({
                 name: "🌍 By Language / Region (" + localeRows.length + " active)",
                 value: lines.join("\n").slice(0, 1024),
+                inline: false,
+            });
+        }
+        // ── Soft T1 spotlight (US / UK / AU / CA / …) ─────────────────────────
+        // Option B: global sends continue; this field validates Tier-1 health first.
+        if (s.byTier || s.byCountry) {
+            var t1Flag = {
+                "US": "🇺🇸", "GB": "🇬🇧", "CA": "🇨🇦", "AU": "🇦🇺", "NZ": "🇳🇿",
+                "DE": "🇩🇪", "FR": "🇫🇷", "JP": "🇯🇵", "KR": "🇰🇷", "IE": "🇮🇪",
+                "SG": "🇸🇬", "NL": "🇳🇱", "SE": "🇸🇪", "NO": "🇳🇴", "DK": "🇩🇰",
+                "FI": "🇫🇮", "CH": "🇨🇭", "AT": "🇦🇹", "BE": "🇧🇪", "HK": "🇭🇰",
+                "TW": "🇹🇼", "IL": "🇮🇱"
+            };
+            var tierLines = [];
+            var tiers = s.byTier || {};
+            var tierOrder = ["t1", "t2", "t3", "unknown"];
+            for (var ti = 0; ti < tierOrder.length; ti++) {
+                var tk = tierOrder[ti];
+                if (!tiers[tk])
+                    continue;
+                var tt = tiers[tk].sent + tiers[tk].gated;
+                tierLines.push("**" + tk.toUpperCase() + "** — " + tiers[tk].sent + " sent / " +
+                    tiers[tk].gated + " gated (" + pct(tiers[tk].sent, tt) + ")");
+            }
+            var countryRows = [];
+            var byC = s.byCountry || {};
+            for (var cc in byC) {
+                if (byC.hasOwnProperty(cc) && t1Flag[cc]) {
+                    countryRows.push({ cc: cc, sent: byC[cc].sent, gated: byC[cc].gated });
+                }
+            }
+            countryRows.sort(function (a, b) { return b.sent - a.sent; });
+            var cLines = [];
+            for (var ci = 0; ci < countryRows.length && ci < 10; ci++) {
+                var cr = countryRows[ci];
+                var ctot = cr.sent + cr.gated;
+                cLines.push((t1Flag[cr.cc] || cr.cc) + " **" + cr.cc + "** — " + cr.sent +
+                    " sent / " + cr.gated + " gated (" + pct(cr.sent, ctot) + ")");
+            }
+            var t1Block = "";
+            if (tierLines.length > 0)
+                t1Block += tierLines.join("\n") + "\n";
+            if (cLines.length > 0)
+                t1Block += "\n**T1 countries**\n" + cLines.join("\n");
+            if (!t1Block)
+                t1Block = "_No geo-tagged users in this run (country cache empty)_";
+            fields.push({
+                name: "🥇 Soft T1 focus (global sends ON)",
+                value: t1Block.slice(0, 1024),
                 inline: false,
             });
         }
@@ -38468,14 +39719,140 @@ var LegacyPush;
     // users get a sensible morning window. The permanent fix is the client
     // sending a numeric offset ("+05:30"), which the parser below honours
     // exactly for every region.
-    // UTC (offset 0) is the safe global default. IST (+330) was used previously
-    // because the user base was India-first, but it silently gated ALL users in
-    // other timezones (e.g. USA 9 AM ET = 14:00 UTC → appeared as 19:30 IST →
-    // always outside the send window). UTC-0 means users with unparseable
-    // timezone strings ("Local", "Unknown") receive pushes based on server UTC,
-    // which is neutral — the quiet-hours guard (22:00-08:00) still protects them.
-    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 0; // UTC — safe global fallback
+    // Last-resort when timezone AND country are unknown. Prefer country-aware
+    // defaults below (US→ET, IN→IST, …) so T1 users with "Local"/empty TZ still
+    // land in a real local morning window instead of UTC night.
+    var NOTIF_DEFAULT_TZ_OFFSET_MIN = 0; // UTC — only when country also unknown
+    // Soft T1: rough DST helpers (no tzdb in Goja). Good enough for send windows
+    // (±1h error only near transition Sundays). Northern = US/CA/EU; AU = southern.
+    function _nthSundayUtc(year, month0, n) {
+        var d = new Date(Date.UTC(year, month0, 1));
+        var day = d.getUTCDay();
+        var firstSun = 1 + ((7 - day) % 7);
+        return Date.UTC(year, month0, firstSun + (n - 1) * 7);
+    }
+    function _lastSundayUtc(year, month0) {
+        var d = new Date(Date.UTC(year, month0 + 1, 0));
+        var day = d.getUTCDay();
+        return Date.UTC(year, month0, d.getUTCDate() - day);
+    }
+    function _inNorthernDst(nowMs) {
+        var y = new Date(nowMs).getUTCFullYear();
+        // Approx US: 2nd Sun Mar → 1st Sun Nov; EU similar (last Sun Mar/Oct).
+        // Use US bounds — EU differs by ~1 week; still inside 09–13 / 17–21 windows.
+        var start = _nthSundayUtc(y, 2, 2);
+        var end = _nthSundayUtc(y, 10, 1);
+        return nowMs >= start && nowMs < end;
+    }
+    function _inAuDst(nowMs) {
+        var y = new Date(nowMs).getUTCFullYear();
+        // AU: first Sun Oct → first Sun Apr (spans year boundary)
+        var start = _nthSundayUtc(y, 9, 1);
+        var end = _nthSundayUtc(y, 3, 1);
+        return nowMs >= start || nowMs < end;
+    }
+    function buildIanaOffsetMap(nowMs) {
+        var nDst = _inNorthernDst(nowMs);
+        var aDst = _inAuDst(nowMs);
+        return {
+            "Asia/Kolkata": 330, "Asia/Calcutta": 330, "Asia/Karachi": 300, "Asia/Dhaka": 360,
+            "Asia/Kathmandu": 345, "Asia/Colombo": 330, "Asia/Tokyo": 540, "Asia/Seoul": 540,
+            "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Hong_Kong": 480, "Asia/Dubai": 240,
+            "Asia/Jakarta": 420, "Asia/Bangkok": 420, "Asia/Manila": 480, "Asia/Tehran": 210,
+            // UK / Ireland (T1)
+            "Europe/London": nDst ? 60 : 0, "Europe/Dublin": nDst ? 60 : 0,
+            "Europe/Berlin": nDst ? 120 : 60, "Europe/Paris": nDst ? 120 : 60,
+            "Europe/Madrid": nDst ? 120 : 60, "Europe/Rome": nDst ? 120 : 60,
+            "Europe/Amsterdam": nDst ? 120 : 60, "Europe/Stockholm": nDst ? 120 : 60,
+            "Europe/Oslo": nDst ? 120 : 60, "Europe/Copenhagen": nDst ? 120 : 60,
+            "Europe/Helsinki": nDst ? 180 : 120, "Europe/Zurich": nDst ? 120 : 60,
+            "Europe/Vienna": nDst ? 120 : 60, "Europe/Brussels": nDst ? 120 : 60,
+            "Europe/Moscow": 180, "Europe/Istanbul": 180,
+            // USA / Canada (T1) — DST-aware
+            "America/New_York": nDst ? -240 : -300, "America/Toronto": nDst ? -240 : -300,
+            "America/Chicago": nDst ? -300 : -360, "America/Denver": nDst ? -360 : -420,
+            "America/Los_Angeles": nDst ? -420 : -480, "America/Phoenix": -420,
+            "America/Vancouver": nDst ? -420 : -480, "America/Edmonton": nDst ? -360 : -420,
+            "America/Winnipeg": nDst ? -300 : -360, "America/Halifax": nDst ? -180 : -240,
+            "America/Sao_Paulo": -180, "America/Mexico_City": nDst ? -300 : -360,
+            // Australia / NZ (T1) — southern DST (Brisbane/Perth no DST)
+            "Australia/Sydney": aDst ? 660 : 600, "Australia/Melbourne": aDst ? 660 : 600,
+            "Australia/Hobart": aDst ? 660 : 600, "Australia/Adelaide": aDst ? 630 : 570,
+            "Australia/Brisbane": 600, "Australia/Perth": 480,
+            "Pacific/Auckland": aDst ? 780 : 720,
+            "Africa/Cairo": 120, "Africa/Johannesburg": 120, "Africa/Lagos": 60,
+            // Windows TZ IDs (editor / some Unity builds write these to account.timezone)
+            "Eastern Standard Time": nDst ? -240 : -300,
+            "Central Standard Time": nDst ? -300 : -360,
+            "Mountain Standard Time": nDst ? -360 : -420,
+            "Pacific Standard Time": nDst ? -420 : -480,
+            "GMT Standard Time": nDst ? 60 : 0,
+            "India Standard Time": 330,
+            "AUS Eastern Standard Time": aDst ? 660 : 600,
+            "Tokyo Standard Time": 540,
+            "Korea Standard Time": 540,
+            "China Standard Time": 480,
+            "Singapore Standard Time": 480
+        };
+    }
+    /** Country → default IANA offset when client sent Local/empty/Unknown. US→ET. */
+    function offsetMinutesForCountry(cc, nowMs) {
+        if (!cc)
+            return NOTIF_DEFAULT_TZ_OFFSET_MIN;
+        var nDst = _inNorthernDst(nowMs);
+        var aDst = _inAuDst(nowMs);
+        var map = {
+            // Americas — US majority population is Eastern; West Coast still gets
+            // 06–10 local (usable) instead of 02–06 UTC night under the old default.
+            "US": nDst ? -240 : -300, "CA": nDst ? -240 : -300, "MX": nDst ? -300 : -360,
+            "BR": -180,
+            // Europe / UK
+            "GB": nDst ? 60 : 0, "IE": nDst ? 60 : 0, "DE": nDst ? 120 : 60, "FR": nDst ? 120 : 60,
+            "NL": nDst ? 120 : 60, "BE": nDst ? 120 : 60, "AT": nDst ? 120 : 60, "CH": nDst ? 120 : 60,
+            "SE": nDst ? 120 : 60, "NO": nDst ? 120 : 60, "DK": nDst ? 120 : 60, "FI": nDst ? 180 : 120,
+            "ES": nDst ? 120 : 60, "IT": nDst ? 120 : 60, "PT": nDst ? 60 : 0,
+            // APAC
+            "AU": aDst ? 660 : 600, "NZ": aDst ? 780 : 720, "JP": 540, "KR": 540,
+            "SG": 480, "HK": 480, "TW": 480, "CN": 480, "IN": 330, "ID": 420, "TH": 420,
+            "PH": 480, "MY": 480, "AE": 240, "IL": nDst ? 180 : 120,
+            "ZA": 120, "NG": 60, "EG": 120, "PK": 300, "BD": 360, "LK": 330, "NP": 345
+        };
+        var key = String(cc).toUpperCase();
+        return map[key] !== undefined ? map[key] : NOTIF_DEFAULT_TZ_OFFSET_MIN;
+    }
+    function resolveCountryCodeForTz(nk, userId, account) {
+        try {
+            var geoCc = GeoTier.getCountryForPushAnalytics(nk, userId);
+            if (geoCc)
+                return String(geoCc).toUpperCase();
+        }
+        catch (_) { }
+        try {
+            var acc = account || nk.accountGetId(userId);
+            if (acc && acc.user) {
+                var meta = {};
+                try {
+                    if (acc.user.metadata) {
+                        meta = typeof acc.user.metadata === "string"
+                            ? JSON.parse(acc.user.metadata) : acc.user.metadata;
+                    }
+                }
+                catch (_) {
+                    meta = {};
+                }
+                if (meta && typeof meta.country === "string" && meta.country.length === 2) {
+                    return String(meta.country).toUpperCase();
+                }
+                var loc = acc.user.location ? String(acc.user.location).trim().toUpperCase() : "";
+                if (/^[A-Z]{2}$/.test(loc))
+                    return loc;
+            }
+        }
+        catch (_) { }
+        return "";
+    }
     function getUserTimezoneOffsetMinutes(nk, userId) {
+        var nowMs = Date.now();
         try {
             var account = nk.accountGetId(userId);
             var tz = account && account.user ? account.user.timezone : "";
@@ -38488,9 +39865,11 @@ var LegacyPush;
             var tzLower = String(tz || "").trim().toLowerCase();
             if (tzLower === "z" || tzLower === "utc" || tzLower === "gmt")
                 return 0;
-            // Unparseable sentinels the client is known to emit → use default.
+            // Unparseable sentinels → country-aware default (US→ET, IN→IST, …).
+            // Old UTC-only fallback put US users in a 02–09 AM local night window.
             if (!tz || tzLower === "local" || tzLower === "unknown") {
-                return NOTIF_DEFAULT_TZ_OFFSET_MIN;
+                var ccBad = resolveCountryCodeForTz(nk, userId, account);
+                return offsetMinutesForCountry(ccBad, nowMs);
             }
             // Numeric offset, the canonical correct form the client should send:
             //   "+05:30", "-04:00", "+0530", "+9".
@@ -38499,21 +39878,13 @@ var LegacyPush;
                 var sign = m[1] === "-" ? -1 : 1;
                 return sign * (parseInt(m[2], 10) * 60 + parseInt(m[3] || "0", 10));
             }
-            // Common IANA fallbacks (cheap built-in lookup; no tz lib in Goja)
-            var iana = {
-                "Asia/Kolkata": 330, "Asia/Calcutta": 330, "Asia/Karachi": 300, "Asia/Dhaka": 360,
-                "Asia/Kathmandu": 345, "Asia/Colombo": 330, "Asia/Tokyo": 540, "Asia/Seoul": 540,
-                "Asia/Shanghai": 480, "Asia/Singapore": 480, "Asia/Hong_Kong": 480, "Asia/Dubai": 240,
-                "Asia/Jakarta": 420, "Asia/Bangkok": 420, "Asia/Manila": 480, "Asia/Tehran": 210,
-                "Europe/London": 0, "Europe/Dublin": 0, "Europe/Berlin": 60, "Europe/Paris": 60,
-                "Europe/Madrid": 60, "Europe/Rome": 60, "Europe/Moscow": 180, "Europe/Istanbul": 180,
-                "America/New_York": -300, "America/Toronto": -300, "America/Chicago": -360,
-                "America/Denver": -420, "America/Los_Angeles": -480, "America/Sao_Paulo": -180,
-                "America/Mexico_City": -360, "Africa/Cairo": 120, "Africa/Johannesburg": 120,
-                "Africa/Lagos": 60, "Australia/Sydney": 600, "Pacific/Auckland": 720
-            };
+            var iana = buildIanaOffsetMap(nowMs);
             if (iana[String(tz)] !== undefined)
                 return iana[String(tz)];
+            // Unknown IANA/Windows string → still try country before UTC.
+            var ccUnk = resolveCountryCodeForTz(nk, userId, account);
+            if (ccUnk)
+                return offsetMinutesForCountry(ccUnk, nowMs);
         }
         catch (_) { }
         return NOTIF_DEFAULT_TZ_OFFSET_MIN;
@@ -38521,6 +39892,35 @@ var LegacyPush;
     function getUserLocalHour(nk, userId) {
         var offsetMin = getUserTimezoneOffsetMinutes(nk, userId);
         return new Date(Date.now() + offsetMin * 60000).getUTCHours();
+    }
+    function bumpGeoStats(byCountry, byTier, nk, userId, didSend) {
+        var cc = "";
+        try {
+            cc = GeoTier.getCountryForPushAnalytics(nk, userId) || "";
+        }
+        catch (_) {
+            cc = "";
+        }
+        var tier = "unknown";
+        try {
+            tier = GeoTier.classifyCountryTier(cc);
+        }
+        catch (_) {
+            tier = "unknown";
+        }
+        var key = cc || "ZZ";
+        if (!byCountry[key])
+            byCountry[key] = { sent: 0, gated: 0 };
+        if (!byTier[tier])
+            byTier[tier] = { sent: 0, gated: 0 };
+        if (didSend) {
+            byCountry[key].sent++;
+            byTier[tier].sent++;
+        }
+        else {
+            byCountry[key].gated++;
+            byTier[tier].gated++;
+        }
     }
     function isInQuietHours(nk, userId) {
         var h = getUserLocalHour(nk, userId);
@@ -38885,15 +40285,23 @@ var LegacyPush;
     function readDailyQuizCursor(nk, todayKey) {
         var fresh = {
             dateKey: todayKey, offset: 0, scanned: 0, sent: 0, gated: 0,
-            byLocale: {}, gateReasons: { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 },
+            byLocale: {}, byCountry: {}, byTier: {},
+            gateReasons: { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 },
             dedupedDevices: 0, reported: false
         };
         try {
             var objs = nk.storageRead([{ collection: DQ_CURSOR_COLLECTION, key: DQ_CURSOR_KEY, userId: Constants.SYSTEM_USER_ID }]);
             if (objs && objs.length > 0 && objs[0].value) {
                 var v = objs[0].value;
-                if (v.dateKey === todayKey)
+                if (v.dateKey === todayKey) {
+                    if (!v.byCountry)
+                        v.byCountry = {};
+                    if (!v.byTier)
+                        v.byTier = {};
+                    if (!v.byLocale)
+                        v.byLocale = {};
                     return v;
+                }
             }
         }
         catch (_) { /* fall through to fresh */ }
@@ -38938,6 +40346,8 @@ var LegacyPush;
         }
         var cursor = readDailyQuizCursor(nk, todayKey);
         var byLocale = cursor.byLocale;
+        var byCountry = cursor.byCountry || {};
+        var byTier = cursor.byTier || {};
         var gateReasons = cursor.gateReasons;
         var sent = 0, gated = 0, scanned = 0;
         // One shared set per run: devices (endpoint ARNs) already pushed. Catches
@@ -38970,12 +40380,14 @@ var LegacyPush;
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 if (hasMarker(nk, u, "daily_quiz", todayKey)) {
                     gated++;
                     gateReasons.alreadySent++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 var topic = pickQuizTopic(quiz, locale);
@@ -38984,10 +40396,12 @@ var LegacyPush;
                     recordMarker(nk, u, "daily_quiz", todayKey);
                     sent++;
                     byLocale[locale].sent++;
+                    bumpGeoStats(byCountry, byTier, nk, u, true);
                 }
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     // Distinguish no-token from send-failure cheaply using the exported helper
                     // (reads the same storage key sendLocalizedPushToUser already read).
                     if (!LegacyPush.userHasPushTokens(nk, u)) {
@@ -39012,6 +40426,8 @@ var LegacyPush;
         cursor.sent += sent;
         cursor.gated += gated;
         cursor.byLocale = byLocale;
+        cursor.byCountry = byCountry;
+        cursor.byTier = byTier;
         cursor.gateReasons = gateReasons;
         cursor.dedupedDevices += runDedupStats.skippedDevices;
         cursor.offset = completedPass ? 0 : offset;
@@ -39021,7 +40437,8 @@ var LegacyPush;
             PushAlerts.postCronReport(nk, logger, {
                 cronName: "daily_quiz", dateKey: todayKey, topic: reportTopic,
                 scanned: cursor.scanned, sent: cursor.sent, gated: cursor.gated,
-                byLocale: cursor.byLocale, gateReasons: cursor.gateReasons,
+                byLocale: cursor.byLocale, byCountry: cursor.byCountry, byTier: cursor.byTier,
+                gateReasons: cursor.gateReasons,
                 dedupedDevices: cursor.dedupedDevices
             });
             cursor.reported = true;
@@ -39080,6 +40497,8 @@ var LegacyPush;
         var todayKey = todayDateKey();
         var sent = 0, gated = 0, scanned = 0;
         var byLocale = {};
+        var byCountry = {};
+        var byTier = {};
         var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var quizMissedAll = false;
         // Per-run memo of the premium quiz per base language. The old code called
@@ -39120,12 +40539,14 @@ var LegacyPush;
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 if (hasMarker(nk, u, "daily_premium_quiz", todayKey)) {
                     gated++;
                     gateReasons.alreadySent++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 var quiz = premiumQuizForLocale(locale);
@@ -39133,6 +40554,7 @@ var LegacyPush;
                     gated++;
                     byLocale[locale].gated++;
                     quizMissedAll = true;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 var topic = pickQuizTopic(quiz, locale);
@@ -39141,10 +40563,12 @@ var LegacyPush;
                     recordMarker(nk, u, "daily_premium_quiz", todayKey);
                     sent++;
                     byLocale[locale].sent++;
+                    bumpGeoStats(byCountry, byTier, nk, u, true);
                 }
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     if (!LegacyPush.userHasPushTokens(nk, u)) {
                         gateReasons.noToken++;
                     }
@@ -39192,7 +40616,8 @@ var LegacyPush;
                 cronName: "premium_daily_quiz", dateKey: todayKey, topic: reportTopic,
                 scanned: scanned, sent: sent, gated: gated,
                 noQuiz: isNoQuiz,
-                byLocale: byLocale, gateReasons: gateReasons,
+                byLocale: byLocale, byCountry: byCountry, byTier: byTier,
+                gateReasons: gateReasons,
                 dedupedDevices: runDedupStats.skippedDevices
             });
         }
@@ -39344,6 +40769,8 @@ var LegacyPush;
         var todayKey = todayDateKey();
         var sent = 0, gated = 0, scanned = 0;
         var byLocale = {};
+        var byCountry = {};
+        var byTier = {};
         var gateReasons = { quietHours: 0, alreadySent: 0, noToken: 0, sendFailed: 0 };
         var batch = 100, offset = 0;
         // Cross-account device dedup within this run (same phone under multiple accounts).
@@ -39369,12 +40796,14 @@ var LegacyPush;
                     gated++;
                     gateReasons.quietHours++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 } // weekly window 10:00–20:00 local
                 if (hasMarker(nk, u, dayMarkerKey, todayKey)) {
                     gated++;
                     gateReasons.alreadySent++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     continue;
                 }
                 // Push one notification mentioning whichever changed type has copy in user's locale (first match).
@@ -39394,10 +40823,12 @@ var LegacyPush;
                     recordMarker(nk, u, dayMarkerKey, todayKey);
                     sent++;
                     byLocale[locale].sent++;
+                    bumpGeoStats(byCountry, byTier, nk, u, true);
                 }
                 else {
                     gated++;
                     byLocale[locale].gated++;
+                    bumpGeoStats(byCountry, byTier, nk, u, false);
                     if (!LegacyPush.userHasPushTokens(nk, u)) {
                         gateReasons.noToken++;
                     }
@@ -39415,7 +40846,9 @@ var LegacyPush;
         // (it runs hourly; a no-change report every hour would be noise).
         PushAlerts.postCronReport(nk, logger, {
             cronName: "weekly_quiz", dateKey: todayKey, topic: changedTypes.join(", "),
-            scanned: scanned, sent: sent, gated: gated, byLocale: byLocale, gateReasons: gateReasons,
+            scanned: scanned, sent: sent, gated: gated,
+            byLocale: byLocale, byCountry: byCountry, byTier: byTier,
+            gateReasons: gateReasons,
             dedupedDevices: runDedupStats.skippedDevices
         });
         return RpcHelpers.successResponse({ sent: sent, gated: gated, scanned: scanned, changedTypes: changedTypes, dedupedDevices: runDedupStats.skippedDevices });
@@ -55622,6 +57055,441 @@ var Research;
     }
     Research.register = register;
 })(Research || (Research = {}));
+/**
+ * RouterWallet — app-id credit wallets for Intelliverse Router.
+ *
+ * Replicates the QuizVerse coins pattern (storage-object wallets) but keyed
+ * by APP ID instead of user id: collection "router_wallets", key
+ * `wallet_{appId}`, owned by the SYSTEM user since apps are not Nakama users.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/router_wallet/ and call RouterWallet.register(initializer)
+ * from main.ts InitModule. Self-contained on purpose — no references to the
+ * kernel's shared namespaces (Storage/RpcHelpers/Constants).
+ *
+ * All RPCs are SERVER-TO-SERVER ONLY (http_key auth): any call with a
+ * ctx.userId is rejected.
+ *
+ * Concurrency: optimistic concurrency control via the storage object version
+ * — every write passes the version read ("*" for create) and retries up to
+ * 3 times on conflict.
+ */
+var RouterWallet;
+(function (RouterWallet) {
+    RouterWallet.SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    RouterWallet.WALLETS_COLLECTION = "router_wallets";
+    RouterWallet.LEDGER_COLLECTION = "router_wallet_ledger";
+    // Ref index for credit idempotency: one object per (appId, ref), created
+    // conditionally ("*") so replays and races can never double-credit.
+    RouterWallet.CREDIT_REFS_COLLECTION = "router_wallet_credit_refs";
+    RouterWallet.MAX_OCC_RETRIES = 3;
+    RouterWallet.CREDIT_KINDS = [
+        // Unified currency (docs/business/credit-system.md): every SKU — LLM,
+        // image, video, voice, music, 3D — is priced in iv_credits.
+        "iv_credits",
+        // Legacy per-kind currencies: still valid during the migration window;
+        // frozen and removed after the one-time balance conversion (§9).
+        "img_credits",
+        "vid_credits",
+        "voice_credits",
+        "audio_credits",
+        "book_credits",
+        "gen3d_credits"
+    ];
+    // ---- helpers ----
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message) {
+        return JSON.stringify({ success: false, error: message });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return {};
+        return JSON.parse(payload);
+    }
+    /** All router_wallet RPCs are server-to-server only (http_key auth). */
+    function requireServerToServer(ctx) {
+        if (ctx.userId) {
+            throw new Error("router_wallet RPCs are server-to-server only");
+        }
+    }
+    function validateKind(kind) {
+        if (RouterWallet.CREDIT_KINDS.indexOf(kind) === -1) {
+            throw new Error("Unknown credit kind: " + kind + " (expected one of " + RouterWallet.CREDIT_KINDS.join(", ") + ")");
+        }
+    }
+    function validateAmount(amount, allowZero) {
+        var n = Number(amount);
+        if (!isFinite(n) || n < 0 || (!allowZero && n === 0)) {
+            throw new Error("amount must be a " + (allowZero ? "non-negative" : "positive") + " number");
+        }
+        return n;
+    }
+    function emptyWallet(appId, workspaceId) {
+        var currencies = {};
+        for (var i = 0; i < RouterWallet.CREDIT_KINDS.length; i++)
+            currencies[RouterWallet.CREDIT_KINDS[i]] = 0;
+        return { appId: appId, workspaceId: workspaceId || "", currencies: currencies, holds: {}, version: 0 };
+    }
+    function heldAmount(wallet, kind) {
+        var total = 0;
+        for (var holdId in wallet.holds) {
+            var hold = wallet.holds[holdId];
+            if (hold && hold.kind === kind)
+                total += hold.amount;
+        }
+        return total;
+    }
+    function availableBalance(wallet, kind) {
+        return (wallet.currencies[kind] || 0) - heldAmount(wallet, kind);
+    }
+    RouterWallet.availableBalance = availableBalance;
+    function walletKey(appId) {
+        return "wallet_" + appId;
+    }
+    function readWallet(nk, appId) {
+        var records = nk.storageRead([{ collection: RouterWallet.WALLETS_COLLECTION, key: walletKey(appId), userId: RouterWallet.SYSTEM_USER_ID }]);
+        if (records && records.length > 0 && records[0].value) {
+            return { wallet: records[0].value, storageVersion: records[0].version };
+        }
+        return { wallet: null, storageVersion: "*" }; // "*" = conditional create (must not exist)
+    }
+    function writeWallet(nk, wallet, storageVersion) {
+        wallet.version = (wallet.version || 0) + 1;
+        nk.storageWrite([{
+                collection: RouterWallet.WALLETS_COLLECTION,
+                key: walletKey(wallet.appId),
+                userId: RouterWallet.SYSTEM_USER_ID,
+                value: wallet,
+                version: storageVersion,
+                permissionRead: 0,
+                permissionWrite: 0
+            }]);
+    }
+    /**
+     * Read-mutate-write with OCC. The mutator runs against a fresh read on each
+     * attempt; business errors thrown by the mutator abort immediately (no
+     * retry), while storage version conflicts retry up to MAX_OCC_RETRIES.
+     */
+    function mutateWallet(nk, appId, createIfMissing, workspaceId, mutator) {
+        var lastError = null;
+        for (var attempt = 0; attempt < RouterWallet.MAX_OCC_RETRIES; attempt++) {
+            var read = readWallet(nk, appId);
+            var wallet = read.wallet;
+            if (!wallet) {
+                if (!createIfMissing)
+                    throw new Error("Wallet not found for app " + appId);
+                wallet = emptyWallet(appId, workspaceId);
+            }
+            mutator(wallet); // business validation happens here — throws are fatal
+            try {
+                writeWallet(nk, wallet, read.storageVersion);
+                return wallet;
+            }
+            catch (e) {
+                lastError = e; // version conflict — re-read and retry
+            }
+        }
+        throw new Error("Wallet write conflict after " + RouterWallet.MAX_OCC_RETRIES + " retries: " + (lastError && lastError.message ? lastError.message : String(lastError)));
+    }
+    function creditRefKey(appId, ref) {
+        return "ref_" + appId + "_" + ref;
+    }
+    /**
+     * Claim a credit ref via conditional create ("*"). Returns true when this
+     * call owns the ref; false when a credit with the same (appId, ref) already
+     * went through (replayed webhook, retried grant job, double-fired cron).
+     */
+    function claimCreditRef(nk, appId, ref, meta) {
+        try {
+            nk.storageWrite([{
+                    collection: RouterWallet.CREDIT_REFS_COLLECTION,
+                    key: creditRefKey(appId, ref),
+                    userId: RouterWallet.SYSTEM_USER_ID,
+                    value: meta,
+                    version: "*",
+                    permissionRead: 0,
+                    permissionWrite: 0
+                }]);
+            return true;
+        }
+        catch (e) {
+            return false; // conditional create failed: ref already claimed
+        }
+    }
+    function releaseCreditRef(nk, appId, ref) {
+        try {
+            nk.storageDelete([{ collection: RouterWallet.CREDIT_REFS_COLLECTION, key: creditRefKey(appId, ref), userId: RouterWallet.SYSTEM_USER_ID }]);
+        }
+        catch (e) {
+            // best-effort rollback; a stuck marker only blocks re-crediting this ref
+        }
+    }
+    function ledgerKey(appId) {
+        var random = Math.floor(Math.random() * 0xffffff).toString(16);
+        return "txn_" + appId + "_" + Date.now() + "_" + random;
+    }
+    function writeLedger(nk, entry) {
+        var key = ledgerKey(entry.appId);
+        nk.storageWrite([{
+                collection: RouterWallet.LEDGER_COLLECTION,
+                key: key,
+                userId: RouterWallet.SYSTEM_USER_ID,
+                value: entry,
+                permissionRead: 0,
+                permissionWrite: 0
+            }]);
+        return key;
+    }
+    function walletView(wallet) {
+        var available = {};
+        for (var i = 0; i < RouterWallet.CREDIT_KINDS.length; i++) {
+            available[RouterWallet.CREDIT_KINDS[i]] = availableBalance(wallet, RouterWallet.CREDIT_KINDS[i]);
+        }
+        return {
+            appId: wallet.appId,
+            workspaceId: wallet.workspaceId,
+            currencies: wallet.currencies,
+            holds: wallet.holds,
+            available: available,
+            version: wallet.version
+        };
+    }
+    // ---- RPC handlers ----
+    function rpcGet(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            var read = readWallet(nk, data.appId);
+            var wallet = read.wallet || emptyWallet(data.appId, "");
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_get failed");
+        }
+    }
+    RouterWallet.rpcGet = rpcGet;
+    function rpcCredit(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.reason)
+                return err("reason required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            // Ref-based idempotency (launch blocker fix): a ref (Stripe invoice id,
+            // trickle_<user>_<date>, ...) credits at most once per app. The ref is
+            // claimed BEFORE the wallet mutation so a concurrent replay loses the
+            // conditional create and returns the already-applied wallet instead.
+            var ref = data.ref || null;
+            if (ref) {
+                var claimed = claimCreditRef(nk, data.appId, ref, {
+                    appId: data.appId,
+                    kind: data.kind,
+                    amount: amount,
+                    reason: data.reason,
+                    createdAt: new Date().toISOString()
+                });
+                if (!claimed) {
+                    var existing = readWallet(nk, data.appId);
+                    var view = walletView(existing.wallet || emptyWallet(data.appId, data.workspaceId || ""));
+                    return ok({ appId: view.appId, workspaceId: view.workspaceId, currencies: view.currencies, holds: view.holds, available: view.available, version: view.version, deduped: true });
+                }
+            }
+            var wallet;
+            try {
+                wallet = mutateWallet(nk, data.appId, true, data.workspaceId || "", function (w) {
+                    if (data.workspaceId && !w.workspaceId)
+                        w.workspaceId = data.workspaceId;
+                    w.currencies[data.kind] = (w.currencies[data.kind] || 0) + amount;
+                });
+            }
+            catch (mutateError) {
+                // Credit never applied — release the ref so a retry can succeed.
+                if (ref)
+                    releaseCreditRef(nk, data.appId, ref);
+                throw mutateError;
+            }
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: data.kind,
+                delta: amount,
+                balanceAfter: wallet.currencies[data.kind],
+                reason: data.reason,
+                ref: ref,
+                createdAt: new Date().toISOString()
+            });
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_credit failed");
+        }
+    }
+    RouterWallet.rpcCredit = rpcCredit;
+    function rpcDebit(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.reason)
+                return err("reason required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var available = availableBalance(w, data.kind);
+                if (available < amount) {
+                    throw new Error("Insufficient " + data.kind + ": available " + available + ", need " + amount);
+                }
+                w.currencies[data.kind] = (w.currencies[data.kind] || 0) - amount;
+            });
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: data.kind,
+                delta: -amount,
+                balanceAfter: wallet.currencies[data.kind],
+                reason: data.reason,
+                ref: data.ref || null,
+                createdAt: new Date().toISOString()
+            });
+            return ok(walletView(wallet));
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_debit failed");
+        }
+    }
+    RouterWallet.rpcDebit = rpcDebit;
+    function rpcHold(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.ref)
+                return err("ref required");
+            validateKind(data.kind);
+            var amount = validateAmount(data.amount);
+            var holdId = nk.uuidv4();
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var available = availableBalance(w, data.kind);
+                if (available < amount) {
+                    throw new Error("Insufficient " + data.kind + " for hold: available " + available + ", need " + amount);
+                }
+                w.holds[holdId] = { kind: data.kind, amount: amount, createdAt: new Date().toISOString() };
+            });
+            return ok({ holdId: holdId, wallet: walletView(wallet) });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_hold failed");
+        }
+    }
+    RouterWallet.rpcHold = rpcHold;
+    function rpcSettle(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.holdId)
+                return err("holdId required");
+            var actualAmount = validateAmount(data.actualAmount, true); // 0 = full release
+            var settledKind = "";
+            var heldAmt = 0;
+            var wallet = mutateWallet(nk, data.appId, false, "", function (w) {
+                var hold = w.holds[data.holdId];
+                if (!hold)
+                    throw new Error("Hold not found: " + data.holdId);
+                if (actualAmount > hold.amount) {
+                    throw new Error("actualAmount " + actualAmount + " exceeds held amount " + hold.amount);
+                }
+                settledKind = hold.kind;
+                heldAmt = hold.amount;
+                delete w.holds[data.holdId];
+                w.currencies[hold.kind] = (w.currencies[hold.kind] || 0) - actualAmount;
+            });
+            writeLedger(nk, {
+                appId: data.appId,
+                kind: settledKind,
+                delta: -actualAmount,
+                balanceAfter: wallet.currencies[settledKind],
+                reason: actualAmount === 0 ? "hold_released" : "hold_settled",
+                ref: data.ref || null,
+                holdId: data.holdId,
+                createdAt: new Date().toISOString()
+            });
+            return ok({
+                holdId: data.holdId,
+                kind: settledKind,
+                heldAmount: heldAmt,
+                settledAmount: actualAmount,
+                released: heldAmt - actualAmount,
+                wallet: walletView(wallet)
+            });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_settle failed");
+        }
+    }
+    RouterWallet.rpcSettle = rpcSettle;
+    function rpcHistory(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            var limit = data.limit ? Math.min(Number(data.limit), 200) : 50;
+            var prefix = "txn_" + data.appId + "_";
+            var entries = [];
+            var cursor = data.cursor || "";
+            // Ledger keys embed the appId; the collection is shared across apps, so
+            // filter by key prefix while paging (same pattern as the kernel's
+            // legacy wallet registry listing).
+            do {
+                var result = nk.storageList(RouterWallet.SYSTEM_USER_ID, RouterWallet.LEDGER_COLLECTION, limit, cursor);
+                var objects = (result && result.objects) || [];
+                for (var i = 0; i < objects.length; i++) {
+                    var obj = objects[i];
+                    if (obj.key && obj.key.indexOf(prefix) === 0 && obj.value) {
+                        entries.push({ key: obj.key, entry: obj.value });
+                        if (entries.length >= limit)
+                            break;
+                    }
+                }
+                cursor = (result && result.cursor) || "";
+            } while (cursor && entries.length < limit);
+            entries.sort(function (a, b) {
+                var ta = (a.entry && a.entry.createdAt) || "";
+                var tb = (b.entry && b.entry.createdAt) || "";
+                return ta < tb ? 1 : ta > tb ? -1 : 0;
+            });
+            return ok({ appId: data.appId, entries: entries, cursor: cursor || null });
+        }
+        catch (e) {
+            return err(e.message || "router_wallet_history failed");
+        }
+    }
+    RouterWallet.rpcHistory = rpcHistory;
+    function register(initializer) {
+        initializer.registerRpc("router_wallet_get", rpcGet);
+        initializer.registerRpc("router_wallet_credit", rpcCredit);
+        initializer.registerRpc("router_wallet_debit", rpcDebit);
+        initializer.registerRpc("router_wallet_hold", rpcHold);
+        initializer.registerRpc("router_wallet_settle", rpcSettle);
+        initializer.registerRpc("router_wallet_history", rpcHistory);
+    }
+    RouterWallet.register = register;
+})(RouterWallet || (RouterWallet = {}));
+// Expose the namespace for the standalone vitest harness. Inside Nakama's
+// Goja runtime this is a harmless no-op guard (namespaces are already global
+// in the kernel's outFile bundle).
+if (typeof globalThis !== "undefined") {
+    globalThis.RouterWallet = RouterWallet;
+}
 // =============================================================================
 // AnalyticsAlerts — Hardened RPC analytics + Discord summaries for Nakama
 // =============================================================================
@@ -66460,6 +68328,63 @@ var GeoTier;
         return "";
     }
     GeoTier.getUserCountry = getUserCountry;
+    /** True when ISO alpha-2 is a Tier-1 (premium) market per T1_COUNTRIES. */
+    function isT1Country(countryCode) {
+        if (!countryCode)
+            return false;
+        return !!T1_COUNTRIES[String(countryCode).toUpperCase()];
+    }
+    GeoTier.isT1Country = isT1Country;
+    /**
+     * Map ISO alpha-2 → t1|t2|t3. Unknown / empty → "unknown" (not silently t3)
+     * so push soft-T1 reports can separate "no geo" from emerging markets.
+     */
+    function classifyCountryTier(countryCode) {
+        if (!countryCode)
+            return "unknown";
+        var cc = String(countryCode).toUpperCase();
+        if (T1_COUNTRIES[cc])
+            return TIER_T1;
+        if (T2_COUNTRIES[cc])
+            return TIER_T2;
+        return TIER_T3;
+    }
+    GeoTier.classifyCountryTier = classifyCountryTier;
+    /**
+     * Cache-first country for push analytics / soft T1 reporting.
+     * Never HTTP. Order: geo_tier cache → users.metadata.country →
+     * account.user.location (2-letter). Returns "" if unresolved.
+     */
+    function getCountryForPushAnalytics(nk, userId) {
+        var cached = getUserCountry(nk, userId);
+        if (cached)
+            return cached;
+        try {
+            var account = nk.accountGetId(userId);
+            if (account && account.user) {
+                var meta = {};
+                try {
+                    if (account.user.metadata) {
+                        meta = typeof account.user.metadata === "string"
+                            ? JSON.parse(account.user.metadata)
+                            : account.user.metadata;
+                    }
+                }
+                catch (_) {
+                    meta = {};
+                }
+                if (meta && typeof meta.country === "string" && meta.country.length === 2) {
+                    return String(meta.country).toUpperCase();
+                }
+                var loc = account.user.location ? String(account.user.location).trim().toUpperCase() : "";
+                if (/^[A-Z]{2}$/.test(loc))
+                    return loc;
+            }
+        }
+        catch (_) { }
+        return "";
+    }
+    GeoTier.getCountryForPushAnalytics = getCountryForPushAnalytics;
     /**
      * Resolve + cache the user's country in one call (cache-first, then
      * IP-API fallback). Returns the resolved alpha-2 code, or "" when even
@@ -66708,6 +68633,18 @@ var SharedRateLimit;
         return { allowed: true };
     }
     SharedRateLimit.check = check;
+    /**
+     * Check an arbitrary per-user sliding window using the same distributed
+     * storage buckets as the standard second/minute limits. Realtime hooks use
+     * this when their product contract is not a one-second or one-minute window.
+     */
+    function checkUserWindow(ctx, nk, operationName, windowSec, limit) {
+        var userId = ctx.userId || "";
+        if (!userId || windowSec < 1 || limit < 1)
+            return { allowed: true };
+        return countAndIncrement(nk, userId, KEY_PREFIX_USER + operationName + "_w" + windowSec, windowSec, limit);
+    }
+    SharedRateLimit.checkUserWindow = checkUserWindow;
     // Convenience wrapper: short-circuits a handler with a 429 response if the
     // caller is over limit. Usage:
     //   function rpcEnter(ctx, logger, nk, payload) {
@@ -69232,15 +71169,42 @@ var SocialGroupLinks;
 //
 // Pagination: numeric offset cursor (opaque string to clients — doc §19.5:
 // clients must never parse cursors).
+//
+// gameId resolution (2026-07-11):
+//   QuizVerse historically stored BOTH the slug "quizverse" and the canonical
+//   UUID "126bf539-dae2-4bcf-964d-316c0fa1f92b" in metadata.gameId. Matching
+//   only one of them silently dropped the other half of browse/search results.
+//   resolveGameIdAliases() expands slug → [uuid, slug] (and UUID → same pair)
+//   so a single QuizVerse discover call covers both write paths. Legacy rows
+//   with empty/missing gameId are excluded (they are not safely attributable).
 var SocialGroupSearch;
 (function (SocialGroupSearch) {
     var MAX_LIMIT = 50;
     var MAX_QUERY = 64;
+    var QUIZVERSE_UUID = "126bf539-dae2-4bcf-964d-316c0fa1f92b";
+    /**
+     * Expand a caller-supplied gameId into every string that may appear in
+     * groups.metadata.gameId for that product. Unknown ids pass through as-is.
+     */
+    function resolveGameIdAliases(raw) {
+        var id = (raw || "").trim();
+        if (!id)
+            id = QUIZVERSE_UUID;
+        var lower = id.toLowerCase();
+        if (id === QUIZVERSE_UUID || lower === "quizverse" || lower === "quiz-verse") {
+            return [QUIZVERSE_UUID, "quizverse", "QuizVerse", "quiz-verse"];
+        }
+        return [id];
+    }
     function rpcGroupSearch(ctx, logger, nk, payload) {
         try {
             RpcHelpers.requireUserId(ctx);
             var data = RpcHelpers.parseRpcPayload(payload) || {};
-            var gameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : "quizverse";
+            // Default to the canonical QuizVerse UUID (matches IntelliVerseXConfig /
+            // Unity GameConfig). resolveGameIdAliases still expands slug variants.
+            var rawGameId = (typeof data.gameId === "string" && data.gameId) ? data.gameId : QUIZVERSE_UUID;
+            var gameIdAliases = resolveGameIdAliases(rawGameId);
+            var primaryGameId = gameIdAliases[0];
             var limit = (typeof data.limit === "number" && data.limit > 0) ? Math.min(Math.floor(data.limit), MAX_LIMIT) : 20;
             var offset = 0;
             if (typeof data.cursor === "string" && data.cursor) {
@@ -69257,24 +71221,41 @@ var SocialGroupSearch;
             var openOnly = data.openOnly !== false;
             var rows = [];
             try {
+                // Build IN-list placeholders ($1..$N) for every accepted gameId alias.
+                var inParams = [];
+                var inPlaceholders = [];
+                for (var ai = 0; ai < gameIdAliases.length; ai++) {
+                    inParams.push(gameIdAliases[ai]);
+                    inPlaceholders.push("$" + (ai + 1));
+                }
+                var inClause = inPlaceholders.join(", ");
+                var openParamIdx = inParams.length + 1;
+                var nextIdx = openParamIdx + 1;
                 if (query) {
                     // Escape ILIKE wildcards in user input, then wrap in %...%.
                     var escaped = query.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+                    var queryParamIdx = nextIdx;
+                    var limitParamIdx = nextIdx + 1;
+                    var offsetParamIdx = nextIdx + 2;
+                    var qParams = inParams.concat([openOnly, "%" + escaped + "%", limit + 1, offset]);
                     rows = nk.sqlQuery("SELECT id, name, description, avatar_url, edge_count, max_count, state, metadata " +
                         "FROM groups " +
-                        "WHERE (metadata->>'gameId') = $1 " +
-                        "  AND ($2 = false OR state = 0) " +
-                        "  AND name ILIKE $3 " +
+                        "WHERE (metadata->>'gameId') IN (" + inClause + ") " +
+                        "  AND ($" + openParamIdx + " = false OR state = 0) " +
+                        "  AND name ILIKE $" + queryParamIdx + " " +
                         "ORDER BY edge_count DESC, name ASC " +
-                        "LIMIT $4 OFFSET $5", [gameId, openOnly, "%" + escaped + "%", limit + 1, offset]);
+                        "LIMIT $" + limitParamIdx + " OFFSET $" + offsetParamIdx, qParams);
                 }
                 else {
+                    var limitParamIdx2 = nextIdx;
+                    var offsetParamIdx2 = nextIdx + 1;
+                    var bParams = inParams.concat([openOnly, limit + 1, offset]);
                     rows = nk.sqlQuery("SELECT id, name, description, avatar_url, edge_count, max_count, state, metadata " +
                         "FROM groups " +
-                        "WHERE (metadata->>'gameId') = $1 " +
-                        "  AND ($2 = false OR state = 0) " +
+                        "WHERE (metadata->>'gameId') IN (" + inClause + ") " +
+                        "  AND ($" + openParamIdx + " = false OR state = 0) " +
                         "ORDER BY edge_count DESC, name ASC " +
-                        "LIMIT $3 OFFSET $4", [gameId, openOnly, limit + 1, offset]);
+                        "LIMIT $" + limitParamIdx2 + " OFFSET $" + offsetParamIdx2, bParams);
                 }
             }
             catch (sqlErr) {
@@ -69305,7 +71286,7 @@ var SocialGroupSearch;
                     memberCount: (typeof r.edge_count === "number") ? r.edge_count : parseInt(String(r.edge_count || 0), 10),
                     maxCount: (typeof r.max_count === "number") ? r.max_count : parseInt(String(r.max_count || 0), 10),
                     open: String(r.state) === "0",
-                    gameId: meta.gameId || gameId,
+                    gameId: meta.gameId || primaryGameId,
                     groupType: meta.groupType || "",
                     level: (typeof meta.level === "number") ? meta.level : 1,
                     xp: (typeof meta.xp === "number") ? meta.xp : 0,
@@ -76800,6 +78781,1021 @@ var UserModel;
     }
     UserModel.register = register;
 })(UserModel || (UserModel = {}));
+/**
+ * WorldTrivia — playable world templates game loop for Intelliverse.
+ *
+ * The founder's loop: a player moves through a generated 3D world, hits
+ * CHECKPOINTS, answers a TRIVIA QUESTION at each, and may FINISH after 5
+ * CORRECT answers. ALWAYS-UNIQUE COLORED OBJECTS spawn per session as a
+ * scavenger-hunt secondary mechanic (uniqueness via seeded RNG from the
+ * server-generated sessionId). Full design: docs/worlds/game-loop.md.
+ *
+ * Follows the router-wallet module conventions: global namespace, storage
+ * objects owned by the SYSTEM user, {success,data}/{success,error} envelopes,
+ * optimistic concurrency control with up to 3 retries on session mutations.
+ *
+ * Everything is App-ID scoped (multi-tenant): templates, trivia packs, and
+ * sessions all carry an appId consistent with the repo's "apps" model.
+ *
+ * Auth split:
+ *  - authoring RPCs (world_template_upsert, world_trivia_pack_upsert) are
+ *    SERVER-TO-SERVER ONLY (http_key), like all router_wallet RPCs;
+ *  - gameplay RPCs require an authenticated Nakama user (ctx.userId) and
+ *    verify session ownership — the game is server-authoritative, the client
+ *    never grades answers or counts progress.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/world_trivia/ and call WorldTrivia.register(initializer)
+ * from main.ts InitModule. Self-contained; the router-wallet finish-reward
+ * hook resolves RouterWallet softly at call time and is skipped when the
+ * wallet module is not installed.
+ */
+var WorldTrivia;
+(function (WorldTrivia) {
+    WorldTrivia.SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+    WorldTrivia.TEMPLATES_COLLECTION = "world_templates";
+    WorldTrivia.PACKS_COLLECTION = "trivia_packs";
+    WorldTrivia.SESSIONS_COLLECTION = "world_sessions";
+    WorldTrivia.LEADERBOARDS_COLLECTION = "world_leaderboards";
+    WorldTrivia.MAX_OCC_RETRIES = 3;
+    WorldTrivia.SCORE_CORRECT = 100;
+    WorldTrivia.SCORE_OBJECT_FOUND = 25;
+    WorldTrivia.SCORE_FINISH_BONUS = 250;
+    WorldTrivia.IDLE_EXPIRY_MS = 30 * 60 * 1000;
+    WorldTrivia.LEADERBOARD_SIZE = 100;
+    // Tolerance multipliers for proximity checks (client lag / interpolation).
+    WorldTrivia.PROXIMITY_SLACK = 1.5;
+    // Fraction of the theoretical minimum travel time we actually require
+    // (20% slack for lag and legitimate shortcuts).
+    WorldTrivia.SPEED_SLACK = 0.8;
+    // XOR stream separator so the question shuffle and the object layout draw
+    // from independent RNG streams of the same session seed.
+    WorldTrivia.QUESTION_STREAM = 0x51ab9e3d;
+    WorldTrivia.OBJECT_SHAPES = ["sphere", "cube", "cone", "torus"];
+    WorldTrivia.DEFAULT_SETTINGS = {
+        requiredCorrect: 5, // the founder's completion rule
+        objectCount: 8,
+        maxSpeed: 10, // m/s movement sanity bound
+        maxAnswerSeconds: 60,
+        collectRadius: 3,
+        finishRewardCredits: 0 // iv_credits via router-wallet on finish
+    };
+    // ---- seeded RNG (duplicated verbatim in worlds-viewer/js/seeded.js so the
+    // client can re-derive and assert the scavenger layout from the seed) ----
+    var imul = Math.imul || function (a, b) {
+        var ah = (a >>> 16) & 0xffff, al = a & 0xffff;
+        var bh = (b >>> 16) & 0xffff, bl = b & 0xffff;
+        return ((al * bl) + (((ah * bl + al * bh) << 16) >>> 0)) | 0;
+    };
+    /** FNV-1a 32-bit hash — session seed derivation from the sessionId UUID. */
+    function fnv1a32(str) {
+        var h = 0x811c9dc5;
+        for (var i = 0; i < str.length; i++) {
+            h = (h ^ str.charCodeAt(i)) >>> 0;
+            h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+        }
+        return h >>> 0;
+    }
+    WorldTrivia.fnv1a32 = fnv1a32;
+    /** mulberry32 PRNG — tiny, fast, deterministic across JS runtimes. */
+    function mulberry32(seed) {
+        var a = seed >>> 0;
+        return function () {
+            a = (a + 0x6d2b79f5) >>> 0;
+            var t = a;
+            t = imul(t ^ (t >>> 15), t | 1);
+            t = (t ^ (t + imul(t ^ (t >>> 7), t | 61))) >>> 0;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+    WorldTrivia.mulberry32 = mulberry32;
+    function hslToHex(h, s, l) {
+        var sn = s / 100, ln = l / 100;
+        var c = (1 - Math.abs(2 * ln - 1)) * sn;
+        var hp = (((h % 360) + 360) % 360) / 60;
+        var x = c * (1 - Math.abs((hp % 2) - 1));
+        var r = 0, g = 0, b = 0;
+        if (hp < 1) {
+            r = c;
+            g = x;
+        }
+        else if (hp < 2) {
+            r = x;
+            g = c;
+        }
+        else if (hp < 3) {
+            g = c;
+            b = x;
+        }
+        else if (hp < 4) {
+            g = x;
+            b = c;
+        }
+        else if (hp < 5) {
+            r = x;
+            b = c;
+        }
+        else {
+            r = c;
+            b = x;
+        }
+        var m = ln - c / 2;
+        function hex(v) {
+            var n = Math.round((v + m) * 255);
+            var out = n.toString(16);
+            return out.length === 1 ? "0" + out : out;
+        }
+        return "#" + hex(r) + hex(g) + hex(b);
+    }
+    /**
+     * Derive the per-session scavenger layout from the seed. Colors are unique
+     * within the session by construction: a random start hue, then even
+     * 360/N spacing with ±10° jitter (spacing 45° at N=8, so hues can never
+     * collide), fixed saturation/lightness. Draw order per object is fixed
+     * (jitter, volume, x, y, z) — the viewer replays it byte-for-byte.
+     */
+    function deriveObjects(seed, count, volumes) {
+        var rnd = mulberry32(seed);
+        var startHue = Math.floor(rnd() * 360);
+        var objects = [];
+        for (var i = 0; i < count; i++) {
+            var jitter = rnd() * 20 - 10;
+            var vol = volumes[Math.floor(rnd() * volumes.length)];
+            var x = vol.min.x + rnd() * (vol.max.x - vol.min.x);
+            var y = vol.min.y + rnd() * (vol.max.y - vol.min.y);
+            var z = vol.min.z + rnd() * (vol.max.z - vol.min.z);
+            var hue = startHue + (i * 360) / count + jitter;
+            objects.push({
+                id: "obj-" + (i + 1),
+                color: hslToHex(hue, 70, 55),
+                shape: WorldTrivia.OBJECT_SHAPES[i % WorldTrivia.OBJECT_SHAPES.length],
+                position: { x: x, y: y, z: z }
+            });
+        }
+        return objects;
+    }
+    WorldTrivia.deriveObjects = deriveObjects;
+    function shuffleIds(ids, rnd) {
+        var out = ids.slice();
+        for (var i = out.length - 1; i > 0; i--) {
+            var j = Math.floor(rnd() * (i + 1));
+            var tmp = out[i];
+            out[i] = out[j];
+            out[j] = tmp;
+        }
+        return out;
+    }
+    WorldTrivia.shuffleIds = shuffleIds;
+    // ---- helpers ----
+    function ok(data) {
+        return JSON.stringify({ success: true, data: data });
+    }
+    function err(message) {
+        return JSON.stringify({ success: false, error: message });
+    }
+    function parsePayload(payload) {
+        if (!payload || payload === "")
+            return {};
+        return JSON.parse(payload);
+    }
+    /** Authoring RPCs are server-to-server only (http_key auth). */
+    function requireServerToServer(ctx) {
+        if (ctx.userId) {
+            throw new Error("world_trivia authoring RPCs are server-to-server only");
+        }
+    }
+    /** Gameplay RPCs require an authenticated Nakama user session. */
+    function requireUser(ctx) {
+        if (!ctx.userId) {
+            throw new Error("world_trivia gameplay RPCs require an authenticated user session");
+        }
+        return ctx.userId;
+    }
+    function validateVec3(v, label) {
+        if (!v || typeof v.x !== "number" || typeof v.y !== "number" || typeof v.z !== "number"
+            || !isFinite(v.x) || !isFinite(v.y) || !isFinite(v.z)) {
+            throw new Error(label + " must be {x, y, z} numbers");
+        }
+        return { x: v.x, y: v.y, z: v.z };
+    }
+    function dist(a, b) {
+        var dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+    function nowMs() {
+        return Date.now();
+    }
+    // ---- storage ----
+    function templateKey(appId, templateId) {
+        return "template_" + appId + "_" + templateId;
+    }
+    function packKey(appId, packId) {
+        return "pack_" + appId + "_" + packId;
+    }
+    function sessionKey(sessionId) {
+        return "session_" + sessionId;
+    }
+    function leaderboardKey(appId, templateId) {
+        return "lb_" + appId + "_" + templateId;
+    }
+    function readSystemObject(nk, collection, key) {
+        var records = nk.storageRead([{ collection: collection, key: key, userId: WorldTrivia.SYSTEM_USER_ID }]);
+        if (records && records.length > 0 && records[0].value) {
+            return { value: records[0].value, storageVersion: records[0].version };
+        }
+        return { value: null, storageVersion: "*" };
+    }
+    function writeSystemObject(nk, collection, key, value, storageVersion) {
+        var write = {
+            collection: collection,
+            key: key,
+            userId: WorldTrivia.SYSTEM_USER_ID,
+            value: value,
+            permissionRead: 0,
+            permissionWrite: 0
+        };
+        if (storageVersion)
+            write.version = storageVersion;
+        nk.storageWrite([write]);
+    }
+    function readTemplate(nk, appId, templateId) {
+        return readSystemObject(nk, WorldTrivia.TEMPLATES_COLLECTION, templateKey(appId, templateId)).value;
+    }
+    function readPack(nk, appId, packId) {
+        return readSystemObject(nk, WorldTrivia.PACKS_COLLECTION, packKey(appId, packId)).value;
+    }
+    /**
+     * Read-mutate-write on a session with OCC — identical shape to
+     * router-wallet's mutateWallet: business errors thrown by the mutator abort
+     * immediately, storage version conflicts retry up to MAX_OCC_RETRIES.
+     */
+    function mutateSession(nk, sessionId, mutator) {
+        var lastError = null;
+        for (var attempt = 0; attempt < WorldTrivia.MAX_OCC_RETRIES; attempt++) {
+            var read = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(sessionId));
+            var session = read.value;
+            if (!session)
+                throw new Error("Session not found: " + sessionId);
+            mutator(session);
+            session.version = (session.version || 0) + 1;
+            try {
+                writeSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(sessionId), session, read.storageVersion);
+                return session;
+            }
+            catch (e) {
+                lastError = e; // version conflict — re-read and retry
+            }
+        }
+        throw new Error("Session write conflict after " + WorldTrivia.MAX_OCC_RETRIES + " retries: " + (lastError && lastError.message ? lastError.message : String(lastError)));
+    }
+    // ---- session guards (run inside mutators) ----
+    function requireOwnedActive(session, userId) {
+        if (session.userId !== userId) {
+            throw new Error("Session does not belong to the caller");
+        }
+        if (session.status !== "active") {
+            throw new Error("Session is " + session.status);
+        }
+    }
+    /**
+     * Lazy idle expiry: sessions untouched for IDLE_EXPIRY_MS flip to abandoned
+     * on the next access instead of via a cron. Returns true when this call
+     * performed the flip (the caller persists it and rejects the gameplay op).
+     */
+    function expireIfIdle(session, now) {
+        if (now - session.lastEventAtMs > WorldTrivia.IDLE_EXPIRY_MS) {
+            session.status = "abandoned";
+            session.finishedAtMs = now;
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Movement sanity: covering distance d from the last validated position
+     * must take at least d / maxSpeed * SPEED_SLACK. Rejects teleports without
+     * punishing ordinary lag.
+     */
+    function requireSaneMovement(session, position, now, maxSpeed) {
+        var d = dist(session.lastPosition, position);
+        var minMs = (d / maxSpeed) * WorldTrivia.SPEED_SLACK * 1000;
+        if (now - session.lastEventAtMs < minMs) {
+            throw new Error("Movement too fast: " + Math.round(d) + "m in " + (now - session.lastEventAtMs) + "ms exceeds maxSpeed " + maxSpeed + "m/s");
+        }
+    }
+    function questionExpired(pending, now, maxAnswerSeconds) {
+        return now - pending.issuedAtMs > maxAnswerSeconds * 1000;
+    }
+    // ---- client views (redaction) ----
+    function checkpointView(cp) {
+        return { id: cp.id, name: cp.name, position: cp.position, radius: cp.radius };
+    }
+    function settingsView(s) {
+        return {
+            requiredCorrect: s.requiredCorrect,
+            objectCount: s.objectCount,
+            maxSpeed: s.maxSpeed,
+            maxAnswerSeconds: s.maxAnswerSeconds,
+            collectRadius: s.collectRadius
+        };
+    }
+    /** Question as issued to the player — never includes correctIndex. */
+    function questionView(q) {
+        var view = { questionId: q.id, text: q.text, choices: q.choices };
+        if (q.category)
+            view.category = q.category;
+        return view;
+    }
+    /**
+     * The session manifest the client renders from. Redacts the question queue
+     * (order would leak upcoming questions) and all grading state internals;
+     * includes the seed so the viewer can re-derive and assert the scavenger
+     * layout (contract check on the shared RNG).
+     */
+    function sessionView(session, template) {
+        var checkpoints = [];
+        for (var i = 0; i < template.checkpoints.length; i++)
+            checkpoints.push(checkpointView(template.checkpoints[i]));
+        return {
+            sessionId: session.sessionId,
+            appId: session.appId,
+            templateId: session.templateId,
+            status: session.status,
+            seed: session.seed,
+            assets: template.assets,
+            spawnPoint: template.spawnPoint,
+            checkpoints: checkpoints,
+            objects: session.objects,
+            objectsFound: session.objectsFound,
+            visitedCheckpoints: session.visitedCheckpoints,
+            lap: session.lap,
+            correctCount: session.correctCount,
+            wrongCount: session.wrongCount,
+            finishEligible: session.finishEligible,
+            score: session.score,
+            settings: settingsView(template.settings),
+            startedAtMs: session.startedAtMs
+        };
+    }
+    function progressView(session, template) {
+        return {
+            correctCount: session.correctCount,
+            wrongCount: session.wrongCount,
+            requiredCorrect: template.settings.requiredCorrect,
+            finishEligible: session.finishEligible,
+            score: session.score,
+            lap: session.lap,
+            objectsFound: session.objectsFound.length,
+            objectCount: session.objects.length
+        };
+    }
+    // ---- RPC handlers: authoring (s2s only) ----
+    function rpcTemplateUpsert(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required");
+            if (!data.packId)
+                return err("packId required");
+            if (!data.checkpoints || !data.checkpoints.length)
+                return err("checkpoints required (non-empty array)");
+            if (!data.scavengerVolumes || !data.scavengerVolumes.length)
+                return err("scavengerVolumes required (non-empty array)");
+            var checkpoints = [];
+            var seenIds = {};
+            for (var i = 0; i < data.checkpoints.length; i++) {
+                var cp = data.checkpoints[i];
+                if (!cp.id)
+                    throw new Error("checkpoint[" + i + "].id required");
+                if (seenIds[cp.id])
+                    throw new Error("duplicate checkpoint id: " + cp.id);
+                seenIds[cp.id] = true;
+                checkpoints.push({
+                    id: cp.id,
+                    name: cp.name || cp.id,
+                    position: validateVec3(cp.position, "checkpoint[" + i + "].position"),
+                    radius: typeof cp.radius === "number" && cp.radius > 0 ? cp.radius : 5
+                });
+            }
+            var volumes = [];
+            for (var v = 0; v < data.scavengerVolumes.length; v++) {
+                volumes.push({
+                    min: validateVec3(data.scavengerVolumes[v].min, "scavengerVolumes[" + v + "].min"),
+                    max: validateVec3(data.scavengerVolumes[v].max, "scavengerVolumes[" + v + "].max")
+                });
+            }
+            var settings = {
+                requiredCorrect: WorldTrivia.DEFAULT_SETTINGS.requiredCorrect,
+                objectCount: WorldTrivia.DEFAULT_SETTINGS.objectCount,
+                maxSpeed: WorldTrivia.DEFAULT_SETTINGS.maxSpeed,
+                maxAnswerSeconds: WorldTrivia.DEFAULT_SETTINGS.maxAnswerSeconds,
+                collectRadius: WorldTrivia.DEFAULT_SETTINGS.collectRadius,
+                finishRewardCredits: WorldTrivia.DEFAULT_SETTINGS.finishRewardCredits
+            };
+            var overrides = data.settings || {};
+            for (var key in settings) {
+                if (typeof overrides[key] === "number" && isFinite(overrides[key]) && overrides[key] >= 0) {
+                    settings[key] = overrides[key];
+                }
+            }
+            if (settings.requiredCorrect < 1)
+                settings.requiredCorrect = 1;
+            var template = {
+                appId: data.appId,
+                templateId: data.templateId,
+                name: data.name || data.templateId,
+                packId: data.packId,
+                assets: data.assets || {},
+                spawnPoint: data.spawnPoint ? validateVec3(data.spawnPoint, "spawnPoint") : { x: 0, y: 0, z: 0 },
+                checkpoints: checkpoints,
+                scavengerVolumes: volumes,
+                settings: settings,
+                updatedAt: new Date().toISOString()
+            };
+            writeSystemObject(nk, WorldTrivia.TEMPLATES_COLLECTION, templateKey(data.appId, data.templateId), template);
+            return ok(template);
+        }
+        catch (e) {
+            return err(e.message || "world_template_upsert failed");
+        }
+    }
+    WorldTrivia.rpcTemplateUpsert = rpcTemplateUpsert;
+    function rpcPackUpsert(ctx, logger, nk, payload) {
+        try {
+            requireServerToServer(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.packId)
+                return err("packId required");
+            if (!data.questions || !data.questions.length)
+                return err("questions required (non-empty array)");
+            var questions = [];
+            var seen = {};
+            for (var i = 0; i < data.questions.length; i++) {
+                var q = data.questions[i];
+                if (!q.id)
+                    throw new Error("questions[" + i + "].id required");
+                if (seen[q.id])
+                    throw new Error("duplicate question id: " + q.id);
+                seen[q.id] = true;
+                if (!q.text)
+                    throw new Error("questions[" + i + "].text required");
+                if (!q.choices || q.choices.length < 2)
+                    throw new Error("questions[" + i + "].choices requires at least 2 entries");
+                var correctIndex = Number(q.correctIndex);
+                if (!isFinite(correctIndex) || correctIndex !== Math.floor(correctIndex) || correctIndex < 0 || correctIndex >= q.choices.length) {
+                    throw new Error("questions[" + i + "].correctIndex out of range");
+                }
+                var question = { id: q.id, text: q.text, choices: q.choices, correctIndex: correctIndex };
+                if (q.category)
+                    question.category = q.category;
+                questions.push(question);
+            }
+            var pack = {
+                appId: data.appId,
+                packId: data.packId,
+                questions: questions,
+                updatedAt: new Date().toISOString()
+            };
+            writeSystemObject(nk, WorldTrivia.PACKS_COLLECTION, packKey(data.appId, data.packId), pack);
+            return ok({ appId: data.appId, packId: data.packId, questionCount: questions.length });
+        }
+        catch (e) {
+            return err(e.message || "world_trivia_pack_upsert failed");
+        }
+    }
+    WorldTrivia.rpcPackUpsert = rpcPackUpsert;
+    // ---- RPC handlers: gameplay (authenticated user) ----
+    function rpcSessionStart(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required");
+            var template = readTemplate(nk, data.appId, data.templateId);
+            if (!template)
+                return err("Template not found: " + data.templateId + " (app " + data.appId + ")");
+            var pack = readPack(nk, data.appId, template.packId);
+            if (!pack)
+                return err("Trivia pack not found: " + template.packId + " (app " + data.appId + ")");
+            if (pack.questions.length < template.settings.requiredCorrect) {
+                return err("Trivia pack " + template.packId + " has " + pack.questions.length + " questions; template requires " + template.settings.requiredCorrect + " correct answers");
+            }
+            var sessionId = nk.uuidv4();
+            // Seed derivation: the sessionId is server-generated, so the seed is
+            // unique per session and unforgeable by the client.
+            var seed = fnv1a32(sessionId);
+            var questionIds = [];
+            for (var i = 0; i < pack.questions.length; i++)
+                questionIds.push(pack.questions[i].id);
+            var questionQueue = shuffleIds(questionIds, mulberry32((seed ^ WorldTrivia.QUESTION_STREAM) >>> 0));
+            var objects = deriveObjects(seed, template.settings.objectCount, template.scavengerVolumes);
+            var now = nowMs();
+            var session = {
+                sessionId: sessionId,
+                appId: data.appId,
+                userId: userId,
+                templateId: data.templateId,
+                packId: template.packId,
+                seed: seed,
+                status: "active",
+                lap: 1,
+                visitedCheckpoints: [],
+                pendingQuestion: null,
+                questionQueue: questionQueue,
+                askedQuestionIds: [],
+                correctCount: 0,
+                wrongCount: 0,
+                finishEligible: false,
+                objects: objects,
+                objectsFound: [],
+                score: 0,
+                lastPosition: template.spawnPoint,
+                lastEventAtMs: now,
+                startedAtMs: now,
+                finishedAtMs: null,
+                version: 0
+            };
+            writeSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(sessionId), session, "*");
+            return ok(sessionView(session, template));
+        }
+        catch (e) {
+            return err(e.message || "world_session_start failed");
+        }
+    }
+    WorldTrivia.rpcSessionStart = rpcSessionStart;
+    function rpcSessionGet(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            var session = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!session)
+                return err("Session not found: " + data.sessionId);
+            if (session.userId !== userId)
+                return err("Session does not belong to the caller");
+            var template = readTemplate(nk, session.appId, session.templateId);
+            if (!template)
+                return err("Template not found: " + session.templateId);
+            return ok(sessionView(session, template));
+        }
+        catch (e) {
+            return err(e.message || "world_session_get failed");
+        }
+    }
+    WorldTrivia.rpcSessionGet = rpcSessionGet;
+    function rpcCheckpointReach(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            if (!data.checkpointId)
+                return err("checkpointId required");
+            var position = validateVec3(data.position, "position");
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var pack = readPack(nk, pre.appId, pre.packId);
+            if (!pack)
+                return err("Trivia pack not found: " + pre.packId);
+            var now = nowMs();
+            var expired = false;
+            var issuedQuestionId = "";
+            var expiredPrevious = false;
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    expired = true;
+                    return;
+                }
+                var checkpoint = null;
+                for (var i = 0; i < template.checkpoints.length; i++) {
+                    if (template.checkpoints[i].id === data.checkpointId) {
+                        checkpoint = template.checkpoints[i];
+                        break;
+                    }
+                }
+                if (!checkpoint)
+                    throw new Error("Unknown checkpoint: " + data.checkpointId);
+                // A question left pending past its time budget counts as wrong and
+                // unblocks the loop; a still-live one blocks new checkpoints.
+                if (s.pendingQuestion) {
+                    if (questionExpired(s.pendingQuestion, now, template.settings.maxAnswerSeconds)) {
+                        s.wrongCount += 1;
+                        s.pendingQuestion = null;
+                        expiredPrevious = true;
+                    }
+                    else {
+                        throw new Error("Answer the pending question before reaching another checkpoint");
+                    }
+                }
+                // Checkpoints are unordered (free-roam) but once-per-lap. Exhausting
+                // every checkpoint re-arms them all: a new lap costs travel time,
+                // never a dead end (docs/worlds/game-loop.md §4).
+                if (s.visitedCheckpoints.indexOf(checkpoint.id) !== -1) {
+                    if (s.visitedCheckpoints.length >= template.checkpoints.length) {
+                        s.lap += 1;
+                        s.visitedCheckpoints = [];
+                    }
+                    else {
+                        throw new Error("Checkpoint already visited this lap: " + checkpoint.id);
+                    }
+                }
+                if (dist(position, checkpoint.position) > checkpoint.radius * WorldTrivia.PROXIMITY_SLACK) {
+                    throw new Error("Position is not at checkpoint " + checkpoint.id);
+                }
+                requireSaneMovement(s, position, now, template.settings.maxSpeed);
+                // No repeats within a session by construction: the queue is a seeded
+                // shuffle of the whole pack. Only on full exhaustion (small pack +
+                // many wrong answers) do asked questions recycle, reshuffled by lap.
+                if (s.questionQueue.length === 0) {
+                    if (s.askedQuestionIds.length === 0)
+                        throw new Error("Trivia pack is empty");
+                    s.questionQueue = shuffleIds(s.askedQuestionIds, mulberry32((s.seed + s.lap) >>> 0));
+                    s.askedQuestionIds = [];
+                }
+                var qid = s.questionQueue.shift();
+                s.askedQuestionIds.push(qid);
+                s.pendingQuestion = { questionId: qid, checkpointId: checkpoint.id, issuedAtMs: now };
+                issuedQuestionId = qid;
+                s.visitedCheckpoints.push(checkpoint.id);
+                s.lastPosition = position;
+                s.lastEventAtMs = now;
+            });
+            if (expired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            var question = null;
+            for (var qi = 0; qi < pack.questions.length; qi++) {
+                if (pack.questions[qi].id === issuedQuestionId) {
+                    question = pack.questions[qi];
+                    break;
+                }
+            }
+            if (!question)
+                return err("Question " + issuedQuestionId + " missing from pack " + pre.packId);
+            return ok({
+                checkpointId: data.checkpointId,
+                question: questionView(question),
+                previousQuestionExpired: expiredPrevious,
+                progress: progressView(session, template)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_checkpoint_reach failed");
+        }
+    }
+    WorldTrivia.rpcCheckpointReach = rpcCheckpointReach;
+    function rpcAnswerSubmit(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            if (!data.questionId)
+                return err("questionId required");
+            var choiceIndex = Number(data.choiceIndex);
+            if (!isFinite(choiceIndex) || choiceIndex !== Math.floor(choiceIndex) || choiceIndex < 0) {
+                return err("choiceIndex must be a non-negative integer");
+            }
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var pack = readPack(nk, pre.appId, pre.packId);
+            if (!pack)
+                return err("Trivia pack not found: " + pre.packId);
+            var question = null;
+            for (var i = 0; i < pack.questions.length; i++) {
+                if (pack.questions[i].id === data.questionId) {
+                    question = pack.questions[i];
+                    break;
+                }
+            }
+            if (!question)
+                return err("Unknown question: " + data.questionId);
+            var now = nowMs();
+            var sessionExpired = false;
+            var answerExpired = false;
+            var correct = false;
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    sessionExpired = true;
+                    return;
+                }
+                if (!s.pendingQuestion || s.pendingQuestion.questionId !== data.questionId) {
+                    throw new Error("No pending question with id " + data.questionId);
+                }
+                answerExpired = questionExpired(s.pendingQuestion, now, template.settings.maxAnswerSeconds);
+                // Grading is entirely server-side: the client never saw correctIndex.
+                correct = !answerExpired && choiceIndex === question.correctIndex;
+                if (correct) {
+                    s.correctCount += 1;
+                    s.score += WorldTrivia.SCORE_CORRECT;
+                    if (s.correctCount >= template.settings.requiredCorrect) {
+                        s.finishEligible = true; // the 5-correct completion rule
+                    }
+                }
+                else {
+                    // Wrong answer policy: miss and move on. The question and the
+                    // checkpoint are consumed; a new question waits at the next
+                    // checkpoint — travel time is the cooldown (game-loop.md §4).
+                    s.wrongCount += 1;
+                }
+                s.pendingQuestion = null;
+                s.lastEventAtMs = now;
+            });
+            if (sessionExpired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            return ok({
+                questionId: data.questionId,
+                correct: correct,
+                expired: answerExpired,
+                // Revealed post-grade only, so the AI host can announce the answer.
+                correctIndex: question.correctIndex,
+                progress: progressView(session, template)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_answer_submit failed");
+        }
+    }
+    WorldTrivia.rpcAnswerSubmit = rpcAnswerSubmit;
+    function rpcObjectFound(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            if (!data.objectId)
+                return err("objectId required");
+            var position = validateVec3(data.position, "position");
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var now = nowMs();
+            var expired = false;
+            var found = null;
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    expired = true;
+                    return;
+                }
+                var obj = null;
+                for (var i = 0; i < s.objects.length; i++) {
+                    if (s.objects[i].id === data.objectId) {
+                        obj = s.objects[i];
+                        break;
+                    }
+                }
+                // Validates against the seed-derived layout stored at session start.
+                if (!obj)
+                    throw new Error("Unknown object: " + data.objectId);
+                if (s.objectsFound.indexOf(obj.id) !== -1)
+                    throw new Error("Object already found: " + obj.id);
+                if (dist(position, obj.position) > template.settings.collectRadius * WorldTrivia.PROXIMITY_SLACK) {
+                    throw new Error("Position is not at object " + obj.id);
+                }
+                requireSaneMovement(s, position, now, template.settings.maxSpeed);
+                s.objectsFound.push(obj.id);
+                s.score += WorldTrivia.SCORE_OBJECT_FOUND;
+                s.lastPosition = position;
+                s.lastEventAtMs = now;
+                found = obj;
+            });
+            if (expired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            return ok({
+                objectId: found.id,
+                color: found.color,
+                shape: found.shape,
+                foundCount: session.objectsFound.length,
+                totalObjects: session.objects.length,
+                progress: progressView(session, template)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_object_found failed");
+        }
+    }
+    WorldTrivia.rpcObjectFound = rpcObjectFound;
+    function rpcSessionFinish(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            var pre = readSystemObject(nk, WorldTrivia.SESSIONS_COLLECTION, sessionKey(data.sessionId)).value;
+            if (!pre)
+                return err("Session not found: " + data.sessionId);
+            var template = readTemplate(nk, pre.appId, pre.templateId);
+            if (!template)
+                return err("Template not found: " + pre.templateId);
+            var now = nowMs();
+            var expired = false;
+            // Single-shot: the status flip runs under OCC, so a double-fired finish
+            // loses the version race and lands on "Session is finished".
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                if (expireIfIdle(s, now)) {
+                    expired = true;
+                    return;
+                }
+                if (!s.finishEligible) {
+                    throw new Error("Not finish-eligible: " + s.correctCount + "/" + template.settings.requiredCorrect + " correct answers");
+                }
+                s.status = "finished";
+                s.score += WorldTrivia.SCORE_FINISH_BONUS;
+                s.finishedAtMs = now;
+                s.lastEventAtMs = now;
+            });
+            if (expired)
+                return err("Session expired after " + (WorldTrivia.IDLE_EXPIRY_MS / 60000) + " minutes idle");
+            var entry = {
+                sessionId: session.sessionId,
+                userId: session.userId,
+                score: session.score,
+                correctCount: session.correctCount,
+                wrongCount: session.wrongCount,
+                objectsFound: session.objectsFound.length,
+                durationMs: now - session.startedAtMs,
+                finishedAt: new Date().toISOString()
+            };
+            var rank = upsertLeaderboardEntry(nk, session.appId, session.templateId, entry);
+            var reward = creditFinishReward(nk, logger, session, template);
+            return ok({
+                sessionId: session.sessionId,
+                score: session.score,
+                correctCount: session.correctCount,
+                wrongCount: session.wrongCount,
+                objectsFound: session.objectsFound.length,
+                totalObjects: session.objects.length,
+                durationMs: entry.durationMs,
+                rank: rank,
+                reward: reward
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_session_finish failed");
+        }
+    }
+    WorldTrivia.rpcSessionFinish = rpcSessionFinish;
+    function rpcSessionAbandon(ctx, logger, nk, payload) {
+        try {
+            var userId = requireUser(ctx);
+            var data = parsePayload(payload);
+            if (!data.sessionId)
+                return err("sessionId required");
+            var now = nowMs();
+            var session = mutateSession(nk, data.sessionId, function (s) {
+                requireOwnedActive(s, userId);
+                s.status = "abandoned";
+                s.finishedAtMs = now;
+                s.lastEventAtMs = now;
+            });
+            return ok({ sessionId: session.sessionId, status: session.status, score: session.score });
+        }
+        catch (e) {
+            return err(e.message || "world_session_abandon failed");
+        }
+    }
+    WorldTrivia.rpcSessionAbandon = rpcSessionAbandon;
+    function rpcLeaderboardGet(ctx, logger, nk, payload) {
+        try {
+            // Readable by players and s2s callers alike.
+            var data = parsePayload(payload);
+            if (!data.appId)
+                return err("appId required");
+            if (!data.templateId)
+                return err("templateId required");
+            var limit = data.limit ? Math.min(Number(data.limit), WorldTrivia.LEADERBOARD_SIZE) : WorldTrivia.LEADERBOARD_SIZE;
+            var read = readSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, leaderboardKey(data.appId, data.templateId));
+            var entries = (read.value && read.value.entries) || [];
+            return ok({
+                appId: data.appId,
+                templateId: data.templateId,
+                entries: entries.slice(0, limit)
+            });
+        }
+        catch (e) {
+            return err(e.message || "world_leaderboard_get failed");
+        }
+    }
+    WorldTrivia.rpcLeaderboardGet = rpcLeaderboardGet;
+    // ---- leaderboard + wallet reward internals ----
+    /**
+     * Storage-object leaderboard per (app, template): top LEADERBOARD_SIZE by
+     * score, ties broken by shorter duration. OCC-retried like sessions.
+     * Returns the entry's 1-based rank, or null if it fell off the board.
+     */
+    function upsertLeaderboardEntry(nk, appId, templateId, entry) {
+        var key = leaderboardKey(appId, templateId);
+        var lastError = null;
+        for (var attempt = 0; attempt < WorldTrivia.MAX_OCC_RETRIES; attempt++) {
+            var read = readSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, key);
+            var value = read.value || { appId: appId, templateId: templateId, entries: [] };
+            var entries = value.entries || [];
+            // Keyed by sessionId — a replayed finish (which finish's single-shot
+            // status flip already prevents) could never duplicate a row.
+            var filtered = [];
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].sessionId !== entry.sessionId)
+                    filtered.push(entries[i]);
+            }
+            filtered.push(entry);
+            filtered.sort(function (a, b) {
+                if (b.score !== a.score)
+                    return b.score - a.score;
+                return a.durationMs - b.durationMs;
+            });
+            value.entries = filtered.slice(0, WorldTrivia.LEADERBOARD_SIZE);
+            try {
+                writeSystemObject(nk, WorldTrivia.LEADERBOARDS_COLLECTION, key, value, read.storageVersion);
+                for (var r = 0; r < value.entries.length; r++) {
+                    if (value.entries[r].sessionId === entry.sessionId)
+                        return r + 1;
+                }
+                return null;
+            }
+            catch (e) {
+                lastError = e;
+            }
+        }
+        throw new Error("Leaderboard write conflict after " + WorldTrivia.MAX_OCC_RETRIES + " retries: " + (lastError && lastError.message ? lastError.message : String(lastError)));
+    }
+    /**
+     * Wallet reward hook: credits the app's router-wallet in-process through
+     * the already-deployed RouterWallet module. Ref world_finish_{sessionId}
+     * rides the wallet's conditional-create dedupe, so a replay can never
+     * double-credit. Soft dependency: when RouterWallet isn't installed (or
+     * the credit fails) the finish still succeeds and the reward is reported
+     * as skipped — game completion must never be hostage to billing.
+     */
+    function creditFinishReward(nk, logger, session, template) {
+        var amount = template.settings.finishRewardCredits;
+        if (!amount || amount <= 0) {
+            return { credited: false, skipped: true, reason: "no finishRewardCredits configured" };
+        }
+        var rw = typeof globalThis !== "undefined" ? globalThis.RouterWallet : null;
+        if (!rw || typeof rw.rpcCredit !== "function") {
+            return { credited: false, skipped: true, reason: "router_wallet module not installed" };
+        }
+        try {
+            var s2sCtx = { userId: "" }; // in-process s2s call
+            var result = JSON.parse(rw.rpcCredit(s2sCtx, logger, nk, JSON.stringify({
+                appId: session.appId,
+                kind: "iv_credits",
+                amount: amount,
+                reason: "world_finish_reward",
+                ref: "world_finish_" + session.sessionId
+            })));
+            if (!result.success) {
+                return { credited: false, skipped: true, reason: result.error || "router_wallet_credit failed" };
+            }
+            return { credited: !result.data.deduped, deduped: !!result.data.deduped, kind: "iv_credits", amount: amount };
+        }
+        catch (e) {
+            return { credited: false, skipped: true, reason: e.message || "router_wallet_credit threw" };
+        }
+    }
+    function register(initializer) {
+        // authoring (s2s)
+        initializer.registerRpc("world_template_upsert", rpcTemplateUpsert);
+        initializer.registerRpc("world_trivia_pack_upsert", rpcPackUpsert);
+        // gameplay (authenticated user)
+        initializer.registerRpc("world_session_start", rpcSessionStart);
+        initializer.registerRpc("world_session_get", rpcSessionGet);
+        initializer.registerRpc("world_checkpoint_reach", rpcCheckpointReach);
+        initializer.registerRpc("world_answer_submit", rpcAnswerSubmit);
+        initializer.registerRpc("world_object_found", rpcObjectFound);
+        initializer.registerRpc("world_session_finish", rpcSessionFinish);
+        initializer.registerRpc("world_session_abandon", rpcSessionAbandon);
+        initializer.registerRpc("world_leaderboard_get", rpcLeaderboardGet);
+    }
+    WorldTrivia.register = register;
+})(WorldTrivia || (WorldTrivia = {}));
+// Expose the namespace for the standalone vitest harness. Inside Nakama's
+// Goja runtime this is a harmless no-op guard (namespaces are already global
+// in the kernel's outFile bundle).
+if (typeof globalThis !== "undefined") {
+    globalThis.WorldTrivia = WorldTrivia;
+}
 // kb_enrichment.ts
 // ─────────────────────────────────────────────────────────────────────────────
 // Continuous KB enrichment loop — recomputes derived user attributes so that

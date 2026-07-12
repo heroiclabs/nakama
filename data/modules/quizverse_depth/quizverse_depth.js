@@ -952,44 +952,21 @@ function rpcQuizverseTriviaNight(ctx, logger, nk, payload) {
 // ============================================================================
 // REGISTRATION
 // ============================================================================
+// postbuild.js + Nakama AST walker ONLY detect direct registerRpc(...) calls
+// inside InitModule. A helper loop (registerQuizverseDepthRPCs) is invisible
+// to both — which left quizverse_knowledge_map as RPC 404 in production.
+// Match smart_review.js: one InitModule, one direct registerRpc per id.
 
-function registerQuizverseDepthRPCs(initializer, logger) {
-    logger.info("[QuizverseDepth] Initializing QuizVerse Depth RPCs...");
-
-    if (!globalThis.__registeredRPCs) {
-        globalThis.__registeredRPCs = new Set();
+function InitModule(ctx, logger, nk, initializer) {
+    initializer.registerRpc("quizverse_knowledge_map", rpcQuizverseKnowledgeMap);
+    initializer.registerRpc("quizverse_streak_quiz", rpcQuizverseStreakQuiz);
+    initializer.registerRpc("quizverse_adaptive_difficulty", rpcQuizverseAdaptiveDifficulty);
+    initializer.registerRpc("quizverse_daily_puzzle", rpcQuizverseDailyPuzzle);
+    initializer.registerRpc("quizverse_category_war", rpcQuizverseCategoryWar);
+    initializer.registerRpc("quizverse_knowledge_duel", rpcQuizverseKnowledgeDuel);
+    initializer.registerRpc("quizverse_study_mode", rpcQuizverseStudyMode);
+    initializer.registerRpc("quizverse_trivia_night", rpcQuizverseTriviaNight);
+    if (logger && logger.info) {
+        logger.info("[QuizverseDepth] Registered 8 RPCs (knowledge_map, streak_quiz, adaptive_difficulty, daily_puzzle, category_war, knowledge_duel, study_mode, trivia_night)");
     }
-
-    var rpcs = [
-        { id: "quizverse_knowledge_map", handler: rpcQuizverseKnowledgeMap },
-        { id: "quizverse_streak_quiz", handler: rpcQuizverseStreakQuiz },
-        { id: "quizverse_adaptive_difficulty", handler: rpcQuizverseAdaptiveDifficulty },
-        { id: "quizverse_daily_puzzle", handler: rpcQuizverseDailyPuzzle },
-        { id: "quizverse_category_war", handler: rpcQuizverseCategoryWar },
-        { id: "quizverse_knowledge_duel", handler: rpcQuizverseKnowledgeDuel },
-        { id: "quizverse_study_mode", handler: rpcQuizverseStudyMode },
-        { id: "quizverse_trivia_night", handler: rpcQuizverseTriviaNight }
-    ];
-
-    var registered = 0;
-    var skipped = 0;
-
-    for (var i = 0; i < rpcs.length; i++) {
-        var rpc = rpcs[i];
-        if (!globalThis.__registeredRPCs.has(rpc.id)) {
-            try {
-                initializer.registerRpc(rpc.id, rpc.handler);
-                globalThis.__registeredRPCs.add(rpc.id);
-                logger.info("[QuizverseDepth] Registered RPC: " + rpc.id);
-                registered++;
-            } catch (err) {
-                logger.error("[QuizverseDepth] Failed to register " + rpc.id + ": " + err.message);
-            }
-        } else {
-            logger.info("[QuizverseDepth] Skipped (already registered): " + rpc.id);
-            skipped++;
-        }
-    }
-
-    logger.info("[QuizverseDepth] Registration complete: " + registered + " registered, " + skipped + " skipped");
 }

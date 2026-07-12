@@ -191,6 +191,88 @@ namespace IntelliverseFriendsList {
   }
 
   /**
+   * Normalize nk.friendsList / FriendList shapes across Goja bindings.
+   */
+  function normalizeFriendsList(friendsResp: any): any[] {
+    if (!friendsResp) return [];
+    if (Array.isArray(friendsResp)) return friendsResp;
+    if (friendsResp.friends && Array.isArray(friendsResp.friends)) return friendsResp.friends;
+    if (friendsResp.Friends && Array.isArray(friendsResp.Friends)) return friendsResp.Friends;
+    return [];
+  }
+
+  /**
+   * SQL fallback when nk.friendsList returns empty despite a live friend graph
+   * (seen on prod 2026-07-11 — native /v2/friend had rows, Goja list did not).
+   * Builds the same { user, state } objects flattenFriend expects.
+   */
+  function loadFriendsViaSql(
+    nk: nkruntime.Nakama,
+    logger: nkruntime.Logger,
+    userId: string,
+    limit: number,
+    stateFilter: number | undefined
+  ): any[] {
+    var out: any[] = [];
+    try {
+      var rows: any[] = [];
+      if (stateFilter === undefined || stateFilter === null) {
+        rows = nk.sqlQuery(
+          "SELECT e.destination_id AS friend_id, e.state AS edge_state, e.update_time AS edge_update_time, " +
+          "       u.username, u.display_name, u.avatar_url, u.create_time, u.update_time, u.metadata " +
+          "FROM user_edge e " +
+          "JOIN users u ON u.id = e.destination_id " +
+          "WHERE e.source_id = $1 " +
+          "ORDER BY e.update_time DESC " +
+          "LIMIT $2",
+          [userId, limit]
+        ) as any[];
+      } else {
+        rows = nk.sqlQuery(
+          "SELECT e.destination_id AS friend_id, e.state AS edge_state, e.update_time AS edge_update_time, " +
+          "       u.username, u.display_name, u.avatar_url, u.create_time, u.update_time, u.metadata " +
+          "FROM user_edge e " +
+          "JOIN users u ON u.id = e.destination_id " +
+          "WHERE e.source_id = $1 AND e.state = $2 " +
+          "ORDER BY e.update_time DESC " +
+          "LIMIT $3",
+          [userId, stateFilter, limit]
+        ) as any[];
+      }
+      if (!rows) return out;
+      for (var i = 0; i < rows.length; i++) {
+        var row: any = rows[i];
+        if (!row || !row.friend_id) continue;
+        var edgeState = (typeof row.edge_state === "number")
+          ? row.edge_state
+          : parseInt(String(row.edge_state || 0), 10);
+        out.push({
+          state: edgeState,
+          updateTime: row.edge_update_time || "",
+          user: {
+            id: String(row.friend_id),
+            username: row.username || "",
+            displayName: row.display_name || "",
+            display_name: row.display_name || "",
+            avatarUrl: row.avatar_url || "",
+            avatar_url: row.avatar_url || "",
+            createTime: row.create_time || "",
+            create_time: row.create_time || "",
+            updateTime: row.update_time || "",
+            update_time: row.update_time || "",
+            metadata: row.metadata || {}
+          }
+        });
+      }
+    } catch (e: any) {
+      if (logger && logger.warn) {
+        logger.warn("[FriendsList] user_edge SQL fallback failed: " + (e && e.message));
+      }
+    }
+    return out;
+  }
+
+  /**
    * Flatten a Nakama friend object into our canonical wire shape.
    * Caller supplies the resolved `online` flag (from loadOnlineMap) and the
    * resolved alpha-2 `country` (from loadCountryMap; "" when unknown).
@@ -259,11 +341,14 @@ namespace IntelliverseFriendsList {
     // ── Fetch from Nakama ───────────────────────────────────────────────
     var friendsResp: nkruntime.FriendList | null = null;
     try {
+      // Prefer null cursor (matches duo_quests / friends_feed call sites).
+      // Passing JS `undefined` has been observed on prod Goja to yield an
+      // empty FriendList while the native /v2/friend graph still has rows.
       friendsResp = nk.friendsList(
         userId,
         limit,
-        stateFilter as any,
-        cursor as any
+        (stateFilter === undefined ? null : stateFilter) as any,
+        (cursor === undefined ? null : cursor) as any
       );
     } catch (e: any) {
       if (logger && logger.error) {
@@ -272,8 +357,26 @@ namespace IntelliverseFriendsList {
       return err("Failed to load friends", ERR_INTERNAL);
     }
 
-    var rawFriends: any[] = (friendsResp && friendsResp.friends) ? friendsResp.friends : [];
-    var nextCursor: string | null = (friendsResp && (friendsResp as any).cursor) || null;
+    // Nakama releases have exposed this binding both as FriendList and as a
+    // direct array in Goja. Normalize both shapes so a valid native graph can
+    // never become an empty Social Zone roster after a runtime upgrade.
+    var rawFriends: any[] = normalizeFriendsList(friendsResp);
+
+    // Prod incident 2026-07-11 (Sid): nk.friendsList returned {friends:[]} while
+    // GET /v2/friend returned 14 edges. Fall back to user_edge SQL so Social
+    // Zone never shows an empty roster when the graph is non-empty.
+    if (rawFriends.length === 0) {
+      rawFriends = loadFriendsViaSql(nk, logger, userId, limit, stateFilter);
+      if (rawFriends.length > 0 && logger && logger.warn) {
+        logger.warn(
+          "[FriendsList] nk.friendsList empty — recovered " + rawFriends.length +
+          " rows via user_edge SQL for user=" + userId
+        );
+      }
+    }
+
+    var nextCursor: string | null =
+      (!Array.isArray(friendsResp as any) && friendsResp && (friendsResp as any).cursor) || null;
 
     // ── Bulk-load presence ──────────────────────────────────────────────
     var ids: string[] = [];
@@ -308,15 +411,43 @@ namespace IntelliverseFriendsList {
 
     // ── Flatten ─────────────────────────────────────────────────────────
     var results: any[] = [];
+    var cntFriend = 0;
+    var cntPendingRecv = 0;
+    var cntPendingSent = 0;
+    var cntBlocked = 0;
+    var cntOther = 0;
+    var samplePendingRecv: string[] = [];
     for (var j = 0; j < rawFriends.length; j++) {
       var fr = rawFriends[j];
       if (!fr || !fr.user || !fr.user.id) continue;
       var online = !!onlineMap[fr.user.id];
       var fcountry = countryMap[fr.user.id] || "";
-      results.push(flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null));
+      var flat = flattenFriend(fr, online, fcountry, statsMap[fr.user.id] || null);
+      results.push(flat);
+      var st = flat.relationshipStatus;
+      if (st === "friend") cntFriend++;
+      else if (st === "pending_received") {
+        cntPendingRecv++;
+        if (samplePendingRecv.length < 5) samplePendingRecv.push(String(flat.userId || fr.user.id));
+      } else if (st === "pending_sent") cntPendingSent++;
+      else if (st === "blocked") cntBlocked++;
+      else cntOther++;
     }
 
     if (logger && logger.info) {
+      logger.info(
+        "[SZ-DIAG][SERVER][FriendsList] user=" + userId +
+        " stateFilter=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
+        " country=" + (myCountry || "?") +
+        " returned=" + results.length +
+        " friend=" + cntFriend +
+        " pending_received=" + cntPendingRecv +
+        " pending_sent=" + cntPendingSent +
+        " blocked=" + cntBlocked +
+        " other=" + cntOther +
+        " pendingRecvSample=" + samplePendingRecv.join(",") +
+        " nextCursor=" + (nextCursor || "null")
+      );
       logger.info(
         "[FriendsList] user=" + userId +
         " state=" + (stateFilter === undefined ? "any" : String(stateFilter)) +
@@ -359,7 +490,8 @@ namespace IntelliverseFriendsList {
         STATE_BLOCKED as any,
         undefined as any
       );
-      if (resp && resp.friends) rawList = resp.friends;
+      if (Array.isArray(resp as any)) rawList = resp as any;
+      else if (resp && (resp as any).friends) rawList = (resp as any).friends;
     } catch (e: any) {
       if (logger && logger.error) {
         logger.error("[ListBlockedUsers] nk.friendsList failed: " + (e.message || String(e)));

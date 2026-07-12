@@ -25,12 +25,14 @@ var KEY_RETENTION = "retention";
 // DEFAULT AVATAR SYSTEM
 // ============================================================================
 var DEFAULT_AVATARS = [
-    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Female1.png",
-    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Female2.png",
-    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Female3.png",
-    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Group-1.png",
-    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Male1.png",
-    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/DefaultAvatar/Male2.png"
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/indian-f.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/indian-m.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/chinese-f.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/chinese-m.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/african-f.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/african-m.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/european-f.png",
+    "https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/quiz-verse/quizverse-social-zone-profiles/european-m.png"
 ];
 
 /**
@@ -47,7 +49,15 @@ function getDefaultAvatarUrl(userId) {
 }
 
 /**
- * Ensure a user has an avatar URL. If not, assign a deterministic default.
+ * True when the avatar is an old /DefaultAvatar/ preset that should be replaced.
+ */
+function isLegacyDefaultAvatar(url) {
+    return !!(url && url.indexOf("/quiz-verse/DefaultAvatar/") !== -1);
+}
+
+/**
+ * Ensure a user has an avatar URL. If missing or still on a legacy DefaultAvatar
+ * preset, assign a deterministic social-zone profile.
  * Non-fatal — wrapped in try-catch to never block authentication.
  */
 function ensureUserHasAvatar(nk, logger, userId) {
@@ -55,7 +65,8 @@ function ensureUserHasAvatar(nk, logger, userId) {
         var accounts = nk.accountsGetId([userId]);
         if (accounts && accounts.length > 0) {
             var account = accounts[0];
-            if (!account.user.avatarUrl || account.user.avatarUrl === "") {
+            var current = account.user.avatarUrl || "";
+            if (!current || isLegacyDefaultAvatar(current)) {
                 var defaultAvatar = getDefaultAvatarUrl(userId);
                 nk.accountUpdateId(userId, null, null, null, null, null, defaultAvatar, null);
                 logger.info("[Onboarding] Assigned default avatar to user " + userId + ": " + defaultAvatar);

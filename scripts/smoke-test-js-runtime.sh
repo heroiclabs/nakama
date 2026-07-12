@@ -164,15 +164,47 @@ case "$MODE" in
         #       1/8th the size — faster CI.
         # Nakama supports both transparently; the only change is the
         # connection string format.
+        #
+        # Registry strategy (GHA run 29163949731 / d6f4d8f):
+        #   Dockerfile.production already pulls golang/node/debian from
+        #   public.ecr.aws in this same job. A second anonymous pull of
+        #   postgres from public.ecr.aws then fails with the same
+        #   "toomanyrequests: Rate exceeded" message Docker Hub uses.
+        #   Prefer mirror.gcr.io first (independent quota), then ECR
+        #   Public, tag locally, and set pull_policy:never so compose
+        #   never hits a registry again.
+        LOCAL_PG_IMAGE="smoke-postgres:14-alpine"
+        resolve_smoke_postgres() {
+            if docker image inspect "$LOCAL_PG_IMAGE" >/dev/null 2>&1; then
+                echo "[smoke] Reusing local $LOCAL_PG_IMAGE"
+                return 0
+            fi
+            local candidates=(
+                "mirror.gcr.io/library/postgres:14-alpine"
+                "public.ecr.aws/docker/library/postgres:14-alpine"
+            )
+            local img attempt
+            for img in "${candidates[@]}"; do
+                for attempt in 1 2 3; do
+                    echo "[smoke] Pulling postgres from $img (attempt $attempt/3)…"
+                    if docker pull "$img"; then
+                        docker tag "$img" "$LOCAL_PG_IMAGE"
+                        echo "[smoke] Tagged $img -> $LOCAL_PG_IMAGE"
+                        return 0
+                    fi
+                    echo "[smoke] WARN: pull failed for $img (attempt $attempt)"
+                    sleep $((attempt * 3))
+                done
+            done
+            return 1
+        }
+        resolve_smoke_postgres || fail "could not pull postgres from any mirror (mirror.gcr.io / public.ecr.aws) — rate limited?"
+
         cat > "$STACK_DIR/docker-compose.yml" <<EOF
 services:
   postgres:
-    # Pull from AWS public ECR mirror, not Docker Hub. CodeBuild hits
-    # Docker Hub anonymously and trips the 100-pulls/6h rate limit
-    # (build #195: "toomanyrequests: You have reached your unauthenticated
-    # pull rate limit"). Same reason Dockerfile.production already uses
-    # public.ecr.aws/docker/library/{node,debian,golang}.
-    image: public.ecr.aws/docker/library/postgres:14-alpine
+    image: ${LOCAL_PG_IMAGE}
+    pull_policy: never
     environment:
       POSTGRES_USER: nakama
       POSTGRES_PASSWORD: nakama
@@ -183,6 +215,7 @@ services:
       retries: 30
   nakama:
     image: ${IMAGE}
+    pull_policy: never
     depends_on:
       postgres:
         condition: service_healthy

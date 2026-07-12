@@ -24,6 +24,17 @@ env:
   K8S_NAMESPACE: aicart
   K8S_DEPLOYMENT: intelliverse-nakama
   K8S_CONTAINER: intelliverse-nakama
+  # RCA 2026-07-10: the multiplayer tier (nakama/multiplayer in kube-infra)
+  # runs the same intelliverse-nakama image but was NOT rolled by this
+  # workflow, so it stayed pinned to a CodeBuild-era tag
+  # (3.0.0-ffdf41d-build691). The ECR lifecycle policy keeps only the last
+  # 10 tagged images, so once GHA pushed gha55..gha64 the old tag was
+  # expired and every new multiplayer pod went ImagePullBackOff (TargetDown
+  # 75%, PDB unhealthy for ~31h). Rolling both deployments to the same
+  # digest keeps the two tiers aging together so neither pin can outlive
+  # the lifecycle window.
+  K8S_MP_DEPLOYMENT: intelliverse-nakama-multiplayer
+  K8S_MP_CONTAINER: nakama
   # GATEWAY-CENTRALIZATION 2026-07-08: qwen3 = the LiteLLM-gateway path
   # (QWEN3_BASE_URL + nakama virtual key). Was "openai", which put the
   # direct api.openai.com branch (raw vendor key, now removed) first.
@@ -230,6 +241,48 @@ jobs:
           LIVE_IMAGE=$(kubectl get deployment "$K8S_DEPLOYMENT" -n "$K8S_NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}')
           echo "LIVE_IMAGE=$LIVE_IMAGE"
           kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_DEPLOYMENT" -o wide
+
+      - name: Deploy multiplayer tier (same digest, auto-rollback)
+        run: |
+          set -euo pipefail
+          # Roll the multiplayer tier to the exact digest the main tier just
+          # passed its smoke test on. Digest-pinned so an ECR tag expiry can
+          # never break scheduling again (see RCA note in env block above).
+          if ! kubectl get deployment "$K8S_MP_DEPLOYMENT" -n "$K8S_NAMESPACE" >/dev/null 2>&1; then
+            echo "INFO: $K8S_MP_DEPLOYMENT not found in $K8S_NAMESPACE - skipping."
+            exit 0
+          fi
+          IMAGE_DIGEST=$(aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids imageTag="$IMAGE_VERSION" \
+            --query 'imageDetails[0].imageDigest' --output text)
+          MP_PREVIOUS_IMAGE=$(kubectl get deployment "$K8S_MP_DEPLOYMENT" -n "$K8S_NAMESPACE" \
+            -o jsonpath='{.spec.template.spec.containers[0].image}')
+          echo "MP_PREVIOUS_IMAGE=$MP_PREVIOUS_IMAGE"
+          if [ "$MP_PREVIOUS_IMAGE" = "${REPOSITORY_URI}@${IMAGE_DIGEST}" ]; then
+            echo "Multiplayer tier already on ${IMAGE_DIGEST} - nothing to do."
+            exit 0
+          fi
+          echo "=== Rolling $K8S_MP_DEPLOYMENT to ${IMAGE_VERSION} (${IMAGE_DIGEST}) ==="
+          kubectl set image deployment/"$K8S_MP_DEPLOYMENT" \
+            "$K8S_MP_CONTAINER"="${REPOSITORY_URI}@${IMAGE_DIGEST}" -n "$K8S_NAMESPACE"
+          kubectl annotate deployment/"$K8S_MP_DEPLOYMENT" -n "$K8S_NAMESPACE" --overwrite \
+            kubernetes.io/change-cause="deploy-eks gha${GITHUB_RUN_NUMBER}: ${IMAGE_VERSION} (digest pinned)"
+          # Multiplayer pods drain matches in preStop (up to 5 min each,
+          # maxUnavailable=0), so give the rollout a generous window.
+          set +e
+          kubectl rollout status deployment/"$K8S_MP_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=15m
+          MP_RC=$?
+          set -e
+          if [ "$MP_RC" -ne 0 ]; then
+            echo "Multiplayer rollout FAILED - rolling back to $MP_PREVIOUS_IMAGE"
+            kubectl set image deployment/"$K8S_MP_DEPLOYMENT" \
+              "$K8S_MP_CONTAINER=$MP_PREVIOUS_IMAGE" -n "$K8S_NAMESPACE"
+            kubectl rollout status deployment/"$K8S_MP_DEPLOYMENT" -n "$K8S_NAMESPACE" --timeout=15m || true
+            echo "Rolled back multiplayer tier. Failing the run."
+            exit 1
+          fi
+          kubectl get pods -n "$K8S_NAMESPACE" -l app="$K8S_MP_DEPLOYMENT" -o wide
 
       - name: Analytics bootstrap backfill (non-fatal)
         continue-on-error: true

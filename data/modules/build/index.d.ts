@@ -671,6 +671,10 @@ declare namespace QvAnalyticsCron {
 declare namespace BlogEmbed {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare function persistNormalizedEvent(nk: nkruntime.Nakama, logger: nkruntime.Logger, ev: any): void;
+declare namespace QuizVerseBrainPrompts {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QvCacheRefreshCron {
     function register(initializer: nkruntime.Initializer): void;
     /**
@@ -1233,6 +1237,9 @@ declare namespace QvExplainerVideos {
     function grantExplainerCredits(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, productId: string, quantity: number): number;
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace QvLapNoteQuota {
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace QuizVerseRevenueCatAdmin {
     function register(initializer: nkruntime.Initializer): void;
 }
@@ -1578,6 +1585,18 @@ declare namespace PushAlerts {
         noQuiz?: boolean;
         byLocale: {
             [locale: string]: {
+                sent: number;
+                gated: number;
+            };
+        };
+        byCountry?: {
+            [cc: string]: {
+                sent: number;
+                gated: number;
+            };
+        };
+        byTier?: {
+            [tier: string]: {
                 sent: number;
                 gated: number;
             };
@@ -3704,6 +3723,67 @@ declare namespace Research {
     var MODULE_VERSION: string;
     function register(initializer: nkruntime.Initializer): void;
 }
+/**
+ * RouterWallet — app-id credit wallets for Intelliverse Router.
+ *
+ * Replicates the QuizVerse coins pattern (storage-object wallets) but keyed
+ * by APP ID instead of user id: collection "router_wallets", key
+ * `wallet_{appId}`, owned by the SYSTEM user since apps are not Nakama users.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/router_wallet/ and call RouterWallet.register(initializer)
+ * from main.ts InitModule. Self-contained on purpose — no references to the
+ * kernel's shared namespaces (Storage/RpcHelpers/Constants).
+ *
+ * All RPCs are SERVER-TO-SERVER ONLY (http_key auth): any call with a
+ * ctx.userId is rejected.
+ *
+ * Concurrency: optimistic concurrency control via the storage object version
+ * — every write passes the version read ("*" for create) and retries up to
+ * 3 times on conflict.
+ */
+declare namespace RouterWallet {
+    var SYSTEM_USER_ID: string;
+    var WALLETS_COLLECTION: string;
+    var LEDGER_COLLECTION: string;
+    var CREDIT_REFS_COLLECTION: string;
+    var MAX_OCC_RETRIES: number;
+    var CREDIT_KINDS: string[];
+    interface WalletHold {
+        kind: string;
+        amount: number;
+        createdAt: string;
+    }
+    interface WalletValue {
+        appId: string;
+        workspaceId: string;
+        currencies: {
+            [kind: string]: number;
+        };
+        holds: {
+            [holdId: string]: WalletHold;
+        };
+        version: number;
+    }
+    interface LedgerEntry {
+        appId: string;
+        kind: string;
+        delta: number;
+        balanceAfter: number;
+        reason: string;
+        ref: string | null;
+        holdId?: string;
+        createdAt: string;
+    }
+    function availableBalance(wallet: WalletValue, kind: string): number;
+    function rpcGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcCredit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcDebit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcHold(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSettle(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcHistory(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace AnalyticsAlerts {
     interface RpcSample {
         ts: number;
@@ -4167,6 +4247,19 @@ declare namespace GeoTier {
      * an unknown geo as "no nearby scoping possible".
      */
     function getUserCountry(nk: nkruntime.Nakama, userId: string): string;
+    /** True when ISO alpha-2 is a Tier-1 (premium) market per T1_COUNTRIES. */
+    function isT1Country(countryCode: string): boolean;
+    /**
+     * Map ISO alpha-2 → t1|t2|t3. Unknown / empty → "unknown" (not silently t3)
+     * so push soft-T1 reports can separate "no geo" from emerging markets.
+     */
+    function classifyCountryTier(countryCode: string): string;
+    /**
+     * Cache-first country for push analytics / soft T1 reporting.
+     * Never HTTP. Order: geo_tier cache → users.metadata.country →
+     * account.user.location (2-letter). Returns "" if unresolved.
+     */
+    function getCountryForPushAnalytics(nk: nkruntime.Nakama, userId: string): string;
     /**
      * Resolve + cache the user's country in one call (cache-first, then
      * IP-API fallback). Returns the resolved alpha-2 code, or "" when even
@@ -4211,6 +4304,12 @@ declare namespace SharedRateLimit {
         retryAfterSec?: number;
     }
     function check(ctx: nkruntime.Context, nk: nkruntime.Nakama, rpcName: string, opts: RateLimitOpts): RateLimitDecision;
+    /**
+     * Check an arbitrary per-user sliding window using the same distributed
+     * storage buckets as the standard second/minute limits. Realtime hooks use
+     * this when their product contract is not a one-second or one-minute window.
+     */
+    function checkUserWindow(ctx: nkruntime.Context, nk: nkruntime.Nakama, operationName: string, windowSec: number, limit: number): RateLimitDecision;
     function enforce(ctx: nkruntime.Context, nk: nkruntime.Nakama, rpcName: string, opts: RateLimitOpts): string | null;
 }
 declare namespace RewardEngine {
@@ -5563,6 +5662,174 @@ declare namespace Satori {
     }
 }
 declare namespace UserModel {
+    function register(initializer: nkruntime.Initializer): void;
+}
+/**
+ * WorldTrivia — playable world templates game loop for Intelliverse.
+ *
+ * The founder's loop: a player moves through a generated 3D world, hits
+ * CHECKPOINTS, answers a TRIVIA QUESTION at each, and may FINISH after 5
+ * CORRECT answers. ALWAYS-UNIQUE COLORED OBJECTS spawn per session as a
+ * scavenger-hunt secondary mechanic (uniqueness via seeded RNG from the
+ * server-generated sessionId). Full design: docs/worlds/game-loop.md.
+ *
+ * Follows the router-wallet module conventions: global namespace, storage
+ * objects owned by the SYSTEM user, {success,data}/{success,error} envelopes,
+ * optimistic concurrency control with up to 3 retries on session mutations.
+ *
+ * Everything is App-ID scoped (multi-tenant): templates, trivia packs, and
+ * sessions all carry an appId consistent with the repo's "apps" model.
+ *
+ * Auth split:
+ *  - authoring RPCs (world_template_upsert, world_trivia_pack_upsert) are
+ *    SERVER-TO-SERVER ONLY (http_key), like all router_wallet RPCs;
+ *  - gameplay RPCs require an authenticated Nakama user (ctx.userId) and
+ *    verify session ownership — the game is server-authoritative, the client
+ *    never grades answers or counts progress.
+ *
+ * Drop-in module for nakama-multiplayer-kernel: copy this folder to
+ * data/modules/src/world_trivia/ and call WorldTrivia.register(initializer)
+ * from main.ts InitModule. Self-contained; the router-wallet finish-reward
+ * hook resolves RouterWallet softly at call time and is skipped when the
+ * wallet module is not installed.
+ */
+declare namespace WorldTrivia {
+    var SYSTEM_USER_ID: string;
+    var TEMPLATES_COLLECTION: string;
+    var PACKS_COLLECTION: string;
+    var SESSIONS_COLLECTION: string;
+    var LEADERBOARDS_COLLECTION: string;
+    var MAX_OCC_RETRIES: number;
+    var SCORE_CORRECT: number;
+    var SCORE_OBJECT_FOUND: number;
+    var SCORE_FINISH_BONUS: number;
+    var IDLE_EXPIRY_MS: number;
+    var LEADERBOARD_SIZE: number;
+    var PROXIMITY_SLACK: number;
+    var SPEED_SLACK: number;
+    var QUESTION_STREAM: number;
+    var OBJECT_SHAPES: string[];
+    var DEFAULT_SETTINGS: TemplateSettings;
+    interface Vec3 {
+        x: number;
+        y: number;
+        z: number;
+    }
+    interface Checkpoint {
+        id: string;
+        name: string;
+        position: Vec3;
+        radius: number;
+    }
+    interface ScavengerVolume {
+        min: Vec3;
+        max: Vec3;
+    }
+    interface TemplateSettings {
+        requiredCorrect: number;
+        objectCount: number;
+        maxSpeed: number;
+        maxAnswerSeconds: number;
+        collectRadius: number;
+        finishRewardCredits: number;
+    }
+    interface WorldTemplate {
+        appId: string;
+        templateId: string;
+        name: string;
+        packId: string;
+        assets: {
+            splatUrl?: string;
+            meshUrl?: string;
+        };
+        spawnPoint: Vec3;
+        checkpoints: Checkpoint[];
+        scavengerVolumes: ScavengerVolume[];
+        settings: TemplateSettings;
+        updatedAt: string;
+    }
+    interface TriviaQuestion {
+        id: string;
+        text: string;
+        choices: string[];
+        correctIndex: number;
+        category?: string;
+    }
+    interface TriviaPack {
+        appId: string;
+        packId: string;
+        questions: TriviaQuestion[];
+        updatedAt: string;
+    }
+    interface ScavengerObject {
+        id: string;
+        color: string;
+        shape: string;
+        position: Vec3;
+    }
+    interface PendingQuestion {
+        questionId: string;
+        checkpointId: string;
+        issuedAtMs: number;
+    }
+    interface SessionValue {
+        sessionId: string;
+        appId: string;
+        userId: string;
+        templateId: string;
+        packId: string;
+        seed: number;
+        status: string;
+        lap: number;
+        visitedCheckpoints: string[];
+        pendingQuestion: PendingQuestion | null;
+        questionQueue: string[];
+        askedQuestionIds: string[];
+        correctCount: number;
+        wrongCount: number;
+        finishEligible: boolean;
+        objects: ScavengerObject[];
+        objectsFound: string[];
+        score: number;
+        lastPosition: Vec3;
+        lastEventAtMs: number;
+        startedAtMs: number;
+        finishedAtMs: number | null;
+        version: number;
+    }
+    interface LeaderboardEntry {
+        sessionId: string;
+        userId: string;
+        score: number;
+        correctCount: number;
+        wrongCount: number;
+        objectsFound: number;
+        durationMs: number;
+        finishedAt: string;
+    }
+    /** FNV-1a 32-bit hash — session seed derivation from the sessionId UUID. */
+    function fnv1a32(str: string): number;
+    /** mulberry32 PRNG — tiny, fast, deterministic across JS runtimes. */
+    function mulberry32(seed: number): () => number;
+    /**
+     * Derive the per-session scavenger layout from the seed. Colors are unique
+     * within the session by construction: a random start hue, then even
+     * 360/N spacing with ±10° jitter (spacing 45° at N=8, so hues can never
+     * collide), fixed saturation/lightness. Draw order per object is fixed
+     * (jitter, volume, x, y, z) — the viewer replays it byte-for-byte.
+     */
+    function deriveObjects(seed: number, count: number, volumes: ScavengerVolume[]): ScavengerObject[];
+    function shuffleIds(ids: string[], rnd: () => number): string[];
+    function rpcTemplateUpsert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcPackUpsert(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionStart(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcCheckpointReach(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcAnswerSubmit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcObjectFound(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionFinish(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcSessionAbandon(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
+    function rpcLeaderboardGet(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace KbEnrichment {

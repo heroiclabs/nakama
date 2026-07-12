@@ -171,6 +171,16 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[LiveBanner] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Quizverse Brain contextual prompt gate ----
+  // Server-authoritative daily/weekly frequency, cross-device OCC reservation,
+  // idempotent lifecycle commits, successful-visit tracking, and telemetry.
+  try {
+    QuizVerseBrainPrompts.register(initializer);
+    logger.info("[BrainPrompt] evaluate + commit RPCs registered");
+  } catch (err: any) {
+    logger.error("[BrainPrompt] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- QuizVerse product telemetry (quizverse_product_metrics → n8n WF-09) ----
   // Independent of QuizVerse Next.js /admin/metrics — both may call WF-09 in parallel.
   try {
@@ -196,6 +206,14 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.error("[QvEntitlements] failed to mount: " + (err && err.message ? err.message : String(err)));
   }
 
+  // ---- Link & Play server-authoritative daily note quota ----
+  try {
+    QvLapNoteQuota.register(initializer);
+    logger.info("[QvLapNoteQuota] quizverse_lap_note_quota registered");
+  } catch (err: any) {
+    logger.error("[QvLapNoteQuota] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
   // ---- RevenueCat admin dashboard proxy (IAP revenue charts) ----
   try {
     QuizVerseRevenueCatAdmin.register(initializer);
@@ -210,6 +228,24 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     logger.info("[QvExplainerVideos] quizverse_videos_status/consume/grant registered");
   } catch (err: any) {
     logger.error("[QvExplainerVideos] failed to mount: " + (err && err.message ? err.message : String(err)));
+  }
+
+  // ---- Intelliverse Router app-id credit wallets (s2s-only RPCs) ----
+  try {
+    logger.info("[RouterWallet] Registering router wallet RPCs...");
+    RouterWallet.register(initializer);
+  } catch (err: any) {
+    logger.error("[RouterWallet] Failed to register: " + (err.message || String(err)));
+  }
+
+  // ---- Intelliverse world-trivia game loop (playable world templates) ----
+  // Registered AFTER RouterWallet so the session-finish reward hook can find
+  // the wallet namespace (soft dependency — skips crediting when absent).
+  try {
+    logger.info("[WorldTrivia] Registering world trivia RPCs...");
+    WorldTrivia.register(initializer);
+  } catch (err: any) {
+    logger.error("[WorldTrivia] Failed to register: " + (err.message || String(err)));
   }
 
   // ---- Legacy System Registration (backward-compatible RPCs) ----

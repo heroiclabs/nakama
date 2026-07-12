@@ -24,18 +24,18 @@
 // ── get_questions integration ─────────────────────────────────────────────────
 //
 //   get_questions checks qv_readyqueue first (before readCache):
-//     • If found and fresh (<2 h) and has ≥ count questions → serve instantly,
+//     • If found and fresh (<8 h, soft to 16 h) and has ≥ count questions → serve instantly,
 //       remove consumed questions from the readyqueue doc
 //     • Otherwise fall through to normal cache path; after selecting questions
 //       write remaining fresh pool back to readyqueue for next call
 //
 // ── Storage collections ───────────────────────────────────────────────────────
 //
-//   qv_active_users   key=userId, owner=""  { last_played_ms }
+//   qv_active_users   key=userId, owner=system  { last_played_ms }
 //   qv_readyqueue     key=topicSlug, owner=userId  { questions, created_at_ms }
 //
-// ── postbuild note ────────────────────────────────────────────────────────────
-//   registerCron is called directly inside InitModule (detected by postbuild).
+// Client StartupTopics (Unity QuizQuestionWarmupCoordinator) must stay aligned
+// with STARTUP_DEFAULT_TOPICS below.
 
 namespace QvPrewarmCron {
 
@@ -45,10 +45,30 @@ namespace QvPrewarmCron {
 
   var ACTIVE_WINDOW_MS  = 7  * 24 * 3600000; // 7 days
   var READYQUEUE_SIZE   = 30;                 // questions to pre-compute per topic
-  var READYQUEUE_TTL_MS = 2  * 3600000;       // 2 h — re-warm if stale
+  var READYQUEUE_TTL_MS = 8  * 3600000;       // 8 h — align with get_questions + client resume
   var MAX_USERS_PER_RUN = 200;
-  var TOP_TOPICS_N      = 3;                  // pre-warm top-3 affinity topics
+  var TOP_TOPICS_N      = 5;                  // DNA affinities to merge with startup defaults
+  var MAX_TOPICS_PER_USER = 15;               // hard cap per cron user (cost control)
   var MAX_SEEN_IDS      = 500;                // seen IDs to load per user
+
+  // Keep in sync with Trivia.Services.QuizQuestionWarmupCoordinator.StartupTopics
+  // and question_cache.fetchForTopic cases.
+  var STARTUP_DEFAULT_TOPICS: string[] = [
+    "flags", "music", "video_quiz", "anime", "pokemon",
+    "movies", "dog", "space", "sports", "countries",
+    "true_false", "speed_quiz", "opentdb",
+    "food", "cocktail", "ghibli", "disney", "starwars", "news",
+    "geography"
+  ];
+
+  var WARMABLE_TOPICS: { [topic: string]: boolean } = {
+    anime: true, pokemon: true, movies: true, dog: true, dish: true,
+    food: true, cocktail: true,
+    flags: true, countries: true, space: true, music: true,
+    video_quiz: true, sports: true, ghibli: true, disney: true,
+    starwars: true, news: true, speed_quiz: true, true_false: true,
+    opentdb: true, general: true, geography: true
+  };
 
   function nowMs(): number { return Date.now(); }
 
@@ -57,6 +77,37 @@ namespace QvPrewarmCron {
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_|_$/g, "")
       .substring(0, 64);
+  }
+
+  // Mirror submit_result.updateActiveUser — login/warm must register the player
+  // so hourly cron covers them even before their first quiz submit.
+  function updateActiveUser(nk: nkruntime.Nakama, userId: string): void {
+    if (!userId) return;
+    try {
+      nk.storageWrite([{
+        collection:      COL_ACTIVE,
+        key:             userId,
+        userId:          "00000000-0000-0000-0000-000000000000",
+        value:           { last_played_ms: nowMs() },
+        permissionRead:  0,
+        permissionWrite: 0
+      }]);
+    } catch (_e) { /* non-critical */ }
+  }
+
+  function uniqueTopics(topics: string[]): string[] {
+    var seen: { [t: string]: boolean } = {};
+    var out: string[] = [];
+    for (var i = 0; i < topics.length; i++) {
+      var slug = slugify(topics[i] || "");
+      if (!slug || !WARMABLE_TOPICS[slug] || seen[slug]) continue;
+      // dish is an alias of food in get_questions — warm the canonical cache.
+      if (slug === "dish") slug = "food";
+      if (seen[slug]) continue;
+      seen[slug] = true;
+      out.push(slug);
+    }
+    return out;
   }
 
   // ── Active user list ────────────────────────────────────────────────────────
@@ -131,9 +182,13 @@ namespace QvPrewarmCron {
     nk:        nkruntime.Nakama,
     logger:    nkruntime.Logger,
     userId:    string,
-    topic:     string
+    topic:     string,
+    desiredCount?: number
   ): number {
     var topicSlug = slugify(topic);
+    var targetCount = typeof desiredCount === "number"
+      ? Math.max(4, Math.min(READYQUEUE_SIZE, Math.floor(desiredCount)))
+      : READYQUEUE_SIZE;
 
     // Skip if readyqueue is still fresh
     try {
@@ -141,7 +196,7 @@ namespace QvPrewarmCron {
       if (existing && existing.length > 0 && existing[0].value) {
         var rq: any = existing[0].value;
         if (rq.created_at_ms && (nowMs() - rq.created_at_ms) < READYQUEUE_TTL_MS &&
-            Array.isArray(rq.questions) && rq.questions.length >= READYQUEUE_SIZE / 2) {
+            Array.isArray(rq.questions) && rq.questions.length >= targetCount) {
           return 0; // still fresh — skip
         }
       }
@@ -169,7 +224,23 @@ namespace QvPrewarmCron {
       var tmp = fresh[fi]; fresh[fi] = fresh[ri]; fresh[ri] = tmp;
     }
 
-    var toStore = fresh.slice(0, READYQUEUE_SIZE);
+    var toStore = fresh.slice(0, targetCount);
+
+    // Availability tier: once unseen questions are exhausted, append the
+    // oldest previously-seen questions. This preserves variety first while
+    // ensuring survival/replay sessions always have a complete ready queue.
+    if (toStore.length < targetCount) {
+      var storedIds: { [id: string]: boolean } = {};
+      for (var tsi = 0; tsi < toStore.length; tsi++) storedIds[toStore[tsi].id] = true;
+      var poolById: { [id: string]: any } = {};
+      for (var pbi = 0; pbi < pool.length; pbi++) poolById[pool[pbi].id] = pool[pbi];
+      for (var bfi = 0; bfi < seenIds.length && toStore.length < targetCount; bfi++) {
+        var seenQuestion = poolById[seenIds[bfi]];
+        if (!seenQuestion || storedIds[seenQuestion.id]) continue;
+        toStore.push(seenQuestion);
+        storedIds[seenQuestion.id] = true;
+      }
+    }
     if (toStore.length === 0) return 0;
 
     try {
@@ -203,35 +274,175 @@ namespace QvPrewarmCron {
   ): { topics: number; questions: number } {
     var stats = { topics: 0, questions: 0 };
     try {
-      // Load DNA to find top affinity topics
-      var dnaRows = nk.storageRead([{ collection: "player_dna", key: "dna", userId: userId }]);
-      if (!dnaRows || dnaRows.length === 0 || !dnaRows[0].value) {
-        // Fall back to default cold-start topics
-        var coldTopics = ["anime", "pokemon", "movies"];
-        for (var ci = 0; ci < coldTopics.length; ci++) {
-          var n = prewarmTopic(nk, logger, userId, coldTopics[ci]);
-          if (n > 0) { stats.topics++; stats.questions += n; }
+      var planned: string[] = [];
+
+      // DNA affinities (best-effort) — merge with full startup defaults so cron
+      // coverage matches the client's first-tap topic list.
+      try {
+        var dnaRows = nk.storageRead([{ collection: "player_dna", key: "dna", userId: userId }]);
+        if (dnaRows && dnaRows.length > 0 && dnaRows[0].value) {
+          var dna: any = dnaRows[0].value;
+          var affinities: any = (dna && typeof dna.affinities === "object") ? dna.affinities : {};
+          var topicKeys = Object.keys(affinities);
+          topicKeys.sort(function(a, b) {
+            return (affinities[b] || 0) - (affinities[a] || 0);
+          });
+          for (var di = 0; di < topicKeys.length && di < TOP_TOPICS_N; di++) {
+            planned.push(topicKeys[di]);
+          }
         }
-        return stats;
+      } catch (_dnaErr) { /* fall through to defaults */ }
+
+      for (var si = 0; si < STARTUP_DEFAULT_TOPICS.length; si++) {
+        planned.push(STARTUP_DEFAULT_TOPICS[si]);
       }
 
-      var dna: any = dnaRows[0].value;
-      var affinities: any = (dna && typeof dna.affinities === "object") ? dna.affinities : {};
-      var topicKeys = Object.keys(affinities);
-      topicKeys.sort(function(a, b) {
-        return (affinities[b] || 0) - (affinities[a] || 0);
-      });
-      var top = topicKeys.slice(0, TOP_TOPICS_N);
-      if (top.length === 0) top = ["anime", "pokemon", "movies"];
+      var topics = uniqueTopics(planned).slice(0, MAX_TOPICS_PER_USER);
+      if (topics.length === 0) {
+        topics = uniqueTopics(STARTUP_DEFAULT_TOPICS).slice(0, MAX_TOPICS_PER_USER);
+      }
 
-      for (var ti = 0; ti < top.length; ti++) {
-        var n2 = prewarmTopic(nk, logger, userId, top[ti]);
+      for (var ti = 0; ti < topics.length; ti++) {
+        var n2 = prewarmTopic(nk, logger, userId, topics[ti]);
         if (n2 > 0) { stats.topics++; stats.questions += n2; }
       }
     } catch (e: any) {
       logger.warn("[QvPrewarm] prewarmUser error userId=" + userId + ": " + (e && e.message));
     }
     return stats;
+  }
+
+  function readReadyQueue(
+    nk: nkruntime.Nakama,
+    userId: string,
+    topic: string
+  ): any[] {
+    try {
+      var rows = nk.storageRead([{
+        collection: COL_READYQUEUE, key: slugify(topic), userId: userId
+      }]);
+      if (rows && rows.length > 0 && rows[0].value &&
+          Array.isArray(rows[0].value.questions)) {
+        return rows[0].value.questions;
+      }
+    } catch (_e) {}
+    return [];
+  }
+
+  function topicCacheNeedsRepair(topic: string, questions: any[], minCount: number): boolean {
+    if (!Array.isArray(questions) || questions.length < minCount) return true;
+
+    if (topic === "anime") {
+      for (var ai = 0; ai < questions.length; ai++) {
+        var aq = questions[ai];
+        if (aq && aq.has_media && aq.media && aq.media.type === "image" &&
+            aq.question_text !== "Which anime is shown in this image?") {
+          return true;
+        }
+      }
+    }
+
+    if (topic === "flags" || topic === "countries") {
+      var correctTopicCount = 0;
+      for (var fi = 0; fi < questions.length; fi++) {
+        if (questions[fi] && questions[fi].topic === topic) correctTopicCount++;
+      }
+      if (correctTopicCount < Math.max(minCount, 60)) return true;
+    }
+
+    if (topic === "music") {
+      var audioCount = 0;
+      for (var mi = 0; mi < questions.length; mi++) {
+        var mm = questions[mi] && questions[mi].media;
+        if (mm && mm.type === "audio" && mm.url) audioCount++;
+      }
+      if (audioCount < minCount) return true;
+    }
+
+    if (topic === "video_quiz") {
+      var cdnVideoCount = 0;
+      for (var vi = 0; vi < questions.length; vi++) {
+        var vm = questions[vi] && questions[vi].media;
+        if (vm && vm.type === "video" && typeof vm.url === "string" &&
+            vm.url.indexOf("cloudfront.net/") !== -1) {
+          cdnVideoCount++;
+        }
+      }
+      if (cdnVideoCount < minCount) return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Authenticated app-start/post-quiz warmup. It never reserves a question pack:
+   * it repairs a missing/thin shared topic cache and fills the caller's private
+   * ready queue, so the real get_questions call remains authoritative and fast.
+   */
+  function rpcWarmTopic(
+    ctx:     nkruntime.Context,
+    logger:  nkruntime.Logger,
+    nk:      nkruntime.Nakama,
+    payload: string
+  ): string {
+    var userId = ctx.userId || "";
+    if (!userId) {
+      throw new Error(JSON.stringify({ code: 16, message: "authentication required" }));
+    }
+
+    // Register as active so hourly cron covers this player even before submit.
+    updateActiveUser(nk, userId);
+
+    var req: any = {};
+    try { req = JSON.parse(payload || "{}"); } catch (_pe) {
+      throw new Error(JSON.stringify({ code: 3, message: "invalid JSON payload" }));
+    }
+    var topic = slugify(typeof req.topic === "string" ? req.topic : "");
+    if (topic === "dish") topic = "food";
+    if (!topic || !WARMABLE_TOPICS[topic]) {
+      throw new Error(JSON.stringify({ code: 3, message: "unsupported warmup topic" }));
+    }
+    var minCount = typeof req.min_count === "number"
+      ? Math.max(4, Math.min(READYQUEUE_SIZE, Math.floor(req.min_count)))
+      : READYQUEUE_SIZE;
+
+    var before = QvQuestionCache.readCache(nk, logger, topic);
+    var refreshed = false;
+    var refreshError = "";
+    var needsSchemaRepair = topicCacheNeedsRepair(topic, before.questions, minCount);
+    if (before.expired || needsSchemaRepair) {
+      var refreshResult = QvQuestionCache.refreshCache(
+        nk, logger, ctx.env || {}, topic, needsSchemaRepair);
+      refreshed = refreshResult.ok && refreshResult.count > 0;
+      refreshError = refreshResult.error || "";
+    }
+
+    var after = QvQuestionCache.readCache(nk, logger, topic);
+    var queueWritten = prewarmTopic(nk, logger, userId, topic, minCount);
+    var readyQuestions = readReadyQueue(nk, userId, topic);
+    var mediaUrls: string[] = [];
+    var mediaSeen: { [url: string]: boolean } = {};
+    for (var mi = 0; mi < readyQuestions.length && mediaUrls.length < 4; mi++) {
+      var media = readyQuestions[mi] && readyQuestions[mi].media;
+      var mediaUrl = media && typeof media.url === "string" ? media.url : "";
+      if (!mediaUrl || mediaSeen[mediaUrl]) continue;
+      mediaSeen[mediaUrl] = true;
+      mediaUrls.push(mediaUrl);
+    }
+
+    logger.info("[QvPrewarm] user warm topic=" + topic +
+      " cache=" + after.questions.length + " queue=" + readyQuestions.length +
+      " refreshed=" + refreshed + " media=" + mediaUrls.length);
+    return JSON.stringify({
+      ok:                  after.questions.length > 0 && readyQuestions.length > 0,
+      topic:               topic,
+      cache_count:         after.questions.length,
+      ready_count:         readyQuestions.length,
+      queue_written:       queueWritten,
+      refreshed:           refreshed,
+      refresh_error:       refreshError || undefined,
+      media_urls:          mediaUrls
+    });
   }
 
   // ── Opportunistic rate gate ─────────────────────────────────────────────────
@@ -343,6 +554,7 @@ namespace QvPrewarmCron {
 
   export function register(initializer: nkruntime.Initializer): void {
     initializer.registerRpc("quizverse_prewarm_tick", rpcPrewarmTick);
+    initializer.registerRpc("quizverse_warm_topic", rpcWarmTopic);
   }
 
   var _NOOP: any = { registerRpc: function() {} };

@@ -110,6 +110,14 @@ function _fiUuidValid(id) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
+// Nakama's Goja binding has returned both `{ friends: [...] }` and a direct
+// array across runtime versions. Keep the native graph authoritative by
+// accepting either representation everywhere in this module.
+function _fiFriendRows(page) {
+    if (Array.isArray(page)) return page;
+    return (page && Array.isArray(page.friends)) ? page.friends : [];
+}
+
 function _fiNowIso()  { return new Date().toISOString(); }
 function _fiNowMs()   { return Date.now(); }
 
@@ -161,9 +169,10 @@ function _fiNakamaRelation(nk, callerId, targetId) {
         // for all and scan. With a hard cap of 1000 this is O(1) for
         // typical players; for power users we still terminate on first match.
         var page = nk.friendsList(callerId, 1000, null, null);
-        if (page && page.friends) {
-            for (var i = 0; i < page.friends.length; i++) {
-                var f = page.friends[i];
+        var friends = _fiFriendRows(page);
+        if (friends.length > 0) {
+            for (var i = 0; i < friends.length; i++) {
+                var f = friends[i];
                 if (f && f.user && f.user.id === targetId) {
                     var s = (f.state && typeof f.state === 'object' && 'value' in f.state)
                         ? f.state.value : f.state;
@@ -191,9 +200,10 @@ function _fiBuildRelationMap(nk, callerId) {
     var map = {};
     try {
         var page = nk.friendsList(callerId, 1000, null, null);
-        if (page && page.friends) {
-            for (var i = 0; i < page.friends.length; i++) {
-                var f = page.friends[i];
+        var friends = _fiFriendRows(page);
+        if (friends.length > 0) {
+            for (var i = 0; i < friends.length; i++) {
+                var f = friends[i];
                 if (!f || !f.user || !f.user.id) continue;
                 var s = (f.state && typeof f.state === 'object' && 'value' in f.state)
                     ? f.state.value : f.state;
@@ -1359,6 +1369,18 @@ function rpcFriendsListPendingInvites(ctx, logger, nk, payload) {
         } catch (e) {
             logger.warn('[FriendInvites] list outgoing failed: ' + e.message);
         }
+    }
+
+    if (logger && logger.info) {
+        logger.info(
+            '[SZ-DIAG][SERVER][InvitesPending] user=' + userId +
+            ' incoming=' + incoming.length +
+            ' outgoing=' + outgoing.length +
+            ' hasAnyOutgoingGraph=' + hasAnyOutgoing +
+            ' incomingSample=' + incoming.slice(0, 5).map(function (x) {
+                return (x && x.fromUserId) ? x.fromUserId : '?';
+            }).join(',')
+        );
     }
 
     return _fiOk({

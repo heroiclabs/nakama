@@ -122,6 +122,29 @@ namespace SharedRateLimit {
     return { allowed: true };
   }
 
+  /**
+   * Check an arbitrary per-user sliding window using the same distributed
+   * storage buckets as the standard second/minute limits. Realtime hooks use
+   * this when their product contract is not a one-second or one-minute window.
+   */
+  export function checkUserWindow(
+    ctx: nkruntime.Context,
+    nk: nkruntime.Nakama,
+    operationName: string,
+    windowSec: number,
+    limit: number
+  ): RateLimitDecision {
+    var userId = ctx.userId || "";
+    if (!userId || windowSec < 1 || limit < 1) return { allowed: true };
+    return countAndIncrement(
+      nk,
+      userId,
+      KEY_PREFIX_USER + operationName + "_w" + windowSec,
+      windowSec,
+      limit
+    );
+  }
+
   // Convenience wrapper: short-circuits a handler with a 429 response if the
   // caller is over limit. Usage:
   //   function rpcEnter(ctx, logger, nk, payload) {

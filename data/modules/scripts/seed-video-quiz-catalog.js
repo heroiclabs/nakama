@@ -29,7 +29,7 @@ const BUILD_DIR = path.join(MODULES_DIR, 'build');
 const OUTPUT_FILE = path.join(BUILD_DIR, 'video_quiz_catalog.json');
 
 const DEFAULT_CDN_BASE =
-  'https://intelli-verse-x-media.s3.us-east-1.amazonaws.com/assets';
+  'https://d1e6r993vuuu18.cloudfront.net/assets';
 
 // #QVVBS-CACHE (2026-07): the old default pointed at a sibling-repo path
 // (Int-newFolder/intelliverse-x-games-platform-2/...) that no longer exists (the

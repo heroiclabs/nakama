@@ -935,10 +935,30 @@ namespace QuizVerseMigration {
     payload: string
   ): string {
     var req = parseJson(payload);
-    if (!req.refresh_token) {
+    // Accept Unity field names (refreshToken) and broker snake_case.
+    var refreshTok = req.refresh_token || req.refreshToken || "";
+    if (!refreshTok) {
       throw nakamaError("refresh_token required", nkruntime.Codes.INVALID_ARGUMENT);
     }
-    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", "/api/user/auth-v2/refresh", req);
+    var idp = req.idp_username || req.idpUsername || req["idp-username"] || "";
+    // IMPORTANT: /api/user/auth-v2/refresh does NOT exist on api.intelli-verse-x.ai
+    // (returns HTTP 404). Unity APIManager's proven path is:
+    //   POST /api/user/auth/refresh-token?idp-username=…  body { refreshToken }
+    // Always use that. idp_username is required for Cognito refresh to succeed.
+    if (!idp) {
+      return JSON.stringify({
+        ok: false,
+        error: "idp_username_required",
+        rpc: RPC_AUTH_REFRESH,
+        fallback_to_client: true,
+        message: "auth_refresh requires idp_username (Unity refresh-token parity)"
+      });
+    }
+    var unityPath =
+      "/api/user/auth/refresh-token?idp-username=" + encodeURIComponent(String(idp));
+    return proxyAuthEndpoint(ctx, logger, nk, RPC_AUTH_REFRESH, "post", unityPath, {
+      refreshToken: refreshTok
+    });
   }
   function rpcAuthUserinfo(ctx: nkruntime.Context, _l: nkruntime.Logger, nk: nkruntime.Nakama, _p: string): string {
     var userId = requireAuth(ctx);

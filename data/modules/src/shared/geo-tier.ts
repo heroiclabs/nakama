@@ -271,6 +271,53 @@ namespace GeoTier {
     return "";
   }
 
+  /** True when ISO alpha-2 is a Tier-1 (premium) market per T1_COUNTRIES. */
+  export function isT1Country(countryCode: string): boolean {
+    if (!countryCode) return false;
+    return !!T1_COUNTRIES[String(countryCode).toUpperCase()];
+  }
+
+  /**
+   * Map ISO alpha-2 → t1|t2|t3. Unknown / empty → "unknown" (not silently t3)
+   * so push soft-T1 reports can separate "no geo" from emerging markets.
+   */
+  export function classifyCountryTier(countryCode: string): string {
+    if (!countryCode) return "unknown";
+    var cc = String(countryCode).toUpperCase();
+    if (T1_COUNTRIES[cc]) return TIER_T1;
+    if (T2_COUNTRIES[cc]) return TIER_T2;
+    return TIER_T3;
+  }
+
+  /**
+   * Cache-first country for push analytics / soft T1 reporting.
+   * Never HTTP. Order: geo_tier cache → users.metadata.country →
+   * account.user.location (2-letter). Returns "" if unresolved.
+   */
+  export function getCountryForPushAnalytics(nk: nkruntime.Nakama, userId: string): string {
+    var cached = getUserCountry(nk, userId);
+    if (cached) return cached;
+    try {
+      var account: any = nk.accountGetId(userId);
+      if (account && account.user) {
+        var meta: any = {};
+        try {
+          if (account.user.metadata) {
+            meta = typeof account.user.metadata === "string"
+              ? JSON.parse(account.user.metadata)
+              : account.user.metadata;
+          }
+        } catch (_) { meta = {}; }
+        if (meta && typeof meta.country === "string" && meta.country.length === 2) {
+          return String(meta.country).toUpperCase();
+        }
+        var loc = account.user.location ? String(account.user.location).trim().toUpperCase() : "";
+        if (/^[A-Z]{2}$/.test(loc)) return loc;
+      }
+    } catch (_) {}
+    return "";
+  }
+
   /**
    * Resolve + cache the user's country in one call (cache-first, then
    * IP-API fallback). Returns the resolved alpha-2 code, or "" when even

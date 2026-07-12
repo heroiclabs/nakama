@@ -86,6 +86,7 @@ services:
           --database.address root@cockroachdb:26257 \
           --logger.level INFO \
           --session.token_expiry_sec 43200 \
+          --session.refresh_token_expiry_sec 2592000 \
           --metrics.prometheus_port 9100 \
           --runtime.path /nakama/data/data/modules \
           $$RUNTIME_ENV_FLAGS

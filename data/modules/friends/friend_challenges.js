@@ -78,6 +78,11 @@ function _fcUuidValid(id) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
+function _fcFriendRows(page) {
+    if (Array.isArray(page)) return page;
+    return (page && Array.isArray(page.friends)) ? page.friends : [];
+}
+
 function _fcNowIso() { return new Date().toISOString(); }
 function _fcNowMs()  { return Date.now(); }
 
@@ -153,9 +158,10 @@ function _fcAreFriends(nk, callerId, targetId) {
         // to confirmed friends only, which is materially cheaper than fetching
         // every relationship and filtering.
         var page = nk.friendsList(callerId, 1000, FCF_STATE_FRIEND, null);
-        if (page && page.friends) {
-            for (var i = 0; i < page.friends.length; i++) {
-                var fr = page.friends[i];
+        var friends = _fcFriendRows(page);
+        if (friends.length > 0) {
+            for (var i = 0; i < friends.length; i++) {
+                var fr = friends[i];
                 if (fr && fr.user && fr.user.id === targetId) return true;
             }
         }
