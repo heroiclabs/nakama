@@ -766,12 +766,12 @@ namespace LegacyChat {
   export function register(initializer: nkruntime.Initializer): void {
     // withCleanAuthError wraps a handler once at registration time, but when
     // register() is auto-invoked at IIFE scope by the postbuild script,
-    // RpcHelpers may not be initialised yet — it lives in a later IIFE and
-    // 'legacy' sorts before 'shared' on Linux (case-sensitive readdir), so an
-    // eager RpcHelpers.withCleanAuthError(...) here throws at startup and
-    // takes down the entire JS runtime (deploy gha66 failure). Use a lazy
-    // wrapper (same pattern as hermes.ts / quests/quest_engine.ts) so the
-    // wrap is deferred to first-call time.
+    // RpcHelpers may not be initialised yet — LegacyChat sorts before
+    // shared/rpc-helpers on Linux (case-sensitive readdir). An eager
+    // RpcHelpers.withCleanAuthError(...) here throws at startup and takes
+    // down the entire JS runtime (GHA run 29118582453 / e3c96bd):
+    //   TypeError: Cannot read property 'withCleanAuthError' of undefined
+    // Use a lazy wrapper (same pattern as hermes.ts / quest_engine.ts).
     type StrictRpc = (ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string) => string;
     function auth(fn: nkruntime.RpcFunction): nkruntime.RpcFunction {
       var wrapped: StrictRpc | null = null;
@@ -785,6 +785,7 @@ namespace LegacyChat {
         return wrapped(ctx, logger, nk, payload);
       };
     }
+
     initializer.registerRpc("send_group_chat_message", rpcSendGroupChatMessage);
     initializer.registerRpc("send_direct_message", rpcSendDirectMessage);
     initializer.registerRpc("send_chat_room_message", rpcSendChatRoomMessage);

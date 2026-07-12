@@ -121,18 +121,39 @@ namespace IntelliverseNearbyPlayers {
   ): { [id: string]: boolean } {
     var excluded: { [id: string]: boolean } = {};
     try {
-      var resp = nk.friendsList(userId, 1000, undefined as any, undefined as any);
-      if (resp && resp.friends) {
-        for (var i = 0; i < resp.friends.length; i++) {
-          var fr: any = resp.friends[i];
-          if (!fr || !fr.user) continue;
-          var s: any = (fr.state && typeof fr.state === "object" && "value" in fr.state)
-            ? fr.state.value
-            : fr.state;
-          if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
-              s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
-            excluded[fr.user.id] = true;
+      var resp = nk.friendsList(userId, 1000, null as any, null as any);
+      var list: any[] = [];
+      if (resp && resp.friends && resp.friends.length) list = resp.friends as any[];
+      else if (Array.isArray(resp as any)) list = resp as any;
+      if (list.length === 0) {
+        try {
+          var rows = nk.sqlQuery(
+            "SELECT destination_id AS friend_id, state AS edge_state FROM user_edge WHERE source_id = $1 LIMIT 1000",
+            [userId]
+          ) as any[];
+          if (rows) {
+            for (var ri = 0; ri < rows.length; ri++) {
+              var row: any = rows[ri];
+              if (!row || !row.friend_id) continue;
+              list.push({
+                user: { id: String(row.friend_id) },
+                state: (typeof row.edge_state === "number")
+                  ? row.edge_state
+                  : parseInt(String(row.edge_state || 0), 10)
+              });
+            }
           }
+        } catch (_) { /* degrade */ }
+      }
+      for (var i = 0; i < list.length; i++) {
+        var fr: any = list[i];
+        if (!fr || !fr.user) continue;
+        var s: any = (fr.state && typeof fr.state === "object" && "value" in fr.state)
+          ? fr.state.value
+          : fr.state;
+        if (s === STATE_FRIEND || s === STATE_INVITE_SENT ||
+            s === STATE_INVITE_RECEIVED || s === STATE_BLOCKED) {
+          if (fr.user.id) excluded[fr.user.id] = true;
         }
       }
     } catch (e: any) {
