@@ -316,12 +316,17 @@ namespace QuestEngine {
         category: qConfig.category || null,
         unlocked: unlocked,
         hidden: !!qConfig.hidden,
+        repeatable: !!qConfig.repeatable,
         steps: stepsOut,
         startedAt: progress.startedAt,
         completedAt: progress.completedAt,
         claimedAt: progress.claimedAt,
         expiresAt: qConfig.expiresAt || null,
         resetCount: progress.resetCount,
+        // Guaranteed-only preview so clients can render "you'll earn X" without
+        // ever needing their own copy of the reward config. Weighted/random
+        // rewards stay unexposed until granted, so surprises stay surprises.
+        rewardPreview: (qConfig.reward && qConfig.reward.guaranteed) ? qConfig.reward.guaranteed : null,
         additionalProperties: qConfig.additionalProperties || null
       });
     }
