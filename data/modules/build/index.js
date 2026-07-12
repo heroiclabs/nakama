@@ -62191,6 +62191,44 @@ var SatoriCreatorEvents;
         var ratio = Math.max(0, Math.min(1, (capMs - elapsedMs) / capMs));
         return Math.floor(maxSpeedBonus * ratio);
     }
+    function hasSubmitAnswerPayload(data) {
+        if (!data || typeof data !== "object")
+            return false;
+        if (data.answer !== undefined && data.answer !== null && String(data.answer).trim() !== "")
+            return true;
+        var answers = Array.isArray(data.answers) ? data.answers : (Array.isArray(data.qAnswers) ? data.qAnswers : null);
+        return !!(answers && answers.length > 0);
+    }
+    function eventDefinitionForScoring(def, questions) {
+        var copy = {};
+        for (var k in def) {
+            if (Object.prototype.hasOwnProperty.call(def, k))
+                copy[k] = def[k];
+        }
+        copy.questions = questions;
+        return copy;
+    }
+    /** Multi-round Best Guess stores rounds[] in storage; derive questions[] for scoring. */
+    function questionsFromBestGuessRounds(def) {
+        var rounds = def.rounds;
+        if (!rounds || !rounds.length || rounds.length <= 1)
+            return [];
+        var out = [];
+        for (var i = 0; i < rounds.length; i++) {
+            var round = rounds[i];
+            if (!round)
+                continue;
+            var ans = String(round.answer || "").trim();
+            if (!ans)
+                continue;
+            out.push({
+                question: String(round.question || ("Question " + (i + 1))).trim(),
+                answer: ans,
+                acceptedAnswers: Array.isArray(round.acceptedAnswers) ? round.acceptedAnswers : undefined,
+            });
+        }
+        return out;
+    }
     function scoreQuestionSet(def, data, nowMs) {
         var questions = def.questions || [];
         if (!questions || questions.length === 0) {
@@ -62396,16 +62434,33 @@ var SatoriCreatorEvents;
             return RpcHelpers.errorResponse(windowError);
         var mode = String(def.gameMode || "best_guess").toLowerCase();
         if (mode === "speed_quiz" || mode === "elimination") {
-            var hasAnswerArray = Array.isArray(data.answers) || Array.isArray(data.qAnswers);
-            if (!hasAnswerArray && (data.answer === undefined || data.answer === null))
+            if (!hasSubmitAnswerPayload(data))
                 return RpcHelpers.errorResponse("answers required");
         }
-        else if (data.answer === undefined || data.answer === null) {
+        else if (!hasSubmitAnswerPayload(data)) {
             return RpcHelpers.errorResponse("answer required");
         }
-        var scoreResult = (mode === "speed_quiz" || mode === "elimination")
-            ? scoreQuestionSet(def, data, nowMs)
-            : scoreBestGuess(def, data.answer, nowMs);
+        var scoreResult;
+        if (mode === "speed_quiz" || mode === "elimination") {
+            scoreResult = scoreQuestionSet(def, data, nowMs);
+        }
+        else if (mode === "best_guess") {
+            var bgQuestions = def.questions && def.questions.length > 1 ? def.questions : questionsFromBestGuessRounds(def);
+            var hasMultiAnswers = (Array.isArray(data.answers) && data.answers.length > 0)
+                || (Array.isArray(data.qAnswers) && data.qAnswers.length > 0);
+            if (bgQuestions.length > 1 && hasMultiAnswers) {
+                var scoringDef = (!def.questions || def.questions.length <= 1)
+                    ? eventDefinitionForScoring(def, bgQuestions)
+                    : def;
+                scoreResult = scoreQuestionSet(scoringDef, data, nowMs);
+            }
+            else {
+                scoreResult = scoreBestGuess(def, data.answer, nowMs);
+            }
+        }
+        else {
+            scoreResult = scoreBestGuess(def, data.answer, nowMs);
+        }
         if (scoreResult.error)
             return RpcHelpers.errorResponse(scoreResult.error);
         var answerRecord = {
