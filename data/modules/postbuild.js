@@ -886,6 +886,46 @@ var MATCH_HANDLERS = [
   mpKernelTemplate('mixed-reality-anchor-v1', 'mpMrAnchorMatchInit')
 ];
 
+// ─── 5b-bis. Realtime / group after-hook registration ─────────────
+//
+// Same AST-walker constraints as registerMatch (section 5b): Nakama only
+// finds registerRtBefore/registerRtAfter/registerAfterJoinGroup/
+// registerAfterLeaveGroup calls that are direct statements in InitModule's
+// body (or in try blocks within it), and the function argument must be an
+// Identifier resolving on the global object.
+//
+// Both prior call sites violated this and failed on EVERY boot:
+//   • LegacyChat.register() → registerRtBefore/After("ChannelMessageSend")
+//     — nested in a helper, threw "js realtime registerRtBefore hook
+//     function key could not be extracted: not found", which ALSO aborted
+//     main.ts's shared legacy try-block (quests-economy bridge, multi-game,
+//     storage, analytics retention, gift cards, coupons never registered).
+//   • main.ts → registerAfterJoinGroup/LeaveGroup — lived in the function
+//     postbuild renames to __OriginalInitModule, which the walker ignores.
+//
+// HOOK_HANDLERS entries reference top-level global functions:
+// rt wrappers live in zz_realtime_hook_handlers.js (delegate to LegacyChat),
+// group hooks are declared directly in groups/groups.js.
+var HOOK_HANDLERS = [
+  { register: 'registerRtBefore',        msgName: 'ChannelMessageSend', fn: 'rtBeforeChannelMessageSendHook' },
+  { register: 'registerRtAfter',         msgName: 'ChannelMessageSend', fn: 'rtAfterChannelMessageSendHook' },
+  { register: 'registerAfterJoinGroup',  msgName: null,                 fn: 'groupAfterJoinHook' },
+  { register: 'registerAfterLeaveGroup', msgName: null,                 fn: 'groupAfterLeaveHook' }
+];
+
+var hookRegistrationLines = HOOK_HANDLERS.map(function(h) {
+  var args = h.msgName === null ? h.fn : '"' + h.msgName + '", ' + h.fn;
+  var label = h.register + (h.msgName ? '(' + h.msgName + ')' : '');
+  return [
+    '  try {',
+    '    initializer.' + h.register + '(' + args + ');',
+    '    logger.info("[Postbuild] Registered hook: ' + label + ' -> ' + h.fn + '");',
+    '  } catch(e) {',
+    '    try { logger.error("[Postbuild] ' + label + ' failed: " + (e && e.message ? e.message : String(e))); } catch(_) {}',
+    '  }'
+  ].join('\n');
+}).join('\n');
+
 var matchRegistrationLines = MATCH_HANDLERS.map(function(m) {
   var props = Object.keys(m.handlers).map(function(h) {
     return '      ' + h + ': ' + m.handlers[h];
@@ -934,6 +974,8 @@ var newInitModule = [
   registrationLines,
   '  // --- Match handler registrations (see section 5b in postbuild.js) ---',
   matchRegistrationLines,
+  '  // --- Realtime / group hook registrations (see section 5b-bis) ---',
+  hookRegistrationLines,
   '  logger.info("[Postbuild] Registered " + ' + rpcEntries.length + ' + " RPCs via AST-compatible wrapper (' + RPC_ALIAS_OVERRIDES.length + ' aliases applied, ' + MATCH_HANDLERS.length + ' match handlers)");',
   '}',
   ''

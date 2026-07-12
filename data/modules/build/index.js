@@ -427,30 +427,15 @@ function InitModule(ctx, logger, nk, initializer) {
         SocialLeagues.register(initializer);
         SocialEngagementExtras.register(initializer);
         // ── Group membership cross-device sync hooks ──────────────────────────
-        // After a successful built-in JoinGroup / LeaveGroup, send the acting user
-        // a self-notification (code 500 / 501) so ALL of their open sockets — i.e.
-        // their other devices — refresh "My Groups" in real time. Without this,
-        // only the device that performed the action knows the membership changed.
-        // Handlers live in data/modules/groups/groups.js (global scope).
-        try {
-            if (typeof groupAfterJoinHook === "function") {
-                initializer.registerAfterJoinGroup(groupAfterJoinHook);
-                logger.info("[Groups] registerAfterJoinGroup hook installed (cross-device sync, code 500)");
-            }
-            else {
-                logger.warn("[Groups] groupAfterJoinHook not found — cross-device join sync disabled");
-            }
-            if (typeof groupAfterLeaveHook === "function") {
-                initializer.registerAfterLeaveGroup(groupAfterLeaveHook);
-                logger.info("[Groups] registerAfterLeaveGroup hook installed (cross-device sync, code 501)");
-            }
-            else {
-                logger.warn("[Groups] groupAfterLeaveHook not found — cross-device leave sync disabled");
-            }
-        }
-        catch (err) {
-            logger.error("[Groups] Failed to install group membership sync hooks: " + (err && err.message ? err.message : String(err)));
-        }
+        // NB: registerAfterJoinGroup / registerAfterLeaveGroup are NOT called
+        // here. postbuild renames this function to __OriginalInitModule, and
+        // Nakama's AST walker only inspects the body of the FINAL `InitModule`
+        // declaration — so any hook registration placed here fails at runtime
+        // with "js registerAfterJoinGroup function key could not be extracted:
+        // not found" (it did, on every boot). The registrations are emitted by
+        // postbuild.js (section 5b-bis) into its generated InitModule wrapper,
+        // pointing at the global groupAfterJoinHook / groupAfterLeaveHook
+        // declared in data/modules/groups/groups.js.
         logger.info("[Legacy] Registering push RPCs...");
         LegacyPush.register(initializer);
         logger.info("[Legacy] Registering notification scheduler match...");
@@ -34943,6 +34928,8 @@ var LegacyChat;
     // nk.channelMessageSend() calls do NOT trigger this hook, so there is no
     // double-push risk with the RPCs. We read the resolved target from the
     // output ack (groupId / userIdOne / userIdTwo); the input channelId is opaque.
+    // Exported: invoked via the global rtAfterChannelMessageSendHook wrapper in
+    // zz_realtime_hook_handlers.js (see beforeChannelMessageSend note below).
     function afterChannelMessageSend(ctx, logger, nk, output, input) {
         try {
             var ack = output ? output.channelMessageSend : null;
@@ -34991,6 +34978,7 @@ var LegacyChat;
             logger.warn("[Chat] afterChannelMessageSend push failed: %s", e && e.message ? e.message : String(e));
         }
     }
+    LegacyChat.afterChannelMessageSend = afterChannelMessageSend;
     function rpcSendGroupChatMessage(ctx, logger, nk, payload) {
         try {
             var userId = RpcHelpers.requireUserId(ctx);
@@ -35364,6 +35352,11 @@ var LegacyChat;
     // see it, unread counts can't be derived, and history RPCs return nothing.
     // Clients sometimes omit `persist` or send it false; we override server-side
     // so durability is not client-dependent.
+    // Exported: invoked via the global rtBeforeChannelMessageSendHook wrapper in
+    // zz_realtime_hook_handlers.js. Registration lives in postbuild's InitModule
+    // wrapper — Nakama's AST walker only sees register calls that are direct
+    // statements in InitModule's body, so registering from here never worked
+    // ("js realtime registerRtBefore hook function key could not be extracted").
     function beforeChannelMessageSend(ctx, logger, nk, envelope) {
         var msg = envelope ? envelope.channelMessageSend : null;
         if (msg) {
@@ -35377,10 +35370,7 @@ var LegacyChat;
         }
         return envelope;
     }
-    function registerRealtimeHooks(initializer) {
-        initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
-        initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
-    }
+    LegacyChat.beforeChannelMessageSend = beforeChannelMessageSend;
     function register(initializer) {
         function auth(fn) {
             var wrapped = null;
@@ -35409,12 +35399,15 @@ var LegacyChat;
         initializer.registerRpc("mark_direct_messages_read", rpcMarkDirectMessagesRead);
         initializer.registerRpc("mark_group_messages_read", auth(rpcMarkGroupMessagesRead));
         initializer.registerRpc("get_unread_counts", auth(rpcGetUnreadCounts));
-        // Force durable persistence for realtime chat (offline delivery + history +
-        // unread counts), then push-notify after the message lands. postbuild also
-        // invokes register() without an initializer on every pooled Goja VM to bind
-        // RPC stubs; only the real InitModule call may install realtime hooks.
-        if (initializer)
-            registerRealtimeHooks(initializer);
+        // NB: the ChannelMessageSend realtime hooks are NOT registered here.
+        // Nakama's AST walker can't see register calls nested inside helper
+        // functions, so registering from register() always failed with
+        // "js realtime registerRtBefore hook function key could not be
+        // extracted: not found" — which also aborted every legacy registration
+        // after LegacyChat in main.ts (quests-economy bridge, multi-game,
+        // storage, analytics retention, gift cards, coupons). Registration now
+        // happens in postbuild's InitModule wrapper via the global wrappers in
+        // zz_realtime_hook_handlers.js.
     }
     LegacyChat.register = register;
 })(LegacyChat || (LegacyChat = {}));
@@ -54718,12 +54711,17 @@ var QuestEngine;
                 category: qConfig.category || null,
                 unlocked: unlocked,
                 hidden: !!qConfig.hidden,
+                repeatable: !!qConfig.repeatable,
                 steps: stepsOut,
                 startedAt: progress.startedAt,
                 completedAt: progress.completedAt,
                 claimedAt: progress.claimedAt,
                 expiresAt: qConfig.expiresAt || null,
                 resetCount: progress.resetCount,
+                // Guaranteed-only preview so clients can render "you'll earn X" without
+                // ever needing their own copy of the reward config. Weighted/random
+                // rewards stay unexposed until granted, so surprises stay surprises.
+                rewardPreview: (qConfig.reward && qConfig.reward.guaranteed) ? qConfig.reward.guaranteed : null,
                 additionalProperties: qConfig.additionalProperties || null
             });
         }
@@ -62809,7 +62807,16 @@ var SatoriCreatorEvents;
         }
     }
     function rpcCreate(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
+        // Allow server-to-server calls (Content Factory / n8n via http_key) — same
+        // pattern as rpcUpdatePromo. Unauthenticated calls without admin key are rejected.
+        var userId = ctx.userId || "";
+        var isServerCall = !userId;
+        if (isServerCall && !isAdminCtx(ctx, nk)) {
+            return RpcHelpers.errorResponse("AUTH_REQUIRED: sign in or use admin http_key");
+        }
+        if (isServerCall) {
+            userId = Constants.SYSTEM_USER_ID;
+        }
         var data = RpcHelpers.parseRpcPayload(payload);
         if (!data.title)
             return RpcHelpers.errorResponse("title required");
@@ -62904,8 +62911,16 @@ var SatoriCreatorEvents;
         }
     }
     function rpcPublish(ctx, logger, nk, payload) {
-        var userId = RpcHelpers.requireUserId(ctx);
-        var isAdmin = isAdminCtx(ctx, nk);
+        // Allow server-to-server calls (Content Factory bootstrap / n8n via http_key).
+        var userId = ctx.userId || "";
+        var isServerCall = !userId;
+        if (isServerCall && !isAdminCtx(ctx, nk)) {
+            return RpcHelpers.errorResponse("AUTH_REQUIRED: sign in or use admin http_key");
+        }
+        var isAdmin = isServerCall || isAdminCtx(ctx, nk);
+        if (isServerCall) {
+            userId = Constants.SYSTEM_USER_ID;
+        }
         var data = RpcHelpers.parseRpcPayload(payload);
         var event = null;
         // Two modes: full event object (admin path) OR eventId-only (creator path publishing own draft)

@@ -316,7 +316,9 @@ namespace LegacyChat {
   // nk.channelMessageSend() calls do NOT trigger this hook, so there is no
   // double-push risk with the RPCs. We read the resolved target from the
   // output ack (groupId / userIdOne / userIdTwo); the input channelId is opaque.
-  function afterChannelMessageSend(
+  // Exported: invoked via the global rtAfterChannelMessageSendHook wrapper in
+  // zz_realtime_hook_handlers.js (see beforeChannelMessageSend note below).
+  export function afterChannelMessageSend(
     ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
     output: nkruntime.EnvelopeChannelMessageSend | null, input: nkruntime.EnvelopeChannelMessageSend
   ): void {
@@ -742,7 +744,12 @@ namespace LegacyChat {
   // see it, unread counts can't be derived, and history RPCs return nothing.
   // Clients sometimes omit `persist` or send it false; we override server-side
   // so durability is not client-dependent.
-  function beforeChannelMessageSend(
+  // Exported: invoked via the global rtBeforeChannelMessageSendHook wrapper in
+  // zz_realtime_hook_handlers.js. Registration lives in postbuild's InitModule
+  // wrapper — Nakama's AST walker only sees register calls that are direct
+  // statements in InitModule's body, so registering from here never worked
+  // ("js realtime registerRtBefore hook function key could not be extracted").
+  export function beforeChannelMessageSend(
     ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama,
     envelope: nkruntime.EnvelopeChannelMessageSend
   ): nkruntime.EnvelopeChannelMessageSend | void {
@@ -756,11 +763,6 @@ namespace LegacyChat {
       }
     }
     return envelope;
-  }
-
-  function registerRealtimeHooks(initializer: nkruntime.Initializer): void {
-    initializer.registerRtBefore("ChannelMessageSend", beforeChannelMessageSend);
-    initializer.registerRtAfter("ChannelMessageSend", afterChannelMessageSend);
   }
 
   export function register(initializer: nkruntime.Initializer): void {
@@ -802,10 +804,14 @@ namespace LegacyChat {
     initializer.registerRpc("mark_group_messages_read", auth(rpcMarkGroupMessagesRead));
     initializer.registerRpc("get_unread_counts", auth(rpcGetUnreadCounts));
 
-    // Force durable persistence for realtime chat (offline delivery + history +
-    // unread counts), then push-notify after the message lands. postbuild also
-    // invokes register() without an initializer on every pooled Goja VM to bind
-    // RPC stubs; only the real InitModule call may install realtime hooks.
-    if (initializer) registerRealtimeHooks(initializer);
+    // NB: the ChannelMessageSend realtime hooks are NOT registered here.
+    // Nakama's AST walker can't see register calls nested inside helper
+    // functions, so registering from register() always failed with
+    // "js realtime registerRtBefore hook function key could not be
+    // extracted: not found" — which also aborted every legacy registration
+    // after LegacyChat in main.ts (quests-economy bridge, multi-game,
+    // storage, analytics retention, gift cards, coupons). Registration now
+    // happens in postbuild's InitModule wrapper via the global wrappers in
+    // zz_realtime_hook_handlers.js.
   }
 }

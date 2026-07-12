@@ -1468,7 +1468,9 @@ declare namespace LegacyAnalytics {
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyChat {
+    function afterChannelMessageSend(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, output: nkruntime.EnvelopeChannelMessageSend | null, input: nkruntime.EnvelopeChannelMessageSend): void;
     function flushFailedChatPushes(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama): void;
+    function beforeChannelMessageSend(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, envelope: nkruntime.EnvelopeChannelMessageSend): nkruntime.EnvelopeChannelMessageSend | void;
     function register(initializer: nkruntime.Initializer): void;
 }
 declare namespace LegacyCoupons {
