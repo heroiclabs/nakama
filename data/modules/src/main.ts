@@ -688,6 +688,24 @@ function InitModule(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
       logger.error("[LearnerToolbelt] failed to register: " + (err && err.message ? err.message : String(err)));
     }
 
+  // ---- LMS Bridge (LTI 1.3 — Canvas / Moodle integration) ----
+  // Nakama side of the LMS integration (docs/LMS_INTEGRATION_RESEARCH_AND_PLAN.md
+  // §5/§8): platform registry, LTI sub → Nakama user mapping (custom auth),
+  // resource-link/pack bindings, server-side grading vs quizverse_packs, the
+  // AGS grade queue + RS256 client-credentials score push worker, and the
+  // pre-parsed content import pipeline with fidelity reports. The web tier
+  // (quizverse.world) owns OIDC/JWKS/deep-link UI and calls these RPCs with
+  // LMS_BRIDGE_SERVICE_TOKEN. Single-arg register() so postbuild's
+  // autoInvokeRegister re-runs it on every pooled Goja VM.
+  // See data/modules/src/lms-bridge/lms_bridge.ts.
+  try {
+    logger.info("[LmsBridge] Registering lms_* RPCs (platforms, launch, deeplink bind, attempt grading, AGS grade push, pack import, link status)...");
+    LmsBridge.register(initializer);
+    logger.info("[LmsBridge] lms_platform_upsert/_list/_delete, lms_launch_session, lms_deeplink_bind, lms_attempt_complete, lms_grade_push, lms_import_pack, lms_link_status registered");
+  } catch (err: any) {
+    logger.error("[LmsBridge] Failed to register: " + (err && err.message ? err.message : String(err)));
+  }
+
     logger.info("[KbEnrichment] Registering KB enrichment cron RPCs (continuous derived-attribute refresh)...");
     try {
       KbEnrichment.register(initializer);

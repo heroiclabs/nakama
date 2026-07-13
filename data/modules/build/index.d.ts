@@ -1819,6 +1819,10 @@ declare namespace LibraryCountdownPlugin {
 declare namespace N8nPackStatePlugin {
     function register(initializer: nkruntime.Initializer): void;
 }
+declare namespace LmsBridge {
+    var MODULE_VERSION: string;
+    function register(initializer: nkruntime.Initializer): void;
+}
 declare namespace MpKernelAgent {
     var Op: {
         AGENT_JOINED: number;
